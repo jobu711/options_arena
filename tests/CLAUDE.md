@@ -5,7 +5,7 @@
 ```bash
 uv run pytest tests/unit -v                        # unit only
 uv run pytest tests/integration -v                 # integration only
-uv run pytest tests/ -v --cov=src/Option_Alpha     # full + coverage
+uv run pytest tests/ -v --cov=src/options_arena     # full + coverage
 uv run pytest tests/ -k "test_rsi" -v              # specific test
 ```
 

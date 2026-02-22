@@ -1,0 +1,1 @@
+"""Options Arena - Test suite."""

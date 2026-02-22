@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "options-arena"
+version = "0.1.0"
+description = "AI-powered options analysis tool for American-style U.S. equity options"
+requires-python = ">=3.13"
+dependencies = [
+    "aiosqlite>=0.22",
+    "httpx>=0.28",
+    "numpy>=2.4",
+    "ollama>=0.6",
+    "pandas>=3.0",
+    "pydantic>=2.12",
+    "pydantic-ai>=1.62",
+    "pydantic-settings>=2.13",
+    "rich>=14.3",
+    "scipy>=1.17",
+    "typer>=0.24",
+    "yfinance>=1.2",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/options_arena"]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19",
+    "pandas-stubs>=3.0",
+    "pytest>=9.0",
+    "pytest-asyncio>=1.3",
+    "pytest-cov>=7.0",
+    "ruff>=0.15",
+    "scipy-stubs>=1.17",
+]
+
+# --- Tool Configuration ---
+
+[tool.ruff]
+target-version = "py313"
+line-length = 99
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ANN"]
+
+[tool.mypy]
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
