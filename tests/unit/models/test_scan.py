@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 from options_arena.models import (
     IndicatorSignals,
+    ScanPreset,
     ScanRun,
     SignalDirection,
     TickerScore,
@@ -48,7 +49,7 @@ def sample_scan_run() -> ScanRun:
     return ScanRun(
         started_at=datetime(2025, 6, 15, 9, 30, 0, tzinfo=UTC),
         completed_at=datetime(2025, 6, 15, 9, 45, 0, tzinfo=UTC),
-        preset="full",
+        preset=ScanPreset.FULL,
         tickers_scanned=5296,
         tickers_scored=5159,
         recommendations=8,
@@ -191,7 +192,7 @@ class TestScanRun:
         """ScanRun constructs with all fields correctly assigned."""
         assert sample_scan_run.started_at == datetime(2025, 6, 15, 9, 30, 0, tzinfo=UTC)
         assert sample_scan_run.completed_at == datetime(2025, 6, 15, 9, 45, 0, tzinfo=UTC)
-        assert sample_scan_run.preset == "full"
+        assert sample_scan_run.preset == ScanPreset.FULL
         assert sample_scan_run.tickers_scanned == 5296
         assert sample_scan_run.tickers_scored == 5159
         assert sample_scan_run.recommendations == 8
@@ -205,7 +206,7 @@ class TestScanRun:
         """ScanRun id defaults to None (DB-assigned)."""
         run = ScanRun(
             started_at=datetime(2025, 6, 15, 9, 30, 0, tzinfo=UTC),
-            preset="sp500",
+            preset=ScanPreset.SP500,
             tickers_scanned=500,
             tickers_scored=480,
             recommendations=5,
@@ -216,7 +217,7 @@ class TestScanRun:
         """ScanRun completed_at defaults to None."""
         run = ScanRun(
             started_at=datetime(2025, 6, 15, 9, 30, 0, tzinfo=UTC),
-            preset="etfs",
+            preset=ScanPreset.ETFS,
             tickers_scanned=200,
             tickers_scored=190,
             recommendations=3,
@@ -229,7 +230,7 @@ class TestScanRun:
             id=42,
             started_at=datetime(2025, 6, 15, 9, 30, 0, tzinfo=UTC),
             completed_at=datetime(2025, 6, 15, 9, 45, 0, tzinfo=UTC),
-            preset="full",
+            preset=ScanPreset.FULL,
             tickers_scanned=5000,
             tickers_scored=4800,
             recommendations=10,
@@ -246,7 +247,7 @@ class TestScanRun:
         """ScanRun with default id and completed_at survives JSON roundtrip."""
         run = ScanRun(
             started_at=datetime(2025, 6, 15, 9, 30, 0, tzinfo=UTC),
-            preset="sp500",
+            preset=ScanPreset.SP500,
             tickers_scanned=500,
             tickers_scored=480,
             recommendations=5,

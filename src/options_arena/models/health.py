@@ -6,7 +6,7 @@ Single model for service health status:
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class HealthStatus(BaseModel):
@@ -24,3 +24,11 @@ class HealthStatus(BaseModel):
     latency_ms: float | None = None
     error: str | None = None
     checked_at: datetime
+
+    @field_validator("checked_at")
+    @classmethod
+    def validate_timezone_aware(cls, v: datetime) -> datetime:
+        """Ensure checked_at is timezone-aware (UTC)."""
+        if v.tzinfo is None:
+            raise ValueError("checked_at must be timezone-aware (UTC)")
+        return v

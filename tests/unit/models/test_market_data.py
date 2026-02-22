@@ -151,6 +151,18 @@ class TestQuote:
         expected = datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC)
         assert sample_quote.timestamp == expected
 
+    def test_naive_timestamp_raises(self) -> None:
+        """Quote rejects naive datetime for timestamp."""
+        with pytest.raises(ValidationError, match="timezone-aware"):
+            Quote(
+                ticker="AAPL",
+                price=Decimal("186.50"),
+                bid=Decimal("186.45"),
+                ask=Decimal("186.55"),
+                volume=12_000_000,
+                timestamp=datetime(2025, 6, 15, 14, 30, 0),  # naive
+            )
+
     def test_json_roundtrip(self, sample_quote: Quote) -> None:
         """Quote survives JSON serialization/deserialization unchanged."""
         json_str = sample_quote.model_dump_json()

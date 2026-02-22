@@ -12,7 +12,7 @@ All ``Decimal`` fields use ``field_serializer`` to prevent float precision loss 
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, field_serializer
+from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
 
 from options_arena.models.enums import DividendSource, MarketCapTier
 
@@ -56,6 +56,14 @@ class Quote(BaseModel):
     ask: Decimal
     volume: int
     timestamp: datetime
+
+    @field_validator("timestamp")
+    @classmethod
+    def validate_timezone_aware(cls, v: datetime) -> datetime:
+        """Ensure timestamp is timezone-aware (UTC)."""
+        if v.tzinfo is None:
+            raise ValueError("timestamp must be timezone-aware (UTC)")
+        return v
 
     @field_serializer("price", "bid", "ask")
     def serialize_decimal(self, v: Decimal) -> str:

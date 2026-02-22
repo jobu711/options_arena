@@ -15,7 +15,12 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
 
-from options_arena.models.enums import ExerciseStyle, SignalDirection, SpreadType
+from options_arena.models.enums import (
+    ExerciseStyle,
+    MacdSignal,
+    SignalDirection,
+    SpreadType,
+)
 
 
 class MarketContext(BaseModel):
@@ -36,7 +41,7 @@ class MarketContext(BaseModel):
     iv_percentile: float
     atm_iv_30d: float
     rsi_14: float
-    macd_signal: str  # "bullish_crossover", "bearish_crossover", "neutral"
+    macd_signal: MacdSignal
     put_call_ratio: float
     next_earnings: date | None
     dte_target: int
@@ -46,6 +51,14 @@ class MarketContext(BaseModel):
     dividend_yield: float  # decimal fraction (0.005 = 0.5%), from TickerInfo
     exercise_style: ExerciseStyle  # for pricing dispatch (BAW vs BSM)
     data_timestamp: datetime
+
+    @field_validator("data_timestamp")
+    @classmethod
+    def validate_timezone_aware(cls, v: datetime) -> datetime:
+        """Ensure data_timestamp is timezone-aware (UTC)."""
+        if v.tzinfo is None:
+            raise ValueError("data_timestamp must be timezone-aware (UTC)")
+        return v
 
     @field_serializer("current_price", "price_52w_high", "price_52w_low", "target_strike")
     def serialize_decimal(self, v: Decimal) -> str:
@@ -84,16 +97,25 @@ class TradeThesis(BaseModel):
     """Final trade recommendation produced by the debate system.
 
     Frozen (immutable after construction) -- represents a completed verdict.
+    ``confidence`` is validated to be within [0.0, 1.0].
     """
 
     model_config = ConfigDict(frozen=True)
 
     ticker: str
     direction: SignalDirection
-    confidence: float
+    confidence: float  # 0.0 to 1.0
     summary: str
     bull_score: float
     bear_score: float
     key_factors: list[str]
     risk_assessment: str
     recommended_strategy: SpreadType | None = None
+
+    @field_validator("confidence")
+    @classmethod
+    def validate_confidence(cls, v: float) -> float:
+        """Ensure confidence is within [0.0, 1.0]."""
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"confidence must be in [0, 1], got {v}")
+        return v

@@ -80,6 +80,15 @@ class TestHealthStatus:
         )
         assert status.error is None
 
+    def test_naive_checked_at_raises(self) -> None:
+        """HealthStatus rejects naive datetime for checked_at."""
+        with pytest.raises(ValidationError, match="timezone-aware"):
+            HealthStatus(
+                service_name="ollama",
+                available=True,
+                checked_at=datetime(2025, 6, 15, 14, 30, 0),  # naive
+            )
+
     def test_json_roundtrip_available(self, sample_health_available: HealthStatus) -> None:
         """HealthStatus (available) survives JSON roundtrip."""
         json_str = sample_health_available.model_dump_json()

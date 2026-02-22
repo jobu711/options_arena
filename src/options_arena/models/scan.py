@@ -14,7 +14,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from options_arena.models.enums import SignalDirection
+from options_arena.models.enums import ScanPreset, SignalDirection
 
 
 class IndicatorSignals(BaseModel):
@@ -63,7 +63,7 @@ class ScanRun(BaseModel):
 
     Frozen (immutable after construction) -- represents a completed scan snapshot.
     ``id`` is ``None`` until assigned by the database layer.
-    ``preset`` is one of ``"full"``, ``"sp500"``, ``"etfs"``.
+    ``preset`` is a ``ScanPreset`` enum: ``FULL``, ``SP500``, or ``ETFS``.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -71,7 +71,7 @@ class ScanRun(BaseModel):
     id: int | None = None  # DB-assigned
     started_at: datetime  # UTC
     completed_at: datetime | None = None
-    preset: str  # "full", "sp500", "etfs"
+    preset: ScanPreset
     tickers_scanned: int
     tickers_scored: int
     recommendations: int

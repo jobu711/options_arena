@@ -304,6 +304,40 @@ class TestOptionContract:
             assert contract.dte == expected_dte
             assert contract.dte == 33
 
+    def test_negative_market_iv_raises(self) -> None:
+        """OptionContract rejects negative market_iv with ValidationError."""
+        with pytest.raises(ValidationError, match="market_iv"):
+            OptionContract(
+                ticker="AAPL",
+                option_type=OptionType.CALL,
+                strike=Decimal("185.00"),
+                expiration=date(2025, 9, 19),
+                bid=Decimal("5.20"),
+                ask=Decimal("5.40"),
+                last=Decimal("5.30"),
+                volume=1500,
+                open_interest=8500,
+                exercise_style=ExerciseStyle.AMERICAN,
+                market_iv=-0.1,
+            )
+
+    def test_zero_market_iv_allowed(self) -> None:
+        """OptionContract accepts market_iv = 0.0 (boundary)."""
+        contract = OptionContract(
+            ticker="AAPL",
+            option_type=OptionType.CALL,
+            strike=Decimal("185.00"),
+            expiration=date(2025, 9, 19),
+            bid=Decimal("5.20"),
+            ask=Decimal("5.40"),
+            last=Decimal("5.30"),
+            volume=1500,
+            open_interest=8500,
+            exercise_style=ExerciseStyle.AMERICAN,
+            market_iv=0.0,
+        )
+        assert contract.market_iv == pytest.approx(0.0)
+
     def test_greeks_defaults_to_none(self, sample_contract: OptionContract) -> None:
         """OptionContract greeks defaults to None when not provided."""
         assert sample_contract.greeks is None
@@ -383,6 +417,24 @@ class TestSpreadLeg:
         assert leg.quantity == 5
         assert leg.side == PositionSide.SHORT
 
+    def test_zero_quantity_raises(self, sample_contract: OptionContract) -> None:
+        """SpreadLeg rejects quantity = 0 with ValidationError."""
+        with pytest.raises(ValidationError, match="quantity"):
+            SpreadLeg(
+                contract=sample_contract,
+                side=PositionSide.LONG,
+                quantity=0,
+            )
+
+    def test_negative_quantity_raises(self, sample_contract: OptionContract) -> None:
+        """SpreadLeg rejects negative quantity with ValidationError."""
+        with pytest.raises(ValidationError, match="quantity"):
+            SpreadLeg(
+                contract=sample_contract,
+                side=PositionSide.LONG,
+                quantity=-1,
+            )
+
 
 # ---------------------------------------------------------------------------
 # OptionSpread Tests
@@ -391,6 +443,15 @@ class TestSpreadLeg:
 
 class TestOptionSpread:
     """Tests for the OptionSpread model."""
+
+    def test_empty_legs_raises(self) -> None:
+        """OptionSpread rejects an empty legs list with ValidationError."""
+        with pytest.raises(ValidationError, match="legs"):
+            OptionSpread(
+                spread_type=SpreadType.VERTICAL,
+                legs=[],
+                ticker="AAPL",
+            )
 
     def test_basic_construction(self, sample_contract: OptionContract) -> None:
         """OptionSpread constructs with SpreadType and a list of legs."""

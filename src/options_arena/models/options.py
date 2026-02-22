@@ -109,6 +109,14 @@ class OptionContract(BaseModel):
     market_iv: float
     greeks: OptionGreeks | None = None
 
+    @field_validator("market_iv")
+    @classmethod
+    def validate_market_iv_non_negative(cls, v: float) -> float:
+        """Ensure market_iv is non-negative."""
+        if v < 0.0:
+            raise ValueError(f"market_iv must be >= 0, got {v}")
+        return v
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def mid(self) -> Decimal:
@@ -139,12 +147,20 @@ class SpreadLeg(BaseModel):
     Attributes:
         contract: The option contract for this leg.
         side: LONG or SHORT position.
-        quantity: Number of contracts (defaults to 1).
+        quantity: Number of contracts (defaults to 1, must be >= 1).
     """
 
     contract: OptionContract
     side: PositionSide
     quantity: int = 1
+
+    @field_validator("quantity")
+    @classmethod
+    def validate_quantity_positive(cls, v: int) -> int:
+        """Ensure quantity is at least 1."""
+        if v < 1:
+            raise ValueError(f"quantity must be >= 1, got {v}")
+        return v
 
 
 class OptionSpread(BaseModel):
@@ -152,10 +168,18 @@ class OptionSpread(BaseModel):
 
     Attributes:
         spread_type: Type of spread (vertical, calendar, iron condor, etc.).
-        legs: List of spread legs composing this strategy.
+        legs: List of spread legs composing this strategy (at least 1).
         ticker: Underlying ticker symbol.
     """
 
     spread_type: SpreadType
     legs: list[SpreadLeg]
     ticker: str
+
+    @field_validator("legs")
+    @classmethod
+    def validate_legs_not_empty(cls, v: list[SpreadLeg]) -> list[SpreadLeg]:
+        """Ensure at least one leg in the spread."""
+        if len(v) < 1:
+            raise ValueError("legs must contain at least 1 spread leg")
+        return v

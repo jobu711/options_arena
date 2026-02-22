@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from options_arena.models import (
     AgentResponse,
     ExerciseStyle,
+    MacdSignal,
     MarketContext,
     SignalDirection,
     SpreadType,
@@ -40,7 +41,7 @@ def sample_market_context() -> MarketContext:
         iv_percentile=52.0,
         atm_iv_30d=0.28,
         rsi_14=42.0,
-        macd_signal="bullish_crossover",
+        macd_signal=MacdSignal.BULLISH_CROSSOVER,
         put_call_ratio=0.85,
         next_earnings=date(2025, 7, 24),
         dte_target=45,
@@ -101,7 +102,7 @@ class TestMarketContext:
         assert sample_market_context.iv_percentile == pytest.approx(52.0)
         assert sample_market_context.atm_iv_30d == pytest.approx(0.28)
         assert sample_market_context.rsi_14 == pytest.approx(42.0)
-        assert sample_market_context.macd_signal == "bullish_crossover"
+        assert sample_market_context.macd_signal == MacdSignal.BULLISH_CROSSOVER
         assert sample_market_context.put_call_ratio == pytest.approx(0.85)
         assert sample_market_context.next_earnings == date(2025, 7, 24)
         assert sample_market_context.dte_target == 45
@@ -129,7 +130,7 @@ class TestMarketContext:
             iv_percentile=65.0,
             atm_iv_30d=0.55,
             rsi_14=50.0,
-            macd_signal="neutral",
+            macd_signal=MacdSignal.NEUTRAL,
             put_call_ratio=1.0,
             next_earnings=None,
             dte_target=45,
@@ -141,6 +142,30 @@ class TestMarketContext:
             data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
         )
         assert ctx.next_earnings is None
+
+    def test_naive_timestamp_raises(self) -> None:
+        """MarketContext rejects naive datetime for data_timestamp."""
+        with pytest.raises(ValidationError, match="timezone-aware"):
+            MarketContext(
+                ticker="AAPL",
+                current_price=Decimal("186.50"),
+                price_52w_high=Decimal("199.62"),
+                price_52w_low=Decimal("164.08"),
+                iv_rank=45.0,
+                iv_percentile=52.0,
+                atm_iv_30d=0.28,
+                rsi_14=42.0,
+                macd_signal=MacdSignal.BULLISH_CROSSOVER,
+                put_call_ratio=0.85,
+                next_earnings=None,
+                dte_target=45,
+                target_strike=Decimal("185.00"),
+                target_delta=0.35,
+                sector="Technology",
+                dividend_yield=0.005,
+                exercise_style=ExerciseStyle.AMERICAN,
+                data_timestamp=datetime(2025, 6, 15, 14, 30, 0),  # naive
+            )
 
     def test_json_roundtrip(self, sample_market_context: MarketContext) -> None:
         """MarketContext survives JSON serialization/deserialization unchanged."""
@@ -259,6 +284,62 @@ class TestTradeThesis:
         """TradeThesis is frozen: attribute reassignment raises ValidationError."""
         with pytest.raises(ValidationError):
             sample_trade_thesis.ticker = "MSFT"  # type: ignore[misc]
+
+    def test_confidence_too_high_raises(self) -> None:
+        """TradeThesis rejects confidence > 1.0 with ValidationError."""
+        with pytest.raises(ValidationError, match="confidence"):
+            TradeThesis(
+                ticker="AAPL",
+                direction=SignalDirection.BULLISH,
+                confidence=1.5,
+                summary="Test summary.",
+                bull_score=7.5,
+                bear_score=4.2,
+                key_factors=["factor"],
+                risk_assessment="Low risk.",
+            )
+
+    def test_confidence_too_low_raises(self) -> None:
+        """TradeThesis rejects confidence < 0.0 with ValidationError."""
+        with pytest.raises(ValidationError, match="confidence"):
+            TradeThesis(
+                ticker="AAPL",
+                direction=SignalDirection.BEARISH,
+                confidence=-0.1,
+                summary="Test summary.",
+                bull_score=3.0,
+                bear_score=6.0,
+                key_factors=["factor"],
+                risk_assessment="Moderate risk.",
+            )
+
+    def test_confidence_boundary_zero(self) -> None:
+        """TradeThesis accepts confidence = 0.0 (lower boundary)."""
+        thesis = TradeThesis(
+            ticker="AAPL",
+            direction=SignalDirection.NEUTRAL,
+            confidence=0.0,
+            summary="No conviction.",
+            bull_score=5.0,
+            bear_score=5.0,
+            key_factors=[],
+            risk_assessment="Uncertain.",
+        )
+        assert thesis.confidence == pytest.approx(0.0)
+
+    def test_confidence_boundary_one(self) -> None:
+        """TradeThesis accepts confidence = 1.0 (upper boundary)."""
+        thesis = TradeThesis(
+            ticker="AAPL",
+            direction=SignalDirection.BULLISH,
+            confidence=1.0,
+            summary="Maximum conviction.",
+            bull_score=10.0,
+            bear_score=0.0,
+            key_factors=["strong signal"],
+            risk_assessment="Low risk.",
+        )
+        assert thesis.confidence == pytest.approx(1.0)
 
     def test_recommended_strategy_defaults_to_none(self) -> None:
         """TradeThesis recommended_strategy defaults to None."""

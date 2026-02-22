@@ -88,6 +88,32 @@ class SpreadType(StrEnum):
     BUTTERFLY = "butterfly"
 
 
+class MacdSignal(StrEnum):
+    """MACD crossover signal for market context.
+
+    BULLISH_CROSSOVER — MACD line crossed above signal line.
+    BEARISH_CROSSOVER — MACD line crossed below signal line.
+    NEUTRAL           — no recent crossover.
+    """
+
+    BULLISH_CROSSOVER = "bullish_crossover"
+    BEARISH_CROSSOVER = "bearish_crossover"
+    NEUTRAL = "neutral"
+
+
+class ScanPreset(StrEnum):
+    """Scan universe preset for the scan pipeline.
+
+    FULL  — full CBOE optionable universe.
+    SP500 — S&P 500 constituents only.
+    ETFS  — ETFs only.
+    """
+
+    FULL = "full"
+    SP500 = "sp500"
+    ETFS = "etfs"
+
+
 class GreeksSource(StrEnum):
     """Source of Greeks values on an option contract.
 

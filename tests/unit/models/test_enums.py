@@ -14,10 +14,12 @@ from options_arena.models import (
     DividendSource,
     ExerciseStyle,
     GreeksSource,
+    MacdSignal,
     MarketCapTier,
     OptionType,
     PositionSide,
     PricingModel,
+    ScanPreset,
     SignalDirection,
     SpreadType,
 )
@@ -254,6 +256,62 @@ class TestSpreadType:
         assert str(SpreadType.STRADDLE) == "straddle"
         assert str(SpreadType.STRANGLE) == "strangle"
         assert str(SpreadType.BUTTERFLY) == "butterfly"
+
+
+# ---------------------------------------------------------------------------
+# MacdSignal (3 members)
+# ---------------------------------------------------------------------------
+
+
+class TestMacdSignal:
+    def test_macd_signal_has_exactly_three_members(self) -> None:
+        assert len(MacdSignal) == 3
+
+    def test_macd_signal_values_are_lowercase(self) -> None:
+        assert MacdSignal.BULLISH_CROSSOVER == "bullish_crossover"
+        assert MacdSignal.BEARISH_CROSSOVER == "bearish_crossover"
+        assert MacdSignal.NEUTRAL == "neutral"
+
+    def test_macd_signal_is_str_enum(self) -> None:
+        assert issubclass(MacdSignal, StrEnum)
+
+    def test_macd_signal_exhaustive_iteration(self) -> None:
+        assert set(MacdSignal) == {
+            MacdSignal.BULLISH_CROSSOVER,
+            MacdSignal.BEARISH_CROSSOVER,
+            MacdSignal.NEUTRAL,
+        }
+
+    def test_macd_signal_string_serialization(self) -> None:
+        assert str(MacdSignal.BULLISH_CROSSOVER) == "bullish_crossover"
+        assert str(MacdSignal.BEARISH_CROSSOVER) == "bearish_crossover"
+        assert str(MacdSignal.NEUTRAL) == "neutral"
+
+
+# ---------------------------------------------------------------------------
+# ScanPreset (3 members)
+# ---------------------------------------------------------------------------
+
+
+class TestScanPreset:
+    def test_scan_preset_has_exactly_three_members(self) -> None:
+        assert len(ScanPreset) == 3
+
+    def test_scan_preset_values_are_lowercase(self) -> None:
+        assert ScanPreset.FULL == "full"
+        assert ScanPreset.SP500 == "sp500"
+        assert ScanPreset.ETFS == "etfs"
+
+    def test_scan_preset_is_str_enum(self) -> None:
+        assert issubclass(ScanPreset, StrEnum)
+
+    def test_scan_preset_exhaustive_iteration(self) -> None:
+        assert set(ScanPreset) == {ScanPreset.FULL, ScanPreset.SP500, ScanPreset.ETFS}
+
+    def test_scan_preset_string_serialization(self) -> None:
+        assert str(ScanPreset.FULL) == "full"
+        assert str(ScanPreset.SP500) == "sp500"
+        assert str(ScanPreset.ETFS) == "etfs"
 
 
 # ---------------------------------------------------------------------------
