@@ -7,7 +7,7 @@ Tests cover:
 - JSON serialization roundtrip
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 from pydantic import ValidationError
@@ -201,6 +201,42 @@ class TestScanRun:
         """ScanRun is frozen: attribute reassignment raises ValidationError."""
         with pytest.raises(ValidationError):
             sample_scan_run.preset = "sp500"  # type: ignore[misc]
+
+    def test_naive_started_at_raises(self) -> None:
+        """ScanRun rejects naive datetime for started_at."""
+        with pytest.raises(ValidationError, match="UTC"):
+            ScanRun(
+                started_at=datetime(2025, 6, 15, 9, 30, 0),  # naive
+                preset=ScanPreset.FULL,
+                tickers_scanned=100,
+                tickers_scored=90,
+                recommendations=5,
+            )
+
+    def test_non_utc_started_at_raises(self) -> None:
+        """ScanRun rejects non-UTC timezone for started_at."""
+        est = timezone(timedelta(hours=-5))
+        with pytest.raises(ValidationError, match="UTC"):
+            ScanRun(
+                started_at=datetime(2025, 6, 15, 9, 30, 0, tzinfo=est),
+                preset=ScanPreset.FULL,
+                tickers_scanned=100,
+                tickers_scored=90,
+                recommendations=5,
+            )
+
+    def test_non_utc_completed_at_raises(self) -> None:
+        """ScanRun rejects non-UTC timezone for completed_at."""
+        est = timezone(timedelta(hours=-5))
+        with pytest.raises(ValidationError, match="UTC"):
+            ScanRun(
+                started_at=datetime(2025, 6, 15, 9, 30, 0, tzinfo=UTC),
+                completed_at=datetime(2025, 6, 15, 9, 45, 0, tzinfo=est),
+                preset=ScanPreset.FULL,
+                tickers_scanned=100,
+                tickers_scored=90,
+                recommendations=5,
+            )
 
     def test_id_defaults_to_none(self) -> None:
         """ScanRun id defaults to None (DB-assigned)."""

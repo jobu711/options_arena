@@ -9,7 +9,7 @@ All models are ``frozen=True`` (immutable after construction).
 All ``Decimal`` fields use ``field_serializer`` to prevent float precision loss in JSON.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
@@ -59,10 +59,10 @@ class Quote(BaseModel):
 
     @field_validator("timestamp")
     @classmethod
-    def validate_timezone_aware(cls, v: datetime) -> datetime:
-        """Ensure timestamp is timezone-aware (UTC)."""
-        if v.tzinfo is None:
-            raise ValueError("timestamp must be timezone-aware (UTC)")
+    def validate_utc(cls, v: datetime) -> datetime:
+        """Ensure timestamp is UTC."""
+        if v.tzinfo is None or v.utcoffset() != timedelta(0):
+            raise ValueError("timestamp must be UTC")
         return v
 
     @field_serializer("price", "bid", "ask")

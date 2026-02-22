@@ -4,7 +4,7 @@ Single model for service health status:
   HealthStatus -- frozen snapshot of a service's availability.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -27,8 +27,8 @@ class HealthStatus(BaseModel):
 
     @field_validator("checked_at")
     @classmethod
-    def validate_timezone_aware(cls, v: datetime) -> datetime:
-        """Ensure checked_at is timezone-aware (UTC)."""
-        if v.tzinfo is None:
-            raise ValueError("checked_at must be timezone-aware (UTC)")
+    def validate_utc(cls, v: datetime) -> datetime:
+        """Ensure checked_at is UTC."""
+        if v.tzinfo is None or v.utcoffset() != timedelta(0):
+            raise ValueError("checked_at must be UTC")
         return v

@@ -8,7 +8,7 @@ Tests cover:
 - JSON serialization roundtrip
 """
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
@@ -153,7 +153,7 @@ class TestQuote:
 
     def test_naive_timestamp_raises(self) -> None:
         """Quote rejects naive datetime for timestamp."""
-        with pytest.raises(ValidationError, match="timezone-aware"):
+        with pytest.raises(ValidationError, match="UTC"):
             Quote(
                 ticker="AAPL",
                 price=Decimal("186.50"),
@@ -161,6 +161,19 @@ class TestQuote:
                 ask=Decimal("186.55"),
                 volume=12_000_000,
                 timestamp=datetime(2025, 6, 15, 14, 30, 0),  # naive
+            )
+
+    def test_non_utc_timestamp_raises(self) -> None:
+        """Quote rejects non-UTC timezone for timestamp."""
+        est = timezone(timedelta(hours=-5))
+        with pytest.raises(ValidationError, match="UTC"):
+            Quote(
+                ticker="AAPL",
+                price=Decimal("186.50"),
+                bid=Decimal("186.45"),
+                ask=Decimal("186.55"),
+                volume=12_000_000,
+                timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=est),
             )
 
     def test_json_roundtrip(self, sample_quote: Quote) -> None:

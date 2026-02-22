@@ -8,7 +8,7 @@ Tests cover:
 - JSON serialization roundtrip
 """
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
@@ -145,7 +145,7 @@ class TestMarketContext:
 
     def test_naive_timestamp_raises(self) -> None:
         """MarketContext rejects naive datetime for data_timestamp."""
-        with pytest.raises(ValidationError, match="timezone-aware"):
+        with pytest.raises(ValidationError, match="UTC"):
             MarketContext(
                 ticker="AAPL",
                 current_price=Decimal("186.50"),
@@ -165,6 +165,31 @@ class TestMarketContext:
                 dividend_yield=0.005,
                 exercise_style=ExerciseStyle.AMERICAN,
                 data_timestamp=datetime(2025, 6, 15, 14, 30, 0),  # naive
+            )
+
+    def test_non_utc_timestamp_raises(self) -> None:
+        """MarketContext rejects non-UTC timezone for data_timestamp."""
+        est = timezone(timedelta(hours=-5))
+        with pytest.raises(ValidationError, match="UTC"):
+            MarketContext(
+                ticker="AAPL",
+                current_price=Decimal("186.50"),
+                price_52w_high=Decimal("199.62"),
+                price_52w_low=Decimal("164.08"),
+                iv_rank=45.0,
+                iv_percentile=52.0,
+                atm_iv_30d=0.28,
+                rsi_14=42.0,
+                macd_signal=MacdSignal.BULLISH_CROSSOVER,
+                put_call_ratio=0.85,
+                next_earnings=None,
+                dte_target=45,
+                target_strike=Decimal("185.00"),
+                target_delta=0.35,
+                sector="Technology",
+                dividend_yield=0.005,
+                exercise_style=ExerciseStyle.AMERICAN,
+                data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=est),
             )
 
     def test_json_roundtrip(self, sample_market_context: MarketContext) -> None:

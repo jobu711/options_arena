@@ -7,7 +7,7 @@ Tests cover:
 - JSON serialization roundtrip
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 from pydantic import ValidationError
@@ -82,11 +82,21 @@ class TestHealthStatus:
 
     def test_naive_checked_at_raises(self) -> None:
         """HealthStatus rejects naive datetime for checked_at."""
-        with pytest.raises(ValidationError, match="timezone-aware"):
+        with pytest.raises(ValidationError, match="UTC"):
             HealthStatus(
                 service_name="ollama",
                 available=True,
                 checked_at=datetime(2025, 6, 15, 14, 30, 0),  # naive
+            )
+
+    def test_non_utc_checked_at_raises(self) -> None:
+        """HealthStatus rejects non-UTC timezone for checked_at."""
+        est = timezone(timedelta(hours=-5))
+        with pytest.raises(ValidationError, match="UTC"):
+            HealthStatus(
+                service_name="ollama",
+                available=True,
+                checked_at=datetime(2025, 6, 15, 14, 30, 0, tzinfo=est),
             )
 
     def test_json_roundtrip_available(self, sample_health_available: HealthStatus) -> None:

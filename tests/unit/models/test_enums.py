@@ -1,6 +1,6 @@
 """Unit tests for all StrEnum definitions in options_arena.models.enums.
 
-Tests each of the 9 enums for:
+Tests each of the 11 enums for:
   - Correct member count
   - All values are lowercase strings
   - StrEnum subclass check

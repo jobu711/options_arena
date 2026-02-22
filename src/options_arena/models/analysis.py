@@ -10,7 +10,7 @@ text better than nested objects.  ``AgentResponse`` and ``TradeThesis`` define
 shapes for the v2 debate system -- defined now, used later.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
@@ -54,10 +54,10 @@ class MarketContext(BaseModel):
 
     @field_validator("data_timestamp")
     @classmethod
-    def validate_timezone_aware(cls, v: datetime) -> datetime:
-        """Ensure data_timestamp is timezone-aware (UTC)."""
-        if v.tzinfo is None:
-            raise ValueError("data_timestamp must be timezone-aware (UTC)")
+    def validate_utc(cls, v: datetime) -> datetime:
+        """Ensure data_timestamp is UTC."""
+        if v.tzinfo is None or v.utcoffset() != timedelta(0):
+            raise ValueError("data_timestamp must be UTC")
         return v
 
     @field_serializer("current_price", "price_52w_high", "price_52w_low", "target_strike")

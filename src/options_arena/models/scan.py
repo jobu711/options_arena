@@ -10,9 +10,9 @@ the scan pipeline.  All 18 fields default to ``None`` (indicator not computed).
 Values are normalized 0--100 (percentile-ranked), not raw indicator values.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from options_arena.models.enums import ScanPreset, SignalDirection
 
@@ -75,6 +75,14 @@ class ScanRun(BaseModel):
     tickers_scanned: int
     tickers_scored: int
     recommendations: int
+
+    @field_validator("started_at", "completed_at")
+    @classmethod
+    def validate_utc(cls, v: datetime | None) -> datetime | None:
+        """Ensure timestamps are UTC."""
+        if v is not None and (v.tzinfo is None or v.utcoffset() != timedelta(0)):
+            raise ValueError("timestamp must be UTC")
+        return v
 
 
 class TickerScore(BaseModel):
