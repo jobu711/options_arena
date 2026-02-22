@@ -5,7 +5,7 @@ created: 2026-02-22T08:50:13Z
 progress: 0%
 prd: .claude/prds/options-arena.md
 parent: .claude/epics/options-arena/epic.md
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/13
 ---
 
 # Epic 2: Pricing Module
@@ -72,3 +72,23 @@ uv run mypy src/ --strict
 - All pricing functions accept `PricingConfig` for tolerance/iteration limits
 
 ## Estimated Tests: ~100
+
+## Tasks Created
+- [ ] #14 - Implement BSM pricing module (parallel: false)
+- [ ] #15 - BSM unit tests (parallel: false, depends: #14)
+- [ ] #16 - Implement BAW American pricing module (parallel: false, depends: #14)
+- [ ] #17 - BAW unit tests (parallel: false, depends: #14, #16)
+- [ ] #18 - Implement dispatch layer and re-exports (parallel: true, depends: #14, #16)
+- [ ] #19 - Dispatch tests and verification gate (parallel: false, depends: #15, #17, #18)
+
+Total tasks: 6
+Parallel tasks: 1 (#18 can run alongside #17)
+Sequential tasks: 5
+Estimated total effort: 20-30 hours
+
+### Execution Order
+```
+#14 (BSM) ──┬── #15 (BSM tests) ──────────┬── #19 (dispatch tests + gate)
+            ├── #16 (BAW) ── #17 (BAW tests)┤
+            └── ............. #18 (dispatch) ┘
+```
