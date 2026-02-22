@@ -204,4 +204,9 @@ as **unverified** in a code comment and in the relevant PRD section.
 - Don't use `Optional[X]` — use `X | None`.
 - Don't use `typing.List`, `typing.Dict` — use `list`, `dict` lowercase.
 - Don't forget to read the sub-level CLAUDE.md before working in any module.
+- Don't use raw `str` for categorical fields — always use a `StrEnum`. Every constrained set of string values (presets, signal types, sources) must have a corresponding `StrEnum` in `enums.py`.
+- Don't check only `tzinfo is not None` for datetime validation — enforce actual UTC with `v.utcoffset() != timedelta(0)`. Non-UTC timezones (EST, PST, etc.) must be rejected.
+- Don't forget `field_validator` on `confidence` fields — any float representing confidence/probability must be constrained to `[0.0, 1.0]` on every model that has it, not just one.
+- Don't leave `float` fields unbounded when domain constraints exist — `market_iv >= 0`, `quantity >= 1`, non-empty `legs` lists, etc. Validate at the model boundary.
+- Don't add `datetime` fields without a UTC validator — every `datetime` field on a Pydantic model must have a `field_validator` enforcing `utcoffset() == timedelta(0)`. This applies to `started_at`, `completed_at`, `checked_at`, `timestamp`, `data_timestamp`, and any future datetime fields.
 

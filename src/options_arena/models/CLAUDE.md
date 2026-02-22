@@ -612,3 +612,7 @@ Consumers import from the package: `from options_arena.models import OptionContr
 10. **Forgetting pricing_model on OptionGreeks** — Every Greeks instance must track which pricing model (BSM/BAW) produced it.
 11. **Assuming yfinance provides Greeks** — It does NOT. `greeks` on `OptionContract` is always `None` from yfinance, populated after local computation by `pricing/dispatch.py`.
 12. **`mid` dividing by int 2** — Use `Decimal("2")` to keep full Decimal precision in the computed field.
+13. **Raw strings for categorical fields** — Never use `str` for fields with a known set of values. Use a `StrEnum` (e.g., `MacdSignal`, `ScanPreset`). Every categorical field must have a corresponding enum in `enums.py`.
+14. **Timezone-aware ≠ UTC** — Don't just check `tzinfo is not None`. Enforce actual UTC with `v.utcoffset() != timedelta(0)`. Every `datetime` field must have a `field_validator` that rejects both naive and non-UTC datetimes.
+15. **Missing validators on confidence/probability fields** — Every `confidence: float` field must have a `field_validator` constraining to `[0.0, 1.0]`. Don't add it to one model and forget the others.
+16. **Unbounded domain-constrained floats** — `market_iv` must be `>= 0`, `quantity` must be `>= 1`, `legs` must be non-empty. Add `field_validator` for any field with a known domain constraint.
