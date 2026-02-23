@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-22T08:12:55Z
-version: 3.1
+last_updated: 2026-02-22T20:16:37Z
+version: 3.2
 author: Claude Code PM System
 ---
 
@@ -56,13 +56,14 @@ author: Claude Code PM System
 6. **Universe**: `option-alpha universe refresh/list/stats` — manage ticker universe
 7. **Watchlist**: `option-alpha watchlist add/remove/list` — manage watchlists
 
-## Options Arena Rewrite (Planned)
+## Options Arena Rewrite (In Progress)
 
 The project is being rewritten from `Option_Alpha` to `options_arena` (PEP 8 compliant). Key product changes:
-- **American options pricing** via BAW replaces incorrect European-only BSM
+- **American options pricing** via BAW replaces incorrect European-only BSM (Phase 2 — Complete)
 - **MVP scope narrowed** to pricing + scan pipeline only — AI debate, reporting, and web UI deferred to v2
 - **Package renamed** from `Option_Alpha` to `options_arena`
 - PRD: `.claude/prds/options-arena.md`
+- Phase 1 (Models) and Phase 2 (Pricing) both complete and merged to master
 
 ## Important Constraints
 

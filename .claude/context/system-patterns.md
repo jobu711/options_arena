@@ -12,7 +12,8 @@
 | `services/` | External API access | `models/` | Business logic |
 | `indicators/` | Pure math (pandas in/out) | pandas, numpy | APIs, models, I/O |
 | `data/` | SQLite persistence | `models/` | APIs, business logic |
-| `analysis/` | Scoring, signals, BSM Greeks | `models/`, `services/` output, indicator output | APIs directly |
+| `pricing/` | BSM + BAW pricing, Greeks, IV | `models/`, `scipy` | APIs, pandas, services |
+| `analysis/` | Scoring, signals | `models/`, `services/` output, indicator output, `pricing/` | APIs directly |
 | `agents/` | PydanticAI debate orchestration | `models/`, `services/`, `pydantic_ai` | Other agents, indicators |
 | `reporting/` | Output generation | `models/` | APIs, data fetching |
 | `cli.py` | Terminal interface | Everything | N/A (top of stack) |
@@ -90,10 +91,11 @@
 - `asyncio.gather(*tasks, return_exceptions=True)` for batch operations
 
 ### Analysis & Scoring Patterns
-- **BSM pricing** (Context7-verified): `scipy.stats.norm.cdf` for N(d1)/N(d2), `norm.pdf` for vega. BSM IV solver: manual Newton-Raphson (analytical vega as fprime, quadratic convergence, ~5-8 iterations). Bounded search [1e-6, 5.0].
-- **BAW pricing** (Options Arena — Planned): `american_price()` via BAW analytical approximation. BAW IV solver: `scipy.optimize.brentq` (NOT Newton-Raphson — BAW has no analytical vega w.r.t. IV). `brentq` is bracket-based, guaranteed convergent on monotonic functions, needs no derivative. Bracket [1e-6, 5.0], ~15-40 function evaluations typical.
-- **BAW Greeks**: finite-difference bump-and-reprice (no analytical Greeks available for BAW). Bump size ~0.01 for price-based Greeks, ~0.001 for IV-based.
-- **Dispatch**: `ExerciseStyle`-based routing — BSM for European, BAW for American. IV solver also dispatches: Newton-Raphson (BSM) vs brentq (BAW).
+- **BSM pricing** (Implemented): `bsm.py` — Merton 1973 with continuous dividend yield `q`. `scipy.stats.norm.cdf` for N(d1)/N(d2), `norm.pdf` for vega. BSM IV solver: Newton-Raphson (analytical vega as fprime, quadratic convergence, ~5-8 iterations). Bounded search [1e-6, 5.0]. Bracket pre-check rejects out-of-range market prices before iteration.
+- **BAW pricing** (Implemented): `american.py` — Barone-Adesi-Whaley 1987 analytical approximation. Early exercise premium added to BSM base price. Critical price found via Newton-Raphson on boundary condition. BAW IV solver: `scipy.optimize.brentq` (NOT Newton-Raphson — BAW has no analytical vega w.r.t. IV). Bracket [1e-6, 5.0], ~15-40 function evaluations typical.
+- **BAW Greeks** (Implemented): finite-difference bump-and-reprice (11 BAW evaluations per Greeks call). Bump sizes: `dS=1%`, `dT=1/365`, `dSigma=0.001`, `dR=0.001`. Sigma clamp prevents negative sigma in vega bump.
+- **Dispatch** (Implemented): `dispatch.py` — `ExerciseStyle`-based routing via `match`. AMERICAN→BAW, EUROPEAN→BSM. Three functions: `option_price`, `option_greeks`, `option_iv`.
+- **Shared helpers** (Implemented): `_common.py` — `validate_positive_inputs(S, K)`, `intrinsic_value`, `is_itm`, `boundary_greeks`. Input validation at all entry points.
 - **Percentile-rank normalization**: Raw indicator values ranked against rolling window, scaled 0-100
 - **Weighted geometric mean**: Category weights (trend 0.20, momentum 0.20, volatility 0.15, volume 0.15, options 0.30) combined via geometric mean
 - **Direction signal**: 6-category aggregation of indicator signals into bullish/bearish/neutral score, with SMA alignment tiebreaker when scores tie

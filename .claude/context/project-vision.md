@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-22T23:58:54Z
-version: 1.3
+last_updated: 2026-02-22T20:16:37Z
+version: 1.4
 author: Claude Code PM System
 ---
 
@@ -27,11 +27,13 @@ Option Alpha aims to be a comprehensive, locally-run options analysis platform t
 - 220 tests passing, strict UTC enforcement, StrEnum for all categorical fields
 - PR #12 merged to master (2026-02-22)
 
-### Options Arena — Phase 2: Pricing Engine (Next)
+### Options Arena — Phase 2: Pricing Engine (Complete — 2026-02-22)
 - BAW (Barone-Adesi-Whaley) for American options pricing
-- BSM for European options pricing
-- IV solvers: Newton-Raphson (BSM), brentq (BAW)
-- Finite-difference Greeks computation
+- BSM (Merton 1973) for European options pricing with continuous dividend yield
+- IV solvers: Newton-Raphson (BSM, analytical vega), brentq (BAW, bracket-based)
+- Analytical BSM Greeks + finite-difference BAW Greeks
+- Unified dispatch by ExerciseStyle, 434 tests passing
+- Epic merged to master, issues #13–#19 closed
 
 ### Web UI (Rolled Back — Deferred to v2)
 - Two attempts removed (React SPA, then Jinja2+HTMX) on 2026-02-19

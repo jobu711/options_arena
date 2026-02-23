@@ -111,9 +111,26 @@ PRD: `.claude/prds/options-arena.md` — status: backlog.
 - FR-M5/M5.1/M6: Expanded `AppSettings` spec with Context7-verified pydantic-settings v2 patterns. `AppSettings(BaseSettings)` is the sole `BaseSettings` subclass; `ScanConfig`, `PricingConfig`, `ServiceConfig` are nested `BaseModel` submodels. `SettingsConfigDict(env_prefix="ARENA_", env_nested_delimiter="__")` enables env overrides like `ARENA_SCAN__TOP_N=30`. Full field inventory added in FR-M5.1. No `.env` file in MVP.
 - FR-P1/P2/P3: Corrected IV solver strategy (Context7-verified). BSM IV: manual Newton-Raphson (analytical vega via `norm.pdf`, quadratic convergence). BAW IV: **`scipy.optimize.brentq`** (NOT Newton-Raphson — BAW has no analytical vega w.r.t. IV; brentq is bracket-based, guaranteed convergent, no derivative needed). Dispatch routes solver by `ExerciseStyle`. scipy dependency description updated across PRD and tech-context.
 
+### Phase 2: Pricing Engine (Complete — 2026-02-22)
+- Branch: `epic/phase-2-pricing` (merged to master)
+- All 6 issues completed (#14–#19), GitHub issues auto-closed
+- 434 tests passing (162 pricing + 272 models), ruff + mypy --strict all green
+- Implemented:
+  - `bsm.py` — Merton 1973 European BSM with continuous dividend yield `q`
+  - `american.py` — BAW 1987 analytical approximation for American options
+  - `dispatch.py` — unified routing by `ExerciseStyle` (AMERICAN→BAW, EUROPEAN→BSM)
+  - `_common.py` — shared helpers (input validation, intrinsic value, boundary Greeks)
+  - Newton-Raphson IV solver (BSM, analytical vega), brentq IV solver (BAW, bracket-based)
+  - Analytical BSM Greeks (delta, gamma, theta, vega, rho)
+  - Finite-difference BAW Greeks (bump-and-reprice, 11 evaluations per call)
+  - FR-P4 verified: `american_call == bsm_call` when `q = 0`
+  - FR-P5 verified: `american_put >= bsm_put` always
+- Post-merge fixes: code analysis warnings addressed, 52 edge case tests added
+- `logic.md` business logic documentation added
+
 ## Next Up
 
-- Begin Options Arena Phase 2: Pricing Engine (BAW American, BSM European, IV solvers, Greeks)
+- Begin Options Arena Phase 3: Technical Indicators
 - Options liquidity weighting in composite scoring (carry-forward from v3 backlog)
 
 ## Blockers
