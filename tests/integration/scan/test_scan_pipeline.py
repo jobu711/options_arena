@@ -771,5 +771,3 @@ class TestResultTypeValidation:
 
         assert isinstance(result, ScanResult)
         assert result.cancelled is True
-
-
