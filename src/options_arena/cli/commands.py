@@ -10,6 +10,7 @@ import asyncio
 import logging
 import signal
 import time
+from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -40,6 +41,9 @@ logger = logging.getLogger(__name__)
 console = Console()
 err_console = Console(stderr=True)
 
+# Resolve data directory from project root (src/options_arena/cli/commands.py → parents[3])
+_DATA_DIR = Path(__file__).resolve().parents[3] / "data"
+
 
 # ---------------------------------------------------------------------------
 # scan command
@@ -66,6 +70,11 @@ async def _scan_async(
     sectors: str | None,
 ) -> None:
     """Run the scan pipeline with full service lifecycle management."""
+    if sectors is not None:
+        logger.warning(
+            "--sectors filtering is not yet implemented; ignoring --sectors=%s", sectors
+        )
+
     start_time = time.monotonic()
 
     # Config with CLI overrides
@@ -73,29 +82,37 @@ async def _scan_async(
     settings.scan.top_n = top_n
     settings.scan.min_score = min_score
 
-    # Infrastructure
+    # Infrastructure (lightweight constructors — no I/O)
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
     cache = ServiceCache(settings.service)
     limiter = RateLimiter(
         settings.service.rate_limit_rps, settings.service.max_concurrent_requests
     )
-    db = Database("data/options_arena.db")
-    await db.connect()
-    repo = Repository(db)
+    db = Database(_DATA_DIR / "options_arena.db")
 
-    # Services (DI pattern)
-    market_data = MarketDataService(settings.service, cache, limiter)
-    options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
-    fred = FredService(settings.service, settings.pricing, cache)
-    universe_svc = UniverseService(settings.service, cache, limiter)
-
-    # Pipeline
-    pipeline = ScanPipeline(settings, market_data, options_data, fred, universe_svc, repo)
-
-    # Cancellation token + SIGINT handler
-    token = CancellationToken()
-    setup_sigint_handler(token, err_console)
+    # Track services for cleanup — None until successfully constructed
+    market_data: MarketDataService | None = None
+    options_data: OptionsDataService | None = None
+    fred: FredService | None = None
+    universe_svc: UniverseService | None = None
 
     try:
+        await db.connect()
+        repo = Repository(db)
+
+        # Services (DI pattern)
+        market_data = MarketDataService(settings.service, cache, limiter)
+        options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
+        fred = FredService(settings.service, settings.pricing, cache)
+        universe_svc = UniverseService(settings.service, cache, limiter)
+
+        # Pipeline
+        pipeline = ScanPipeline(settings, market_data, options_data, fred, universe_svc, repo)
+
+        # Cancellation token + SIGINT handler
+        token = CancellationToken()
+        setup_sigint_handler(token, err_console)
+
         # Progress bar on stderr (preserves piped stdout)
         with Progress(
             SpinnerColumn(),
@@ -120,11 +137,15 @@ async def _scan_async(
     finally:
         # Restore default SIGINT handler
         signal.signal(signal.SIGINT, signal.SIG_DFL)
-        # Close ALL services (order doesn't matter)
-        await market_data.close()
-        await options_data.close()
-        await fred.close()
-        await universe_svc.close()
+        # Close all services that were successfully constructed
+        if market_data is not None:
+            await market_data.close()
+        if options_data is not None:
+            await options_data.close()
+        if fred is not None:
+            await fred.close()
+        if universe_svc is not None:
+            await universe_svc.close()
         await cache.close()
         await db.close()
 

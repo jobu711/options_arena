@@ -40,13 +40,14 @@ class RichProgressCallback:
 
     def __call__(self, phase: ScanPhase, current: int, total: int) -> None:
         """Report progress for the given scan phase."""
+        effective_total = total if total > 0 else None
         if phase not in self._task_ids:
             description = _PHASE_DESCRIPTIONS.get(phase, f"[cyan]{phase.value.title()}")
             self._task_ids[phase] = self._progress.add_task(
                 description,
-                total=total or None,
+                total=effective_total,
             )
-        self._progress.update(self._task_ids[phase], completed=current, total=total)
+        self._progress.update(self._task_ids[phase], completed=current, total=effective_total)
 
 
 def setup_sigint_handler(
