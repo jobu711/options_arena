@@ -49,15 +49,18 @@
 - **Dependency injection**: `cli.py` creates `AppSettings()`, passes `settings.scan` to scan pipeline, `settings.pricing` to pricing module, `settings.service` to services. Modules accept their config slice, not the full `AppSettings`.
 - **All defaults are production-ready**: `AppSettings()` with no args is a valid config
 
-### Service Layer Patterns
-- **Cache-first**: check cache -> fetch if miss -> store -> return
-- **Shared httpx client**: one `AsyncClient` per service instance in `__init__`, closed via `aclose()`
-- **Retry with backoff**: `fetch_with_retry()` helper with exponential backoff (1s->16s, max 5 retries)
-- **yfinance wrapping**: all sync yfinance calls via `asyncio.to_thread()` with `asyncio.wait_for()` timeout
-- **Two-tier caching**: in-memory for short-lived data (quotes, chains), SQLite for persistent (OHLCV, fundamentals)
-- **Market-hours-aware TTL**: shorter TTLs during market hours, longer after close
-- **Rate limiting**: token bucket + `asyncio.Semaphore` for concurrent request management
+### Service Layer Patterns (Implemented in Phase 5)
+- **Class-based DI**: Each service receives `config`, `cache`, `limiter` via `__init__`. Explicit `close()` for cleanup.
+- **Cache-first**: check cache → fetch if miss → store → return
+- **Shared httpx client**: one `AsyncClient` per service instance in `__init__`, closed via `await client.aclose()`
+- **Retry with backoff**: `fetch_with_retry()` accepts zero-arg async factory (not coroutine), exponential backoff (1s→16s, max 5 retries)
+- **yfinance wrapping**: `_yf_call(fn, *args)` — `asyncio.to_thread(fn, *args)` + `asyncio.wait_for(timeout)` + error mapping. CRITICAL: pass callable + args separately, NOT `to_thread(fn())`.
+- **Two-tier caching**: `ServiceCache` — in-memory LRU (dict + access-time tracking, configurable max 1000) for short-lived data (quotes, chains); SQLite WAL for persistent (OHLCV, fundamentals). 8 named TTL constants.
+- **Market-hours-aware TTL**: `is_market_hours()` via `zoneinfo.ZoneInfo("America/New_York")`, 9:30-16:00 ET Mon-Fri. Shorter TTLs during market hours, longer after close.
+- **Rate limiting**: `RateLimiter` with token bucket (`time.monotonic()`, NOT `time.time()`) + `asyncio.Semaphore`. `release()` is synchronous. Context manager: `async with limiter:`.
 - **Typed returns**: all service methods return Pydantic models, never raw dicts or DataFrames
+- **Batch isolation**: `asyncio.gather(*tasks, return_exceptions=True)` with `zip(tickers, results, strict=True)`. One failed ticker never crashes a batch.
+- **FRED never raises**: `FredService.fetch_risk_free_rate()` always returns float, falls back to `PricingConfig.risk_free_rate_fallback` on any error.
 
 ### PydanticAI Agent Pattern
 - Module-level `Agent[Deps, OutputType]` instances (bull, bear, risk) — no classes
@@ -103,7 +106,7 @@
 - **Contract ranking** (Implemented): Delta quality (distance from 0.35), spread quality (tighter = better), volume quality (higher OI = better)
 - **No direct API calls**: analysis/ receives pre-fetched data from services/, never fetches its own
 
-### S&P 500 Universe Fetch (Options Arena — Planned)
+### S&P 500 Universe Fetch (Implemented in Phase 5)
 - **Source**: `https://en.wikipedia.org/wiki/List_of_S%26P_500_companies`
 - **Page structure**: 2 tables — constituents (`id="constituents"`, table 0) and historical changes (table 1)
 - **Call**: `pd.read_html(url, attrs={"id": "constituents"})` — targets by HTML id, not positional index
@@ -122,7 +125,7 @@ Phase 3: Liquidity pre-filter ($10M avg dollar volume, $10 min price)
 Phase 4: Persist results to SQLite
 ```
 
-### Dividend Yield Waterfall (Options Arena — Planned)
+### Dividend Yield Waterfall (Implemented in Phase 5)
 - **Purpose**: BAW American options pricing requires continuous dividend yield `q` as input
 - **Problem**: yfinance `Ticker.info` uses camelCase keys (`dividendYield`, not `dividend_yield`) and returns `None` or omits the key entirely for ~40% of optionable tickers (growth stocks, biotech, many ETFs)
 - **yfinance fields confirmed** (Context7-verified):

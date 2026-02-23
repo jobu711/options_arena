@@ -6,9 +6,9 @@
 - **Phase 1 MVP (v0.1.0)**: Complete (all 8 issues done)
 - **PydanticAI migration**: Complete (epic closed 2026-02-20, PRs #82-#90)
 - **Web UI**: Rolled back to pre-web state on 2026-02-19. Two attempts (React SPA, then Jinja2+HTMX) were removed.
-- **Branch**: `master` (708 tests)
-- **Tests**: 708 on master (220 models + 162 pricing + 224 indicators + 102 scoring)
-- **GitHub issues**: 0 open, 25 closed (all Phase 1–4 issues resolved)
+- **Branch**: `epic/phase-5-services` (871 tests, pending merge to master)
+- **Tests**: 871 (220 models + 162 pricing + 224 indicators + 102 scoring + 163 services)
+- **GitHub issues**: 8 open (#30-#37 Phase 5), 25 closed (Phase 1–4)
 - **Scan pipeline**: Producing 8 recommendations per run (verified 2026-02-20)
 
 ## Completed Work (Phase 1)
@@ -155,9 +155,27 @@ PRD: `.claude/prds/options-arena.md` — status: backlog.
   - All thresholds from `ScanConfig`/`PricingConfig` — no hardcoded magic numbers
 - Post-merge fixes: code analysis findings (`bc722bb`), CodeRabbit `math.isfinite` guards (`a9c4cc1`)
 
+### Phase 5: Services Layer (Complete — 2026-02-23, pending merge)
+- Branch: `epic/phase-5-services` (8 commits, awaiting PR + merge to master)
+- All 8 issues completed (#30–#37), 163 new tests, 871 total
+- ruff + pytest + mypy --strict all green on 39 source files
+- Implemented (complete rewrite, no v3 cherry-pick):
+  - `helpers.py` — `fetch_with_retry()` exponential backoff (1s→16s), `safe_decimal/int/float` with NaN/inf rejection
+  - `rate_limiter.py` — Token bucket + `asyncio.Semaphore` dual-layer rate control
+  - `cache.py` — Two-tier (in-memory LRU + SQLite WAL), 8 named TTL constants, `is_market_hours()` for 9:30-16:00 ET
+  - `market_data.py` — `MarketDataService`: OHLCV, quotes, ticker info, 3-tier dividend waterfall (FR-M7.1), cross-validation, `MarketCapTier`, batch fetch with error isolation
+  - `options_data.py` — `OptionsDataService`: chain fetching, yfinance column mapping to `OptionContract`, liquidity filter with zero-bid exemption, `ExerciseStyle.AMERICAN`, `greeks=None`
+  - `fred.py` — `FredService`: FRED API risk-free rate, percentage-to-decimal, never raises (graceful fallback)
+  - `universe.py` — `UniverseService`: CBOE optionable tickers, Wikipedia S&P 500 with `pd.read_html(attrs={"id": "constituents"})`, ticker translation (`.`→`-`)
+  - `health.py` — `HealthService`: pre-flight checks (yfinance, FRED, Ollama, CBOE), concurrent `check_all()`, latency measurement
+  - `__init__.py` — Re-exports 7 public classes, `helpers.py` internal only
+- Key design: async-first, config-driven thresholds, DI constructors, explicit `close()`, typed Pydantic returns at all boundaries
+- `ServiceConfig.fred_api_key: str | None = None` added (backward-compatible)
+
 ## Next Up
 
-- Begin Options Arena Phase 5: Services Layer
+- Merge Phase 5 to master (`/pm:epic-merge phase-5-services`)
+- Begin Phase 6 (scan pipeline) or Phase 7 (AI debate agents)
 - Options liquidity weighting in composite scoring (carry-forward from v3 backlog)
 
 ## Blockers

@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-22T23:58:54Z
-version: 5.2
+last_updated: 2026-02-23T12:06:57Z
+version: 5.3
 author: Claude Code PM System
 ---
 
@@ -73,14 +73,15 @@ uv run mypy src/ --strict                            # type checking
 
 All three must pass before any commit.
 
-## External Services (Phase 1)
+## External Services (Phase 5 — Implemented)
 
-| Service | Protocol | Purpose | Fallback |
-|---------|----------|---------|----------|
-| Ollama | HTTP localhost:11434 | LLM debate agents (Llama 3.1 8B) | Data-driven verdict |
-| Yahoo Finance | yfinance lib | OHLCV, options chains, earnings | N/A (required) |
-| CBOE | CSV download | Optionable ticker universe | Cached list |
-| FRED | REST API | Risk-free rate | Hardcoded 5% |
+| Service | Module | Protocol | Purpose | Fallback |
+|---------|--------|----------|---------|----------|
+| Yahoo Finance | `market_data.py`, `options_data.py` | yfinance via `asyncio.to_thread` | OHLCV, quotes, ticker info, option chains | N/A (required) |
+| FRED | `fred.py` | httpx REST API | 10yr Treasury → risk-free rate | `PricingConfig.risk_free_rate_fallback` (5%) |
+| CBOE | `universe.py` | httpx CSV download | Optionable ticker universe | Cached list (24h TTL) |
+| Wikipedia | `universe.py` | `pd.read_html` via `asyncio.to_thread` | S&P 500 constituents + GICS sectors | Cached list (24h TTL) |
+| Ollama | `health.py` (check only) | HTTP localhost:11434 | LLM debate agents (Llama 3.1 8B) | Data-driven verdict |
 
 ## Database
 
