@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-22T20:16:37Z
-version: 1.4
+last_updated: 2026-02-23T16:58:17Z
+version: 2.0
 author: Claude Code PM System
 ---
 
@@ -27,19 +27,17 @@ Option Alpha aims to be a comprehensive, locally-run options analysis platform t
 - 220 tests passing, strict UTC enforcement, StrEnum for all categorical fields
 - PR #12 merged to master (2026-02-22)
 
-### Options Arena — Phase 2: Pricing Engine (Complete — 2026-02-22)
-- BAW (Barone-Adesi-Whaley) for American options pricing
-- BSM (Merton 1973) for European options pricing with continuous dividend yield
-- IV solvers: Newton-Raphson (BSM, analytical vega), brentq (BAW, bracket-based)
-- Analytical BSM Greeks + finite-difference BAW Greeks
-- Unified dispatch by ExerciseStyle, 434 tests passing
-- Epic merged to master, issues #13–#19 closed
+### Options Arena — Phases 2–8 (All Complete — 2026-02-23)
+- **Phase 2**: BAW + BSM pricing engine, IV solvers, Greeks, dispatch (214 tests)
+- **Phase 3**: 18 technical indicators across 6 modules (172 tests)
+- **Phase 4**: Scoring — normalization, composite, direction, contract selection (102 tests)
+- **Phase 5**: Services — yfinance, FRED, CBOE, Wikipedia, health, cache, rate limiting (163 tests)
+- **Phase 6**: Data layer — SQLite persistence, migrations, repository pattern (34 tests)
+- **Phase 7**: Scan pipeline — 4-phase async orchestration with cancellation (156 tests)
+- **Phase 8**: CLI — Typer commands, Rich rendering, logging, SIGINT handler (25 tests)
+- **Total**: 1,086 tests, 51 source files, 54 GitHub issues closed
 
-### Web UI (Rolled Back — Deferred to v2)
-- Two attempts removed (React SPA, then Jinja2+HTMX) on 2026-02-19
-- Will revisit after core pricing + scan pipeline are complete
-
-### Phase 3 — Enhanced AI & Advanced Features (Future)
+### v2 — Enhanced AI & Advanced Features (Future)
 - Additional LLM provider support (Anthropic Claude, OpenAI)
 - Multi-round debate capability
 - Real-time market data streaming

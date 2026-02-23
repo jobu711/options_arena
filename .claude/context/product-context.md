@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-22T20:16:37Z
-version: 3.2
+last_updated: 2026-02-23T16:58:17Z
+version: 4.0
 author: Claude Code PM System
 ---
 
@@ -46,24 +46,27 @@ author: Claude Code PM System
 - Mandatory disclaimer on all user-facing output
 - Greeks table with dollar-impact, indicator summary by category
 
-## User Workflows (Phase 1)
+## User Workflows (MVP 1.0.0)
 
-1. **Scan**: `option-alpha scan` — scans universe, computes indicators, scores tickers
-2. **Debate**: `option-alpha debate AAPL` — runs AI debate on a ticker
-3. **History**: `option-alpha debate history AAPL` — shows past debates
-4. **Report**: `option-alpha report` — generates markdown report
-5. **Health**: `option-alpha health` — checks Ollama, yfinance connectivity
-6. **Universe**: `option-alpha universe refresh/list/stats` — manage ticker universe
-7. **Watchlist**: `option-alpha watchlist add/remove/list` — manage watchlists
+1. **Scan**: `options-arena scan --preset sp500` — scans universe, computes indicators, scores tickers, recommends contracts
+2. **Health**: `options-arena health` — checks yfinance, FRED, Ollama, CBOE connectivity
+3. **Universe Refresh**: `options-arena universe refresh` — re-fetch CBOE + S&P 500 tickers
+4. **Universe List**: `options-arena universe list --sector "Information Technology"` — list tickers by sector
+5. **Universe Stats**: `options-arena universe stats` — sector breakdown and counts
 
-## Options Arena Rewrite (In Progress)
+### Deferred to v2
+- **AI Debate**: Multi-agent debate on individual tickers (agents scaffolded, not wired)
+- **Reporting**: Markdown/PDF report generation
+- **Watchlists**: CRUD watchlist management
+- **Web UI**: Browser-based interface
 
-The project is being rewritten from `Option_Alpha` to `options_arena` (PEP 8 compliant). Key product changes:
-- **American options pricing** via BAW replaces incorrect European-only BSM (Phase 2 — Complete)
-- **MVP scope narrowed** to pricing + scan pipeline only — AI debate, reporting, and web UI deferred to v2
-- **Package renamed** from `Option_Alpha` to `options_arena`
+## Options Arena Rewrite (Complete — MVP 1.0.0)
+
+Rewritten from `Option_Alpha` to `options_arena` (PEP 8 compliant). All 8 phases complete:
+- **American options pricing** via BAW replaces incorrect European-only BSM
+- **Full scan pipeline**: universe → indicators → scoring → options → persist → CLI output
+- **1,086 tests**, `mypy --strict`, `ruff check` all green
 - PRD: `.claude/prds/options-arena.md`
-- Phase 1 (Models) and Phase 2 (Pricing) both complete and merged to master
 
 ## Important Constraints
 

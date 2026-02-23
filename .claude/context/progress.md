@@ -2,14 +2,13 @@
 
 ## Current State
 
-- **Version**: 1.0.0 (planning)
-- **Phase 1 MVP (v0.1.0)**: Complete (all 8 issues done)
-- **PydanticAI migration**: Complete (epic closed 2026-02-20, PRs #82-#90)
-- **Web UI**: Rolled back to pre-web state on 2026-02-19. Two attempts (React SPA, then Jinja2+HTMX) were removed.
-- **Branch**: `master` (1061 tests, all phases merged)
-- **Tests**: 1061 (220 models + 214 pricing + 172 indicators + 102 scoring + 163 services + 34 data + 156 scan)
-- **GitHub issues**: 0 open, 53 closed (Phase 1–7 all complete)
-- **Scan pipeline**: Producing 8 recommendations per run (verified 2026-02-20)
+- **Version**: 1.0.0 (MVP complete)
+- **All 8 phases**: Complete and merged to master (2026-02-23)
+- **Branch**: `master` (1086 tests, all phases merged)
+- **Tests**: 1086 (220 models + 214 pricing + 172 indicators + 102 scoring + 163 services + 34 data + 156 scan + 25 cli)
+- **GitHub issues**: 0 open, 54 closed (Phase 1–8 all complete)
+- **Scan pipeline**: Producing 8 recommendations per run (verified)
+- **CLI**: `options-arena scan`, `health`, `universe` commands working
 
 ## Completed Work (Phase 1)
 
@@ -204,10 +203,39 @@ PRD: `.claude/prds/options-arena.md` — status: backlog.
   - `OptionContract.greeks` always `None` from services — computed by `recommend_contracts()` via `pricing/dispatch.py`
 - Post-merge fixes: phases_completed bounds, ETFS preset warning, per-ticker timeout, event loop yielding (`5d465e2`), CodeRabbit review fixes (`5edf044`)
 
-## Next Up
+### Phase 8: CLI Module (Complete — 2026-02-23, PR #61 merged, epic closed)
+- Branch: `epic/phase-8-cli` (PR #61 merged to master 2026-02-23, epic #54 closed)
+- All 6 issues completed (#55–#60), 25 new tests, 1086 total
+- ruff + pytest + mypy --strict all green on 51 source files
+- Implemented (final phase — completes MVP 1.0.0):
+  - `cli/app.py` — Typer app, `@app.callback()`, dual-handler logging (RichHandler + RotatingFileHandler)
+  - `cli/commands.py` — `scan`, `health`, `universe` (refresh/list/stats) commands
+  - `cli/rendering.py` — `render_scan_table()`, `render_health_table()`, disclaimer constant
+  - `cli/progress.py` — `RichProgressCallback` implementing `ProgressCallback` protocol
+  - `cli/__init__.py` — Re-exports `app` for pyproject.toml entry point
+  - `cli/CLAUDE.md` — Module conventions, logging patterns, testing patterns
+- Key design: sync Typer commands + `asyncio.run()`, `signal.signal()` for Windows SIGINT,
+  `markup=False` on RichHandler, progress on stderr, results on stdout
+- Post-merge fixes: 5 bug fixes (market_iv falsy check, sectors warning, resource leak,
+  progress total, db path), 2 CodeRabbit fixes (LOG_DIR path, handler close)
+- Entry point: `options-arena = "options_arena.cli:app"` in pyproject.toml
 
-- Begin Phase 8 (CLI — final epic: Typer commands, Rich rendering, SIGINT handler, logging)
-- Options liquidity weighting in composite scoring (carry-forward from v3 backlog)
+## MVP 1.0.0 Complete
+
+All 8 phases implemented and merged. The scan pipeline is fully operational:
+```
+options-arena scan --preset sp500 --top-n 20
+options-arena health
+options-arena universe stats
+```
+
+## Future Work (v2)
+
+- AI debate system (PydanticAI agents already scaffolded in `agents/`)
+- Options liquidity weighting in composite scoring
+- Web UI (deferred from earlier attempts)
+- Multi-round debate, additional LLM providers
+- Reporting module (markdown/PDF output)
 
 ## Blockers
 
