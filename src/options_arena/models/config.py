@@ -53,6 +53,7 @@ class ServiceConfig(BaseModel):
 
     yfinance_timeout: float = 15.0
     fred_timeout: float = 10.0
+    fred_api_key: str | None = None
     ollama_timeout: float = 60.0
     rate_limit_rps: float = 2.0
     max_concurrent_requests: int = 5
