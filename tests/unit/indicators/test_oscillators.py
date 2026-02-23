@@ -115,7 +115,7 @@ class TestRSI:
         result = rsi(close, period=14)
         valid = result.dropna()
         # All valid values should be 100 (no losses at all)
-        assert all(v == pytest.approx(100.0, abs=0.01) for v in valid)
+        assert all(v == pytest.approx(100.0, rel=1e-4) for v in valid)
 
     def test_all_losses_rsi_near_zero(self) -> None:
         """Monotonically decreasing data: RSI should be near 0."""
@@ -132,7 +132,7 @@ class TestRSI:
         valid = result.dropna()
         # With Wilder's ewm on all zeros: avg_gain=0, avg_loss=0
         # avg_loss=0 => RSI=100 by our guard
-        assert all(v == pytest.approx(100.0, abs=0.01) for v in valid)
+        assert all(v == pytest.approx(100.0, rel=1e-4) for v in valid)
 
     def test_rsi_range(self) -> None:
         """RSI values should always be between 0 and 100."""

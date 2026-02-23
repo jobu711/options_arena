@@ -20,7 +20,13 @@ def _rolling_slope(
     Uses the least-squares formula with rolling sums (fully vectorized):
         slope = (n * sum(x*y) - sum(x) * sum(y)) / (n * sum(x^2) - sum(x)^2)
     where x = 0, 1, ..., n-1 for each window.
+
+    Raises:
+        ValueError: If ``period < 2`` (slope requires at least 2 points).
     """
+    if period < 2:
+        msg = f"Rolling slope requires period >= 2, got {period}"
+        raise ValueError(msg)
     n = period
     x_sum = n * (n - 1) / 2.0
     x2_sum = n * (n - 1) * (2 * n - 1) / 6.0

@@ -135,8 +135,8 @@ def williams_r(
 
     # Division-by-zero guard: when range = 0, output = -50
     wr = ((highest_high - close) / hl_range.replace(0.0, np.nan)) * -100.0
-    # Only fill NaN from div-by-zero (where rolling was valid but range was 0)
-    div_zero_mask = valid_mask & wr.isna()
+    # Only fill NaN from div-by-zero (where range was 0), not input NaN
+    div_zero_mask = valid_mask & hl_range.eq(0.0)
     wr = wr.copy()
     wr[div_zero_mask] = -50.0
 

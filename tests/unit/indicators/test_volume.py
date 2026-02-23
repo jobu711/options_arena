@@ -84,6 +84,17 @@ class TestOBVTrend:
         valid = result.dropna()
         assert all(v == pytest.approx(0.0, abs=1e-4) for v in valid)
 
+    def test_single_volume_spike(self) -> None:
+        """Single volume spike with rising prices: OBV jumps, slope detects it."""
+        n = 25
+        close = pd.Series(np.arange(100.0, 100.0 + n))  # rising prices
+        volume = pd.Series([100.0] * 12 + [10000.0] + [100.0] * 12)
+        result = obv_trend(close, volume, slope_period=5)
+        # Rising prices => all up days. Spike volume at index 12 causes
+        # OBV to jump by 10000. Slope at index 14 should be elevated.
+        baseline = obv_trend(close, pd.Series([100.0] * n), slope_period=5)
+        assert result.iloc[14] > baseline.iloc[14]
+
 
 # ---------------------------------------------------------------------------
 # relative_volume tests
@@ -233,3 +244,15 @@ class TestADTrend:
         result = ad_trend(high, low, close, volume, slope_period=5)
         valid = result.dropna()
         assert all(v == pytest.approx(0.0, abs=1e-4) for v in valid)
+
+    def test_single_volume_spike(self) -> None:
+        """Single volume spike: AD line jumps, slope should detect it."""
+        n = 25
+        high = pd.Series([110.0] * n)
+        low = pd.Series([100.0] * n)
+        close = pd.Series([110.0] * n)  # close at high => CLV=1
+        volume = pd.Series([100.0] * 12 + [10000.0] + [100.0] * 12)
+        result = ad_trend(high, low, close, volume, slope_period=5)
+        # The volume spike at index 12 causes AD to jump by 10000.
+        # Slope around the spike should be noticeably positive.
+        assert result.iloc[14] > 0
