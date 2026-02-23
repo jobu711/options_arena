@@ -27,7 +27,7 @@ from options_arena.models import (
     ScanPreset,
     SignalDirection,
 )
-from options_arena.models.market_data import OHLCV
+from options_arena.models.market_data import OHLCV, TickerInfo
 from options_arena.scan.models import ScanResult, ScoringResult, UniverseResult
 from options_arena.scan.pipeline import ScanPipeline
 from options_arena.scan.progress import CancellationToken, ScanPhase
@@ -322,16 +322,25 @@ class TestPhase2Cancellation:
         """Token cancelled after Phase 2 returns scores but no recommendations."""
         pipeline, _ = _make_pipeline(optionable_tickers=["AAPL"])
 
-        # We need to cancel AFTER Phase 2 completes but before Phase 3 would start.
-        # Since Phase 3 is not yet implemented, the run() method will return normally.
-        # So we test via a non-cancelled token.
         token = CancellationToken()
+
+        # Cancel after Phase 2 by patching _phase_scoring to cancel the token
+        original_phase_scoring = pipeline._phase_scoring
+
+        async def _scoring_then_cancel(
+            universe_result: UniverseResult,
+            progress: object,
+        ) -> ScoringResult:
+            result = await original_phase_scoring(universe_result, progress)  # type: ignore[arg-type]
+            token.cancel()
+            return result
+
+        pipeline._phase_scoring = _scoring_then_cancel  # type: ignore[assignment]
 
         result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
 
-        # Should complete phases 1 and 2 (phases 3-4 not yet implemented)
         assert result.phases_completed == 2
-        assert result.cancelled is False
+        assert result.cancelled is True
         assert len(result.scores) > 0
 
 
@@ -341,23 +350,57 @@ class TestPhase2Cancellation:
 
 
 class TestFullRun:
-    """Full pipeline run() through Phase 1 + Phase 2."""
+    """Full pipeline run() through all phases."""
 
-    async def test_run_completes_with_phases_completed_2(self) -> None:
-        """A full uncancelled run completes with phases_completed=2."""
+    async def test_run_completes_all_phases(self) -> None:
+        """A full uncancelled run completes with phases_completed=4."""
         tickers = ["AAPL", "MSFT"]
-        pipeline, _ = _make_pipeline(optionable_tickers=tickers)
+        pipeline, mocks = _make_pipeline(optionable_tickers=tickers)
+
+        # Configure mock services for Phase 3 and 4
+        mocks["fred"].fetch_risk_free_rate = AsyncMock(return_value=0.045)
+        mocks["options_data"].fetch_chain_all_expirations = AsyncMock(return_value=[])
+        mocks["market_data"].fetch_ticker_info = AsyncMock(
+            return_value=TickerInfo(
+                ticker="X",
+                company_name="X Inc.",
+                sector="Tech",
+                current_price=Decimal("100"),
+                fifty_two_week_high=Decimal("130"),
+                fifty_two_week_low=Decimal("70"),
+            )
+        )
+        mocks["repository"].save_scan_run = AsyncMock(return_value=1)
+        mocks["repository"].save_ticker_scores = AsyncMock(return_value=None)
+
         token = CancellationToken()
 
         result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
 
-        assert result.phases_completed == 2
+        assert result.phases_completed == 4
         assert result.cancelled is False
 
     async def test_run_scan_run_metadata(self) -> None:
         """ScanRun metadata reflects pipeline execution."""
         tickers = ["AAPL", "MSFT", "GOOG"]
-        pipeline, _ = _make_pipeline(optionable_tickers=tickers)
+        pipeline, mocks = _make_pipeline(optionable_tickers=tickers)
+
+        # Configure mock services for Phase 3 and 4
+        mocks["fred"].fetch_risk_free_rate = AsyncMock(return_value=0.045)
+        mocks["options_data"].fetch_chain_all_expirations = AsyncMock(return_value=[])
+        mocks["market_data"].fetch_ticker_info = AsyncMock(
+            return_value=TickerInfo(
+                ticker="X",
+                company_name="X Inc.",
+                sector="Tech",
+                current_price=Decimal("100"),
+                fifty_two_week_high=Decimal("130"),
+                fifty_two_week_low=Decimal("70"),
+            )
+        )
+        mocks["repository"].save_scan_run = AsyncMock(return_value=1)
+        mocks["repository"].save_ticker_scores = AsyncMock(return_value=None)
+
         token = CancellationToken()
 
         result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
@@ -365,36 +408,58 @@ class TestFullRun:
         assert result.scan_run.preset == ScanPreset.FULL
         assert result.scan_run.tickers_scanned == 3
         assert result.scan_run.tickers_scored > 0
-        assert result.scan_run.recommendations == 0  # Phase 3 not implemented yet
         assert result.scan_run.started_at is not None
         assert result.scan_run.completed_at is not None
         assert result.scan_run.started_at <= result.scan_run.completed_at
 
-    async def test_run_risk_free_rate_uses_fallback(self) -> None:
-        """Risk-free rate comes from PricingConfig fallback (Phase 3 not implemented)."""
+    async def test_run_risk_free_rate_from_fred(self) -> None:
+        """Risk-free rate comes from FRED service."""
         settings = AppSettings()
-        pipeline, _ = _make_pipeline(
+        pipeline, mocks = _make_pipeline(
             optionable_tickers=["AAPL"],
             settings=settings,
         )
+
+        mocks["fred"].fetch_risk_free_rate = AsyncMock(return_value=0.042)
+        mocks["options_data"].fetch_chain_all_expirations = AsyncMock(return_value=[])
+        mocks["market_data"].fetch_ticker_info = AsyncMock(
+            return_value=TickerInfo(
+                ticker="AAPL",
+                company_name="Apple",
+                sector="Tech",
+                current_price=Decimal("150"),
+                fifty_two_week_high=Decimal("200"),
+                fifty_two_week_low=Decimal("100"),
+            )
+        )
+        mocks["repository"].save_scan_run = AsyncMock(return_value=1)
+        mocks["repository"].save_ticker_scores = AsyncMock(return_value=None)
+
         token = CancellationToken()
 
         result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
 
-        assert result.risk_free_rate == pytest.approx(settings.pricing.risk_free_rate_fallback)
-
-    async def test_run_recommendations_empty_before_phase3(self) -> None:
-        """Recommendations are empty until Phase 3 is implemented."""
-        pipeline, _ = _make_pipeline(optionable_tickers=["AAPL"])
-        token = CancellationToken()
-
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
-
-        assert result.recommendations == {}
+        assert result.risk_free_rate == pytest.approx(0.042)
 
     async def test_run_returns_scan_result_type(self) -> None:
         """run() returns a ScanResult."""
-        pipeline, _ = _make_pipeline(optionable_tickers=["AAPL"])
+        pipeline, mocks = _make_pipeline(optionable_tickers=["AAPL"])
+
+        mocks["fred"].fetch_risk_free_rate = AsyncMock(return_value=0.045)
+        mocks["options_data"].fetch_chain_all_expirations = AsyncMock(return_value=[])
+        mocks["market_data"].fetch_ticker_info = AsyncMock(
+            return_value=TickerInfo(
+                ticker="AAPL",
+                company_name="Apple",
+                sector="Tech",
+                current_price=Decimal("150"),
+                fifty_two_week_high=Decimal("200"),
+                fifty_two_week_low=Decimal("100"),
+            )
+        )
+        mocks["repository"].save_scan_run = AsyncMock(return_value=1)
+        mocks["repository"].save_ticker_scores = AsyncMock(return_value=None)
+
         token = CancellationToken()
 
         result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
