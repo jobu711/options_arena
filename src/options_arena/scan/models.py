@@ -12,7 +12,7 @@ They are NOT frozen -- the pipeline updates them during execution.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from options_arena.models import (
     OHLCV,
@@ -95,4 +95,4 @@ class ScanResult(BaseModel):
     recommendations: dict[str, list[OptionContract]]
     risk_free_rate: float
     cancelled: bool = False
-    phases_completed: int = 0
+    phases_completed: int = Field(default=0, ge=0, le=4)

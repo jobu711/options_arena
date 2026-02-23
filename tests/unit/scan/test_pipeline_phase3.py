@@ -17,6 +17,7 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
@@ -518,6 +519,36 @@ class TestProgressCallback:
 
         # Last call: completion (total, total)
         assert options_calls[-1][1] == options_calls[-1][2]
+
+
+class TestPerTickerTimeout:
+    """Per-ticker timeout prevents one slow ticker from stalling the pipeline."""
+
+    async def test_slow_ticker_times_out_others_succeed(self) -> None:
+        """A ticker that exceeds the per-ticker timeout is isolated as a failure."""
+        settings = AppSettings()
+        settings.scan.min_dollar_volume = 1.0
+        settings.scan.min_price = 1.0
+        settings.scan.options_per_ticker_timeout = 0.1  # 100ms
+
+        tickers = ["SLOW", "FAST"]
+        universe_result = _make_universe_result(tickers, close_price=100.0)
+        scoring_result = _make_scoring_result(tickers, scores=[90.0, 85.0])
+
+        async def _mock_chains(ticker: str) -> list[ExpirationChain]:
+            if ticker == "SLOW":
+                await asyncio.sleep(5.0)  # Exceeds 100ms timeout
+            return [_make_expiration_chain(ticker)]
+
+        pipeline, mocks = _make_pipeline(settings=settings)
+        mocks["options_data"].fetch_chain_all_expirations = AsyncMock(side_effect=_mock_chains)
+
+        result = await pipeline._phase_options(scoring_result, universe_result, _noop_progress)
+
+        # SLOW timed out, but scan completed successfully
+        assert isinstance(result, OptionsResult)
+        # SLOW should NOT be in recommendations (timed out)
+        assert "SLOW" not in result.recommendations
 
 
 class TestPhase3Cancellation:

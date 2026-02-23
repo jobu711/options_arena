@@ -183,6 +183,12 @@ class ScanPipeline:
                 len(tickers),
             )
         else:
+            if preset == ScanPreset.ETFS:
+                logger.warning(
+                    "ETFS preset selected but ETF-only filtering is not yet implemented; "
+                    "using full universe (%d tickers)",
+                    len(all_tickers),
+                )
             tickers = all_tickers
 
         # Step 4: Batch-fetch OHLCV
@@ -254,9 +260,12 @@ class ScanPipeline:
 
         # Step 1: Compute indicators for each ticker
         raw_signals: dict[str, IndicatorSignals] = {}
-        for ticker, ohlcv_list in universe_result.ohlcv_map.items():
+        for i, (ticker, ohlcv_list) in enumerate(universe_result.ohlcv_map.items()):
             df = ohlcv_to_dataframe(ohlcv_list)
             raw_signals[ticker] = compute_indicators(df, INDICATOR_REGISTRY)
+            # Yield to event loop periodically to avoid blocking on large universes
+            if i % 100 == 99:
+                await asyncio.sleep(0)
 
         logger.info("Computed indicators for %d tickers", len(raw_signals))
 
@@ -349,7 +358,14 @@ class ScanPipeline:
         # Step 4: Concurrent per-ticker options processing
         progress(ScanPhase.OPTIONS, 0, len(top_scores))
 
-        tasks = [self._process_ticker_options(ts, risk_free_rate) for ts in top_scores]
+        per_ticker_timeout = self._settings.scan.options_per_ticker_timeout
+        tasks = [
+            asyncio.wait_for(
+                self._process_ticker_options(ts, risk_free_rate),
+                timeout=per_ticker_timeout,
+            )
+            for ts in top_scores
+        ]
         results: list[tuple[str, list[OptionContract]] | BaseException] = await asyncio.gather(
             *tasks, return_exceptions=True
         )

@@ -9,6 +9,9 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
+import pytest
+from pydantic import ValidationError
+
 from options_arena.models import (
     OHLCV,
     IndicatorSignals,
@@ -326,6 +329,28 @@ class TestScanResult:
         )
 
         assert result.scan_run.id == 42
+
+    def test_phases_completed_rejects_negative(self) -> None:
+        """phases_completed below 0 raises ValidationError."""
+        with pytest.raises(ValidationError):
+            ScanResult(
+                scan_run=_make_scan_run(),
+                scores=[],
+                recommendations={},
+                risk_free_rate=0.05,
+                phases_completed=-1,
+            )
+
+    def test_phases_completed_rejects_above_four(self) -> None:
+        """phases_completed above 4 raises ValidationError."""
+        with pytest.raises(ValidationError):
+            ScanResult(
+                scan_run=_make_scan_run(),
+                scores=[],
+                recommendations={},
+                risk_free_rate=0.05,
+                phases_completed=5,
+            )
 
     def test_importable_from_package(self) -> None:
         """ScanResult is re-exported from the scan package."""

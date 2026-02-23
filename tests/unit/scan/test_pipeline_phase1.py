@@ -15,6 +15,7 @@ Covers:
 
 from __future__ import annotations
 
+import logging
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock
@@ -324,6 +325,42 @@ class TestPhaseUniverse:
 # ---------------------------------------------------------------------------
 # Cancellation tests (Phase 1 only)
 # ---------------------------------------------------------------------------
+
+
+class TestETFSPresetWarning:
+    """ETFS preset logs a warning about unimplemented filtering."""
+
+    async def test_etfs_preset_logs_warning(self, caplog: object) -> None:
+        """ScanPreset.ETFS emits a warning and uses the full universe."""
+        import _pytest.logging
+
+        assert isinstance(caplog, _pytest.logging.LogCaptureFixture)
+
+        pipeline, _ = _make_pipeline(optionable_tickers=["AAPL", "MSFT", "GOOG"])
+
+        with caplog.at_level(logging.WARNING, logger="options_arena.scan.pipeline"):
+            result = await pipeline._phase_universe(ScanPreset.ETFS, _noop_progress)
+
+        # All tickers included (no filtering applied)
+        assert result.tickers == ["AAPL", "MSFT", "GOOG"]
+
+        # Warning was emitted
+        warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+        assert any("ETFS" in msg and "not yet implemented" in msg for msg in warning_messages)
+
+    async def test_full_preset_no_etfs_warning(self, caplog: object) -> None:
+        """ScanPreset.FULL does NOT emit the ETFS warning."""
+        import _pytest.logging
+
+        assert isinstance(caplog, _pytest.logging.LogCaptureFixture)
+
+        pipeline, _ = _make_pipeline(optionable_tickers=["AAPL"])
+
+        with caplog.at_level(logging.WARNING, logger="options_arena.scan.pipeline"):
+            await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+
+        warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+        assert not any("ETFS" in msg for msg in warning_messages)
 
 
 class TestPhase1Cancellation:
