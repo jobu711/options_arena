@@ -22,6 +22,9 @@ dependencies = [
     "yfinance>=1.2",
 ]
 
+[project.scripts]
+options-arena = "options_arena.cli:app"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/options_arena"]
 
