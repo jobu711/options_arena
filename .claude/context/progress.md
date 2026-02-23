@@ -6,9 +6,9 @@
 - **Phase 1 MVP (v0.1.0)**: Complete (all 8 issues done)
 - **PydanticAI migration**: Complete (epic closed 2026-02-20, PRs #82-#90)
 - **Web UI**: Rolled back to pre-web state on 2026-02-19. Two attempts (React SPA, then Jinja2+HTMX) were removed.
-- **Branch**: `master` (905 tests, all phases merged)
-- **Tests**: 905 (220 models + 162 pricing + 224 indicators + 102 scoring + 163 services + 34 data)
-- **GitHub issues**: 0 open, 40 closed (Phase 1–6 all complete)
+- **Branch**: `master` (1061 tests, all phases merged)
+- **Tests**: 1061 (220 models + 214 pricing + 172 indicators + 102 scoring + 163 services + 34 data + 156 scan)
+- **GitHub issues**: 0 open, 53 closed (Phase 1–7 all complete)
 - **Scan pipeline**: Producing 8 recommendations per run (verified 2026-02-20)
 
 ## Completed Work (Phase 1)
@@ -133,8 +133,8 @@ PRD: `.claude/prds/options-arena.md` — status: backlog.
 - Branch: `master` (merged directly, no epic branch)
 - 18 indicator functions across 6 modules, 606 total tests on master
 - Commits: `61e247d` (initial port), `8b6c523` (hardening), `7d0b973` (CodeRabbit fixes), `a528731` (final)
-- Modules: `indicators/trend.py`, `indicators/momentum.py`, `indicators/volatility.py`,
-  `indicators/volume.py`, `indicators/moving_averages.py`, `indicators/options_indicators.py`
+- Modules: `indicators/trend.py`, `indicators/oscillators.py`, `indicators/volatility.py`,
+  `indicators/volume.py`, `indicators/moving_averages.py`, `indicators/options_specific.py`
 - All indicators: pure pandas in/out, NaN warmup, vectorized operations only
 
 ### Phase 4: Scoring Module (Complete — 2026-02-23, PR #28 merged)
@@ -185,9 +185,28 @@ PRD: `.claude/prds/options-arena.md` — status: backlog.
 - Key design: :memory: for tests, DI constructors, idempotent connect/close, batch insert via executemany
 - Post-review fixes: deterministic ORDER BY on scores query, migration filename filter, unused param removal (CodeRabbit PR #45)
 
+### Phase 7: Scan Pipeline (Complete — 2026-02-23, PR #53 merged, epic closed)
+- Branch: `epic/phase-7-scan-pipeline` (PR #53 merged to master 2026-02-23, epic #46 closed)
+- All 6 issues completed (#47–#52), 156 new tests (131 unit + 25 integration), 1061 total
+- ruff + pytest + mypy --strict all green on 46 source files
+- Implemented (full rewrite, replaces v3's monolithic 430-line `cli.py` scan function):
+  - `scan/progress.py` — `ScanPhase` StrEnum (4 phases), `CancellationToken` (thread-safe), `ProgressCallback` protocol
+  - `scan/indicators.py` — `InputShape` enum, `IndicatorSpec` dataclass, `INDICATOR_REGISTRY` (14 entries), `ohlcv_to_dataframe()`, `compute_indicators()`
+  - `scan/models.py` — Pipeline-internal models: `UniverseResult`, `ScoringResult`, `OptionsResult`, `ScanResult`
+  - `scan/pipeline.py` — `ScanPipeline` class: 4 async phases (universe, scoring, options, persist), cancellation between phases, progress callbacks, DI for all 5 services + repository
+  - `scan/__init__.py` — Re-exports 5 public names with `__all__`
+- Key design decisions:
+  - 14-indicator registry (not 18) — 4 options-specific indicators need chain data unavailable in Phase 2
+  - Raw signals retained separately from normalized (percentile-ranked) signals for direction classification
+  - Liquidity pre-filter (avg dollar volume + min price) applied before expensive option chain fetches
+  - Per-ticker timeout (30s) + error isolation — one failed ticker never crashes the scan
+  - FRED risk-free rate fetched once per scan (not per ticker)
+  - `OptionContract.greeks` always `None` from services — computed by `recommend_contracts()` via `pricing/dispatch.py`
+- Post-merge fixes: phases_completed bounds, ETFS preset warning, per-ticker timeout, event loop yielding (`5d465e2`), CodeRabbit review fixes (`5edf044`)
+
 ## Next Up
 
-- Begin Phase 7 (scan pipeline) or Phase 8 (AI debate agents)
+- Begin Phase 8 (CLI — final epic: Typer commands, Rich rendering, SIGINT handler, logging)
 - Options liquidity weighting in composite scoring (carry-forward from v3 backlog)
 
 ## Blockers

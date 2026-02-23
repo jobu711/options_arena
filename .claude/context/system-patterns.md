@@ -14,6 +14,7 @@
 | `data/` | SQLite persistence | `models/` | APIs, business logic |
 | `pricing/` | BSM + BAW pricing, Greeks, IV | `models/`, `scipy` | APIs, pandas, services |
 | `scoring/` | Normalization, composite scoring, direction, contract selection | `models/`, `pricing/dispatch` | APIs, services, `pricing/bsm`, `pricing/american` directly |
+| `scan/` | Pipeline orchestration (4 async phases) | `models/`, `services/`, `scoring/`, `indicators/`, `data/`, `asyncio`, `logging` | `pricing/` directly, `httpx`, `yfinance`, `print()` |
 | `analysis/` | Scoring, signals | `models/`, `services/` output, indicator output, `pricing/` | APIs directly |
 | `agents/` | PydanticAI debate orchestration | `models/`, `services/`, `pydantic_ai` | Other agents, indicators |
 | `reporting/` | Output generation | `models/` | APIs, data fetching |
