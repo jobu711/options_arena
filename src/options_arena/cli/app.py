@@ -12,7 +12,8 @@ import typer
 from rich.console import Console
 from rich.logging import RichHandler
 
-LOG_DIR = Path("logs")
+# Resolve log directory from project root (src/options_arena/cli/app.py → parents[3])
+LOG_DIR = Path(__file__).resolve().parents[3] / "logs"
 LOG_FILE = LOG_DIR / "options_arena.log"
 FILE_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 NOISY_LOGGERS = ("aiosqlite", "httpx", "httpcore", "yfinance")
@@ -41,6 +42,8 @@ def configure_logging(*, verbose: bool = False) -> None:
     # Root logger captures everything
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)
+    for h in root.handlers[:]:
+        h.close()
     root.handlers.clear()  # Prevent duplicate handlers on re-entry
 
     # Console handler: Rich-formatted, INFO+ by default
