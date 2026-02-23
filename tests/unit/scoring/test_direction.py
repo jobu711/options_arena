@@ -112,6 +112,24 @@ class TestDetermineDirection:
         result = determine_direction(adx=25.0, rsi=65.0, sma_alignment=0.0, config=config)
         assert result is SignalDirection.BULLISH
 
+    def test_sma_exactly_at_bullish_boundary_no_signal(self) -> None:
+        """SMA exactly at 0.5 is NOT bullish (> not >=), so no SMA signal.
+
+        RSI=55 (>50, bullish+=1), SMA=0.5 (not >0.5, no signal).
+        bullish=1, bearish=0 -> BULLISH (from RSI alone).
+        """
+        result = determine_direction(adx=25.0, rsi=55.0, sma_alignment=0.5)
+        assert result is SignalDirection.BULLISH
+
+    def test_sma_exactly_at_bearish_boundary_no_signal(self) -> None:
+        """SMA exactly at -0.5 is NOT bearish (< not <=), so no SMA signal.
+
+        RSI=45 (<50, bearish+=1), SMA=-0.5 (not <-0.5, no signal).
+        bearish=1, bullish=0 -> BEARISH (from RSI alone).
+        """
+        result = determine_direction(adx=25.0, rsi=45.0, sma_alignment=-0.5)
+        assert result is SignalDirection.BEARISH
+
     def test_default_config_used_when_none(self) -> None:
         """When config=None, production defaults are used."""
         # Same inputs should produce same result with explicit defaults

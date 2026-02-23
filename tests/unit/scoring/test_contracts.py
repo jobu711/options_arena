@@ -631,5 +631,5 @@ class TestRecommendContracts:
             risk_free_rate=0.05,
             dividend_yield=0.01,
         )
-        if result:
-            assert result[0].option_type == OptionType.PUT
+        assert len(result) == 1
+        assert result[0].option_type == OptionType.PUT

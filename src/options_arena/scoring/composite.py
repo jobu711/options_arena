@@ -129,8 +129,16 @@ def score_universe(
     Direction is set to :attr:`SignalDirection.NEUTRAL` as a placeholder --
     direction classification is handled separately by ``direction.py``.
 
+    .. warning::
+        The ``signals`` field on the returned :class:`TickerScore` instances
+        contains **percentile-ranked and inverted** values (0--100), NOT raw
+        indicator values.  ``determine_direction()`` expects **raw** indicator
+        values (e.g. RSI 20--80, ADX 0--100).  Callers must retain the
+        original raw ``IndicatorSignals`` for direction classification.
+
     Args:
-        universe: Mapping of ticker symbol to raw ``IndicatorSignals``.
+        universe: Mapping of ticker symbol to **raw** ``IndicatorSignals``
+            (not yet normalized).
 
     Returns:
         List of :class:`TickerScore` sorted descending by ``composite_score``.

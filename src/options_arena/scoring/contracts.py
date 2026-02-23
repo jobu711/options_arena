@@ -76,6 +76,8 @@ def filter_contracts(
                 continue  # Truly dead contract
             # bid=0 but ask>0: pass through without spread check
         elif contract.mid == _ZERO:
+            # Defensive: unreachable when bid>0 (prices are non-negative),
+            # but guards against unexpected Decimal edge cases.
             continue
         else:
             spread_pct = float(contract.spread / contract.mid)
@@ -199,6 +201,7 @@ def compute_greeks(
                     )
                     continue
                 try:
+                    original_iv = sigma
                     sigma = option_iv(
                         contract.exercise_style,
                         mid_price,
@@ -208,6 +211,13 @@ def compute_greeks(
                         risk_free_rate,
                         dividend_yield,
                         contract.option_type,
+                    )
+                    logger.debug(
+                        "IV re-solved for %s strike %s: %.4f -> %.4f",
+                        contract.ticker,
+                        contract.strike,
+                        original_iv,
+                        sigma,
                     )
                 except (ValueError, OverflowError, ZeroDivisionError):
                     logger.warning(
