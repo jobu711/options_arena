@@ -172,7 +172,7 @@ This table tracks which numbered migrations have been applied.
 
 ### Migration Execution Flow
 
-```
+```text
 1. Database.connect() called
 2. Open aiosqlite connection
 3. Set PRAGMA journal_mode=WAL

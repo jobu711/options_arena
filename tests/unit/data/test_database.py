@@ -109,7 +109,7 @@ async def test_operation_after_close_raises() -> None:
 
 
 @pytest.mark.asyncio
-async def test_memory_database_no_file_io(tmp_path: object) -> None:
+async def test_memory_database_no_file_io() -> None:
     """:memory: database works without creating files."""
     database = Database(":memory:")
     await database.connect()

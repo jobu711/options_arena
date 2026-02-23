@@ -98,7 +98,8 @@ class Repository:
         """Get all TickerScores for a scan run.  Returns empty list if none."""
         conn = self._db.conn
         async with conn.execute(
-            "SELECT * FROM ticker_scores WHERE scan_run_id = ?", (scan_id,)
+            "SELECT * FROM ticker_scores WHERE scan_run_id = ? ORDER BY id ASC",
+            (scan_id,),
         ) as cursor:
             rows = await cursor.fetchall()
         scores = [self._row_to_ticker_score(row) for row in rows]

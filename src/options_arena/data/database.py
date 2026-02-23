@@ -84,7 +84,7 @@ class Database:
             return
 
         migration_files = sorted(
-            self._migrations_dir.glob("*.sql"),
+            (p for p in self._migrations_dir.glob("*.sql") if p.stem.split("_")[0].isdigit()),
             key=lambda p: int(p.stem.split("_")[0]),
         )
 
