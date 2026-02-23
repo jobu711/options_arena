@@ -1,4 +1,4 @@
-"""CLI commands: health, universe (refresh/list/stats).
+"""CLI commands: scan, health, universe (refresh/list/stats).
 
 Each command is a sync Typer function wrapping an async internal function
 via ``asyncio.run()``. Services are created and closed within the command scope.
@@ -8,22 +8,148 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import signal
+import time
 
 import typer
 from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from options_arena.cli.app import app
-from options_arena.cli.rendering import render_health_table
+from options_arena.cli.progress import RichProgressCallback, setup_sigint_handler
+from options_arena.cli.rendering import DISCLAIMER, render_health_table, render_scan_table
+from options_arena.data import Database, Repository
 from options_arena.models.config import AppSettings
 from options_arena.models.enums import ScanPreset
+from options_arena.scan import CancellationToken, ScanPipeline, ScanResult
 from options_arena.services.cache import ServiceCache
+from options_arena.services.fred import FredService
 from options_arena.services.health import HealthService
+from options_arena.services.market_data import MarketDataService
+from options_arena.services.options_data import OptionsDataService
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.services.universe import UniverseService
 
 logger = logging.getLogger(__name__)
 console = Console()
 err_console = Console(stderr=True)
+
+
+# ---------------------------------------------------------------------------
+# scan command
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def scan(
+    preset: ScanPreset = typer.Option(  # noqa: B008
+        ScanPreset.SP500, "--preset", "-p", help="Scan preset: full, sp500, etfs"
+    ),
+    top_n: int = typer.Option(50, "--top-n", "-n", help="Top N tickers for options analysis"),
+    min_score: float = typer.Option(0.0, "--min-score", help="Minimum composite score"),
+    sectors: str | None = typer.Option(None, "--sectors", help="Comma-separated GICS sectors"),
+) -> None:
+    """Run the full scan pipeline: universe -> scoring -> options -> persist."""
+    asyncio.run(_scan_async(preset, top_n, min_score, sectors))
+
+
+async def _scan_async(
+    preset: ScanPreset,
+    top_n: int,
+    min_score: float,
+    sectors: str | None,
+) -> None:
+    """Run the scan pipeline with full service lifecycle management."""
+    start_time = time.monotonic()
+
+    # Config with CLI overrides
+    settings = AppSettings()
+    settings.scan.top_n = top_n
+    settings.scan.min_score = min_score
+
+    # Infrastructure
+    cache = ServiceCache(settings.service)
+    limiter = RateLimiter(
+        settings.service.rate_limit_rps, settings.service.max_concurrent_requests
+    )
+    db = Database("data/options_arena.db")
+    await db.connect()
+    repo = Repository(db)
+
+    # Services (DI pattern)
+    market_data = MarketDataService(settings.service, cache, limiter)
+    options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
+    fred = FredService(settings.service, settings.pricing, cache)
+    universe_svc = UniverseService(settings.service, cache, limiter)
+
+    # Pipeline
+    pipeline = ScanPipeline(settings, market_data, options_data, fred, universe_svc, repo)
+
+    # Cancellation token + SIGINT handler
+    token = CancellationToken()
+    setup_sigint_handler(token, err_console)
+
+    try:
+        # Progress bar on stderr (preserves piped stdout)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeElapsedColumn(),
+            console=err_console,
+            transient=False,
+        ) as progress:
+            callback = RichProgressCallback(progress)
+            result = await pipeline.run(preset, token, callback)
+
+        # Render results
+        elapsed = time.monotonic() - start_time
+        _render_scan_results(result, elapsed)
+
+    except Exception as exc:
+        logger.exception("Scan pipeline failed")
+        err_console.print("[red]Scan failed. Check logs/options_arena.log for details.[/red]")
+        raise typer.Exit(code=1) from exc
+    finally:
+        # Restore default SIGINT handler
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        # Close ALL services (order doesn't matter)
+        await market_data.close()
+        await options_data.close()
+        await fred.close()
+        await universe_svc.close()
+        await cache.close()
+        await db.close()
+
+
+def _render_scan_results(result: ScanResult, elapsed: float) -> None:
+    """Render scan results: table + summary + disclaimer."""
+    if result.cancelled:
+        err_console.print(
+            f"[yellow]Scan cancelled after {result.phases_completed}/4 phases.[/yellow]"
+        )
+
+    if result.scores:
+        table = render_scan_table(result)
+        console.print(table)
+
+    # Summary line
+    rec_count = sum(len(contracts) for contracts in result.recommendations.values())
+    console.print(
+        f"\n{result.scan_run.tickers_scanned} tickers scanned, "
+        f"{result.scan_run.tickers_scored} scored, "
+        f"{rec_count} recommendations in {elapsed:.1f}s"
+    )
+
+    # Regulatory disclaimer (ALWAYS printed)
+    console.print(f"\n{DISCLAIMER}")
 
 
 # ---------------------------------------------------------------------------

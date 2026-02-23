@@ -1,4 +1,4 @@
-"""Tests for CLI commands: health, universe (refresh/list/stats).
+"""Tests for CLI commands: scan, health, universe (refresh/list/stats).
 
 All tests mock at the service level to avoid real API calls.
 Typer CliRunner captures output and exit codes for assertion.
@@ -33,6 +33,33 @@ def _make_health_status(
         error=error,
         checked_at=datetime.now(UTC),
     )
+
+
+# ---------------------------------------------------------------------------
+# scan command
+# ---------------------------------------------------------------------------
+
+
+@patch("options_arena.cli.commands._scan_async", new_callable=AsyncMock)
+def test_scan_command_default_args(mock_scan_async: AsyncMock) -> None:
+    """Scan command with defaults invokes _scan_async with SP500 preset."""
+    mock_scan_async.return_value = None
+
+    result = runner.invoke(app, ["scan"])
+    assert result.exit_code == 0
+    mock_scan_async.assert_awaited_once()
+    args = mock_scan_async.call_args
+    # Default preset is SP500, top_n=50, min_score=0.0, sectors=None
+    assert args[0][0].value == "sp500"
+    assert args[0][1] == 50
+    assert args[0][2] == 0.0
+    assert args[0][3] is None
+
+
+def test_scan_invalid_preset_rejected() -> None:
+    """Scan rejects an invalid preset value."""
+    result = runner.invoke(app, ["scan", "--preset", "invalid"])
+    assert result.exit_code != 0
 
 
 # ---------------------------------------------------------------------------
