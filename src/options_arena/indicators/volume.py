@@ -7,6 +7,7 @@ NaN for warmup period — never filled or dropped.
 import numpy as np
 import pandas as pd
 
+from options_arena.indicators._validation import validate_aligned
 from options_arena.utils.exceptions import InsufficientDataError
 
 
@@ -59,6 +60,7 @@ def obv_trend(
     Raises:
         InsufficientDataError: If ``len(close) < slope_period + 1``.
     """
+    validate_aligned(close, volume)
     if len(close) < slope_period + 1:
         raise InsufficientDataError(
             f"OBV trend requires at least {slope_period + 1} data points, got {len(close)}"
@@ -117,6 +119,7 @@ def ad_trend(
     Raises:
         InsufficientDataError: If ``len(close) < slope_period``.
     """
+    validate_aligned(high, low, close, volume)
     if len(close) < slope_period:
         raise InsufficientDataError(
             f"A/D trend requires at least {slope_period} data points, got {len(close)}"

@@ -7,6 +7,7 @@ NaN for warmup period — never filled or dropped.
 import numpy as np
 import pandas as pd
 
+from options_arena.indicators._validation import validate_aligned
 from options_arena.utils.exceptions import InsufficientDataError
 
 
@@ -61,6 +62,7 @@ def atr_percent(
     Raises:
         InsufficientDataError: If ``len(close) < period + 1``.
     """
+    validate_aligned(high, low, close)
     if len(close) < period + 1:
         raise InsufficientDataError(
             f"ATR% requires at least {period + 1} data points, got {len(close)}"
@@ -80,7 +82,8 @@ def atr_percent(
     atr_result = atr.copy()
     atr_result.iloc[:period] = np.nan
 
-    result: pd.Series = (atr_result / close) * 100
+    # Guard division by zero when close is 0
+    result: pd.Series = (atr_result / close.replace(0.0, np.nan)) * 100
     return result
 
 
@@ -102,6 +105,7 @@ def keltner_width(
     Raises:
         InsufficientDataError: If ``len(close) < period + 1``.
     """
+    validate_aligned(high, low, close)
     if len(close) < period + 1:
         raise InsufficientDataError(
             f"Keltner width requires at least {period + 1} data points, got {len(close)}"

@@ -7,6 +7,7 @@ NaN for warmup period — never filled or dropped.
 import numpy as np
 import pandas as pd
 
+from options_arena.indicators._validation import validate_aligned
 from options_arena.utils.exceptions import InsufficientDataError
 
 
@@ -63,6 +64,7 @@ def vwap_deviation(
     Raises:
         InsufficientDataError: If ``len(close) < 1``.
     """
+    validate_aligned(close, volume)
     if len(close) < 1:
         raise InsufficientDataError("VWAP deviation requires at least 1 data point, got 0")
 

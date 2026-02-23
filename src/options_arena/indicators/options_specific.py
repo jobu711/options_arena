@@ -38,8 +38,11 @@ def iv_percentile(
     """
     if len(iv_history) < 1:
         raise InsufficientDataError("IV percentile requires at least 1 data point in history")
-    count_lower = int(np.sum(iv_history < current_iv))
-    return float(count_lower / len(iv_history) * 100.0)
+    clean = iv_history.dropna()
+    if len(clean) < 1:
+        raise InsufficientDataError("IV percentile requires at least 1 non-NaN data point")
+    count_lower = int(np.sum(clean < current_iv))
+    return float(count_lower / len(clean) * 100.0)
 
 
 def put_call_ratio_volume(put_volume: int, call_volume: int) -> float:
@@ -102,7 +105,7 @@ def max_pain(
         #   call loss = (candidate - strike_i) * call_oi_i
         call_itm_mask = strikes_arr < candidate
         call_pain = float(
-            np.sum((candidate - strikes_arr[call_itm_mask]) * call_oi_arr[call_itm_mask])
+            np.nansum((candidate - strikes_arr[call_itm_mask]) * call_oi_arr[call_itm_mask])
         )
 
         # Put holders lose money when strike > candidate (puts are ITM)
@@ -110,7 +113,7 @@ def max_pain(
         #   put loss = (strike_i - candidate) * put_oi_i
         put_itm_mask = strikes_arr > candidate
         put_pain = float(
-            np.sum((strikes_arr[put_itm_mask] - candidate) * put_oi_arr[put_itm_mask])
+            np.nansum((strikes_arr[put_itm_mask] - candidate) * put_oi_arr[put_itm_mask])
         )
 
         total_pain = call_pain + put_pain

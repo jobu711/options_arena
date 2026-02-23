@@ -7,6 +7,7 @@ NaN for warmup period — never filled or dropped.
 import numpy as np
 import pandas as pd
 
+from options_arena.indicators._validation import validate_aligned
 from options_arena.utils.exceptions import InsufficientDataError
 
 
@@ -29,7 +30,8 @@ def roc(
         )
 
     prev_close = close.shift(period)
-    result: pd.Series = (close - prev_close) / prev_close * 100
+    # Guard division by zero when prev_close is 0
+    result: pd.Series = (close - prev_close) / prev_close.replace(0.0, np.nan) * 100
     return result
 
 
@@ -56,6 +58,7 @@ def adx(
     Raises:
         InsufficientDataError: If ``len(close) < 2 * period + 1``.
     """
+    validate_aligned(high, low, close)
     if len(close) < 2 * period + 1:
         raise InsufficientDataError(
             f"ADX requires at least {2 * period + 1} data points, got {len(close)}"
@@ -142,6 +145,7 @@ def supertrend(
     Raises:
         InsufficientDataError: If ``len(close) < period + 1``.
     """
+    validate_aligned(high, low, close)
     if len(close) < period + 1:
         raise InsufficientDataError(
             f"Supertrend requires at least {period + 1} data points, got {len(close)}"

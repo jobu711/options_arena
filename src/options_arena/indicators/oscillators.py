@@ -7,6 +7,7 @@ NaN for warmup period — never filled or dropped.
 import numpy as np
 import pandas as pd
 
+from options_arena.indicators._validation import validate_aligned
 from options_arena.utils.exceptions import InsufficientDataError
 
 
@@ -118,6 +119,7 @@ def williams_r(
     Raises:
         InsufficientDataError: If ``len(close) < period``.
     """
+    validate_aligned(high, low, close)
     if len(close) < period:
         raise InsufficientDataError(
             f"Williams %R requires at least {period} data points, got {len(close)}"
