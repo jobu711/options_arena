@@ -13,6 +13,7 @@ Functions:
 """
 
 import logging
+import math
 from datetime import date
 from decimal import Decimal
 
@@ -189,9 +190,9 @@ def compute_greeks(
             sigma = contract.market_iv
 
             # If market_iv is suspect, attempt IV solve using mid price
-            if sigma <= 0.0 or sigma > 5.0:
+            if not math.isfinite(sigma) or sigma <= 0.0 or sigma > 5.0:
                 mid_price = float(contract.mid)
-                if mid_price <= 0.0:
+                if not math.isfinite(mid_price) or mid_price <= 0.0:
                     logger.warning(
                         "Skipping %s strike %s: invalid market_iv=%.4f and mid=%.4f",
                         contract.ticker,

@@ -52,7 +52,7 @@ def get_active_indicators(universe: dict[str, IndicatorSignals]) -> set[str]:
             if field in active:
                 continue
             value: float | None = getattr(signals, field)
-            if value is not None and not math.isnan(value):
+            if value is not None and math.isfinite(value):
                 active.add(field)
     return active
 
@@ -92,7 +92,7 @@ def percentile_rank_normalize(
         ticker_values: list[tuple[str, float]] = []
         for ticker, signals in universe.items():
             value: float | None = getattr(signals, field)
-            if value is not None and not math.isnan(value):
+            if value is not None and math.isfinite(value):
                 ticker_values.append((ticker, value))
 
         count = len(ticker_values)
