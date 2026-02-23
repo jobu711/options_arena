@@ -34,6 +34,15 @@ from options_arena.services.options_data import ExpirationChain
 from options_arena.services.universe import SP500Constituent
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _noop_progress(phase: ScanPhase, current: int, total: int) -> None:
+    """No-op progress callback for tests that don't inspect progress."""
+
+
+# ---------------------------------------------------------------------------
 # Synthetic data builders
 # ---------------------------------------------------------------------------
 
@@ -227,7 +236,7 @@ class TestFullPipelineHappyPath:
 
     async def test_full_pipeline_completes_4_phases(self) -> None:
         """All 4 phases complete, cancelled is False, phases_completed is 4."""
-        pipeline, mocks = _make_full_pipeline(tickers=["AAPL", "MSFT"])
+        pipeline, _mocks = _make_full_pipeline(tickers=["AAPL", "MSFT"])
         token = CancellationToken()
 
         with patch(
@@ -448,7 +457,7 @@ class TestEmptyUniverse:
 
     async def test_empty_universe_completes_gracefully(self) -> None:
         """0 tickers from universe: pipeline completes all 4 phases, empty results."""
-        pipeline, mocks = _make_full_pipeline(
+        pipeline, _mocks = _make_full_pipeline(
             tickers=[],
             batch_result=BatchOHLCVResult(results=[]),
         )
@@ -764,10 +773,3 @@ class TestResultTypeValidation:
         assert result.cancelled is True
 
 
-# ---------------------------------------------------------------------------
-# No-op progress callback
-# ---------------------------------------------------------------------------
-
-
-def _noop_progress(phase: ScanPhase, current: int, total: int) -> None:
-    """No-op progress callback for tests that don't inspect progress."""

@@ -220,7 +220,7 @@ class TestPhasePersist:
 
     async def test_scan_run_has_utc_timestamps(self) -> None:
         """ScanRun built in Phase 4 has UTC timestamps."""
-        pipeline, mocks = _make_pipeline_for_persist(save_scan_run_return=1)
+        pipeline, _mocks = _make_pipeline_for_persist(save_scan_run_return=1)
 
         started_at = datetime.now(UTC)
         universe_result = _make_universe_result(["AAPL"])
@@ -312,7 +312,7 @@ class TestPhasePersist:
 
     async def test_recommendations_count_correct(self) -> None:
         """ScanRun.recommendations reflects total contracts across all tickers."""
-        pipeline, mocks = _make_pipeline_for_persist(save_scan_run_return=1)
+        pipeline, _mocks = _make_pipeline_for_persist(save_scan_run_return=1)
 
         started_at = datetime.now(UTC)
         universe_result = _make_universe_result(["AAPL", "MSFT"])

@@ -228,9 +228,9 @@ class TestPhaseScoring:
             scoring_result = await pipeline._phase_scoring(universe_result, _noop_progress)
 
         # With all-None raw signals, adx fallback is 0.0 < 15.0 -> NEUTRAL
-        if scoring_result.scores:
-            ts = scoring_result.scores[0]
-            assert ts.direction == SignalDirection.NEUTRAL
+        assert len(scoring_result.scores) == 1, "Expected exactly 1 scored ticker"
+        ts = scoring_result.scores[0]
+        assert ts.direction == SignalDirection.NEUTRAL
 
     async def test_progress_callback_invoked_with_scoring_phase(self) -> None:
         """Progress callback is invoked with ScanPhase.SCORING."""

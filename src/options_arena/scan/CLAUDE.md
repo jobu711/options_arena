@@ -37,7 +37,7 @@ verified against the actual source before writing this document.
 ## Critical Data Flow (All Types Verified)
 
 ### Phase 1: Universe + OHLCV
-```
+```text
 UniverseService.fetch_optionable_tickers() → list[str]
 UniverseService.fetch_sp500_constituents() → list[SP500Constituent]
   SP500Constituent.ticker: str, SP500Constituent.sector: str
@@ -55,7 +55,7 @@ Output: dict[str, list[OHLCV]] — ticker → OHLCV bars (only tickers with enou
 ```
 
 ### Phase 2: Indicators + Scoring + Direction
-```
+```text
 For each ticker:
   ohlcv_to_dataframe(list[OHLCV]) → pd.DataFrame
     Columns: open, high, low, close, volume (float/int, NOT Decimal)
@@ -85,7 +85,7 @@ Output: list[TickerScore] with direction set, raw_signals dict retained
 ```
 
 ### Phase 3: Liquidity Pre-filter + Options + Contracts
-```
+```text
 Liquidity pre-filter (using OHLCV data from Phase 1):
   avg_dollar_volume = mean(close * volume) over full history
   latest_close = last OHLCV close price
@@ -121,7 +121,7 @@ Output: dict[str, list[OptionContract]] — ticker → recommended contracts
 ```
 
 ### Phase 4: Persist
-```
+```text
 ScanRun(
     started_at=start_time,   # UTC datetime, captured at pipeline start
     completed_at=now_utc,    # UTC datetime
@@ -240,7 +240,7 @@ def ohlcv_to_dataframe(ohlcv: list[OHLCV]) -> pd.DataFrame:
 `score_universe()` returns `TickerScore` objects where `signals` contains **percentile-ranked
 (0–100) normalized** values. But `determine_direction()` needs **raw indicator values**:
 
-```
+```text
 determine_direction(adx=RAW_adx, rsi=RAW_rsi, sma_alignment=RAW_sma_alignment)
 ```
 

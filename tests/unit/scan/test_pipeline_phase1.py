@@ -201,7 +201,7 @@ class TestPhaseUniverse:
         mock_market_data = AsyncMock()
         mock_market_data.fetch_batch_ohlcv = AsyncMock(return_value=batch)
 
-        pipeline, mocks = _make_pipeline(
+        pipeline, _mocks = _make_pipeline(
             optionable_tickers=all_tickers,
             sp500_constituents=sp500,
             batch_result=batch,
