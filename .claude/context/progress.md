@@ -8,7 +8,7 @@
 - **Web UI**: Rolled back to pre-web state on 2026-02-19. Two attempts (React SPA, then Jinja2+HTMX) were removed.
 - **Branch**: `master` (905 tests, all phases merged)
 - **Tests**: 905 (220 models + 162 pricing + 224 indicators + 102 scoring + 163 services + 34 data)
-- **GitHub issues**: 0 open, 34 closed (Phase 1–5 all complete)
+- **GitHub issues**: 0 open, 40 closed (Phase 1–6 all complete)
 - **Scan pipeline**: Producing 8 recommendations per run (verified 2026-02-20)
 
 ## Completed Work (Phase 1)
@@ -172,8 +172,8 @@ PRD: `.claude/prds/options-arena.md` — status: backlog.
 - Key design: async-first, config-driven thresholds, DI constructors, explicit `close()`, typed Pydantic returns at all boundaries
 - `ServiceConfig.fred_api_key: str | None = None` added (backward-compatible)
 
-### Phase 6: Data Layer (Complete — 2026-02-23, PR pending)
-- Branch: `epic/phase-6-data`
+### Phase 6: Data Layer (Complete — 2026-02-23, PR #45, epic closed)
+- Branch: `epic/phase-6-data` (PR #45 open, epic #39 closed)
 - All 5 issues completed (#40–#44), 34 new tests, 905 total
 - ruff + pytest + mypy --strict all green on 42 source files
 - Implemented (full rewrite, no v3 cherry-pick):
@@ -183,6 +183,7 @@ PRD: `.claude/prds/options-arena.md` — status: backlog.
   - `repository.py` — `Repository` class: typed CRUD for ScanRun/TickerScore, IndicatorSignals JSON round-trip, StrEnum/datetime serialization, parameterized queries only
   - `__init__.py` — Re-exports Database, Repository with `__all__`
 - Key design: :memory: for tests, DI constructors, idempotent connect/close, batch insert via executemany
+- Post-review fixes: deterministic ORDER BY on scores query, migration filename filter, unused param removal (CodeRabbit PR #45)
 
 ## Next Up
 
