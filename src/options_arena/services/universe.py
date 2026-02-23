@@ -10,6 +10,7 @@ import asyncio
 import io
 import json
 import logging
+import re
 
 import httpx
 import pandas as pd
@@ -26,10 +27,13 @@ logger = logging.getLogger(__name__)
 SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 SP500_REQUIRED_COLUMNS: frozenset[str] = frozenset({"Symbol", "GICS Sector"})
 
-CBOE_URL = "https://www.cboe.com/available_weeklys/"
+CBOE_URL = "https://www.cboe.com/available_weeklys/get_csv_download/"
 
 # Characters that indicate an index symbol (not an equity)
 INDEX_SYMBOL_CHARS: frozenset[str] = frozenset({"^", "$", "/"})
+
+# Valid ticker: 1-5 uppercase letters, optionally followed by a dot and 1 letter (BRK.B)
+_TICKER_RE: re.Pattern[str] = re.compile(r"^[A-Z]{1,5}(\.[A-Z])?$")
 
 # Cache keys
 _CACHE_KEY_CBOE = "cboe:reference:universe:optionable"
@@ -75,6 +79,15 @@ class UniverseService:
         self._limiter = limiter
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(10.0, connect=5.0),
+            headers={
+                "User-Agent": (
+                    "OptionsArena/1.0 "
+                    "(https://github.com/jobu711/options_arena; "
+                    "options analysis tool) "
+                    "python-httpx"
+                ),
+                "Accept": "text/html",
+            },
         )
 
     async def fetch_optionable_tickers(self) -> list[str]:
@@ -157,13 +170,18 @@ class UniverseService:
             logger.debug("S&P 500 cache hit: %d constituents", len(constituents))
             return constituents
 
-        # pd.read_html is synchronous — wrap in to_thread
+        # Fetch HTML with httpx (proper User-Agent), then parse with pd.read_html
         async with self._limiter:
             try:
+                response = await asyncio.wait_for(
+                    self._client.get(SP500_URL),
+                    timeout=self._config.yfinance_timeout,
+                )
+                response.raise_for_status()
                 tables: list[pd.DataFrame] = await asyncio.wait_for(
                     asyncio.to_thread(
                         pd.read_html,
-                        SP500_URL,
+                        io.StringIO(response.text),
                         attrs={"id": "constituents"},
                     ),
                     timeout=self._config.yfinance_timeout,
@@ -275,29 +293,36 @@ class UniverseService:
 
     @staticmethod
     def _parse_cboe_lines(content: str) -> list[str]:
-        """Fallback line-based parser for CBOE content (e.g., HTML table or plain text)."""
+        """Fallback line-based parser for CBOE CSV content.
+
+        Handles the two-column format: ``"TICKER","Company Name"``
+        and filters out header/schedule rows via the ticker regex in
+        ``_filter_symbols``.
+        """
         raw_symbols: list[str] = []
         for line in content.splitlines():
             stripped = line.strip()
-            if stripped and not stripped.startswith("#"):
-                # Take the first whitespace/comma-delimited token
-                token = stripped.split(",")[0].split()[0] if stripped else ""
-                if token:
-                    raw_symbols.append(token)
+            if not stripped or stripped.startswith("#"):
+                continue
+            # Extract first comma-delimited field, stripping quotes
+            token = stripped.split(",")[0].strip().strip('"')
+            if token:
+                raw_symbols.append(token)
         return UniverseService._filter_symbols(raw_symbols)
 
     @staticmethod
     def _filter_symbols(raw_symbols: list[str]) -> list[str]:
         """Filter, deduplicate, and sort ticker symbols.
 
-        Removes index symbols (containing ``^``, ``$``, ``/``), strips
-        whitespace, deduplicates, and returns sorted.
+        Removes index symbols (containing ``^``, ``$``, ``/``), rejects
+        non-ticker strings (HTML fragments, CSS, etc.), strips whitespace,
+        deduplicates, and returns sorted.
         """
         seen: set[str] = set()
         result: list[str] = []
 
         for symbol in raw_symbols:
-            cleaned = symbol.strip()
+            cleaned = symbol.strip().strip('"')
             if not cleaned:
                 continue
 
@@ -306,6 +331,11 @@ class UniverseService:
                 continue
 
             upper = cleaned.upper()
+
+            # Validate against ticker pattern (rejects HTML/CSS junk)
+            if not _TICKER_RE.match(upper):
+                continue
+
             if upper not in seen:
                 seen.add(upper)
                 result.append(upper)

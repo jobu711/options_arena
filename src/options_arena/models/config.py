@@ -28,7 +28,7 @@ class ScanConfig(BaseModel):
     adx_trend_threshold: float = 15.0
     rsi_overbought: float = 70.0
     rsi_oversold: float = 30.0
-    options_per_ticker_timeout: float = 30.0
+    options_per_ticker_timeout: float = 120.0
 
 
 class PricingConfig(BaseModel):

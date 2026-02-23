@@ -374,8 +374,9 @@ class ScanPipeline:
         for ts, result in zip(top_scores, results, strict=True):
             if isinstance(result, BaseException):
                 logger.warning(
-                    "Options processing failed for %s: %s",
+                    "Options processing failed for %s: %s: %s",
                     ts.ticker,
+                    type(result).__name__,
                     result,
                 )
             else:

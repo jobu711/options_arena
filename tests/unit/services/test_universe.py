@@ -50,6 +50,15 @@ def service(config: ServiceConfig, cache: ServiceCache, limiter: RateLimiter) ->
 # ---------------------------------------------------------------------------
 
 
+def _mock_httpx_response(html: str = "<html></html>") -> MagicMock:
+    """Create a mock httpx.Response with the given HTML body."""
+    resp = MagicMock()
+    resp.text = html
+    resp.status_code = 200
+    resp.raise_for_status = MagicMock()
+    return resp
+
+
 @pytest.mark.asyncio
 async def test_sp500_happy_path(service: UniverseService) -> None:
     """Fetch S&P 500 constituents returns list of SP500Constituent models."""
@@ -66,9 +75,15 @@ async def test_sp500_happy_path(service: UniverseService) -> None:
         }
     )
 
-    with patch(
-        "options_arena.services.universe.pd.read_html",
-        return_value=[mock_df],
+    with (
+        patch.object(
+            service._client, "get", new_callable=AsyncMock,
+            return_value=_mock_httpx_response(),
+        ),
+        patch(
+            "options_arena.services.universe.pd.read_html",
+            return_value=[mock_df],
+        ),
     ):
         result = await service.fetch_sp500_constituents()
 
@@ -97,9 +112,15 @@ async def test_sp500_ticker_translation(service: UniverseService) -> None:
         }
     )
 
-    with patch(
-        "options_arena.services.universe.pd.read_html",
-        return_value=[mock_df],
+    with (
+        patch.object(
+            service._client, "get", new_callable=AsyncMock,
+            return_value=_mock_httpx_response(),
+        ),
+        patch(
+            "options_arena.services.universe.pd.read_html",
+            return_value=[mock_df],
+        ),
     ):
         result = await service.fetch_sp500_constituents()
 
@@ -128,6 +149,10 @@ async def test_sp500_missing_required_column(service: UniverseService) -> None:
     )
 
     with (
+        patch.object(
+            service._client, "get", new_callable=AsyncMock,
+            return_value=_mock_httpx_response(),
+        ),
         patch(
             "options_arena.services.universe.pd.read_html",
             return_value=[mock_df],
@@ -148,6 +173,10 @@ async def test_sp500_empty_dataframe(service: UniverseService) -> None:
     mock_df = pd.DataFrame(columns=["Symbol", "GICS Sector"])
 
     with (
+        patch.object(
+            service._client, "get", new_callable=AsyncMock,
+            return_value=_mock_httpx_response(),
+        ),
         patch(
             "options_arena.services.universe.pd.read_html",
             return_value=[mock_df],
@@ -166,6 +195,10 @@ async def test_sp500_empty_dataframe(service: UniverseService) -> None:
 async def test_sp500_no_tables(service: UniverseService) -> None:
     """No tables found at Wikipedia raises InsufficientDataError."""
     with (
+        patch.object(
+            service._client, "get", new_callable=AsyncMock,
+            return_value=_mock_httpx_response(),
+        ),
         patch(
             "options_arena.services.universe.pd.read_html",
             return_value=[],
@@ -415,9 +448,9 @@ async def test_cboe_network_failure(service: UniverseService) -> None:
 async def test_sp500_wikipedia_unreachable(service: UniverseService) -> None:
     """Wikipedia network failure raises DataSourceUnavailableError."""
     with (
-        patch(
-            "options_arena.services.universe.pd.read_html",
-            side_effect=Exception("Connection refused"),
+        patch.object(
+            service._client, "get", new_callable=AsyncMock,
+            side_effect=httpx.ConnectError("Connection refused"),
         ),
         pytest.raises(DataSourceUnavailableError, match="Wikipedia"),
     ):
