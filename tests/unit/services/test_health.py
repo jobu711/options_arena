@@ -63,9 +63,6 @@ class TestCheckYfinance:
     async def test_failure(self, service: HealthService) -> None:
         """Failed yfinance check returns available=False with error message."""
         mock_ticker = MagicMock()
-        mock_ticker.fast_info = property(
-            lambda self: (_ for _ in ()).throw(ConnectionError("network down"))
-        )
         # Simulate accessing fast_info raising an exception in the thread
         type(mock_ticker).fast_info = property(
             fget=MagicMock(side_effect=ConnectionError("network down"))

@@ -562,7 +562,7 @@ async def test_fetch_chain_caches_result(service: OptionsDataService) -> None:
     mock_ticker.option_chain.return_value = chain_result
     call_count = 0
 
-    def counting_option_chain(*args: object, **kwargs: object) -> MagicMock:
+    def counting_option_chain(*_args: object, **_kwargs: object) -> MagicMock:
         nonlocal call_count
         call_count += 1
         return chain_result

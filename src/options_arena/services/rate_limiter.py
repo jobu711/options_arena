@@ -35,7 +35,11 @@ class RateLimiter:
     async def acquire(self) -> None:
         """Acquire a rate-limit slot: wait for both a token and a semaphore permit."""
         await self._semaphore.acquire()
-        await self._wait_for_token()
+        try:
+            await self._wait_for_token()
+        except BaseException:
+            self._semaphore.release()
+            raise
 
     def release(self) -> None:
         """Release the semaphore permit. Synchronous — do NOT await."""

@@ -327,7 +327,7 @@ class TestDividendWaterfall:
         """Tier 1: dividendYield present -> FORWARD source."""
         info = {"dividendYield": 0.005, "dividendRate": 0.96}
         result = _extract_dividend_yield(info, pd.Series(dtype=float), Decimal("185.50"))
-        yield_val, source, rate, trailing_rate = result
+        yield_val, source, _rate, _trailing_rate = result
 
         assert yield_val == pytest.approx(0.005)
         assert source == DividendSource.FORWARD
@@ -340,7 +340,7 @@ class TestDividendWaterfall:
             "trailingAnnualDividendRate": 0.89,
         }
         result = _extract_dividend_yield(info, pd.Series(dtype=float), Decimal("185.50"))
-        yield_val, source, _, trailing_rate = result
+        yield_val, source, _, _trailing_rate = result
 
         assert yield_val == pytest.approx(0.0048)
         assert source == DividendSource.TRAILING
@@ -564,7 +564,7 @@ class TestTimeout:
         config = ServiceConfig(yfinance_timeout=0.01)
         svc = MarketDataService(config=config, cache=cache, limiter=limiter)
 
-        def slow_history(**kwargs: object) -> pd.DataFrame:
+        def slow_history(**_kwargs: object) -> pd.DataFrame:
             import time
 
             time.sleep(5.0)
