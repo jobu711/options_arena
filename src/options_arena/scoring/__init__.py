@@ -7,5 +7,8 @@ Modules:
     contracts     -- Contract filtering, Greeks dispatch, delta targeting.
 """
 
-# Re-exports populated after implementation modules are created.
-__all__: list[str] = []
+from options_arena.scoring.direction import determine_direction
+
+__all__: list[str] = [
+    "determine_direction",
+]
