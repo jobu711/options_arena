@@ -2,10 +2,11 @@
 name: phase-4-scoring
 status: backlog
 created: 2026-02-22T08:50:13Z
+updated: 2026-02-23T09:46:00Z
 progress: 0%
 prd: .claude/prds/options-arena.md
 parent: .claude/epics/options-arena/epic.md
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/20
 ---
 
 # Epic 4: Scoring Module
@@ -71,3 +72,23 @@ uv run mypy src/ --strict
 - All thresholds come from `ScanConfig` / `PricingConfig` — no hardcoded magic numbers
 
 ## Estimated Tests: ~80
+
+## Tasks Created
+- [ ] #21 - Scoring package scaffold and CLAUDE.md (parallel: true)
+- [ ] #25 - Implement normalization.py with percentile-rank scoring (depends: #21)
+- [ ] #27 - Implement composite.py with weighted geometric mean scoring (depends: #21, #25)
+- [ ] #22 - Implement direction.py with signal aggregation and tiebreaker (parallel: true, depends: #21)
+- [ ] #24 - Implement contracts.py with Greeks dispatch and contract selection (parallel: true, depends: #21)
+- [ ] #26 - Package integration, re-exports, and verification gate (depends: #25, #27, #22, #24)
+
+Total tasks: 6
+Parallel tasks: 3 (#21, #22, #24 can run independently after scaffold)
+Sequential tasks: 3 (#25→#27 chain, #26 waits for all)
+Estimated total effort: 39 hours
+
+### Execution Order
+```
+#21 (scaffold) ──┬──→ #25 (normalization) ──→ #27 (composite) ──┐
+                 ├──→ #22 (direction)      ─────────────────────┼──→ #26 (integration)
+                 └──→ #24 (contracts)      ─────────────────────┘
+```
