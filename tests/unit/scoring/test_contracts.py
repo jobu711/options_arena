@@ -160,18 +160,18 @@ class TestSelectExpiration:
     """Tests for select_expiration."""
 
     def test_picks_closest_to_midpoint(self) -> None:
-        """Should pick expiration closest to DTE midpoint (45 by default)."""
+        """Should pick expiration closest to DTE midpoint (197.5 by default)."""
         c30 = make_contract(dte_days=30)
-        c45 = make_contract(dte_days=45)
-        c60 = make_contract(dte_days=60)
-        result = select_expiration([c30, c45, c60])
-        assert result == c45.expiration
+        c180 = make_contract(dte_days=180)
+        c365 = make_contract(dte_days=365)
+        result = select_expiration([c30, c180, c365])
+        assert result == c180.expiration
 
     def test_no_contracts_in_dte_range_returns_none(self) -> None:
         """Should return None if no contracts in DTE range."""
         c10 = make_contract(dte_days=10)
-        c90 = make_contract(dte_days=90)
-        result = select_expiration([c10, c90])
+        c400 = make_contract(dte_days=400)
+        result = select_expiration([c10, c400])
         assert result is None
 
     def test_all_same_dte(self) -> None:

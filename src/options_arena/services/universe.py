@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 SP500_REQUIRED_COLUMNS: frozenset[str] = frozenset({"Symbol", "GICS Sector"})
 
-CBOE_URL = "https://www.cboe.com/available_weeklys/get_csv_download/"
+CBOE_URL = "https://www.cboe.com/markets/us/options/symbol-directory/equity-index-options?download=csv"
 
 # Characters that indicate an index symbol (not an equity)
 INDEX_SYMBOL_CHARS: frozenset[str] = frozenset({"^", "$", "/"})
@@ -79,6 +79,7 @@ class UniverseService:
         self._limiter = limiter
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(10.0, connect=5.0),
+            follow_redirects=True,
             headers={
                 "User-Agent": (
                     "OptionsArena/1.0 "
@@ -266,7 +267,7 @@ class UniverseService:
         strips whitespace, and deduplicates. Returns a sorted list.
         """
         try:
-            df = pd.read_csv(io.StringIO(content))
+            df = pd.read_csv(io.StringIO(content), skipinitialspace=True)
         except Exception:
             logger.warning("Failed to parse CBOE CSV with pandas, trying line-based parsing")
             return UniverseService._parse_cboe_lines(content)
@@ -276,7 +277,7 @@ class UniverseService:
         ticker_column: str | None = None
         for col_name in df.columns:
             col_lower = str(col_name).strip().lower()
-            if col_lower in ("symbol", "ticker", "company"):
+            if col_lower in ("symbol", "ticker", "stock symbol"):
                 ticker_column = str(col_name)
                 break
 

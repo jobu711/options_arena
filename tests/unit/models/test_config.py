@@ -104,7 +104,7 @@ class TestAppSettingsDefaults:
 
     def test_pricing_dte_max_default(self) -> None:
         settings = AppSettings()
-        assert settings.pricing.dte_max == 60
+        assert settings.pricing.dte_max == 365
 
     def test_service_ollama_host_default(self) -> None:
         settings = AppSettings()

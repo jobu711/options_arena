@@ -37,6 +37,18 @@
 - **StrEnum for categories**: All categorical string fields (macd_signal, preset, etc.) use `StrEnum` subclasses — never raw `str`
 - **Domain constraints**: `market_iv >= 0`, `quantity >= 1`, `legs` non-empty — validated at model construction
 
+### NaN/Inf Defense Pattern (Added Post-MVP)
+- **`math.isfinite()` at model boundaries**: Every Pydantic validator on numeric fields that use
+  `v < 0` or range checks must ALSO check `math.isfinite(v)` first, because NaN comparisons
+  always return False (NaN silently passes `v >= 0`).
+- **`math.isfinite()` at computation entry**: Pricing functions (`bsm_price`, `american_price`)
+  and scoring functions (`composite_score`, `determine_direction`) guard non-finite inputs at
+  entry before any arithmetic.
+- **NaN for undefined ratios**: Division-by-zero returns `float("nan")` (not `0.0`) when the
+  result is mathematically undefined (e.g., put/call ratio with zero call volume).
+- **Display guards**: CLI rendering checks `math.isfinite()` before formatting numeric values,
+  falling back to `"--"` for non-finite values.
+
 ### Re-export Pattern
 - Each package `__init__.py` re-exports its public API
 - Consumers import from the package, not submodules: `from options_arena.models import OptionContract`
@@ -119,7 +131,7 @@
 
 ### Scan Pipeline Data Flow
 ```
-Phase 1: Universe (5,296 CBOE tickers) → OHLCV fetch → ~5,159 with data
+Phase 1: Universe (~5,286 CBOE tickers) → OHLCV fetch → ~5,100+ with data
 Phase 2: Indicators (isolated per-indicator try/except) → normalize → score → direction
 Phase 3: Liquidity pre-filter ($10M avg dollar volume, $10 min price)
         → Top 50 by score → fetch option chains → filter contracts → recommend
@@ -178,7 +190,7 @@ Phase 4: Persist results to SQLite
 - **Normalization**: `percentile_rank_normalize()` converts raw indicator values to 0–100 percentile ranks with tie averaging. Single ticker → 50.0. `invert_indicators()` flips bb_width, atr_pct, relative_volume, keltner_width (higher raw = worse). `get_active_indicators()` detects universally-missing indicators for weight renormalization.
 - **Composite scoring**: `composite_score()` computes weighted geometric mean: `exp(sum(w_i * ln(max(x_i, 1.0))) / sum(w_i))`. 18 indicators, 6 categories, weights sum to 1.0. Floor value 1.0 prevents log(0). Output clamped [0, 100].
 - **Direction classification**: `determine_direction(adx, rsi, sma_alignment, config)` returns `SignalDirection`. ADX gate (< 15 → NEUTRAL), RSI scoring (strong +=2, mild +=1), SMA scoring (+=1 for >0.5 or <-0.5), SMA tiebreaker.
-- **Contract selection**: `recommend_contracts()` pipeline: `filter_contracts()` (direction, OI, volume, spread with zero-bid exemption) → `select_expiration()` (DTE [30,60], closest to midpoint) → `compute_greeks()` (via `pricing/dispatch.py`, IV re-solve for suspect market_iv with `math.isfinite` guard) → `select_by_delta()` (primary [0.20,0.50] + fallback [0.10,0.80], target 0.35).
+- **Contract selection**: `recommend_contracts()` pipeline: `filter_contracts()` (direction, OI, volume, spread ≤30% with zero-bid exemption) → `select_expiration()` (DTE [30,365], closest to midpoint 197.5) → `compute_greeks()` (via `pricing/dispatch.py`, IV re-solve for suspect market_iv with `math.isfinite` guard) → `select_by_delta()` (primary [0.20,0.50] + fallback [0.10,0.80], target 0.35).
 - **Critical contract**: `score_universe()` returns percentile-ranked signals on `TickerScore.signals`. `determine_direction()` requires **raw** indicator values — callers must retain raw `IndicatorSignals` separately.
 - All thresholds from `ScanConfig` (direction) / `PricingConfig` (contracts) — no hardcoded magic numbers.
 - `scoring/` imports from `pricing/dispatch` only — never `pricing/bsm` or `pricing/american` directly.

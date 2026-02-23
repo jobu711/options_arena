@@ -220,6 +220,48 @@ PRD: `.claude/prds/options-arena.md` — status: backlog.
   progress total, db path), 2 CodeRabbit fixes (LOG_DIR path, handler close)
 - Entry point: `options-arena = "options_arena.cli:app"` in pyproject.toml
 
+## Post-MVP Hardening (2026-02-23)
+
+Full codebase analysis identified 15 NaN/Inf edge cases across 12 source files.
+All fixed in commit `4a91c3a`, 1086 tests passing, ruff + mypy --strict green.
+
+**High priority (NaN bypass on validators):**
+- `models/options.py`: gamma, vega, market_iv validators now reject NaN/Inf via `math.isfinite()`
+- `models/market_data.py`: dividend_yield validator rejects NaN/Inf and negative values
+- `models/scan.py`: composite_score validator enforces [0, 100] with finite check
+- `indicators/volatility.py`: bb_width div-by-zero guard with `.replace(0.0, np.nan)`
+
+**Medium priority (logic correctness):**
+- `scoring/composite.py`: `math.isfinite()` guard skips NaN/Inf indicator values
+- `scoring/direction.py`: non-finite inputs short-circuit to NEUTRAL; SMA tiebreaker handles 0.0
+- `indicators/options_specific.py`: put_call_ratio returns NaN (not 0.0) for undefined ratio
+- `services/cache.py`: OHLCV TTL changed from permanent (0) to 6 hours (stale daily bars)
+- `services/options_data.py`: expirations cached with "reference" TTL (24h) instead of "chain" (5min)
+
+**Low priority (defense in depth):**
+- `pricing/bsm.py`: bsm_price, bsm_greeks, bsm_vega guard NaN sigma at entry
+- `pricing/american.py`: american_price guards NaN sigma; BAW non-convergence log promoted to WARNING
+- `cli/rendering.py`: IV display guards non-finite market_iv with "--" fallback
+
+## Scan Tuning (2026-02-23)
+
+Three changes to improve scan coverage:
+
+1. **CBOE URL → full equity/index options directory**: Changed from weekly-only endpoint
+   (`/available_weeklys/get_csv_download/`, ~663 tickers) to the full CBOE symbol directory
+   (`/markets/us/options/symbol-directory/equity-index-options?download=csv`, ~5,286 tickers).
+   Added `follow_redirects=True` to httpx client and `skipinitialspace=True` to `pd.read_csv()`
+   to handle CBOE CSV format (spaces after commas in header). Column matching updated to
+   recognize `Stock Symbol` column name.
+
+2. **DTE range widened**: `dte_max` increased from 60 → 365 days. Midpoint target shifted
+   from 45 → 197.5 days. Allows LEAPS-range options for longer-horizon analysis.
+
+3. **Spread filter relaxed**: `max_spread_pct` increased from 10% → 30%. The previous 10%
+   threshold was calibrated for near-term (30-60 DTE) options. Far-dated options (6-12 months)
+   naturally have wider bid-ask spreads; the tight filter was eliminating most contracts at
+   those expirations, leaving only 1-2 deep ITM contracts with extreme deltas.
+
 ## MVP 1.0.0 Complete
 
 All 8 phases implemented and merged. The scan pipeline is fully operational:

@@ -51,8 +51,8 @@ Higher raw value = worse signal, flipped after normalization:
 
 ### Contract Thresholds (contracts.py)
 - Delta: primary [0.20, 0.50], fallback [0.10, 0.80], target 0.35
-- DTE: [30, 60] days
-- Liquidity: OI >= 100, volume >= 1, spread/mid <= 10%
+- DTE: [30, 365] days
+- Liquidity: OI >= 100, volume >= 1, spread/mid <= 30%
 - Zero-bid exemption: bid=0/ask>0 skips spread check
 
 ## v3 → Arena Field Name Mapping
