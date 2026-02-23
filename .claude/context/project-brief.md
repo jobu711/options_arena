@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-19T13:03:42Z
-version: 1.3
+last_updated: 2026-02-22T23:58:54Z
+version: 1.4
 author: Claude Code PM System
 ---
 
@@ -37,11 +37,11 @@ author: Claude Code PM System
 ## Scope Boundaries
 
 - **In scope (Phase 1 — Complete)**: CLI tool, yfinance data, Ollama-only AI, SQLite persistence, technical indicators, rich terminal output
-- **In scope (Phase 2 — Complete)**: Web UI (FastAPI + Jinja2 + HTMX). Server-rendered dark theme, 7 pages, merged via PR #53
+- **In scope (Phase 2 — Rolled back)**: Web UI attempts removed (2026-02-19). Deferred to v2.
 - **Out of scope**: Cloud AI providers, real-time streaming, portfolio management, trade execution
 
 ## Repository
 
-- **GitHub**: jobu711/Option_Alpha_3
-- **Branch**: `epic/option-alpha-v3`
-- **Epic Issue**: #13
+- **GitHub**: jobu711/options_arena
+- **Branch**: `master` (Phase 1 Bootstrap & Models merged via PR #12)
+- **Rewrite**: Renamed from `Option_Alpha` to `options_arena` (PEP 8 compliant). PRD: `.claude/prds/options-arena.md`

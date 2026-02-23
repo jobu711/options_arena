@@ -86,7 +86,18 @@ PRD: `.claude/prds/options-arena.md` — status: backlog.
 - `DividendSource` enum + 3-tier waterfall for dividend yield extraction with dollar-rate cross-validation (FR-M7/M7.1 updated 2026-02-22)
 - AI debate, reporting, web UI deferred to v2
 
-**8 implementation phases**, ~810 tests target. No code written yet.
+**8 implementation phases**, ~810 tests target.
+
+### Phase 1: Project Bootstrap & Models (Complete — 2026-02-22)
+- Branch: `epic/phase-1-bootstrap-models` (PR #12 merged to master)
+- All 11 issues completed (#1–#11)
+- 220 tests passing (ruff, pytest, mypy --strict all green)
+- Implemented: enums (11 StrEnums), exceptions, AppSettings config, all Pydantic models
+  (OHLCV, Quote, TickerInfo, OptionGreeks, OptionContract, SpreadLeg, OptionSpread,
+  MarketContext, AgentResponse, TradeThesis, IndicatorSignals, ScanRun, TickerScore, HealthStatus)
+- Hardened: strict UTC enforcement on all datetime fields, confidence [0,1] validators,
+  MacdSignal/ScanPreset StrEnums (no raw strings), market_iv >= 0, quantity >= 1, non-empty legs
+- Package re-exports via `__init__.py` with `__all__`
 
 ### PRD Updates (2026-02-22)
 - FR-M3.1: Added `DividendSource` enum (`FORWARD`, `TRAILING`, `COMPUTED`, `NONE`)
@@ -102,7 +113,7 @@ PRD: `.claude/prds/options-arena.md` — status: backlog.
 
 ## Next Up
 
-- Begin Options Arena implementation (Phase 1: Project Bootstrap & Models)
+- Begin Options Arena Phase 2: Pricing Engine (BAW American, BSM European, IV solvers, Greeks)
 - Options liquidity weighting in composite scoring (carry-forward from v3 backlog)
 
 ## Blockers

@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-20T13:58:49Z
-version: 5.1
+last_updated: 2026-02-22T23:58:54Z
+version: 5.2
 author: Claude Code PM System
 ---
 
@@ -44,8 +44,8 @@ author: Claude Code PM System
 ## Build System
 
 - **Build backend**: Hatchling
-- **Source layout**: `src/Option_Alpha/` (src-based layout)
-- **Wheel packages**: `["src/Option_Alpha"]`
+- **Source layout**: `src/options_arena/` (src-based layout)
+- **Wheel packages**: `["src/options_arena"]`
 
 ## Tool Configuration
 
