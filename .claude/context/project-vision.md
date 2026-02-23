@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-19T16:03:12Z
-version: 1.2
+last_updated: 2026-02-22T23:58:54Z
+version: 1.3
 author: Claude Code PM System
 ---
 
@@ -21,13 +21,21 @@ Option Alpha aims to be a comprehensive, locally-run options analysis platform t
 - yfinance for market data
 - Terminal and markdown reporting
 
-### Phase 2 — Web UI (Complete, Pending Merge)
-- Dark-mode server-rendered web interface (Jinja2 + HTMX + Alpine.js)
-- FastAPI backend with SSE scan progress streaming
-- No Node.js/npm — vendored static JS (HTMX 2.0.4, Alpine.js 3.14.8, Lightweight Charts 4.2.1)
-- 7 pages: Dashboard, Scanner, Debate, Universe, Watchlists, Health, Settings
-- TradingView Lightweight Charts for candlestick + volume visualization
-- HTMX partial page swaps for SPA-like navigation
+### Options Arena Rewrite — Phase 1: Bootstrap & Models (Complete)
+- From-scratch rewrite as `options_arena` (PEP 8 compliant)
+- 11 enums, 14 Pydantic models, exception hierarchy, AppSettings config
+- 220 tests passing, strict UTC enforcement, StrEnum for all categorical fields
+- PR #12 merged to master (2026-02-22)
+
+### Options Arena — Phase 2: Pricing Engine (Next)
+- BAW (Barone-Adesi-Whaley) for American options pricing
+- BSM for European options pricing
+- IV solvers: Newton-Raphson (BSM), brentq (BAW)
+- Finite-difference Greeks computation
+
+### Web UI (Rolled Back — Deferred to v2)
+- Two attempts removed (React SPA, then Jinja2+HTMX) on 2026-02-19
+- Will revisit after core pricing + scan pipeline are complete
 
 ### Phase 3 — Enhanced AI & Advanced Features (Future)
 - Additional LLM provider support (Anthropic Claude, OpenAI)

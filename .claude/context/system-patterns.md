@@ -28,9 +28,15 @@
 - `frozen=True` on data models representing snapshots (quotes, contracts, verdicts)
 - Computed fields (`mid`, `spread`, `dte`) derived at access time
 
+### Validation Patterns (Enforced in Phase 1 Models)
+- **UTC enforcement**: All `datetime` fields use `field_validator` that rejects naive (`tzinfo is None`) and non-UTC (`utcoffset() != timedelta(0)`) values
+- **Confidence bounds**: Every `confidence: float` field validated to `[0.0, 1.0]` via `field_validator`
+- **StrEnum for categories**: All categorical string fields (macd_signal, preset, etc.) use `StrEnum` subclasses — never raw `str`
+- **Domain constraints**: `market_iv >= 0`, `quantity >= 1`, `legs` non-empty — validated at model construction
+
 ### Re-export Pattern
 - Each package `__init__.py` re-exports its public API
-- Consumers import from the package, not submodules: `from Option_Alpha.models import OptionContract`
+- Consumers import from the package, not submodules: `from options_arena.models import OptionContract`
 
 ### Configuration Pattern (Options Arena — Planned, Context7-Verified)
 - **Single `BaseSettings` root**: `AppSettings(BaseSettings)` is the only `BaseSettings` subclass
