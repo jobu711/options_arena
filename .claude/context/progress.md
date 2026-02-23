@@ -6,9 +6,9 @@
 - **Phase 1 MVP (v0.1.0)**: Complete (all 8 issues done)
 - **PydanticAI migration**: Complete (epic closed 2026-02-20, PRs #82-#90)
 - **Web UI**: Rolled back to pre-web state on 2026-02-19. Two attempts (React SPA, then Jinja2+HTMX) were removed.
-- **Branch**: `epic/phase-5-services` (871 tests, pending merge to master)
+- **Branch**: `master` (871 tests, all phases merged)
 - **Tests**: 871 (220 models + 162 pricing + 224 indicators + 102 scoring + 163 services)
-- **GitHub issues**: 8 open (#30-#37 Phase 5), 25 closed (Phase 1–4)
+- **GitHub issues**: 0 open, 34 closed (Phase 1–5 all complete)
 - **Scan pipeline**: Producing 8 recommendations per run (verified 2026-02-20)
 
 ## Completed Work (Phase 1)
@@ -155,8 +155,8 @@ PRD: `.claude/prds/options-arena.md` — status: backlog.
   - All thresholds from `ScanConfig`/`PricingConfig` — no hardcoded magic numbers
 - Post-merge fixes: code analysis findings (`bc722bb`), CodeRabbit `math.isfinite` guards (`a9c4cc1`)
 
-### Phase 5: Services Layer (Complete — 2026-02-23, pending merge)
-- Branch: `epic/phase-5-services` (8 commits, awaiting PR + merge to master)
+### Phase 5: Services Layer (Complete — 2026-02-23, PR #38 merged)
+- Branch: `epic/phase-5-services` (PR #38 merged to master 2026-02-23, epic closed)
 - All 8 issues completed (#30–#37), 163 new tests, 871 total
 - ruff + pytest + mypy --strict all green on 39 source files
 - Implemented (complete rewrite, no v3 cherry-pick):
@@ -174,7 +174,6 @@ PRD: `.claude/prds/options-arena.md` — status: backlog.
 
 ## Next Up
 
-- Merge Phase 5 to master (`/pm:epic-merge phase-5-services`)
 - Begin Phase 6 (scan pipeline) or Phase 7 (AI debate agents)
 - Options liquidity weighting in composite scoring (carry-forward from v3 backlog)
 
