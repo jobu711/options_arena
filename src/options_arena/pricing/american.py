@@ -23,6 +23,11 @@ from scipy.stats import norm
 from options_arena.models.config import PricingConfig
 from options_arena.models.enums import OptionType, PricingModel
 from options_arena.models.options import OptionGreeks
+from options_arena.pricing._common import (
+    boundary_greeks,
+    intrinsic_value,
+    validate_positive_inputs,
+)
 from options_arena.pricing.bsm import bsm_price
 
 logger = logging.getLogger(__name__)
@@ -66,24 +71,6 @@ def _d1(S: float, K: float, T: float, r: float, q: float, sigma: float) -> float
     """
     sigma_sqrt_t = sigma * math.sqrt(T)
     return (math.log(S / K) + (r - q + sigma * sigma / 2.0) * T) / sigma_sqrt_t
-
-
-def _intrinsic_value(S: float, K: float, option_type: OptionType) -> float:
-    """Return intrinsic value of an option.
-
-    Args:
-        S: Spot price.
-        K: Strike price.
-        option_type: CALL or PUT.
-
-    Returns:
-        Intrinsic value floored at 0.
-    """
-    match option_type:
-        case OptionType.CALL:
-            return max(S - K, 0.0)
-        case OptionType.PUT:
-            return max(K - S, 0.0)
 
 
 def _baw_auxiliary_params(
@@ -189,7 +176,7 @@ def _find_critical_price_call(
         # Ensure S_star remains positive and above K.
         S_star = max(S_star, K * 1.001)
 
-    logger.warning(
+    logger.debug(
         "BAW critical price (call) did not converge after %d iterations. "
         "Using last estimate S*=%.6f for K=%.2f, T=%.4f, sigma=%.4f",
         _CRITICAL_PRICE_MAX_ITER,
@@ -281,7 +268,7 @@ def _find_critical_price_put(
         S_star_star = max(S_star_star, K * 0.001)
         S_star_star = min(S_star_star, K * 0.999)
 
-    logger.warning(
+    logger.debug(
         "BAW critical price (put) did not converge after %d iterations. "
         "Using last estimate S**=%.6f for K=%.2f, T=%.4f, sigma=%.4f",
         _CRITICAL_PRICE_MAX_ITER,
@@ -319,18 +306,23 @@ def american_price(
 
     Returns:
         American option price as float.
+
+    Raises:
+        ValueError: If S <= 0 or K <= 0.
     """
+    validate_positive_inputs(S, K)
+
     # Edge case: at or past expiration -- return intrinsic value.
     if T <= 0.0:
-        return _intrinsic_value(S, K, option_type)
+        return intrinsic_value(S, K, option_type)
 
     # Edge case: sigma effectively zero -- return intrinsic value.
     if sigma <= 0.0:
-        return _intrinsic_value(S, K, option_type)
+        return intrinsic_value(S, K, option_type)
 
     sigma_sqrt_t = sigma * math.sqrt(T)
     if sigma_sqrt_t < _SIGMA_SQRT_T_EPSILON:
-        return _intrinsic_value(S, K, option_type)
+        return intrinsic_value(S, K, option_type)
 
     # FR-P4: When q=0, American call == European call (no early exercise premium).
     # Return BSM directly to ensure exact equality (not just approximate).
@@ -472,36 +464,6 @@ def _baw_put(
     return result
 
 
-def _boundary_greeks(S: float, K: float, option_type: OptionType) -> OptionGreeks:
-    """Return boundary Greeks when T <= 0 or sigma <= 0.
-
-    At expiration or with zero volatility, delta is 1/-1 for ITM, 0 for OTM.
-    All other Greeks are zero.
-
-    Args:
-        S: Spot price.
-        K: Strike price.
-        option_type: CALL or PUT.
-
-    Returns:
-        ``OptionGreeks`` with boundary values and ``pricing_model=BAW``.
-    """
-    match option_type:
-        case OptionType.CALL:
-            delta = 1.0 if S > K else 0.0
-        case OptionType.PUT:
-            delta = -1.0 if K > S else 0.0
-
-    return OptionGreeks(
-        delta=delta,
-        gamma=0.0,
-        theta=0.0,
-        vega=0.0,
-        rho=0.0,
-        pricing_model=PricingModel.BAW,
-    )
-
-
 def american_greeks(
     S: float,
     K: float,
@@ -527,14 +489,19 @@ def american_greeks(
 
     Returns:
         ``OptionGreeks`` with ``pricing_model=PricingModel.BAW``.
+
+    Raises:
+        ValueError: If S <= 0 or K <= 0.
     """
+    validate_positive_inputs(S, K)
+
     # Edge case: at or past expiration or sigma effectively zero.
     if T <= 0.0 or sigma <= 0.0:
-        return _boundary_greeks(S, K, option_type)
+        return boundary_greeks(S, K, option_type, PricingModel.BAW)
 
     sigma_sqrt_t = sigma * math.sqrt(T)
     if sigma_sqrt_t < _SIGMA_SQRT_T_EPSILON:
-        return _boundary_greeks(S, K, option_type)
+        return boundary_greeks(S, K, option_type, PricingModel.BAW)
 
     # Base price.
     price_base = american_price(S, K, T, r, q, sigma, option_type)
@@ -563,10 +530,12 @@ def american_greeks(
         price_T_plus = american_price(S, K, T + dT, r, q, sigma, option_type)
         theta = (price_base - price_T_plus) / dT
 
-    # Vega: centered difference on sigma.
-    price_up_sigma = american_price(S, K, T, r, q, sigma + dSigma, option_type)
-    price_dn_sigma = american_price(S, K, T, r, q, sigma - dSigma, option_type)
-    vega = (price_up_sigma - price_dn_sigma) / (2.0 * dSigma)
+    # Vega: centered difference on sigma (clamp lower bound to avoid negative sigma).
+    sigma_up = sigma + dSigma
+    sigma_dn = max(sigma - dSigma, _IV_LOWER_BOUND)
+    price_up_sigma = american_price(S, K, T, r, q, sigma_up, option_type)
+    price_dn_sigma = american_price(S, K, T, r, q, sigma_dn, option_type)
+    vega = (price_up_sigma - price_dn_sigma) / (sigma_up - sigma_dn)
 
     # Rho: centered difference on r.
     price_up_r = american_price(S, K, T, r + dR, q, sigma, option_type)
@@ -621,9 +590,11 @@ def american_iv(
         Implied volatility as float (annualized, decimal).
 
     Raises:
-        ValueError: If ``market_price <= 0``, ``T <= 0``, or the solver fails
-            (market price outside theoretical range).
+        ValueError: If ``market_price <= 0``, ``T <= 0``, ``S <= 0``, ``K <= 0``,
+            or the solver fails (market price outside theoretical range).
     """
+    validate_positive_inputs(S, K)
+
     if config is None:
         config = PricingConfig()
 

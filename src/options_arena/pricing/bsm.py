@@ -19,6 +19,11 @@ from scipy.stats import norm
 from options_arena.models.config import PricingConfig
 from options_arena.models.enums import OptionType, PricingModel
 from options_arena.models.options import OptionGreeks
+from options_arena.pricing._common import (
+    boundary_greeks,
+    intrinsic_value,
+    validate_positive_inputs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,42 +58,6 @@ def _d1_d2(S: float, K: float, T: float, r: float, q: float, sigma: float) -> tu
     return d1, d2
 
 
-def _intrinsic_value(S: float, K: float, option_type: OptionType) -> float:
-    """Return the intrinsic value of an option.
-
-    Args:
-        S: Spot price.
-        K: Strike price.
-        option_type: CALL or PUT.
-
-    Returns:
-        Intrinsic value, floored at 0.
-    """
-    match option_type:
-        case OptionType.CALL:
-            return max(S - K, 0.0)
-        case OptionType.PUT:
-            return max(K - S, 0.0)
-
-
-def _is_itm(S: float, K: float, option_type: OptionType) -> bool:
-    """Check whether an option is in-the-money.
-
-    Args:
-        S: Spot price.
-        K: Strike price.
-        option_type: CALL or PUT.
-
-    Returns:
-        True if the option is in-the-money.
-    """
-    match option_type:
-        case OptionType.CALL:
-            return S > K
-        case OptionType.PUT:
-            return K > S
-
-
 def bsm_price(
     S: float,
     K: float,
@@ -116,10 +85,15 @@ def bsm_price(
 
     Returns:
         European option price as float.
+
+    Raises:
+        ValueError: If S <= 0 or K <= 0.
     """
+    validate_positive_inputs(S, K)
+
     # Edge case: at or past expiration — return intrinsic value.
     if T <= 0.0:
-        return _intrinsic_value(S, K, option_type)
+        return intrinsic_value(S, K, option_type)
 
     # Edge case: sigma effectively zero — return discounted intrinsic value.
     sigma_sqrt_t = sigma * math.sqrt(T)
@@ -170,15 +144,20 @@ def bsm_greeks(
 
     Returns:
         ``OptionGreeks`` with delta, gamma, theta, vega, rho, and pricing_model=BSM.
+
+    Raises:
+        ValueError: If S <= 0 or K <= 0.
     """
+    validate_positive_inputs(S, K)
+
     # Edge case: at or past expiration — boundary Greeks.
     if T <= 0.0:
-        return _boundary_greeks(S, K, option_type)
+        return boundary_greeks(S, K, option_type, PricingModel.BSM)
 
     # Edge case: sigma effectively zero — boundary Greeks.
     sigma_sqrt_t = sigma * math.sqrt(T)
     if sigma <= 0.0 or sigma_sqrt_t < _SIGMA_SQRT_T_EPSILON:
-        return _boundary_greeks(S, K, option_type)
+        return boundary_greeks(S, K, option_type, PricingModel.BSM)
 
     d1, d2 = _d1_d2(S, K, T, r, q, sigma)
     sqrt_t = math.sqrt(T)
@@ -223,39 +202,6 @@ def bsm_greeks(
     )
 
 
-def _boundary_greeks(S: float, K: float, option_type: OptionType) -> OptionGreeks:
-    """Return boundary Greeks when T <= 0 or sigma <= 0.
-
-    At expiration or with zero volatility:
-    - Delta = 1.0 (call ITM) or 0.0 (call OTM); -1.0 (put ITM) or 0.0 (put OTM).
-    - Gamma, vega, rho, theta = 0.0.
-
-    Args:
-        S: Spot price.
-        K: Strike price.
-        option_type: CALL or PUT.
-
-    Returns:
-        ``OptionGreeks`` with boundary values.
-    """
-    itm = _is_itm(S, K, option_type)
-
-    match option_type:
-        case OptionType.CALL:
-            delta = 1.0 if itm else 0.0
-        case OptionType.PUT:
-            delta = -1.0 if itm else 0.0
-
-    return OptionGreeks(
-        delta=delta,
-        gamma=0.0,
-        theta=0.0,
-        vega=0.0,
-        rho=0.0,
-        pricing_model=PricingModel.BSM,
-    )
-
-
 def bsm_vega(
     S: float,
     K: float,
@@ -281,7 +227,12 @@ def bsm_vega(
 
     Returns:
         Vega as float. Returns 0.0 when T <= 0 or sigma <= 0.
+
+    Raises:
+        ValueError: If S <= 0 or K <= 0.
     """
+    validate_positive_inputs(S, K)
+
     if T <= 0.0 or sigma <= 0.0:
         return 0.0
 
@@ -329,8 +280,12 @@ def bsm_iv(
 
     Raises:
         ValueError: If the solver does not converge within ``max_iter`` iterations,
-            if vega is too small to make progress, or if ``market_price <= 0``.
+            if vega is too small to make progress, if ``market_price <= 0``,
+            if ``T <= 0``, if ``S <= 0``, if ``K <= 0``, or if the market price
+            is outside the theoretical range.
     """
+    validate_positive_inputs(S, K)
+
     if config is None:
         config = PricingConfig()
 
@@ -342,6 +297,17 @@ def bsm_iv(
 
     if T <= 0.0:
         raise ValueError(f"T must be > 0 for IV computation, got {T}")
+
+    # Bracket pre-check: verify the market price is within the achievable range.
+    price_at_lower = bsm_price(S, K, T, r, q, _IV_LOWER_BOUND, option_type)
+    price_at_upper = bsm_price(S, K, T, r, q, _IV_UPPER_BOUND, option_type)
+    if market_price < price_at_lower - tol or market_price > price_at_upper + tol:
+        raise ValueError(
+            f"BSM IV solver: market_price={market_price:.6f} is outside the "
+            f"theoretical range [{price_at_lower:.6f}, {price_at_upper:.6f}] "
+            f"for sigma in [{_IV_LOWER_BOUND}, {_IV_UPPER_BOUND}]. "
+            f"Inputs: S={S}, K={K}, T={T}, r={r}, q={q}, option_type={option_type}"
+        )
 
     sigma = initial_guess
 
