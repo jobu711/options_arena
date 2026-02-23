@@ -480,7 +480,7 @@ class TestBatchOHLCV:
     """Tests for MarketDataService.fetch_batch_ohlcv."""
 
     async def test_mixed_success_and_failure(self, service: MarketDataService) -> None:
-        """3 tickers: 2 succeed, 1 fails -> dict has 2 lists + 1 exception."""
+        """3 tickers: 2 succeed, 1 fails -> BatchOHLCVResult with 2 ok + 1 error."""
         good_df = _make_ohlcv_df(
             [
                 {
@@ -506,17 +506,23 @@ class TestBatchOHLCV:
             mock_yf.Ticker.side_effect = lambda s: make_mock_ticker(s)
             result = await service.fetch_batch_ohlcv(["AAPL", "BAD", "MSFT"])
 
-        # AAPL and MSFT should have OHLCV lists
-        assert isinstance(result["AAPL"], list)
-        assert isinstance(result["MSFT"], list)
-        assert len(result["AAPL"]) == 1
-        assert len(result["MSFT"]) == 1
+        assert len(result.succeeded()) == 2
+        assert len(result.failed()) == 1
 
-        # BAD should have an exception
-        assert isinstance(result["BAD"], BaseException)
+        aapl = result.get("AAPL")
+        assert aapl is not None and aapl.ok
+        assert aapl.data is not None and len(aapl.data) == 1
+
+        msft = result.get("MSFT")
+        assert msft is not None and msft.ok
+        assert msft.data is not None and len(msft.data) == 1
+
+        bad = result.get("BAD")
+        assert bad is not None and not bad.ok
+        assert bad.error is not None
 
     async def test_all_succeed(self, service: MarketDataService) -> None:
-        """When all tickers succeed, all values are OHLCV lists."""
+        """When all tickers succeed, all results are ok."""
         df = _make_ohlcv_df(
             [
                 {
@@ -536,8 +542,8 @@ class TestBatchOHLCV:
             mock_yf.Ticker.return_value = mock_ticker
             result = await service.fetch_batch_ohlcv(["SPY", "QQQ"])
 
-        assert all(isinstance(v, list) for v in result.values())
-        assert len(result) == 2
+        assert all(r.ok for r in result.results)
+        assert len(result.results) == 2
 
 
 # ---------------------------------------------------------------------------

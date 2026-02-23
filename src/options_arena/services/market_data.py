@@ -18,12 +18,13 @@ from typing import Any, cast
 
 import pandas as pd
 import yfinance as yf  # type: ignore[import-untyped]
+from pydantic import BaseModel
 
 from options_arena.models.config import ServiceConfig
 from options_arena.models.enums import DividendSource, MarketCapTier
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
 from options_arena.services.cache import TTL_FUNDAMENTALS, TTL_OHLCV, ServiceCache
-from options_arena.services.helpers import safe_decimal, safe_float, safe_int
+from options_arena.services.helpers import fetch_with_retry, safe_decimal, safe_float, safe_int
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.utils.exceptions import (
     DataFetchError,
@@ -33,6 +34,43 @@ from options_arena.utils.exceptions import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class TickerOHLCVResult(BaseModel):
+    """Result for a single ticker in a batch OHLCV fetch.
+
+    Exactly one of ``data`` or ``error`` will be populated (never both).
+    """
+
+    ticker: str
+    data: list[OHLCV] | None = None
+    error: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        """``True`` if the fetch succeeded."""
+        return self.data is not None
+
+
+class BatchOHLCVResult(BaseModel):
+    """Typed result for a batch OHLCV fetch, replacing ``dict[str, list[OHLCV] | error]``."""
+
+    results: list[TickerOHLCVResult]
+
+    def succeeded(self) -> list[TickerOHLCVResult]:
+        """Return only the results that fetched successfully."""
+        return [r for r in self.results if r.ok]
+
+    def failed(self) -> list[TickerOHLCVResult]:
+        """Return only the results that failed."""
+        return [r for r in self.results if not r.ok]
+
+    def get(self, ticker: str) -> TickerOHLCVResult | None:
+        """Look up a result by ticker symbol."""
+        for r in self.results:
+            if r.ticker == ticker:
+                return r
+        return None
 
 
 def _extract_dividend_yield(
@@ -201,10 +239,12 @@ class MarketDataService:
             logger.debug("Cache hit for %s", cache_key)
             return _deserialize_ohlcv_list(cached, ticker)
 
-        # Fetch from yfinance
+        # Fetch from yfinance (with retry on transient failures)
         async with self._limiter:
             ticker_obj = yf.Ticker(ticker)
-            df: pd.DataFrame = await self._yf_call(ticker_obj.history, period=period)
+            df: pd.DataFrame = await fetch_with_retry(
+                lambda: self._yf_call(ticker_obj.history, period=period)
+            )
 
         if df.empty:
             raise InsufficientDataError(ticker, "no OHLCV data returned by yfinance")
@@ -273,7 +313,9 @@ class MarketDataService:
 
         async with self._limiter:
             ticker_obj = yf.Ticker(ticker)
-            info: dict[str, Any] = await self._yf_call(lambda: ticker_obj.info)
+            info: dict[str, Any] = await fetch_with_retry(
+                lambda: self._yf_call(lambda: ticker_obj.info)
+            )
 
         price_raw = info.get("currentPrice") or info.get("regularMarketPrice")
         if price_raw is None:
@@ -318,12 +360,14 @@ class MarketDataService:
 
         async with self._limiter:
             ticker_obj = yf.Ticker(ticker)
-            info: dict[str, Any] = await self._yf_call(lambda: ticker_obj.info)
+            info: dict[str, Any] = await fetch_with_retry(
+                lambda: self._yf_call(lambda: ticker_obj.info)
+            )
 
         # Fetch dividends for tier 3 of the waterfall
         async with self._limiter:
-            dividends_series: pd.Series[float] = await self._yf_call(
-                ticker_obj.get_dividends, period="1y"
+            dividends_series: pd.Series[float] = await fetch_with_retry(
+                lambda: self._yf_call(ticker_obj.get_dividends, period="1y")
             )
 
         # Extract current price — prefer currentPrice, fall back to previousClose
@@ -373,28 +417,26 @@ class MarketDataService:
         self,
         tickers: list[str],
         period: str = "1y",
-    ) -> dict[str, list[OHLCV] | DataFetchError]:
+    ) -> BatchOHLCVResult:
         """Fetch OHLCV data for multiple tickers concurrently.
 
         Uses ``asyncio.gather(return_exceptions=True)`` for per-ticker
         error isolation. One failed ticker never crashes the batch.
 
         Returns:
-            Dict mapping each ticker to its OHLCV list or a DataFetchError.
+            A ``BatchOHLCVResult`` with per-ticker success/error results.
         """
         tasks = [self.fetch_ohlcv(ticker, period) for ticker in tickers]
         results: list[list[OHLCV] | BaseException] = await asyncio.gather(
             *tasks, return_exceptions=True
         )
-        out: dict[str, list[OHLCV] | DataFetchError] = {}
+        items: list[TickerOHLCVResult] = []
         for ticker, result in zip(tickers, results, strict=True):
-            if isinstance(result, DataFetchError):
-                out[ticker] = result
-            elif isinstance(result, BaseException):
-                out[ticker] = DataSourceUnavailableError("yfinance", str(result))
+            if isinstance(result, BaseException):
+                items.append(TickerOHLCVResult(ticker=ticker, error=str(result)))
             else:
-                out[ticker] = result
-        return out
+                items.append(TickerOHLCVResult(ticker=ticker, data=result))
+        return BatchOHLCVResult(results=items)
 
     async def close(self) -> None:
         """Release resources. Safe to call multiple times."""

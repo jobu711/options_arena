@@ -490,13 +490,14 @@ async def test_fetch_chain_all_expirations(service: OptionsDataService) -> None:
         chains = await service.fetch_chain_all_expirations("AAPL")
 
     assert len(chains) == 3
-    assert date(2026, 3, 21) in chains
-    assert date(2026, 4, 18) in chains
-    assert date(2026, 5, 16) in chains
+    exp_dates = {c.expiration for c in chains}
+    assert date(2026, 3, 21) in exp_dates
+    assert date(2026, 4, 18) in exp_dates
+    assert date(2026, 5, 16) in exp_dates
     # Each expiration has 1 call contract
-    for _exp_date, contracts in chains.items():
-        assert len(contracts) == 1
-        assert contracts[0].option_type == OptionType.CALL
+    for chain in chains:
+        assert len(chain.contracts) == 1
+        assert chain.contracts[0].option_type == OptionType.CALL
 
 
 # ---------------------------------------------------------------------------

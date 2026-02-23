@@ -15,6 +15,7 @@ from options_arena.services.universe import (
     _CACHE_KEY_CBOE,
     _CACHE_KEY_SP500,
     SP500_REQUIRED_COLUMNS,
+    SP500Constituent,
     UniverseService,
 )
 from options_arena.utils.exceptions import DataSourceUnavailableError, InsufficientDataError
@@ -51,7 +52,7 @@ def service(config: ServiceConfig, cache: ServiceCache, limiter: RateLimiter) ->
 
 @pytest.mark.asyncio
 async def test_sp500_happy_path(service: UniverseService) -> None:
-    """Fetch S&P 500 constituents returns correct ticker-to-sector mapping."""
+    """Fetch S&P 500 constituents returns list of SP500Constituent models."""
     sectors = [
         "Information Technology",
         "Information Technology",
@@ -71,7 +72,10 @@ async def test_sp500_happy_path(service: UniverseService) -> None:
     ):
         result = await service.fetch_sp500_constituents()
 
-    assert result == {
+    assert len(result) == 3
+    assert all(isinstance(c, SP500Constituent) for c in result)
+    by_ticker = {c.ticker: c.sector for c in result}
+    assert by_ticker == {
         "AAPL": "Information Technology",
         "MSFT": "Information Technology",
         "GOOG": "Communication Services",
@@ -99,12 +103,13 @@ async def test_sp500_ticker_translation(service: UniverseService) -> None:
     ):
         result = await service.fetch_sp500_constituents()
 
-    assert "BRK-B" in result
-    assert "BF-B" in result
-    assert "AAPL" in result
+    tickers = {c.ticker for c in result}
+    assert "BRK-B" in tickers
+    assert "BF-B" in tickers
+    assert "AAPL" in tickers
     # Original dot format should NOT be present
-    assert "BRK.B" not in result
-    assert "BF.B" not in result
+    assert "BRK.B" not in tickers
+    assert "BF.B" not in tickers
 
 
 # ---------------------------------------------------------------------------
@@ -336,7 +341,10 @@ async def test_cboe_cache_hit(service: UniverseService, cache: ServiceCache) -> 
 @pytest.mark.asyncio
 async def test_sp500_cache_hit(service: UniverseService, cache: ServiceCache) -> None:
     """Pre-populated cache returns S&P 500 data without fetching from Wikipedia."""
-    cached_constituents = {"AAPL": "Information Technology", "MSFT": "Information Technology"}
+    cached_constituents = [
+        {"ticker": "AAPL", "sector": "Information Technology"},
+        {"ticker": "MSFT", "sector": "Information Technology"},
+    ]
     await cache.set(
         _CACHE_KEY_SP500,
         json.dumps(cached_constituents).encode(),
@@ -347,7 +355,10 @@ async def test_sp500_cache_hit(service: UniverseService, cache: ServiceCache) ->
         result = await service.fetch_sp500_constituents()
 
     mock_read_html.assert_not_called()
-    assert result == cached_constituents
+    assert len(result) == 2
+    assert all(isinstance(c, SP500Constituent) for c in result)
+    assert result[0].ticker == "AAPL"
+    assert result[1].ticker == "MSFT"
 
 
 # ---------------------------------------------------------------------------

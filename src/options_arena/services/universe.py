@@ -13,6 +13,7 @@ import logging
 
 import httpx
 import pandas as pd
+from pydantic import BaseModel
 
 from options_arena.models.config import ServiceConfig
 from options_arena.models.enums import MarketCapTier
@@ -39,6 +40,16 @@ _MEGA_CAP_THRESHOLD: int = 200_000_000_000
 _LARGE_CAP_THRESHOLD: int = 10_000_000_000
 _MID_CAP_THRESHOLD: int = 2_000_000_000
 _SMALL_CAP_THRESHOLD: int = 300_000_000
+
+
+class SP500Constituent(BaseModel):
+    """A single S&P 500 constituent with its GICS sector classification.
+
+    Typed replacement for ``dict[str, str]`` (ticker -> sector mapping).
+    """
+
+    ticker: str
+    sector: str
 
 
 class UniverseService:
@@ -92,12 +103,12 @@ class UniverseService:
             try:
                 response = await asyncio.wait_for(
                     self._client.get(CBOE_URL),
-                    timeout=self._config.fred_timeout,
+                    timeout=self._config.cboe_timeout,
                 )
                 response.raise_for_status()
             except TimeoutError as exc:
                 raise DataSourceUnavailableError(
-                    "CBOE", f"timeout after {self._config.fred_timeout}s"
+                    "CBOE", f"timeout after {self._config.cboe_timeout}s"
                 ) from exc
             except httpx.HTTPStatusError as exc:
                 raise DataSourceUnavailableError(
@@ -123,15 +134,15 @@ class UniverseService:
 
         return tickers
 
-    async def fetch_sp500_constituents(self) -> dict[str, str]:
-        """Fetch S&P 500 ticker-to-GICS-sector mapping from Wikipedia.
+    async def fetch_sp500_constituents(self) -> list[SP500Constituent]:
+        """Fetch S&P 500 constituents with GICS sector classification from Wikipedia.
 
         Uses ``pd.read_html`` with ``attrs={"id": "constituents"}`` for stable
         table targeting. Translates tickers from Wikipedia format (``.`` separator)
         to yfinance format (``-`` separator). Results are cached for 24 hours.
 
         Returns:
-            Dictionary mapping ticker symbols to their GICS sector.
+            List of ``SP500Constituent`` models (ticker + sector).
 
         Raises:
             InsufficientDataError: If the Wikipedia table schema has drifted
@@ -141,7 +152,8 @@ class UniverseService:
         # Check cache first
         cached = await self._cache.get(_CACHE_KEY_SP500)
         if cached is not None:
-            constituents: dict[str, str] = json.loads(cached.decode())
+            raw: list[dict[str, str]] = json.loads(cached.decode())
+            constituents = [SP500Constituent.model_validate(item) for item in raw]
             logger.debug("S&P 500 cache hit: %d constituents", len(constituents))
             return constituents
 
@@ -182,14 +194,17 @@ class UniverseService:
         # Translate tickers: '.' → '-' for yfinance compatibility (BRK.B → BRK-B)
         df["Symbol"] = df["Symbol"].str.strip().str.replace(".", "-", regex=False)
 
-        constituents = dict(zip(df["Symbol"], df["GICS Sector"], strict=True))
+        constituents = [
+            SP500Constituent(ticker=row["Symbol"], sector=row["GICS Sector"])
+            for _, row in df.iterrows()
+        ]
 
         logger.info("S&P 500 constituents fetched: %d tickers", len(constituents))
 
         # Cache for 24 hours
         await self._cache.set(
             _CACHE_KEY_SP500,
-            json.dumps(constituents).encode(),
+            json.dumps([c.model_dump() for c in constituents]).encode(),
             ttl=TTL_REFERENCE,
         )
 

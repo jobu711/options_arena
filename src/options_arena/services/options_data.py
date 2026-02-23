@@ -19,14 +19,15 @@ from decimal import Decimal
 
 import pandas as pd
 import yfinance as yf  # type: ignore[import-untyped]
+from pydantic import BaseModel
 
 from options_arena.models.config import PricingConfig, ServiceConfig
 from options_arena.models.enums import ExerciseStyle, OptionType
 from options_arena.models.options import OptionContract
 from options_arena.services.cache import ServiceCache
-from options_arena.services.helpers import safe_decimal, safe_float, safe_int
+from options_arena.services.helpers import fetch_with_retry, safe_decimal, safe_float, safe_int
 from options_arena.services.rate_limiter import RateLimiter
-from options_arena.utils.exceptions import DataSourceUnavailableError
+from options_arena.utils.exceptions import DataFetchError, DataSourceUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +111,13 @@ def _cache_bytes_to_contracts(data: bytes) -> list[OptionContract]:
     return [OptionContract.model_validate(item) for item in raw]
 
 
+class ExpirationChain(BaseModel):
+    """Option contracts for a single expiration date."""
+
+    expiration: date
+    contracts: list[OptionContract]
+
+
 class OptionsDataService:
     """Fetches option chains from yfinance with caching and rate limiting.
 
@@ -168,6 +176,8 @@ class OptionsDataService:
             raise DataSourceUnavailableError(
                 "yfinance", f"timeout after {self._config.yfinance_timeout}s"
             ) from e
+        except DataFetchError:
+            raise
         except Exception as e:
             raise DataSourceUnavailableError("yfinance", str(e)) from e
 
@@ -195,7 +205,9 @@ class OptionsDataService:
 
         async with self._limiter:
             ticker_obj = yf.Ticker(ticker)
-            raw_expirations: tuple[str, ...] = await self._yf_call(getattr, ticker_obj, "options")
+            raw_expirations: tuple[str, ...] = await fetch_with_retry(
+                lambda: self._yf_call(getattr, ticker_obj, "options")
+            )
 
         expirations = sorted(datetime.strptime(s, "%Y-%m-%d").date() for s in raw_expirations)
 
@@ -237,7 +249,9 @@ class OptionsDataService:
 
         async with self._limiter:
             ticker_obj = yf.Ticker(ticker)
-            chain_data = await self._yf_call(ticker_obj.option_chain, expiration.isoformat())
+            chain_data = await fetch_with_retry(
+                lambda: self._yf_call(ticker_obj.option_chain, expiration.isoformat())
+            )
 
         contracts: list[OptionContract] = []
 
@@ -268,7 +282,7 @@ class OptionsDataService:
     async def fetch_chain_all_expirations(
         self,
         ticker: str,
-    ) -> dict[date, list[OptionContract]]:
+    ) -> list[ExpirationChain]:
         """Fetch option chains for all available expirations concurrently.
 
         Uses ``asyncio.gather(return_exceptions=True)`` so one failed expiration
@@ -279,7 +293,7 @@ class OptionsDataService:
             ticker: The underlying ticker symbol.
 
         Returns:
-            Mapping of expiration date to list of contracts for that date.
+            List of ``ExpirationChain`` models (one per successful expiration).
         """
         expirations = await self.fetch_expirations(ticker)
 
@@ -288,7 +302,8 @@ class OptionsDataService:
             *tasks, return_exceptions=True
         )
 
-        chains: dict[date, list[OptionContract]] = {}
+        chains: list[ExpirationChain] = []
+        succeeded = 0
         for exp, result in zip(expirations, results, strict=True):
             if isinstance(result, BaseException):
                 logger.warning(
@@ -298,12 +313,13 @@ class OptionsDataService:
                     result,
                 )
             else:
-                chains[exp] = result
+                chains.append(ExpirationChain(expiration=exp, contracts=result))
+                succeeded += 1
 
         logger.debug(
             "Fetched all chains for %s: %d/%d expirations succeeded",
             ticker,
-            len(chains),
+            succeeded,
             len(expirations),
         )
         return chains

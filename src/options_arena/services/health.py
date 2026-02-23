@@ -165,7 +165,7 @@ class HealthService:
         try:
             response = await asyncio.wait_for(
                 self._client.head("https://www.cboe.com/available_weeklys/"),
-                timeout=self._config.fred_timeout,
+                timeout=self._config.cboe_timeout,
             )
             latency_ms = (time.monotonic() - start) * 1000
             available = response.status_code < 500

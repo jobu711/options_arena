@@ -75,6 +75,15 @@ class ServiceCache:
     ``db_path`` for SQLite persistence. Call :meth:`init_db` after
     construction to initialize the SQLite tier.
 
+    **Dual-clock design**: The in-memory tier tracks expiry with
+    ``time.monotonic()`` (immune to NTP adjustments and clock skew).
+    The SQLite tier uses ``time.time()`` (wall-clock) because monotonic
+    timestamps reset to zero on process restart, making them unsuitable
+    for persistent storage. When promoting a SQLite entry to memory, the
+    remaining wall-clock TTL is converted to a monotonic deadline via
+    ``now_mono + max(db_expires_at - time.time(), 0.0)``. This is safe
+    because a process restart clears all in-memory state anyway.
+
     Args:
         config: Service configuration with cache TTL settings.
         db_path: Path to the SQLite database file. If ``None``, SQLite
