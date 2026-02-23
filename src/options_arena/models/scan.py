@@ -10,6 +10,7 @@ the scan pipeline.  All 18 fields default to ``None`` (indicator not computed).
 Values are normalized 0--100 (percentile-ranked), not raw indicator values.
 """
 
+import math
 from datetime import datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -95,5 +96,14 @@ class TickerScore(BaseModel):
     ticker: str
     composite_score: float  # 0-100
     direction: SignalDirection
+
+    @field_validator("composite_score")
+    @classmethod
+    def validate_composite_score_bounds(cls, v: float) -> float:
+        """Ensure composite_score is finite and within [0, 100]."""
+        if not math.isfinite(v) or not 0.0 <= v <= 100.0:
+            raise ValueError(f"composite_score must be in [0, 100], got {v}")
+        return v
+
     signals: IndicatorSignals  # typed model, NOT dict[str, float]
     scan_run_id: int | None = None

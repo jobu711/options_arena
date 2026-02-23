@@ -168,7 +168,7 @@ class TestOptionGreeks:
 
     def test_negative_gamma_raises(self) -> None:
         """OptionGreeks rejects negative gamma with ValidationError."""
-        with pytest.raises(ValidationError, match="must be >= 0"):
+        with pytest.raises(ValidationError, match="must be finite and >= 0"):
             OptionGreeks(
                 delta=0.45,
                 gamma=-0.1,
@@ -180,7 +180,7 @@ class TestOptionGreeks:
 
     def test_negative_vega_raises(self) -> None:
         """OptionGreeks rejects negative vega with ValidationError."""
-        with pytest.raises(ValidationError, match="must be >= 0"):
+        with pytest.raises(ValidationError, match="must be finite and >= 0"):
             OptionGreeks(
                 delta=0.45,
                 gamma=0.03,

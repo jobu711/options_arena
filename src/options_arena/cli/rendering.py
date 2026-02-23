@@ -6,6 +6,8 @@ No I/O, no service calls -- pure data-to-display transformation.
 
 from __future__ import annotations
 
+import math
+
 from rich.table import Table
 from rich.text import Text
 
@@ -87,7 +89,9 @@ def render_scan_table(result: ScanResult) -> Table:
             contract = contracts[0]  # Primary recommendation
             greeks = contract.greeks
             delta_str = f"{greeks.delta:.4f}" if greeks else "--"
-            iv_str = f"{contract.market_iv * 100:.1f}%"
+            iv_str = (
+                f"{contract.market_iv * 100:.1f}%" if math.isfinite(contract.market_iv) else "--"
+            )
             table.add_row(
                 score.ticker,
                 f"{score.composite_score:.1f}",

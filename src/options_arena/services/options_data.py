@@ -213,7 +213,7 @@ class OptionsDataService:
 
         # Cache the result
         cache_bytes = json.dumps([d.isoformat() for d in expirations]).encode("utf-8")
-        ttl = self._cache.ttl_for("chain")
+        ttl = self._cache.ttl_for("reference")
         await self._cache.set(cache_key, cache_bytes, ttl=ttl)
 
         logger.debug("Fetched %d expirations for %s", len(expirations), ticker)

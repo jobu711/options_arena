@@ -9,6 +9,7 @@ All models are ``frozen=True`` (immutable after construction).
 All ``Decimal`` fields use ``field_serializer`` to prevent float precision loss in JSON.
 """
 
+import math
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
@@ -99,6 +100,15 @@ class TickerInfo(BaseModel):
     # Dividend fields — populated by service layer 3-tier waterfall (FR-M7/M7.1)
     dividend_yield: float = 0.0
     dividend_source: DividendSource = DividendSource.NONE
+
+    @field_validator("dividend_yield")
+    @classmethod
+    def validate_dividend_yield_non_negative(cls, v: float) -> float:
+        """Ensure dividend_yield is finite and non-negative."""
+        if not math.isfinite(v) or v < 0.0:
+            raise ValueError(f"dividend_yield must be finite and >= 0, got {v}")
+        return v
+
     dividend_rate: float | None = None
     trailing_dividend_rate: float | None = None
 

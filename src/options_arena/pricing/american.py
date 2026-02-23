@@ -176,7 +176,7 @@ def _find_critical_price_call(
         # Ensure S_star remains positive and above K.
         S_star = max(S_star, K * 1.001)
 
-    logger.debug(
+    logger.warning(
         "BAW critical price (call) did not converge after %d iterations. "
         "Using last estimate S*=%.6f for K=%.2f, T=%.4f, sigma=%.4f",
         _CRITICAL_PRICE_MAX_ITER,
@@ -268,7 +268,7 @@ def _find_critical_price_put(
         S_star_star = max(S_star_star, K * 0.001)
         S_star_star = min(S_star_star, K * 0.999)
 
-    logger.debug(
+    logger.warning(
         "BAW critical price (put) did not converge after %d iterations. "
         "Using last estimate S**=%.6f for K=%.2f, T=%.4f, sigma=%.4f",
         _CRITICAL_PRICE_MAX_ITER,
@@ -316,8 +316,8 @@ def american_price(
     if T <= 0.0:
         return intrinsic_value(S, K, option_type)
 
-    # Edge case: sigma effectively zero -- return intrinsic value.
-    if sigma <= 0.0:
+    # Edge case: non-finite or non-positive sigma -- return intrinsic value.
+    if not math.isfinite(sigma) or sigma <= 0.0:
         return intrinsic_value(S, K, option_type)
 
     sigma_sqrt_t = sigma * math.sqrt(T)

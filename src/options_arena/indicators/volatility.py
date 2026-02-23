@@ -41,7 +41,7 @@ def bb_width(
     std = close.rolling(window=period).std(ddof=0)
     upper = middle + num_std * std
     lower = middle - num_std * std
-    width: pd.Series = (upper - lower) / middle
+    width: pd.Series = (upper - lower) / middle.replace(0.0, np.nan)
     return width
 
 

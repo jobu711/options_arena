@@ -9,6 +9,7 @@ acts as a secondary signal and tiebreaker.
 """
 
 import logging
+import math
 
 from options_arena.models.config import ScanConfig
 from options_arena.models.enums import SignalDirection
@@ -47,6 +48,16 @@ def determine_direction(
         weighted scoring of RSI momentum and SMA alignment.
     """
     cfg = config if config is not None else ScanConfig()
+
+    # Guard: non-finite inputs produce no meaningful signal
+    if not (math.isfinite(adx) and math.isfinite(rsi) and math.isfinite(sma_alignment)):
+        logger.debug(
+            "Non-finite input (adx=%r, rsi=%r, sma=%r) -- returning NEUTRAL",
+            adx,
+            rsi,
+            sma_alignment,
+        )
+        return SignalDirection.NEUTRAL
 
     # Step 1: ADX gate -- weak trend means no directional signal
     if adx < cfg.adx_trend_threshold:
@@ -93,11 +104,13 @@ def determine_direction(
 
     # Tiebreaker: when scores are equal and both > 0, use SMA alignment
     # direction as the deciding factor (underlying trend is more fundamental
-    # than RSI's momentum signal).
+    # than RSI's momentum signal). Exact zero = truly neutral, no bias.
     if bullish_score > 0 and bullish_score == bearish_score:
         if sma_alignment > 0:
             return SignalDirection.BULLISH
-        return SignalDirection.BEARISH
+        if sma_alignment < 0:
+            return SignalDirection.BEARISH
+        return SignalDirection.NEUTRAL
 
     # Both scores == 0 -- no signals at all
     return SignalDirection.NEUTRAL

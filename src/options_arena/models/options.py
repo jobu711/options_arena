@@ -13,6 +13,7 @@ Key design decisions:
 - All ``Decimal`` fields use ``field_serializer`` to prevent float precision loss in JSON.
 """
 
+import math
 from datetime import date
 from decimal import Decimal
 
@@ -62,9 +63,9 @@ class OptionGreeks(BaseModel):
     @field_validator("gamma", "vega")
     @classmethod
     def validate_non_negative(cls, v: float) -> float:
-        """Ensure gamma and vega are non-negative."""
-        if v < 0.0:
-            raise ValueError(f"must be >= 0, got {v}")
+        """Ensure gamma and vega are finite and non-negative."""
+        if not math.isfinite(v) or v < 0.0:
+            raise ValueError(f"must be finite and >= 0, got {v}")
         return v
 
 
@@ -112,9 +113,9 @@ class OptionContract(BaseModel):
     @field_validator("market_iv")
     @classmethod
     def validate_market_iv_non_negative(cls, v: float) -> float:
-        """Ensure market_iv is non-negative."""
-        if v < 0.0:
-            raise ValueError(f"market_iv must be >= 0, got {v}")
+        """Ensure market_iv is finite and non-negative."""
+        if not math.isfinite(v) or v < 0.0:
+            raise ValueError(f"market_iv must be finite and >= 0, got {v}")
         return v
 
     @computed_field  # type: ignore[prop-decorator]

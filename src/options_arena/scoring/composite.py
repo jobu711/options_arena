@@ -99,7 +99,7 @@ def composite_score(
             continue
 
         value: float | None = getattr(signals, field_name)
-        if value is None:
+        if value is None or not math.isfinite(value):
             continue
 
         # Floor to avoid log(0).

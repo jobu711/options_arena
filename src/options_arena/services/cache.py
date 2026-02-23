@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # Named TTL constants (seconds) — never use magic numbers
 # ---------------------------------------------------------------------------
 
-TTL_OHLCV: int = 0  # permanent — historical data is immutable
+TTL_OHLCV: int = 6 * 60 * 60  # 6 hrs — daily bars refresh between scan runs
 TTL_CHAIN_MARKET: int = 5 * 60  # 5 min during market hours
 TTL_CHAIN_AFTER: int = 60 * 60  # 1 hr after hours
 TTL_QUOTE_MARKET: int = 1 * 60  # 1 min during market hours

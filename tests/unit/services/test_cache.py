@@ -360,7 +360,7 @@ async def test_get_nonexistent_returns_none(memory_cache: ServiceCache) -> None:
 
 def test_ttl_constants_values() -> None:
     """Verify named TTL constants have the expected values in seconds."""
-    assert TTL_OHLCV == 0
+    assert TTL_OHLCV == 6 * 60 * 60
     assert TTL_CHAIN_MARKET == 300
     assert TTL_CHAIN_AFTER == 3600
     assert TTL_QUOTE_MARKET == 60

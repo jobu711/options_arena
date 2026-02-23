@@ -95,9 +95,18 @@ def bsm_price(
     if T <= 0.0:
         return intrinsic_value(S, K, option_type)
 
-    # Edge case: sigma effectively zero — return discounted intrinsic value.
+    # Edge case: non-finite or non-positive sigma — return discounted intrinsic value.
+    if not math.isfinite(sigma) or sigma <= 0.0:
+        discount_r = math.exp(-r * T)
+        discount_q = math.exp(-q * T)
+        match option_type:
+            case OptionType.CALL:
+                return max(S * discount_q - K * discount_r, 0.0)
+            case OptionType.PUT:
+                return max(K * discount_r - S * discount_q, 0.0)
+
     sigma_sqrt_t = sigma * math.sqrt(T)
-    if sigma <= 0.0 or sigma_sqrt_t < _SIGMA_SQRT_T_EPSILON:
+    if sigma_sqrt_t < _SIGMA_SQRT_T_EPSILON:
         discount_r = math.exp(-r * T)
         discount_q = math.exp(-q * T)
         match option_type:
@@ -154,9 +163,12 @@ def bsm_greeks(
     if T <= 0.0:
         return boundary_greeks(S, K, option_type, PricingModel.BSM)
 
-    # Edge case: sigma effectively zero — boundary Greeks.
+    # Edge case: non-finite or non-positive sigma — boundary Greeks.
+    if not math.isfinite(sigma) or sigma <= 0.0:
+        return boundary_greeks(S, K, option_type, PricingModel.BSM)
+
     sigma_sqrt_t = sigma * math.sqrt(T)
-    if sigma <= 0.0 or sigma_sqrt_t < _SIGMA_SQRT_T_EPSILON:
+    if sigma_sqrt_t < _SIGMA_SQRT_T_EPSILON:
         return boundary_greeks(S, K, option_type, PricingModel.BSM)
 
     d1, d2 = _d1_d2(S, K, T, r, q, sigma)
@@ -233,7 +245,7 @@ def bsm_vega(
     """
     validate_positive_inputs(S, K)
 
-    if T <= 0.0 or sigma <= 0.0:
+    if T <= 0.0 or not math.isfinite(sigma) or sigma <= 0.0:
         return 0.0
 
     sigma_sqrt_t = sigma * math.sqrt(T)

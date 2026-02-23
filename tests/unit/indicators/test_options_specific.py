@@ -9,6 +9,8 @@ Every indicator is tested with all five required test types:
 5. Edge cases (div-by-zero, flat, etc.)
 """
 
+import math
+
 import pandas as pd
 import pytest
 
@@ -153,9 +155,9 @@ class TestPutCallRatioVolume:
         assert result == pytest.approx(1.0, rel=1e-4)
 
     def test_zero_call_volume_guard(self) -> None:
-        """Zero call volume: returns 0.0 (div-by-zero guard)."""
+        """Zero call volume: returns NaN (ratio undefined)."""
         result = put_call_ratio_volume(put_volume=1000, call_volume=0)
-        assert result == pytest.approx(0.0, rel=1e-4)
+        assert math.isnan(result)
 
     def test_zero_put_volume(self) -> None:
         """Zero put volume: ratio = 0."""
@@ -190,9 +192,9 @@ class TestPutCallRatioOI:
         assert result == pytest.approx(1.0, rel=1e-4)
 
     def test_zero_call_oi_guard(self) -> None:
-        """Zero call OI: returns 0.0 (div-by-zero guard)."""
+        """Zero call OI: returns NaN (ratio undefined)."""
         result = put_call_ratio_oi(put_oi=1000, call_oi=0)
-        assert result == pytest.approx(0.0, rel=1e-4)
+        assert math.isnan(result)
 
     def test_zero_put_oi(self) -> None:
         """Zero put OI: ratio = 0."""
