@@ -1,8 +1,9 @@
 ---
 name: phase-2-pricing
-status: backlog
+status: completed
 created: 2026-02-22T08:50:13Z
-progress: 0%
+updated: 2026-02-22T20:12:55Z
+progress: 100%
 prd: .claude/prds/options-arena.md
 parent: .claude/epics/options-arena/epic.md
 github: https://github.com/jobu711/options_arena/issues/13
@@ -74,12 +75,12 @@ uv run mypy src/ --strict
 ## Estimated Tests: ~100
 
 ## Tasks Created
-- [ ] #14 - Implement BSM pricing module (parallel: false)
-- [ ] #15 - BSM unit tests (parallel: false, depends: #14)
-- [ ] #16 - Implement BAW American pricing module (parallel: false, depends: #14)
-- [ ] #17 - BAW unit tests (parallel: false, depends: #14, #16)
-- [ ] #18 - Implement dispatch layer and re-exports (parallel: true, depends: #14, #16)
-- [ ] #19 - Dispatch tests and verification gate (parallel: false, depends: #15, #17, #18)
+- [x] #14 - Implement BSM pricing module (parallel: false)
+- [x] #15 - BSM unit tests (parallel: false, depends: #14)
+- [x] #16 - Implement BAW American pricing module (parallel: false, depends: #14)
+- [x] #17 - BAW unit tests (parallel: false, depends: #14, #16)
+- [x] #18 - Implement dispatch layer and re-exports (parallel: true, depends: #14, #16)
+- [x] #19 - Dispatch tests and verification gate (parallel: false, depends: #15, #17, #18)
 
 Total tasks: 6
 Parallel tasks: 1 (#18 can run alongside #17)
