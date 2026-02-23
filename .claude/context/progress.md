@@ -6,8 +6,9 @@
 - **Phase 1 MVP (v0.1.0)**: Complete (all 8 issues done)
 - **PydanticAI migration**: Complete (epic closed 2026-02-20, PRs #82-#90)
 - **Web UI**: Rolled back to pre-web state on 2026-02-19. Two attempts (React SPA, then Jinja2+HTMX) were removed.
-- **Branch**: `master`
-- **Tests**: 1,169 passing
+- **Branch**: `master` (708 tests)
+- **Tests**: 708 on master (220 models + 162 pricing + 224 indicators + 102 scoring)
+- **GitHub issues**: 0 open, 25 closed (all Phase 1–4 issues resolved)
 - **Scan pipeline**: Producing 8 recommendations per run (verified 2026-02-20)
 
 ## Completed Work (Phase 1)
@@ -128,9 +129,35 @@ PRD: `.claude/prds/options-arena.md` — status: backlog.
 - Post-merge fixes: code analysis warnings addressed, 52 edge case tests added
 - `logic.md` business logic documentation added
 
+### Phase 3: Technical Indicators (Complete — 2026-02-23)
+- Branch: `master` (merged directly, no epic branch)
+- 18 indicator functions across 6 modules, 606 total tests on master
+- Commits: `61e247d` (initial port), `8b6c523` (hardening), `7d0b973` (CodeRabbit fixes), `a528731` (final)
+- Modules: `indicators/trend.py`, `indicators/momentum.py`, `indicators/volatility.py`,
+  `indicators/volume.py`, `indicators/moving_averages.py`, `indicators/options_indicators.py`
+- All indicators: pure pandas in/out, NaN warmup, vectorized operations only
+
+### Phase 4: Scoring Module (Complete — 2026-02-23, PR #28 merged)
+- Branch: `epic/phase-4-scoring` (PR #28 merged to master 2026-02-23)
+- All 6 issues completed (#21–#27), GitHub issues auto-closed via PR
+- 102 scoring tests, ruff + mypy --strict all green, zero architecture violations
+- Implemented:
+  - `normalization.py` — percentile-rank normalize with tie handling, inversion, active indicator detection
+  - `composite.py` — weighted geometric mean (18 indicators, 6 categories, weights sum to 1.0)
+  - `direction.py` — ADX/RSI/SMA signal aggregation with SMA tiebreaker
+  - `contracts.py` — **rewrite** (not cherry-pick): Greeks via `pricing/dispatch.py` (BAW/BSM),
+    delta targeting [0.20, 0.50] primary + [0.10, 0.80] fallback, zero-bid exemption,
+    all thresholds from `PricingConfig`
+  - `scoring/CLAUDE.md` — module conventions, v3-to-Arena field name mapping
+- Key design decisions:
+  - `contracts.py` uses `pricing/dispatch.py` as sole Greeks source (no local BSM/BAW imports)
+  - `score_universe()` returns percentile-ranked signals; `determine_direction()` needs raw values
+  - All thresholds from `ScanConfig`/`PricingConfig` — no hardcoded magic numbers
+- Post-merge fixes: code analysis findings (`bc722bb`), CodeRabbit `math.isfinite` guards (`a9c4cc1`)
+
 ## Next Up
 
-- Begin Options Arena Phase 3: Technical Indicators
+- Begin Options Arena Phase 5: Services Layer
 - Options liquidity weighting in composite scoring (carry-forward from v3 backlog)
 
 ## Blockers

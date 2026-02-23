@@ -13,6 +13,7 @@
 | `indicators/` | Pure math (pandas in/out) | pandas, numpy | APIs, models, I/O |
 | `data/` | SQLite persistence | `models/` | APIs, business logic |
 | `pricing/` | BSM + BAW pricing, Greeks, IV | `models/`, `scipy` | APIs, pandas, services |
+| `scoring/` | Normalization, composite scoring, direction, contract selection | `models/`, `pricing/dispatch` | APIs, services, `pricing/bsm`, `pricing/american` directly |
 | `analysis/` | Scoring, signals | `models/`, `services/` output, indicator output, `pricing/` | APIs directly |
 | `agents/` | PydanticAI debate orchestration | `models/`, `services/`, `pydantic_ai` | Other agents, indicators |
 | `reporting/` | Output generation | `models/` | APIs, data fetching |
@@ -96,10 +97,10 @@
 - **BAW Greeks** (Implemented): finite-difference bump-and-reprice (11 BAW evaluations per Greeks call). Bump sizes: `dS=1%`, `dT=1/365`, `dSigma=0.001`, `dR=0.001`. Sigma clamp prevents negative sigma in vega bump.
 - **Dispatch** (Implemented): `dispatch.py` — `ExerciseStyle`-based routing via `match`. AMERICAN→BAW, EUROPEAN→BSM. Three functions: `option_price`, `option_greeks`, `option_iv`.
 - **Shared helpers** (Implemented): `_common.py` — `validate_positive_inputs(S, K)`, `intrinsic_value`, `is_itm`, `boundary_greeks`. Input validation at all entry points.
-- **Percentile-rank normalization**: Raw indicator values ranked against rolling window, scaled 0-100
-- **Weighted geometric mean**: Category weights (trend 0.20, momentum 0.20, volatility 0.15, volume 0.15, options 0.30) combined via geometric mean
-- **Direction signal**: 6-category aggregation of indicator signals into bullish/bearish/neutral score, with SMA alignment tiebreaker when scores tie
-- **Contract ranking**: Delta quality (distance from 0.35), spread quality (tighter = better), volume quality (higher OI = better)
+- **Percentile-rank normalization** (Implemented): Raw indicator values ranked across universe, scaled 0-100. `math.isfinite()` guards reject NaN and ±inf.
+- **Weighted geometric mean** (Implemented): Category weights (trend 0.20, momentum 0.20, volatility 0.15, volume 0.15, options 0.30) combined via geometric mean
+- **Direction signal** (Implemented): 6-category aggregation of indicator signals into bullish/bearish/neutral score, with SMA alignment tiebreaker when scores tie
+- **Contract ranking** (Implemented): Delta quality (distance from 0.35), spread quality (tighter = better), volume quality (higher OI = better)
 - **No direct API calls**: analysis/ receives pre-fetched data from services/, never fetches its own
 
 ### S&P 500 Universe Fetch (Options Arena — Planned)
@@ -168,6 +169,15 @@ Phase 4: Persist results to SQLite
 - Warmup period returns `NaN` — never fill, backfill, or drop
 - `InsufficientDataError` if input too short
 - Vectorized operations only (no Python loops for math)
+
+### Scoring Pipeline (Implemented in Phase 4)
+- **Normalization**: `percentile_rank_normalize()` converts raw indicator values to 0–100 percentile ranks with tie averaging. Single ticker → 50.0. `invert_indicators()` flips bb_width, atr_pct, relative_volume, keltner_width (higher raw = worse). `get_active_indicators()` detects universally-missing indicators for weight renormalization.
+- **Composite scoring**: `composite_score()` computes weighted geometric mean: `exp(sum(w_i * ln(max(x_i, 1.0))) / sum(w_i))`. 18 indicators, 6 categories, weights sum to 1.0. Floor value 1.0 prevents log(0). Output clamped [0, 100].
+- **Direction classification**: `determine_direction(adx, rsi, sma_alignment, config)` returns `SignalDirection`. ADX gate (< 15 → NEUTRAL), RSI scoring (strong +=2, mild +=1), SMA scoring (+=1 for >0.5 or <-0.5), SMA tiebreaker.
+- **Contract selection**: `recommend_contracts()` pipeline: `filter_contracts()` (direction, OI, volume, spread with zero-bid exemption) → `select_expiration()` (DTE [30,60], closest to midpoint) → `compute_greeks()` (via `pricing/dispatch.py`, IV re-solve for suspect market_iv with `math.isfinite` guard) → `select_by_delta()` (primary [0.20,0.50] + fallback [0.10,0.80], target 0.35).
+- **Critical contract**: `score_universe()` returns percentile-ranked signals on `TickerScore.signals`. `determine_direction()` requires **raw** indicator values — callers must retain raw `IndicatorSignals` separately.
+- All thresholds from `ScanConfig` (direction) / `PricingConfig` (contracts) — no hardcoded magic numbers.
+- `scoring/` imports from `pricing/dispatch` only — never `pricing/bsm` or `pricing/american` directly.
 
 ## Per-Module CLAUDE.md Pattern
 
