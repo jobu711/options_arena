@@ -11,7 +11,7 @@ Tests cover:
   - Bull/bear score fields present
   - Usage tracking works
   - Dynamic prompt includes both bull and bear arguments
-  - Output validator rejects <think> tags
+  - Output validator strips <think> tags instead of rejecting
 """
 
 from __future__ import annotations
@@ -19,13 +19,13 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from pydantic_ai import ModelRetry, models
+from pydantic_ai import models
 from pydantic_ai.models.test import TestModel
 
 from options_arena.agents._parsing import DebateDeps
 from options_arena.agents.risk import (
     RISK_SYSTEM_PROMPT,
-    reject_think_tags,
+    clean_think_tags,
     risk_agent,
     risk_dynamic_prompt,
 )
@@ -168,10 +168,10 @@ async def test_risk_system_prompt_exists() -> None:
 
 
 @pytest.mark.asyncio
-async def test_risk_output_validator_rejects_think_tags_in_summary(
+async def test_risk_output_validator_strips_think_tags_in_summary(
     mock_debate_deps: DebateDeps,
 ) -> None:
-    """Output validator raises ModelRetry when summary contains <think> tags."""
+    """Output validator strips <think> tags from summary instead of rejecting."""
     thesis = TradeThesis(
         ticker="AAPL",
         direction=SignalDirection.BULLISH,
@@ -185,15 +185,17 @@ async def test_risk_output_validator_rejects_think_tags_in_summary(
     )
     mock_ctx = MagicMock()
     mock_ctx.deps = mock_debate_deps
-    with pytest.raises(ModelRetry):
-        await reject_think_tags(mock_ctx, thesis)
+    cleaned = await clean_think_tags(mock_ctx, thesis)
+    assert "<think>" not in cleaned.summary
+    assert "</think>" not in cleaned.summary
+    assert "Moderate bullish case." in cleaned.summary
 
 
 @pytest.mark.asyncio
-async def test_risk_output_validator_rejects_think_tags_in_risk_assessment(
+async def test_risk_output_validator_strips_think_tags_in_risk_assessment(
     mock_debate_deps: DebateDeps,
 ) -> None:
-    """Output validator raises ModelRetry when risk_assessment contains </think> tags."""
+    """Output validator strips <think> tags from risk_assessment."""
     thesis = TradeThesis(
         ticker="AAPL",
         direction=SignalDirection.BULLISH,
@@ -207,5 +209,28 @@ async def test_risk_output_validator_rejects_think_tags_in_risk_assessment(
     )
     mock_ctx = MagicMock()
     mock_ctx.deps = mock_debate_deps
-    with pytest.raises(ModelRetry):
-        await reject_think_tags(mock_ctx, thesis)
+    cleaned = await clean_think_tags(mock_ctx, thesis)
+    assert "<think>" not in cleaned.risk_assessment
+    assert "Position carefully." in cleaned.risk_assessment
+
+
+@pytest.mark.asyncio
+async def test_risk_output_validator_passthrough_when_no_tags(
+    mock_debate_deps: DebateDeps,
+) -> None:
+    """Output validator returns output unchanged when no <think> tags present."""
+    thesis = TradeThesis(
+        ticker="AAPL",
+        direction=SignalDirection.BULLISH,
+        confidence=0.5,
+        summary="Moderate bullish case.",
+        bull_score=6.0,
+        bear_score=4.0,
+        key_factors=["Momentum"],
+        risk_assessment="Position carefully.",
+        recommended_strategy=None,
+    )
+    mock_ctx = MagicMock()
+    mock_ctx.deps = mock_debate_deps
+    result = await clean_think_tags(mock_ctx, thesis)
+    assert result is thesis

@@ -27,12 +27,13 @@ from pydantic_ai.usage import RunUsage
 from options_arena.agents._parsing import DebateDeps, DebateResult, render_context_block
 from options_arena.agents.bear import bear_agent
 from options_arena.agents.bull import bull_agent
-from options_arena.agents.model_config import build_ollama_model
+from options_arena.agents.model_config import build_debate_model
 from options_arena.agents.risk import risk_agent
 from options_arena.data.repository import Repository
 from options_arena.models import (
     AgentResponse,
     DebateConfig,
+    DebateProvider,
     ExerciseStyle,
     MacdSignal,
     MarketContext,
@@ -220,8 +221,15 @@ async def _run_agents(
 
     Raises on any agent failure — the caller (``run_debate``) catches and falls back.
     """
-    model = build_ollama_model(config)
-    settings = ModelSettings(extra_body={"num_ctx": config.num_ctx})
+    model = build_debate_model(config)
+    # extra_body with num_ctx is Ollama-specific; omit for cloud providers
+    if config.provider == DebateProvider.OLLAMA:
+        settings = ModelSettings(
+            temperature=config.temperature,
+            extra_body={"num_ctx": config.num_ctx},
+        )
+    else:
+        settings = ModelSettings(temperature=config.temperature)
     context_text = render_context_block(context)
 
     # --- Bull agent ---
@@ -481,6 +489,9 @@ async def _persist_result(
     """Persist debate result to the database. Never raises -- logs on failure."""
     try:
         total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens
+        model_name = (
+            config.groq_model if config.provider == DebateProvider.GROQ else config.ollama_model
+        )
         await repository.save_debate(
             scan_run_id=ticker_score.scan_run_id,
             ticker=result.context.ticker,
@@ -489,7 +500,7 @@ async def _persist_result(
             risk_json=None,  # Risk output is TradeThesis, stored in verdict_json
             verdict_json=result.thesis.model_dump_json(),
             total_tokens=total_tokens,
-            model_name=config.ollama_model,
+            model_name=model_name,
             duration_ms=result.duration_ms,
             is_fallback=result.is_fallback,
         )

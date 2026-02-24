@@ -18,6 +18,8 @@ import math
 from pydantic import BaseModel, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from options_arena.models.enums import DebateProvider
+
 
 class ScanConfig(BaseModel):
     """Scan pipeline configuration — controls universe filtering and scoring thresholds."""
@@ -68,15 +70,28 @@ class ServiceConfig(BaseModel):
 
 
 class DebateConfig(BaseModel):
-    """AI debate configuration — controls Ollama connection, timeouts, and fallback behavior."""
+    """AI debate configuration — controls LLM provider, timeouts, and fallback behavior.
 
+    Supports two providers:
+    - ``ollama`` (default): local Ollama server, generous CPU timeouts.
+    - ``groq``: Groq cloud API, requires ``GROQ_API_KEY`` or ``ARENA_DEBATE__GROQ_API_KEY``.
+
+    Default timeouts are generous for CPU-only Ollama inference (~2-5 min per agent
+    response on typical hardware). GPU users can lower via env vars:
+    ``ARENA_DEBATE__OLLAMA_TIMEOUT=90`` and ``ARENA_DEBATE__MAX_TOTAL_DURATION=300``.
+    """
+
+    provider: DebateProvider = DebateProvider.OLLAMA
     ollama_host: str = "http://localhost:11434"
     ollama_model: str = "llama3.1:8b"
-    ollama_timeout: float = 90.0
+    ollama_timeout: float = 600.0
+    groq_model: str = "llama-3.3-70b-versatile"
+    groq_api_key: str | None = None
     num_ctx: int = 8192
     retries: int = 2
+    temperature: float = 0.3
     fallback_confidence: float = 0.3
-    max_total_duration: float = 300.0
+    max_total_duration: float = 1800.0
 
     @field_validator("fallback_confidence")
     @classmethod

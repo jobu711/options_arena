@@ -1,4 +1,4 @@
-"""Tests for _parsing.py — DebateDeps, DebateResult, render_context_block.
+"""Tests for _parsing.py — DebateDeps, DebateResult, render_context_block, strip_think_tags.
 
 Tests cover:
   - DebateDeps construction with required fields
@@ -8,6 +8,7 @@ Tests cover:
   - render_context_block output format
   - render_context_block contains expected field labels
   - render_context_block renders all MarketContext fields
+  - strip_think_tags removes full blocks, stray tags, and nested content
 """
 
 from __future__ import annotations
@@ -15,7 +16,12 @@ from __future__ import annotations
 import pytest
 from pydantic_ai.usage import RunUsage
 
-from options_arena.agents._parsing import DebateDeps, DebateResult, render_context_block
+from options_arena.agents._parsing import (
+    DebateDeps,
+    DebateResult,
+    render_context_block,
+    strip_think_tags,
+)
 from options_arena.models import (
     AgentResponse,
     MarketContext,
@@ -298,3 +304,53 @@ class TestRenderContextBlock:
         """Output is a plain string, not bytes or other type."""
         text = render_context_block(mock_market_context)
         assert isinstance(text, str)
+
+
+# ---------------------------------------------------------------------------
+# strip_think_tags
+# ---------------------------------------------------------------------------
+
+
+class TestStripThinkTags:
+    """Tests for strip_think_tags helper."""
+
+    def test_removes_complete_think_block(self) -> None:
+        """Strips <think>content</think> block entirely."""
+        assert strip_think_tags("<think>reasoning</think> Answer.") == "Answer."
+
+    def test_removes_multiline_think_block(self) -> None:
+        """Strips multi-line <think> blocks."""
+        text = "<think>\nline1\nline2\n</think> Result."
+        assert strip_think_tags(text) == "Result."
+
+    def test_removes_stray_open_tag(self) -> None:
+        """Strips orphaned <think> tag."""
+        assert strip_think_tags("<think> partial text") == "partial text"
+
+    def test_removes_stray_close_tag(self) -> None:
+        """Strips orphaned </think> tag."""
+        assert strip_think_tags("text </think> more") == "text  more"
+
+    def test_no_tags_passthrough(self) -> None:
+        """Text without think tags is returned unchanged (stripped)."""
+        assert strip_think_tags("RSI is bullish.") == "RSI is bullish."
+
+    def test_empty_string(self) -> None:
+        """Empty input returns empty string."""
+        assert strip_think_tags("") == ""
+
+    def test_only_think_block(self) -> None:
+        """String that is entirely a think block returns empty string."""
+        assert strip_think_tags("<think>all reasoning</think>") == ""
+
+    def test_multiple_think_blocks(self) -> None:
+        """Multiple think blocks are all removed."""
+        text = "<think>a</think> X <think>b</think> Y"
+        result = strip_think_tags(text)
+        assert "<think>" not in result
+        assert "X" in result
+        assert "Y" in result
+
+    def test_strips_whitespace(self) -> None:
+        """Leading/trailing whitespace is stripped from result."""
+        assert strip_think_tags("  <think>x</think>  answer  ") == "answer"

@@ -17,6 +17,7 @@ from pydantic_settings import BaseSettings
 from options_arena.models import (
     AppSettings,
     DebateConfig,
+    DebateProvider,
     PricingConfig,
     ScanConfig,
     ServiceConfig,
@@ -56,9 +57,12 @@ _ARENA_ENV_VARS = [
     "ARENA_SERVICE__CACHE_TTL_AFTER_HOURS",
     "ARENA_SERVICE__OLLAMA_HOST",
     "ARENA_SERVICE__OLLAMA_MODEL",
+    "ARENA_DEBATE__PROVIDER",
     "ARENA_DEBATE__OLLAMA_HOST",
     "ARENA_DEBATE__OLLAMA_MODEL",
     "ARENA_DEBATE__OLLAMA_TIMEOUT",
+    "ARENA_DEBATE__GROQ_MODEL",
+    "ARENA_DEBATE__GROQ_API_KEY",
     "ARENA_DEBATE__NUM_CTX",
     "ARENA_DEBATE__RETRIES",
     "ARENA_DEBATE__FALLBACK_CONFIDENCE",
@@ -237,13 +241,17 @@ class TestDebateConfigDefaults:
     def test_debate_config_constructs_with_defaults(self) -> None:
         """DebateConfig() constructs with all production defaults."""
         config = DebateConfig()
+        assert config.provider == DebateProvider.OLLAMA
         assert config.ollama_host == "http://localhost:11434"
         assert config.ollama_model == "llama3.1:8b"
-        assert config.ollama_timeout == pytest.approx(90.0)
+        assert config.ollama_timeout == pytest.approx(600.0)
+        assert config.groq_model == "llama-3.3-70b-versatile"
+        assert config.groq_api_key is None
         assert config.num_ctx == 8192
         assert config.retries == 2
+        assert config.temperature == pytest.approx(0.3)
         assert config.fallback_confidence == pytest.approx(0.3)
-        assert config.max_total_duration == pytest.approx(300.0)
+        assert config.max_total_duration == pytest.approx(1800.0)
 
     def test_app_settings_has_debate_field(self) -> None:
         """AppSettings includes a debate field."""
@@ -268,3 +276,31 @@ class TestDebateConfigDefaults:
         monkeypatch.setenv("ARENA_DEBATE__NUM_CTX", "16384")
         settings = AppSettings()
         assert settings.debate.num_ctx == 16384
+
+    def test_env_override_debate_provider(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__PROVIDER env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__PROVIDER", "groq")
+        settings = AppSettings()
+        assert settings.debate.provider == DebateProvider.GROQ
+
+    def test_env_override_debate_groq_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__GROQ_MODEL env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__GROQ_MODEL", "llama-3.1-8b-instant")
+        settings = AppSettings()
+        assert settings.debate.groq_model == "llama-3.1-8b-instant"
+
+    def test_env_override_debate_groq_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__GROQ_API_KEY env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__GROQ_API_KEY", "gsk_test_key_123")
+        settings = AppSettings()
+        assert settings.debate.groq_api_key == "gsk_test_key_123"
+
+    def test_debate_provider_default_is_ollama(self) -> None:
+        """Default provider is OLLAMA (backward compatible)."""
+        settings = AppSettings()
+        assert settings.debate.provider == DebateProvider.OLLAMA
+
+    def test_debate_groq_api_key_default_is_none(self) -> None:
+        """Default groq_api_key is None."""
+        settings = AppSettings()
+        assert settings.debate.groq_api_key is None
