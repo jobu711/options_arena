@@ -259,7 +259,7 @@ async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None
         config = settings.debate
         if fallback_only:
             config = DebateConfig(
-                ollama_timeout=0.001,
+                agent_timeout=0.001,
                 max_total_duration=0.001,
                 fallback_confidence=settings.debate.fallback_confidence,
             )

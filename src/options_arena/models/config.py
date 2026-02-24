@@ -76,15 +76,17 @@ class DebateConfig(BaseModel):
     - ``ollama`` (default): local Ollama server, generous CPU timeouts.
     - ``groq``: Groq cloud API, requires ``GROQ_API_KEY`` or ``ARENA_DEBATE__GROQ_API_KEY``.
 
-    Default timeouts are generous for CPU-only Ollama inference (~2-5 min per agent
-    response on typical hardware). GPU users can lower via env vars:
-    ``ARENA_DEBATE__OLLAMA_TIMEOUT=90`` and ``ARENA_DEBATE__MAX_TOTAL_DURATION=300``.
+    Default ``agent_timeout`` (600s) is generous for CPU-only Ollama inference (~2-5 min
+    per agent response). ``groq_timeout`` (60s) is used for Groq cloud API. GPU users can
+    lower via env vars: ``ARENA_DEBATE__AGENT_TIMEOUT=90``,
+    ``ARENA_DEBATE__MAX_TOTAL_DURATION=300``.
     """
 
     provider: DebateProvider = DebateProvider.OLLAMA
     ollama_host: str = "http://localhost:11434"
     ollama_model: str = "llama3.1:8b"
-    ollama_timeout: float = 600.0
+    agent_timeout: float = 600.0
+    groq_timeout: float = 60.0
     groq_model: str = "llama-3.3-70b-versatile"
     groq_api_key: str | None = None
     num_ctx: int = 8192
@@ -92,6 +94,26 @@ class DebateConfig(BaseModel):
     temperature: float = 0.3
     fallback_confidence: float = 0.3
     max_total_duration: float = 1800.0
+
+    @field_validator("temperature")
+    @classmethod
+    def validate_temperature(cls, v: float) -> float:
+        """Ensure temperature is finite and within [0.0, 2.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"temperature must be finite, got {v}")
+        if not 0.0 <= v <= 2.0:
+            raise ValueError(f"temperature must be in [0.0, 2.0], got {v}")
+        return v
+
+    @field_validator("agent_timeout", "groq_timeout", "max_total_duration")
+    @classmethod
+    def validate_positive_timeout(cls, v: float) -> float:
+        """Ensure timeout values are finite and positive."""
+        if not math.isfinite(v):
+            raise ValueError(f"timeout must be finite, got {v}")
+        if v <= 0.0:
+            raise ValueError(f"timeout must be > 0, got {v}")
+        return v
 
     @field_validator("fallback_confidence")
     @classmethod

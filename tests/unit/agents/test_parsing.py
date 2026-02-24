@@ -339,9 +339,16 @@ class TestStripThinkTags:
         """Empty input returns empty string."""
         assert strip_think_tags("") == ""
 
-    def test_only_think_block(self) -> None:
-        """String that is entirely a think block returns empty string."""
-        assert strip_think_tags("<think>all reasoning</think>") == ""
+    def test_only_think_block_returns_original(self) -> None:
+        """String that is entirely a think block returns original (not empty)."""
+        result = strip_think_tags("<think>all reasoning</think>")
+        assert result == "<think>all reasoning</think>"
+
+    def test_empty_after_strip_returns_original(self) -> None:
+        """When stripping would produce empty, falls back to original text."""
+        result = strip_think_tags("  <think>only reasoning here</think>  ")
+        assert result == "<think>only reasoning here</think>"
+        assert len(result) > 0
 
     def test_multiple_think_blocks(self) -> None:
         """Multiple think blocks are all removed."""

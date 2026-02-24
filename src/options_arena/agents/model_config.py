@@ -45,9 +45,13 @@ def build_debate_model(config: DebateConfig) -> Model:
     ValueError
         If Groq is selected but no API key is available.
     """
-    if config.provider == DebateProvider.GROQ:
-        return build_groq_model(config)
-    return build_ollama_model(config)
+    match config.provider:
+        case DebateProvider.GROQ:
+            return build_groq_model(config)
+        case DebateProvider.OLLAMA:
+            return build_ollama_model(config)
+        case _:
+            raise ValueError(f"Unknown debate provider: {config.provider}")
 
 
 def build_ollama_model(config: DebateConfig) -> OpenAIChatModel:

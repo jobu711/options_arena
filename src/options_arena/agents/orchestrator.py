@@ -230,6 +230,10 @@ async def _run_agents(
         )
     else:
         settings = ModelSettings(temperature=config.temperature)
+    # Provider-aware per-agent timeout: generous for local Ollama, tight for cloud Groq
+    per_agent_timeout = (
+        config.agent_timeout if config.provider == DebateProvider.OLLAMA else config.groq_timeout
+    )
     context_text = render_context_block(context)
 
     # --- Bull agent ---
@@ -246,7 +250,7 @@ async def _run_agents(
             deps=bull_deps,
             model_settings=settings,
         ),
-        timeout=config.ollama_timeout,
+        timeout=per_agent_timeout,
     )
     bull_output: AgentResponse = bull_result.output
     logger.info(
@@ -270,7 +274,7 @@ async def _run_agents(
             deps=bear_deps,
             model_settings=settings,
         ),
-        timeout=config.ollama_timeout,
+        timeout=per_agent_timeout,
     )
     bear_output: AgentResponse = bear_result.output
     logger.info(
@@ -296,7 +300,7 @@ async def _run_agents(
             deps=risk_deps,
             model_settings=settings,
         ),
-        timeout=config.ollama_timeout,
+        timeout=per_agent_timeout,
     )
     thesis: TradeThesis = risk_result.output
     logger.info(

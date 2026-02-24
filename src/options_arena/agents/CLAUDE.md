@@ -3,9 +3,10 @@
 ## Purpose
 
 Three-agent AI debate system for qualitative options analysis. Bull, Bear, and Risk
-agents run sequentially via PydanticAI + Ollama (Llama 3.1 8B), transforming quantitative
-scan results into human-readable reasoning. Data-driven fallback when Ollama is unreachable
-ensures the tool always produces a verdict.
+agents run sequentially via PydanticAI, transforming quantitative scan results into
+human-readable reasoning. Supports two LLM providers: **Ollama** (local Llama 3.1 8B,
+default) and **Groq** (cloud API, fast inference). Data-driven fallback when the LLM
+provider is unreachable ensures the tool always produces a verdict.
 
 Agents have **no knowledge of each other** — the orchestrator coordinates them.
 The orchestrator does **not fetch data** — the caller (CLI) provides all inputs.
@@ -15,8 +16,8 @@ The orchestrator does **not fetch data** — the caller (CLI) provides all input
 | File | Purpose | Pattern |
 |------|---------|---------|
 | `CLAUDE.md` | Module conventions and rules | — |
-| `model_config.py` | `build_ollama_model()`, `_resolve_host()` | Config utility |
-| `_parsing.py` | `DebateDeps` dataclass, `DebateResult` dataclass, constants | Internal |
+| `model_config.py` | `build_debate_model()`, `build_ollama_model()`, `build_groq_model()` | Config utility |
+| `_parsing.py` | `DebateDeps`, `DebateResult` dataclasses, `strip_think_tags()` | Internal |
 | `bull.py` | Bull agent + system prompt + output validator | PydanticAI Agent |
 | `bear.py` | Bear agent + dynamic prompt (receives bull argument) | PydanticAI Agent |
 | `risk.py` | Risk agent + dynamic prompt (receives both arguments) | PydanticAI Agent |
@@ -102,25 +103,37 @@ async def bear_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
 **When to use `dynamic=True`**: Bear and Risk agents need runtime data (opponent arguments)
 injected into their prompts. Bull uses a static prompt (no opponent argument yet).
 
-### Output Validator (Context7-Verified)
+### Output Validator — Strip Think Tags (Context7-Verified)
 
-Validates LLM output after Pydantic parsing. Raises `ModelRetry` to trigger retry with
-schema hints (up to `retries` count).
+Validates LLM output after Pydantic parsing. Instead of rejecting with `ModelRetry` (which
+costs 5-10 min per retry on CPU), we **strip** `<think>` tag content and return a cleaned
+frozen instance. Uses `strip_think_tags()` from `_parsing.py`.
 
 ```python
-# Context7-verified: signature overloads — can take (RunContext, output) or just (output)
-# Raise ModelRetry to trigger retry with corrective message
+from options_arena.agents._parsing import strip_think_tags
+
 @bull_agent.output_validator
-async def reject_think_tags(
+async def clean_think_tags(
     ctx: RunContext[DebateDeps], output: AgentResponse,
 ) -> AgentResponse:
-    if "<think>" in output.argument or "</think>" in output.argument:
-        raise ModelRetry("Remove <think> tags from your response")
-    return output
+    fields = [output.argument, *output.key_points, *output.risks_cited, *output.contracts_referenced]
+    if not any("<think>" in v or "</think>" in v for v in fields):
+        return output  # fast path — no copy needed
+    return AgentResponse(
+        agent_name=output.agent_name,
+        direction=output.direction,
+        confidence=output.confidence,
+        argument=strip_think_tags(output.argument),
+        key_points=[strip_think_tags(p) for p in output.key_points],
+        risks_cited=[strip_think_tags(r) for r in output.risks_cited],
+        contracts_referenced=[strip_think_tags(c) for c in output.contracts_referenced],
+        model_used=output.model_used,
+    )
 ```
 
 **All three agents** must have this validator. Llama 3.1 8B sometimes emits `<think>` tags
-from its reasoning trace. Without the validator, these leak into the user-facing argument text.
+from its reasoning trace. `strip_think_tags()` falls back to the original text if stripping
+would produce an empty string.
 
 ### Running an Agent (Context7-Verified)
 
@@ -128,7 +141,7 @@ from its reasoning trace. Without the validator, these leak into the user-facing
 from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.usage import RunUsage
 
-model = build_ollama_model(config)
+model = build_debate_model(config)  # routes to Ollama or Groq
 deps = DebateDeps(context=market_ctx, ticker_score=score, contracts=contracts)
 
 # Context7-verified: agent.run() params — model override, deps injection
@@ -138,7 +151,7 @@ result = await asyncio.wait_for(
         model=model,       # Context7-verified: overrides Agent.__init__ model
         deps=deps,         # Context7-verified: type-checked against deps_type
     ),
-    timeout=config.ollama_timeout,
+    timeout=per_agent_timeout,  # agent_timeout for Ollama, groq_timeout for Groq
 )
 
 output: AgentResponse = result.output       # typed output
@@ -215,29 +228,28 @@ total_usage = bull_result.usage() + bear_result.usage() + risk_result.usage()
 
 ## Model Configuration
 
+The entry point is `build_debate_model(config)`, which routes to the correct provider using
+`match/case` on `config.provider` (`DebateProvider` StrEnum).
+
 ```python
-from pydantic_ai.models.ollama import OllamaModel
+from pydantic_ai.models import Model
 
-def build_ollama_model(config: DebateConfig) -> OllamaModel:
-    """Build PydanticAI OllamaModel with host resolution.
-
-    Host priority: explicit config > OLLAMA_HOST env var > default localhost.
-    """
-    host = _resolve_host(config)
-    return OllamaModel(config.ollama_model, base_url=host)
-
-def _resolve_host(config: DebateConfig) -> str:
-    if config.ollama_host != "http://localhost:11434":
-        return config.ollama_host
-    env_host = os.environ.get("OLLAMA_HOST")
-    if env_host:
-        return env_host
-    return "http://localhost:11434"
+def build_debate_model(config: DebateConfig) -> Model:
+    """Route to Ollama or Groq based on config.provider."""
+    match config.provider:
+        case DebateProvider.GROQ:
+            return build_groq_model(config)
+        case DebateProvider.OLLAMA:
+            return build_ollama_model(config)
+        case _:
+            raise ValueError(f"Unknown debate provider: {config.provider}")
 ```
 
-**Import path**: `from pydantic_ai.models.ollama import OllamaModel` — verify at
-implementation time. Fallback: `from pydantic_ai.models.openai import OpenAIModel` with
-`base_url=host + "/v1"` (Ollama exposes an OpenAI-compatible endpoint).
+**Ollama**: `OpenAIChatModel` + `OllamaProvider(base_url=host/v1)`. Host priority:
+config > `OLLAMA_HOST` env > default localhost.
+
+**Groq**: `GroqModel` + `GroqProvider(api_key=key)`. API key priority:
+config > `GROQ_API_KEY` env > ValueError.
 
 ---
 
@@ -280,8 +292,8 @@ async def run_debate(
 ```
 
 **Timeout strategy**:
-- Per-agent: `asyncio.wait_for(agent.run(...), timeout=config.ollama_timeout)` (90s default)
-- Total debate: `asyncio.wait_for(_run_all_agents(...), timeout=config.max_total_duration)` (300s default)
+- Per-agent: `asyncio.wait_for(agent.run(...), timeout=per_agent_timeout)` — `agent_timeout` (600s) for Ollama, `groq_timeout` (60s) for Groq
+- Total debate: `asyncio.wait_for(_run_all_agents(...), timeout=config.max_total_duration)` (1800s default)
 - Fallback computation: < 1s (no LLM, pure string formatting)
 
 ### `build_market_context()` Mapping
@@ -370,17 +382,24 @@ DIV YIELD: {ctx.dividend_yield:.2%}"""
 ```python
 class DebateConfig(BaseModel):
     """AI debate configuration."""
+    provider: DebateProvider = DebateProvider.OLLAMA
     ollama_host: str = "http://localhost:11434"
     ollama_model: str = "llama3.1:8b"
-    ollama_timeout: float = 90.0           # per-agent timeout (seconds)
+    agent_timeout: float = 600.0           # per-agent timeout for Ollama (seconds)
+    groq_model: str = "llama-3.3-70b-versatile"
+    groq_api_key: str | None = None
+    groq_timeout: float = 60.0             # per-agent timeout for Groq (seconds)
     num_ctx: int = 8192                    # Ollama context window size
     retries: int = 2                       # PydanticAI retry count
+    temperature: float = 0.3              # LLM temperature [0.0, 2.0]
     fallback_confidence: float = 0.3       # data-driven fallback confidence cap
-    max_total_duration: float = 300.0      # total debate timeout (seconds)
+    max_total_duration: float = 1800.0     # total debate timeout (seconds)
 ```
 
 Added to `AppSettings` as `debate: DebateConfig = DebateConfig()`.
-Env override: `ARENA_DEBATE__NUM_CTX=16384` → `settings.debate.num_ctx == 16384`.
+Env overrides: `ARENA_DEBATE__PROVIDER=groq`, `ARENA_DEBATE__GROQ_API_KEY=gsk_...`,
+`ARENA_DEBATE__AGENT_TIMEOUT=90`. Orchestrator selects `agent_timeout` or `groq_timeout`
+based on provider.
 
 ---
 
@@ -473,8 +492,8 @@ Mark with `@pytest.mark.integration`. Skipped by default; run with `pytest -m in
    Never use `async def` on a Typer command.
 
 4. **Forgetting `asyncio.wait_for` on agent.run()** — Every `agent.run()` call must be
-   wrapped in `asyncio.wait_for(timeout=config.ollama_timeout)`. Ollama can hang indefinitely
-   on CPU inference.
+   wrapped in `asyncio.wait_for(timeout=per_agent_timeout)`. Ollama can hang indefinitely
+   on CPU inference. Use `agent_timeout` for Ollama, `groq_timeout` for Groq.
 
 5. **`except Exception` without fallback** — The orchestrator must ALWAYS return a
    `DebateResult`. On any error, return the data-driven fallback. Never let an exception
@@ -485,7 +504,8 @@ Mark with `@pytest.mark.integration`. Skipped by default; run with `pytest -m in
    `TestModel` override in tests.
 
 7. **Forgetting the `<think>` tag validator** — All three agents need `@agent.output_validator`
-   that rejects `<think>` tags via `ModelRetry`. Llama 3.1 8B produces these frequently.
+   that strips `<think>` tags via `strip_think_tags()`. Llama 3.1 8B produces these frequently.
+   Do NOT use `ModelRetry` for this — stripping is far cheaper than retrying on CPU.
 
 8. **`markup=True` in Rich panels** — Agent argument text may contain `[brackets]` from
    indicator names. Use `markup=False` or escape brackets in rendering code.

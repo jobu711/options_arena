@@ -6,6 +6,7 @@ is a plain dataclass — not Pydantic-serializable.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 
@@ -19,6 +20,8 @@ from options_arena.models import (
     TradeThesis,
 )
 
+logger = logging.getLogger(__name__)
+
 # Regex patterns for stripping <think> tags from LLM output.
 # Models like Llama sometimes emit reasoning traces wrapped in <think>...</think>
 # that should not appear in user-facing text.
@@ -30,10 +33,16 @@ def strip_think_tags(text: str) -> str:
     """Remove ``<think>...</think>`` blocks and any stray open/close tags.
 
     Returns the cleaned text with leading/trailing whitespace stripped.
+    If stripping produces an empty string, returns the original text and logs
+    a warning — empty output is less useful than output with think-tag remnants.
     """
-    text = _THINK_BLOCK_RE.sub("", text)
-    text = _THINK_TAG_RE.sub("", text)
-    return text.strip()
+    cleaned = _THINK_BLOCK_RE.sub("", text)
+    cleaned = _THINK_TAG_RE.sub("", cleaned)
+    cleaned = cleaned.strip()
+    if not cleaned and text.strip():
+        logger.warning("strip_think_tags produced empty string, keeping original text")
+        return text.strip()
+    return cleaned
 
 
 @dataclass
