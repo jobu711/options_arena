@@ -32,10 +32,11 @@ from options_arena.cli.rendering import (
     render_scan_table,
 )
 from options_arena.data import Database, Repository
-from options_arena.models import DebateConfig, OptionContract
+from options_arena.models import DebateConfig
 from options_arena.models.config import AppSettings
 from options_arena.models.enums import ScanPreset
 from options_arena.scan import CancellationToken, ScanPipeline, ScanResult
+from options_arena.scoring import recommend_contracts
 from options_arena.services.cache import ServiceCache
 from options_arena.services.fred import FredService
 from options_arena.services.health import HealthService
@@ -211,6 +212,8 @@ async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None
     db = Database(_DATA_DIR / "options_arena.db")
 
     market_data: MarketDataService | None = None
+    options_data: OptionsDataService | None = None
+    fred: FredService | None = None
 
     try:
         await db.connect()
@@ -243,15 +246,41 @@ async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None
             )
             raise typer.Exit(code=1)
 
-        # Fetch live market data
+        # Fetch live market data and option contracts
         market_data = MarketDataService(settings.service, cache, limiter)
+        options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
+        fred = FredService(settings.service, settings.pricing, cache)
 
         err_console.print(f"[cyan]Fetching live data for {ticker}...[/cyan]")
         quote = await market_data.fetch_quote(ticker)
         ticker_info = await market_data.fetch_ticker_info(ticker)
 
-        # Contracts from scan recommendations (empty list — orchestrator handles context)
-        contracts: list[OptionContract] = []
+        # Fetch risk-free rate and option chains concurrently
+        risk_free_task = fred.fetch_risk_free_rate()
+        chains_task = options_data.fetch_chain_all_expirations(ticker)
+        risk_free_rate, chain_results = await asyncio.gather(risk_free_task, chains_task)
+
+        # Flatten all contracts across expirations
+        all_contracts = [c for chain in chain_results for c in chain.contracts]
+
+        # Select best contract via scoring/contracts.py (mirrors scan pipeline Phase 3)
+        spot = float(ticker_info.current_price)
+        contracts = recommend_contracts(
+            contracts=all_contracts,
+            direction=ticker_score.direction,
+            spot=spot,
+            risk_free_rate=risk_free_rate,
+            dividend_yield=ticker_info.dividend_yield,
+            config=settings.pricing,
+        )
+
+        logger.info(
+            "Debate %s: %d chains fetched, %d total contracts, %d recommended",
+            ticker,
+            len(chain_results),
+            len(all_contracts),
+            len(contracts),
+        )
 
         # Lazy import: agents/ depends on pydantic-ai[ollama] which may not be
         # available.  Importing at call time keeps CLI tests (scan, health, universe)
@@ -301,6 +330,10 @@ async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None
     finally:
         if market_data is not None:
             await market_data.close()
+        if options_data is not None:
+            await options_data.close()
+        if fred is not None:
+            await fred.close()
         await cache.close()
         await db.close()
 
