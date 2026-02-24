@@ -48,6 +48,9 @@ logger = logging.getLogger(__name__)
 console = Console()
 err_console = Console(stderr=True)
 
+# Near-zero timeout that forces the data-driven fallback path (skips AI agents)
+_FALLBACK_ONLY_TIMEOUT_SEC = 0.001
+
 # Resolve data directory from project root (src/options_arena/cli/commands.py → parents[3])
 _DATA_DIR = Path(__file__).resolve().parents[3] / "data"
 
@@ -259,8 +262,8 @@ async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None
         config = settings.debate
         if fallback_only:
             config = DebateConfig(
-                agent_timeout=0.001,
-                max_total_duration=0.001,
+                agent_timeout=_FALLBACK_ONLY_TIMEOUT_SEC,
+                max_total_duration=_FALLBACK_ONLY_TIMEOUT_SEC,
                 fallback_confidence=settings.debate.fallback_confidence,
             )
 
