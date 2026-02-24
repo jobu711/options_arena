@@ -114,7 +114,7 @@ async def test_full_debate_fallback_without_ollama() -> None:
     analysis. This tests the complete path from run_debate through to DebateResult.
     """
     config = DebateConfig(
-        ollama_timeout=0.5,
+        agent_timeout=0.5,
         max_total_duration=1.0,
     )
     result = await run_debate(
@@ -137,7 +137,7 @@ async def test_full_debate_fallback_without_ollama() -> None:
 @pytest.mark.asyncio
 async def test_fallback_thesis_direction_matches_score() -> None:
     """Fallback thesis direction matches the ticker score direction."""
-    config = DebateConfig(ollama_timeout=0.5, max_total_duration=1.0)
+    config = DebateConfig(agent_timeout=0.5, max_total_duration=1.0)
     score = _make_ticker_score()
     result = await run_debate(
         ticker_score=score,
@@ -153,7 +153,7 @@ async def test_fallback_thesis_direction_matches_score() -> None:
 @pytest.mark.asyncio
 async def test_fallback_with_empty_contracts() -> None:
     """Fallback works when no contracts are available."""
-    config = DebateConfig(ollama_timeout=0.5, max_total_duration=1.0)
+    config = DebateConfig(agent_timeout=0.5, max_total_duration=1.0)
     result = await run_debate(
         ticker_score=_make_ticker_score(),
         contracts=[],
@@ -169,7 +169,7 @@ async def test_fallback_with_empty_contracts() -> None:
 @pytest.mark.asyncio
 async def test_fallback_model_used_is_data_driven() -> None:
     """Fallback agent responses use 'data-driven-fallback' as model_used."""
-    config = DebateConfig(ollama_timeout=0.5, max_total_duration=1.0)
+    config = DebateConfig(agent_timeout=0.5, max_total_duration=1.0)
     result = await run_debate(
         ticker_score=_make_ticker_score(),
         contracts=[_make_contract()],
@@ -185,7 +185,7 @@ async def test_fallback_model_used_is_data_driven() -> None:
 @pytest.mark.asyncio
 async def test_fallback_bull_confidence_bounded() -> None:
     """Fallback bull confidence is bounded by composite score."""
-    config = DebateConfig(ollama_timeout=0.5, max_total_duration=1.0)
+    config = DebateConfig(agent_timeout=0.5, max_total_duration=1.0)
     result = await run_debate(
         ticker_score=_make_ticker_score(),
         contracts=[_make_contract()],

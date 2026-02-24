@@ -14,9 +14,9 @@ Architecture rules:
 
 import logging
 
-from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai import Agent, RunContext
 
-from options_arena.agents._parsing import DebateDeps
+from options_arena.agents._parsing import DebateDeps, strip_think_tags
 from options_arena.models import AgentResponse
 
 logger = logging.getLogger(__name__)
@@ -78,15 +78,15 @@ async def bear_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
 
 
 @bear_agent.output_validator
-async def reject_think_tags(
+async def clean_think_tags(
     ctx: RunContext[DebateDeps],
     output: AgentResponse,
 ) -> AgentResponse:
-    """Reject LLM output containing <think> tags.
+    """Strip ``<think>`` tags from LLM output instead of rejecting.
 
-    Llama 3.1 8B sometimes emits reasoning traces that should not appear
-    in user-facing text. Raises ``ModelRetry`` to trigger a retry with
-    corrective instructions.
+    Llama models sometimes emit reasoning traces wrapped in ``<think>`` tags.
+    Stripping is far cheaper than retrying (5-10 min per retry on CPU).
+    Constructs a new frozen instance with cleaned text fields.
     """
     fields = [
         output.argument,
@@ -94,6 +94,15 @@ async def reject_think_tags(
         *output.risks_cited,
         *output.contracts_referenced,
     ]
-    if any("<think>" in v or "</think>" in v for v in fields):
-        raise ModelRetry("Remove all <think> and </think> tags from your response.")
-    return output
+    if not any("<think>" in v or "</think>" in v for v in fields):
+        return output
+    return AgentResponse(
+        agent_name=output.agent_name,
+        direction=output.direction,
+        confidence=output.confidence,
+        argument=strip_think_tags(output.argument),
+        key_points=[strip_think_tags(p) for p in output.key_points],
+        risks_cited=[strip_think_tags(r) for r in output.risks_cited],
+        contracts_referenced=[strip_think_tags(c) for c in output.contracts_referenced],
+        model_used=output.model_used,
+    )

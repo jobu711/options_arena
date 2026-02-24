@@ -123,3 +123,14 @@ class GreeksSource(StrEnum):
 
     COMPUTED = "computed"
     MARKET = "market"
+
+
+class DebateProvider(StrEnum):
+    """LLM provider for the AI debate system.
+
+    OLLAMA — local Ollama server (default, CPU or GPU).
+    GROQ   — Groq cloud API (fast inference, requires API key).
+    """
+
+    OLLAMA = "ollama"
+    GROQ = "groq"

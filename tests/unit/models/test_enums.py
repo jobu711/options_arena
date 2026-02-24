@@ -1,6 +1,6 @@
 """Unit tests for all StrEnum definitions in options_arena.models.enums.
 
-Tests each of the 11 enums for:
+Tests each of the 12 enums for:
   - Correct member count
   - All values are lowercase strings
   - StrEnum subclass check
@@ -11,6 +11,7 @@ Tests each of the 11 enums for:
 from enum import StrEnum
 
 from options_arena.models import (
+    DebateProvider,
     DividendSource,
     ExerciseStyle,
     GreeksSource,
@@ -336,3 +337,27 @@ class TestGreeksSource:
     def test_greeks_source_string_serialization(self) -> None:
         assert str(GreeksSource.COMPUTED) == "computed"
         assert str(GreeksSource.MARKET) == "market"
+
+
+# ---------------------------------------------------------------------------
+# DebateProvider (2 members)
+# ---------------------------------------------------------------------------
+
+
+class TestDebateProvider:
+    def test_debate_provider_has_exactly_two_members(self) -> None:
+        assert len(DebateProvider) == 2
+
+    def test_debate_provider_values_are_lowercase(self) -> None:
+        assert DebateProvider.OLLAMA == "ollama"
+        assert DebateProvider.GROQ == "groq"
+
+    def test_debate_provider_is_str_enum(self) -> None:
+        assert issubclass(DebateProvider, StrEnum)
+
+    def test_debate_provider_exhaustive_iteration(self) -> None:
+        assert set(DebateProvider) == {DebateProvider.OLLAMA, DebateProvider.GROQ}
+
+    def test_debate_provider_string_serialization(self) -> None:
+        assert str(DebateProvider.OLLAMA) == "ollama"
+        assert str(DebateProvider.GROQ) == "groq"

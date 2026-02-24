@@ -10,7 +10,7 @@ Tests cover:
   - Model used field present
   - Usage tracking works
   - Bear receives opponent argument via deps
-  - Output validator rejects <think> tags
+  - Output validator strips <think> tags instead of rejecting
   - Dynamic prompt includes BULL_ARGUMENT delimiters when opponent_argument set
 """
 
@@ -19,7 +19,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from pydantic_ai import ModelRetry, models
+from pydantic_ai import models
 from pydantic_ai.models.test import TestModel
 
 from options_arena.agents._parsing import DebateDeps
@@ -27,7 +27,7 @@ from options_arena.agents.bear import (
     BEAR_SYSTEM_PROMPT,
     bear_agent,
     bear_dynamic_prompt,
-    reject_think_tags,
+    clean_think_tags,
 )
 from options_arena.models import AgentResponse, SignalDirection
 
@@ -143,10 +143,10 @@ async def test_bear_system_prompt_exists() -> None:
 
 
 @pytest.mark.asyncio
-async def test_bear_output_validator_rejects_think_tags(
+async def test_bear_output_validator_strips_think_tags(
     mock_debate_deps: DebateDeps,
 ) -> None:
-    """Output validator raises ModelRetry when argument contains <think> tags."""
+    """Output validator strips <think> tags from argument instead of rejecting."""
     response = AgentResponse(
         agent_name="bear",
         direction=SignalDirection.BEARISH,
@@ -159,5 +159,28 @@ async def test_bear_output_validator_rejects_think_tags(
     )
     mock_ctx = MagicMock()
     mock_ctx.deps = mock_debate_deps
-    with pytest.raises(ModelRetry):
-        await reject_think_tags(mock_ctx, response)
+    cleaned = await clean_think_tags(mock_ctx, response)
+    assert "<think>" not in cleaned.argument
+    assert "</think>" not in cleaned.argument
+    assert "IV is elevated." in cleaned.argument
+
+
+@pytest.mark.asyncio
+async def test_bear_output_validator_passthrough_when_no_tags(
+    mock_debate_deps: DebateDeps,
+) -> None:
+    """Output validator returns output unchanged when no <think> tags present."""
+    response = AgentResponse(
+        agent_name="bear",
+        direction=SignalDirection.BEARISH,
+        confidence=0.6,
+        argument="IV is elevated.",
+        key_points=["IV overpriced"],
+        risks_cited=["Market reversal"],
+        contracts_referenced=["AAPL $190 CALL"],
+        model_used="test",
+    )
+    mock_ctx = MagicMock()
+    mock_ctx.deps = mock_debate_deps
+    result = await clean_think_tags(mock_ctx, response)
+    assert result is response

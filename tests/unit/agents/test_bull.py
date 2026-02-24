@@ -10,18 +10,20 @@ Tests cover:
   - Contracts referenced list populated
   - Model used field present
   - Usage tracking works
-  - Output validator rejects <think> tags
+  - Output validator strips <think> tags instead of rejecting
 """
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
-from pydantic_ai import ModelRetry, models
+from pydantic_ai import models
 from pydantic_ai.models.test import TestModel
 
 from options_arena.agents._parsing import DebateDeps
-from options_arena.agents.bull import BULL_SYSTEM_PROMPT, bull_agent, reject_think_tags
-from options_arena.models import AgentResponse
+from options_arena.agents.bull import BULL_SYSTEM_PROMPT, bull_agent, clean_think_tags
+from options_arena.models import AgentResponse, SignalDirection
 
 # Prevent accidental real API calls
 models.ALLOW_MODEL_REQUESTS = False
@@ -108,14 +110,10 @@ async def test_bull_system_prompt_exists() -> None:
 
 
 @pytest.mark.asyncio
-async def test_bull_output_validator_rejects_think_tags(
+async def test_bull_output_validator_strips_think_tags(
     mock_debate_deps: DebateDeps,
 ) -> None:
-    """Output validator raises ModelRetry when argument contains <think> tags."""
-    from unittest.mock import MagicMock
-
-    from options_arena.models import SignalDirection
-
+    """Output validator strips <think> tags from argument instead of rejecting."""
     response = AgentResponse(
         agent_name="bull",
         direction=SignalDirection.BULLISH,
@@ -128,5 +126,28 @@ async def test_bull_output_validator_rejects_think_tags(
     )
     mock_ctx = MagicMock()
     mock_ctx.deps = mock_debate_deps
-    with pytest.raises(ModelRetry):
-        await reject_think_tags(mock_ctx, response)
+    cleaned = await clean_think_tags(mock_ctx, response)
+    assert "<think>" not in cleaned.argument
+    assert "</think>" not in cleaned.argument
+    assert "RSI is bullish." in cleaned.argument
+
+
+@pytest.mark.asyncio
+async def test_bull_output_validator_passthrough_when_no_tags(
+    mock_debate_deps: DebateDeps,
+) -> None:
+    """Output validator returns output unchanged when no <think> tags present."""
+    response = AgentResponse(
+        agent_name="bull",
+        direction=SignalDirection.BULLISH,
+        confidence=0.7,
+        argument="RSI is bullish.",
+        key_points=["RSI trending up"],
+        risks_cited=["Market risk"],
+        contracts_referenced=["AAPL $190 CALL"],
+        model_used="test",
+    )
+    mock_ctx = MagicMock()
+    mock_ctx.deps = mock_debate_deps
+    result = await clean_think_tags(mock_ctx, response)
+    assert result is response  # same object — no copy needed

@@ -13,9 +13,9 @@ Architecture rules:
 
 import logging
 
-from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai import Agent, RunContext
 
-from options_arena.agents._parsing import DebateDeps
+from options_arena.agents._parsing import DebateDeps, strip_think_tags
 from options_arena.models import TradeThesis
 
 logger = logging.getLogger(__name__)
@@ -96,17 +96,27 @@ async def risk_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
 
 
 @risk_agent.output_validator
-async def reject_think_tags(
+async def clean_think_tags(
     ctx: RunContext[DebateDeps],
     output: TradeThesis,
 ) -> TradeThesis:
-    """Reject LLM output containing <think> tags.
+    """Strip ``<think>`` tags from LLM output instead of rejecting.
 
-    Llama 3.1 8B sometimes emits reasoning traces that should not appear
-    in user-facing text. Checks both ``summary`` and ``risk_assessment``
-    fields. Raises ``ModelRetry`` to trigger a retry with corrective instructions.
+    Llama models sometimes emit reasoning traces wrapped in ``<think>`` tags.
+    Stripping is far cheaper than retrying (5-10 min per retry on CPU).
+    Constructs a new frozen instance with cleaned text fields.
     """
     fields = [output.summary, output.risk_assessment, *output.key_factors]
-    if any("<think>" in v or "</think>" in v for v in fields):
-        raise ModelRetry("Remove all <think> and </think> tags from your response.")
-    return output
+    if not any("<think>" in v or "</think>" in v for v in fields):
+        return output
+    return TradeThesis(
+        ticker=output.ticker,
+        direction=output.direction,
+        confidence=output.confidence,
+        summary=strip_think_tags(output.summary),
+        bull_score=output.bull_score,
+        bear_score=output.bear_score,
+        key_factors=[strip_think_tags(f) for f in output.key_factors],
+        risk_assessment=strip_think_tags(output.risk_assessment),
+        recommended_strategy=output.recommended_strategy,
+    )

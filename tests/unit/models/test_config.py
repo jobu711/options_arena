@@ -11,12 +11,13 @@ Tests:
 """
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from pydantic_settings import BaseSettings
 
 from options_arena.models import (
     AppSettings,
     DebateConfig,
+    DebateProvider,
     PricingConfig,
     ScanConfig,
     ServiceConfig,
@@ -56,9 +57,12 @@ _ARENA_ENV_VARS = [
     "ARENA_SERVICE__CACHE_TTL_AFTER_HOURS",
     "ARENA_SERVICE__OLLAMA_HOST",
     "ARENA_SERVICE__OLLAMA_MODEL",
+    "ARENA_DEBATE__PROVIDER",
     "ARENA_DEBATE__OLLAMA_HOST",
     "ARENA_DEBATE__OLLAMA_MODEL",
     "ARENA_DEBATE__OLLAMA_TIMEOUT",
+    "ARENA_DEBATE__GROQ_MODEL",
+    "ARENA_DEBATE__GROQ_API_KEY",
     "ARENA_DEBATE__NUM_CTX",
     "ARENA_DEBATE__RETRIES",
     "ARENA_DEBATE__FALLBACK_CONFIDENCE",
@@ -237,13 +241,18 @@ class TestDebateConfigDefaults:
     def test_debate_config_constructs_with_defaults(self) -> None:
         """DebateConfig() constructs with all production defaults."""
         config = DebateConfig()
+        assert config.provider == DebateProvider.OLLAMA
         assert config.ollama_host == "http://localhost:11434"
         assert config.ollama_model == "llama3.1:8b"
-        assert config.ollama_timeout == pytest.approx(90.0)
+        assert config.agent_timeout == pytest.approx(600.0)
+        assert config.groq_timeout == pytest.approx(60.0)
+        assert config.groq_model == "llama-3.3-70b-versatile"
+        assert config.groq_api_key is None
         assert config.num_ctx == 8192
         assert config.retries == 2
+        assert config.temperature == pytest.approx(0.3)
         assert config.fallback_confidence == pytest.approx(0.3)
-        assert config.max_total_duration == pytest.approx(300.0)
+        assert config.max_total_duration == pytest.approx(1800.0)
 
     def test_app_settings_has_debate_field(self) -> None:
         """AppSettings includes a debate field."""
@@ -268,3 +277,98 @@ class TestDebateConfigDefaults:
         monkeypatch.setenv("ARENA_DEBATE__NUM_CTX", "16384")
         settings = AppSettings()
         assert settings.debate.num_ctx == 16384
+
+    def test_env_override_debate_provider(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__PROVIDER env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__PROVIDER", "groq")
+        settings = AppSettings()
+        assert settings.debate.provider == DebateProvider.GROQ
+
+    def test_env_override_debate_groq_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__GROQ_MODEL env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__GROQ_MODEL", "llama-3.1-8b-instant")
+        settings = AppSettings()
+        assert settings.debate.groq_model == "llama-3.1-8b-instant"
+
+    def test_env_override_debate_groq_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__GROQ_API_KEY env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__GROQ_API_KEY", "gsk_test_key_123")
+        settings = AppSettings()
+        assert settings.debate.groq_api_key == "gsk_test_key_123"
+
+    def test_debate_provider_default_is_ollama(self) -> None:
+        """Default provider is OLLAMA (backward compatible)."""
+        settings = AppSettings()
+        assert settings.debate.provider == DebateProvider.OLLAMA
+
+    def test_debate_groq_api_key_default_is_none(self) -> None:
+        """Default groq_api_key is None."""
+        settings = AppSettings()
+        assert settings.debate.groq_api_key is None
+
+    def test_debate_config_rejects_nan_temperature(self) -> None:
+        """NaN temperature is rejected by validator."""
+        with pytest.raises(ValidationError, match="temperature must be finite"):
+            DebateConfig(temperature=float("nan"))
+
+    def test_debate_config_rejects_inf_temperature(self) -> None:
+        """Inf temperature is rejected by validator."""
+        with pytest.raises(ValidationError, match="temperature must be finite"):
+            DebateConfig(temperature=float("inf"))
+
+    def test_debate_config_rejects_negative_temperature(self) -> None:
+        """Negative temperature is rejected."""
+        with pytest.raises(ValidationError, match="temperature must be in"):
+            DebateConfig(temperature=-0.1)
+
+    def test_debate_config_rejects_temperature_above_2(self) -> None:
+        """Temperature > 2.0 is rejected."""
+        with pytest.raises(ValidationError, match="temperature must be in"):
+            DebateConfig(temperature=2.1)
+
+    def test_debate_config_accepts_temperature_boundary(self) -> None:
+        """Temperature 0.0 and 2.0 are accepted."""
+        config_low = DebateConfig(temperature=0.0)
+        assert config_low.temperature == pytest.approx(0.0)
+        config_high = DebateConfig(temperature=2.0)
+        assert config_high.temperature == pytest.approx(2.0)
+
+    def test_debate_config_rejects_nan_agent_timeout(self) -> None:
+        """NaN agent_timeout is rejected."""
+        with pytest.raises(ValidationError, match="timeout must be finite"):
+            DebateConfig(agent_timeout=float("nan"))
+
+    def test_debate_config_rejects_zero_agent_timeout(self) -> None:
+        """Zero agent_timeout is rejected (must be > 0)."""
+        with pytest.raises(ValidationError, match="timeout must be > 0"):
+            DebateConfig(agent_timeout=0.0)
+
+    def test_debate_config_rejects_negative_agent_timeout(self) -> None:
+        """Negative agent_timeout is rejected."""
+        with pytest.raises(ValidationError, match="timeout must be > 0"):
+            DebateConfig(agent_timeout=-1.0)
+
+    def test_debate_config_rejects_nan_groq_timeout(self) -> None:
+        """NaN groq_timeout is rejected."""
+        with pytest.raises(ValidationError, match="timeout must be finite"):
+            DebateConfig(groq_timeout=float("nan"))
+
+    def test_debate_config_rejects_zero_groq_timeout(self) -> None:
+        """Zero groq_timeout is rejected."""
+        with pytest.raises(ValidationError, match="timeout must be > 0"):
+            DebateConfig(groq_timeout=0.0)
+
+    def test_debate_config_rejects_nan_max_total_duration(self) -> None:
+        """NaN max_total_duration is rejected."""
+        with pytest.raises(ValidationError, match="timeout must be finite"):
+            DebateConfig(max_total_duration=float("nan"))
+
+    def test_debate_config_rejects_zero_max_total_duration(self) -> None:
+        """Zero max_total_duration is rejected."""
+        with pytest.raises(ValidationError, match="timeout must be > 0"):
+            DebateConfig(max_total_duration=0.0)
+
+    def test_debate_config_groq_timeout_default(self) -> None:
+        """Default groq_timeout is 60.0."""
+        config = DebateConfig()
+        assert config.groq_timeout == pytest.approx(60.0)
