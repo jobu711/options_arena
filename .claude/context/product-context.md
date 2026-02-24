@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-23T16:58:17Z
-version: 4.0
+last_updated: 2026-02-24T16:42:16Z
+version: 4.1
 author: Claude Code PM System
 ---
 
@@ -46,27 +46,32 @@ author: Claude Code PM System
 - Mandatory disclaimer on all user-facing output
 - Greeks table with dollar-impact, indicator summary by category
 
-## User Workflows (MVP 1.0.0)
+## User Workflows (v1.1.0)
 
 1. **Scan**: `options-arena scan --preset sp500` — scans universe, computes indicators, scores tickers, recommends contracts
-2. **Health**: `options-arena health` — checks yfinance, FRED, Ollama, CBOE connectivity
-3. **Universe Refresh**: `options-arena universe refresh` — re-fetch CBOE + S&P 500 tickers
-4. **Universe List**: `options-arena universe list --sector "Information Technology"` — list tickers by sector
-5. **Universe Stats**: `options-arena universe stats` — sector breakdown and counts
+2. **Debate**: `options-arena debate AAPL` — runs Bull/Bear/Risk AI debate on a ticker, renders Rich panels
+3. **Debate History**: `options-arena debate AAPL --history` — view past debates for a ticker
+4. **Debate Fallback**: `options-arena debate AAPL --fallback-only` — data-driven analysis without Ollama
+5. **Health**: `options-arena health` — checks yfinance, FRED, Ollama, CBOE connectivity
+6. **Universe Refresh**: `options-arena universe refresh` — re-fetch CBOE + S&P 500 tickers
+7. **Universe List**: `options-arena universe list --sector "Information Technology"` — list tickers by sector
+8. **Universe Stats**: `options-arena universe stats` — sector breakdown and counts
 
 ### Deferred to v2
-- **AI Debate**: Multi-agent debate on individual tickers (agents scaffolded, not wired)
+- **Multi-round debate**: Rebuttal phases between agents
 - **Reporting**: Markdown/PDF report generation
 - **Watchlists**: CRUD watchlist management
 - **Web UI**: Browser-based interface
+- **Additional LLM providers**: Anthropic Claude, OpenAI
 
-## Options Arena Rewrite (Complete — MVP 1.0.0)
+## Options Arena Rewrite (Complete — v1.1.0)
 
-Rewritten from `Option_Alpha` to `options_arena` (PEP 8 compliant). All 8 phases complete:
+Rewritten from `Option_Alpha` to `options_arena` (PEP 8 compliant). All 9 phases complete:
 - **American options pricing** via BAW replaces incorrect European-only BSM
 - **Full scan pipeline**: universe → indicators → scoring → options → persist → CLI output
-- **1,086 tests**, `mypy --strict`, `ruff check` all green
-- PRD: `.claude/prds/options-arena.md`
+- **AI debate system**: Bull/Bear/Risk agents via PydanticAI + Ollama with data-driven fallback
+- **1,212 tests**, `mypy --strict`, `ruff check` all green
+- PRDs: `.claude/prds/options-arena.md`, `.claude/prds/ai-debate.md`
 
 ## Important Constraints
 

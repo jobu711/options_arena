@@ -16,7 +16,7 @@
 | `scoring/` | Normalization, composite scoring, direction, contract selection | `models/`, `pricing/dispatch` | APIs, services, `pricing/bsm`, `pricing/american` directly |
 | `scan/` | Pipeline orchestration (4 async phases) | `models/`, `services/`, `scoring/`, `indicators/`, `data/`, `asyncio`, `logging` | `pricing/` directly, `httpx`, `yfinance`, `print()` |
 | `analysis/` | Scoring, signals | `models/`, `services/` output, indicator output, `pricing/` | APIs directly |
-| `agents/` | PydanticAI debate orchestration | `models/`, `services/`, `pydantic_ai` | Other agents, indicators |
+| `agents/` | PydanticAI debate orchestration (Phase 9) | `models/`, `data/repository`, `pydantic_ai` | Other agents, `services/`, indicators |
 | `reporting/` | Output generation | `models/` | APIs, data fetching |
 | `cli.py` | Terminal interface | Everything | N/A (top of stack) |
 
@@ -75,17 +75,33 @@
 - **Batch isolation**: `asyncio.gather(*tasks, return_exceptions=True)` with `zip(tickers, results, strict=True)`. One failed ticker never crashes a batch.
 - **FRED never raises**: `FredService.fetch_risk_free_rate()` always returns float, falls back to `PricingConfig.risk_free_rate_fallback` on any error.
 
-### PydanticAI Agent Pattern
+### PydanticAI Agent Pattern (Implemented in Phase 9)
 - Module-level `Agent[Deps, OutputType]` instances (bull, bear, risk) — no classes
-- `@dataclass` deps injected at runtime via `agent.run(..., deps=deps, model=model)`
+- `model=None` at init, actual `OllamaModel` passed at `agent.run(model=...)` time (enables `TestModel` in tests)
+- `@dataclass` deps (`DebateDeps`) injected at runtime via `agent.run(..., deps=deps, model=model)`
 - `output_type=PydanticModel` enforces structured JSON output from LLM
 - `retries=2` for automatic retry on validation failure with schema hints
 - `model_settings=ModelSettings(extra_body={"num_ctx": 8192})` for Ollama context window
 - `@agent.output_validator` rejects `<think>` tag remnants, triggers `ModelRetry`
-- `@agent.system_prompt` decorator for static prompt constants
-- `_resolve_host()` resolves host via explicit arg > `OLLAMA_HOST` env var > default
-- Orchestrator catches `UnexpectedModelBehavior` (+ timeout, connection errors) → data-driven fallback
+- `@agent.system_prompt` decorator for static prompts (bull), `dynamic=True` for runtime-dependent prompts (bear, risk)
+- `_resolve_host()` resolves host via explicit config > `OLLAMA_HOST` env var > default localhost
+- Sequential execution: Bull → Bear → Risk (Ollama is single-threaded on CPU)
+- Orchestrator never raises: catches `UnexpectedModelBehavior`, timeout, connection errors → data-driven fallback
 - Token accumulation via `RunUsage` addition: `bull_usage + bear_usage + risk_usage`
+- `DebateResult` dataclass (not Pydantic) because `RunUsage` is a plain dataclass
+
+### Debate Orchestration Flow (Implemented in Phase 9)
+```
+1. CLI provides: TickerScore, OptionContract[], Quote, TickerInfo, DebateConfig
+2. build_market_context() → MarketContext (flat model for agent consumption)
+3. build_ollama_model() → OllamaModel (host resolution: config > env > default)
+4. Bull agent: argue bullish case → AgentResponse
+5. Bear agent: receive bull's argument + context → AgentResponse
+6. Risk agent: receive both arguments + context → TradeThesis
+7. Accumulate RunUsage, persist to ai_theses table
+8. Return DebateResult (is_fallback=False)
+On any error: return data-driven fallback (is_fallback=True, confidence=0.3)
+```
 
 ### Error Handling
 - Domain-specific exception hierarchy rooted at `DataFetchError`

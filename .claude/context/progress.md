@@ -2,13 +2,13 @@
 
 ## Current State
 
-- **Version**: 1.0.0 (MVP complete)
-- **All 8 phases**: Complete and merged to master (2026-02-23)
-- **Branch**: `master` (1086 tests, all phases merged)
-- **Tests**: 1086 (220 models + 214 pricing + 172 indicators + 102 scoring + 163 services + 34 data + 156 scan + 25 cli)
-- **GitHub issues**: 0 open, 54 closed (Phase 1–8 all complete)
+- **Version**: 1.1.0 (MVP + AI Debate)
+- **All 9 phases**: Complete and merged to master (2026-02-24)
+- **Branch**: `master` (1212 tests, all phases merged)
+- **Tests**: 1212 (220 models + 214 pricing + 172 indicators + 102 scoring + 163 services + 34 data + 156 scan + 25 cli + 126 agents)
+- **GitHub issues**: 0 open, 67 closed (Phase 1–9 all complete)
 - **Scan pipeline**: Producing 8 recommendations per run (verified)
-- **CLI**: `options-arena scan`, `health`, `universe` commands working
+- **CLI**: `options-arena scan`, `health`, `universe`, `debate` commands working
 
 ## Completed Work (Phase 1)
 
@@ -271,13 +271,37 @@ options-arena health
 options-arena universe stats
 ```
 
+### Phase 9: AI Debate System (Complete — 2026-02-24, PR #69 merged, epic closed)
+- Branch: `epic/ai-debate` (PR #69 merged to master 2026-02-24, epic #62 closed)
+- All 6 issues completed (#63–#68), 126 new tests, 1212 total
+- ruff + pytest + mypy --strict all green on 58 source files
+- Implemented:
+  - `agents/model_config.py` — `build_ollama_model()`, `_resolve_host()` (config > env > default)
+  - `agents/_parsing.py` — `DebateDeps` and `DebateResult` dataclasses, constants
+  - `agents/bull.py` — Bull PydanticAI agent with system prompt + `<think>` tag output validator
+  - `agents/bear.py` — Bear agent with dynamic prompt (receives bull argument via `<<<BULL_ARGUMENT>>>`)
+  - `agents/risk.py` — Risk agent with dynamic prompt (receives both arguments) → `TradeThesis`
+  - `agents/orchestrator.py` — `run_debate()`, `build_market_context()`, data-driven fallback, never-raises pattern
+  - `cli/commands.py` — `debate` command with `--history`, `--fallback-only` flags
+  - `cli/rendering.py` — Rich panel rendering for debate output + debate history table
+  - `data/repository.py` — `save_debate()`, `get_debates_for_ticker()` with `DebateRow` dataclass
+  - `models/config.py` — `DebateConfig(BaseModel)` nested on `AppSettings`
+  - `data/migrations/002_debate_columns.sql` — ALTER TABLE for token/model/duration/fallback columns
+- Key design: sequential agents (Bull → Bear → Risk), `model=None` at init + override at run,
+  `TestModel` for unit tests, data-driven fallback (confidence=0.3) when Ollama unavailable,
+  per-agent timeout (90s) + total timeout (300s)
+- Post-merge fixes: 14 bug fixes (model=None pattern, nullable FK, isfinite guards, display
+  guards, KeyboardInterrupt handler, validators), 10 CodeRabbit suggestions accepted
+- `.coderabbit.yaml` added for automated PR reviews
+
 ## Future Work (v2)
 
-- AI debate system (PydanticAI agents already scaffolded in `agents/`)
+- Multi-round debate with rebuttal phases
+- Additional LLM providers (Anthropic Claude, OpenAI)
 - Options liquidity weighting in composite scoring
 - Web UI (deferred from earlier attempts)
-- Multi-round debate, additional LLM providers
 - Reporting module (markdown/PDF output)
+- Real-time market data streaming
 
 ## Blockers
 

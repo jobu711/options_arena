@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-23T16:58:17Z
-version: 2.0
+last_updated: 2026-02-24T16:42:16Z
+version: 2.1
 author: Claude Code PM System
 ---
 
@@ -37,9 +37,17 @@ Option Alpha aims to be a comprehensive, locally-run options analysis platform t
 - **Phase 8**: CLI — Typer commands, Rich rendering, logging, SIGINT handler (25 tests)
 - **Total**: 1,086 tests, 51 source files, 54 GitHub issues closed
 
+### Phase 9: AI Debate System (Complete — 2026-02-24)
+- Three PydanticAI agents (Bull, Bear, Risk) with Ollama (Llama 3.1 8B)
+- Single-pass debate: Bull argues → Bear counters → Risk adjudicates into TradeThesis
+- Data-driven fallback when Ollama unreachable (confidence=0.3)
+- Rich panel rendering, debate history, `--fallback-only` mode
+- 126 new tests (agents, orchestrator, parsing, config, repository, e2e)
+- **Total**: 1,212 tests, 58 source files, 67 GitHub issues closed
+
 ### v2 — Enhanced AI & Advanced Features (Future)
 - Additional LLM provider support (Anthropic Claude, OpenAI)
-- Multi-round debate capability
+- Multi-round debate with rebuttal phases
 - Real-time market data streaming
 - Portfolio integration and position tracking
 - Options strategy builder with risk visualization

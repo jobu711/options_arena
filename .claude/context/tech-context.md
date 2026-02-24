@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-23T16:58:17Z
-version: 5.4
+last_updated: 2026-02-24T16:42:16Z
+version: 5.5
 author: Claude Code PM System
 ---
 
@@ -29,6 +29,7 @@ author: Claude Code PM System
 | typer | >=0.24.0 | CLI framework with subcommands |
 | rich | >=14.3.2 | Terminal output formatting (tables, colors, progress) |
 | pydantic-settings | >=2.13.0 | Configuration management |
+| lxml | >=6.0.2 | HTML parsing for Wikipedia S&P 500 table |
 
 ### Dev
 | Package | Version | Purpose |
@@ -62,6 +63,7 @@ author: Claude Code PM System
 ### Pytest
 - Async mode via `pytest-asyncio`
 - Verbose output: `uv run pytest tests/ -v`
+- Custom markers: `integration` (may require external services like Ollama)
 
 ## Verification Commands
 
@@ -81,7 +83,7 @@ All three must pass before any commit.
 | FRED | `fred.py` | httpx REST API | 10yr Treasury → risk-free rate | `PricingConfig.risk_free_rate_fallback` (5%) |
 | CBOE | `universe.py` | httpx CSV download | Optionable ticker universe | Cached list (24h TTL) |
 | Wikipedia | `universe.py` | `pd.read_html` via `asyncio.to_thread` | S&P 500 constituents + GICS sectors | Cached list (24h TTL) |
-| Ollama | `health.py` (check only) | HTTP localhost:11434 | LLM debate agents (Llama 3.1 8B) | Data-driven verdict |
+| Ollama | `agents/orchestrator.py`, `health.py` | PydanticAI + HTTP localhost:11434 | LLM debate agents (Llama 3.1 8B) | Data-driven verdict |
 
 ## Database
 
@@ -94,7 +96,7 @@ All three must pass before any commit.
 
 - **Command**: `options-arena` (installed via `pyproject.toml` `[project.scripts]`)
 - **Entry point**: `options_arena.cli:app` (Typer app)
-- **Commands**: `scan`, `health`, `universe` (refresh/list/stats)
+- **Commands**: `scan`, `health`, `universe` (refresh/list/stats), `debate`
 - **Logging**: Dual-handler (RichHandler stderr + RotatingFileHandler `logs/options_arena.log`)
 - **SIGINT**: `signal.signal()` double-press pattern (graceful then force)
 
