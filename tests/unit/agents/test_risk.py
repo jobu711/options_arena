@@ -39,7 +39,7 @@ models.ALLOW_MODEL_REQUESTS = False
 async def test_risk_produces_trade_thesis(mock_debate_deps: DebateDeps) -> None:
     """Risk agent returns a TradeThesis instance."""
     with risk_agent.override(model=TestModel()):
-        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps)
+        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps, model=TestModel())
     assert isinstance(result.output, TradeThesis)
 
 
@@ -47,7 +47,7 @@ async def test_risk_produces_trade_thesis(mock_debate_deps: DebateDeps) -> None:
 async def test_risk_confidence_in_range(mock_debate_deps: DebateDeps) -> None:
     """Risk agent confidence is within [0.0, 1.0]."""
     with risk_agent.override(model=TestModel()):
-        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps)
+        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps, model=TestModel())
     assert 0.0 <= result.output.confidence <= 1.0
 
 
@@ -55,7 +55,7 @@ async def test_risk_confidence_in_range(mock_debate_deps: DebateDeps) -> None:
 async def test_risk_has_ticker(mock_debate_deps: DebateDeps) -> None:
     """Risk agent output has a non-empty ticker."""
     with risk_agent.override(model=TestModel()):
-        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps)
+        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps, model=TestModel())
     assert isinstance(result.output.ticker, str)
 
 
@@ -63,7 +63,7 @@ async def test_risk_has_ticker(mock_debate_deps: DebateDeps) -> None:
 async def test_risk_has_direction(mock_debate_deps: DebateDeps) -> None:
     """Risk agent output has a direction field."""
     with risk_agent.override(model=TestModel()):
-        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps)
+        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps, model=TestModel())
     assert result.output.direction is not None
 
 
@@ -71,7 +71,7 @@ async def test_risk_has_direction(mock_debate_deps: DebateDeps) -> None:
 async def test_risk_has_key_factors(mock_debate_deps: DebateDeps) -> None:
     """Risk agent output has key_factors list."""
     with risk_agent.override(model=TestModel()):
-        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps)
+        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps, model=TestModel())
     assert isinstance(result.output.key_factors, list)
 
 
@@ -79,7 +79,7 @@ async def test_risk_has_key_factors(mock_debate_deps: DebateDeps) -> None:
 async def test_risk_has_summary(mock_debate_deps: DebateDeps) -> None:
     """Risk agent output has a non-empty summary."""
     with risk_agent.override(model=TestModel()):
-        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps)
+        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps, model=TestModel())
     assert isinstance(result.output.summary, str)
 
 
@@ -87,7 +87,7 @@ async def test_risk_has_summary(mock_debate_deps: DebateDeps) -> None:
 async def test_risk_has_risk_assessment(mock_debate_deps: DebateDeps) -> None:
     """Risk agent output has a non-empty risk_assessment."""
     with risk_agent.override(model=TestModel()):
-        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps)
+        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps, model=TestModel())
     assert isinstance(result.output.risk_assessment, str)
 
 
@@ -95,7 +95,7 @@ async def test_risk_has_risk_assessment(mock_debate_deps: DebateDeps) -> None:
 async def test_risk_has_bull_and_bear_scores(mock_debate_deps: DebateDeps) -> None:
     """Risk agent output has bull_score and bear_score."""
     with risk_agent.override(model=TestModel()):
-        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps)
+        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps, model=TestModel())
     assert isinstance(result.output.bull_score, float)
     assert isinstance(result.output.bear_score, float)
 
@@ -104,7 +104,7 @@ async def test_risk_has_bull_and_bear_scores(mock_debate_deps: DebateDeps) -> No
 async def test_risk_returns_usage(mock_debate_deps: DebateDeps) -> None:
     """Risk agent result includes usage tracking."""
     with risk_agent.override(model=TestModel()):
-        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps)
+        result = await risk_agent.run("Adjudicate", deps=mock_debate_deps, model=TestModel())
     usage = result.usage()
     assert usage.requests >= 0
 

@@ -221,6 +221,7 @@ async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None
                 return
             table = render_debate_history(debates, ticker)
             console.print(table)
+            console.print(f"\n{DISCLAIMER}")
             return
 
         # Get latest scan data for this ticker
@@ -285,6 +286,9 @@ async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None
         # Regulatory disclaimer (ALWAYS printed)
         console.print(f"\n{DISCLAIMER}")
 
+    except KeyboardInterrupt:
+        err_console.print("\n[yellow]Debate cancelled.[/yellow]")
+        raise typer.Exit(code=130)  # noqa: B904
     except typer.Exit:
         raise
     except Exception as exc:

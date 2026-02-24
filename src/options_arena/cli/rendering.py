@@ -260,10 +260,13 @@ def _build_verdict_panel_text(thesis: TradeThesis) -> Text:
     Uses ``markup=False`` on the Text to prevent bracket interpretation.
     """
     direction_style = _DIRECTION_STYLES.get(thesis.direction.value, "")
+    bull_str = f"{thesis.bull_score:.1f}" if math.isfinite(thesis.bull_score) else "--"
+    bear_str = f"{thesis.bear_score:.1f}" if math.isfinite(thesis.bear_score) else "--"
+    conf_str = f"{thesis.confidence * 100:.0f}%" if math.isfinite(thesis.confidence) else "--"
     lines: list[str] = [
         f"Direction: {thesis.direction.value.upper()}",
-        f"Confidence: {thesis.confidence * 100:.0f}%",
-        f"Bull Score: {thesis.bull_score:.1f} / Bear Score: {thesis.bear_score:.1f}",
+        f"Confidence: {conf_str}",
+        f"Bull Score: {bull_str} / Bear Score: {bear_str}",
         "",
         thesis.summary,
     ]
@@ -337,8 +340,7 @@ def render_debate_history(debates: list[DebateRow], ticker: str) -> Table:
             Text("Yes", style="yellow") if debate.is_fallback else Text("No", style="dim")
         )
 
-        # Use created_at date portion (ISO format, take first 19 chars for datetime)
-        date_str = debate.created_at[:19] if len(debate.created_at) >= 19 else debate.created_at
+        date_str = debate.created_at.strftime("%Y-%m-%d %H:%M:%S")
 
         table.add_row(
             date_str,

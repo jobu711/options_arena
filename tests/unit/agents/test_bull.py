@@ -31,7 +31,7 @@ models.ALLOW_MODEL_REQUESTS = False
 async def test_bull_produces_valid_output(mock_debate_deps: DebateDeps) -> None:
     """Bull agent returns an AgentResponse instance."""
     with bull_agent.override(model=TestModel()):
-        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps)
+        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps, model=TestModel())
     assert isinstance(result.output, AgentResponse)
 
 
@@ -39,7 +39,7 @@ async def test_bull_produces_valid_output(mock_debate_deps: DebateDeps) -> None:
 async def test_bull_confidence_in_range(mock_debate_deps: DebateDeps) -> None:
     """Bull agent confidence is within [0.0, 1.0]."""
     with bull_agent.override(model=TestModel()):
-        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps)
+        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps, model=TestModel())
     assert 0.0 <= result.output.confidence <= 1.0
 
 
@@ -47,7 +47,7 @@ async def test_bull_confidence_in_range(mock_debate_deps: DebateDeps) -> None:
 async def test_bull_has_agent_name(mock_debate_deps: DebateDeps) -> None:
     """Bull agent output has a non-empty agent_name."""
     with bull_agent.override(model=TestModel()):
-        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps)
+        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps, model=TestModel())
     assert result.output.agent_name
 
 
@@ -55,7 +55,7 @@ async def test_bull_has_agent_name(mock_debate_deps: DebateDeps) -> None:
 async def test_bull_has_direction(mock_debate_deps: DebateDeps) -> None:
     """Bull agent output has a direction field."""
     with bull_agent.override(model=TestModel()):
-        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps)
+        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps, model=TestModel())
     assert result.output.direction is not None
 
 
@@ -63,7 +63,7 @@ async def test_bull_has_direction(mock_debate_deps: DebateDeps) -> None:
 async def test_bull_has_key_points(mock_debate_deps: DebateDeps) -> None:
     """Bull agent output has key_points list."""
     with bull_agent.override(model=TestModel()):
-        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps)
+        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps, model=TestModel())
     assert isinstance(result.output.key_points, list)
 
 
@@ -71,7 +71,7 @@ async def test_bull_has_key_points(mock_debate_deps: DebateDeps) -> None:
 async def test_bull_has_risks_cited(mock_debate_deps: DebateDeps) -> None:
     """Bull agent output has risks_cited list."""
     with bull_agent.override(model=TestModel()):
-        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps)
+        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps, model=TestModel())
     assert isinstance(result.output.risks_cited, list)
 
 
@@ -79,7 +79,7 @@ async def test_bull_has_risks_cited(mock_debate_deps: DebateDeps) -> None:
 async def test_bull_has_contracts_referenced(mock_debate_deps: DebateDeps) -> None:
     """Bull agent output has contracts_referenced list."""
     with bull_agent.override(model=TestModel()):
-        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps)
+        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps, model=TestModel())
     assert isinstance(result.output.contracts_referenced, list)
 
 
@@ -87,7 +87,7 @@ async def test_bull_has_contracts_referenced(mock_debate_deps: DebateDeps) -> No
 async def test_bull_has_model_used(mock_debate_deps: DebateDeps) -> None:
     """Bull agent output has a non-empty model_used string."""
     with bull_agent.override(model=TestModel()):
-        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps)
+        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps, model=TestModel())
     assert isinstance(result.output.model_used, str)
 
 
@@ -95,7 +95,7 @@ async def test_bull_has_model_used(mock_debate_deps: DebateDeps) -> None:
 async def test_bull_returns_usage(mock_debate_deps: DebateDeps) -> None:
     """Bull agent result includes usage tracking."""
     with bull_agent.override(model=TestModel()):
-        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps)
+        result = await bull_agent.run("Analyze AAPL", deps=mock_debate_deps, model=TestModel())
     usage = result.usage()
     assert usage.requests >= 0
 

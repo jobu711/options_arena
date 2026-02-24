@@ -32,7 +32,7 @@ class DebateRow:
     """
 
     id: int
-    scan_run_id: int
+    scan_run_id: int | None
     ticker: str
     bull_json: str | None
     bear_json: str | None
@@ -42,7 +42,7 @@ class DebateRow:
     model_name: str
     duration_ms: int
     is_fallback: bool
-    created_at: str
+    created_at: datetime
 
 
 class Repository:
@@ -171,7 +171,7 @@ class Repository:
 
     async def save_debate(
         self,
-        scan_run_id: int,
+        scan_run_id: int | None,
         ticker: str,
         bull_json: str | None,
         bear_json: str | None,
@@ -224,9 +224,10 @@ class Repository:
     @staticmethod
     def _row_to_debate_row(row: Row) -> DebateRow:
         """Reconstruct a DebateRow from an aiosqlite.Row."""
+        raw_scan_run_id = row["scan_run_id"]
         return DebateRow(
             id=int(row["id"]),
-            scan_run_id=int(row["scan_run_id"]),
+            scan_run_id=int(raw_scan_run_id) if raw_scan_run_id is not None else None,
             ticker=str(row["ticker"]),
             bull_json=row["bull_json"],
             bear_json=row["bear_json"],
@@ -236,5 +237,5 @@ class Repository:
             model_name=str(row["model_name"]),
             duration_ms=int(row["duration_ms"]),
             is_fallback=bool(row["is_fallback"]),
-            created_at=str(row["created_at"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
         )

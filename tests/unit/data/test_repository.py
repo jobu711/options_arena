@@ -537,5 +537,5 @@ async def test_debate_row_has_correct_fields(repo: Repository) -> None:
     assert isinstance(row.model_name, str)
     assert isinstance(row.duration_ms, int)
     assert isinstance(row.is_fallback, bool)
-    assert isinstance(row.created_at, str)
+    assert isinstance(row.created_at, datetime)
     assert row.is_fallback is True

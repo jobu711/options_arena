@@ -15,11 +15,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from datetime import UTC, datetime
 
 import httpx
 from pydantic_ai.exceptions import UnexpectedModelBehavior
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RunUsage
 
 from options_arena.agents._parsing import DebateDeps, DebateResult, render_context_block
@@ -219,6 +221,7 @@ async def _run_agents(
     Raises on any agent failure — the caller (``run_debate``) catches and falls back.
     """
     model = build_ollama_model(config)
+    settings = ModelSettings(extra_body={"num_ctx": config.num_ctx})
     context_text = render_context_block(context)
 
     # --- Bull agent ---
@@ -233,6 +236,7 @@ async def _run_agents(
             f"Analyze {context.ticker} for a bullish options position.\n\n{context_text}",
             model=model,
             deps=bull_deps,
+            model_settings=settings,
         ),
         timeout=config.ollama_timeout,
     )
@@ -256,6 +260,7 @@ async def _run_agents(
             f"Counter the bullish case for {context.ticker}.\n\n{context_text}",
             model=model,
             deps=bear_deps,
+            model_settings=settings,
         ),
         timeout=config.ollama_timeout,
     )
@@ -281,6 +286,7 @@ async def _run_agents(
             f"{context_text}",
             model=model,
             deps=risk_deps,
+            model_settings=settings,
         ),
         timeout=config.ollama_timeout,
     )
@@ -437,7 +443,7 @@ def _extract_top_signals(ticker_score: TickerScore) -> list[str]:
 
     for field_name, label in signal_labels:
         value = getattr(signals, field_name, None)
-        if value is not None:
+        if value is not None and math.isfinite(value):
             items.append(f"{label}: {value:.1f}")
         if len(items) >= 5:
             break
@@ -475,7 +481,7 @@ async def _persist_result(
     try:
         total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens
         await repository.save_debate(
-            scan_run_id=ticker_score.scan_run_id or 0,
+            scan_run_id=ticker_score.scan_run_id,
             ticker=result.context.ticker,
             bull_json=result.bull_response.model_dump_json(),
             bear_json=result.bear_response.model_dump_json(),

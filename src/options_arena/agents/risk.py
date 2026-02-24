@@ -14,7 +14,6 @@ Architecture rules:
 import logging
 
 from pydantic_ai import Agent, ModelRetry, RunContext
-from pydantic_ai.settings import ModelSettings
 
 from options_arena.agents._parsing import DebateDeps
 from options_arena.models import TradeThesis
@@ -59,11 +58,10 @@ Rules:
 - Do NOT include <think> tags or reasoning traces in any field."""
 
 risk_agent: Agent[DebateDeps, TradeThesis] = Agent(
-    model="test",
+    model=None,
     deps_type=DebateDeps,
     output_type=TradeThesis,
     retries=2,
-    model_settings=ModelSettings(extra_body={"num_ctx": 8192}),
 )
 
 
@@ -76,7 +74,7 @@ async def risk_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
     are wrapped in delimiters to prevent instruction bleed from LLM-generated text.
     """
     parts: list[str] = [RISK_SYSTEM_PROMPT]
-    if ctx.deps.bull_response:
+    if ctx.deps.bull_response is not None:
         parts.append(
             f"\n\n<<<BULL_CASE>>>\n"
             f"Direction: {ctx.deps.bull_response.direction.value}\n"
@@ -85,7 +83,7 @@ async def risk_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
             f"Key Points: {', '.join(ctx.deps.bull_response.key_points)}\n"
             f"<<<END_BULL_CASE>>>"
         )
-    if ctx.deps.bear_response:
+    if ctx.deps.bear_response is not None:
         parts.append(
             f"\n\n<<<BEAR_CASE>>>\n"
             f"Direction: {ctx.deps.bear_response.direction.value}\n"

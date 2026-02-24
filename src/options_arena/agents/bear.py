@@ -15,7 +15,6 @@ Architecture rules:
 import logging
 
 from pydantic_ai import Agent, ModelRetry, RunContext
-from pydantic_ai.settings import ModelSettings
 
 from options_arena.agents._parsing import DebateDeps
 from options_arena.models import AgentResponse
@@ -57,11 +56,10 @@ Rules:
 - Do NOT include <think> tags or reasoning traces in any field."""
 
 bear_agent: Agent[DebateDeps, AgentResponse] = Agent(
-    model="test",
+    model=None,
     deps_type=DebateDeps,
     output_type=AgentResponse,
     retries=2,
-    model_settings=ModelSettings(extra_body={"num_ctx": 8192}),
 )
 
 
@@ -74,7 +72,7 @@ async def bear_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
     ``<<<BULL_ARGUMENT>>>`` delimiters to prevent instruction bleed.
     """
     base = BEAR_SYSTEM_PROMPT
-    if ctx.deps.opponent_argument:
+    if ctx.deps.opponent_argument is not None:
         base += f"\n\n<<<BULL_ARGUMENT>>>\n{ctx.deps.opponent_argument}\n<<<END_BULL_ARGUMENT>>>"
     return base
 
