@@ -65,6 +65,18 @@ class ServiceConfig(BaseModel):
     ollama_model: str = "llama3.1:8b"
 
 
+class DebateConfig(BaseModel):
+    """AI debate configuration — controls Ollama connection, timeouts, and fallback behavior."""
+
+    ollama_host: str = "http://localhost:11434"
+    ollama_model: str = "llama3.1:8b"
+    ollama_timeout: float = 90.0
+    num_ctx: int = 8192
+    retries: int = 2
+    fallback_confidence: float = 0.3
+    max_total_duration: float = 300.0
+
+
 class AppSettings(BaseSettings):
     """Root application settings — the sole BaseSettings subclass.
 
@@ -81,3 +93,4 @@ class AppSettings(BaseSettings):
     scan: ScanConfig = ScanConfig()
     pricing: PricingConfig = PricingConfig()
     service: ServiceConfig = ServiceConfig()
+    debate: DebateConfig = DebateConfig()
