@@ -342,7 +342,8 @@ def _build_fallback_result(
     contract_refs = _format_contract_refs(contracts)
 
     # --- Bull fallback ---
-    bull_confidence = min(ticker_score.composite_score / 100.0 * 0.3, 0.3)
+    cap = config.fallback_confidence
+    bull_confidence = min(ticker_score.composite_score / 100.0 * cap, cap)
     bull_response = AgentResponse(
         agent_name="bull",
         direction=ticker_score.direction,
@@ -361,7 +362,7 @@ def _build_fallback_result(
 
     # --- Bear fallback ---
     bear_direction = _opposite_direction(ticker_score.direction)
-    bear_confidence = min((100.0 - ticker_score.composite_score) / 100.0 * 0.3, 0.3)
+    bear_confidence = min((100.0 - ticker_score.composite_score) / 100.0 * cap, cap)
     bear_response = AgentResponse(
         agent_name="bear",
         direction=bear_direction,

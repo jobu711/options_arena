@@ -539,3 +539,28 @@ async def test_debate_row_has_correct_fields(repo: Repository) -> None:
     assert isinstance(row.is_fallback, bool)
     assert isinstance(row.created_at, datetime)
     assert row.is_fallback is True
+
+
+@pytest.mark.asyncio
+async def test_debate_with_null_scan_run_id(repo: Repository) -> None:
+    """Debate saved without scan context has scan_run_id=None (data-driven fallback)."""
+    debate_id = await repo.save_debate(
+        scan_run_id=None,
+        ticker="TSLA",
+        bull_json=None,
+        bear_json=None,
+        risk_json=None,
+        verdict_json=None,
+        total_tokens=0,
+        model_name="data-driven-fallback",
+        duration_ms=50,
+        is_fallback=True,
+    )
+
+    debates = await repo.get_debates_for_ticker("TSLA")
+    assert len(debates) == 1
+    row = debates[0]
+    assert row.id == debate_id
+    assert row.scan_run_id is None
+    assert row.is_fallback is True
+    assert row.ticker == "TSLA"

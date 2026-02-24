@@ -106,7 +106,7 @@ async def reject_think_tags(
     in user-facing text. Checks both ``summary`` and ``risk_assessment``
     fields. Raises ``ModelRetry`` to trigger a retry with corrective instructions.
     """
-    for field_value in (output.summary, output.risk_assessment):
-        if "<think>" in field_value or "</think>" in field_value:
-            raise ModelRetry("Remove all <think> and </think> tags from your response.")
+    fields = [output.summary, output.risk_assessment, *output.key_factors]
+    if any("<think>" in v or "</think>" in v for v in fields):
+        raise ModelRetry("Remove all <think> and </think> tags from your response.")
     return output

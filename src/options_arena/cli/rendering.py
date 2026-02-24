@@ -8,20 +8,18 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import TYPE_CHECKING
 
+from pydantic import ValidationError
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from options_arena.agents._parsing import DebateResult
 from options_arena.data.repository import DebateRow
 from options_arena.models import TradeThesis
 from options_arena.models.health import HealthStatus
 from options_arena.scan.models import ScanResult
-
-if TYPE_CHECKING:
-    from options_arena.agents._parsing import DebateResult
 
 logger = logging.getLogger(__name__)
 
@@ -331,7 +329,7 @@ def render_debate_history(debates: list[DebateRow], ticker: str) -> Table:
                 # Truncate summary to ~60 chars
                 summary_raw = thesis.summary
                 summary_str = summary_raw[:57] + "..." if len(summary_raw) > 60 else summary_raw
-            except Exception:
+            except ValidationError:
                 logger.debug(
                     "Failed to parse verdict_json for debate id=%d", debate.id, exc_info=True
                 )

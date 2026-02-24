@@ -13,6 +13,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from pydantic_ai import models
 
 from options_arena.agents._parsing import DebateResult
 from options_arena.agents.orchestrator import run_debate
@@ -32,6 +33,9 @@ from options_arena.models import (
     TickerScore,
     TradeThesis,
 )
+
+# Prevent accidental real API calls — guarantees fallback path regardless of local Ollama
+models.ALLOW_MODEL_REQUESTS = False
 
 
 def _make_ticker_score() -> TickerScore:

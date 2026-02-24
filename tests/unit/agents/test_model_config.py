@@ -37,6 +37,7 @@ class TestBuildOllamaModel:
         config = DebateConfig(ollama_model="llama3.1:8b")
         model = build_ollama_model(config)
         assert isinstance(model, OpenAIChatModel)
+        assert model.model_name == "llama3.1:8b"
 
 
 class TestResolveHost:

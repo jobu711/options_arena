@@ -250,7 +250,12 @@ async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None
         # Contracts from scan recommendations (empty list — orchestrator handles context)
         contracts: list[OptionContract] = []
 
-        # Force fallback mode if requested
+        # Lazy import: agents/ depends on pydantic-ai[ollama] which may not be
+        # available.  Importing at call time keeps CLI tests (scan, health, universe)
+        # working even when the optional dependency is absent.
+        from options_arena.agents import run_debate  # noqa: PLC0415
+
+        # Force fallback mode if requested (near-zero timeout triggers data-driven path)
         config = settings.debate
         if fallback_only:
             config = DebateConfig(
@@ -258,11 +263,6 @@ async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None
                 max_total_duration=0.001,
                 fallback_confidence=settings.debate.fallback_confidence,
             )
-
-        # Lazy import: agents/ depends on pydantic-ai[ollama] which may not be
-        # available.  Importing at call time keeps CLI tests (scan, health, universe)
-        # working even when the optional dependency is absent.
-        from options_arena.agents import run_debate  # noqa: PLC0415
 
         err_console.print(f"[cyan]Running debate for {ticker}...[/cyan]")
         result = await run_debate(

@@ -88,6 +88,12 @@ async def reject_think_tags(
     in user-facing text. Raises ``ModelRetry`` to trigger a retry with
     corrective instructions.
     """
-    if "<think>" in output.argument or "</think>" in output.argument:
+    fields = [
+        output.argument,
+        *output.key_points,
+        *output.risks_cited,
+        *output.contracts_referenced,
+    ]
+    if any("<think>" in v or "</think>" in v for v in fields):
         raise ModelRetry("Remove all <think> and </think> tags from your response.")
     return output

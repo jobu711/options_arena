@@ -26,7 +26,14 @@ CREATE TABLE IF NOT EXISTS ai_theses_new (
     created_at TEXT NOT NULL
 );
 
-INSERT INTO ai_theses_new SELECT * FROM ai_theses;
+INSERT INTO ai_theses_new (
+    id, scan_run_id, ticker, bull_json, bear_json, risk_json, verdict_json,
+    total_tokens, model_name, duration_ms, is_fallback, created_at
+)
+SELECT
+    id, scan_run_id, ticker, bull_json, bear_json, risk_json, verdict_json,
+    total_tokens, model_name, duration_ms, is_fallback, created_at
+FROM ai_theses;
 DROP TABLE ai_theses;
 ALTER TABLE ai_theses_new RENAME TO ai_theses;
 
