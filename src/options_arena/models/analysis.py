@@ -10,6 +10,7 @@ text better than nested objects.  ``AgentResponse`` and ``TradeThesis`` define
 shapes for the v2 debate system -- defined now, used later.
 """
 
+import math
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
@@ -87,7 +88,9 @@ class AgentResponse(BaseModel):
     @field_validator("confidence")
     @classmethod
     def validate_confidence(cls, v: float) -> float:
-        """Ensure confidence is within [0.0, 1.0]."""
+        """Ensure confidence is finite and within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"confidence must be finite, got {v}")
         if not 0.0 <= v <= 1.0:
             raise ValueError(f"confidence must be in [0, 1], got {v}")
         return v
@@ -115,7 +118,19 @@ class TradeThesis(BaseModel):
     @field_validator("confidence")
     @classmethod
     def validate_confidence(cls, v: float) -> float:
-        """Ensure confidence is within [0.0, 1.0]."""
+        """Ensure confidence is finite and within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"confidence must be finite, got {v}")
         if not 0.0 <= v <= 1.0:
             raise ValueError(f"confidence must be in [0, 1], got {v}")
+        return v
+
+    @field_validator("bull_score", "bear_score")
+    @classmethod
+    def validate_scores(cls, v: float) -> float:
+        """Ensure bull/bear scores are finite and within [0.0, 10.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"score must be finite, got {v}")
+        if not 0.0 <= v <= 10.0:
+            raise ValueError(f"score must be in [0, 10], got {v}")
         return v

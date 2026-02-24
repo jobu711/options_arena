@@ -1,4 +1,4 @@
-"""Tests for Repository — typed CRUD for ScanRun and TickerScore."""
+"""Tests for Repository — typed CRUD for ScanRun, TickerScore, and debate results."""
 
 import sqlite3
 from datetime import UTC, datetime
@@ -7,7 +7,7 @@ import pytest
 import pytest_asyncio
 
 from options_arena.data.database import Database
-from options_arena.data.repository import Repository
+from options_arena.data.repository import DebateRow, Repository
 from options_arena.models import (
     IndicatorSignals,
     ScanPreset,
@@ -406,3 +406,161 @@ async def test_multiple_tickers_per_scan(repo: Repository) -> None:
     assert len(loaded) == 4
     loaded_tickers = {s.ticker for s in loaded}
     assert loaded_tickers == {"AAPL", "MSFT", "GOOGL", "AMZN"}
+
+
+# ---------------------------------------------------------------------------
+# Debate persistence
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_save_debate_round_trip(repo: Repository) -> None:
+    """save_debate -> get_debates_for_ticker round-trips correctly."""
+    # Need a scan_run first (foreign key)
+    scan = make_scan_run()
+    scan_id = await repo.save_scan_run(scan)
+
+    debate_id = await repo.save_debate(
+        scan_run_id=scan_id,
+        ticker="AAPL",
+        bull_json='{"agent_name": "bull"}',
+        bear_json='{"agent_name": "bear"}',
+        risk_json=None,
+        verdict_json='{"ticker": "AAPL"}',
+        total_tokens=500,
+        model_name="llama3.1:8b",
+        duration_ms=2500,
+        is_fallback=False,
+    )
+    assert isinstance(debate_id, int)
+    assert debate_id > 0
+
+    debates = await repo.get_debates_for_ticker("AAPL")
+    assert len(debates) == 1
+    row = debates[0]
+    assert row.ticker == "AAPL"
+    assert row.bull_json == '{"agent_name": "bull"}'
+    assert row.bear_json == '{"agent_name": "bear"}'
+    assert row.risk_json is None
+    assert row.verdict_json == '{"ticker": "AAPL"}'
+    assert row.total_tokens == 500
+    assert row.model_name == "llama3.1:8b"
+    assert row.duration_ms == 2500
+    assert row.is_fallback is False
+
+
+@pytest.mark.asyncio
+async def test_get_debates_for_unknown_ticker(repo: Repository) -> None:
+    """get_debates_for_ticker returns empty list for unknown ticker."""
+    result = await repo.get_debates_for_ticker("UNKNOWN")
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_get_debates_respects_limit(repo: Repository) -> None:
+    """get_debates_for_ticker respects limit parameter."""
+    scan = make_scan_run()
+    scan_id = await repo.save_scan_run(scan)
+
+    for i in range(5):
+        await repo.save_debate(
+            scan_run_id=scan_id,
+            ticker="AAPL",
+            bull_json=None,
+            bear_json=None,
+            risk_json=None,
+            verdict_json=None,
+            total_tokens=i * 100,
+            model_name="test",
+            duration_ms=i * 1000,
+            is_fallback=False,
+        )
+
+    debates = await repo.get_debates_for_ticker("AAPL", limit=3)
+    assert len(debates) == 3
+
+
+@pytest.mark.asyncio
+async def test_get_debates_newest_first(repo: Repository) -> None:
+    """get_debates_for_ticker returns debates in descending order (newest first)."""
+    scan = make_scan_run()
+    scan_id = await repo.save_scan_run(scan)
+
+    ids: list[int] = []
+    for i in range(3):
+        debate_id = await repo.save_debate(
+            scan_run_id=scan_id,
+            ticker="MSFT",
+            bull_json=None,
+            bear_json=None,
+            risk_json=None,
+            verdict_json=None,
+            total_tokens=i * 100,
+            model_name="test",
+            duration_ms=1000,
+            is_fallback=False,
+        )
+        ids.append(debate_id)
+
+    debates = await repo.get_debates_for_ticker("MSFT", limit=10)
+    debate_ids = [d.id for d in debates]
+    assert debate_ids == sorted(debate_ids, reverse=True)
+
+
+@pytest.mark.asyncio
+async def test_debate_row_has_correct_fields(repo: Repository) -> None:
+    """DebateRow has all expected fields after retrieval."""
+    scan = make_scan_run()
+    scan_id = await repo.save_scan_run(scan)
+
+    await repo.save_debate(
+        scan_run_id=scan_id,
+        ticker="GOOGL",
+        bull_json='{"agent_name": "bull"}',
+        bear_json='{"agent_name": "bear"}',
+        risk_json=None,
+        verdict_json='{"ticker": "GOOGL"}',
+        total_tokens=1200,
+        model_name="llama3.1:8b",
+        duration_ms=5000,
+        is_fallback=True,
+    )
+
+    debates = await repo.get_debates_for_ticker("GOOGL")
+    assert len(debates) == 1
+    row = debates[0]
+    assert isinstance(row, DebateRow)
+    assert isinstance(row.id, int)
+    assert isinstance(row.scan_run_id, int)
+    assert isinstance(row.ticker, str)
+    assert isinstance(row.total_tokens, int)
+    assert isinstance(row.model_name, str)
+    assert isinstance(row.duration_ms, int)
+    assert isinstance(row.is_fallback, bool)
+    assert isinstance(row.created_at, datetime)
+    assert row.is_fallback is True
+
+
+@pytest.mark.asyncio
+async def test_debate_with_null_scan_run_id(repo: Repository) -> None:
+    """Debate saved without scan context has scan_run_id=None (data-driven fallback)."""
+    debate_id = await repo.save_debate(
+        scan_run_id=None,
+        ticker="TSLA",
+        bull_json=None,
+        bear_json=None,
+        risk_json=None,
+        verdict_json=None,
+        total_tokens=0,
+        model_name="data-driven-fallback",
+        duration_ms=50,
+        is_fallback=True,
+    )
+
+    debates = await repo.get_debates_for_ticker("TSLA")
+    assert len(debates) == 1
+    row = debates[0]
+    assert row.id == debate_id
+    assert row.scan_run_id is None
+    assert row.is_fallback is True
+    assert row.ticker == "TSLA"

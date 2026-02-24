@@ -13,7 +13,9 @@ Source priority (Context7-verified): init kwargs > env vars > field defaults.
 AppSettings() with no args is a valid production config.
 """
 
-from pydantic import BaseModel
+import math
+
+from pydantic import BaseModel, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -65,6 +67,28 @@ class ServiceConfig(BaseModel):
     ollama_model: str = "llama3.1:8b"
 
 
+class DebateConfig(BaseModel):
+    """AI debate configuration — controls Ollama connection, timeouts, and fallback behavior."""
+
+    ollama_host: str = "http://localhost:11434"
+    ollama_model: str = "llama3.1:8b"
+    ollama_timeout: float = 90.0
+    num_ctx: int = 8192
+    retries: int = 2
+    fallback_confidence: float = 0.3
+    max_total_duration: float = 300.0
+
+    @field_validator("fallback_confidence")
+    @classmethod
+    def validate_fallback_confidence(cls, v: float) -> float:
+        """Ensure fallback_confidence is finite and within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"fallback_confidence must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"fallback_confidence must be in [0, 1], got {v}")
+        return v
+
+
 class AppSettings(BaseSettings):
     """Root application settings — the sole BaseSettings subclass.
 
@@ -81,3 +105,4 @@ class AppSettings(BaseSettings):
     scan: ScanConfig = ScanConfig()
     pricing: PricingConfig = PricingConfig()
     service: ServiceConfig = ServiceConfig()
+    debate: DebateConfig = DebateConfig()

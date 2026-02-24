@@ -1,0 +1,20 @@
+language: en-US
+reviews:
+  auto_review:
+    enabled: true
+    drafts: false
+  path_instructions:
+    - path: "src/options_arena/models/**"
+      instructions: "All models use Pydantic v2 with frozen=True for snapshots. Every datetime field must have a UTC validator. Every confidence field must be validated to [0.0, 1.0]. No raw dicts — typed models only."
+    - path: "src/options_arena/pricing/**"
+      instructions: "BSM (Merton 1973) for European, BAW (Barone-Adesi-Whaley 1987) for American options. Guard NaN/Inf sigma at entry. scoring/ must use dispatch.py only — never import bsm.py or american.py directly."
+    - path: "src/options_arena/indicators/**"
+      instructions: "Pure pandas in/out. No API calls, no Pydantic models. Warmup returns NaN. InsufficientDataError if input too short. Vectorized only — no Python loops for math."
+    - path: "src/options_arena/services/**"
+      instructions: "Only layer that touches external APIs. yfinance provides NO Greeks — only impliedVolatility. All Greeks computed locally via pricing/dispatch.py. Never return raw dicts."
+    - path: "src/options_arena/agents/**"
+      instructions: "PydanticAI agents with model=None at init (model provided at run time). Agents have no knowledge of each other. Orchestrator coordinates them. Think-tag output validators required."
+    - path: "src/options_arena/cli/**"
+      instructions: "Typer commands are sync wrappers with asyncio.run(). RichHandler must use markup=False. signal.signal() for SIGINT (not loop.add_signal_handler). No print() — use Rich console or logging."
+    - path: "tests/**"
+      instructions: "Never hit real APIs — mock everything. Never use == for floats — use pytest.approx(). Never hardcode dates depending on today. Use typed Pydantic models for test data, not raw dicts."

@@ -27,7 +27,9 @@ logger = logging.getLogger(__name__)
 SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 SP500_REQUIRED_COLUMNS: frozenset[str] = frozenset({"Symbol", "GICS Sector"})
 
-CBOE_URL = "https://www.cboe.com/markets/us/options/symbol-directory/equity-index-options?download=csv"
+CBOE_URL = (
+    "https://www.cboe.com/markets/us/options/symbol-directory/equity-index-options?download=csv"
+)
 
 # Characters that indicate an index symbol (not an equity)
 INDEX_SYMBOL_CHARS: frozenset[str] = frozenset({"^", "$", "/"})

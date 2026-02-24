@@ -1,13 +1,14 @@
-"""Typed CRUD operations for ScanRun and TickerScore.
+"""Typed CRUD operations for ScanRun, TickerScore, and debate results.
 
-Every public method accepts and returns Pydantic models — never raw dicts,
+Every public method accepts and returns Pydantic models or dataclasses — never raw dicts,
 tuples, or Row objects.  Uses parameterized queries exclusively.
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from sqlite3 import Row
 
 from options_arena.data.database import Database
@@ -20,6 +21,28 @@ from options_arena.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class DebateRow:
+    """Row from ai_theses table.
+
+    Kept in repository (not models/) because it contains raw JSON strings,
+    not typed models.
+    """
+
+    id: int
+    scan_run_id: int | None
+    ticker: str
+    bull_json: str | None
+    bear_json: str | None
+    risk_json: str | None
+    verdict_json: str | None
+    total_tokens: int
+    model_name: str
+    duration_ms: int
+    is_fallback: bool
+    created_at: datetime
 
 
 class Repository:
@@ -140,4 +163,79 @@ class Repository:
             direction=SignalDirection(row["direction"]),
             signals=IndicatorSignals.model_validate_json(row["signals_json"]),
             scan_run_id=int(row["scan_run_id"]),
+        )
+
+    # ------------------------------------------------------------------
+    # Debate persistence
+    # ------------------------------------------------------------------
+
+    async def save_debate(
+        self,
+        scan_run_id: int | None,
+        ticker: str,
+        bull_json: str | None,
+        bear_json: str | None,
+        risk_json: str | None,
+        verdict_json: str | None,
+        total_tokens: int,
+        model_name: str,
+        duration_ms: int,
+        is_fallback: bool,
+    ) -> int:
+        """Persist a debate result.  Returns the database-assigned ID."""
+        conn = self._db.conn
+        created_at = datetime.now(UTC).isoformat()
+        cursor = await conn.execute(
+            "INSERT INTO ai_theses "
+            "(scan_run_id, ticker, bull_json, bear_json, risk_json, verdict_json, "
+            "total_tokens, model_name, duration_ms, is_fallback, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                scan_run_id,
+                ticker,
+                bull_json,
+                bear_json,
+                risk_json,
+                verdict_json,
+                total_tokens,
+                model_name,
+                duration_ms,
+                int(is_fallback),
+                created_at,
+            ),
+        )
+        await conn.commit()
+        row_id: int = cursor.lastrowid  # type: ignore[assignment]
+        logger.debug("Saved debate id=%d for ticker=%s", row_id, ticker)
+        return row_id
+
+    async def get_debates_for_ticker(self, ticker: str, limit: int = 5) -> list[DebateRow]:
+        """Get recent debates for a ticker, newest first."""
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT * FROM ai_theses WHERE ticker = ? ORDER BY id DESC LIMIT ?",
+            (ticker, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        debates = [self._row_to_debate_row(row) for row in rows]
+        logger.debug("Retrieved %d debates for ticker=%s", len(debates), ticker)
+        return debates
+
+    @staticmethod
+    def _row_to_debate_row(row: Row) -> DebateRow:
+        """Reconstruct a DebateRow from an aiosqlite.Row."""
+        raw_scan_run_id = row["scan_run_id"]
+        return DebateRow(
+            id=int(row["id"]),
+            scan_run_id=int(raw_scan_run_id) if raw_scan_run_id is not None else None,
+            ticker=str(row["ticker"]),
+            bull_json=row["bull_json"],
+            bear_json=row["bear_json"],
+            risk_json=row["risk_json"],
+            verdict_json=row["verdict_json"],
+            total_tokens=int(row["total_tokens"]),
+            model_name=str(row["model_name"]),
+            duration_ms=int(row["duration_ms"]),
+            is_fallback=bool(row["is_fallback"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
         )

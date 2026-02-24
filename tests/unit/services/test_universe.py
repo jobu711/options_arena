@@ -77,7 +77,9 @@ async def test_sp500_happy_path(service: UniverseService) -> None:
 
     with (
         patch.object(
-            service._client, "get", new_callable=AsyncMock,
+            service._client,
+            "get",
+            new_callable=AsyncMock,
             return_value=_mock_httpx_response(),
         ),
         patch(
@@ -114,7 +116,9 @@ async def test_sp500_ticker_translation(service: UniverseService) -> None:
 
     with (
         patch.object(
-            service._client, "get", new_callable=AsyncMock,
+            service._client,
+            "get",
+            new_callable=AsyncMock,
             return_value=_mock_httpx_response(),
         ),
         patch(
@@ -150,7 +154,9 @@ async def test_sp500_missing_required_column(service: UniverseService) -> None:
 
     with (
         patch.object(
-            service._client, "get", new_callable=AsyncMock,
+            service._client,
+            "get",
+            new_callable=AsyncMock,
             return_value=_mock_httpx_response(),
         ),
         patch(
@@ -174,7 +180,9 @@ async def test_sp500_empty_dataframe(service: UniverseService) -> None:
 
     with (
         patch.object(
-            service._client, "get", new_callable=AsyncMock,
+            service._client,
+            "get",
+            new_callable=AsyncMock,
             return_value=_mock_httpx_response(),
         ),
         patch(
@@ -196,7 +204,9 @@ async def test_sp500_no_tables(service: UniverseService) -> None:
     """No tables found at Wikipedia raises InsufficientDataError."""
     with (
         patch.object(
-            service._client, "get", new_callable=AsyncMock,
+            service._client,
+            "get",
+            new_callable=AsyncMock,
             return_value=_mock_httpx_response(),
         ),
         patch(
@@ -449,7 +459,9 @@ async def test_sp500_wikipedia_unreachable(service: UniverseService) -> None:
     """Wikipedia network failure raises DataSourceUnavailableError."""
     with (
         patch.object(
-            service._client, "get", new_callable=AsyncMock,
+            service._client,
+            "get",
+            new_callable=AsyncMock,
             side_effect=httpx.ConnectError("Connection refused"),
         ),
         pytest.raises(DataSourceUnavailableError, match="Wikipedia"),

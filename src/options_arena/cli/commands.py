@@ -1,4 +1,4 @@
-"""CLI commands: scan, health, universe (refresh/list/stats).
+"""CLI commands: scan, health, universe (refresh/list/stats), debate.
 
 Each command is a sync Typer function wrapping an async internal function
 via ``asyncio.run()``. Services are created and closed within the command scope.
@@ -24,8 +24,15 @@ from rich.progress import (
 
 from options_arena.cli.app import app
 from options_arena.cli.progress import RichProgressCallback, setup_sigint_handler
-from options_arena.cli.rendering import DISCLAIMER, render_health_table, render_scan_table
+from options_arena.cli.rendering import (
+    DISCLAIMER,
+    render_debate_history,
+    render_debate_panels,
+    render_health_table,
+    render_scan_table,
+)
 from options_arena.data import Database, Repository
+from options_arena.models import DebateConfig, OptionContract
 from options_arena.models.config import AppSettings
 from options_arena.models.enums import ScanPreset
 from options_arena.scan import CancellationToken, ScanPipeline, ScanResult
@@ -171,6 +178,128 @@ def _render_scan_results(result: ScanResult, elapsed: float) -> None:
 
     # Regulatory disclaimer (ALWAYS printed)
     console.print(f"\n{DISCLAIMER}")
+
+
+# ---------------------------------------------------------------------------
+# debate command
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def debate(
+    ticker: str = typer.Argument(..., help="Ticker symbol to debate"),  # noqa: B008
+    history: bool = typer.Option(False, "--history", help="Show past debates"),
+    fallback_only: bool = typer.Option(
+        False, "--fallback-only", help="Force data-driven path (skip AI)"
+    ),
+) -> None:
+    """Run AI debate on a scored ticker."""
+    asyncio.run(_debate_async(ticker.upper(), history, fallback_only))
+
+
+async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None:
+    """Run AI debate with full service lifecycle management."""
+    settings = AppSettings()
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    cache = ServiceCache(settings.service)
+    limiter = RateLimiter(
+        settings.service.rate_limit_rps, settings.service.max_concurrent_requests
+    )
+    db = Database(_DATA_DIR / "options_arena.db")
+
+    market_data: MarketDataService | None = None
+
+    try:
+        await db.connect()
+        repo = Repository(db)
+
+        # --history mode: show past debates and exit
+        if history:
+            debates = await repo.get_debates_for_ticker(ticker)
+            if not debates:
+                err_console.print(f"[yellow]No debate history for {ticker}.[/yellow]")
+                return
+            table = render_debate_history(debates, ticker)
+            console.print(table)
+            console.print(f"\n{DISCLAIMER}")
+            return
+
+        # Get latest scan data for this ticker
+        latest_scan = await repo.get_latest_scan()
+        if latest_scan is None:
+            err_console.print(
+                "[red]No scan data found. Run: options-arena scan --preset sp500[/red]"
+            )
+            raise typer.Exit(code=1)
+
+        scores = await repo.get_scores_for_scan(latest_scan.id)  # type: ignore[arg-type]
+        ticker_score = next((s for s in scores if s.ticker == ticker), None)
+        if ticker_score is None:
+            err_console.print(
+                f"[red]No scan data for {ticker}. Run: options-arena scan --preset sp500[/red]"
+            )
+            raise typer.Exit(code=1)
+
+        # Fetch live market data
+        market_data = MarketDataService(settings.service, cache, limiter)
+
+        err_console.print(f"[cyan]Fetching live data for {ticker}...[/cyan]")
+        quote = await market_data.fetch_quote(ticker)
+        ticker_info = await market_data.fetch_ticker_info(ticker)
+
+        # Contracts from scan recommendations (empty list — orchestrator handles context)
+        contracts: list[OptionContract] = []
+
+        # Lazy import: agents/ depends on pydantic-ai[ollama] which may not be
+        # available.  Importing at call time keeps CLI tests (scan, health, universe)
+        # working even when the optional dependency is absent.
+        from options_arena.agents import run_debate  # noqa: PLC0415
+
+        # Force fallback mode if requested (near-zero timeout triggers data-driven path)
+        config = settings.debate
+        if fallback_only:
+            config = DebateConfig(
+                ollama_timeout=0.001,
+                max_total_duration=0.001,
+                fallback_confidence=settings.debate.fallback_confidence,
+            )
+
+        err_console.print(f"[cyan]Running debate for {ticker}...[/cyan]")
+        result = await run_debate(
+            ticker_score=ticker_score,
+            contracts=contracts,
+            quote=quote,
+            ticker_info=ticker_info,
+            config=config,
+            repository=repo,
+        )
+
+        # Render debate output
+        render_debate_panels(console, result)
+
+        # Token usage and duration
+        total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens
+        console.print(
+            f"\n[dim]Duration: {result.duration_ms / 1000:.1f}s | Tokens: {total_tokens}[/dim]"
+        )
+
+        # Regulatory disclaimer (ALWAYS printed)
+        console.print(f"\n{DISCLAIMER}")
+
+    except KeyboardInterrupt:
+        err_console.print("\n[yellow]Debate cancelled.[/yellow]")
+        raise typer.Exit(code=130)  # noqa: B904
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        logger.exception("Debate command failed")
+        err_console.print("[red]Debate failed. Check logs/options_arena.log for details.[/red]")
+        raise typer.Exit(code=1) from exc
+    finally:
+        if market_data is not None:
+            await market_data.close()
+        await cache.close()
+        await db.close()
 
 
 # ---------------------------------------------------------------------------

@@ -5,7 +5,13 @@ Consumers import from the package: ``from options_arena.models import OptionCont
 """
 
 from options_arena.models.analysis import AgentResponse, MarketContext, TradeThesis
-from options_arena.models.config import AppSettings, PricingConfig, ScanConfig, ServiceConfig
+from options_arena.models.config import (
+    AppSettings,
+    DebateConfig,
+    PricingConfig,
+    ScanConfig,
+    ServiceConfig,
+)
 from options_arena.models.enums import (
     DividendSource,
     ExerciseStyle,
@@ -56,6 +62,7 @@ __all__ = [
     "TickerScore",
     # Config
     "AppSettings",
+    "DebateConfig",
     "PricingConfig",
     "ScanConfig",
     "ServiceConfig",
