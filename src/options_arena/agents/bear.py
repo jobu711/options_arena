@@ -57,7 +57,7 @@ Rules:
 - Do NOT include <think> tags or reasoning traces in any field."""
 
 bear_agent: Agent[DebateDeps, AgentResponse] = Agent(
-    model=None,
+    model="test",
     deps_type=DebateDeps,
     output_type=AgentResponse,
     retries=2,

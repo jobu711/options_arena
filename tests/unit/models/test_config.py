@@ -14,7 +14,13 @@ import pytest
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
-from options_arena.models import AppSettings, PricingConfig, ScanConfig, ServiceConfig
+from options_arena.models import (
+    AppSettings,
+    DebateConfig,
+    PricingConfig,
+    ScanConfig,
+    ServiceConfig,
+)
 
 # ---------------------------------------------------------------------------
 # Helper: list of all ARENA_* env var names we might need to clean
@@ -50,6 +56,13 @@ _ARENA_ENV_VARS = [
     "ARENA_SERVICE__CACHE_TTL_AFTER_HOURS",
     "ARENA_SERVICE__OLLAMA_HOST",
     "ARENA_SERVICE__OLLAMA_MODEL",
+    "ARENA_DEBATE__OLLAMA_HOST",
+    "ARENA_DEBATE__OLLAMA_MODEL",
+    "ARENA_DEBATE__OLLAMA_TIMEOUT",
+    "ARENA_DEBATE__NUM_CTX",
+    "ARENA_DEBATE__RETRIES",
+    "ARENA_DEBATE__FALLBACK_CONFIDENCE",
+    "ARENA_DEBATE__MAX_TOTAL_DURATION",
 ]
 
 
@@ -211,3 +224,47 @@ class TestConfigConstructorOverrides:
         monkeypatch.setenv("ARENA_SCAN__TOP_N", "30")
         settings = AppSettings(scan=ScanConfig(top_n=99))
         assert settings.scan.top_n == 99
+
+
+# ---------------------------------------------------------------------------
+# DebateConfig defaults
+# ---------------------------------------------------------------------------
+
+
+class TestDebateConfigDefaults:
+    """Tests for DebateConfig default values and AppSettings integration."""
+
+    def test_debate_config_constructs_with_defaults(self) -> None:
+        """DebateConfig() constructs with all production defaults."""
+        config = DebateConfig()
+        assert config.ollama_host == "http://localhost:11434"
+        assert config.ollama_model == "llama3.1:8b"
+        assert config.ollama_timeout == pytest.approx(90.0)
+        assert config.num_ctx == 8192
+        assert config.retries == 2
+        assert config.fallback_confidence == pytest.approx(0.3)
+        assert config.max_total_duration == pytest.approx(300.0)
+
+    def test_app_settings_has_debate_field(self) -> None:
+        """AppSettings includes a debate field."""
+        settings = AppSettings()
+        assert hasattr(settings, "debate")
+        assert isinstance(settings.debate, DebateConfig)
+
+    def test_app_settings_debate_defaults(self) -> None:
+        """AppSettings().debate has correct defaults."""
+        settings = AppSettings()
+        assert settings.debate.ollama_host == "http://localhost:11434"
+        assert settings.debate.num_ctx == 8192
+        assert settings.debate.fallback_confidence == pytest.approx(0.3)
+
+    def test_debate_config_is_base_model(self) -> None:
+        """DebateConfig is a BaseModel, not BaseSettings."""
+        assert issubclass(DebateConfig, BaseModel)
+        assert not issubclass(DebateConfig, BaseSettings)
+
+    def test_env_override_debate_num_ctx(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__NUM_CTX env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__NUM_CTX", "16384")
+        settings = AppSettings()
+        assert settings.debate.num_ctx == 16384

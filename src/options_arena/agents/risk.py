@@ -59,7 +59,7 @@ Rules:
 - Do NOT include <think> tags or reasoning traces in any field."""
 
 risk_agent: Agent[DebateDeps, TradeThesis] = Agent(
-    model=None,
+    model="test",
     deps_type=DebateDeps,
     output_type=TradeThesis,
     retries=2,
