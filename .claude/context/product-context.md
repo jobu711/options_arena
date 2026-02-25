@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-24T16:42:16Z
-version: 4.1
+last_updated: 2026-02-25T13:55:32Z
+version: 4.2
 author: Claude Code PM System
 ---
 
@@ -27,7 +27,8 @@ author: Claude Code PM System
 - Each agent receives flat `MarketContext` with current market data
 - Agents must cite specific contracts, strikes, Greeks, and indicators
 - Risk agent synthesizes bull/bear cases into a final verdict
-- Data-driven fallback when Ollama is unreachable
+- **Multi-provider**: Ollama (local, default) or Groq (cloud, via `ARENA_DEBATE__PROVIDER=groq`)
+- Data-driven fallback when LLM provider is unreachable
 
 ### 3. Options Chain Analysis
 - Fetch and display options chains with bid/ask spreads
@@ -62,7 +63,7 @@ author: Claude Code PM System
 - **Reporting**: Markdown/PDF report generation
 - **Watchlists**: CRUD watchlist management
 - **Web UI**: Browser-based interface
-- **Additional LLM providers**: Anthropic Claude, OpenAI
+- **Additional LLM providers**: Anthropic Claude, OpenAI (Groq already supported in v1.2.0)
 
 ## Options Arena Rewrite (Complete — v1.1.0)
 
@@ -70,7 +71,7 @@ Rewritten from `Option_Alpha` to `options_arena` (PEP 8 compliant). All 9 phases
 - **American options pricing** via BAW replaces incorrect European-only BSM
 - **Full scan pipeline**: universe → indicators → scoring → options → persist → CLI output
 - **AI debate system**: Bull/Bear/Risk agents via PydanticAI + Ollama with data-driven fallback
-- **1,212 tests**, `mypy --strict`, `ruff check` all green
+- **1,262 tests**, `mypy --strict`, `ruff check` all green
 - PRDs: `.claude/prds/options-arena.md`, `.claude/prds/ai-debate.md`
 
 ## Important Constraints
@@ -79,4 +80,4 @@ Rewritten from `Option_Alpha` to `options_arena` (PEP 8 compliant). All 9 phases
 - Every output includes a mandatory disclaimer
 - No trade execution capability
 - No real-time streaming (batch analysis only in Phase 1)
-- Ollama must be running locally for AI features (graceful degradation otherwise)
+- Ollama must be running locally OR Groq API key configured for AI features (graceful degradation otherwise)

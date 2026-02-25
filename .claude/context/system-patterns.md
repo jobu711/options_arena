@@ -75,31 +75,37 @@
 - **Batch isolation**: `asyncio.gather(*tasks, return_exceptions=True)` with `zip(tickers, results, strict=True)`. One failed ticker never crashes a batch.
 - **FRED never raises**: `FredService.fetch_risk_free_rate()` always returns float, falls back to `PricingConfig.risk_free_rate_fallback` on any error.
 
-### PydanticAI Agent Pattern (Implemented in Phase 9)
+### PydanticAI Agent Pattern (Implemented in Phase 9, Groq added post-Phase 9)
 - Module-level `Agent[Deps, OutputType]` instances (bull, bear, risk) — no classes
-- `model=None` at init, actual `OllamaModel` passed at `agent.run(model=...)` time (enables `TestModel` in tests)
+- `model=None` at init, actual model passed at `agent.run(model=...)` time (enables `TestModel` in tests)
 - `@dataclass` deps (`DebateDeps`) injected at runtime via `agent.run(..., deps=deps, model=model)`
 - `output_type=PydanticModel` enforces structured JSON output from LLM
 - `retries=2` for automatic retry on validation failure with schema hints
 - `model_settings=ModelSettings(extra_body={"num_ctx": 8192})` for Ollama context window
 - `@agent.output_validator` rejects `<think>` tag remnants, triggers `ModelRetry`
 - `@agent.system_prompt` decorator for static prompts (bull), `dynamic=True` for runtime-dependent prompts (bear, risk)
-- `_resolve_host()` resolves host via explicit config > `OLLAMA_HOST` env var > default localhost
-- Sequential execution: Bull → Bear → Risk (Ollama is single-threaded on CPU)
+- **Multi-provider support**: `DebateProvider` enum (`OLLAMA`, `GROQ`) selects backend
+- `build_debate_model(config)` uses `match/case` to dispatch to `build_ollama_model()` or `build_groq_model()` with exhaustive handling
+- `_resolve_host()` resolves Ollama host via explicit config > `OLLAMA_HOST` env var > default localhost
+- **Provider-aware timeouts**: Ollama uses `agent_timeout` (600s default), Groq uses `groq_timeout` (60s default)
+- Sequential execution: Bull → Bear → Risk (Ollama is single-threaded on CPU; Groq has API rate limits)
 - Orchestrator never raises: catches `UnexpectedModelBehavior`, timeout, connection errors → data-driven fallback
 - Token accumulation via `RunUsage` addition: `bull_usage + bear_usage + risk_usage`
 - `DebateResult` dataclass (not Pydantic) because `RunUsage` is a plain dataclass
+- **DebateConfig validators**: `temperature` [0.0, 2.0], `agent_timeout`/`groq_timeout`/`max_total_duration` > 0, all with `math.isfinite()` guards
+- **`strip_think_tags()` safety**: returns original text when stripping would produce empty string
 
-### Debate Orchestration Flow (Implemented in Phase 9)
+### Debate Orchestration Flow (Implemented in Phase 9, Groq added post-Phase 9)
 ```
 1. CLI provides: TickerScore, OptionContract[], Quote, TickerInfo, DebateConfig
 2. build_market_context() → MarketContext (flat model for agent consumption)
-3. build_ollama_model() → OllamaModel (host resolution: config > env > default)
-4. Bull agent: argue bullish case → AgentResponse
-5. Bear agent: receive bull's argument + context → AgentResponse
-6. Risk agent: receive both arguments + context → TradeThesis
-7. Accumulate RunUsage, persist to ai_theses table
-8. Return DebateResult (is_fallback=False)
+3. build_debate_model(config) → OllamaModel or GroqModel (match/case on DebateProvider)
+4. Select per_agent_timeout: agent_timeout (Ollama) or groq_timeout (Groq)
+5. Bull agent: argue bullish case → AgentResponse
+6. Bear agent: receive bull's argument + context → AgentResponse
+7. Risk agent: receive both arguments + context → TradeThesis
+8. Accumulate RunUsage, persist to ai_theses table
+9. Return DebateResult (is_fallback=False)
 On any error: return data-driven fallback (is_fallback=True, confidence=0.3)
 ```
 

@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-24T16:42:16Z
-version: 5.5
+last_updated: 2026-02-25T13:55:32Z
+version: 5.6
 author: Claude Code PM System
 ---
 
@@ -84,6 +84,7 @@ All three must pass before any commit.
 | CBOE | `universe.py` | httpx CSV download | Optionable ticker universe | Cached list (24h TTL) |
 | Wikipedia | `universe.py` | `pd.read_html` via `asyncio.to_thread` | S&P 500 constituents + GICS sectors | Cached list (24h TTL) |
 | Ollama | `agents/orchestrator.py`, `health.py` | PydanticAI + HTTP localhost:11434 | LLM debate agents (Llama 3.1 8B) | Data-driven verdict |
+| Groq | `agents/orchestrator.py` | PydanticAI + GroqProvider (cloud API) | Cloud LLM debate agents (llama-3.3-70b-versatile) | Falls back to Ollama or data-driven |
 
 ## Database
 

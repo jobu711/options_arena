@@ -2,13 +2,14 @@
 
 ## Current State
 
-- **Version**: 1.1.0 (MVP + AI Debate)
+- **Version**: 1.2.0 (MVP + AI Debate + Groq Cloud)
 - **All 9 phases**: Complete and merged to master (2026-02-24)
-- **Branch**: `master` (1212 tests, all phases merged)
-- **Tests**: 1212 (220 models + 214 pricing + 172 indicators + 102 scoring + 163 services + 34 data + 156 scan + 25 cli + 126 agents)
-- **GitHub issues**: 0 open, 67 closed (Phase 1–9 all complete)
+- **Branch**: `master` (1262 tests, all phases merged)
+- **Tests**: 1262 (220 models + 214 pricing + 172 indicators + 102 scoring + 163 services + 34 data + 156 scan + 25 cli + 176 agents)
+- **GitHub issues**: 0 open, 70 closed (Phase 1–9 + Groq hardening all complete)
 - **Scan pipeline**: Producing 8 recommendations per run (verified)
 - **CLI**: `options-arena scan`, `health`, `universe`, `debate` commands working
+- **AI providers**: Ollama (local, default) + Groq (cloud, configurable via `ARENA_DEBATE__PROVIDER=groq`)
 
 ## Completed Work (Phase 1)
 
@@ -293,6 +294,20 @@ options-arena universe stats
 - Post-merge fixes: 14 bug fixes (model=None pattern, nullable FK, isfinite guards, display
   guards, KeyboardInterrupt handler, validators), 10 CodeRabbit suggestions accepted
 - `.coderabbit.yaml` added for automated PR reviews
+
+## Groq Cloud API Support (2026-02-24, PR #70 merged)
+
+Added Groq as an alternative cloud LLM provider for the AI debate system.
+
+- `0e9bee1` — feat: add Groq cloud API support (DebateProvider enum, GroqProvider, build_groq_model)
+- `72ae6c8` — fix: harden Groq support — NaN validators, provider-aware timeouts, exhaustive dispatch
+- `a573848` — refactor: extract fallback-only timeout magic number into named constant
+- **DebateProvider** StrEnum (`OLLAMA`, `GROQ`) — configurable via `ARENA_DEBATE__PROVIDER=groq`
+- **DebateConfig** hardened: `field_validator` on `temperature` [0.0, 2.0], `agent_timeout`/`groq_timeout`/`max_total_duration` > 0 with `math.isfinite()` guards
+- **Provider-aware timeouts**: Ollama uses `agent_timeout` (600s), Groq uses `groq_timeout` (60s)
+- **`build_debate_model()`**: match/case dispatch with exhaustive handling (replaces if/else)
+- **`strip_think_tags()`**: empty-string fallback preserves original text when stripping produces empty
+- 50 new tests (validators, Groq provider, orchestrator, parsing edge cases)
 
 ## Future Work (v2)
 

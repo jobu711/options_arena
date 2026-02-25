@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-24T16:42:16Z
-version: 2.1
+last_updated: 2026-02-25T13:55:32Z
+version: 2.2
 author: Claude Code PM System
 ---
 
@@ -45,8 +45,15 @@ Option Alpha aims to be a comprehensive, locally-run options analysis platform t
 - 126 new tests (agents, orchestrator, parsing, config, repository, e2e)
 - **Total**: 1,212 tests, 58 source files, 67 GitHub issues closed
 
+### Post-Phase 9: Groq Cloud Support (Complete — 2026-02-24)
+- `DebateProvider` enum (`OLLAMA`, `GROQ`) with `match/case` exhaustive dispatch
+- Groq cloud API via PydanticAI `GroqProvider` (llama-3.3-70b-versatile default)
+- Provider-aware timeouts: Ollama 600s, Groq 60s
+- DebateConfig validators: temperature, timeout, duration with `math.isfinite()` guards
+- **Total**: 1,262 tests, 58 source files, 70 GitHub issues closed
+
 ### v2 — Enhanced AI & Advanced Features (Future)
-- Additional LLM provider support (Anthropic Claude, OpenAI)
+- Additional LLM provider support (Anthropic Claude, OpenAI — Groq already done)
 - Multi-round debate with rebuttal phases
 - Real-time market data streaming
 - Portfolio integration and position tracking

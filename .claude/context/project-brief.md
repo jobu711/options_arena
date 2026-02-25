@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-24T16:42:16Z
-version: 2.1
+last_updated: 2026-02-25T13:55:32Z
+version: 2.2
 author: Claude Code PM System
 ---
 
@@ -36,12 +36,12 @@ author: Claude Code PM System
 
 ## Scope Boundaries
 
-- **In scope (v1.1.0 — Complete)**: CLI tool, yfinance data, BAW/BSM pricing, SQLite persistence, 18 technical indicators, Rich terminal output, scan pipeline, health checks, universe management, AI debate system (Bull/Bear/Risk via PydanticAI + Ollama)
-- **Deferred to v2**: Multi-round debate, web UI, reporting module, additional LLM providers
-- **Out of scope**: Cloud AI providers, real-time streaming, portfolio management, trade execution
+- **In scope (v1.2.0 — Complete)**: CLI tool, yfinance data, BAW/BSM pricing, SQLite persistence, 18 technical indicators, Rich terminal output, scan pipeline, health checks, universe management, AI debate system (Bull/Bear/Risk via PydanticAI + Ollama or Groq cloud)
+- **Deferred to v2**: Multi-round debate, web UI, reporting module, additional LLM providers (Anthropic, OpenAI)
+- **Out of scope**: Real-time streaming, portfolio management, trade execution
 
 ## Repository
 
 - **GitHub**: jobu711/options_arena
-- **Branch**: `master` (all 9 phases merged, 1,212 tests, 67 issues closed)
+- **Branch**: `master` (all 9 phases merged, 1,262 tests, 70 issues closed)
 - **Package**: `options_arena` (PEP 8 compliant). PRD: `.claude/prds/options-arena.md`
