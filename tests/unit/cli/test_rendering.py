@@ -9,13 +9,22 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from options_arena.cli.rendering import DISCLAIMER, render_health_table, render_scan_table
+from rich.panel import Panel
+
+from options_arena.cli.rendering import (
+    DISCLAIMER,
+    render_health_table,
+    render_scan_table,
+    render_volatility_panel,
+)
+from options_arena.models import VolatilityThesis
 from options_arena.models.enums import (
     ExerciseStyle,
     OptionType,
     PricingModel,
     ScanPreset,
     SignalDirection,
+    SpreadType,
 )
 from options_arena.models.health import HealthStatus
 from options_arena.models.options import OptionGreeks
@@ -170,3 +179,45 @@ def test_render_scan_table_no_contracts() -> None:
     )
     table = render_scan_table(result)
     assert table.row_count == 1
+
+
+# ---------------------------------------------------------------------------
+# volatility panel rendering
+# ---------------------------------------------------------------------------
+
+
+def test_render_volatility_panel_all_fields() -> None:
+    """Panel renders with all optional fields populated and cyan border."""
+    thesis = VolatilityThesis(
+        iv_assessment="overpriced",
+        iv_rank_interpretation="IV rank at 85 is in the top 15%",
+        confidence=0.75,
+        recommended_strategy=SpreadType.IRON_CONDOR,
+        strategy_rationale="High IV favors selling premium",
+        target_iv_entry=85.0,
+        target_iv_exit=50.0,
+        suggested_strikes=["185C", "195C"],
+        key_vol_factors=["Earnings in 5 days", "IV rank 85"],
+        model_used="llama3.1:8b",
+    )
+    panel = render_volatility_panel(thesis)
+    assert isinstance(panel, Panel)
+    assert panel.border_style == "cyan"  # type: ignore[union-attr]
+
+
+def test_render_volatility_panel_minimal() -> None:
+    """Panel renders with only required fields (no strategy, targets, strikes, factors)."""
+    thesis = VolatilityThesis(
+        iv_assessment="fair",
+        iv_rank_interpretation="IV rank at 45 is near the median",
+        confidence=0.5,
+        recommended_strategy=None,
+        strategy_rationale="No vol play warranted",
+        target_iv_entry=None,
+        target_iv_exit=None,
+        suggested_strikes=[],
+        key_vol_factors=[],
+        model_used="llama3.1:8b",
+    )
+    panel = render_volatility_panel(thesis)
+    assert isinstance(panel, Panel)
