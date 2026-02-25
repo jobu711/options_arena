@@ -955,3 +955,32 @@ class TestRunDebateScreening:
         assert result.is_fallback is True
         assert "15.0/100" in result.thesis.summary
         assert "bullish" in result.thesis.summary
+
+    @pytest.mark.asyncio
+    async def test_screening_fallback_persists_when_repository_provided(
+        self,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_option_contract: OptionContract,
+    ) -> None:
+        """Screened-out tickers are still persisted when a repository is provided."""
+        mock_repo = MagicMock()
+        mock_repo.save_debate = AsyncMock(return_value=1)
+
+        neutral_score = TickerScore(
+            ticker="AAPL",
+            composite_score=80.0,
+            direction=SignalDirection.NEUTRAL,
+            signals=IndicatorSignals(),
+            scan_run_id=1,
+        )
+        result = await run_debate(
+            ticker_score=neutral_score,
+            contracts=[mock_option_contract],
+            quote=mock_quote,
+            ticker_info=mock_ticker_info,
+            config=DebateConfig(),
+            repository=mock_repo,
+        )
+        assert result.is_fallback is True
+        mock_repo.save_debate.assert_awaited_once()

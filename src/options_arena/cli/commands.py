@@ -294,6 +294,7 @@ async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None
                 agent_timeout=_FALLBACK_ONLY_TIMEOUT_SEC,
                 max_total_duration=_FALLBACK_ONLY_TIMEOUT_SEC,
                 fallback_confidence=settings.debate.fallback_confidence,
+                min_debate_score=0.0,  # disable screening — fallback-only wants all tickers
             )
 
         err_console.print(f"[cyan]Running debate for {ticker}...[/cyan]")

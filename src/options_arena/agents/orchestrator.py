@@ -177,46 +177,46 @@ async def run_debate(
 
     if not should_debate(ticker_score, config):
         logger.info("Skipping debate for %s: signal too weak", ticker_score.ticker)
-        return _build_screening_fallback(context, ticker_score, contracts, config, start_time)
-
-    try:
-        result = await asyncio.wait_for(
-            _run_agents(context, ticker_score, contracts, config, start_time),
-            timeout=config.max_total_duration,
-        )
-    except httpx.ConnectError as e:
-        logger.warning(
-            "Ollama not reachable for %s (%s: %s), using data-driven fallback",
-            context.ticker,
-            type(e).__name__,
-            e,
-        )
-        result = _build_fallback_result(context, ticker_score, contracts, config, start_time)
-    except TimeoutError as e:
-        logger.warning(
-            "Debate timed out for %s (%s: %s), using data-driven fallback",
-            context.ticker,
-            type(e).__name__,
-            e,
-        )
-        result = _build_fallback_result(context, ticker_score, contracts, config, start_time)
-    except UnexpectedModelBehavior as e:
-        logger.warning(
-            "LLM returned invalid output for %s after retries (%s: %s), "
-            "using data-driven fallback",
-            context.ticker,
-            type(e).__name__,
-            e,
-        )
-        result = _build_fallback_result(context, ticker_score, contracts, config, start_time)
-    except Exception as e:
-        logger.warning(
-            "Debate failed for %s (%s: %s), using data-driven fallback",
-            context.ticker,
-            type(e).__name__,
-            e,
-        )
-        result = _build_fallback_result(context, ticker_score, contracts, config, start_time)
+        result = _build_screening_fallback(context, ticker_score, contracts, config, start_time)
+    else:
+        try:
+            result = await asyncio.wait_for(
+                _run_agents(context, ticker_score, contracts, config, start_time),
+                timeout=config.max_total_duration,
+            )
+        except httpx.ConnectError as e:
+            logger.warning(
+                "Ollama not reachable for %s (%s: %s), using data-driven fallback",
+                context.ticker,
+                type(e).__name__,
+                e,
+            )
+            result = _build_fallback_result(context, ticker_score, contracts, config, start_time)
+        except TimeoutError as e:
+            logger.warning(
+                "Debate timed out for %s (%s: %s), using data-driven fallback",
+                context.ticker,
+                type(e).__name__,
+                e,
+            )
+            result = _build_fallback_result(context, ticker_score, contracts, config, start_time)
+        except UnexpectedModelBehavior as e:
+            logger.warning(
+                "LLM returned invalid output for %s after retries (%s: %s), "
+                "using data-driven fallback",
+                context.ticker,
+                type(e).__name__,
+                e,
+            )
+            result = _build_fallback_result(context, ticker_score, contracts, config, start_time)
+        except Exception as e:
+            logger.warning(
+                "Debate failed for %s (%s: %s), using data-driven fallback",
+                context.ticker,
+                type(e).__name__,
+                e,
+            )
+            result = _build_fallback_result(context, ticker_score, contracts, config, start_time)
 
     # Persist result (never crash on persistence failure)
     if repository is not None:
