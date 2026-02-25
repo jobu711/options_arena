@@ -17,7 +17,7 @@ The orchestrator does **not fetch data** — the caller (CLI) provides all input
 |------|---------|---------|
 | `CLAUDE.md` | Module conventions and rules | — |
 | `model_config.py` | `build_debate_model()`, `build_ollama_model()`, `build_groq_model()` | Config utility |
-| `_parsing.py` | `DebateDeps`, `DebateResult` dataclasses, `strip_think_tags()` | Internal |
+| `_parsing.py` | `DebateDeps`, `DebateResult`, `strip_think_tags()`, `PROMPT_RULES_APPENDIX`, `build_cleaned_agent_response()`, `build_cleaned_trade_thesis()` | Internal |
 | `bull.py` | Bull agent + system prompt + output validator | PydanticAI Agent |
 | `bear.py` | Bear agent + dynamic prompt (receives bull argument) | PydanticAI Agent |
 | `risk.py` | Risk agent + dynamic prompt (receives both arguments) | PydanticAI Agent |
@@ -107,29 +107,20 @@ injected into their prompts. Bull uses a static prompt (no opponent argument yet
 
 Validates LLM output after Pydantic parsing. Instead of rejecting with `ModelRetry` (which
 costs 5-10 min per retry on CPU), we **strip** `<think>` tag content and return a cleaned
-frozen instance. Uses `strip_think_tags()` from `_parsing.py`.
+frozen instance. Shared helpers in `_parsing.py` deduplicate the logic:
 
 ```python
-from options_arena.agents._parsing import strip_think_tags
+from options_arena.agents._parsing import build_cleaned_agent_response
 
 @bull_agent.output_validator
 async def clean_think_tags(
     ctx: RunContext[DebateDeps], output: AgentResponse,
 ) -> AgentResponse:
-    fields = [output.argument, *output.key_points, *output.risks_cited, *output.contracts_referenced]
-    if not any("<think>" in v or "</think>" in v for v in fields):
-        return output  # fast path — no copy needed
-    return AgentResponse(
-        agent_name=output.agent_name,
-        direction=output.direction,
-        confidence=output.confidence,
-        argument=strip_think_tags(output.argument),
-        key_points=[strip_think_tags(p) for p in output.key_points],
-        risks_cited=[strip_think_tags(r) for r in output.risks_cited],
-        contracts_referenced=[strip_think_tags(c) for c in output.contracts_referenced],
-        model_used=output.model_used,
-    )
+    """Strip ``<think>`` tags from LLM output via shared helper."""
+    return build_cleaned_agent_response(output)
 ```
+
+For the risk agent (which outputs `TradeThesis`), use `build_cleaned_trade_thesis()` instead.
 
 **All three agents** must have this validator. Llama 3.1 8B sometimes emits `<think>` tags
 from its reasoning trace. `strip_think_tags()` falls back to the original text if stripping
@@ -339,16 +330,22 @@ When Ollama is unreachable or any agent fails:
 
 ### Constants
 
-Each agent module has an inline string constant. No template system.
+Each agent module has an inline string constant concatenated with shared appendices.
 
 ```python
-# VERSION: v1.0
-BULL_SYSTEM_PROMPT = """You are a bullish options analyst. ..."""
+# VERSION: v2.0
+BULL_SYSTEM_PROMPT = """You are a bullish options analyst. ...\n\n""" + PROMPT_RULES_APPENDIX
 ```
+
+**Shared constants** (defined in `_parsing.py`, imported by each agent):
+- `PROMPT_RULES_APPENDIX` — confidence calibration scale, data anchors, citation rules.
+  Appended to all three agent prompts.
+- `RISK_STRATEGY_TREE` — strategy selection decision tree. Defined in `risk.py`,
+  appended to the risk prompt only.
 
 ### Requirements
 
-- **Version header**: every prompt constant has `# VERSION: v1.0` comment above it
+- **Version header**: every prompt constant has `# VERSION: v2.0` comment above it
 - **Token budget**: system prompts < 1500 tokens, context block adds ~300-500 tokens
 - **Flat context**: `MarketContext` rendered as key-value text block, not JSON blob
 - **Options-specific**: agents MUST cite specific strikes, expirations, Greeks, indicators
@@ -504,8 +501,9 @@ Mark with `@pytest.mark.integration`. Skipped by default; run with `pytest -m in
    `TestModel` override in tests.
 
 7. **Forgetting the `<think>` tag validator** — All three agents need `@agent.output_validator`
-   that strips `<think>` tags via `strip_think_tags()`. Llama 3.1 8B produces these frequently.
-   Do NOT use `ModelRetry` for this — stripping is far cheaper than retrying on CPU.
+   that delegates to `build_cleaned_agent_response()` (bull/bear) or
+   `build_cleaned_trade_thesis()` (risk) from `_parsing.py`. Do NOT inline the stripping
+   logic — use the shared helpers. Do NOT use `ModelRetry` — stripping is far cheaper.
 
 8. **`markup=True` in Rich panels** — Agent argument text may contain `[brackets]` from
    indicator names. Use `markup=False` or escape brackets in rendering code.
