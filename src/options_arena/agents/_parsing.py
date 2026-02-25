@@ -7,6 +7,7 @@ is a plain dataclass — not Pydantic-serializable.
 from __future__ import annotations
 
 import logging
+import math
 import re
 from dataclasses import dataclass
 
@@ -148,27 +149,69 @@ class DebateResult:
     is_fallback: bool
 
 
+def _render_optional(label: str, value: float | None, fmt: str = ".1f") -> str | None:
+    """Render a labeled value if non-None and finite, else None."""
+    if value is not None and math.isfinite(value):
+        return f"{label}: {value:{fmt}}"
+    return None
+
+
 def render_context_block(ctx: MarketContext) -> str:
     """Render MarketContext as flat key-value text for agent consumption.
 
     Agents parse flat text better than JSON. Each line is a labeled value
-    that agents can reference in their arguments.
+    that agents can reference in their arguments. Optional fields (indicators,
+    Greeks, contract mid) are omitted when None or non-finite.
     """
-    return (
-        f"TICKER: {ctx.ticker}\n"
-        f"PRICE: ${ctx.current_price}\n"
-        f"52W HIGH: ${ctx.price_52w_high}\n"
-        f"52W LOW: ${ctx.price_52w_low}\n"
-        f"RSI(14): {ctx.rsi_14:.1f}\n"
-        f"MACD: {ctx.macd_signal.value}\n"
-        f"IV RANK: {ctx.iv_rank:.1f}\n"
-        f"IV PERCENTILE: {ctx.iv_percentile:.1f}\n"
-        f"ATM IV 30D: {ctx.atm_iv_30d:.1f}\n"
-        f"PUT/CALL RATIO: {ctx.put_call_ratio:.2f}\n"
-        f"SECTOR: {ctx.sector}\n"
-        f"TARGET STRIKE: ${ctx.target_strike}\n"
-        f"TARGET DELTA: {ctx.target_delta:.2f}\n"
-        f"DTE: {ctx.dte_target}\n"
-        f"DIV YIELD: {ctx.dividend_yield:.2%}\n"
-        f"EXERCISE: {ctx.exercise_style.value}"
-    )
+    # Static block — always present
+    lines: list[str] = [
+        f"TICKER: {ctx.ticker}",
+        f"PRICE: ${ctx.current_price}",
+        f"52W HIGH: ${ctx.price_52w_high}",
+        f"52W LOW: ${ctx.price_52w_low}",
+        f"RSI(14): {ctx.rsi_14:.1f}",
+        f"MACD: {ctx.macd_signal.value}",
+        f"IV RANK: {ctx.iv_rank:.1f}",
+        f"IV PERCENTILE: {ctx.iv_percentile:.1f}",
+        f"ATM IV 30D: {ctx.atm_iv_30d:.1f}",
+        f"PUT/CALL RATIO: {ctx.put_call_ratio:.2f}",
+        f"SECTOR: {ctx.sector}",
+        f"TARGET STRIKE: ${ctx.target_strike}",
+        f"TARGET DELTA: {ctx.target_delta:.2f}",
+        f"DTE: {ctx.dte_target}",
+        f"DIV YIELD: {ctx.dividend_yield:.2%}",
+        f"EXERCISE: {ctx.exercise_style.value}",
+        # Scoring context — always present (have defaults)
+        f"COMPOSITE SCORE: {ctx.composite_score:.1f}",
+        f"DIRECTION: {ctx.direction_signal.value}",
+    ]
+
+    # Optional indicators — omit when None or non-finite
+    for label, value in [
+        ("ADX", ctx.adx),
+        ("SMA ALIGNMENT", ctx.sma_alignment),
+        ("BB WIDTH", ctx.bb_width),
+        ("ATR %", ctx.atr_pct),
+        ("STOCHASTIC RSI", ctx.stochastic_rsi),
+        ("REL VOLUME", ctx.relative_volume),
+    ]:
+        rendered = _render_optional(label, value)
+        if rendered is not None:
+            lines.append(rendered)
+
+    # Optional Greeks — omit when None or non-finite
+    for label, value, fmt in [
+        ("GAMMA", ctx.target_gamma, ".4f"),
+        ("THETA", ctx.target_theta, ".4f"),
+        ("VEGA", ctx.target_vega, ".4f"),
+        ("RHO", ctx.target_rho, ".4f"),
+    ]:
+        rendered = _render_optional(label, value, fmt)
+        if rendered is not None:
+            lines.append(rendered)
+
+    # Optional contract mid — Decimal, not float
+    if ctx.contract_mid is not None:
+        lines.append(f"CONTRACT MID: ${ctx.contract_mid}")
+
+    return "\n".join(lines)

@@ -53,6 +53,27 @@ class MarketContext(BaseModel):
     exercise_style: ExerciseStyle  # for pricing dispatch (BAW vs BSM)
     data_timestamp: datetime
 
+    # Scoring context (from TickerScore)
+    composite_score: float = 0.0
+    direction_signal: SignalDirection = SignalDirection.NEUTRAL
+
+    # Key indicators (normalized 0-100, None = not computed)
+    adx: float | None = None
+    sma_alignment: float | None = None
+    bb_width: float | None = None
+    atr_pct: float | None = None
+    stochastic_rsi: float | None = None
+    relative_volume: float | None = None
+
+    # Greeks beyond delta (from first recommended contract)
+    target_gamma: float | None = None
+    target_theta: float | None = None  # $/day time decay
+    target_vega: float | None = None  # $/1% IV change
+    target_rho: float | None = None
+
+    # Contract pricing
+    contract_mid: Decimal | None = None  # mid price of recommended contract
+
     @field_validator("data_timestamp")
     @classmethod
     def validate_utc(cls, v: datetime) -> datetime:
@@ -65,6 +86,11 @@ class MarketContext(BaseModel):
     def serialize_decimal(self, v: Decimal) -> str:
         """Serialize Decimal fields to str to avoid float precision loss in JSON."""
         return str(v)
+
+    @field_serializer("contract_mid")
+    def serialize_contract_mid(self, v: Decimal | None) -> str | None:
+        """Serialize optional Decimal to str for JSON precision safety."""
+        return str(v) if v is not None else None
 
 
 class AgentResponse(BaseModel):
