@@ -161,11 +161,11 @@ class TestPromptAppendixIntegration:
 
 
 class TestVersionHeaders:
-    """Verify all agent modules have # VERSION: v2.0 source comments."""
+    """Verify all agent modules have version header source comments."""
 
-    def test_bull_source_has_v2_header(self) -> None:
+    def test_bull_source_has_v2_1_header(self) -> None:
         source = inspect.getsource(bull_module)
-        assert "# VERSION: v2.0" in source
+        assert "# VERSION: v2.1" in source
 
     def test_bear_source_has_v2_header(self) -> None:
         source = inspect.getsource(bear_module)

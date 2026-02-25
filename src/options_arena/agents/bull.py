@@ -24,7 +24,7 @@ from options_arena.models import AgentResponse
 
 logger = logging.getLogger(__name__)
 
-# VERSION: v2.0
+# VERSION: v2.1
 BULL_SYSTEM_PROMPT = (
     """You are a bullish options analyst. Your job is to make the strongest \
 possible case FOR entering a long options position on the given ticker.
@@ -60,6 +60,17 @@ Rules:
     + PROMPT_RULES_APPENDIX
 )
 
+BULL_REBUTTAL_INSTRUCTIONS = """
+
+The bear has countered your argument with these key points:
+<<<BEAR_COUNTER>>>
+{bear_key_points}
+<<<END_BEAR_COUNTER>>>
+
+Provide a BRIEF rebuttal addressing the bear's strongest 2-3 points.
+Do not repeat your original argument -- focus only on defending against the counter.
+Keep this concise (3-5 sentences)."""
+
 bull_agent: Agent[DebateDeps, AgentResponse] = Agent(
     model=None,
     deps_type=DebateDeps,
@@ -68,10 +79,19 @@ bull_agent: Agent[DebateDeps, AgentResponse] = Agent(
 )
 
 
-@bull_agent.system_prompt
-def bull_system_prompt() -> str:
-    """Return the static bull system prompt."""
-    return BULL_SYSTEM_PROMPT
+@bull_agent.system_prompt(dynamic=True)
+async def bull_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
+    """Return the bull system prompt, appending rebuttal instructions when active.
+
+    Uses ``dynamic=True`` so the prompt is re-evaluated on every run. When
+    ``ctx.deps.bear_counter_argument`` is set (rebuttal mode), appends
+    rebuttal instructions with the bear's key points. Otherwise returns
+    the base prompt unchanged.
+    """
+    base = BULL_SYSTEM_PROMPT
+    if ctx.deps.bear_counter_argument is not None:
+        base += BULL_REBUTTAL_INSTRUCTIONS.format(bear_key_points=ctx.deps.bear_counter_argument)
+    return base
 
 
 @bull_agent.output_validator
