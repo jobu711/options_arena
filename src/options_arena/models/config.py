@@ -94,6 +94,19 @@ class DebateConfig(BaseModel):
     temperature: float = 0.3
     fallback_confidence: float = 0.3
     max_total_duration: float = 1800.0
+    min_debate_score: float = 30.0
+    enable_volatility_agent: bool = False
+    enable_rebuttal: bool = False
+
+    @field_validator("min_debate_score")
+    @classmethod
+    def validate_min_debate_score(cls, v: float) -> float:
+        """Ensure min_debate_score is finite and within [0.0, 100.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"min_debate_score must be finite, got {v}")
+        if not 0.0 <= v <= 100.0:
+            raise ValueError(f"min_debate_score must be in [0.0, 100.0], got {v}")
+        return v
 
     @field_validator("temperature")
     @classmethod
