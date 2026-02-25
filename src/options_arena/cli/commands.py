@@ -195,14 +195,35 @@ def _render_scan_results(result: ScanResult, elapsed: float) -> None:
 
 @app.command()
 def debate(
-    ticker: str = typer.Argument(..., help="Ticker symbol to debate"),  # noqa: B008
+    ticker: str | None = typer.Argument(None, help="Ticker symbol (omit for --batch)"),
+    batch: bool = typer.Option(False, "--batch", help="Debate top tickers from latest scan"),
+    batch_limit: int = typer.Option(5, "--batch-limit", help="Max tickers in batch mode"),
     history: bool = typer.Option(False, "--history", help="Show past debates"),
     fallback_only: bool = typer.Option(
         False, "--fallback-only", help="Force data-driven path (skip AI)"
     ),
 ) -> None:
     """Run AI debate on a scored ticker."""
-    asyncio.run(_debate_async(ticker.upper(), history, fallback_only))
+    if batch and ticker is not None:
+        err_console.print("[red]Cannot use --batch with a ticker argument.[/red]")
+        raise typer.Exit(code=1)
+    if batch and history:
+        err_console.print("[red]Cannot use --history with --batch.[/red]")
+        raise typer.Exit(code=1)
+    if not batch and ticker is None:
+        err_console.print("[red]Provide a TICKER or use --batch.[/red]")
+        raise typer.Exit(code=1)
+
+    if batch:
+        asyncio.run(_batch_async(batch_limit, fallback_only))
+    else:
+        assert ticker is not None  # validated above
+        asyncio.run(_debate_async(ticker.upper(), history, fallback_only))
+
+
+async def _batch_async(batch_limit: int, fallback_only: bool) -> None:
+    """Batch debate orchestration loop. Implemented in #104."""
+    raise NotImplementedError("Batch mode not yet implemented")
 
 
 async def _debate_single(
