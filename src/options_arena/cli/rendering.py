@@ -364,6 +364,61 @@ def _build_verdict_panel_text(thesis: TradeThesis) -> Text:
     return text
 
 
+def render_batch_summary_table(
+    results: list[tuple[str, DebateResult | None, str | None]],
+) -> Table:
+    """Render batch debate results as a compact summary table.
+
+    Args:
+        results: List of (ticker, debate_result_or_none, error_or_none) tuples.
+
+    Returns:
+        Rich Table with one row per ticker.
+    """
+    table = Table(title="Batch Debate Summary")
+    table.add_column("Ticker", style="bold white", no_wrap=True)
+    table.add_column("Direction", justify="center")
+    table.add_column("Confidence", justify="right")
+    table.add_column("Strategy", justify="center")
+    table.add_column("Fallback", justify="center")
+    table.add_column("Duration", justify="right")
+    table.add_column("Status", justify="center")
+
+    for ticker, result, error in results:
+        if result is not None:
+            thesis = result.thesis
+            direction_style = _DIRECTION_STYLES.get(thesis.direction.value, "")
+            direction_text: Text | str = Text(
+                thesis.direction.value.upper(), style=direction_style
+            )
+            conf_str = (
+                f"{thesis.confidence * 100:.0f}%" if math.isfinite(thesis.confidence) else "--"
+            )
+            strategy: str = (
+                thesis.recommended_strategy.value.upper()
+                if thesis.recommended_strategy is not None
+                else "--"
+            )
+            fallback: Text | str = (
+                Text("Yes", style="yellow") if result.is_fallback else Text("No", style="dim")
+            )
+            duration = f"{result.duration_ms / 1000:.1f}s"
+            status: Text | str = Text("OK", style="bold green")
+        else:
+            direction_text = "--"
+            conf_str = "--"
+            strategy = "--"
+            fallback = "--"
+            duration = "--"
+            # Truncate error to ~40 chars
+            err_msg = (error or "Unknown error")[:40]
+            status = Text(f"FAIL: {err_msg}", style="bold red")
+
+        table.add_row(ticker, direction_text, conf_str, strategy, fallback, duration, status)
+
+    return table
+
+
 def render_debate_history(debates: list[DebateRow], ticker: str) -> Table:
     """Render past debates as a Rich table.
 
