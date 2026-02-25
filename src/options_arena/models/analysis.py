@@ -1,13 +1,14 @@
 """Analysis models for Options Arena.
 
-Three models for market analysis and (v2) AI debate:
-  MarketContext   -- flat snapshot of ticker state for analysis and debate agents.
-  AgentResponse   -- structured response from a debate agent (frozen).
-  TradeThesis     -- final trade recommendation from the debate (frozen).
+Four models for market analysis and AI debate:
+  MarketContext      -- flat snapshot of ticker state for analysis and debate agents.
+  AgentResponse      -- structured response from a debate agent (frozen).
+  TradeThesis        -- final trade recommendation from the debate (frozen).
+  VolatilityThesis   -- structured output from the Volatility Agent (frozen).
 
 ``MarketContext`` is intentionally flat (not nested) because agents parse flat
-text better than nested objects.  ``AgentResponse`` and ``TradeThesis`` define
-shapes for the v2 debate system -- defined now, used later.
+text better than nested objects.  ``AgentResponse``, ``TradeThesis``, and
+``VolatilityThesis`` define shapes for the debate system.
 """
 
 import math
@@ -21,6 +22,7 @@ from options_arena.models.enums import (
     MacdSignal,
     SignalDirection,
     SpreadType,
+    VolAssessment,
 )
 
 
@@ -159,4 +161,54 @@ class TradeThesis(BaseModel):
             raise ValueError(f"score must be finite, got {v}")
         if not 0.0 <= v <= 10.0:
             raise ValueError(f"score must be in [0, 10], got {v}")
+        return v
+
+
+class VolatilityThesis(BaseModel):
+    """Structured output from the Volatility Agent.
+
+    Frozen (immutable after construction) -- represents a completed vol assessment.
+    ``confidence`` is validated to be within [0.0, 1.0] with ``math.isfinite()`` guard.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    iv_assessment: VolAssessment
+    iv_rank_interpretation: str  # Human-readable IV rank context
+    confidence: float  # 0.0 to 1.0
+    recommended_strategy: SpreadType | None = None
+    strategy_rationale: str
+    target_iv_entry: float | None = None
+    target_iv_exit: float | None = None
+    suggested_strikes: list[str]
+    key_vol_factors: list[str]
+    model_used: str
+
+    @field_validator("confidence")
+    @classmethod
+    def validate_confidence(cls, v: float) -> float:
+        """Ensure confidence is finite and within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"confidence must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"confidence must be in [0, 1], got {v}")
+        return v
+
+    @field_validator("target_iv_entry", "target_iv_exit")
+    @classmethod
+    def validate_iv_target(cls, v: float | None) -> float | None:
+        """Ensure IV targets are finite and non-negative when provided."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"IV target must be finite, got {v}")
+            if v < 0.0:
+                raise ValueError(f"IV target must be >= 0.0, got {v}")
+        return v
+
+    @field_validator("key_vol_factors")
+    @classmethod
+    def validate_key_vol_factors(cls, v: list[str]) -> list[str]:
+        """Ensure at least one volatility factor is cited."""
+        if len(v) < 1:
+            raise ValueError("key_vol_factors must have at least 1 item")
         return v

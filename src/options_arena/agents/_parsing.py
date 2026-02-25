@@ -19,6 +19,7 @@ from options_arena.models import (
     OptionContract,
     TickerScore,
     TradeThesis,
+    VolatilityThesis,
 )
 
 logger = logging.getLogger(__name__)
@@ -116,6 +117,35 @@ def build_cleaned_trade_thesis(output: TradeThesis) -> TradeThesis:
     )
 
 
+def build_cleaned_volatility_thesis(output: VolatilityThesis) -> VolatilityThesis:
+    """Strip ``<think>`` tags from all text fields of a ``VolatilityThesis``.
+
+    Returns the original instance unchanged if no ``<think>`` tags are found.
+    Constructs a new frozen instance with cleaned text fields otherwise.
+    """
+    fields = [
+        output.iv_rank_interpretation,
+        output.strategy_rationale,
+        *output.suggested_strikes,
+        *output.key_vol_factors,
+        output.model_used,
+    ]
+    if not any("<think>" in v or "</think>" in v for v in fields):
+        return output
+    return VolatilityThesis(
+        iv_assessment=output.iv_assessment,
+        iv_rank_interpretation=strip_think_tags(output.iv_rank_interpretation),
+        confidence=output.confidence,
+        recommended_strategy=output.recommended_strategy,
+        strategy_rationale=strip_think_tags(output.strategy_rationale),
+        target_iv_entry=output.target_iv_entry,
+        target_iv_exit=output.target_iv_exit,
+        suggested_strikes=[strip_think_tags(s) for s in output.suggested_strikes],
+        key_vol_factors=[strip_think_tags(f) for f in output.key_vol_factors],
+        model_used=strip_think_tags(output.model_used),
+    )
+
+
 @dataclass
 class DebateDeps:
     """Injected into every agent via RunContext[DebateDeps].
@@ -129,6 +159,7 @@ class DebateDeps:
     opponent_argument: str | None = None  # For bear (receives bull's text)
     bull_response: AgentResponse | None = None  # For risk agent
     bear_response: AgentResponse | None = None  # For risk agent
+    vol_response: VolatilityThesis | None = None  # For risk agent (vol context)
 
 
 @dataclass
@@ -147,6 +178,7 @@ class DebateResult:
     total_usage: RunUsage
     duration_ms: int
     is_fallback: bool
+    vol_response: VolatilityThesis | None = None  # None when vol agent disabled/skipped
 
 
 def _render_optional(label: str, value: float | None, fmt: str = ".1f") -> str | None:

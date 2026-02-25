@@ -22,9 +22,11 @@ from options_arena.models import (
     PricingModel,
     Quote,
     SignalDirection,
+    SpreadType,
     TickerInfo,
     TickerScore,
     TradeThesis,
+    VolatilityThesis,
 )
 
 
@@ -179,4 +181,21 @@ def mock_trade_thesis() -> TradeThesis:
         key_factors=["RSI trending up", "Sector strength"],
         risk_assessment="Moderate risk. Position sizing: 2% of portfolio.",
         recommended_strategy=None,
+    )
+
+
+@pytest.fixture()
+def mock_volatility_thesis() -> VolatilityThesis:
+    """Realistic VolatilityThesis for test assertions."""
+    return VolatilityThesis(
+        iv_assessment="overpriced",
+        iv_rank_interpretation="IV rank at 85 is in the top 15% of the 52-week range.",
+        confidence=0.75,
+        recommended_strategy=SpreadType.IRON_CONDOR,
+        strategy_rationale="High IV favors selling premium via iron condor.",
+        target_iv_entry=85.0,
+        target_iv_exit=50.0,
+        suggested_strikes=["185C", "195C"],
+        key_vol_factors=["Earnings in 5 days", "IV rank 85"],
+        model_used="llama3.1:8b",
     )

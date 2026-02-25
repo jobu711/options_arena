@@ -1,10 +1,11 @@
-"""Unit tests for analysis models: MarketContext, AgentResponse, TradeThesis.
+"""Unit tests for analysis models: MarketContext, AgentResponse, TradeThesis, VolatilityThesis.
 
 Tests cover:
 - Happy path construction with all fields
 - MarketContext is NOT frozen (mutable)
 - AgentResponse frozen enforcement and confidence validation
 - TradeThesis frozen enforcement and default values
+- VolatilityThesis frozen enforcement, confidence validation, and JSON roundtrip
 - JSON serialization roundtrip
 """
 
@@ -22,6 +23,7 @@ from options_arena.models import (
     SignalDirection,
     SpreadType,
     TradeThesis,
+    VolatilityThesis,
 )
 
 # ---------------------------------------------------------------------------
@@ -418,3 +420,86 @@ class TestTradeThesis:
         restored = TradeThesis.model_validate_json(json_str)
         assert restored == thesis
         assert restored.recommended_strategy == SpreadType.IRON_CONDOR
+
+
+# ---------------------------------------------------------------------------
+# VolatilityThesis Tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def sample_volatility_thesis() -> VolatilityThesis:
+    """Create a valid VolatilityThesis instance for reuse."""
+    return VolatilityThesis(
+        iv_assessment="overpriced",
+        iv_rank_interpretation="IV rank at 85th percentile — historically elevated.",
+        confidence=0.72,
+        recommended_strategy=SpreadType.IRON_CONDOR,
+        strategy_rationale="High IV favors premium-selling strategies.",
+        target_iv_entry=0.35,
+        target_iv_exit=0.22,
+        suggested_strikes=["AAPL 185P 2025-09-19", "AAPL 195C 2025-09-19"],
+        key_vol_factors=["Earnings in 14 days", "IV rank 85th pct", "VIX elevated"],
+        model_used="llama3.1:8b",
+    )
+
+
+class TestVolatilityThesis:
+    """Tests for the VolatilityThesis model."""
+
+    def test_volatility_thesis_construction(
+        self, sample_volatility_thesis: VolatilityThesis
+    ) -> None:
+        """VolatilityThesis constructs with valid data, all fields correctly assigned."""
+        vt = sample_volatility_thesis
+        assert vt.iv_assessment == "overpriced"
+        assert "85th percentile" in vt.iv_rank_interpretation
+        assert vt.confidence == pytest.approx(0.72)
+        assert vt.recommended_strategy == SpreadType.IRON_CONDOR
+        assert "premium-selling" in vt.strategy_rationale
+        assert vt.target_iv_entry == pytest.approx(0.35)
+        assert vt.target_iv_exit == pytest.approx(0.22)
+        assert len(vt.suggested_strikes) == 2
+        assert len(vt.key_vol_factors) == 3
+        assert vt.model_used == "llama3.1:8b"
+
+    def test_volatility_thesis_frozen(self, sample_volatility_thesis: VolatilityThesis) -> None:
+        """VolatilityThesis is frozen: attribute reassignment raises ValidationError."""
+        with pytest.raises(ValidationError):
+            sample_volatility_thesis.confidence = 0.5  # type: ignore[misc]
+
+    def test_volatility_thesis_confidence_validation(self) -> None:
+        """VolatilityThesis rejects confidence < 0, > 1, NaN, and inf."""
+        base_kwargs = {
+            "iv_assessment": "fair",
+            "iv_rank_interpretation": "IV rank at 50th percentile.",
+            "recommended_strategy": None,
+            "strategy_rationale": "Neutral vol outlook.",
+            "suggested_strikes": [],
+            "key_vol_factors": ["IV near median"],
+            "model_used": "llama3.1:8b",
+        }
+
+        # Reject confidence < 0
+        with pytest.raises(ValidationError, match="confidence"):
+            VolatilityThesis(confidence=-0.1, **base_kwargs)
+
+        # Reject confidence > 1
+        with pytest.raises(ValidationError, match="confidence"):
+            VolatilityThesis(confidence=1.5, **base_kwargs)
+
+        # Reject NaN
+        with pytest.raises(ValidationError, match="confidence"):
+            VolatilityThesis(confidence=float("nan"), **base_kwargs)
+
+        # Reject inf
+        with pytest.raises(ValidationError, match="confidence"):
+            VolatilityThesis(confidence=float("inf"), **base_kwargs)
+
+    def test_volatility_thesis_json_roundtrip(
+        self, sample_volatility_thesis: VolatilityThesis
+    ) -> None:
+        """VolatilityThesis survives JSON serialization/deserialization unchanged."""
+        json_str = sample_volatility_thesis.model_dump_json()
+        restored = VolatilityThesis.model_validate_json(json_str)
+        assert restored == sample_volatility_thesis

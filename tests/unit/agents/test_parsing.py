@@ -2,9 +2,9 @@
 
 Tests cover:
   - DebateDeps construction with required fields
-  - DebateDeps optional fields (opponent_argument, bull_response, bear_response)
+  - DebateDeps optional fields (opponent_argument, bull_response, bear_response, vol_response)
   - DebateResult construction
-  - DebateResult field access
+  - DebateResult field access (including vol_response default)
   - render_context_block output format
   - render_context_block contains expected field labels
   - render_context_block renders all MarketContext fields
@@ -27,8 +27,10 @@ from options_arena.models import (
     MarketContext,
     OptionContract,
     SignalDirection,
+    SpreadType,
     TickerScore,
     TradeThesis,
+    VolatilityThesis,
 )
 
 # ---------------------------------------------------------------------------
@@ -148,6 +150,47 @@ class TestDebateDeps:
         )
         assert deps.bear_response is not None
 
+    def test_optional_vol_response_defaults_none(
+        self,
+        mock_market_context: MarketContext,
+        mock_ticker_score: TickerScore,
+    ) -> None:
+        """vol_response defaults to None."""
+        deps = DebateDeps(
+            context=mock_market_context,
+            ticker_score=mock_ticker_score,
+            contracts=[],
+        )
+        assert deps.vol_response is None
+
+    def test_can_set_vol_response(
+        self,
+        mock_market_context: MarketContext,
+        mock_ticker_score: TickerScore,
+    ) -> None:
+        """vol_response can be set to a VolatilityThesis."""
+        vol = VolatilityThesis(
+            iv_assessment="overpriced",
+            iv_rank_interpretation="IV rank at 85 is in the top 15%",
+            confidence=0.75,
+            recommended_strategy=SpreadType.IRON_CONDOR,
+            strategy_rationale="High IV favors selling premium",
+            target_iv_entry=85.0,
+            target_iv_exit=50.0,
+            suggested_strikes=["185C", "195C"],
+            key_vol_factors=["Earnings in 5 days", "IV rank 85"],
+            model_used="llama3.1:8b",
+        )
+        deps = DebateDeps(
+            context=mock_market_context,
+            ticker_score=mock_ticker_score,
+            contracts=[],
+            vol_response=vol,
+        )
+        assert deps.vol_response is not None
+        assert isinstance(deps.vol_response, VolatilityThesis)
+        assert deps.vol_response.iv_assessment == "overpriced"
+
     def test_empty_contracts_list(
         self,
         mock_market_context: MarketContext,
@@ -220,6 +263,57 @@ class TestDebateResult:
             is_fallback=True,
         )
         assert result.is_fallback is True
+
+    def test_vol_response_defaults_none(
+        self,
+        mock_market_context: MarketContext,
+        mock_agent_response: AgentResponse,
+        mock_trade_thesis: TradeThesis,
+    ) -> None:
+        """vol_response defaults to None when not provided."""
+        result = DebateResult(
+            context=mock_market_context,
+            bull_response=mock_agent_response,
+            bear_response=mock_agent_response,
+            thesis=mock_trade_thesis,
+            total_usage=RunUsage(),
+            duration_ms=1500,
+            is_fallback=False,
+        )
+        assert result.vol_response is None
+
+    def test_vol_response_can_be_set(
+        self,
+        mock_market_context: MarketContext,
+        mock_agent_response: AgentResponse,
+        mock_trade_thesis: TradeThesis,
+    ) -> None:
+        """vol_response can be set to a VolatilityThesis."""
+        vol = VolatilityThesis(
+            iv_assessment="overpriced",
+            iv_rank_interpretation="IV rank at 85 is in the top 15%",
+            confidence=0.75,
+            recommended_strategy=SpreadType.IRON_CONDOR,
+            strategy_rationale="High IV favors selling premium",
+            target_iv_entry=85.0,
+            target_iv_exit=50.0,
+            suggested_strikes=["185C", "195C"],
+            key_vol_factors=["Earnings in 5 days", "IV rank 85"],
+            model_used="llama3.1:8b",
+        )
+        result = DebateResult(
+            context=mock_market_context,
+            bull_response=mock_agent_response,
+            bear_response=mock_agent_response,
+            thesis=mock_trade_thesis,
+            total_usage=RunUsage(),
+            duration_ms=1500,
+            is_fallback=False,
+            vol_response=vol,
+        )
+        assert result.vol_response is not None
+        assert isinstance(result.vol_response, VolatilityThesis)
+        assert result.vol_response.recommended_strategy == SpreadType.IRON_CONDOR
 
 
 # ---------------------------------------------------------------------------

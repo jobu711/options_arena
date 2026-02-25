@@ -17,7 +17,7 @@ from rich.text import Text
 
 from options_arena.agents._parsing import DebateResult
 from options_arena.data.repository import DebateRow
-from options_arena.models import TradeThesis
+from options_arena.models import TradeThesis, VolatilityThesis
 from options_arena.models.health import HealthStatus
 from options_arena.scan.models import ScanResult
 
@@ -142,6 +142,56 @@ _DIRECTION_STYLES: dict[str, str] = {
 }
 
 
+def render_volatility_panel(thesis: VolatilityThesis) -> Panel:
+    """Render Volatility Agent output as a cyan-bordered Rich Panel.
+
+    Uses ``Text()`` constructor (defaults to no markup) to prevent bracket
+    interpretation from agent-generated content.
+
+    Args:
+        thesis: VolatilityThesis from the Volatility Agent.
+
+    Returns:
+        Rich Panel with cyan border showing IV assessment and strategy.
+    """
+    lines: list[str] = [
+        f"IV Assessment: {thesis.iv_assessment.upper()}",
+        f"Confidence: {thesis.confidence * 100:.0f}%",
+        f"IV Rank Interpretation: {thesis.iv_rank_interpretation}",
+        "",
+        thesis.strategy_rationale,
+    ]
+
+    if thesis.recommended_strategy is not None:
+        lines.append("")
+        lines.append(f"Recommended Strategy: {thesis.recommended_strategy.value.upper()}")
+
+    if thesis.target_iv_entry is not None or thesis.target_iv_exit is not None:
+        lines.append("")
+        if thesis.target_iv_entry is not None:
+            lines.append(f"Target IV Entry: {thesis.target_iv_entry:.1f}")
+        if thesis.target_iv_exit is not None:
+            lines.append(f"Target IV Exit: {thesis.target_iv_exit:.1f}")
+
+    if thesis.suggested_strikes:
+        lines.append("")
+        lines.append(f"Suggested Strikes: {', '.join(thesis.suggested_strikes)}")
+
+    if thesis.key_vol_factors:
+        lines.append("")
+        lines.append("Key Volatility Factors:")
+        for factor in thesis.key_vol_factors:
+            lines.append(f"  * {factor}")
+
+    # Text() defaults to no markup — prevents agent text with [brackets] from crashing Rich
+    return Panel(
+        Text("\n".join(lines)),
+        border_style="cyan",
+        title="VOLATILITY ANALYSIS",
+        title_align="left",
+    )
+
+
 def render_debate_panels(console: Console, result: DebateResult) -> None:
     """Render debate result as Rich panels: Bull (green), Bear (red), Verdict (blue).
 
@@ -203,6 +253,11 @@ def render_debate_panels(console: Console, result: DebateResult) -> None:
         )
     )
     console.print()
+
+    # --- Volatility panel (optional) ---
+    if result.vol_response is not None:
+        console.print(render_volatility_panel(result.vol_response))
+        console.print()
 
     # --- Verdict panel ---
     thesis = result.thesis
