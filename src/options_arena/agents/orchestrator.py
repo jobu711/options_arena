@@ -328,6 +328,34 @@ async def _run_agents(
         bear_output.confidence,
     )
 
+    # --- Bull rebuttal (opt-in) ---
+    rebuttal_result = None
+    rebuttal_output: AgentResponse | None = None
+    if config.enable_rebuttal:
+        logger.info("Running bull rebuttal for %s", context.ticker)
+        bear_key_points = "\n".join(f"- {p}" for p in bear_output.key_points)
+        rebuttal_deps = DebateDeps(
+            context=context,
+            ticker_score=ticker_score,
+            contracts=contracts,
+            bear_counter_argument=bear_key_points,
+        )
+        rebuttal_result = await asyncio.wait_for(
+            bull_agent.run(
+                f"Rebut the bear's counterarguments for {context.ticker}.\n\n{context_text}",
+                model=model,
+                deps=rebuttal_deps,
+                model_settings=settings,
+            ),
+            timeout=per_agent_timeout,
+        )
+        rebuttal_output = rebuttal_result.output
+        logger.info(
+            "Bull rebuttal complete for %s: confidence=%.2f",
+            context.ticker,
+            rebuttal_output.confidence,
+        )
+
     # --- Volatility agent (opt-in) ---
     vol_result = None
     vol_output: VolatilityThesis | None = None
@@ -365,6 +393,7 @@ async def _run_agents(
         contracts=contracts,
         bull_response=bull_output,
         bear_response=bear_output,
+        bull_rebuttal=rebuttal_output,
         vol_response=vol_output,
     )
     risk_result = await asyncio.wait_for(
@@ -387,6 +416,8 @@ async def _run_agents(
 
     # Accumulate usage across all agents
     total_usage = bull_result.usage() + bear_result.usage() + risk_result.usage()
+    if rebuttal_result is not None:
+        total_usage = total_usage + rebuttal_result.usage()
     if vol_result is not None:
         total_usage = total_usage + vol_result.usage()
     elapsed_ms = int((time.monotonic() - start_time) * 1000)
@@ -407,6 +438,7 @@ async def _run_agents(
         total_usage=total_usage,
         duration_ms=elapsed_ms,
         is_fallback=False,
+        bull_rebuttal=rebuttal_output,
         vol_response=vol_output,
     )
 
