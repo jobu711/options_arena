@@ -9,17 +9,23 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
+import pytest
+from pydantic_ai.usage import RunUsage
+from rich.console import Console
 from rich.panel import Panel
 
+from options_arena.agents._parsing import DebateResult
 from options_arena.cli.rendering import (
     DISCLAIMER,
+    render_debate_panels,
     render_health_table,
     render_scan_table,
     render_volatility_panel,
 )
-from options_arena.models import VolatilityThesis
+from options_arena.models import AgentResponse, MarketContext, TradeThesis, VolatilityThesis
 from options_arena.models.enums import (
     ExerciseStyle,
+    MacdSignal,
     OptionType,
     PricingModel,
     ScanPreset,
@@ -221,3 +227,103 @@ def test_render_volatility_panel_minimal() -> None:
     )
     panel = render_volatility_panel(thesis)
     assert isinstance(panel, Panel)
+
+
+# ---------------------------------------------------------------------------
+# debate panel rendering — rebuttal
+# ---------------------------------------------------------------------------
+
+
+def _make_mock_debate_result(*, with_rebuttal: bool = False) -> DebateResult:
+    """Create a minimal DebateResult for rendering tests."""
+    bull = AgentResponse(
+        agent_name="bull",
+        direction=SignalDirection.BULLISH,
+        confidence=0.72,
+        argument="RSI at 62.3 indicates bullish momentum.",
+        key_points=["RSI trending up", "Volume increasing"],
+        risks_cited=["Earnings next week"],
+        contracts_referenced=["AAPL $190 CALL"],
+        model_used="test",
+    )
+    bear = AgentResponse(
+        agent_name="bear",
+        direction=SignalDirection.BEARISH,
+        confidence=0.55,
+        argument="IV is elevated, limiting upside.",
+        key_points=["IV elevated", "Overbought RSI"],
+        risks_cited=["Potential reversal"],
+        contracts_referenced=["AAPL $190 CALL"],
+        model_used="test",
+    )
+    rebuttal = None
+    if with_rebuttal:
+        rebuttal = AgentResponse(
+            agent_name="bull",
+            direction=SignalDirection.BULLISH,
+            confidence=0.68,
+            argument="IV elevation is temporary and already priced in.",
+            key_points=["IV mean-reverting", "Earnings not imminent"],
+            risks_cited=["Short-term vol spike possible"],
+            contracts_referenced=["AAPL $190 CALL"],
+            model_used="test",
+        )
+    thesis = TradeThesis(
+        ticker="AAPL",
+        direction=SignalDirection.BULLISH,
+        confidence=0.65,
+        summary="Moderate bullish case.",
+        bull_score=7.2,
+        bear_score=4.5,
+        key_factors=["Momentum"],
+        risk_assessment="Moderate risk.",
+        recommended_strategy=None,
+    )
+    ctx = MarketContext(
+        ticker="AAPL",
+        current_price=Decimal("185.50"),
+        price_52w_high=Decimal("199.62"),
+        price_52w_low=Decimal("164.08"),
+        iv_rank=45.2,
+        iv_percentile=52.1,
+        atm_iv_30d=28.5,
+        rsi_14=62.3,
+        macd_signal=MacdSignal.BULLISH_CROSSOVER,
+        put_call_ratio=0.85,
+        next_earnings=None,
+        dte_target=45,
+        target_strike=Decimal("190.00"),
+        target_delta=0.35,
+        sector="Information Technology",
+        dividend_yield=0.005,
+        exercise_style=ExerciseStyle.AMERICAN,
+        data_timestamp=datetime(2026, 2, 24, 14, 30, 0, tzinfo=UTC),
+    )
+    return DebateResult(
+        context=ctx,
+        bull_response=bull,
+        bear_response=bear,
+        thesis=thesis,
+        total_usage=RunUsage(),
+        duration_ms=1000,
+        is_fallback=False,
+        bull_rebuttal=rebuttal,
+    )
+
+
+def test_render_debate_panels_with_rebuttal(capsys: pytest.CaptureFixture[str]) -> None:
+    """render_debate_panels renders BULL REBUTTAL panel when bull_rebuttal is set."""
+    result = _make_mock_debate_result(with_rebuttal=True)
+    console = Console(force_terminal=True, width=120)
+    render_debate_panels(console, result)
+    output = capsys.readouterr().out
+    assert "BULL REBUTTAL" in output
+
+
+def test_render_debate_panels_without_rebuttal(capsys: pytest.CaptureFixture[str]) -> None:
+    """render_debate_panels omits BULL REBUTTAL panel when bull_rebuttal is None."""
+    result = _make_mock_debate_result(with_rebuttal=False)
+    console = Console(force_terminal=True, width=120)
+    render_debate_panels(console, result)
+    output = capsys.readouterr().out
+    assert "BULL REBUTTAL" not in output

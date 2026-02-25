@@ -254,6 +254,21 @@ def render_debate_panels(console: Console, result: DebateResult) -> None:
     )
     console.print()
 
+    # --- Bull rebuttal panel (optional) ---
+    if result.bull_rebuttal is not None:
+        rebuttal = result.bull_rebuttal
+        rebuttal_body = _build_agent_panel_text(
+            direction=rebuttal.direction.value.upper(),
+            confidence=rebuttal.confidence,
+            argument=rebuttal.argument,
+            key_points=rebuttal.key_points,
+            risks=rebuttal.risks_cited,
+        )
+        console.print(
+            Panel(rebuttal_body, border_style="green", title="BULL REBUTTAL", title_align="left")
+        )
+        console.print()
+
     # --- Volatility panel (optional) ---
     if result.vol_response is not None:
         console.print(render_volatility_panel(result.vol_response))

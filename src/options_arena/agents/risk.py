@@ -47,8 +47,10 @@ You MUST:
 2. Score both the bull and bear cases on a 0-10 scale based on evidence quality
 3. Identify the key factors that tilt the decision one way or the other
 4. Assess risk/reward ratio for the proposed position
-5. Recommend a strategy type if the trade is worth taking, or null if not
-6. Provide position sizing guidance in your risk assessment
+5. If a bull rebuttal is provided (<<<BULL_REBUTTAL>>> block), factor it into the bull_score \
+and summary — a well-supported rebuttal should raise the bull_score
+6. Recommend a strategy type if the trade is worth taking, or null if not
+7. Provide position sizing guidance in your risk assessment
 
 Your response must be valid JSON matching this schema:
 {
@@ -113,6 +115,15 @@ async def risk_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
             f"Argument: {ctx.deps.bear_response.argument}\n"
             f"Key Points: {', '.join(ctx.deps.bear_response.key_points)}\n"
             f"<<<END_BEAR_CASE>>>"
+        )
+    if ctx.deps.bull_rebuttal is not None:
+        parts.append(
+            f"\n\n<<<BULL_REBUTTAL>>>\n"
+            f"Direction: {ctx.deps.bull_rebuttal.direction.value}\n"
+            f"Confidence: {ctx.deps.bull_rebuttal.confidence}\n"
+            f"Argument: {ctx.deps.bull_rebuttal.argument}\n"
+            f"Key Points: {', '.join(ctx.deps.bull_rebuttal.key_points)}\n"
+            f"<<<END_BULL_REBUTTAL>>>"
         )
     if ctx.deps.vol_response is not None:
         vol = ctx.deps.vol_response

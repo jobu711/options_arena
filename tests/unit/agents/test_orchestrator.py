@@ -1130,3 +1130,124 @@ class TestVolatilityAgentIntegration:
         )
         assert result.is_fallback is True
         assert result.vol_response is None
+
+
+# ---------------------------------------------------------------------------
+# Bull rebuttal integration — orchestrator behavior with rebuttal enabled/disabled
+# ---------------------------------------------------------------------------
+
+
+class TestBullRebuttalIntegration:
+    """Tests for bull rebuttal integration in run_debate()."""
+
+    @pytest.mark.asyncio
+    async def test_rebuttal_enabled_produces_bull_rebuttal(
+        self,
+        mock_ticker_score: TickerScore,
+        mock_option_contract: OptionContract,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+    ) -> None:
+        """When enable_rebuttal=True, result.bull_rebuttal is not None."""
+        config = DebateConfig(
+            agent_timeout=10.0,
+            max_total_duration=30.0,
+            enable_rebuttal=True,
+        )
+        with (
+            bull_agent.override(model=TestModel()),
+            bear_agent.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
+        ):
+            result = await run_debate(
+                ticker_score=mock_ticker_score,
+                contracts=[mock_option_contract],
+                quote=mock_quote,
+                ticker_info=mock_ticker_info,
+                config=config,
+            )
+        assert result.is_fallback is False
+        assert isinstance(result.bull_rebuttal, AgentResponse)
+
+    @pytest.mark.asyncio
+    async def test_rebuttal_disabled_skips_rebuttal(
+        self,
+        mock_ticker_score: TickerScore,
+        mock_option_contract: OptionContract,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_debate_config: DebateConfig,
+    ) -> None:
+        """When enable_rebuttal=False (default), bull_rebuttal is None."""
+        with (
+            bull_agent.override(model=TestModel()),
+            bear_agent.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
+        ):
+            result = await run_debate(
+                ticker_score=mock_ticker_score,
+                contracts=[mock_option_contract],
+                quote=mock_quote,
+                ticker_info=mock_ticker_info,
+                config=mock_debate_config,
+            )
+        assert result.is_fallback is False
+        assert result.bull_rebuttal is None
+
+    @pytest.mark.asyncio
+    async def test_fallback_result_has_bull_rebuttal_none(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        mock_ticker_score: TickerScore,
+        mock_option_contract: OptionContract,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_debate_config: DebateConfig,
+    ) -> None:
+        """Fallback results always have bull_rebuttal=None."""
+
+        async def fake_run_agents(*args: object, **kwargs: object) -> None:
+            raise httpx.ConnectError("refused")
+
+        monkeypatch.setattr("options_arena.agents.orchestrator._run_agents", fake_run_agents)
+        result = await run_debate(
+            ticker_score=mock_ticker_score,
+            contracts=[mock_option_contract],
+            quote=mock_quote,
+            ticker_info=mock_ticker_info,
+            config=mock_debate_config,
+        )
+        assert result.is_fallback is True
+        assert result.bull_rebuttal is None
+
+    @pytest.mark.asyncio
+    async def test_rebuttal_and_volatility_both_enabled(
+        self,
+        mock_ticker_score: TickerScore,
+        mock_option_contract: OptionContract,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+    ) -> None:
+        """When both enable_rebuttal and enable_volatility_agent are True, both are populated."""
+        config = DebateConfig(
+            agent_timeout=10.0,
+            max_total_duration=30.0,
+            enable_rebuttal=True,
+            enable_volatility_agent=True,
+        )
+        with (
+            bull_agent.override(model=TestModel()),
+            bear_agent.override(model=TestModel()),
+            volatility_agent.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
+        ):
+            result = await run_debate(
+                ticker_score=mock_ticker_score,
+                contracts=[mock_option_contract],
+                quote=mock_quote,
+                ticker_info=mock_ticker_info,
+                config=config,
+            )
+        assert result.is_fallback is False
+        assert isinstance(result.bull_rebuttal, AgentResponse)
+        assert isinstance(result.vol_response, VolatilityThesis)

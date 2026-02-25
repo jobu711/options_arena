@@ -157,8 +157,10 @@ class DebateDeps:
     ticker_score: TickerScore
     contracts: list[OptionContract]
     opponent_argument: str | None = None  # For bear (receives bull's text)
+    bear_counter_argument: str | None = None  # For bull rebuttal (bear's key_points as text)
     bull_response: AgentResponse | None = None  # For risk agent
     bear_response: AgentResponse | None = None  # For risk agent
+    bull_rebuttal: AgentResponse | None = None  # For risk agent (bull's rebuttal)
     vol_response: VolatilityThesis | None = None  # For risk agent (vol context)
 
 
@@ -178,6 +180,7 @@ class DebateResult:
     total_usage: RunUsage
     duration_ms: int
     is_fallback: bool
+    bull_rebuttal: AgentResponse | None = None  # None when rebuttal disabled/skipped
     vol_response: VolatilityThesis | None = None  # None when vol agent disabled/skipped
 
 
