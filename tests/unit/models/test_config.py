@@ -67,6 +67,9 @@ _ARENA_ENV_VARS = [
     "ARENA_DEBATE__RETRIES",
     "ARENA_DEBATE__FALLBACK_CONFIDENCE",
     "ARENA_DEBATE__MAX_TOTAL_DURATION",
+    "ARENA_DEBATE__MIN_DEBATE_SCORE",
+    "ARENA_DEBATE__ENABLE_VOLATILITY_AGENT",
+    "ARENA_DEBATE__ENABLE_REBUTTAL",
 ]
 
 
@@ -372,3 +375,59 @@ class TestDebateConfigDefaults:
         """Default groq_timeout is 60.0."""
         config = DebateConfig()
         assert config.groq_timeout == pytest.approx(60.0)
+
+
+# ---------------------------------------------------------------------------
+# Pre-screening config fields (Epic 3)
+# ---------------------------------------------------------------------------
+
+
+class TestDebateConfigPreScreening:
+    """Tests for min_debate_score, enable_volatility_agent, enable_rebuttal."""
+
+    def test_min_debate_score_default(self) -> None:
+        """Default min_debate_score is 30.0."""
+        config = DebateConfig()
+        assert config.min_debate_score == pytest.approx(30.0)
+
+    def test_enable_volatility_agent_default(self) -> None:
+        """Default enable_volatility_agent is False."""
+        config = DebateConfig()
+        assert config.enable_volatility_agent is False
+
+    def test_enable_rebuttal_default(self) -> None:
+        """Default enable_rebuttal is False."""
+        config = DebateConfig()
+        assert config.enable_rebuttal is False
+
+    def test_rejects_min_debate_score_above_100(self) -> None:
+        """min_debate_score > 100 is rejected."""
+        with pytest.raises(ValidationError, match="min_debate_score must be in"):
+            DebateConfig(min_debate_score=101.0)
+
+    def test_rejects_min_debate_score_below_0(self) -> None:
+        """Negative min_debate_score is rejected."""
+        with pytest.raises(ValidationError, match="min_debate_score must be in"):
+            DebateConfig(min_debate_score=-1.0)
+
+    def test_rejects_min_debate_score_nan(self) -> None:
+        """NaN min_debate_score is rejected."""
+        with pytest.raises(ValidationError, match="min_debate_score must be finite"):
+            DebateConfig(min_debate_score=float("nan"))
+
+    def test_rejects_min_debate_score_inf(self) -> None:
+        """Inf min_debate_score is rejected."""
+        with pytest.raises(ValidationError, match="min_debate_score must be finite"):
+            DebateConfig(min_debate_score=float("inf"))
+
+    def test_env_override_min_debate_score(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__MIN_DEBATE_SCORE env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__MIN_DEBATE_SCORE", "50.0")
+        settings = AppSettings()
+        assert settings.debate.min_debate_score == pytest.approx(50.0)
+
+    def test_env_override_enable_volatility_agent(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__ENABLE_VOLATILITY_AGENT env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__ENABLE_VOLATILITY_AGENT", "true")
+        settings = AppSettings()
+        assert settings.debate.enable_volatility_agent is True

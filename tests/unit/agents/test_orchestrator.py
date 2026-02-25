@@ -38,6 +38,7 @@ from options_arena.agents.orchestrator import (
     _opposite_direction,
     build_market_context,
     run_debate,
+    should_debate,
 )
 from options_arena.agents.risk import risk_agent
 from options_arena.models import (
@@ -834,3 +835,152 @@ class TestProviderAwareTimeout:
         mock_repo.save_debate.assert_awaited_once()
         call_kwargs = mock_repo.save_debate.call_args
         assert call_kwargs.kwargs["model_name"] == "llama-3.3-70b-versatile"
+
+
+# ---------------------------------------------------------------------------
+# should_debate() pre-screening gate
+# ---------------------------------------------------------------------------
+
+
+class TestShouldDebate:
+    """Tests for the should_debate() pure-function pre-screening gate."""
+
+    def test_returns_false_for_neutral_direction(self) -> None:
+        """NEUTRAL direction always skips debate, regardless of score."""
+        score = TickerScore(
+            ticker="X",
+            composite_score=80.0,
+            direction=SignalDirection.NEUTRAL,
+            signals=IndicatorSignals(),
+        )
+        assert should_debate(score, DebateConfig()) is False
+
+    def test_returns_false_for_score_below_threshold(self) -> None:
+        """Score below min_debate_score skips debate."""
+        score = TickerScore(
+            ticker="X",
+            composite_score=20.0,
+            direction=SignalDirection.BULLISH,
+            signals=IndicatorSignals(),
+        )
+        config = DebateConfig(min_debate_score=30.0)
+        assert should_debate(score, config) is False
+
+    def test_returns_true_for_bullish_above_threshold(self) -> None:
+        """BULLISH + score above threshold proceeds to debate."""
+        score = TickerScore(
+            ticker="X",
+            composite_score=50.0,
+            direction=SignalDirection.BULLISH,
+            signals=IndicatorSignals(),
+        )
+        config = DebateConfig(min_debate_score=30.0)
+        assert should_debate(score, config) is True
+
+    def test_score_exactly_at_threshold_returns_true(self) -> None:
+        """Score exactly at min_debate_score is inclusive (>=, not >)."""
+        score = TickerScore(
+            ticker="X",
+            composite_score=30.0,
+            direction=SignalDirection.BEARISH,
+            signals=IndicatorSignals(),
+        )
+        config = DebateConfig(min_debate_score=30.0)
+        assert should_debate(score, config) is True
+
+    def test_score_zero_non_neutral_returns_false(self) -> None:
+        """Score 0.0 with non-NEUTRAL direction returns False (below default 30)."""
+        score = TickerScore(
+            ticker="X",
+            composite_score=0.0,
+            direction=SignalDirection.BULLISH,
+            signals=IndicatorSignals(),
+        )
+        assert should_debate(score, DebateConfig()) is False
+
+
+# ---------------------------------------------------------------------------
+# run_debate() screening integration
+# ---------------------------------------------------------------------------
+
+
+class TestRunDebateScreening:
+    """Tests for pre-screening integration in run_debate()."""
+
+    @pytest.mark.asyncio
+    async def test_screening_returns_fallback_for_neutral(
+        self,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_option_contract: OptionContract,
+    ) -> None:
+        """run_debate returns screening fallback for NEUTRAL ticker."""
+        neutral_score = TickerScore(
+            ticker="AAPL",
+            composite_score=80.0,
+            direction=SignalDirection.NEUTRAL,
+            signals=IndicatorSignals(),
+        )
+        result = await run_debate(
+            ticker_score=neutral_score,
+            contracts=[mock_option_contract],
+            quote=mock_quote,
+            ticker_info=mock_ticker_info,
+            config=DebateConfig(),
+        )
+        assert result.is_fallback is True
+        assert "Signal too weak" in result.thesis.summary
+
+    @pytest.mark.asyncio
+    async def test_screening_fallback_includes_composite_score(
+        self,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_option_contract: OptionContract,
+    ) -> None:
+        """Screening fallback summary includes composite score and direction."""
+        weak_score = TickerScore(
+            ticker="AAPL",
+            composite_score=15.0,
+            direction=SignalDirection.BULLISH,
+            signals=IndicatorSignals(),
+        )
+        result = await run_debate(
+            ticker_score=weak_score,
+            contracts=[mock_option_contract],
+            quote=mock_quote,
+            ticker_info=mock_ticker_info,
+            config=DebateConfig(min_debate_score=30.0),
+        )
+        assert result.is_fallback is True
+        assert "15.0/100" in result.thesis.summary
+        assert "bullish" in result.thesis.summary
+
+    @pytest.mark.asyncio
+    async def test_screening_fallback_persists_when_repository_provided(
+        self,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_option_contract: OptionContract,
+    ) -> None:
+        """Screened-out tickers are still persisted when a repository is provided."""
+        mock_repo = MagicMock()
+        mock_repo.save_debate = AsyncMock(return_value=1)
+
+        neutral_score = TickerScore(
+            ticker="AAPL",
+            composite_score=80.0,
+            direction=SignalDirection.NEUTRAL,
+            signals=IndicatorSignals(),
+            scan_run_id=1,
+        )
+        result = await run_debate(
+            ticker_score=neutral_score,
+            contracts=[mock_option_contract],
+            quote=mock_quote,
+            ticker_info=mock_ticker_info,
+            config=DebateConfig(),
+            repository=mock_repo,
+        )
+        assert result.is_fallback is True
+        mock_repo.save_debate.assert_awaited_once()

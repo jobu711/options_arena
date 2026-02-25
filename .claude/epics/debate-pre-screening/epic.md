@@ -1,8 +1,9 @@
 ---
 name: debate-pre-screening
-status: backlog
+status: complete
 created: 2026-02-24T21:49:24Z
-progress: 0%
+updated: 2026-02-25T10:02:45Z
+progress: 100%
 prd: .claude/prds/ai-debate-enhance.md
 parent: .claude/epics/ai-debate-enhance/epic.md
 github: https://github.com/jobu711/options_arena/issues/82
@@ -87,9 +88,9 @@ uv run mypy src/ --strict
 ```
 
 ## Tasks Created
-- [ ] #83 - Add pre-screening and future-feature config fields to DebateConfig (parallel: false)
-- [ ] #84 - Implement should_debate() gate and screening fallback in orchestrator (parallel: false)
-- [ ] #85 - Write tests for pre-screening gate and config expansion (parallel: false)
+- [x] #83 - Add pre-screening and future-feature config fields to DebateConfig (parallel: false)
+- [x] #84 - Implement should_debate() gate and screening fallback in orchestrator (parallel: false)
+- [x] #85 - Write tests for pre-screening gate and config expansion (parallel: false)
 
 Total tasks: 3
 Parallel tasks: 0
