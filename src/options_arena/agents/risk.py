@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 RISK_STRATEGY_TREE = """
 Strategy selection decision tree:
 - IF direction is "neutral" AND IV RANK > 70: recommend "iron_condor"
+- IF direction is "neutral" AND IV RANK 30-70: recommend "butterfly"
 - IF direction is "neutral" AND IV RANK < 30: recommend "straddle"
 - IF confidence > 0.7 AND IV RANK < 50: recommend "vertical"
 - IF confidence 0.4-0.7 AND IV RANK > 50: recommend "calendar"

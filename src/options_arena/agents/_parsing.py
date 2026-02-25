@@ -46,8 +46,7 @@ def strip_think_tags(text: str) -> str:
 
 
 # VERSION: v2.0
-PROMPT_RULES_APPENDIX = """
-Confidence calibration (MUST follow these guidelines):
+PROMPT_RULES_APPENDIX = """Confidence calibration (MUST follow these guidelines):
 - 0.0-0.2: Extremely weak case, minimal data support
 - 0.2-0.4: Weak case, some data but significant contradictions
 - 0.4-0.6: Moderate case, mixed signals in the data

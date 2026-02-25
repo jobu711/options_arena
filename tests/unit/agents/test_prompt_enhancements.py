@@ -12,9 +12,14 @@ Tests cover:
 
 from __future__ import annotations
 
+import inspect
+
 import pytest
 from pydantic_ai import models
 
+import options_arena.agents.bear as bear_module
+import options_arena.agents.bull as bull_module
+import options_arena.agents.risk as risk_module
 from options_arena.agents._parsing import (
     PROMPT_RULES_APPENDIX,
     build_cleaned_agent_response,
@@ -149,19 +154,19 @@ class TestPromptAppendixIntegration:
 
 
 class TestVersionHeaders:
-    """Verify all prompts have v2.0 version headers."""
+    """Verify all agent modules have # VERSION: v2.0 source comments."""
 
-    def test_bull_prompt_v2(self) -> None:
-        # The version comment is above the string constant in the source file.
-        # The prompt content itself should be the v2.0 version (includes appendix).
-        assert "Confidence calibration" in BULL_SYSTEM_PROMPT
+    def test_bull_source_has_v2_header(self) -> None:
+        source = inspect.getsource(bull_module)
+        assert "# VERSION: v2.0" in source
 
-    def test_bear_prompt_v2(self) -> None:
-        assert "Confidence calibration" in BEAR_SYSTEM_PROMPT
+    def test_bear_source_has_v2_header(self) -> None:
+        source = inspect.getsource(bear_module)
+        assert "# VERSION: v2.0" in source
 
-    def test_risk_prompt_v2(self) -> None:
-        assert "Confidence calibration" in RISK_SYSTEM_PROMPT
-        assert "Strategy selection decision tree" in RISK_SYSTEM_PROMPT
+    def test_risk_source_has_v2_header(self) -> None:
+        source = inspect.getsource(risk_module)
+        assert "# VERSION: v2.0" in source
 
 
 # --- build_cleaned_agent_response tests ---
