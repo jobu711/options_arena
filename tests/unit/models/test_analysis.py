@@ -476,7 +476,7 @@ class TestVolatilityThesis:
             "recommended_strategy": None,
             "strategy_rationale": "Neutral vol outlook.",
             "suggested_strikes": [],
-            "key_vol_factors": [],
+            "key_vol_factors": ["IV near median"],
             "model_used": "llama3.1:8b",
         }
 

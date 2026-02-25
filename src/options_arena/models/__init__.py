@@ -30,6 +30,7 @@ from options_arena.models.enums import (
     ScanPreset,
     SignalDirection,
     SpreadType,
+    VolAssessment,
 )
 from options_arena.models.health import HealthStatus
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
@@ -50,6 +51,7 @@ __all__ = [
     "ScanPreset",
     "SignalDirection",
     "SpreadType",
+    "VolAssessment",
     # Market data
     "OHLCV",
     "Quote",

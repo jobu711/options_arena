@@ -125,6 +125,19 @@ class GreeksSource(StrEnum):
     MARKET = "market"
 
 
+class VolAssessment(StrEnum):
+    """Implied volatility assessment from the Volatility Agent.
+
+    OVERPRICED  — IV is elevated, favors selling premium.
+    UNDERPRICED — IV is depressed, favors buying premium.
+    FAIR        — IV is fairly valued, no vol play warranted.
+    """
+
+    OVERPRICED = "overpriced"
+    UNDERPRICED = "underpriced"
+    FAIR = "fair"
+
+
 class DebateProvider(StrEnum):
     """LLM provider for the AI debate system.
 

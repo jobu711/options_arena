@@ -279,9 +279,14 @@ async def test_volatility_output_validator_passthrough_when_no_tags(
 
 @pytest.mark.asyncio
 async def test_build_cleaned_volatility_thesis_strips_all_fields() -> None:
-    """Shared helper strips <think> tags from all text fields."""
+    """Shared helper strips <think> tags from all text fields.
+
+    Note: iv_assessment is VolAssessment StrEnum — think tags cannot appear
+    there because Pydantic validation rejects non-enum values before the output
+    validator runs. Only string fields are tested for stripping.
+    """
     thesis = VolatilityThesis(
-        iv_assessment="<think>assess</think>overpriced",
+        iv_assessment="overpriced",
         iv_rank_interpretation="<think>interp</think>IV rank high",
         confidence=0.65,
         recommended_strategy=None,
@@ -293,7 +298,7 @@ async def test_build_cleaned_volatility_thesis_strips_all_fields() -> None:
         model_used="<think>m</think>llama3.1:8b",
     )
     cleaned = build_cleaned_volatility_thesis(thesis)
-    assert "<think>" not in cleaned.iv_assessment
+    assert cleaned.iv_assessment == "overpriced"
     assert "<think>" not in cleaned.iv_rank_interpretation
     assert "<think>" not in cleaned.strategy_rationale
     assert all("<think>" not in s for s in cleaned.suggested_strikes)

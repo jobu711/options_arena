@@ -268,9 +268,14 @@ class TestBuildCleanedTradeThesis:
 
 @pytest.fixture()
 def vol_thesis_with_think_tags() -> VolatilityThesis:
-    """VolatilityThesis with <think> tags in text fields."""
+    """VolatilityThesis with <think> tags in text fields.
+
+    Note: iv_assessment is a VolAssessment StrEnum — think tags cannot appear
+    there because Pydantic validation rejects non-enum values before the output
+    validator runs.
+    """
     return VolatilityThesis(
-        iv_assessment="<think>Checking IV levels.</think>overpriced",
+        iv_assessment="overpriced",
         iv_rank_interpretation=("<think>rank analysis</think>IV rank at 85 is in the top 15%"),
         confidence=0.75,
         recommended_strategy=SpreadType.IRON_CONDOR,
@@ -312,13 +317,12 @@ def vol_thesis_clean() -> VolatilityThesis:
 class TestBuildCleanedVolatilityThesis:
     """Tests for the shared VolatilityThesis output validator helper."""
 
-    def test_strips_think_tags_from_iv_assessment(
+    def test_iv_assessment_passes_through_as_enum(
         self, vol_thesis_with_think_tags: VolatilityThesis
     ) -> None:
+        """iv_assessment is VolAssessment StrEnum — passes through unchanged."""
         result = build_cleaned_volatility_thesis(vol_thesis_with_think_tags)
-        assert "<think>" not in result.iv_assessment
-        assert "</think>" not in result.iv_assessment
-        assert "overpriced" in result.iv_assessment
+        assert result.iv_assessment == vol_thesis_with_think_tags.iv_assessment
 
     def test_strips_think_tags_from_iv_rank_interpretation(
         self, vol_thesis_with_think_tags: VolatilityThesis

@@ -22,6 +22,7 @@ from options_arena.models.enums import (
     MacdSignal,
     SignalDirection,
     SpreadType,
+    VolAssessment,
 )
 
 
@@ -172,7 +173,7 @@ class VolatilityThesis(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    iv_assessment: str  # "overpriced", "underpriced", "fair"
+    iv_assessment: VolAssessment
     iv_rank_interpretation: str  # Human-readable IV rank context
     confidence: float  # 0.0 to 1.0
     recommended_strategy: SpreadType | None = None
@@ -191,4 +192,20 @@ class VolatilityThesis(BaseModel):
             raise ValueError(f"confidence must be finite, got {v}")
         if not 0.0 <= v <= 1.0:
             raise ValueError(f"confidence must be in [0, 1], got {v}")
+        return v
+
+    @field_validator("target_iv_entry", "target_iv_exit")
+    @classmethod
+    def validate_iv_target(cls, v: float | None) -> float | None:
+        """Ensure IV targets are finite when provided."""
+        if v is not None and not math.isfinite(v):
+            raise ValueError(f"IV target must be finite, got {v}")
+        return v
+
+    @field_validator("key_vol_factors")
+    @classmethod
+    def validate_key_vol_factors(cls, v: list[str]) -> list[str]:
+        """Ensure at least one volatility factor is cited."""
+        if len(v) < 1:
+            raise ValueError("key_vol_factors must have at least 1 item")
         return v

@@ -206,7 +206,7 @@ def test_render_volatility_panel_all_fields() -> None:
 
 
 def test_render_volatility_panel_minimal() -> None:
-    """Panel renders with only required fields (no strategy, targets, strikes, factors)."""
+    """Panel renders with only required fields (no strategy, targets, minimal factors)."""
     thesis = VolatilityThesis(
         iv_assessment="fair",
         iv_rank_interpretation="IV rank at 45 is near the median",
@@ -216,7 +216,7 @@ def test_render_volatility_panel_minimal() -> None:
         target_iv_entry=None,
         target_iv_exit=None,
         suggested_strikes=[],
-        key_vol_factors=[],
+        key_vol_factors=["IV near median"],
         model_used="llama3.1:8b",
     )
     panel = render_volatility_panel(thesis)

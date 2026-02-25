@@ -627,6 +627,9 @@ async def _persist_result(
             model_name=model_name,
             duration_ms=result.duration_ms,
             is_fallback=result.is_fallback,
+            vol_json=(
+                result.vol_response.model_dump_json() if result.vol_response is not None else None
+            ),
         )
         logger.debug(
             "Persisted debate for %s (tokens=%d, fallback=%s)",

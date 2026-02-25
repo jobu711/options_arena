@@ -124,7 +124,6 @@ def build_cleaned_volatility_thesis(output: VolatilityThesis) -> VolatilityThesi
     Constructs a new frozen instance with cleaned text fields otherwise.
     """
     fields = [
-        output.iv_assessment,
         output.iv_rank_interpretation,
         output.strategy_rationale,
         *output.suggested_strikes,
@@ -134,7 +133,7 @@ def build_cleaned_volatility_thesis(output: VolatilityThesis) -> VolatilityThesi
     if not any("<think>" in v or "</think>" in v for v in fields):
         return output
     return VolatilityThesis(
-        iv_assessment=strip_think_tags(output.iv_assessment),
+        iv_assessment=output.iv_assessment,
         iv_rank_interpretation=strip_think_tags(output.iv_rank_interpretation),
         confidence=output.confidence,
         recommended_strategy=output.recommended_strategy,
