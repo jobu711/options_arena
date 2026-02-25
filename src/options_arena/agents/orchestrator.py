@@ -48,6 +48,17 @@ from options_arena.models import (
 logger = logging.getLogger(__name__)
 
 
+def should_debate(ticker_score: TickerScore, config: DebateConfig) -> bool:
+    """Return False if signal is too weak for meaningful AI debate.
+
+    Pure function — no side effects, no I/O, no logging. Score comparison
+    uses ``<`` so that a score exactly at ``min_debate_score`` returns True.
+    """
+    if ticker_score.direction == SignalDirection.NEUTRAL:
+        return False
+    return ticker_score.composite_score >= config.min_debate_score
+
+
 def build_market_context(
     ticker_score: TickerScore,
     quote: Quote,
@@ -163,6 +174,10 @@ async def run_debate(
     """
     start_time = time.monotonic()
     context = build_market_context(ticker_score, quote, ticker_info, contracts)
+
+    if not should_debate(ticker_score, config):
+        logger.info("Skipping debate for %s: signal too weak", ticker_score.ticker)
+        return _build_screening_fallback(context, ticker_score, contracts, config, start_time)
 
     try:
         result = await asyncio.wait_for(
@@ -423,6 +438,47 @@ def _build_fallback_result(
         thesis=thesis,
         total_usage=RunUsage(),
         duration_ms=elapsed_ms,
+        is_fallback=True,
+    )
+
+
+def _build_screening_fallback(
+    context: MarketContext,
+    ticker_score: TickerScore,
+    contracts: list[OptionContract],
+    config: DebateConfig,
+    start_time: float,
+) -> DebateResult:
+    """Build fallback for tickers that fail pre-debate screening.
+
+    Wraps ``_build_fallback_result()`` with a screening-specific thesis summary
+    indicating the debate was skipped due to weak signal.
+    """
+    result = _build_fallback_result(context, ticker_score, contracts, config, start_time)
+    screening_summary = (
+        f"Signal too weak for meaningful debate "
+        f"(composite: {ticker_score.composite_score:.1f}/100, "
+        f"direction: {ticker_score.direction.value})."
+    )
+    # Override thesis with screening-specific summary and no strategy recommendation
+    screening_thesis = TradeThesis(
+        ticker=result.thesis.ticker,
+        direction=result.thesis.direction,
+        confidence=result.thesis.confidence,
+        summary=screening_summary,
+        bull_score=result.thesis.bull_score,
+        bear_score=result.thesis.bear_score,
+        key_factors=result.thesis.key_factors,
+        risk_assessment=result.thesis.risk_assessment,
+        recommended_strategy=None,
+    )
+    return DebateResult(
+        context=result.context,
+        bull_response=result.bull_response,
+        bear_response=result.bear_response,
+        thesis=screening_thesis,
+        total_usage=result.total_usage,
+        duration_ms=result.duration_ms,
         is_fallback=True,
     )
 
