@@ -45,6 +45,77 @@ def strip_think_tags(text: str) -> str:
     return cleaned
 
 
+# VERSION: v2.0
+PROMPT_RULES_APPENDIX = """
+Confidence calibration (MUST follow these guidelines):
+- 0.0-0.2: Extremely weak case, minimal data support
+- 0.2-0.4: Weak case, some data but significant contradictions
+- 0.4-0.6: Moderate case, mixed signals in the data
+- 0.6-0.8: Strong case, most indicators confirm thesis
+- 0.8-1.0: Very strong case, overwhelming data support
+
+Data anchors:
+- If COMPOSITE SCORE < 40: your confidence MUST NOT exceed 0.5
+- If COMPOSITE SCORE > 70 and direction matches: confidence MUST be at least 0.4
+- If RSI contradicts your thesis direction: reduce confidence by at least 0.1
+
+Data citation rules (MANDATORY):
+- When referencing data, use the EXACT label and value from the context block.
+- WRONG: "The RSI is showing strength" or "momentum is bullish"
+- RIGHT: "RSI(14): 65.3 is above the 50 midpoint, confirming bullish momentum"
+- WRONG: "Volatility is elevated"
+- RIGHT: "IV RANK: 85.0 places current IV in the top 15% of its 52-week range"
+- Every claim MUST cite at least one specific number from the context."""
+
+
+def build_cleaned_agent_response(output: AgentResponse) -> AgentResponse:
+    """Strip ``<think>`` tags from all text fields of an ``AgentResponse``.
+
+    Returns the original instance unchanged if no ``<think>`` tags are found.
+    Constructs a new frozen instance with cleaned text fields otherwise.
+    """
+    fields = [
+        output.argument,
+        *output.key_points,
+        *output.risks_cited,
+        *output.contracts_referenced,
+    ]
+    if not any("<think>" in v or "</think>" in v for v in fields):
+        return output
+    return AgentResponse(
+        agent_name=output.agent_name,
+        direction=output.direction,
+        confidence=output.confidence,
+        argument=strip_think_tags(output.argument),
+        key_points=[strip_think_tags(p) for p in output.key_points],
+        risks_cited=[strip_think_tags(r) for r in output.risks_cited],
+        contracts_referenced=[strip_think_tags(c) for c in output.contracts_referenced],
+        model_used=output.model_used,
+    )
+
+
+def build_cleaned_trade_thesis(output: TradeThesis) -> TradeThesis:
+    """Strip ``<think>`` tags from all text fields of a ``TradeThesis``.
+
+    Returns the original instance unchanged if no ``<think>`` tags are found.
+    Constructs a new frozen instance with cleaned text fields otherwise.
+    """
+    fields = [output.summary, output.risk_assessment, *output.key_factors]
+    if not any("<think>" in v or "</think>" in v for v in fields):
+        return output
+    return TradeThesis(
+        ticker=output.ticker,
+        direction=output.direction,
+        confidence=output.confidence,
+        summary=strip_think_tags(output.summary),
+        bull_score=output.bull_score,
+        bear_score=output.bear_score,
+        key_factors=[strip_think_tags(f) for f in output.key_factors],
+        risk_assessment=strip_think_tags(output.risk_assessment),
+        recommended_strategy=output.recommended_strategy,
+    )
+
+
 @dataclass
 class DebateDeps:
     """Injected into every agent via RunContext[DebateDeps].
