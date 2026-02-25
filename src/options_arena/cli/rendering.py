@@ -254,6 +254,11 @@ def render_debate_panels(console: Console, result: DebateResult) -> None:
     )
     console.print()
 
+    # --- Volatility panel (optional) ---
+    if result.vol_response is not None:
+        console.print(render_volatility_panel(result.vol_response))
+        console.print()
+
     # --- Verdict panel ---
     thesis = result.thesis
     verdict_body = _build_verdict_panel_text(thesis)

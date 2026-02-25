@@ -1,11 +1,13 @@
 """Orchestrator for the Options Arena AI debate system.
 
-Coordinates bull, bear, and risk agents sequentially, accumulates token usage,
-and returns a ``DebateResult``. On ANY failure (connection error, timeout, invalid
-LLM output, etc.), returns a data-driven fallback — ``run_debate()`` never raises.
+Coordinates bull, bear, volatility (optional), and risk agents sequentially,
+accumulates token usage, and returns a ``DebateResult``. On ANY failure
+(connection error, timeout, invalid LLM output, etc.), returns a data-driven
+fallback — ``run_debate()`` never raises.
 
 Architecture rules:
-- Agents run SEQUENTIALLY (bull -> bear -> risk). Ollama is single-threaded.
+- Agents run SEQUENTIALLY (bull -> bear -> volatility (if enabled) -> risk).
+  Ollama is single-threaded.
 - Every ``agent.run()`` is wrapped in ``asyncio.wait_for(timeout=...)``.
 - The orchestrator does NOT fetch data — all inputs are pre-fetched by the caller.
 - ``time.monotonic()`` for duration measurement, never ``time.time()``.
@@ -29,6 +31,7 @@ from options_arena.agents.bear import bear_agent
 from options_arena.agents.bull import bull_agent
 from options_arena.agents.model_config import build_debate_model
 from options_arena.agents.risk import risk_agent
+from options_arena.agents.volatility import volatility_agent
 from options_arena.data.repository import Repository
 from options_arena.models import (
     AgentResponse,
@@ -43,6 +46,7 @@ from options_arena.models import (
     TickerInfo,
     TickerScore,
     TradeThesis,
+    VolatilityThesis,
 )
 
 logger = logging.getLogger(__name__)
@@ -323,6 +327,35 @@ async def _run_agents(
         bear_output.confidence,
     )
 
+    # --- Volatility agent (opt-in) ---
+    vol_result = None
+    vol_output: VolatilityThesis | None = None
+    if config.enable_volatility_agent:
+        logger.info("Running volatility agent for %s", context.ticker)
+        vol_deps = DebateDeps(
+            context=context,
+            ticker_score=ticker_score,
+            contracts=contracts,
+            bull_response=bull_output,
+            bear_response=bear_output,
+        )
+        vol_result = await asyncio.wait_for(
+            volatility_agent.run(
+                f"Assess implied volatility for {context.ticker}.\n\n{context_text}",
+                model=model,
+                deps=vol_deps,
+                model_settings=settings,
+            ),
+            timeout=per_agent_timeout,
+        )
+        vol_output = vol_result.output
+        logger.info(
+            "Volatility agent complete for %s: iv_assessment=%s, confidence=%.2f",
+            context.ticker,
+            vol_output.iv_assessment,
+            vol_output.confidence,
+        )
+
     # --- Risk agent ---
     logger.info("Running risk agent for %s", context.ticker)
     risk_deps = DebateDeps(
@@ -331,6 +364,7 @@ async def _run_agents(
         contracts=contracts,
         bull_response=bull_output,
         bear_response=bear_output,
+        vol_response=vol_output,
     )
     risk_result = await asyncio.wait_for(
         risk_agent.run(
@@ -350,8 +384,10 @@ async def _run_agents(
         thesis.confidence,
     )
 
-    # Accumulate usage across all three agents
+    # Accumulate usage across all agents
     total_usage = bull_result.usage() + bear_result.usage() + risk_result.usage()
+    if vol_result is not None:
+        total_usage = total_usage + vol_result.usage()
     elapsed_ms = int((time.monotonic() - start_time) * 1000)
 
     logger.info(
@@ -370,6 +406,7 @@ async def _run_agents(
         total_usage=total_usage,
         duration_ms=elapsed_ms,
         is_fallback=False,
+        vol_response=vol_output,
     )
 
 
@@ -464,6 +501,7 @@ def _build_fallback_result(
         total_usage=RunUsage(),
         duration_ms=elapsed_ms,
         is_fallback=True,
+        vol_response=None,
     )
 
 
@@ -505,6 +543,7 @@ def _build_screening_fallback(
         total_usage=result.total_usage,
         duration_ms=result.duration_ms,
         is_fallback=True,
+        vol_response=None,
     )
 
 

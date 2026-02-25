@@ -41,6 +41,7 @@ from options_arena.agents.orchestrator import (
     should_debate,
 )
 from options_arena.agents.risk import risk_agent
+from options_arena.agents.volatility import volatility_agent
 from options_arena.models import (
     AgentResponse,
     DebateConfig,
@@ -53,6 +54,7 @@ from options_arena.models import (
     TickerInfo,
     TickerScore,
     TradeThesis,
+    VolatilityThesis,
 )
 
 # Prevent accidental real API calls
@@ -984,3 +986,147 @@ class TestRunDebateScreening:
         )
         assert result.is_fallback is True
         mock_repo.save_debate.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# Volatility agent integration — orchestrator behavior with vol enabled/disabled
+# ---------------------------------------------------------------------------
+
+
+class TestVolatilityAgentIntegration:
+    """Tests for volatility agent integration in run_debate()."""
+
+    @pytest.mark.asyncio
+    async def test_vol_enabled_produces_vol_response(
+        self,
+        mock_ticker_score: TickerScore,
+        mock_option_contract: OptionContract,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+    ) -> None:
+        """When enable_volatility_agent=True, result.vol_response is not None."""
+        config = DebateConfig(
+            agent_timeout=10.0,
+            max_total_duration=30.0,
+            enable_volatility_agent=True,
+        )
+        with (
+            bull_agent.override(model=TestModel()),
+            bear_agent.override(model=TestModel()),
+            volatility_agent.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
+        ):
+            result = await run_debate(
+                ticker_score=mock_ticker_score,
+                contracts=[mock_option_contract],
+                quote=mock_quote,
+                ticker_info=mock_ticker_info,
+                config=config,
+            )
+        assert result.is_fallback is False
+        assert isinstance(result.vol_response, VolatilityThesis)
+
+    @pytest.mark.asyncio
+    async def test_vol_disabled_skips_vol_agent(
+        self,
+        mock_ticker_score: TickerScore,
+        mock_option_contract: OptionContract,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_debate_config: DebateConfig,
+    ) -> None:
+        """When enable_volatility_agent=False (default), vol_response is None."""
+        with (
+            bull_agent.override(model=TestModel()),
+            bear_agent.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
+        ):
+            result = await run_debate(
+                ticker_score=mock_ticker_score,
+                contracts=[mock_option_contract],
+                quote=mock_quote,
+                ticker_info=mock_ticker_info,
+                config=mock_debate_config,
+            )
+        assert result.is_fallback is False
+        assert result.vol_response is None
+
+    @pytest.mark.asyncio
+    async def test_vol_agent_failure_triggers_fallback(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        mock_ticker_score: TickerScore,
+        mock_option_contract: OptionContract,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+    ) -> None:
+        """Volatility agent failure triggers the never-raises fallback pattern."""
+        config = DebateConfig(
+            agent_timeout=10.0,
+            max_total_duration=30.0,
+            enable_volatility_agent=True,
+        )
+
+        async def fake_run_agents(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("Volatility agent exploded")
+
+        monkeypatch.setattr("options_arena.agents.orchestrator._run_agents", fake_run_agents)
+        result = await run_debate(
+            ticker_score=mock_ticker_score,
+            contracts=[mock_option_contract],
+            quote=mock_quote,
+            ticker_info=mock_ticker_info,
+            config=config,
+        )
+        assert result.is_fallback is True
+        assert result.vol_response is None
+
+    @pytest.mark.asyncio
+    async def test_fallback_result_has_vol_response_none(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        mock_ticker_score: TickerScore,
+        mock_option_contract: OptionContract,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_debate_config: DebateConfig,
+    ) -> None:
+        """Fallback results always have vol_response=None."""
+
+        async def fake_run_agents(*args: object, **kwargs: object) -> None:
+            raise httpx.ConnectError("refused")
+
+        monkeypatch.setattr("options_arena.agents.orchestrator._run_agents", fake_run_agents)
+        result = await run_debate(
+            ticker_score=mock_ticker_score,
+            contracts=[mock_option_contract],
+            quote=mock_quote,
+            ticker_info=mock_ticker_info,
+            config=mock_debate_config,
+        )
+        assert result.is_fallback is True
+        assert result.vol_response is None
+
+    @pytest.mark.asyncio
+    async def test_screening_fallback_has_vol_response_none(
+        self,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_option_contract: OptionContract,
+    ) -> None:
+        """Screening fallback for neutral ticker has vol_response=None."""
+        neutral_score = TickerScore(
+            ticker="AAPL",
+            composite_score=80.0,
+            direction=SignalDirection.NEUTRAL,
+            signals=IndicatorSignals(),
+        )
+        result = await run_debate(
+            ticker_score=neutral_score,
+            contracts=[mock_option_contract],
+            quote=mock_quote,
+            ticker_info=mock_ticker_info,
+            config=DebateConfig(),
+        )
+        assert result.is_fallback is True
+        assert result.vol_response is None

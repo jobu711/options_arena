@@ -29,7 +29,12 @@ from options_arena.agents.risk import (
     risk_agent,
     risk_dynamic_prompt,
 )
-from options_arena.models import AgentResponse, SignalDirection, TradeThesis
+from options_arena.models import (
+    AgentResponse,
+    SignalDirection,
+    TradeThesis,
+    VolatilityThesis,
+)
 
 # Prevent accidental real API calls
 models.ALLOW_MODEL_REQUESTS = False
@@ -234,3 +239,58 @@ async def test_risk_output_validator_passthrough_when_no_tags(
     mock_ctx.deps = mock_debate_deps
     result = await clean_think_tags(mock_ctx, thesis)
     assert result is thesis
+
+
+@pytest.mark.asyncio
+async def test_risk_dynamic_prompt_includes_vol_case(
+    mock_debate_deps: DebateDeps,
+    mock_volatility_thesis: VolatilityThesis,
+) -> None:
+    """Dynamic prompt injects vol case with delimiters when vol_response is present."""
+    mock_debate_deps.vol_response = mock_volatility_thesis
+    mock_ctx = MagicMock()
+    mock_ctx.deps = mock_debate_deps
+    prompt = await risk_dynamic_prompt(mock_ctx)
+    assert "<<<VOL_CASE>>>" in prompt
+    assert "<<<END_VOL_CASE>>>" in prompt
+    assert "IV Assessment: overpriced" in prompt
+    assert "Confidence: 0.75" in prompt
+    assert "Strategy Rationale: High IV favors selling premium via iron condor." in prompt
+    assert "Recommended Strategy: iron_condor" in prompt
+    assert "Key Volatility Factors: Earnings in 5 days, IV rank 85" in prompt
+
+
+@pytest.mark.asyncio
+async def test_risk_dynamic_prompt_excludes_vol_case(
+    mock_debate_deps: DebateDeps,
+) -> None:
+    """Dynamic prompt omits vol case when vol_response is None."""
+    mock_debate_deps.vol_response = None
+    mock_ctx = MagicMock()
+    mock_ctx.deps = mock_debate_deps
+    prompt = await risk_dynamic_prompt(mock_ctx)
+    assert "<<<VOL_CASE>>>" not in prompt
+    assert "<<<END_VOL_CASE>>>" not in prompt
+
+
+@pytest.mark.asyncio
+async def test_risk_dynamic_prompt_vol_case_no_strategy(
+    mock_debate_deps: DebateDeps,
+) -> None:
+    """Dynamic prompt shows 'none' when vol recommended_strategy is None."""
+    vol_thesis = VolatilityThesis(
+        iv_assessment="fair",
+        iv_rank_interpretation="IV rank at 45 is near the median.",
+        confidence=0.5,
+        recommended_strategy=None,
+        strategy_rationale="No vol play warranted at current levels.",
+        suggested_strikes=[],
+        key_vol_factors=["IV near historical median"],
+        model_used="test",
+    )
+    mock_debate_deps.vol_response = vol_thesis
+    mock_ctx = MagicMock()
+    mock_ctx.deps = mock_debate_deps
+    prompt = await risk_dynamic_prompt(mock_ctx)
+    assert "<<<VOL_CASE>>>" in prompt
+    assert "Recommended Strategy: none" in prompt
