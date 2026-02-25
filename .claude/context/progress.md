@@ -2,12 +2,12 @@
 
 ## Current State
 
-- **Version**: 1.3.0 (MVP + AI Debate + Groq Cloud + Bull Rebuttal + Volatility Agent)
-- **All 9 phases + 3 epics**: Complete and merged to master (2026-02-25)
-- **Branch**: `master` (1377 tests, all phases + epics merged)
-- **Tests**: 1377 (220 models + 214 pricing + 172 indicators + 102 scoring + 163 services + 34 data + 156 scan + 25 cli + 235 agents + 56 misc)
-- **GitHub issues**: 0 open, 107 closed
-- **CLI**: `options-arena scan`, `health`, `universe`, `debate` commands working
+- **Version**: 1.4.0 (MVP + AI Debate + Batch Mode + Export)
+- **All 9 phases + 5 epics**: Complete and merged to master (2026-02-25)
+- **Branch**: `master` (1402 tests, all phases + epics merged)
+- **Tests**: 1402 (220 models + 214 pricing + 172 indicators + 102 scoring + 163 services + 34 data + 156 scan + 40 cli + 235 agents + 14 reporting + 52 misc)
+- **GitHub issues**: 1 open (#112), 113 closed
+- **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`) commands
 - **AI providers**: Ollama (local, default) + Groq (cloud, `ARENA_DEBATE__PROVIDER=groq`)
 
 ## Phase Summary
@@ -28,29 +28,28 @@ For detailed phase completion logs, see `progress-archive.md`.
 
 ## Recently Completed Epics
 
+### Epic 7: Debate Export (2026-02-25) — #107
+Markdown and PDF export for debate results via `--export md|pdf` and `--export-dir` flags.
+New `reporting/` module with `debate_export.py`. PDF requires optional `weasyprint` dep
+(`pip install options-arena[pdf]`). +14 tests. Issues: #109-#113.
+
+### Epic 6: Multi-Ticker Batch Debate (2026-02-25) — #101
+`debate --batch` and `--batch-limit N` flags to debate top-scored tickers from the latest
+scan sequentially. Extracted `_debate_single()` for reuse, error isolation per ticker,
+`render_batch_summary_table()` summary. +11 tests. Issues: #102-#106.
+
 ### Epic 5: Bull Rebuttal Round (2026-02-25) — #93
-Optional bull rebuttal phase: Bull → Bear → **Bull Rebuttal** → Volatility → Risk.
-Bull agent converted to `dynamic=True` prompt with `_REBUTTAL_PREFIX`/`_REBUTTAL_SUFFIX`
-(string concatenation, not `str.format()` — safe for LLM-generated text with curly braces).
-Risk prompt updated with step 5 to factor in rebuttal. CLI renders green "BULL REBUTTAL"
-panel. Rebuttal persisted via `rebuttal_json` column (migration 004). Config: `enable_rebuttal`.
-+11 tests, 13 files changed. Issues: #94-#99.
+Optional bull rebuttal phase. Config: `enable_rebuttal`. Issues: #94-#99.
 
 ### Epic 4: Volatility Agent (2026-02-25) — #82
-Optional volatility analysis agent between bear and risk phases. `VolatilityThesis` model
-with IV assessment, strategy recommendation, suggested strikes. Config: `enable_volatility_agent`.
-Issues: #83-#92.
-
-### Epic 2: Enhance Agent Prompts (2026-02-25) — #76
-Shared `PROMPT_RULES_APPENDIX`, `RISK_STRATEGY_TREE`, deduplicated output validators.
-+21 tests. Issues: #77-#81.
+Optional volatility analysis agent. Config: `enable_volatility_agent`. Issues: #83-#92.
 
 ## Future Work (v2)
 
+- Batch export support (`debate --batch --export md`, issue #112)
 - Additional LLM providers (Anthropic Claude, OpenAI)
 - Options liquidity weighting in composite scoring
 - Web UI (deferred from earlier attempts)
-- Reporting module (markdown/PDF export)
 - Real-time market data streaming
 - Multi-round debate (bear rebuttal, second rounds)
 

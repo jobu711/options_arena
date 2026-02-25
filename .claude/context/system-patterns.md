@@ -62,6 +62,18 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 On any error: data-driven fallback (is_fallback=True, confidence=0.3)
 ```
 
+### Batch Debate Pattern
+- `_debate_single()` extracted from `_debate_async()` — reusable for single and batch
+- `_batch_async()` loads top N scores from latest scan, creates services once, iterates sequentially
+- Error isolation: per-ticker try/except, failures logged and included in summary table
+- `render_batch_summary_table()` renders compact Rich Table at the end
+
+### Debate Export Pattern
+- `reporting/debate_export.py` generates markdown from `DebateResult`
+- PDF via optional `weasyprint` dependency (graceful `ImportError` if missing)
+- `--export md|pdf` and `--export-dir` flags on debate command
+- Export happens after rendering, before disclaimer
+
 ### Scan Pipeline Data Flow
 ```
 Phase 1: Universe (~5,286 CBOE tickers) → OHLCV fetch

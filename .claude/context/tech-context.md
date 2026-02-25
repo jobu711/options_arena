@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-25T13:55:32Z
-version: 5.6
+last_updated: 2026-02-25T14:39:17Z
+version: 5.7
 author: Claude Code PM System
 ---
 
@@ -30,6 +30,11 @@ author: Claude Code PM System
 | rich | >=14.3.2 | Terminal output formatting (tables, colors, progress) |
 | pydantic-settings | >=2.13.0 | Configuration management |
 | lxml | >=6.0.2 | HTML parsing for Wikipedia S&P 500 table |
+
+### Optional
+| Package | Version | Purpose |
+|---------|---------|---------|
+| weasyprint | >=63.0 | PDF export for debate results (`pip install options-arena[pdf]`) |
 
 ### Dev
 | Package | Version | Purpose |
@@ -97,7 +102,7 @@ All three must pass before any commit.
 
 - **Command**: `options-arena` (installed via `pyproject.toml` `[project.scripts]`)
 - **Entry point**: `options_arena.cli:app` (Typer app)
-- **Commands**: `scan`, `health`, `universe` (refresh/list/stats), `debate`
+- **Commands**: `scan`, `health`, `universe` (refresh/list/stats), `debate` (`--batch`, `--export md|pdf`)
 - **Logging**: Dual-handler (RichHandler stderr + RotatingFileHandler `logs/options_arena.log`)
 - **SIGINT**: `signal.signal()` double-press pattern (graceful then force)
 
