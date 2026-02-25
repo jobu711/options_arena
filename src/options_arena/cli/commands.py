@@ -11,6 +11,7 @@ import logging
 import signal
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
@@ -26,13 +27,14 @@ from options_arena.cli.app import app
 from options_arena.cli.progress import RichProgressCallback, setup_sigint_handler
 from options_arena.cli.rendering import (
     DISCLAIMER,
+    render_batch_summary_table,
     render_debate_history,
     render_debate_panels,
     render_health_table,
     render_scan_table,
 )
 from options_arena.data import Database, Repository
-from options_arena.models import DebateConfig
+from options_arena.models import DebateConfig, TickerScore
 from options_arena.models.config import AppSettings
 from options_arena.models.enums import ScanPreset
 from options_arena.scan import CancellationToken, ScanPipeline, ScanResult
@@ -44,6 +46,9 @@ from options_arena.services.market_data import MarketDataService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.services.universe import UniverseService
+
+if TYPE_CHECKING:
+    from options_arena.agents import DebateResult
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -191,17 +196,251 @@ def _render_scan_results(result: ScanResult, elapsed: float) -> None:
 
 @app.command()
 def debate(
-    ticker: str = typer.Argument(..., help="Ticker symbol to debate"),  # noqa: B008
+    ticker: str | None = typer.Argument(None, help="Ticker symbol (omit for --batch)"),
+    batch: bool = typer.Option(False, "--batch", help="Debate top tickers from latest scan"),
+    batch_limit: int = typer.Option(5, "--batch-limit", help="Max tickers in batch mode"),
     history: bool = typer.Option(False, "--history", help="Show past debates"),
     fallback_only: bool = typer.Option(
         False, "--fallback-only", help="Force data-driven path (skip AI)"
     ),
+    export: str | None = typer.Option(None, "--export", help="Export format: md or pdf"),
+    export_dir: str = typer.Option("./reports", "--export-dir", help="Export output directory"),
 ) -> None:
     """Run AI debate on a scored ticker."""
-    asyncio.run(_debate_async(ticker.upper(), history, fallback_only))
+    if batch and ticker is not None:
+        err_console.print("[red]Cannot use --batch with a ticker argument.[/red]")
+        raise typer.Exit(code=1)
+    if batch and history:
+        err_console.print("[red]Cannot use --history with --batch.[/red]")
+        raise typer.Exit(code=1)
+    if not batch and ticker is None:
+        err_console.print("[red]Provide a TICKER or use --batch.[/red]")
+        raise typer.Exit(code=1)
+    if export is not None and export not in ("md", "pdf"):
+        err_console.print("[red]--export must be 'md' or 'pdf'.[/red]")
+        raise typer.Exit(code=1)
+
+    if batch:
+        asyncio.run(_batch_async(batch_limit, fallback_only))
+    else:
+        assert ticker is not None  # validated above
+        asyncio.run(_debate_async(ticker.upper(), history, fallback_only, export, export_dir))
 
 
-async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None:
+async def _batch_async(batch_limit: int, fallback_only: bool) -> None:
+    """Batch debate: run debates for top-scored tickers from the latest scan."""
+    settings = AppSettings()
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    cache = ServiceCache(settings.service)
+    limiter = RateLimiter(
+        settings.service.rate_limit_rps, settings.service.max_concurrent_requests
+    )
+    db = Database(_DATA_DIR / "options_arena.db")
+
+    market_data: MarketDataService | None = None
+    options_data: OptionsDataService | None = None
+    fred: FredService | None = None
+
+    try:
+        await db.connect()
+        repo = Repository(db)
+
+        # Load latest scan scores
+        latest_scan = await repo.get_latest_scan()
+        if latest_scan is None:
+            err_console.print(
+                "[red]No scan data found. Run: options-arena scan --preset sp500[/red]"
+            )
+            raise typer.Exit(code=1)
+
+        scores = await repo.get_scores_for_scan(latest_scan.id)  # type: ignore[arg-type]
+        top_scores = sorted(scores, key=lambda s: s.composite_score, reverse=True)[:batch_limit]
+
+        if not top_scores:
+            err_console.print("[yellow]No scored tickers in latest scan.[/yellow]")
+            return
+
+        # Create services ONCE (shared across all tickers)
+        market_data = MarketDataService(settings.service, cache, limiter)
+        options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
+        fred = FredService(settings.service, settings.pricing, cache)
+
+        err_console.print(f"[cyan]Batch debate: {len(top_scores)} tickers[/cyan]\n")
+
+        results: list[tuple[str, DebateResult | None, str | None]] = []
+        start_time = time.monotonic()
+
+        for i, ticker_score in enumerate(top_scores, 1):
+            ticker = ticker_score.ticker
+            err_console.print(f"[cyan]Debating {ticker} ({i}/{len(top_scores)})...[/cyan]")
+            try:
+                result = await _debate_single(
+                    ticker_score,
+                    settings,
+                    market_data,
+                    options_data,
+                    fred,
+                    repo,
+                    fallback_only=fallback_only,
+                )
+                results.append((ticker, result, None))
+                # Brief per-ticker result
+                direction = result.thesis.direction.value.upper()
+                confidence = f"{result.thesis.confidence * 100:.0f}%"
+                err_console.print(f"  [dim]{ticker}: {direction} ({confidence})[/dim]")
+            except Exception as exc:
+                logger.exception("Batch debate failed for %s", ticker)
+                results.append((ticker, None, str(exc)))
+                err_console.print(f"  [red]{ticker}: FAILED ({exc})[/red]")
+
+        # Render summary table
+        elapsed = time.monotonic() - start_time
+        table = render_batch_summary_table(results)
+        console.print(table)
+
+        succeeded = sum(1 for _, r, _ in results if r is not None)
+        console.print(
+            f"\n[dim]{succeeded}/{len(results)} debates completed in {elapsed:.1f}s[/dim]"
+        )
+        console.print(f"\n{DISCLAIMER}")
+
+    except KeyboardInterrupt:
+        err_console.print("\n[yellow]Batch debate cancelled.[/yellow]")
+        raise typer.Exit(code=130)  # noqa: B904
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        logger.exception("Batch debate failed")
+        err_console.print("[red]Batch failed. Check logs/options_arena.log for details.[/red]")
+        raise typer.Exit(code=1) from exc
+    finally:
+        if market_data is not None:
+            await market_data.close()
+        if options_data is not None:
+            await options_data.close()
+        if fred is not None:
+            await fred.close()
+        await cache.close()
+        await db.close()
+
+
+def _export_result(
+    result: DebateResult,
+    ticker: str,
+    fmt: str,
+    export_dir: str,
+) -> None:
+    """Export a debate result to file. Prints status or error to stderr."""
+    from datetime import date  # noqa: PLC0415
+
+    from options_arena.reporting import export_debate_to_file  # noqa: PLC0415
+
+    export_path = Path(export_dir) / f"debate_{ticker}_{date.today().isoformat()}.{fmt}"
+    export_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        export_debate_to_file(result, export_path, fmt=fmt)
+        err_console.print(f"[green]Exported: {export_path}[/green]")
+    except ImportError:
+        err_console.print(
+            "[red]PDF export requires weasyprint. Install: uv add 'options-arena[pdf]'[/red]"
+        )
+    except OSError:
+        logger.exception("Failed to write export file: %s", export_path)
+        err_console.print(f"[red]Failed to write: {export_path}[/red]")
+
+
+async def _debate_single(
+    ticker_score: TickerScore,
+    settings: AppSettings,
+    market_data: MarketDataService,
+    options_data: OptionsDataService,
+    fred: FredService,
+    repo: Repository,
+    *,
+    fallback_only: bool = False,
+) -> DebateResult:
+    """Run a single AI debate for one ticker. Returns result without rendering.
+
+    Fetches live market data, recommends contracts, and runs the debate pipeline.
+    The caller is responsible for service lifecycle (creation and cleanup) and
+    any console output (status messages, rendering, disclaimers).
+
+    Args:
+        ticker_score: Scored ticker from a prior scan run.
+        settings: Application settings (debate config, pricing config, service config).
+        market_data: Pre-created market data service.
+        options_data: Pre-created options data service.
+        fred: Pre-created FRED service.
+        repo: Database repository for debate persistence.
+        fallback_only: If True, force data-driven path by using near-zero timeouts.
+
+    Returns:
+        DebateResult with agent responses, thesis, usage, and duration.
+    """
+    ticker = ticker_score.ticker
+
+    quote = await market_data.fetch_quote(ticker)
+    ticker_info = await market_data.fetch_ticker_info(ticker)
+
+    # Fetch risk-free rate and option chains concurrently
+    risk_free_task = fred.fetch_risk_free_rate()
+    chains_task = options_data.fetch_chain_all_expirations(ticker)
+    risk_free_rate, chain_results = await asyncio.gather(risk_free_task, chains_task)
+
+    # Flatten all contracts across expirations
+    all_contracts = [c for chain in chain_results for c in chain.contracts]
+
+    # Select best contract via scoring/contracts.py (mirrors scan pipeline Phase 3)
+    spot = float(ticker_info.current_price)
+    contracts = recommend_contracts(
+        contracts=all_contracts,
+        direction=ticker_score.direction,
+        spot=spot,
+        risk_free_rate=risk_free_rate,
+        dividend_yield=ticker_info.dividend_yield,
+        config=settings.pricing,
+    )
+
+    logger.info(
+        "Debate %s: %d chains fetched, %d total contracts, %d recommended",
+        ticker,
+        len(chain_results),
+        len(all_contracts),
+        len(contracts),
+    )
+
+    # Lazy import: agents/ depends on pydantic-ai[ollama] which may not be
+    # available.  Importing at call time keeps CLI tests (scan, health, universe)
+    # working even when the optional dependency is absent.
+    from options_arena.agents import run_debate  # noqa: PLC0415
+
+    # Force fallback mode if requested (near-zero timeout triggers data-driven path)
+    config = settings.debate
+    if fallback_only:
+        config = DebateConfig(
+            agent_timeout=_FALLBACK_ONLY_TIMEOUT_SEC,
+            max_total_duration=_FALLBACK_ONLY_TIMEOUT_SEC,
+            fallback_confidence=settings.debate.fallback_confidence,
+            min_debate_score=0.0,  # disable screening — fallback-only wants all tickers
+        )
+
+    return await run_debate(
+        ticker_score=ticker_score,
+        contracts=contracts,
+        quote=quote,
+        ticker_info=ticker_info,
+        config=config,
+        repository=repo,
+    )
+
+
+async def _debate_async(
+    ticker: str,
+    history: bool,
+    fallback_only: bool,
+    export: str | None = None,
+    export_dir: str = "./reports",
+) -> None:
     """Run AI debate with full service lifecycle management."""
     settings = AppSettings()
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -246,65 +485,22 @@ async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None
             )
             raise typer.Exit(code=1)
 
-        # Fetch live market data and option contracts
+        # Create services for live data fetching
         market_data = MarketDataService(settings.service, cache, limiter)
         options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
         fred = FredService(settings.service, settings.pricing, cache)
 
         err_console.print(f"[cyan]Fetching live data for {ticker}...[/cyan]")
-        quote = await market_data.fetch_quote(ticker)
-        ticker_info = await market_data.fetch_ticker_info(ticker)
-
-        # Fetch risk-free rate and option chains concurrently
-        risk_free_task = fred.fetch_risk_free_rate()
-        chains_task = options_data.fetch_chain_all_expirations(ticker)
-        risk_free_rate, chain_results = await asyncio.gather(risk_free_task, chains_task)
-
-        # Flatten all contracts across expirations
-        all_contracts = [c for chain in chain_results for c in chain.contracts]
-
-        # Select best contract via scoring/contracts.py (mirrors scan pipeline Phase 3)
-        spot = float(ticker_info.current_price)
-        contracts = recommend_contracts(
-            contracts=all_contracts,
-            direction=ticker_score.direction,
-            spot=spot,
-            risk_free_rate=risk_free_rate,
-            dividend_yield=ticker_info.dividend_yield,
-            config=settings.pricing,
-        )
-
-        logger.info(
-            "Debate %s: %d chains fetched, %d total contracts, %d recommended",
-            ticker,
-            len(chain_results),
-            len(all_contracts),
-            len(contracts),
-        )
-
-        # Lazy import: agents/ depends on pydantic-ai[ollama] which may not be
-        # available.  Importing at call time keeps CLI tests (scan, health, universe)
-        # working even when the optional dependency is absent.
-        from options_arena.agents import run_debate  # noqa: PLC0415
-
-        # Force fallback mode if requested (near-zero timeout triggers data-driven path)
-        config = settings.debate
-        if fallback_only:
-            config = DebateConfig(
-                agent_timeout=_FALLBACK_ONLY_TIMEOUT_SEC,
-                max_total_duration=_FALLBACK_ONLY_TIMEOUT_SEC,
-                fallback_confidence=settings.debate.fallback_confidence,
-                min_debate_score=0.0,  # disable screening — fallback-only wants all tickers
-            )
-
         err_console.print(f"[cyan]Running debate for {ticker}...[/cyan]")
-        result = await run_debate(
+
+        result = await _debate_single(
             ticker_score=ticker_score,
-            contracts=contracts,
-            quote=quote,
-            ticker_info=ticker_info,
-            config=config,
-            repository=repo,
+            settings=settings,
+            market_data=market_data,
+            options_data=options_data,
+            fred=fred,
+            repo=repo,
+            fallback_only=fallback_only,
         )
 
         # Render debate output
@@ -318,6 +514,10 @@ async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None
 
         # Regulatory disclaimer (ALWAYS printed)
         console.print(f"\n{DISCLAIMER}")
+
+        # Export to file (after terminal rendering)
+        if export is not None:
+            _export_result(result, ticker, export, export_dir)
 
     except KeyboardInterrupt:
         err_console.print("\n[yellow]Debate cancelled.[/yellow]")

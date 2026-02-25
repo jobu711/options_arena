@@ -2,7 +2,7 @@
 name: debate-export
 status: backlog
 created: 2026-02-24T21:49:24Z
-progress: 0%
+progress: 80%
 prd: .claude/prds/ai-debate-enhance.md
 parent: .claude/epics/ai-debate-enhance/epic.md
 github: https://github.com/jobu711/options_arena/issues/108
@@ -152,11 +152,11 @@ uv run mypy src/ --strict
 - **Blocks**: Nothing (terminal epic)
 
 ## Tasks Created
-- [ ] #109 - Implement markdown export function (parallel: true)
-- [ ] #110 - Implement file export with PDF support (parallel: false, depends: #109)
-- [ ] #111 - Add CLI export flags to debate command (parallel: false, depends: #110)
+- [x] #109 - Implement markdown export function (parallel: true)
+- [x] #110 - Implement file export with PDF support (parallel: false, depends: #109)
+- [x] #111 - Add CLI export flags to debate command (parallel: false, depends: #110)
 - [ ] #112 - Add batch export support (parallel: false, depends: #111 + Epic 6)
-- [ ] #113 - Write comprehensive tests for debate export (parallel: false, depends: #109, #110, #111)
+- [x] #113 - Write comprehensive tests for debate export (parallel: false, depends: #109, #110, #111)
 
 Total tasks: 5
 Parallel tasks: 1
