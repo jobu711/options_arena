@@ -110,6 +110,31 @@ def build_market_context(
         dividend_yield=ticker_info.dividend_yield,
         exercise_style=ExerciseStyle.AMERICAN,
         data_timestamp=datetime.now(UTC),
+        # Scoring context
+        composite_score=ticker_score.composite_score,
+        direction_signal=ticker_score.direction,
+        # Key indicators (pass through from signals — already float | None)
+        adx=signals.adx,
+        sma_alignment=signals.sma_alignment,
+        bb_width=signals.bb_width,
+        atr_pct=signals.atr_pct,
+        stochastic_rsi=signals.stochastic_rsi,
+        relative_volume=signals.relative_volume,
+        # Greeks beyond delta (None-safe access)
+        target_gamma=(
+            first_contract.greeks.gamma if first_contract and first_contract.greeks else None
+        ),
+        target_theta=(
+            first_contract.greeks.theta if first_contract and first_contract.greeks else None
+        ),
+        target_vega=(
+            first_contract.greeks.vega if first_contract and first_contract.greeks else None
+        ),
+        target_rho=(
+            first_contract.greeks.rho if first_contract and first_contract.greeks else None
+        ),
+        # Contract pricing
+        contract_mid=first_contract.mid if first_contract else None,
     )
 
 
