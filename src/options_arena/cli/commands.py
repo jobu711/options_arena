@@ -27,6 +27,7 @@ from options_arena.cli.app import app
 from options_arena.cli.progress import RichProgressCallback, setup_sigint_handler
 from options_arena.cli.rendering import (
     DISCLAIMER,
+    render_batch_summary_table,
     render_debate_history,
     render_debate_panels,
     render_health_table,
@@ -227,8 +228,100 @@ def debate(
 
 
 async def _batch_async(batch_limit: int, fallback_only: bool) -> None:
-    """Batch debate orchestration loop. Implemented in #104."""
-    raise NotImplementedError("Batch mode not yet implemented")
+    """Batch debate: run debates for top-scored tickers from the latest scan."""
+    settings = AppSettings()
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    cache = ServiceCache(settings.service)
+    limiter = RateLimiter(
+        settings.service.rate_limit_rps, settings.service.max_concurrent_requests
+    )
+    db = Database(_DATA_DIR / "options_arena.db")
+
+    market_data: MarketDataService | None = None
+    options_data: OptionsDataService | None = None
+    fred: FredService | None = None
+
+    try:
+        await db.connect()
+        repo = Repository(db)
+
+        # Load latest scan scores
+        latest_scan = await repo.get_latest_scan()
+        if latest_scan is None:
+            err_console.print(
+                "[red]No scan data found. Run: options-arena scan --preset sp500[/red]"
+            )
+            raise typer.Exit(code=1)
+
+        scores = await repo.get_scores_for_scan(latest_scan.id)  # type: ignore[arg-type]
+        top_scores = sorted(scores, key=lambda s: s.composite_score, reverse=True)[:batch_limit]
+
+        if not top_scores:
+            err_console.print("[yellow]No scored tickers in latest scan.[/yellow]")
+            return
+
+        # Create services ONCE (shared across all tickers)
+        market_data = MarketDataService(settings.service, cache, limiter)
+        options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
+        fred = FredService(settings.service, settings.pricing, cache)
+
+        err_console.print(f"[cyan]Batch debate: {len(top_scores)} tickers[/cyan]\n")
+
+        results: list[tuple[str, DebateResult | None, str | None]] = []
+        start_time = time.monotonic()
+
+        for i, ticker_score in enumerate(top_scores, 1):
+            ticker = ticker_score.ticker
+            err_console.print(f"[cyan]Debating {ticker} ({i}/{len(top_scores)})...[/cyan]")
+            try:
+                result = await _debate_single(
+                    ticker_score,
+                    settings,
+                    market_data,
+                    options_data,
+                    fred,
+                    repo,
+                    fallback_only=fallback_only,
+                )
+                results.append((ticker, result, None))
+                # Brief per-ticker result
+                direction = result.thesis.direction.value.upper()
+                confidence = f"{result.thesis.confidence * 100:.0f}%"
+                err_console.print(f"  [dim]{ticker}: {direction} ({confidence})[/dim]")
+            except Exception as exc:
+                logger.exception("Batch debate failed for %s", ticker)
+                results.append((ticker, None, str(exc)))
+                err_console.print(f"  [red]{ticker}: FAILED ({exc})[/red]")
+
+        # Render summary table
+        elapsed = time.monotonic() - start_time
+        table = render_batch_summary_table(results)
+        console.print(table)
+
+        succeeded = sum(1 for _, r, _ in results if r is not None)
+        console.print(
+            f"\n[dim]{succeeded}/{len(results)} debates completed in {elapsed:.1f}s[/dim]"
+        )
+        console.print(f"\n{DISCLAIMER}")
+
+    except KeyboardInterrupt:
+        err_console.print("\n[yellow]Batch debate cancelled.[/yellow]")
+        raise typer.Exit(code=130)  # noqa: B904
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        logger.exception("Batch debate failed")
+        err_console.print("[red]Batch failed. Check logs/options_arena.log for details.[/red]")
+        raise typer.Exit(code=1) from exc
+    finally:
+        if market_data is not None:
+            await market_data.close()
+        if options_data is not None:
+            await options_data.close()
+        if fred is not None:
+            await fred.close()
+        await cache.close()
+        await db.close()
 
 
 def _export_result(
