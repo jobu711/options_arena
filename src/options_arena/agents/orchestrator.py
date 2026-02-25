@@ -333,7 +333,11 @@ async def _run_agents(
     rebuttal_output: AgentResponse | None = None
     if config.enable_rebuttal:
         logger.info("Running bull rebuttal for %s", context.ticker)
-        bear_key_points = "\n".join(f"- {p}" for p in bear_output.key_points)
+        bear_key_points = (
+            "\n".join(f"- {p}" for p in bear_output.key_points)
+            if bear_output.key_points
+            else f"- {bear_output.argument}"
+        )
         rebuttal_deps = DebateDeps(
             context=context,
             ticker_score=ticker_score,
@@ -534,6 +538,7 @@ def _build_fallback_result(
         total_usage=RunUsage(),
         duration_ms=elapsed_ms,
         is_fallback=True,
+        bull_rebuttal=None,
         vol_response=None,
     )
 
@@ -576,6 +581,7 @@ def _build_screening_fallback(
         total_usage=result.total_usage,
         duration_ms=result.duration_ms,
         is_fallback=True,
+        bull_rebuttal=None,
         vol_response=None,
     )
 
@@ -662,6 +668,11 @@ async def _persist_result(
             is_fallback=result.is_fallback,
             vol_json=(
                 result.vol_response.model_dump_json() if result.vol_response is not None else None
+            ),
+            rebuttal_json=(
+                result.bull_rebuttal.model_dump_json()
+                if result.bull_rebuttal is not None
+                else None
             ),
         )
         logger.debug(

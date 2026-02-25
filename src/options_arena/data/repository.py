@@ -39,6 +39,7 @@ class DebateRow:
     risk_json: str | None
     verdict_json: str | None
     vol_json: str | None
+    rebuttal_json: str | None
     total_tokens: int
     model_name: str
     duration_ms: int
@@ -183,6 +184,7 @@ class Repository:
         duration_ms: int,
         is_fallback: bool,
         vol_json: str | None = None,
+        rebuttal_json: str | None = None,
     ) -> int:
         """Persist a debate result.  Returns the database-assigned ID."""
         conn = self._db.conn
@@ -190,8 +192,9 @@ class Repository:
         cursor = await conn.execute(
             "INSERT INTO ai_theses "
             "(scan_run_id, ticker, bull_json, bear_json, risk_json, verdict_json, "
-            "vol_json, total_tokens, model_name, duration_ms, is_fallback, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "vol_json, rebuttal_json, total_tokens, model_name, duration_ms, is_fallback, "
+            "created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 scan_run_id,
                 ticker,
@@ -200,6 +203,7 @@ class Repository:
                 risk_json,
                 verdict_json,
                 vol_json,
+                rebuttal_json,
                 total_tokens,
                 model_name,
                 duration_ms,
@@ -237,6 +241,7 @@ class Repository:
             risk_json=row["risk_json"],
             verdict_json=row["verdict_json"],
             vol_json=row["vol_json"],
+            rebuttal_json=row["rebuttal_json"],
             total_tokens=int(row["total_tokens"]),
             model_name=str(row["model_name"]),
             duration_ms=int(row["duration_ms"]),

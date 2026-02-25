@@ -1219,3 +1219,35 @@ class TestBullRebuttalIntegration:
         )
         assert result.is_fallback is True
         assert result.bull_rebuttal is None
+
+    @pytest.mark.asyncio
+    async def test_rebuttal_and_volatility_both_enabled(
+        self,
+        mock_ticker_score: TickerScore,
+        mock_option_contract: OptionContract,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+    ) -> None:
+        """When both enable_rebuttal and enable_volatility_agent are True, both are populated."""
+        config = DebateConfig(
+            agent_timeout=10.0,
+            max_total_duration=30.0,
+            enable_rebuttal=True,
+            enable_volatility_agent=True,
+        )
+        with (
+            bull_agent.override(model=TestModel()),
+            bear_agent.override(model=TestModel()),
+            volatility_agent.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
+        ):
+            result = await run_debate(
+                ticker_score=mock_ticker_score,
+                contracts=[mock_option_contract],
+                quote=mock_quote,
+                ticker_info=mock_ticker_info,
+                config=config,
+            )
+        assert result.is_fallback is False
+        assert isinstance(result.bull_rebuttal, AgentResponse)
+        assert isinstance(result.vol_response, VolatilityThesis)
