@@ -23,6 +23,9 @@ dependencies = [
     "yfinance>=1.2",
 ]
 
+[project.optional-dependencies]
+pdf = ["weasyprint>=63.0"]
+
 [project.scripts]
 options-arena = "options_arena.cli:app"
 
