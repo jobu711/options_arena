@@ -22,7 +22,13 @@ from pydantic_ai import models
 from pydantic_ai.models.test import TestModel
 
 from options_arena.agents._parsing import DebateDeps
-from options_arena.agents.bull import BULL_SYSTEM_PROMPT, bull_agent, clean_think_tags
+from options_arena.agents.bull import (
+    BULL_REBUTTAL_INSTRUCTIONS,
+    BULL_SYSTEM_PROMPT,
+    bull_agent,
+    bull_dynamic_prompt,
+    clean_think_tags,
+)
 from options_arena.models import AgentResponse, SignalDirection
 
 # Prevent accidental real API calls
@@ -151,3 +157,45 @@ async def test_bull_output_validator_passthrough_when_no_tags(
     mock_ctx.deps = mock_debate_deps
     result = await clean_think_tags(mock_ctx, response)
     assert result is response  # same object — no copy needed
+
+
+# ---------------------------------------------------------------------------
+# Bull rebuttal prompt tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_bull_rebuttal_prompt_includes_bear_counter(
+    mock_debate_deps: DebateDeps,
+) -> None:
+    """When bear_counter_argument is set, prompt includes <<<BEAR_COUNTER>>> delimiters."""
+    mock_debate_deps.bear_counter_argument = "- IV is elevated\n- RSI is overbought"
+    mock_ctx = MagicMock()
+    mock_ctx.deps = mock_debate_deps
+    prompt = await bull_dynamic_prompt(mock_ctx)
+    assert "<<<BEAR_COUNTER>>>" in prompt
+    assert "<<<END_BEAR_COUNTER>>>" in prompt
+    assert "IV is elevated" in prompt
+    assert "RSI is overbought" in prompt
+
+
+@pytest.mark.asyncio
+async def test_bull_initial_prompt_excludes_rebuttal(
+    mock_debate_deps: DebateDeps,
+) -> None:
+    """When bear_counter_argument is None, prompt does NOT include rebuttal instructions."""
+    mock_debate_deps.bear_counter_argument = None
+    mock_ctx = MagicMock()
+    mock_ctx.deps = mock_debate_deps
+    prompt = await bull_dynamic_prompt(mock_ctx)
+    assert "<<<BEAR_COUNTER>>>" not in prompt
+    assert "<<<END_BEAR_COUNTER>>>" not in prompt
+    assert "rebuttal" not in prompt.lower()
+
+
+def test_bull_rebuttal_instructions_constant_exists() -> None:
+    """BULL_REBUTTAL_INSTRUCTIONS is defined with proper delimiters."""
+    assert BULL_REBUTTAL_INSTRUCTIONS
+    assert "<<<BEAR_COUNTER>>>" in BULL_REBUTTAL_INSTRUCTIONS
+    assert "<<<END_BEAR_COUNTER>>>" in BULL_REBUTTAL_INSTRUCTIONS
+    assert "rebuttal" in BULL_REBUTTAL_INSTRUCTIONS.lower()

@@ -294,3 +294,35 @@ async def test_risk_dynamic_prompt_vol_case_no_strategy(
     prompt = await risk_dynamic_prompt(mock_ctx)
     assert "<<<VOL_CASE>>>" in prompt
     assert "Recommended Strategy: none" in prompt
+
+
+# ---------------------------------------------------------------------------
+# Risk agent — bull rebuttal injection tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_risk_dynamic_prompt_includes_bull_rebuttal(
+    mock_debate_deps: DebateDeps,
+    mock_agent_response: AgentResponse,
+) -> None:
+    """Dynamic prompt injects bull rebuttal with delimiters when bull_rebuttal is set."""
+    mock_debate_deps.bull_rebuttal = mock_agent_response
+    mock_ctx = MagicMock()
+    mock_ctx.deps = mock_debate_deps
+    prompt = await risk_dynamic_prompt(mock_ctx)
+    assert "<<<BULL_REBUTTAL>>>" in prompt
+    assert "<<<END_BULL_REBUTTAL>>>" in prompt
+
+
+@pytest.mark.asyncio
+async def test_risk_dynamic_prompt_excludes_bull_rebuttal_when_none(
+    mock_debate_deps: DebateDeps,
+) -> None:
+    """Dynamic prompt omits bull rebuttal block when bull_rebuttal is None."""
+    mock_debate_deps.bull_rebuttal = None
+    mock_ctx = MagicMock()
+    mock_ctx.deps = mock_debate_deps
+    prompt = await risk_dynamic_prompt(mock_ctx)
+    assert "<<<BULL_REBUTTAL>>>" not in prompt
+    assert "<<<END_BULL_REBUTTAL>>>" not in prompt
