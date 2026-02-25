@@ -15,13 +15,28 @@ import logging
 
 from pydantic_ai import Agent, RunContext
 
-from options_arena.agents._parsing import DebateDeps, strip_think_tags
+from options_arena.agents._parsing import (
+    PROMPT_RULES_APPENDIX,
+    DebateDeps,
+    build_cleaned_trade_thesis,
+)
 from options_arena.models import TradeThesis
 
 logger = logging.getLogger(__name__)
 
-# VERSION: v1.0
-RISK_SYSTEM_PROMPT = """You are a risk assessment analyst adjudicating an options debate. \
+RISK_STRATEGY_TREE = """
+Strategy selection decision tree:
+- IF direction is "neutral" AND IV RANK > 70: recommend "iron_condor"
+- IF direction is "neutral" AND IV RANK < 30: recommend "straddle"
+- IF confidence > 0.7 AND IV RANK < 50: recommend "vertical"
+- IF confidence 0.4-0.7 AND IV RANK > 50: recommend "calendar"
+- IF confidence < 0.4 OR data is highly conflicting: recommend null
+- IF both bull_score and bear_score > 6.0: recommend "strangle"
+"""
+
+# VERSION: v2.0
+RISK_SYSTEM_PROMPT = (
+    """You are a risk assessment analyst adjudicating an options debate. \
 You have received arguments from both a bull (bullish) and bear (bearish) analyst. Your job \
 is to weigh both cases objectively and produce a final trade recommendation.
 
@@ -55,7 +70,13 @@ Rules:
 - "key_factors" MUST have at least 2 items
 - "recommended_strategy" should be null if confidence < 0.4 or direction is "neutral"
 - Be specific. Cite numbers from the context. Do not hallucinate data.
-- Do NOT include <think> tags or reasoning traces in any field."""
+- Do NOT include <think> tags or reasoning traces in any field.
+
+"""
+    + PROMPT_RULES_APPENDIX
+    + "\n\n"
+    + RISK_STRATEGY_TREE
+)
 
 risk_agent: Agent[DebateDeps, TradeThesis] = Agent(
     model=None,
@@ -100,23 +121,5 @@ async def clean_think_tags(
     ctx: RunContext[DebateDeps],
     output: TradeThesis,
 ) -> TradeThesis:
-    """Strip ``<think>`` tags from LLM output instead of rejecting.
-
-    Llama models sometimes emit reasoning traces wrapped in ``<think>`` tags.
-    Stripping is far cheaper than retrying (5-10 min per retry on CPU).
-    Constructs a new frozen instance with cleaned text fields.
-    """
-    fields = [output.summary, output.risk_assessment, *output.key_factors]
-    if not any("<think>" in v or "</think>" in v for v in fields):
-        return output
-    return TradeThesis(
-        ticker=output.ticker,
-        direction=output.direction,
-        confidence=output.confidence,
-        summary=strip_think_tags(output.summary),
-        bull_score=output.bull_score,
-        bear_score=output.bear_score,
-        key_factors=[strip_think_tags(f) for f in output.key_factors],
-        risk_assessment=strip_think_tags(output.risk_assessment),
-        recommended_strategy=output.recommended_strategy,
-    )
+    """Strip ``<think>`` tags from LLM output via shared helper."""
+    return build_cleaned_trade_thesis(output)
