@@ -60,12 +60,13 @@ Rules:
     + PROMPT_RULES_APPENDIX
 )
 
-BULL_REBUTTAL_INSTRUCTIONS = """
+_REBUTTAL_PREFIX = """
 
 The bear has countered your argument with these key points:
 <<<BEAR_COUNTER>>>
-{bear_key_points}
-<<<END_BEAR_COUNTER>>>
+"""
+
+_REBUTTAL_SUFFIX = """<<<END_BEAR_COUNTER>>>
 
 Provide a BRIEF rebuttal addressing the bear's strongest 2-3 points.
 Do not repeat your original argument -- focus only on defending against the counter.
@@ -90,7 +91,7 @@ async def bull_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
     """
     base = BULL_SYSTEM_PROMPT
     if ctx.deps.bear_counter_argument is not None:
-        base += BULL_REBUTTAL_INSTRUCTIONS.format(bear_key_points=ctx.deps.bear_counter_argument)
+        base += _REBUTTAL_PREFIX + ctx.deps.bear_counter_argument + _REBUTTAL_SUFFIX
     return base
 
 

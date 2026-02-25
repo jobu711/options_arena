@@ -23,7 +23,8 @@ from pydantic_ai.models.test import TestModel
 
 from options_arena.agents._parsing import DebateDeps
 from options_arena.agents.bull import (
-    BULL_REBUTTAL_INSTRUCTIONS,
+    _REBUTTAL_PREFIX,
+    _REBUTTAL_SUFFIX,
     BULL_SYSTEM_PROMPT,
     bull_agent,
     bull_dynamic_prompt,
@@ -193,9 +194,10 @@ async def test_bull_initial_prompt_excludes_rebuttal(
     assert "rebuttal" not in prompt.lower()
 
 
-def test_bull_rebuttal_instructions_constant_exists() -> None:
-    """BULL_REBUTTAL_INSTRUCTIONS is defined with proper delimiters."""
-    assert BULL_REBUTTAL_INSTRUCTIONS
-    assert "<<<BEAR_COUNTER>>>" in BULL_REBUTTAL_INSTRUCTIONS
-    assert "<<<END_BEAR_COUNTER>>>" in BULL_REBUTTAL_INSTRUCTIONS
-    assert "rebuttal" in BULL_REBUTTAL_INSTRUCTIONS.lower()
+def test_bull_rebuttal_instructions_constants_exist() -> None:
+    """Rebuttal prefix/suffix constants are defined with proper delimiters."""
+    combined = _REBUTTAL_PREFIX + _REBUTTAL_SUFFIX
+    assert combined
+    assert "<<<BEAR_COUNTER>>>" in combined
+    assert "<<<END_BEAR_COUNTER>>>" in combined
+    assert "rebuttal" in combined.lower()

@@ -47,8 +47,10 @@ You MUST:
 2. Score both the bull and bear cases on a 0-10 scale based on evidence quality
 3. Identify the key factors that tilt the decision one way or the other
 4. Assess risk/reward ratio for the proposed position
-5. Recommend a strategy type if the trade is worth taking, or null if not
-6. Provide position sizing guidance in your risk assessment
+5. If a bull rebuttal is provided (<<<BULL_REBUTTAL>>> block), factor it into the bull_score \
+and summary — a well-supported rebuttal should raise the bull_score
+6. Recommend a strategy type if the trade is worth taking, or null if not
+7. Provide position sizing guidance in your risk assessment
 
 Your response must be valid JSON matching this schema:
 {

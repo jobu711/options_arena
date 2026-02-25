@@ -319,10 +319,14 @@ async def test_risk_dynamic_prompt_includes_bull_rebuttal(
 async def test_risk_dynamic_prompt_excludes_bull_rebuttal_when_none(
     mock_debate_deps: DebateDeps,
 ) -> None:
-    """Dynamic prompt omits bull rebuttal block when bull_rebuttal is None."""
+    """Dynamic prompt omits injected bull rebuttal data block when bull_rebuttal is None.
+
+    Note: the static prompt mentions ``<<<BULL_REBUTTAL>>>`` as an instruction to the
+    LLM, but the actual data block (with ``<<<END_BULL_REBUTTAL>>>``) is only injected
+    when ``bull_rebuttal`` is set.
+    """
     mock_debate_deps.bull_rebuttal = None
     mock_ctx = MagicMock()
     mock_ctx.deps = mock_debate_deps
     prompt = await risk_dynamic_prompt(mock_ctx)
-    assert "<<<BULL_REBUTTAL>>>" not in prompt
     assert "<<<END_BULL_REBUTTAL>>>" not in prompt
