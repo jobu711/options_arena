@@ -197,9 +197,12 @@ class VolatilityThesis(BaseModel):
     @field_validator("target_iv_entry", "target_iv_exit")
     @classmethod
     def validate_iv_target(cls, v: float | None) -> float | None:
-        """Ensure IV targets are finite when provided."""
-        if v is not None and not math.isfinite(v):
-            raise ValueError(f"IV target must be finite, got {v}")
+        """Ensure IV targets are finite and non-negative when provided."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"IV target must be finite, got {v}")
+            if v < 0.0:
+                raise ValueError(f"IV target must be >= 0.0, got {v}")
         return v
 
     @field_validator("key_vol_factors")

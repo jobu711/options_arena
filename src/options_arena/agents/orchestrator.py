@@ -176,10 +176,11 @@ async def run_debate(
 ) -> DebateResult:
     """Run AI debate on a ticker. On ANY failure, returns data-driven fallback -- never raises.
 
-    Three agents run sequentially:
+    Agents run sequentially:
     1. Bull agent argues the bullish case.
     2. Bear agent receives the bull's argument and counters it.
-    3. Risk agent weighs both arguments and produces a ``TradeThesis``.
+    3. Volatility agent (optional, config-gated) assesses IV mispricing.
+    4. Risk agent weighs arguments (and vol context when present) and produces a ``TradeThesis``.
 
     Parameters
     ----------
@@ -261,7 +262,7 @@ async def _run_agents(
     config: DebateConfig,
     start_time: float,
 ) -> DebateResult:
-    """Run all three agents sequentially and return a DebateResult.
+    """Run the sequential agent pipeline (bull -> bear -> [volatility] -> risk).
 
     Raises on any agent failure — the caller (``run_debate``) catches and falls back.
     """
