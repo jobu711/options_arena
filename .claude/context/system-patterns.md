@@ -44,7 +44,8 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - `model=None` at init, actual model passed at `agent.run(model=...)` time (enables `TestModel`)
 - `@dataclass` deps (`DebateDeps`), `output_type=PydanticModel` for structured JSON output
 - `retries=2`, `model_settings=ModelSettings(extra_body={"num_ctx": 8192})` for Ollama
-- `@agent.output_validator` rejects `<think>` tag remnants, triggers `ModelRetry`
+- `@agent.output_validator` delegates to shared helpers: `build_cleaned_agent_response()` (bull/bear) and `build_cleaned_trade_thesis()` (risk) — strips `<think>` tags without costly retries
+- **Shared prompt appendix**: `PROMPT_RULES_APPENDIX` (confidence calibration, data anchors, citation rules) appended to all three agent prompts. `RISK_STRATEGY_TREE` appended to risk only.
 - **Multi-provider**: `DebateProvider` enum (`OLLAMA`, `GROQ`), `build_debate_model()` match/case dispatch
 - **Provider-aware timeouts**: Ollama `agent_timeout` (600s), Groq `groq_timeout` (60s)
 - Sequential execution: Bull → Bear → Risk

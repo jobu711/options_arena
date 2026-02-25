@@ -5,7 +5,7 @@ created: 2026-02-24T21:49:24Z
 progress: 0%
 prd: .claude/prds/ai-debate-enhance.md
 parent: .claude/epics/ai-debate-enhance/epic.md
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/86
 ---
 
 # Epic 4: Volatility Agent with VolatilityThesis
@@ -130,3 +130,16 @@ uv run mypy src/ --strict
 ## Key Decision
 Flow order: Bull -> Bear -> **Volatility** -> Risk. Volatility runs after Bear because it
 can reference both directional arguments. Risk runs last because it synthesizes everything.
+
+## Tasks Created
+- [ ] #87 - Add VolatilityThesis model and re-export (parallel: true)
+- [ ] #89 - Update DebateDeps, DebateResult, and add parsing helper (depends: #87)
+- [ ] #91 - Implement Volatility Agent (depends: #87, #89)
+- [ ] #88 - Integrate Volatility Agent into orchestrator and update Risk agent (depends: #89, #91)
+- [ ] #90 - Add CLI rendering for volatility output (parallel: true, depends: #87)
+- [ ] #92 - Write comprehensive tests for Volatility Agent feature (depends: all)
+
+Total tasks: 6
+Parallel tasks: 2 (#87, #90 can run concurrently)
+Sequential tasks: 4 (#89 -> #91 -> #88 -> #92)
+Estimated total effort: 17 hours
