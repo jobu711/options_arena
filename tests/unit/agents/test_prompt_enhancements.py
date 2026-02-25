@@ -24,11 +24,18 @@ from options_arena.agents._parsing import (
     PROMPT_RULES_APPENDIX,
     build_cleaned_agent_response,
     build_cleaned_trade_thesis,
+    build_cleaned_volatility_thesis,
 )
 from options_arena.agents.bear import BEAR_SYSTEM_PROMPT
 from options_arena.agents.bull import BULL_SYSTEM_PROMPT
 from options_arena.agents.risk import RISK_STRATEGY_TREE, RISK_SYSTEM_PROMPT
-from options_arena.models import AgentResponse, SignalDirection, TradeThesis
+from options_arena.models import (
+    AgentResponse,
+    SignalDirection,
+    SpreadType,
+    TradeThesis,
+    VolatilityThesis,
+)
 
 # Prevent accidental real API calls
 models.ALLOW_MODEL_REQUESTS = False
@@ -254,3 +261,112 @@ class TestBuildCleanedTradeThesis:
     def test_returns_original_when_no_tags(self, trade_thesis_clean: TradeThesis) -> None:
         result = build_cleaned_trade_thesis(trade_thesis_clean)
         assert result is trade_thesis_clean  # identity check — same object
+
+
+# --- Volatility thesis fixtures ---
+
+
+@pytest.fixture()
+def vol_thesis_with_think_tags() -> VolatilityThesis:
+    """VolatilityThesis with <think> tags in text fields."""
+    return VolatilityThesis(
+        iv_assessment="<think>Checking IV levels.</think>overpriced",
+        iv_rank_interpretation=("<think>rank analysis</think>IV rank at 85 is in the top 15%"),
+        confidence=0.75,
+        recommended_strategy=SpreadType.IRON_CONDOR,
+        strategy_rationale="<think>strategy reasoning</think>High IV favors selling premium",
+        target_iv_entry=85.0,
+        target_iv_exit=50.0,
+        suggested_strikes=[
+            "<think>strike calc</think>185C",
+            "<think>strike calc</think>195C",
+        ],
+        key_vol_factors=[
+            "<think>factor</think>Earnings in 5 days",
+            "<think>factor</think>IV rank 85",
+        ],
+        model_used="<think>model info</think>llama3.1:8b",
+    )
+
+
+@pytest.fixture()
+def vol_thesis_clean() -> VolatilityThesis:
+    """VolatilityThesis with no <think> tags."""
+    return VolatilityThesis(
+        iv_assessment="overpriced",
+        iv_rank_interpretation="IV rank at 85 is in the top 15%",
+        confidence=0.75,
+        recommended_strategy=SpreadType.IRON_CONDOR,
+        strategy_rationale="High IV favors selling premium",
+        target_iv_entry=85.0,
+        target_iv_exit=50.0,
+        suggested_strikes=["185C", "195C"],
+        key_vol_factors=["Earnings in 5 days", "IV rank 85"],
+        model_used="llama3.1:8b",
+    )
+
+
+# --- build_cleaned_volatility_thesis tests ---
+
+
+class TestBuildCleanedVolatilityThesis:
+    """Tests for the shared VolatilityThesis output validator helper."""
+
+    def test_strips_think_tags_from_iv_assessment(
+        self, vol_thesis_with_think_tags: VolatilityThesis
+    ) -> None:
+        result = build_cleaned_volatility_thesis(vol_thesis_with_think_tags)
+        assert "<think>" not in result.iv_assessment
+        assert "</think>" not in result.iv_assessment
+        assert "overpriced" in result.iv_assessment
+
+    def test_strips_think_tags_from_iv_rank_interpretation(
+        self, vol_thesis_with_think_tags: VolatilityThesis
+    ) -> None:
+        result = build_cleaned_volatility_thesis(vol_thesis_with_think_tags)
+        assert "<think>" not in result.iv_rank_interpretation
+        assert "</think>" not in result.iv_rank_interpretation
+        assert "IV rank at 85" in result.iv_rank_interpretation
+
+    def test_strips_think_tags_from_strategy_rationale(
+        self, vol_thesis_with_think_tags: VolatilityThesis
+    ) -> None:
+        result = build_cleaned_volatility_thesis(vol_thesis_with_think_tags)
+        assert "<think>" not in result.strategy_rationale
+        assert "</think>" not in result.strategy_rationale
+        assert "High IV favors selling premium" in result.strategy_rationale
+
+    def test_strips_think_tags_from_suggested_strikes(
+        self, vol_thesis_with_think_tags: VolatilityThesis
+    ) -> None:
+        result = build_cleaned_volatility_thesis(vol_thesis_with_think_tags)
+        for strike in result.suggested_strikes:
+            assert "<think>" not in strike
+            assert "</think>" not in strike
+
+    def test_strips_think_tags_from_key_vol_factors(
+        self, vol_thesis_with_think_tags: VolatilityThesis
+    ) -> None:
+        result = build_cleaned_volatility_thesis(vol_thesis_with_think_tags)
+        for factor in result.key_vol_factors:
+            assert "<think>" not in factor
+            assert "</think>" not in factor
+
+    def test_strips_think_tags_from_model_used(
+        self, vol_thesis_with_think_tags: VolatilityThesis
+    ) -> None:
+        result = build_cleaned_volatility_thesis(vol_thesis_with_think_tags)
+        assert "<think>" not in result.model_used
+        assert "</think>" not in result.model_used
+        assert "llama3.1:8b" in result.model_used
+
+    def test_preserves_non_text_fields(self, vol_thesis_with_think_tags: VolatilityThesis) -> None:
+        result = build_cleaned_volatility_thesis(vol_thesis_with_think_tags)
+        assert result.confidence == pytest.approx(0.75)
+        assert result.recommended_strategy == SpreadType.IRON_CONDOR
+        assert result.target_iv_entry == pytest.approx(85.0)
+        assert result.target_iv_exit == pytest.approx(50.0)
+
+    def test_returns_original_when_no_tags(self, vol_thesis_clean: VolatilityThesis) -> None:
+        result = build_cleaned_volatility_thesis(vol_thesis_clean)
+        assert result is vol_thesis_clean  # identity check — same object
