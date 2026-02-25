@@ -11,6 +11,7 @@ import logging
 import signal
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
@@ -32,7 +33,7 @@ from options_arena.cli.rendering import (
     render_scan_table,
 )
 from options_arena.data import Database, Repository
-from options_arena.models import DebateConfig
+from options_arena.models import DebateConfig, TickerScore
 from options_arena.models.config import AppSettings
 from options_arena.models.enums import ScanPreset
 from options_arena.scan import CancellationToken, ScanPipeline, ScanResult
@@ -44,6 +45,9 @@ from options_arena.services.market_data import MarketDataService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.services.universe import UniverseService
+
+if TYPE_CHECKING:
+    from options_arena.agents import DebateResult
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -201,6 +205,91 @@ def debate(
     asyncio.run(_debate_async(ticker.upper(), history, fallback_only))
 
 
+async def _debate_single(
+    ticker_score: TickerScore,
+    settings: AppSettings,
+    market_data: MarketDataService,
+    options_data: OptionsDataService,
+    fred: FredService,
+    repo: Repository,
+    *,
+    fallback_only: bool = False,
+) -> DebateResult:
+    """Run a single AI debate for one ticker. Returns result without rendering.
+
+    Fetches live market data, recommends contracts, and runs the debate pipeline.
+    The caller is responsible for service lifecycle (creation and cleanup) and
+    any console output (status messages, rendering, disclaimers).
+
+    Args:
+        ticker_score: Scored ticker from a prior scan run.
+        settings: Application settings (debate config, pricing config, service config).
+        market_data: Pre-created market data service.
+        options_data: Pre-created options data service.
+        fred: Pre-created FRED service.
+        repo: Database repository for debate persistence.
+        fallback_only: If True, force data-driven path by using near-zero timeouts.
+
+    Returns:
+        DebateResult with agent responses, thesis, usage, and duration.
+    """
+    ticker = ticker_score.ticker
+
+    quote = await market_data.fetch_quote(ticker)
+    ticker_info = await market_data.fetch_ticker_info(ticker)
+
+    # Fetch risk-free rate and option chains concurrently
+    risk_free_task = fred.fetch_risk_free_rate()
+    chains_task = options_data.fetch_chain_all_expirations(ticker)
+    risk_free_rate, chain_results = await asyncio.gather(risk_free_task, chains_task)
+
+    # Flatten all contracts across expirations
+    all_contracts = [c for chain in chain_results for c in chain.contracts]
+
+    # Select best contract via scoring/contracts.py (mirrors scan pipeline Phase 3)
+    spot = float(ticker_info.current_price)
+    contracts = recommend_contracts(
+        contracts=all_contracts,
+        direction=ticker_score.direction,
+        spot=spot,
+        risk_free_rate=risk_free_rate,
+        dividend_yield=ticker_info.dividend_yield,
+        config=settings.pricing,
+    )
+
+    logger.info(
+        "Debate %s: %d chains fetched, %d total contracts, %d recommended",
+        ticker,
+        len(chain_results),
+        len(all_contracts),
+        len(contracts),
+    )
+
+    # Lazy import: agents/ depends on pydantic-ai[ollama] which may not be
+    # available.  Importing at call time keeps CLI tests (scan, health, universe)
+    # working even when the optional dependency is absent.
+    from options_arena.agents import run_debate  # noqa: PLC0415
+
+    # Force fallback mode if requested (near-zero timeout triggers data-driven path)
+    config = settings.debate
+    if fallback_only:
+        config = DebateConfig(
+            agent_timeout=_FALLBACK_ONLY_TIMEOUT_SEC,
+            max_total_duration=_FALLBACK_ONLY_TIMEOUT_SEC,
+            fallback_confidence=settings.debate.fallback_confidence,
+            min_debate_score=0.0,  # disable screening — fallback-only wants all tickers
+        )
+
+    return await run_debate(
+        ticker_score=ticker_score,
+        contracts=contracts,
+        quote=quote,
+        ticker_info=ticker_info,
+        config=config,
+        repository=repo,
+    )
+
+
 async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None:
     """Run AI debate with full service lifecycle management."""
     settings = AppSettings()
@@ -246,65 +335,22 @@ async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None
             )
             raise typer.Exit(code=1)
 
-        # Fetch live market data and option contracts
+        # Create services for live data fetching
         market_data = MarketDataService(settings.service, cache, limiter)
         options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
         fred = FredService(settings.service, settings.pricing, cache)
 
         err_console.print(f"[cyan]Fetching live data for {ticker}...[/cyan]")
-        quote = await market_data.fetch_quote(ticker)
-        ticker_info = await market_data.fetch_ticker_info(ticker)
-
-        # Fetch risk-free rate and option chains concurrently
-        risk_free_task = fred.fetch_risk_free_rate()
-        chains_task = options_data.fetch_chain_all_expirations(ticker)
-        risk_free_rate, chain_results = await asyncio.gather(risk_free_task, chains_task)
-
-        # Flatten all contracts across expirations
-        all_contracts = [c for chain in chain_results for c in chain.contracts]
-
-        # Select best contract via scoring/contracts.py (mirrors scan pipeline Phase 3)
-        spot = float(ticker_info.current_price)
-        contracts = recommend_contracts(
-            contracts=all_contracts,
-            direction=ticker_score.direction,
-            spot=spot,
-            risk_free_rate=risk_free_rate,
-            dividend_yield=ticker_info.dividend_yield,
-            config=settings.pricing,
-        )
-
-        logger.info(
-            "Debate %s: %d chains fetched, %d total contracts, %d recommended",
-            ticker,
-            len(chain_results),
-            len(all_contracts),
-            len(contracts),
-        )
-
-        # Lazy import: agents/ depends on pydantic-ai[ollama] which may not be
-        # available.  Importing at call time keeps CLI tests (scan, health, universe)
-        # working even when the optional dependency is absent.
-        from options_arena.agents import run_debate  # noqa: PLC0415
-
-        # Force fallback mode if requested (near-zero timeout triggers data-driven path)
-        config = settings.debate
-        if fallback_only:
-            config = DebateConfig(
-                agent_timeout=_FALLBACK_ONLY_TIMEOUT_SEC,
-                max_total_duration=_FALLBACK_ONLY_TIMEOUT_SEC,
-                fallback_confidence=settings.debate.fallback_confidence,
-                min_debate_score=0.0,  # disable screening — fallback-only wants all tickers
-            )
-
         err_console.print(f"[cyan]Running debate for {ticker}...[/cyan]")
-        result = await run_debate(
+
+        result = await _debate_single(
             ticker_score=ticker_score,
-            contracts=contracts,
-            quote=quote,
-            ticker_info=ticker_info,
-            config=config,
-            repository=repo,
+            settings=settings,
+            market_data=market_data,
+            options_data=options_data,
+            fred=fred,
+            repo=repo,
+            fallback_only=fallback_only,
         )
 
         # Render debate output
