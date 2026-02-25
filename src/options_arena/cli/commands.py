@@ -202,6 +202,8 @@ def debate(
     fallback_only: bool = typer.Option(
         False, "--fallback-only", help="Force data-driven path (skip AI)"
     ),
+    export: str | None = typer.Option(None, "--export", help="Export format: md or pdf"),
+    export_dir: str = typer.Option("./reports", "--export-dir", help="Export output directory"),
 ) -> None:
     """Run AI debate on a scored ticker."""
     if batch and ticker is not None:
@@ -213,17 +215,45 @@ def debate(
     if not batch and ticker is None:
         err_console.print("[red]Provide a TICKER or use --batch.[/red]")
         raise typer.Exit(code=1)
+    if export is not None and export not in ("md", "pdf"):
+        err_console.print("[red]--export must be 'md' or 'pdf'.[/red]")
+        raise typer.Exit(code=1)
 
     if batch:
         asyncio.run(_batch_async(batch_limit, fallback_only))
     else:
         assert ticker is not None  # validated above
-        asyncio.run(_debate_async(ticker.upper(), history, fallback_only))
+        asyncio.run(_debate_async(ticker.upper(), history, fallback_only, export, export_dir))
 
 
 async def _batch_async(batch_limit: int, fallback_only: bool) -> None:
     """Batch debate orchestration loop. Implemented in #104."""
     raise NotImplementedError("Batch mode not yet implemented")
+
+
+def _export_result(
+    result: DebateResult,
+    ticker: str,
+    fmt: str,
+    export_dir: str,
+) -> None:
+    """Export a debate result to file. Prints status or error to stderr."""
+    from datetime import date  # noqa: PLC0415
+
+    from options_arena.reporting import export_debate_to_file  # noqa: PLC0415
+
+    export_path = Path(export_dir) / f"debate_{ticker}_{date.today().isoformat()}.{fmt}"
+    export_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        export_debate_to_file(result, export_path, fmt=fmt)
+        err_console.print(f"[green]Exported: {export_path}[/green]")
+    except ImportError:
+        err_console.print(
+            "[red]PDF export requires weasyprint. Install: uv add 'options-arena[pdf]'[/red]"
+        )
+    except OSError:
+        logger.exception("Failed to write export file: %s", export_path)
+        err_console.print(f"[red]Failed to write: {export_path}[/red]")
 
 
 async def _debate_single(
@@ -311,7 +341,13 @@ async def _debate_single(
     )
 
 
-async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None:
+async def _debate_async(
+    ticker: str,
+    history: bool,
+    fallback_only: bool,
+    export: str | None = None,
+    export_dir: str = "./reports",
+) -> None:
     """Run AI debate with full service lifecycle management."""
     settings = AppSettings()
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -385,6 +421,10 @@ async def _debate_async(ticker: str, history: bool, fallback_only: bool) -> None
 
         # Regulatory disclaimer (ALWAYS printed)
         console.print(f"\n{DISCLAIMER}")
+
+        # Export to file (after terminal rendering)
+        if export is not None:
+            _export_result(result, ticker, export, export_dir)
 
     except KeyboardInterrupt:
         err_console.print("\n[yellow]Debate cancelled.[/yellow]")
