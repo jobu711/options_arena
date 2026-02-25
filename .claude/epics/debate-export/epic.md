@@ -5,7 +5,7 @@ created: 2026-02-24T21:49:24Z
 progress: 0%
 prd: .claude/prds/ai-debate-enhance.md
 parent: .claude/epics/ai-debate-enhance/epic.md
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/108
 ---
 
 # Epic 7: Export Debate Results
@@ -150,6 +150,18 @@ uv run mypy src/ --strict
 ## Dependencies
 - **Blocked by**: Epic 6 (batch mode for combined reports)
 - **Blocks**: Nothing (terminal epic)
+
+## Tasks Created
+- [ ] #109 - Implement markdown export function (parallel: true)
+- [ ] #110 - Implement file export with PDF support (parallel: false, depends: #109)
+- [ ] #111 - Add CLI export flags to debate command (parallel: false, depends: #110)
+- [ ] #112 - Add batch export support (parallel: false, depends: #111 + Epic 6)
+- [ ] #113 - Write comprehensive tests for debate export (parallel: false, depends: #109, #110, #111)
+
+Total tasks: 5
+Parallel tasks: 1
+Sequential tasks: 4
+Estimated total effort: 11-19 hours
 
 ## Key Decision
 PDF export wraps markdown in `<pre>` HTML. This is intentionally minimal — fancy HTML

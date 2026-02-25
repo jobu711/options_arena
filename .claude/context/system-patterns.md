@@ -48,15 +48,17 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **Shared prompt appendix**: `PROMPT_RULES_APPENDIX` (confidence calibration, data anchors, citation rules) appended to bull/bear/risk prompts. Volatility uses its own prompt contract. `RISK_STRATEGY_TREE` appended to risk only.
 - **Multi-provider**: `DebateProvider` enum (`OLLAMA`, `GROQ`), `build_debate_model()` match/case dispatch
 - **Provider-aware timeouts**: Ollama `agent_timeout` (600s), Groq `groq_timeout` (60s)
-- Sequential execution: Bull → Bear → Volatility (optional, config-gated) → Risk
+- **Bull rebuttal** (optional, `enable_rebuttal`): bull runs a second time with `bear_counter_argument` set. Uses string concatenation (`_REBUTTAL_PREFIX` + text + `_REBUTTAL_SUFFIX`), NOT `str.format()` — safe for LLM text with curly braces.
+- Sequential execution: Bull → Bear → Bull Rebuttal (optional) → Volatility (optional) → Risk
 - Orchestrator never raises: catches errors → data-driven fallback (confidence=0.3)
 
 ### Debate Orchestration Flow
 ```
 1. build_market_context() → MarketContext
 2. build_debate_model(config) → OllamaModel or GroqModel
-3. Bull → Bear (receives bull argument) → Volatility (optional) → Risk (receives all) → TradeThesis
-4. Accumulate RunUsage, persist to ai_theses table
+3. Bull → Bear (receives bull argument) → Bull Rebuttal (opt-in, receives bear key_points)
+   → Volatility (opt-in) → Risk (receives all) → TradeThesis
+4. Accumulate RunUsage, persist to ai_theses table (incl. rebuttal_json)
 On any error: data-driven fallback (is_fallback=True, confidence=0.3)
 ```
 

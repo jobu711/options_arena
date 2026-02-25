@@ -5,7 +5,7 @@ created: 2026-02-24T21:49:24Z
 progress: 0%
 prd: .claude/prds/ai-debate-enhance.md
 parent: .claude/epics/ai-debate-enhance/epic.md
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/101
 ---
 
 # Epic 6: Multi-Ticker Batch Debate
@@ -108,3 +108,15 @@ uv run mypy src/ --strict
 Services are created once and shared across all tickers in a batch. This avoids
 creating/closing 5 services x N tickers. The existing service DI pattern supports this
 naturally — services are stateless beyond their httpx client.
+
+## Tasks Created
+- [ ] #102 - Extract _debate_single() from _debate_async() (parallel: false)
+- [ ] #103 - Add --batch and --batch-limit CLI flags with validation (parallel: false)
+- [ ] #104 - Implement _batch_async() orchestration loop (parallel: false)
+- [ ] #105 - Add render_batch_summary_table() to rendering.py (parallel: true)
+- [ ] #106 - Write tests for batch debate feature (parallel: false)
+
+Total tasks: 5
+Parallel tasks: 1 (#105 can be built alongside #102-#104)
+Sequential tasks: 4 (#102 → #103 → #104 → #106, with #105 joining at #106)
+Estimated total effort: 10-14 hours
