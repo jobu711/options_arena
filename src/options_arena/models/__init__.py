@@ -4,7 +4,12 @@ Re-exports all public models and enums from the ``models`` package.
 Consumers import from the package: ``from options_arena.models import OptionContract``.
 """
 
-from options_arena.models.analysis import AgentResponse, MarketContext, TradeThesis
+from options_arena.models.analysis import (
+    AgentResponse,
+    MarketContext,
+    TradeThesis,
+    VolatilityThesis,
+)
 from options_arena.models.config import (
     AppSettings,
     DebateConfig,
@@ -58,6 +63,7 @@ __all__ = [
     "AgentResponse",
     "MarketContext",
     "TradeThesis",
+    "VolatilityThesis",
     # Scan
     "IndicatorSignals",
     "ScanRun",
