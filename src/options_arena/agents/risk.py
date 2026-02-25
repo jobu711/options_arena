@@ -114,6 +114,15 @@ async def risk_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
             f"Key Points: {', '.join(ctx.deps.bear_response.key_points)}\n"
             f"<<<END_BEAR_CASE>>>"
         )
+    if ctx.deps.bull_rebuttal is not None:
+        parts.append(
+            f"\n\n<<<BULL_REBUTTAL>>>\n"
+            f"Direction: {ctx.deps.bull_rebuttal.direction.value}\n"
+            f"Confidence: {ctx.deps.bull_rebuttal.confidence}\n"
+            f"Argument: {ctx.deps.bull_rebuttal.argument}\n"
+            f"Key Points: {', '.join(ctx.deps.bull_rebuttal.key_points)}\n"
+            f"<<<END_BULL_REBUTTAL>>>"
+        )
     if ctx.deps.vol_response is not None:
         vol = ctx.deps.vol_response
         parts.append(
