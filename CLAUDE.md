@@ -7,10 +7,10 @@
 ## What This Project Does
 
 AI-powered options analysis tool for American-style options on U.S. equities. Three AI
-agents (Bull, Bear, Risk) debate via Ollama local models (Llama 3.1 8B) on options
+agents (Bull, Bear, Risk) debate via Groq cloud API (Llama 3.3 70B) on options
 contracts. The tool fetches market data, computes technical indicators, runs a structured
 single-pass debate, and produces a verdict with risk assessment. Data-driven fallback
-when Ollama is unreachable.
+when the LLM provider is unreachable.
 
 ## Tech Stack
 
@@ -21,7 +21,7 @@ when Ollama is unreachable.
 - **Async**: `asyncio` + `httpx` — debate loop, data fetching, and scan pipeline are async
 - **Models**: Pydantic v2 — all structured data crosses module boundaries as typed models, never raw dicts
 - **Config**: `pydantic-settings` v2 — single `AppSettings(BaseSettings)` root, nested `BaseModel` submodels
-- **AI SDK**: `pydantic-ai` + Ollama (local Llama 3.1 8B). See `agents/CLAUDE.md`
+- **AI SDK**: `pydantic-ai` + Groq (cloud Llama 3.3 70B). See `agents/CLAUDE.md`
 - **Pricing**: `scipy` — BSM (Merton 1973) + BAW (Barone-Adesi-Whaley 1987) for American options
 - **CLI**: `typer` + `rich` — subcommands, Rich tables, progress bars, colored terminal output
 - **Data**: `pandas` + `numpy` for indicators, `yfinance` wrapped in services, `aiosqlite` for persistence
@@ -31,7 +31,7 @@ when Ollama is unreachable.
 ```
 src/options_arena/
     cli/          # Typer CLI entry point                    → has own CLAUDE.md
-    agents/       # PydanticAI debate agents (Ollama/Groq)   → has own CLAUDE.md
+    agents/       # PydanticAI debate agents (Groq)           → has own CLAUDE.md
       prompts/    #   Prompt templates & versioning          → has own CLAUDE.md
     models/       # Pydantic models, enums, config           → has own CLAUDE.md
     pricing/      # BSM + BAW option pricing & Greeks        → has own CLAUDE.md
@@ -44,7 +44,7 @@ src/options_arena/
     reporting/    # Future: report generation & disclaimers  → has own CLAUDE.md
     utils/        # DataFetchError exception hierarchy
 data/migrations/  # Sequential SQL migration files
-tests/            # 1,262 tests (unit + integration)         → has own CLAUDE.md
+tests/            # 1,402 tests (unit + integration)         → has own CLAUDE.md
 ```
 
 Each module's CLAUDE.md has the detailed file listing. Read it before modifying that module.

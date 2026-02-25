@@ -34,7 +34,7 @@ from options_arena.cli.rendering import (
     render_scan_table,
 )
 from options_arena.data import Database, Repository
-from options_arena.models import DebateConfig, TickerScore
+from options_arena.models import TickerScore
 from options_arena.models.config import AppSettings
 from options_arena.models.enums import ScanPreset
 from options_arena.scan import CancellationToken, ScanPipeline, ScanResult
@@ -409,19 +409,20 @@ async def _debate_single(
         len(contracts),
     )
 
-    # Lazy import: agents/ depends on pydantic-ai[ollama] which may not be
-    # available.  Importing at call time keeps CLI tests (scan, health, universe)
-    # working even when the optional dependency is absent.
+    # Lazy import: agents/ depends on pydantic-ai which may not be available.
+    # Importing at call time keeps CLI tests (scan, health, universe) working
+    # even when the optional dependency is absent.
     from options_arena.agents import run_debate  # noqa: PLC0415
 
     # Force fallback mode if requested (near-zero timeout triggers data-driven path)
     config = settings.debate
     if fallback_only:
-        config = DebateConfig(
-            agent_timeout=_FALLBACK_ONLY_TIMEOUT_SEC,
-            max_total_duration=_FALLBACK_ONLY_TIMEOUT_SEC,
-            fallback_confidence=settings.debate.fallback_confidence,
-            min_debate_score=0.0,  # disable screening — fallback-only wants all tickers
+        config = settings.debate.model_copy(
+            update={
+                "agent_timeout": _FALLBACK_ONLY_TIMEOUT_SEC,
+                "max_total_duration": _FALLBACK_ONLY_TIMEOUT_SEC,
+                "min_debate_score": 0.0,
+            }
         )
 
     return await run_debate(

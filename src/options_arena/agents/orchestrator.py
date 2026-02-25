@@ -1,13 +1,12 @@
 """Orchestrator for the Options Arena AI debate system.
 
-Coordinates bull, bear, volatility (optional), and risk agents sequentially,
+Coordinates bull, bear, volatility (optional), and risk agents via Groq cloud API,
 accumulates token usage, and returns a ``DebateResult``. On ANY failure
 (connection error, timeout, invalid LLM output, etc.), returns a data-driven
 fallback — ``run_debate()`` never raises.
 
 Architecture rules:
-- Agents run SEQUENTIALLY (bull -> bear -> volatility (if enabled) -> risk).
-  Ollama is single-threaded.
+- Bull and bear run sequentially. Rebuttal + volatility can run in parallel.
 - Every ``agent.run()`` is wrapped in ``asyncio.wait_for(timeout=...)``.
 - The orchestrator does NOT fetch data — all inputs are pre-fetched by the caller.
 - ``time.monotonic()`` for duration measurement, never ``time.time()``.
@@ -22,11 +21,18 @@ import time
 from datetime import UTC, datetime
 
 import httpx
+from pydantic_ai import AgentRunResult
 from pydantic_ai.exceptions import UnexpectedModelBehavior
+from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RunUsage
 
-from options_arena.agents._parsing import DebateDeps, DebateResult, render_context_block
+from options_arena.agents._parsing import (
+    DebateDeps,
+    DebateResult,
+    compute_citation_density,
+    render_context_block,
+)
 from options_arena.agents.bear import bear_agent
 from options_arena.agents.bull import bull_agent
 from options_arena.agents.model_config import build_debate_model
@@ -36,7 +42,6 @@ from options_arena.data.repository import Repository
 from options_arena.models import (
     AgentResponse,
     DebateConfig,
-    DebateProvider,
     ExerciseStyle,
     MacdSignal,
     MarketContext,
@@ -113,7 +118,11 @@ def build_market_context(
         price_52w_low=ticker_info.fifty_two_week_low,
         iv_rank=signals.iv_rank if signals.iv_rank is not None else 0.0,
         iv_percentile=signals.iv_percentile if signals.iv_percentile is not None else 0.0,
-        atm_iv_30d=0.0,  # Not available in scan data
+        atm_iv_30d=(
+            first_contract.market_iv
+            if first_contract is not None and first_contract.market_iv > 0
+            else 0.0
+        ),
         rsi_14=signals.rsi if signals.rsi is not None else 50.0,
         macd_signal=macd_signal,
         put_call_ratio=(signals.put_call_ratio if signals.put_call_ratio is not None else 0.0),
@@ -193,7 +202,7 @@ async def run_debate(
     ticker_info
         Fundamental data (sector, dividend yield, 52-week range).
     config
-        Debate configuration (Ollama host, model, timeouts).
+        Debate configuration (model, timeouts).
     repository
         Optional persistence layer. If provided, debate results are saved.
 
@@ -216,7 +225,7 @@ async def run_debate(
             )
         except httpx.ConnectError as e:
             logger.warning(
-                "Ollama not reachable for %s (%s: %s), using data-driven fallback",
+                "LLM provider not reachable for %s (%s: %s), using data-driven fallback",
                 context.ticker,
                 type(e).__name__,
                 e,
@@ -267,18 +276,8 @@ async def _run_agents(
     Raises on any agent failure — the caller (``run_debate``) catches and falls back.
     """
     model = build_debate_model(config)
-    # extra_body with num_ctx is Ollama-specific; omit for cloud providers
-    if config.provider == DebateProvider.OLLAMA:
-        settings = ModelSettings(
-            temperature=config.temperature,
-            extra_body={"num_ctx": config.num_ctx},
-        )
-    else:
-        settings = ModelSettings(temperature=config.temperature)
-    # Provider-aware per-agent timeout: generous for local Ollama, tight for cloud Groq
-    per_agent_timeout = (
-        config.agent_timeout if config.provider == DebateProvider.OLLAMA else config.groq_timeout
-    )
+    settings = ModelSettings(temperature=config.temperature)
+    per_agent_timeout = config.agent_timeout
     context_text = render_context_block(context)
 
     # --- Bull agent ---
@@ -328,68 +327,85 @@ async def _run_agents(
         bear_output.confidence,
     )
 
-    # --- Bull rebuttal (opt-in) ---
-    rebuttal_result = None
+    # --- Rebuttal + Volatility (parallel when both enabled, sequential otherwise) ---
+    rebuttal_result: AgentRunResult[AgentResponse] | None = None
     rebuttal_output: AgentResponse | None = None
-    if config.enable_rebuttal:
-        logger.info("Running bull rebuttal for %s", context.ticker)
-        bear_key_points = (
-            "\n".join(f"- {p}" for p in bear_output.key_points)
-            if bear_output.key_points
-            else f"- {bear_output.argument}"
-        )
-        rebuttal_deps = DebateDeps(
-            context=context,
-            ticker_score=ticker_score,
-            contracts=contracts,
-            bear_counter_argument=bear_key_points,
-        )
-        rebuttal_result = await asyncio.wait_for(
-            bull_agent.run(
-                f"Rebut the bear's counterarguments for {context.ticker}.\n\n{context_text}",
-                model=model,
-                deps=rebuttal_deps,
-                model_settings=settings,
-            ),
-            timeout=per_agent_timeout,
-        )
-        rebuttal_output = rebuttal_result.output
-        logger.info(
-            "Bull rebuttal complete for %s: confidence=%.2f",
-            context.ticker,
-            rebuttal_output.confidence,
-        )
-
-    # --- Volatility agent (opt-in) ---
-    vol_result = None
+    vol_result: AgentRunResult[VolatilityThesis] | None = None
     vol_output: VolatilityThesis | None = None
-    if config.enable_volatility_agent:
-        logger.info("Running volatility agent for %s", context.ticker)
-        vol_deps = DebateDeps(
-            context=context,
-            ticker_score=ticker_score,
-            contracts=contracts,
-            bull_response=bull_output,
-            bear_response=bear_output,
-        )
-        vol_result = await asyncio.wait_for(
-            volatility_agent.run(
-                f"Assess implied volatility for {context.ticker}.\n\n{context_text}",
-                model=model,
-                deps=vol_deps,
-                model_settings=settings,
-            ),
-            timeout=per_agent_timeout,
-        )
-        vol_output = vol_result.output
-        logger.info(
-            "Volatility agent complete for %s: iv_assessment=%s, confidence=%.2f",
-            context.ticker,
-            vol_output.iv_assessment,
-            vol_output.confidence,
-        )
 
-    # --- Risk agent ---
+    if config.enable_rebuttal and config.enable_volatility_agent:
+        # Run both in parallel — they have no dependency on each other
+        logger.info("Running rebuttal + volatility in parallel for %s", context.ticker)
+        rebuttal_coro = _run_rebuttal(
+            context,
+            ticker_score,
+            contracts,
+            bear_output,
+            model,
+            settings,
+            per_agent_timeout,
+            context_text,
+        )
+        vol_coro = _run_volatility(
+            context,
+            ticker_score,
+            contracts,
+            bull_output,
+            bear_output,
+            model,
+            settings,
+            per_agent_timeout,
+            context_text,
+        )
+        parallel_results = await asyncio.gather(
+            rebuttal_coro,
+            vol_coro,
+            return_exceptions=True,
+        )
+        # Handle rebuttal result
+        if isinstance(parallel_results[0], BaseException):
+            logger.warning(
+                "Rebuttal failed for %s: %s",
+                context.ticker,
+                parallel_results[0],
+            )
+        else:
+            rebuttal_result, rebuttal_output = parallel_results[0]
+        # Handle volatility result
+        if isinstance(parallel_results[1], BaseException):
+            logger.warning(
+                "Volatility agent failed for %s: %s",
+                context.ticker,
+                parallel_results[1],
+            )
+        else:
+            vol_result, vol_output = parallel_results[1]
+    else:
+        if config.enable_rebuttal:
+            rebuttal_result, rebuttal_output = await _run_rebuttal(
+                context,
+                ticker_score,
+                contracts,
+                bear_output,
+                model,
+                settings,
+                per_agent_timeout,
+                context_text,
+            )
+        if config.enable_volatility_agent:
+            vol_result, vol_output = await _run_volatility(
+                context,
+                ticker_score,
+                contracts,
+                bull_output,
+                bear_output,
+                model,
+                settings,
+                per_agent_timeout,
+                context_text,
+            )
+
+    # --- Risk agent (always last — depends on all prior outputs) ---
     logger.info("Running risk agent for %s", context.ticker)
     risk_deps = DebateDeps(
         context=context,
@@ -426,12 +442,24 @@ async def _run_agents(
         total_usage = total_usage + vol_result.usage()
     elapsed_ms = int((time.monotonic() - start_time) * 1000)
 
+    # Citation density scoring
+    agent_texts = [
+        bull_output.argument,
+        bear_output.argument,
+        thesis.summary,
+        thesis.risk_assessment,
+    ]
+    if rebuttal_output is not None:
+        agent_texts.append(rebuttal_output.argument)
+    density = compute_citation_density(context_text, *agent_texts)
+
     logger.info(
-        "Debate complete for %s in %dms (tokens: in=%d, out=%d)",
+        "Debate complete for %s in %dms (tokens: in=%d, out=%d, citation=%.2f)",
         context.ticker,
         elapsed_ms,
         total_usage.input_tokens,
         total_usage.output_tokens,
+        density,
     )
 
     return DebateResult(
@@ -444,7 +472,88 @@ async def _run_agents(
         is_fallback=False,
         bull_rebuttal=rebuttal_output,
         vol_response=vol_output,
+        citation_density=density,
     )
+
+
+async def _run_rebuttal(
+    context: MarketContext,
+    ticker_score: TickerScore,
+    contracts: list[OptionContract],
+    bear_output: AgentResponse,
+    model: Model,
+    settings: ModelSettings,
+    timeout: float,
+    context_text: str,
+) -> tuple[AgentRunResult[AgentResponse], AgentResponse]:
+    """Run bull rebuttal agent. Returns (run_result, output) tuple."""
+    logger.info("Running bull rebuttal for %s", context.ticker)
+    bear_key_points = (
+        "\n".join(f"- {p}" for p in bear_output.key_points)
+        if bear_output.key_points
+        else f"- {bear_output.argument}"
+    )
+    rebuttal_deps = DebateDeps(
+        context=context,
+        ticker_score=ticker_score,
+        contracts=contracts,
+        bear_counter_argument=bear_key_points,
+    )
+    result = await asyncio.wait_for(
+        bull_agent.run(
+            f"Rebut the bear's counterarguments for {context.ticker}.\n\n{context_text}",
+            model=model,
+            deps=rebuttal_deps,
+            model_settings=settings,
+        ),
+        timeout=timeout,
+    )
+    output: AgentResponse = result.output
+    logger.info(
+        "Bull rebuttal complete for %s: confidence=%.2f",
+        context.ticker,
+        output.confidence,
+    )
+    return result, output
+
+
+async def _run_volatility(
+    context: MarketContext,
+    ticker_score: TickerScore,
+    contracts: list[OptionContract],
+    bull_output: AgentResponse,
+    bear_output: AgentResponse,
+    model: Model,
+    settings: ModelSettings,
+    timeout: float,
+    context_text: str,
+) -> tuple[AgentRunResult[VolatilityThesis], VolatilityThesis]:
+    """Run volatility agent. Returns (run_result, output) tuple."""
+    logger.info("Running volatility agent for %s", context.ticker)
+    vol_deps = DebateDeps(
+        context=context,
+        ticker_score=ticker_score,
+        contracts=contracts,
+        bull_response=bull_output,
+        bear_response=bear_output,
+    )
+    result = await asyncio.wait_for(
+        volatility_agent.run(
+            f"Assess implied volatility for {context.ticker}.\n\n{context_text}",
+            model=model,
+            deps=vol_deps,
+            model_settings=settings,
+        ),
+        timeout=timeout,
+    )
+    output: VolatilityThesis = result.output
+    logger.info(
+        "Volatility agent complete for %s: iv_assessment=%s, confidence=%.2f",
+        context.ticker,
+        output.iv_assessment,
+        output.confidence,
+    )
+    return result, output
 
 
 def _build_fallback_result(
@@ -472,7 +581,7 @@ def _build_fallback_result(
     bull_confidence = min(ticker_score.composite_score / 100.0 * cap, cap)
     bull_response = AgentResponse(
         agent_name="bull",
-        direction=ticker_score.direction,
+        direction=SignalDirection.BULLISH,
         confidence=bull_confidence,
         argument=(
             f"Data-driven analysis for {context.ticker}. "
@@ -487,11 +596,10 @@ def _build_fallback_result(
     )
 
     # --- Bear fallback ---
-    bear_direction = _opposite_direction(ticker_score.direction)
     bear_confidence = min((100.0 - ticker_score.composite_score) / 100.0 * cap, cap)
     bear_response = AgentResponse(
         agent_name="bear",
-        direction=bear_direction,
+        direction=SignalDirection.BEARISH,
         confidence=bear_confidence,
         argument=(
             f"Data-driven bearish assessment for {context.ticker}. "
@@ -652,9 +760,20 @@ async def _persist_result(
     """Persist debate result to the database. Never raises -- logs on failure."""
     try:
         total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens
-        model_name = (
-            config.groq_model if config.provider == DebateProvider.GROQ else config.ollama_model
-        )
+        model_name = config.model
+
+        # Compute debate_mode for A/B logging
+        if result.is_fallback:
+            debate_mode = "fallback"
+        elif config.enable_rebuttal and config.enable_volatility_agent:
+            debate_mode = "full"
+        elif config.enable_rebuttal:
+            debate_mode = "rebuttal-only"
+        elif config.enable_volatility_agent:
+            debate_mode = "vol-only"
+        else:
+            debate_mode = "base"
+
         await repository.save_debate(
             scan_run_id=ticker_score.scan_run_id,
             ticker=result.context.ticker,
@@ -674,12 +793,15 @@ async def _persist_result(
                 if result.bull_rebuttal is not None
                 else None
             ),
+            debate_mode=debate_mode,
+            citation_density=result.citation_density,
         )
         logger.debug(
-            "Persisted debate for %s (tokens=%d, fallback=%s)",
+            "Persisted debate for %s (tokens=%d, fallback=%s, mode=%s)",
             result.context.ticker,
             total_tokens,
             result.is_fallback,
+            debate_mode,
         )
     except Exception:
         logger.warning(

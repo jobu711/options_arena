@@ -43,22 +43,24 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - Module-level `Agent[Deps, OutputType]` instances (bull, bear, risk, volatility) — no classes
 - `model=None` at init, actual model passed at `agent.run(model=...)` time (enables `TestModel`)
 - `@dataclass` deps (`DebateDeps`), `output_type=PydanticModel` for structured JSON output
-- `retries=2`, `model_settings=ModelSettings(extra_body={"num_ctx": 8192})` for Ollama
+- `retries=2`, `model_settings=ModelSettings(extra_body={"num_ctx": 8192})`
 - `@agent.output_validator` delegates to shared helpers: `build_cleaned_agent_response()` (bull/bear) and `build_cleaned_trade_thesis()` (risk) — strips `<think>` tags without costly retries
-- **Shared prompt appendix**: `PROMPT_RULES_APPENDIX` (confidence calibration, data anchors, citation rules) appended to bull/bear/risk prompts. Volatility uses its own prompt contract. `RISK_STRATEGY_TREE` appended to risk only.
-- **Multi-provider**: `DebateProvider` enum (`OLLAMA`, `GROQ`), `build_debate_model()` match/case dispatch
-- **Provider-aware timeouts**: Ollama `agent_timeout` (600s), Groq `groq_timeout` (60s)
+- **Shared prompt appendix**: `PROMPT_RULES_APPENDIX` (confidence calibration, data anchors, citation rules, IV rank vs percentile, Greeks guidance) appended to bull/bear/risk prompts. Volatility uses its own prompt contract. `RISK_STRATEGY_TREE` appended to risk only.
+- **Groq-only**: `build_debate_model()` builds `GroqModel` directly (no provider abstraction)
+- **Per-agent timeout**: `config.agent_timeout` (60s default)
 - **Bull rebuttal** (optional, `enable_rebuttal`): bull runs a second time with `bear_counter_argument` set. Uses string concatenation (`_REBUTTAL_PREFIX` + text + `_REBUTTAL_SUFFIX`), NOT `str.format()` — safe for LLM text with curly braces.
-- Sequential execution: Bull → Bear → Bull Rebuttal (optional) → Volatility (optional) → Risk
+- **Parallel rebuttal + volatility**: when both enabled, run via `asyncio.gather` (independent)
+- **Score-confidence clamping**: `TradeThesis` model_validator clamps confidence ≤0.5 when scores contradict direction
+- **Citation density**: `compute_citation_density()` measures fraction of context labels cited in agent output
 - Orchestrator never raises: catches errors → data-driven fallback (confidence=0.3)
 
 ### Debate Orchestration Flow
 ```
 1. build_market_context() → MarketContext
-2. build_debate_model(config) → OllamaModel or GroqModel
-3. Bull → Bear (receives bull argument) → Bull Rebuttal (opt-in, receives bear key_points)
-   → Volatility (opt-in) → Risk (receives all) → TradeThesis
-4. Accumulate RunUsage, persist to ai_theses table (incl. rebuttal_json)
+2. build_debate_model(config) → GroqModel
+3. Bull → Bear (receives bull argument) → [Rebuttal + Volatility in parallel if both enabled]
+   → Risk (receives all) → TradeThesis
+4. Compute citation density, accumulate RunUsage, persist to ai_theses (incl. debate_mode, citation_density)
 On any error: data-driven fallback (is_fallback=True, confidence=0.3)
 ```
 

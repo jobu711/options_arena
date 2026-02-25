@@ -22,10 +22,9 @@ author: Claude Code PM System
 | numpy | >=2.4.2 | Numeric operations for indicators |
 | aiosqlite | >=0.22.1 | Async SQLite for persistence layer |
 | yfinance | >=1.2.0 | Market data: OHLCV, options chains, quotes |
-| httpx | >=0.28.1 | Async HTTP client for FRED, Ollama, Anthropic health checks |
+| httpx | >=0.28.1 | Async HTTP client for FRED, Groq health checks |
 | scipy | >=1.17.0 | BSM pricing (`stats.norm.cdf`/`.pdf`), BAW IV solver (`optimize.brentq`) |
 | pydantic-ai | >=1.62.0 | Type-safe agent framework for AI debate agents |
-| ollama | >=0.6.1 | Local LLM server (accessed via PydanticAI + OllamaProvider) |
 | typer | >=0.24.0 | CLI framework with subcommands |
 | rich | >=14.3.2 | Terminal output formatting (tables, colors, progress) |
 | pydantic-settings | >=2.13.0 | Configuration management |
@@ -68,7 +67,7 @@ author: Claude Code PM System
 ### Pytest
 - Async mode via `pytest-asyncio`
 - Verbose output: `uv run pytest tests/ -v`
-- Custom markers: `integration` (may require external services like Ollama)
+- Custom markers: `integration` (may require external services like Groq)
 
 ## Verification Commands
 
@@ -88,8 +87,7 @@ All three must pass before any commit.
 | FRED | `fred.py` | httpx REST API | 10yr Treasury → risk-free rate | `PricingConfig.risk_free_rate_fallback` (5%) |
 | CBOE | `universe.py` | httpx CSV download | Optionable ticker universe | Cached list (24h TTL) |
 | Wikipedia | `universe.py` | `pd.read_html` via `asyncio.to_thread` | S&P 500 constituents + GICS sectors | Cached list (24h TTL) |
-| Ollama | `agents/orchestrator.py`, `health.py` | PydanticAI + HTTP localhost:11434 | LLM debate agents (Llama 3.1 8B) | Data-driven verdict |
-| Groq | `agents/orchestrator.py` | PydanticAI + GroqProvider (cloud API) | Cloud LLM debate agents (llama-3.3-70b-versatile) | Falls back to Ollama or data-driven |
+| Groq | `agents/orchestrator.py`, `health.py` | PydanticAI + GroqProvider (cloud API) | LLM debate agents (llama-3.3-70b-versatile) | Data-driven verdict |
 
 ## Database
 

@@ -28,7 +28,7 @@ Ticker: AAPL | $190 Call | Exp: 2025-04-18 | 34 DTE
 Data Source: yfinance
 Data Timestamp: 2025-03-15T14:30:00Z
 Bull Agent: claude-sonnet-4-5-20250929 (prompt v1.2)
-Bear Agent: llama3:70b via Ollama (prompt v1.1)
+Bear Agent: llama-3.3-70b-versatile via Groq (prompt v1.1)
 Moderator: claude-sonnet-4-5-20250929 (prompt v1.0)
 Debate Rounds: 3
 Claude Tokens: 12,450 in / 3,200 out (~$0.08)

@@ -260,8 +260,8 @@ class TestAgentResponse:
             direction=SignalDirection.NEUTRAL,
             confidence=0.0,
             argument="No conviction.",
-            key_points=[],
-            risks_cited=[],
+            key_points=["uncertain outlook"],
+            risks_cited=["high uncertainty"],
             contracts_referenced=[],
             model_used="llama3.1:8b",
         )
@@ -275,7 +275,7 @@ class TestAgentResponse:
             confidence=1.0,
             argument="Maximum conviction.",
             key_points=["strong signal"],
-            risks_cited=[],
+            risks_cited=["minimal downside risk"],
             contracts_referenced=["SPY 450C"],
             model_used="llama3.1:8b",
         )
@@ -286,6 +286,34 @@ class TestAgentResponse:
         json_str = sample_agent_response.model_dump_json()
         restored = AgentResponse.model_validate_json(json_str)
         assert restored == sample_agent_response
+
+    def test_empty_key_points_raises(self) -> None:
+        """AgentResponse rejects empty key_points list."""
+        with pytest.raises(ValidationError, match="key_points must have at least 1"):
+            AgentResponse(
+                agent_name="bull",
+                direction=SignalDirection.BULLISH,
+                confidence=0.7,
+                argument="Test.",
+                key_points=[],
+                risks_cited=["risk"],
+                contracts_referenced=[],
+                model_used="llama3.1:8b",
+            )
+
+    def test_empty_risks_cited_raises(self) -> None:
+        """AgentResponse rejects empty risks_cited list."""
+        with pytest.raises(ValidationError, match="risks_cited must have at least 1"):
+            AgentResponse(
+                agent_name="bear",
+                direction=SignalDirection.BEARISH,
+                confidence=0.6,
+                argument="Test.",
+                key_points=["point"],
+                risks_cited=[],
+                contracts_referenced=[],
+                model_used="llama3.1:8b",
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +377,7 @@ class TestTradeThesis:
             summary="No conviction.",
             bull_score=5.0,
             bear_score=5.0,
-            key_factors=[],
+            key_factors=["inconclusive data"],
             risk_assessment="Uncertain.",
         )
         assert thesis.confidence == pytest.approx(0.0)
@@ -420,6 +448,90 @@ class TestTradeThesis:
         restored = TradeThesis.model_validate_json(json_str)
         assert restored == thesis
         assert restored.recommended_strategy == SpreadType.IRON_CONDOR
+
+    def test_empty_key_factors_raises(self) -> None:
+        """TradeThesis rejects empty key_factors list."""
+        with pytest.raises(ValidationError, match="key_factors must have at least 1"):
+            TradeThesis(
+                ticker="AAPL",
+                direction=SignalDirection.BULLISH,
+                confidence=0.65,
+                summary="Test summary.",
+                bull_score=7.0,
+                bear_score=4.0,
+                key_factors=[],
+                risk_assessment="Low risk.",
+            )
+
+    def test_score_confidence_clamp_bull_score_higher_but_bearish(self) -> None:
+        """Confidence clamped to 0.5 when bull_score > bear_score but direction is BEARISH."""
+        thesis = TradeThesis(
+            ticker="AAPL",
+            direction=SignalDirection.BEARISH,
+            confidence=0.8,
+            summary="Contradictory scores.",
+            bull_score=7.0,
+            bear_score=4.0,
+            key_factors=["mismatch"],
+            risk_assessment="High risk.",
+        )
+        assert thesis.confidence == pytest.approx(0.5)
+
+    def test_score_confidence_clamp_bear_score_higher_but_bullish(self) -> None:
+        """Confidence clamped to 0.5 when bear_score > bull_score but direction is BULLISH."""
+        thesis = TradeThesis(
+            ticker="AAPL",
+            direction=SignalDirection.BULLISH,
+            confidence=0.9,
+            summary="Contradictory scores.",
+            bull_score=3.0,
+            bear_score=7.0,
+            key_factors=["mismatch"],
+            risk_assessment="High risk.",
+        )
+        assert thesis.confidence == pytest.approx(0.5)
+
+    def test_score_confidence_clamp_low_scores(self) -> None:
+        """Confidence clamped when max score < 4.0."""
+        thesis = TradeThesis(
+            ticker="AAPL",
+            direction=SignalDirection.BULLISH,
+            confidence=0.7,
+            summary="Weak conviction.",
+            bull_score=3.5,
+            bear_score=2.0,
+            key_factors=["low conviction"],
+            risk_assessment="Uncertain.",
+        )
+        assert thesis.confidence == pytest.approx(0.5)
+
+    def test_score_confidence_no_clamp_when_consistent(self) -> None:
+        """Confidence not clamped when scores are consistent with direction."""
+        thesis = TradeThesis(
+            ticker="AAPL",
+            direction=SignalDirection.BULLISH,
+            confidence=0.8,
+            summary="Consistent bull case.",
+            bull_score=7.5,
+            bear_score=3.5,
+            key_factors=["strong momentum"],
+            risk_assessment="Low risk.",
+        )
+        assert thesis.confidence == pytest.approx(0.8)
+
+    def test_score_confidence_no_clamp_already_below_threshold(self) -> None:
+        """Confidence already <= 0.5 is not clamped further."""
+        thesis = TradeThesis(
+            ticker="AAPL",
+            direction=SignalDirection.BEARISH,
+            confidence=0.4,
+            summary="Low confidence bearish.",
+            bull_score=6.0,
+            bear_score=4.0,
+            key_factors=["some signal"],
+            risk_assessment="Moderate risk.",
+        )
+        assert thesis.confidence == pytest.approx(0.4)
 
 
 # ---------------------------------------------------------------------------

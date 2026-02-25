@@ -11,11 +11,14 @@ text better than nested objects.  ``AgentResponse``, ``TradeThesis``, and
 ``VolatilityThesis`` define shapes for the debate system.
 """
 
+from __future__ import annotations
+
+import logging
 import math
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, field_serializer, field_validator, model_validator
 
 from options_arena.models.enums import (
     ExerciseStyle,
@@ -24,6 +27,8 @@ from options_arena.models.enums import (
     SpreadType,
     VolAssessment,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class MarketContext(BaseModel):
@@ -123,6 +128,22 @@ class AgentResponse(BaseModel):
             raise ValueError(f"confidence must be in [0, 1], got {v}")
         return v
 
+    @field_validator("key_points")
+    @classmethod
+    def validate_key_points(cls, v: list[str]) -> list[str]:
+        """Ensure at least one key point is cited."""
+        if len(v) < 1:
+            raise ValueError("key_points must have at least 1 item")
+        return v
+
+    @field_validator("risks_cited")
+    @classmethod
+    def validate_risks_cited(cls, v: list[str]) -> list[str]:
+        """Ensure at least one risk is cited."""
+        if len(v) < 1:
+            raise ValueError("risks_cited must have at least 1 item")
+        return v
+
 
 class TradeThesis(BaseModel):
     """Final trade recommendation produced by the debate system.
@@ -162,6 +183,60 @@ class TradeThesis(BaseModel):
         if not 0.0 <= v <= 10.0:
             raise ValueError(f"score must be in [0, 10], got {v}")
         return v
+
+    @field_validator("key_factors")
+    @classmethod
+    def validate_key_factors(cls, v: list[str]) -> list[str]:
+        """Ensure at least one key factor is cited."""
+        if len(v) < 1:
+            raise ValueError("key_factors must have at least 1 item")
+        return v
+
+    @model_validator(mode="after")
+    def clamp_confidence_on_mismatch(self) -> TradeThesis:
+        """Warn and clamp confidence when scores contradict direction.
+
+        Uses ``object.__setattr__`` to mutate the frozen instance during validation —
+        this is the standard Pydantic v2 pattern for frozen model validators.
+        """
+        clamped = self.confidence
+        reason = ""
+
+        if (
+            self.bull_score > self.bear_score
+            and self.direction == SignalDirection.BEARISH
+            and self.confidence > 0.5
+        ):
+            clamped = 0.5
+            reason = (
+                f"bull_score ({self.bull_score}) > bear_score ({self.bear_score}) "
+                f"but direction is BEARISH"
+            )
+        elif (
+            self.bear_score > self.bull_score
+            and self.direction == SignalDirection.BULLISH
+            and self.confidence > 0.5
+        ):
+            clamped = 0.5
+            reason = (
+                f"bear_score ({self.bear_score}) > bull_score ({self.bull_score}) "
+                f"but direction is BULLISH"
+            )
+
+        if max(self.bull_score, self.bear_score) < 4.0 and self.confidence > 0.5:
+            clamped = min(clamped, 0.5)
+            reason = reason or f"max score ({max(self.bull_score, self.bear_score)}) < 4.0"
+
+        if clamped < self.confidence:
+            logger.warning(
+                "Clamping confidence for %s from %.2f to %.2f: %s",
+                self.ticker,
+                self.confidence,
+                clamped,
+                reason,
+            )
+            object.__setattr__(self, "confidence", clamped)
+        return self
 
 
 class VolatilityThesis(BaseModel):

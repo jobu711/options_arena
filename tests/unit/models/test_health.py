@@ -23,7 +23,7 @@ from options_arena.models import HealthStatus
 def sample_health_available() -> HealthStatus:
     """Create a valid HealthStatus for an available service."""
     return HealthStatus(
-        service_name="ollama",
+        service_name="groq",
         available=True,
         latency_ms=42.5,
         checked_at=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
@@ -34,7 +34,7 @@ def sample_health_available() -> HealthStatus:
 def sample_health_unavailable() -> HealthStatus:
     """Create a valid HealthStatus for an unavailable service."""
     return HealthStatus(
-        service_name="ollama",
+        service_name="groq",
         available=False,
         error="Connection refused",
         checked_at=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
@@ -51,7 +51,7 @@ class TestHealthStatus:
 
     def test_happy_path_construction(self, sample_health_available: HealthStatus) -> None:
         """HealthStatus constructs with all fields correctly assigned."""
-        assert sample_health_available.service_name == "ollama"
+        assert sample_health_available.service_name == "groq"
         assert sample_health_available.available is True
         assert sample_health_available.latency_ms == pytest.approx(42.5)
         assert sample_health_available.error is None
@@ -84,7 +84,7 @@ class TestHealthStatus:
         """HealthStatus rejects naive datetime for checked_at."""
         with pytest.raises(ValidationError, match="UTC"):
             HealthStatus(
-                service_name="ollama",
+                service_name="groq",
                 available=True,
                 checked_at=datetime(2025, 6, 15, 14, 30, 0),  # naive
             )
@@ -94,7 +94,7 @@ class TestHealthStatus:
         est = timezone(timedelta(hours=-5))
         with pytest.raises(ValidationError, match="UTC"):
             HealthStatus(
-                service_name="ollama",
+                service_name="groq",
                 available=True,
                 checked_at=datetime(2025, 6, 15, 14, 30, 0, tzinfo=est),
             )

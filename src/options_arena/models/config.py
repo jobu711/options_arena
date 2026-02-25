@@ -7,7 +7,7 @@ ServiceConfig) are plain BaseModel — not BaseSettings.
 Env override examples:
     ARENA_SCAN__TOP_N=30         -> settings.scan.top_n == 30
     ARENA_PRICING__DELTA_TARGET=0.40 -> settings.pricing.delta_target == 0.40
-    ARENA_SERVICE__OLLAMA_HOST=http://gpu:11434 -> settings.service.ollama_host
+    ARENA_DEBATE__API_KEY=gsk_... -> settings.debate.api_key
 
 Source priority (Context7-verified): init kwargs > env vars > field defaults.
 AppSettings() with no args is a valid production config.
@@ -17,8 +17,6 @@ import math
 
 from pydantic import BaseModel, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-from options_arena.models.enums import DebateProvider
 
 
 class ScanConfig(BaseModel):
@@ -54,41 +52,32 @@ class PricingConfig(BaseModel):
 
 
 class ServiceConfig(BaseModel):
-    """External service configuration — timeouts, rate limits, cache TTLs, Ollama settings."""
+    """External service configuration — timeouts, rate limits, cache TTLs."""
 
     yfinance_timeout: float = 15.0
     fred_timeout: float = 10.0
     cboe_timeout: float = 10.0
     fred_api_key: str | None = None
-    ollama_timeout: float = 60.0
+    groq_api_key: str | None = None
     rate_limit_rps: float = 2.0
     max_concurrent_requests: int = 5
     cache_ttl_market_hours: int = 300
     cache_ttl_after_hours: int = 3600
-    ollama_host: str = "http://localhost:11434"
-    ollama_model: str = "llama3.1:8b"
 
 
 class DebateConfig(BaseModel):
-    """AI debate configuration — controls LLM provider, timeouts, and fallback behavior.
+    """AI debate configuration — controls Groq LLM, timeouts, and fallback behavior.
 
-    Supports two providers:
-    - ``ollama`` (default): local Ollama server, generous CPU timeouts.
-    - ``groq``: Groq cloud API, requires ``GROQ_API_KEY`` or ``ARENA_DEBATE__GROQ_API_KEY``.
+    Uses Groq cloud API exclusively. Requires ``GROQ_API_KEY`` or
+    ``ARENA_DEBATE__API_KEY`` env var.
 
-    Default ``agent_timeout`` (600s) is generous for CPU-only Ollama inference (~2-5 min
-    per agent response). ``groq_timeout`` (60s) is used for Groq cloud API. GPU users can
-    lower via env vars: ``ARENA_DEBATE__AGENT_TIMEOUT=90``,
-    ``ARENA_DEBATE__MAX_TOTAL_DURATION=300``.
+    Default ``agent_timeout`` (60s) is for Groq cloud inference. Override via
+    ``ARENA_DEBATE__AGENT_TIMEOUT=90``, ``ARENA_DEBATE__MAX_TOTAL_DURATION=300``.
     """
 
-    provider: DebateProvider = DebateProvider.OLLAMA
-    ollama_host: str = "http://localhost:11434"
-    ollama_model: str = "llama3.1:8b"
-    agent_timeout: float = 600.0
-    groq_timeout: float = 60.0
-    groq_model: str = "llama-3.3-70b-versatile"
-    groq_api_key: str | None = None
+    model: str = "llama-3.3-70b-versatile"
+    api_key: str | None = None
+    agent_timeout: float = 60.0
     num_ctx: int = 8192
     retries: int = 2
     temperature: float = 0.3
@@ -118,7 +107,7 @@ class DebateConfig(BaseModel):
             raise ValueError(f"temperature must be in [0.0, 2.0], got {v}")
         return v
 
-    @field_validator("agent_timeout", "groq_timeout", "max_total_duration")
+    @field_validator("agent_timeout", "max_total_duration")
     @classmethod
     def validate_positive_timeout(cls, v: float) -> float:
         """Ensure timeout values are finite and positive."""
@@ -136,6 +125,22 @@ class DebateConfig(BaseModel):
             raise ValueError(f"fallback_confidence must be finite, got {v}")
         if not 0.0 <= v <= 1.0:
             raise ValueError(f"fallback_confidence must be in [0, 1], got {v}")
+        return v
+
+    @field_validator("num_ctx")
+    @classmethod
+    def validate_num_ctx(cls, v: int) -> int:
+        """Ensure num_ctx is within reasonable bounds."""
+        if not 128 <= v <= 131_072:
+            raise ValueError(f"num_ctx must be in [128, 131072], got {v}")
+        return v
+
+    @field_validator("retries")
+    @classmethod
+    def validate_retries(cls, v: int) -> int:
+        """Ensure retries is within [0, 5]."""
+        if not 0 <= v <= 5:
+            raise ValueError(f"retries must be in [0, 5], got {v}")
         return v
 
 

@@ -387,7 +387,7 @@ def _passes_liquidity_filter(row: pd.Series, config: PricingConfig) -> bool:  # 
 Pre-flight checks return `HealthStatus` with latency measurement:
 - **yfinance**: fetch SPY quote
 - **FRED**: HTTP HEAD to API endpoint
-- **Ollama**: `GET {config.ollama_host}/api/tags`, verify configured model available
+- **Groq**: `GET https://api.groq.com/openai/v1/models` with Bearer token
 - **CBOE**: check CSV download endpoint
 
 `check_all()` runs all concurrently via `asyncio.gather(return_exceptions=True)`.

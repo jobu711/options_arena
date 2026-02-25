@@ -136,14 +136,3 @@ class VolAssessment(StrEnum):
     OVERPRICED = "overpriced"
     UNDERPRICED = "underpriced"
     FAIR = "fair"
-
-
-class DebateProvider(StrEnum):
-    """LLM provider for the AI debate system.
-
-    OLLAMA — local Ollama server (default, CPU or GPU).
-    GROQ   — Groq cloud API (fast inference, requires API key).
-    """
-
-    OLLAMA = "ollama"
-    GROQ = "groq"

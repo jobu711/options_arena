@@ -4,9 +4,9 @@
 
 Three-agent AI debate system for qualitative options analysis. Bull, Bear, and Risk
 agents run sequentially via PydanticAI, transforming quantitative scan results into
-human-readable reasoning. Supports two LLM providers: **Ollama** (local Llama 3.1 8B,
-default) and **Groq** (cloud API, fast inference). Data-driven fallback when the LLM
-provider is unreachable ensures the tool always produces a verdict.
+human-readable reasoning. Uses **Groq** cloud API (Llama 3.3 70B) as the sole LLM
+provider. Data-driven fallback when the LLM provider is unreachable ensures the tool
+always produces a verdict.
 
 Agents have **no knowledge of each other** — the orchestrator coordinates them.
 The orchestrator does **not fetch data** — the caller (CLI) provides all inputs.
@@ -16,7 +16,7 @@ The orchestrator does **not fetch data** — the caller (CLI) provides all input
 | File | Purpose | Pattern |
 |------|---------|---------|
 | `CLAUDE.md` | Module conventions and rules | — |
-| `model_config.py` | `build_debate_model()`, `build_ollama_model()`, `build_groq_model()` | Config utility |
+| `model_config.py` | `build_debate_model()` — Groq-only model builder | Config utility |
 | `_parsing.py` | `DebateDeps`, `DebateResult`, `strip_think_tags()`, `PROMPT_RULES_APPENDIX`, `build_cleaned_agent_response()`, `build_cleaned_trade_thesis()` | Internal |
 | `bull.py` | Bull agent + system prompt + output validator | PydanticAI Agent |
 | `bear.py` | Bear agent + dynamic prompt (receives bull argument) | PydanticAI Agent |
@@ -129,10 +129,9 @@ would produce an empty string.
 ### Running an Agent (Context7-Verified)
 
 ```python
-from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.usage import RunUsage
 
-model = build_debate_model(config)  # routes to Ollama or Groq
+model = build_debate_model(config)  # builds GroqModel
 deps = DebateDeps(context=market_ctx, ticker_score=score, contracts=contracts)
 
 # Context7-verified: agent.run() params — model override, deps injection
@@ -142,7 +141,7 @@ result = await asyncio.wait_for(
         model=model,       # Context7-verified: overrides Agent.__init__ model
         deps=deps,         # Context7-verified: type-checked against deps_type
     ),
-    timeout=per_agent_timeout,  # agent_timeout for Ollama, groq_timeout for Groq
+    timeout=config.agent_timeout,  # 60s default for Groq
 )
 
 output: AgentResponse = result.output       # typed output
@@ -219,28 +218,20 @@ total_usage = bull_result.usage() + bear_result.usage() + risk_result.usage()
 
 ## Model Configuration
 
-The entry point is `build_debate_model(config)`, which routes to the correct provider using
-`match/case` on `config.provider` (`DebateProvider` StrEnum).
+Single-provider (Groq-only). No provider abstraction.
 
 ```python
 from pydantic_ai.models import Model
 
 def build_debate_model(config: DebateConfig) -> Model:
-    """Route to Ollama or Groq based on config.provider."""
-    match config.provider:
-        case DebateProvider.GROQ:
-            return build_groq_model(config)
-        case DebateProvider.OLLAMA:
-            return build_ollama_model(config)
-        case _:
-            raise ValueError(f"Unknown debate provider: {config.provider}")
+    """Build a PydanticAI model backed by Groq cloud API."""
+    api_key = _resolve_api_key(config)
+    if api_key is None:
+        raise ValueError("Groq API key required. Set GROQ_API_KEY env var.")
+    return GroqModel(config.model, provider=GroqProvider(api_key=api_key))
 ```
 
-**Ollama**: `OpenAIChatModel` + `OllamaProvider(base_url=host/v1)`. Host priority:
-config > `OLLAMA_HOST` env > default localhost.
-
-**Groq**: `GroqModel` + `GroqProvider(api_key=key)`. API key priority:
-config > `GROQ_API_KEY` env > ValueError.
+API key priority: `config.api_key` > `GROQ_API_KEY` env > ValueError.
 
 ---
 
@@ -248,13 +239,14 @@ config > `GROQ_API_KEY` env > ValueError.
 
 ```
 1. Build MarketContext from TickerScore + Quote + TickerInfo + contracts
-2. Build OllamaModel from DebateConfig
-3. Bull agent: argue bullish case → AgentResponse
-4. Bear agent: receive bull's argument + context → AgentResponse
-5. Risk agent: receive both arguments + context → TradeThesis
-6. Accumulate RunUsage: bull + bear + risk
-7. Persist debate to ai_theses table (if repository provided)
-8. Return DebateResult
+2. Build GroqModel from DebateConfig
+3. Bull agent → AgentResponse
+4. Bear agent (receives bull argument) → AgentResponse
+5. Rebuttal + Volatility (parallel if both enabled, sequential otherwise)
+6. Risk agent (receives all) → TradeThesis
+7. Compute citation density, accumulate RunUsage
+8. Persist to ai_theses (incl. debate_mode, citation_density)
+9. Return DebateResult
 ```
 
 ### Error Handling — Never-Raises Pattern
@@ -274,7 +266,7 @@ async def run_debate(
         pass
     except (
         UnexpectedModelBehavior,   # PydanticAI: LLM returned invalid output after retries
-        httpx.ConnectError,        # Ollama not running
+        httpx.ConnectError,        # Groq unreachable
         TimeoutError,              # Per-agent or total timeout
         Exception,                 # Catch-all for unexpected failures
     ) as e:
@@ -283,8 +275,8 @@ async def run_debate(
 ```
 
 **Timeout strategy**:
-- Per-agent: `asyncio.wait_for(agent.run(...), timeout=per_agent_timeout)` — `agent_timeout` (600s) for Ollama, `groq_timeout` (60s) for Groq
-- Total debate: `asyncio.wait_for(_run_all_agents(...), timeout=config.max_total_duration)` (1800s default)
+- Per-agent: `asyncio.wait_for(agent.run(...), timeout=config.agent_timeout)` (60s default)
+- Total debate: `asyncio.wait_for(_run_agents(...), timeout=config.max_total_duration)` (1800s default)
 - Fallback computation: < 1s (no LLM, pure string formatting)
 
 ### `build_market_context()` Mapping
@@ -308,7 +300,7 @@ Fields like `iv_rank`, `iv_percentile`, `atm_iv_30d`, `put_call_ratio` may be `N
 
 ## Data-Driven Fallback
 
-When Ollama is unreachable or any agent fails:
+When Groq is unreachable or any agent fails:
 
 1. **Synthesize `AgentResponse`** for bull and bear from quantitative data:
    - `argument`: templated text citing composite score, direction, top indicators
@@ -378,25 +370,23 @@ DIV YIELD: {ctx.dividend_yield:.2%}"""
 
 ```python
 class DebateConfig(BaseModel):
-    """AI debate configuration."""
-    provider: DebateProvider = DebateProvider.OLLAMA
-    ollama_host: str = "http://localhost:11434"
-    ollama_model: str = "llama3.1:8b"
-    agent_timeout: float = 600.0           # per-agent timeout for Ollama (seconds)
-    groq_model: str = "llama-3.3-70b-versatile"
-    groq_api_key: str | None = None
-    groq_timeout: float = 60.0             # per-agent timeout for Groq (seconds)
-    num_ctx: int = 8192                    # Ollama context window size
-    retries: int = 2                       # PydanticAI retry count
+    """AI debate configuration — Groq-only."""
+    model: str = "llama-3.3-70b-versatile"
+    api_key: str | None = None
+    agent_timeout: float = 60.0            # per-agent timeout (seconds)
+    num_ctx: int = 8192                    # context window for prompt budgeting
+    retries: int = 2                       # PydanticAI retry count (0-5)
     temperature: float = 0.3              # LLM temperature [0.0, 2.0]
     fallback_confidence: float = 0.3       # data-driven fallback confidence cap
     max_total_duration: float = 1800.0     # total debate timeout (seconds)
+    enable_rebuttal: bool = False          # optional bull rebuttal round
+    enable_volatility_agent: bool = False  # optional volatility analysis
+    min_debate_score: float = 50.0         # minimum score threshold for debate
 ```
 
 Added to `AppSettings` as `debate: DebateConfig = DebateConfig()`.
-Env overrides: `ARENA_DEBATE__PROVIDER=groq`, `ARENA_DEBATE__GROQ_API_KEY=gsk_...`,
-`ARENA_DEBATE__AGENT_TIMEOUT=90`. Orchestrator selects `agent_timeout` or `groq_timeout`
-based on provider.
+Env overrides: `ARENA_DEBATE__API_KEY=gsk_...`, `ARENA_DEBATE__MODEL=...`,
+`ARENA_DEBATE__AGENT_TIMEOUT=90`. Alternatively set `GROQ_API_KEY` env var.
 
 ---
 
@@ -448,7 +438,7 @@ Test success path, partial failure, full failure, timeout, and `--fallback-only`
 ```python
 @pytest.mark.asyncio
 async def test_debate_fallback_on_connection_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Orchestrator returns fallback when Ollama is unreachable."""
+    """Orchestrator returns fallback when LLM provider is unreachable."""
     # Mock agent.run to raise httpx.ConnectError
     result = await run_debate(score, contracts, quote, info, config)
     assert result.is_fallback is True
@@ -457,19 +447,19 @@ async def test_debate_fallback_on_connection_error(monkeypatch: pytest.MonkeyPat
 
 ### What NOT to Test
 
-- Don't test actual Ollama responses in unit tests — use `TestModel`
+- Don't test actual Groq responses in unit tests — use `TestModel`
 - Don't test prompt quality (subjective) — test prompt structure (version header, token count)
 - Don't test Rich rendering of debate panels — test the data transformations
 - Don't assert on `RunUsage` exact token counts from `TestModel` — they're synthetic
 
-### Integration Tests (Require Ollama)
+### Integration Tests (Require Groq API Key)
 
 ```python
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_full_debate_with_ollama() -> None:
-    """Full debate with real Ollama. Skipped in CI."""
-    # ... requires `ollama pull llama3.1:8b` on test machine
+async def test_full_debate_with_groq() -> None:
+    """Full debate with real Groq. Skipped in CI."""
+    # ... requires GROQ_API_KEY env var
 ```
 
 Mark with `@pytest.mark.integration`. Skipped by default; run with `pytest -m integration`.
@@ -489,15 +479,14 @@ Mark with `@pytest.mark.integration`. Skipped by default; run with `pytest -m in
    Never use `async def` on a Typer command.
 
 4. **Forgetting `asyncio.wait_for` on agent.run()** — Every `agent.run()` call must be
-   wrapped in `asyncio.wait_for(timeout=per_agent_timeout)`. Ollama can hang indefinitely
-   on CPU inference. Use `agent_timeout` for Ollama, `groq_timeout` for Groq.
+   wrapped in `asyncio.wait_for(timeout=config.agent_timeout)`. Always use `agent_timeout`.
 
 5. **`except Exception` without fallback** — The orchestrator must ALWAYS return a
    `DebateResult`. On any error, return the data-driven fallback. Never let an exception
    propagate to the CLI.
 
-6. **Using `Agent(model="ollama:llama3.1:8b")`** — Don't set model at init time. Use
-   `model=None` at init, pass `OllamaModel` at `agent.run(model=...)` time. This enables
+6. **Using `Agent(model="groq:...")`** — Don't set model at init time. Use
+   `model=None` at init, pass `GroqModel` at `agent.run(model=...)` time. This enables
    `TestModel` override in tests.
 
 7. **Forgetting the `<think>` tag validator** — All three agents need `@agent.output_validator`
@@ -520,8 +509,8 @@ Mark with `@pytest.mark.integration`. Skipped by default; run with `pytest -m in
     misconfiguration could accidentally make real API calls. Set at module level in every
     test file.
 
-13. **Parallel agent execution** — Agents run sequentially (bull → bear → risk). Ollama is
-    single-threaded on CPU. Don't use `asyncio.gather` for agent calls.
+13. **Parallel agent execution** — Bull → Bear must be sequential. Rebuttal + Volatility
+    can be parallel (via `asyncio.gather`) when both are enabled. Risk always runs last.
 
 14. **Forgetting `dynamic=True` on bear/risk prompts** — Bear and risk prompts depend on
     runtime deps (opponent arguments). Without `dynamic=True`, the prompt is cached from the

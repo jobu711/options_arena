@@ -74,7 +74,7 @@ def test_health_exit_code_all_up(mock_cls: AsyncMock) -> None:
     mock_svc.check_all.return_value = [
         _make_health_status("yfinance"),
         _make_health_status("fred"),
-        _make_health_status("ollama"),
+        _make_health_status("groq"),
         _make_health_status("cboe"),
     ]
     mock_cls.return_value = mock_svc
@@ -91,7 +91,7 @@ def test_health_exit_code_some_down(mock_cls: AsyncMock) -> None:
     mock_svc.check_all.return_value = [
         _make_health_status("yfinance"),
         _make_health_status("fred", available=False, error="timeout"),
-        _make_health_status("ollama"),
+        _make_health_status("groq"),
         _make_health_status("cboe"),
     ]
     mock_cls.return_value = mock_svc

@@ -20,7 +20,7 @@ from options_arena.agents._parsing import (
     DebateDeps,
     build_cleaned_trade_thesis,
 )
-from options_arena.models import TradeThesis
+from options_arena.models import SignalDirection, SpreadType, TradeThesis
 
 logger = logging.getLogger(__name__)
 
@@ -145,5 +145,25 @@ async def clean_think_tags(
     ctx: RunContext[DebateDeps],
     output: TradeThesis,
 ) -> TradeThesis:
-    """Strip ``<think>`` tags from LLM output via shared helper."""
-    return build_cleaned_trade_thesis(output)
+    """Strip ``<think>`` tags and log strategy-direction consistency warnings."""
+    cleaned = build_cleaned_trade_thesis(output)
+
+    # Post-validation consistency logging (warn only, no modification)
+    if (
+        cleaned.direction == SignalDirection.NEUTRAL
+        and cleaned.recommended_strategy == SpreadType.VERTICAL
+    ):
+        logger.warning(
+            "Strategy inconsistency for %s: neutral direction with directional strategy %s",
+            cleaned.ticker,
+            cleaned.recommended_strategy.value,
+        )
+    if cleaned.confidence < 0.4 and cleaned.recommended_strategy is not None:
+        logger.warning(
+            "Low confidence strategy for %s: confidence=%.2f with strategy=%s",
+            cleaned.ticker,
+            cleaned.confidence,
+            cleaned.recommended_strategy.value,
+        )
+
+    return cleaned

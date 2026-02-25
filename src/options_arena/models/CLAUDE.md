@@ -355,13 +355,11 @@ class PricingConfig(BaseModel):
 class ServiceConfig(BaseModel):
     yfinance_timeout: float = 15.0
     fred_timeout: float = 10.0
-    ollama_timeout: float = 60.0
     rate_limit_rps: float = 2.0
     max_concurrent_requests: int = 5
     cache_ttl_market_hours: int = 300
     cache_ttl_after_hours: int = 3600
-    ollama_host: str = "http://localhost:11434"
-    ollama_model: str = "llama3.1:8b"
+    groq_api_key: str | None = None        # for Groq health check
 
 class AppSettings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -377,7 +375,7 @@ class AppSettings(BaseSettings):
 Env override examples:
 - `ARENA_SCAN__TOP_N=30` → `settings.scan.top_n == 30`
 - `ARENA_PRICING__DELTA_TARGET=0.40` → `settings.pricing.delta_target == 0.40`
-- `ARENA_SERVICE__OLLAMA_HOST=http://gpu:11434` → `settings.service.ollama_host`
+- `ARENA_SERVICE__GROQ_API_KEY=gsk_...` → `settings.service.groq_api_key`
 
 Source priority (Context7-verified): init kwargs > env vars > field defaults.
 `AppSettings()` with no args is a valid production config — all defaults are production-ready.

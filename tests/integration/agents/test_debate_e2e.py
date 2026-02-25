@@ -1,6 +1,6 @@
 """Integration tests for the AI debate system end-to-end.
 
-These tests verify the full debate pipeline without requiring Ollama.
+These tests verify the full debate pipeline without requiring a Groq API key.
 They test that the fallback path produces a valid result from real model
 construction through to DebateResult, exercising real code paths.
 
@@ -34,7 +34,7 @@ from options_arena.models import (
     TradeThesis,
 )
 
-# Prevent accidental real API calls — guarantees fallback path regardless of local Ollama
+# Prevent accidental real API calls — guarantees fallback path regardless of Groq API key
 models.ALLOW_MODEL_REQUESTS = False
 
 
@@ -107,10 +107,10 @@ def _make_contract() -> OptionContract:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_full_debate_fallback_without_ollama() -> None:
-    """Full debate pipeline without Ollama produces valid fallback result.
+async def test_full_debate_fallback_without_llm() -> None:
+    """Full debate pipeline without LLM provider produces valid fallback result.
 
-    Ollama is not running in CI, so the debate should fall back to data-driven
+    Groq API is not available in CI, so the debate should fall back to data-driven
     analysis. This tests the complete path from run_debate through to DebateResult.
     """
     config = DebateConfig(

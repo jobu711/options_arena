@@ -18,7 +18,6 @@ from options_arena.models.config import (
     ServiceConfig,
 )
 from options_arena.models.enums import (
-    DebateProvider,
     DividendSource,
     ExerciseStyle,
     GreeksSource,
@@ -39,7 +38,6 @@ from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
 
 __all__ = [
     # Enums
-    "DebateProvider",
     "DividendSource",
     "ExerciseStyle",
     "GreeksSource",

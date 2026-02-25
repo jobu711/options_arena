@@ -17,7 +17,6 @@ from pydantic_settings import BaseSettings
 from options_arena.models import (
     AppSettings,
     DebateConfig,
-    DebateProvider,
     PricingConfig,
     ScanConfig,
     ServiceConfig,
@@ -50,19 +49,13 @@ _ARENA_ENV_VARS = [
     "ARENA_PRICING__IV_SOLVER_MAX_ITER",
     "ARENA_SERVICE__YFINANCE_TIMEOUT",
     "ARENA_SERVICE__FRED_TIMEOUT",
-    "ARENA_SERVICE__OLLAMA_TIMEOUT",
     "ARENA_SERVICE__RATE_LIMIT_RPS",
     "ARENA_SERVICE__MAX_CONCURRENT_REQUESTS",
     "ARENA_SERVICE__CACHE_TTL_MARKET_HOURS",
     "ARENA_SERVICE__CACHE_TTL_AFTER_HOURS",
-    "ARENA_SERVICE__OLLAMA_HOST",
-    "ARENA_SERVICE__OLLAMA_MODEL",
-    "ARENA_DEBATE__PROVIDER",
-    "ARENA_DEBATE__OLLAMA_HOST",
-    "ARENA_DEBATE__OLLAMA_MODEL",
-    "ARENA_DEBATE__OLLAMA_TIMEOUT",
-    "ARENA_DEBATE__GROQ_MODEL",
-    "ARENA_DEBATE__GROQ_API_KEY",
+    "ARENA_SERVICE__GROQ_API_KEY",
+    "ARENA_DEBATE__MODEL",
+    "ARENA_DEBATE__API_KEY",
     "ARENA_DEBATE__NUM_CTX",
     "ARENA_DEBATE__RETRIES",
     "ARENA_DEBATE__FALLBACK_CONFIDENCE",
@@ -126,13 +119,9 @@ class TestAppSettingsDefaults:
         settings = AppSettings()
         assert settings.pricing.dte_max == 365
 
-    def test_service_ollama_host_default(self) -> None:
+    def test_service_groq_api_key_default(self) -> None:
         settings = AppSettings()
-        assert settings.service.ollama_host == "http://localhost:11434"
-
-    def test_service_ollama_model_default(self) -> None:
-        settings = AppSettings()
-        assert settings.service.ollama_model == "llama3.1:8b"
+        assert settings.service.groq_api_key is None
 
     def test_service_yfinance_timeout_default(self) -> None:
         settings = AppSettings()
@@ -159,10 +148,10 @@ class TestAppSettingsEnvOverrides:
         settings = AppSettings()
         assert settings.pricing.delta_target == pytest.approx(0.40)
 
-    def test_env_override_service_ollama_host(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("ARENA_SERVICE__OLLAMA_HOST", "http://gpu:11434")
+    def test_env_override_service_groq_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ARENA_SERVICE__GROQ_API_KEY", "gsk_test_from_env")
         settings = AppSettings()
-        assert settings.service.ollama_host == "http://gpu:11434"
+        assert settings.service.groq_api_key == "gsk_test_from_env"
 
     def test_env_override_type_coercion_string_to_int(
         self, monkeypatch: pytest.MonkeyPatch
@@ -223,9 +212,9 @@ class TestConfigConstructorOverrides:
         settings = AppSettings(pricing=PricingConfig(delta_target=0.40))
         assert settings.pricing.delta_target == pytest.approx(0.40)
 
-    def test_constructor_override_service_ollama_host(self) -> None:
-        settings = AppSettings(service=ServiceConfig(ollama_host="http://custom:8080"))
-        assert settings.service.ollama_host == "http://custom:8080"
+    def test_constructor_override_service_groq_api_key(self) -> None:
+        settings = AppSettings(service=ServiceConfig(groq_api_key="gsk_from_constructor"))
+        assert settings.service.groq_api_key == "gsk_from_constructor"
 
     def test_constructor_takes_priority_over_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ARENA_SCAN__TOP_N", "30")
@@ -244,13 +233,9 @@ class TestDebateConfigDefaults:
     def test_debate_config_constructs_with_defaults(self) -> None:
         """DebateConfig() constructs with all production defaults."""
         config = DebateConfig()
-        assert config.provider == DebateProvider.OLLAMA
-        assert config.ollama_host == "http://localhost:11434"
-        assert config.ollama_model == "llama3.1:8b"
-        assert config.agent_timeout == pytest.approx(600.0)
-        assert config.groq_timeout == pytest.approx(60.0)
-        assert config.groq_model == "llama-3.3-70b-versatile"
-        assert config.groq_api_key is None
+        assert config.model == "llama-3.3-70b-versatile"
+        assert config.api_key is None
+        assert config.agent_timeout == pytest.approx(60.0)
         assert config.num_ctx == 8192
         assert config.retries == 2
         assert config.temperature == pytest.approx(0.3)
@@ -266,7 +251,7 @@ class TestDebateConfigDefaults:
     def test_app_settings_debate_defaults(self) -> None:
         """AppSettings().debate has correct defaults."""
         settings = AppSettings()
-        assert settings.debate.ollama_host == "http://localhost:11434"
+        assert settings.debate.model == "llama-3.3-70b-versatile"
         assert settings.debate.num_ctx == 8192
         assert settings.debate.fallback_confidence == pytest.approx(0.3)
 
@@ -281,33 +266,22 @@ class TestDebateConfigDefaults:
         settings = AppSettings()
         assert settings.debate.num_ctx == 16384
 
-    def test_env_override_debate_provider(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """ARENA_DEBATE__PROVIDER env var overrides default."""
-        monkeypatch.setenv("ARENA_DEBATE__PROVIDER", "groq")
+    def test_env_override_debate_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__MODEL env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__MODEL", "llama-3.1-8b-instant")
         settings = AppSettings()
-        assert settings.debate.provider == DebateProvider.GROQ
+        assert settings.debate.model == "llama-3.1-8b-instant"
 
-    def test_env_override_debate_groq_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """ARENA_DEBATE__GROQ_MODEL env var overrides default."""
-        monkeypatch.setenv("ARENA_DEBATE__GROQ_MODEL", "llama-3.1-8b-instant")
+    def test_env_override_debate_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__API_KEY env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__API_KEY", "gsk_test_key_123")
         settings = AppSettings()
-        assert settings.debate.groq_model == "llama-3.1-8b-instant"
+        assert settings.debate.api_key == "gsk_test_key_123"
 
-    def test_env_override_debate_groq_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """ARENA_DEBATE__GROQ_API_KEY env var overrides default."""
-        monkeypatch.setenv("ARENA_DEBATE__GROQ_API_KEY", "gsk_test_key_123")
+    def test_debate_api_key_default_is_none(self) -> None:
+        """Default api_key is None."""
         settings = AppSettings()
-        assert settings.debate.groq_api_key == "gsk_test_key_123"
-
-    def test_debate_provider_default_is_ollama(self) -> None:
-        """Default provider is OLLAMA (backward compatible)."""
-        settings = AppSettings()
-        assert settings.debate.provider == DebateProvider.OLLAMA
-
-    def test_debate_groq_api_key_default_is_none(self) -> None:
-        """Default groq_api_key is None."""
-        settings = AppSettings()
-        assert settings.debate.groq_api_key is None
+        assert settings.debate.api_key is None
 
     def test_debate_config_rejects_nan_temperature(self) -> None:
         """NaN temperature is rejected by validator."""
@@ -351,16 +325,6 @@ class TestDebateConfigDefaults:
         with pytest.raises(ValidationError, match="timeout must be > 0"):
             DebateConfig(agent_timeout=-1.0)
 
-    def test_debate_config_rejects_nan_groq_timeout(self) -> None:
-        """NaN groq_timeout is rejected."""
-        with pytest.raises(ValidationError, match="timeout must be finite"):
-            DebateConfig(groq_timeout=float("nan"))
-
-    def test_debate_config_rejects_zero_groq_timeout(self) -> None:
-        """Zero groq_timeout is rejected."""
-        with pytest.raises(ValidationError, match="timeout must be > 0"):
-            DebateConfig(groq_timeout=0.0)
-
     def test_debate_config_rejects_nan_max_total_duration(self) -> None:
         """NaN max_total_duration is rejected."""
         with pytest.raises(ValidationError, match="timeout must be finite"):
@@ -371,10 +335,39 @@ class TestDebateConfigDefaults:
         with pytest.raises(ValidationError, match="timeout must be > 0"):
             DebateConfig(max_total_duration=0.0)
 
-    def test_debate_config_groq_timeout_default(self) -> None:
-        """Default groq_timeout is 60.0."""
-        config = DebateConfig()
-        assert config.groq_timeout == pytest.approx(60.0)
+    def test_debate_config_rejects_num_ctx_below_128(self) -> None:
+        """num_ctx below 128 is rejected."""
+        with pytest.raises(ValidationError, match="num_ctx must be in"):
+            DebateConfig(num_ctx=64)
+
+    def test_debate_config_rejects_num_ctx_above_131072(self) -> None:
+        """num_ctx above 131072 is rejected."""
+        with pytest.raises(ValidationError, match="num_ctx must be in"):
+            DebateConfig(num_ctx=200_000)
+
+    def test_debate_config_accepts_num_ctx_boundary(self) -> None:
+        """num_ctx 128 and 131072 are accepted."""
+        config_low = DebateConfig(num_ctx=128)
+        assert config_low.num_ctx == 128
+        config_high = DebateConfig(num_ctx=131_072)
+        assert config_high.num_ctx == 131_072
+
+    def test_debate_config_rejects_retries_below_0(self) -> None:
+        """Negative retries rejected."""
+        with pytest.raises(ValidationError, match="retries must be in"):
+            DebateConfig(retries=-1)
+
+    def test_debate_config_rejects_retries_above_5(self) -> None:
+        """retries above 5 is rejected."""
+        with pytest.raises(ValidationError, match="retries must be in"):
+            DebateConfig(retries=6)
+
+    def test_debate_config_accepts_retries_boundary(self) -> None:
+        """retries 0 and 5 are accepted."""
+        config_low = DebateConfig(retries=0)
+        assert config_low.retries == 0
+        config_high = DebateConfig(retries=5)
+        assert config_high.retries == 5
 
 
 # ---------------------------------------------------------------------------

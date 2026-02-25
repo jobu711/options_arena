@@ -45,6 +45,8 @@ class DebateRow:
     duration_ms: int
     is_fallback: bool
     created_at: datetime
+    debate_mode: str = "full"
+    citation_density: float = 0.0
 
 
 class Repository:
@@ -185,6 +187,8 @@ class Repository:
         is_fallback: bool,
         vol_json: str | None = None,
         rebuttal_json: str | None = None,
+        debate_mode: str = "full",
+        citation_density: float = 0.0,
     ) -> int:
         """Persist a debate result.  Returns the database-assigned ID."""
         conn = self._db.conn
@@ -193,8 +197,8 @@ class Repository:
             "INSERT INTO ai_theses "
             "(scan_run_id, ticker, bull_json, bear_json, risk_json, verdict_json, "
             "vol_json, rebuttal_json, total_tokens, model_name, duration_ms, is_fallback, "
-            "created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "created_at, debate_mode, citation_density) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 scan_run_id,
                 ticker,
@@ -209,6 +213,8 @@ class Repository:
                 duration_ms,
                 int(is_fallback),
                 created_at,
+                debate_mode,
+                citation_density,
             ),
         )
         await conn.commit()
@@ -247,4 +253,8 @@ class Repository:
             duration_ms=int(row["duration_ms"]),
             is_fallback=bool(row["is_fallback"]),
             created_at=datetime.fromisoformat(row["created_at"]),
+            debate_mode=str(row["debate_mode"]) if row["debate_mode"] is not None else "full",
+            citation_density=(
+                float(row["citation_density"]) if row["citation_density"] is not None else 0.0
+            ),
         )

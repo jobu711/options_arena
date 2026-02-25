@@ -564,3 +564,54 @@ async def test_debate_with_null_scan_run_id(repo: Repository) -> None:
     assert row.scan_run_id is None
     assert row.is_fallback is True
     assert row.ticker == "TSLA"
+
+
+@pytest.mark.asyncio
+async def test_debate_metadata_roundtrip(repo: Repository) -> None:
+    """debate_mode and citation_density survive save/load roundtrip."""
+    scan = make_scan_run()
+    scan_id = await repo.save_scan_run(scan)
+
+    debate_id = await repo.save_debate(
+        scan_run_id=scan_id,
+        ticker="AAPL",
+        bull_json='{"agent_name": "bull"}',
+        bear_json='{"agent_name": "bear"}',
+        risk_json=None,
+        verdict_json='{"ticker": "AAPL"}',
+        total_tokens=800,
+        model_name="llama-3.3-70b-versatile",
+        duration_ms=3500,
+        is_fallback=False,
+        debate_mode="full",
+        citation_density=0.72,
+    )
+    assert isinstance(debate_id, int)
+
+    debates = await repo.get_debates_for_ticker("AAPL")
+    assert len(debates) == 1
+    row = debates[0]
+    assert row.debate_mode == "full"
+    assert row.citation_density == pytest.approx(0.72)
+
+
+@pytest.mark.asyncio
+async def test_debate_metadata_defaults(repo: Repository) -> None:
+    """debate_mode defaults to 'full' and citation_density to 0.0."""
+    await repo.save_debate(
+        scan_run_id=None,
+        ticker="SPY",
+        bull_json=None,
+        bear_json=None,
+        risk_json=None,
+        verdict_json=None,
+        total_tokens=0,
+        model_name="test",
+        duration_ms=100,
+        is_fallback=True,
+    )
+    debates = await repo.get_debates_for_ticker("SPY")
+    assert len(debates) == 1
+    row = debates[0]
+    assert row.debate_mode == "full"
+    assert row.citation_density == pytest.approx(0.0)

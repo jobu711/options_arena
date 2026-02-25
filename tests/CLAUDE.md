@@ -10,7 +10,7 @@ uv run pytest tests/ -k "test_rsi" -v              # specific test
 ```
 
 ## Absolute Rules
-1. **Never hit real APIs.** Mock Anthropic, Ollama, and all data sources. Every test. No exceptions.
+1. **Never hit real APIs.** Mock Groq, Anthropic, and all data sources. Every test. No exceptions.
 2. **Never use `==` for floats.** Always `pytest.approx()`.
 3. **Never hardcode dates that depend on `today`.** Mock `date.today()` for DTE tests.
 4. **Never inline large test data.** Use `tests/fixtures/` files.
@@ -58,11 +58,11 @@ mock_client.messages.create.return_value = mock_message
 ```
 Use the actual SDK response shape — don't mock as plain dicts.
 
-### Mocking Ollama
+### Mocking Groq (via PydanticAI TestModel)
 ```python
-mock_response = Mock()
-mock_response.message.content = "Bull case: RSI at 35 suggests oversold..."
-mock_client.chat.return_value = mock_response
+from pydantic_ai.models.test import TestModel
+with bull_agent.override(model=TestModel()):
+    result = await bull_agent.run("Analyze AAPL", deps=deps)
 ```
 
 ### Debate Tests
@@ -77,7 +77,7 @@ Define in `conftest.py`:
 - `sample_prices` — DataFrame from `fixtures/sample_prices.csv`
 - `sample_option_chain` — parsed `OptionChain` from `fixtures/option_chain.json`
 - `mock_anthropic_client` — patched `Anthropic` returning canned responses
-- `mock_ollama_client` — patched `ollama.Client` returning canned responses
+- `mock_debate_config` — `DebateConfig` with test API key for agent tests
 - `market_context` — fully populated `MarketContext` with realistic options data
 
 ## What Claude Gets Wrong Here (Fix These)

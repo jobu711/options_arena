@@ -45,7 +45,6 @@ from options_arena.agents.volatility import volatility_agent
 from options_arena.models import (
     AgentResponse,
     DebateConfig,
-    DebateProvider,
     IndicatorSignals,
     MacdSignal,
     OptionContract,
@@ -739,23 +738,21 @@ class TestRunDebatePersistence:
 # ---------------------------------------------------------------------------
 
 
-class TestProviderAwareTimeout:
-    """Tests for provider-aware timeout and ModelSettings selection."""
+class TestGroqModelConfig:
+    """Tests for Groq-only model configuration in debate."""
 
     @pytest.mark.asyncio
-    async def test_groq_provider_success_with_test_model(
+    async def test_groq_success_with_test_model(
         self,
         mock_ticker_score: TickerScore,
         mock_option_contract: OptionContract,
         mock_quote: Quote,
         mock_ticker_info: TickerInfo,
     ) -> None:
-        """Groq provider config produces a valid DebateResult with TestModel."""
+        """Groq config produces a valid DebateResult with TestModel."""
         config = DebateConfig(
-            provider=DebateProvider.GROQ,
-            groq_api_key="gsk_test_key_for_testing",
-            agent_timeout=600.0,
-            groq_timeout=10.0,
+            api_key="gsk_test_key_for_testing",
+            agent_timeout=10.0,
             max_total_duration=30.0,
         )
         with (
@@ -774,36 +771,7 @@ class TestProviderAwareTimeout:
         assert result.is_fallback is False
 
     @pytest.mark.asyncio
-    async def test_ollama_provider_uses_agent_timeout(
-        self,
-        mock_ticker_score: TickerScore,
-        mock_option_contract: OptionContract,
-        mock_quote: Quote,
-        mock_ticker_info: TickerInfo,
-    ) -> None:
-        """Ollama provider uses agent_timeout (not groq_timeout)."""
-        config = DebateConfig(
-            provider=DebateProvider.OLLAMA,
-            agent_timeout=10.0,
-            groq_timeout=0.001,  # should be ignored for Ollama
-            max_total_duration=30.0,
-        )
-        with (
-            bull_agent.override(model=TestModel()),
-            bear_agent.override(model=TestModel()),
-            risk_agent.override(model=TestModel()),
-        ):
-            result = await run_debate(
-                ticker_score=mock_ticker_score,
-                contracts=[mock_option_contract],
-                quote=mock_quote,
-                ticker_info=mock_ticker_info,
-                config=config,
-            )
-        assert result.is_fallback is False
-
-    @pytest.mark.asyncio
-    async def test_groq_persist_uses_groq_model_name(
+    async def test_persist_uses_config_model_name(
         self,
         monkeypatch: pytest.MonkeyPatch,
         mock_ticker_score: TickerScore,
@@ -811,7 +779,7 @@ class TestProviderAwareTimeout:
         mock_quote: Quote,
         mock_ticker_info: TickerInfo,
     ) -> None:
-        """When provider is GROQ, persistence uses groq_model as model_name."""
+        """Persistence uses config.model as model_name."""
         mock_repo = MagicMock()
         mock_repo.save_debate = AsyncMock(return_value=1)
 
@@ -820,9 +788,8 @@ class TestProviderAwareTimeout:
 
         monkeypatch.setattr("options_arena.agents.orchestrator._run_agents", fake_run_agents)
         config = DebateConfig(
-            provider=DebateProvider.GROQ,
-            groq_api_key="gsk_test_key",
-            groq_model="llama-3.3-70b-versatile",
+            api_key="gsk_test_key",
+            model="llama-3.3-70b-versatile",
             agent_timeout=10.0,
             max_total_duration=30.0,
         )

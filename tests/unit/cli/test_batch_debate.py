@@ -273,7 +273,7 @@ async def test_batch_one_failure(
     # Second ticker fails, others succeed
     mock_debate_single.side_effect = [
         _make_debate_result("AAPL"),
-        RuntimeError("Ollama connection refused"),
+        RuntimeError("LLM provider connection refused"),
         _make_debate_result("GOOG"),
     ]
 

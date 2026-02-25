@@ -6,6 +6,7 @@ Each check returns a typed ``HealthStatus`` with latency measurement.
 
 import asyncio
 import logging
+import os
 import time
 from datetime import UTC, datetime
 
@@ -22,7 +23,7 @@ class HealthService:
     """Pre-flight health checker for external dependencies.
 
     Args:
-        config: Service configuration with timeouts, Ollama host/model, etc.
+        config: Service configuration with timeouts, API keys, etc.
     """
 
     def __init__(self, config: ServiceConfig) -> None:
@@ -98,61 +99,69 @@ class HealthService:
                 checked_at=datetime.now(UTC),
             )
 
-    async def check_ollama(self) -> HealthStatus:
-        """Check Ollama availability and verify the configured model is present.
+    async def check_groq(self) -> HealthStatus:
+        """Check Groq API availability by listing models.
 
-        Sends ``GET {ollama_host}/api/tags`` and inspects the response body
-        for the configured model name.
+        Checks if an API key is configured (config or ``GROQ_API_KEY`` env),
+        then sends ``GET https://api.groq.com/openai/v1/models`` with Bearer token.
         """
         start = time.monotonic()
+
+        # Resolve API key: config > env > None
+        api_key = self._config.groq_api_key or os.environ.get("GROQ_API_KEY")
+        if api_key is None:
+            latency_ms = (time.monotonic() - start) * 1000
+            logger.warning("Groq health check failed: no API key configured")
+            return HealthStatus(
+                service_name="groq",
+                available=False,
+                latency_ms=latency_ms,
+                error="no API key configured",
+                checked_at=datetime.now(UTC),
+            )
+
         try:
             response = await asyncio.wait_for(
-                self._client.get(f"{self._config.ollama_host}/api/tags"),
-                timeout=self._config.ollama_timeout,
+                self._client.get(
+                    "https://api.groq.com/openai/v1/models",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                ),
+                timeout=10.0,
             )
             latency_ms = (time.monotonic() - start) * 1000
 
-            if response.status_code >= 500:
-                logger.warning("Ollama health check failed: HTTP %d", response.status_code)
+            if response.status_code == 401:
+                logger.warning("Groq health check failed: invalid API key")
                 return HealthStatus(
-                    service_name="ollama",
+                    service_name="groq",
+                    available=False,
+                    latency_ms=latency_ms,
+                    error="invalid API key (401)",
+                    checked_at=datetime.now(UTC),
+                )
+
+            if response.status_code >= 500:
+                logger.warning("Groq health check failed: HTTP %d", response.status_code)
+                return HealthStatus(
+                    service_name="groq",
                     available=False,
                     latency_ms=latency_ms,
                     error=f"HTTP {response.status_code}",
                     checked_at=datetime.now(UTC),
                 )
 
-            # Parse the response to check for the configured model
-            data = response.json()
-            model_names: list[str] = [m.get("name", "") for m in data.get("models", [])]
-            model_found = any(self._config.ollama_model in name for name in model_names)
-
-            if not model_found:
-                logger.warning(
-                    "Ollama reachable but model '%s' not found. Available: %s",
-                    self._config.ollama_model,
-                    model_names,
-                )
-                return HealthStatus(
-                    service_name="ollama",
-                    available=False,
-                    latency_ms=latency_ms,
-                    error=f"model '{self._config.ollama_model}' not found",
-                    checked_at=datetime.now(UTC),
-                )
-
-            logger.info("Ollama health check OK (%.1fms)", latency_ms)
+            logger.info("Groq health check OK (%.1fms)", latency_ms)
             return HealthStatus(
-                service_name="ollama",
+                service_name="groq",
                 available=True,
                 latency_ms=latency_ms,
                 checked_at=datetime.now(UTC),
             )
         except Exception as exc:
             latency_ms = (time.monotonic() - start) * 1000
-            logger.warning("Ollama health check failed: %s", exc)
+            logger.warning("Groq health check failed: %s", exc)
             return HealthStatus(
-                service_name="ollama",
+                service_name="groq",
                 available=False,
                 latency_ms=latency_ms,
                 error=str(exc),
@@ -204,10 +213,10 @@ class HealthService:
         tasks = [
             self.check_yfinance(),
             self.check_fred(),
-            self.check_ollama(),
+            self.check_groq(),
             self.check_cboe(),
         ]
-        service_names = ["yfinance", "fred", "ollama", "cboe"]
+        service_names = ["yfinance", "fred", "groq", "cboe"]
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         results: list[HealthStatus] = []

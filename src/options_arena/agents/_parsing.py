@@ -66,7 +66,14 @@ Data citation rules (MANDATORY):
 - RIGHT: "RSI(14): 65.3 is above the 50 midpoint, confirming bullish momentum"
 - WRONG: "Volatility is elevated"
 - RIGHT: "IV RANK: 85.0 places current IV in the top 15% of its 52-week range"
-- Every claim MUST cite at least one specific number from the context."""
+- Every claim MUST cite at least one specific number from the context.
+- IV RANK ≠ IV PERCENTILE. Rank = position in 52-week range. Percentile = % of days IV was lower.
+
+Greeks (when present):
+- DELTA: directional exposure [-1,1]. Call>0 bullish, put<0 bearish.
+- GAMMA: price-move sensitivity. Higher = more risk/reward near expiry.
+- THETA: daily time decay. Negative = long position cost.
+- VEGA: IV sensitivity. Positive vega profits from IV expansion."""
 
 
 def build_cleaned_agent_response(output: AgentResponse) -> AgentResponse:
@@ -182,6 +189,7 @@ class DebateResult:
     is_fallback: bool
     bull_rebuttal: AgentResponse | None = None  # None when rebuttal disabled/skipped
     vol_response: VolatilityThesis | None = None  # None when vol agent disabled/skipped
+    citation_density: float = 0.0  # fraction of context labels cited in agent text
 
 
 def _render_optional(label: str, value: float | None, fmt: str = ".1f") -> str | None:
@@ -208,7 +216,6 @@ def render_context_block(ctx: MarketContext) -> str:
         f"MACD: {ctx.macd_signal.value}",
         f"IV RANK: {ctx.iv_rank:.1f}",
         f"IV PERCENTILE: {ctx.iv_percentile:.1f}",
-        f"ATM IV 30D: {ctx.atm_iv_30d:.1f}",
         f"PUT/CALL RATIO: {ctx.put_call_ratio:.2f}",
         f"SECTOR: {ctx.sector}",
         f"TARGET STRIKE: ${ctx.target_strike}",
@@ -220,6 +227,10 @@ def render_context_block(ctx: MarketContext) -> str:
         f"COMPOSITE SCORE: {ctx.composite_score:.1f}",
         f"DIRECTION: {ctx.direction_signal.value}",
     ]
+
+    # ATM IV 30D — only render when available (derived from first contract)
+    if ctx.atm_iv_30d > 0.0:
+        lines.append(f"ATM IV 30D: {ctx.atm_iv_30d:.1f}")
 
     # Optional indicators — omit when None or non-finite
     for label, value in [
@@ -250,3 +261,22 @@ def render_context_block(ctx: MarketContext) -> str:
         lines.append(f"CONTRACT MID: ${ctx.contract_mid}")
 
     return "\n".join(lines)
+
+
+# Regex to extract "LABEL:" patterns from context block (uppercase labels before colon)
+_CONTEXT_LABEL_RE = re.compile(r"^([A-Z][A-Z0-9 /()%]+):", re.MULTILINE)
+
+
+def compute_citation_density(context_block: str, *texts: str) -> float:
+    """Compute fraction of context labels referenced in agent output text.
+
+    Extracts ``LABEL:`` patterns from the context block (e.g., ``RSI(14):``,
+    ``IV RANK:``) and counts how many appear in the combined agent text.
+    Returns a float in [0.0, 1.0].
+    """
+    labels = _CONTEXT_LABEL_RE.findall(context_block)
+    if not labels:
+        return 0.0
+    combined = " ".join(texts).upper()
+    cited = sum(1 for label in labels if label in combined)
+    return cited / len(labels)

@@ -19,6 +19,7 @@ from pydantic_ai.usage import RunUsage
 from options_arena.agents._parsing import (
     DebateDeps,
     DebateResult,
+    compute_citation_density,
     render_context_block,
     strip_think_tags,
 )
@@ -455,3 +456,42 @@ class TestStripThinkTags:
     def test_strips_whitespace(self) -> None:
         """Leading/trailing whitespace is stripped from result."""
         assert strip_think_tags("  <think>x</think>  answer  ") == "answer"
+
+
+# ---------------------------------------------------------------------------
+# compute_citation_density
+# ---------------------------------------------------------------------------
+
+
+class TestComputeCitationDensity:
+    """Tests for citation density scoring."""
+
+    def test_full_citation(self) -> None:
+        """All context labels cited returns 1.0."""
+        context = "RSI 14: 62.3\nADX: 28.4\nBB WIDTH: 42.1"
+        text = "The RSI 14 is bullish. ADX shows trend. BB WIDTH is moderate."
+        assert compute_citation_density(context, text) == pytest.approx(1.0)
+
+    def test_no_citation(self) -> None:
+        """No context labels cited returns 0.0."""
+        context = "RSI 14: 62.3\nADX: 28.4"
+        text = "The stock is going up based on momentum."
+        assert compute_citation_density(context, text) == pytest.approx(0.0)
+
+    def test_partial_citation(self) -> None:
+        """Some context labels cited returns correct fraction."""
+        context = "RSI 14: 62.3\nADX: 28.4\nBB WIDTH: 42.1\nATR PCT: 15.0"
+        text = "RSI 14 is bullish. BB WIDTH is narrowing."
+        # 2 out of 4 labels cited
+        assert compute_citation_density(context, text) == pytest.approx(0.5)
+
+    def test_empty_context_block(self) -> None:
+        """Empty context block returns 0.0."""
+        assert compute_citation_density("", "some agent text") == pytest.approx(0.0)
+
+    def test_multiple_texts(self) -> None:
+        """Multiple text arguments are combined for citation search."""
+        context = "RSI 14: 62.3\nADX: 28.4"
+        text_a = "RSI 14 is bullish."
+        text_b = "ADX shows trend."
+        assert compute_citation_density(context, text_a, text_b) == pytest.approx(1.0)

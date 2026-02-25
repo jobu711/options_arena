@@ -81,7 +81,7 @@ def test_render_health_table_mixed_statuses() -> None:
     statuses = [
         _make_health_status("yfinance", available=True),
         _make_health_status("fred", available=False, error="timeout"),
-        _make_health_status("ollama", available=True, latency_ms=None),
+        _make_health_status("groq", available=True, latency_ms=None),
     ]
     table = render_health_table(statuses)
     assert table.row_count == 3

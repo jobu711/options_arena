@@ -17,9 +17,7 @@ def config() -> ServiceConfig:
     return ServiceConfig(
         yfinance_timeout=5.0,
         fred_timeout=5.0,
-        ollama_timeout=5.0,
-        ollama_host="http://localhost:11434",
-        ollama_model="llama3.1:8b",
+        groq_api_key="gsk_test_key_for_health",
     )
 
 
@@ -133,59 +131,71 @@ class TestCheckFred:
 
 
 # ---------------------------------------------------------------------------
-# check_ollama
+# check_groq
 # ---------------------------------------------------------------------------
 
 
-class TestCheckOllama:
-    """Tests for Ollama health check."""
+class TestCheckGroq:
+    """Tests for Groq API health check."""
 
     @pytest.mark.asyncio
-    async def test_success_with_model_present(self, service: HealthService) -> None:
-        """Ollama reachable with configured model returns available=True."""
+    async def test_success(self, service: HealthService) -> None:
+        """Groq reachable with valid API key returns available=True."""
         mock_response = httpx.Response(
             status_code=200,
-            json={"models": [{"name": "llama3.1:8b"}, {"name": "codellama:7b"}]},
+            json={"data": [{"id": "llama-3.3-70b-versatile"}]},
             request=httpx.Request("GET", "test"),
         )
         service._client.get = AsyncMock(return_value=mock_response)  # type: ignore[method-assign]
 
-        result = await service.check_ollama()
+        result = await service.check_groq()
 
-        assert result.service_name == "ollama"
+        assert result.service_name == "groq"
         assert result.available is True
         assert result.latency_ms is not None
         assert result.latency_ms > 0
         assert result.error is None
 
     @pytest.mark.asyncio
-    async def test_model_missing(self, service: HealthService) -> None:
-        """Ollama reachable but configured model not found returns available=False."""
+    async def test_invalid_api_key_401(self, service: HealthService) -> None:
+        """Groq returning 401 marks service as unavailable with clear error."""
         mock_response = httpx.Response(
-            status_code=200,
-            json={"models": [{"name": "codellama:7b"}, {"name": "mistral:latest"}]},
+            status_code=401,
             request=httpx.Request("GET", "test"),
         )
         service._client.get = AsyncMock(return_value=mock_response)  # type: ignore[method-assign]
 
-        result = await service.check_ollama()
+        result = await service.check_groq()
 
-        assert result.service_name == "ollama"
+        assert result.service_name == "groq"
         assert result.available is False
         assert result.error is not None
-        assert "llama3.1:8b" in result.error
-        assert "not found" in result.error
+        assert "invalid API key" in result.error
+
+    @pytest.mark.asyncio
+    async def test_no_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Groq check without API key returns available=False."""
+        monkeypatch.delenv("GROQ_API_KEY", raising=False)
+        config = ServiceConfig(groq_api_key=None)
+        svc = HealthService(config)
+
+        result = await svc.check_groq()
+
+        assert result.service_name == "groq"
+        assert result.available is False
+        assert result.error is not None
+        assert "no API key" in result.error
 
     @pytest.mark.asyncio
     async def test_connection_failure(self, service: HealthService) -> None:
-        """Ollama connection error returns available=False."""
+        """Groq connection error returns available=False."""
         service._client.get = AsyncMock(  # type: ignore[method-assign]
             side_effect=httpx.ConnectError("connection refused"),
         )
 
-        result = await service.check_ollama()
+        result = await service.check_groq()
 
-        assert result.service_name == "ollama"
+        assert result.service_name == "groq"
         assert result.available is False
         assert result.error is not None
         assert result.latency_ms is not None
@@ -193,16 +203,16 @@ class TestCheckOllama:
 
     @pytest.mark.asyncio
     async def test_server_error_500(self, service: HealthService) -> None:
-        """Ollama returning HTTP 500 marks service as unavailable."""
+        """Groq returning HTTP 500 marks service as unavailable."""
         mock_response = httpx.Response(
             status_code=500,
             request=httpx.Request("GET", "test"),
         )
         service._client.get = AsyncMock(return_value=mock_response)  # type: ignore[method-assign]
 
-        result = await service.check_ollama()
+        result = await service.check_groq()
 
-        assert result.service_name == "ollama"
+        assert result.service_name == "groq"
         assert result.available is False
         assert result.error == "HTTP 500"
 
@@ -268,8 +278,8 @@ class TestCheckAll:
             latency_ms=30.0,
             checked_at=_utc_now(),
         )
-        ollama_status = HealthStatus(
-            service_name="ollama",
+        groq_status = HealthStatus(
+            service_name="groq",
             available=True,
             latency_ms=20.0,
             checked_at=_utc_now(),
@@ -283,7 +293,7 @@ class TestCheckAll:
 
         service.check_yfinance = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
         service.check_fred = AsyncMock(return_value=fred_status)  # type: ignore[method-assign]
-        service.check_ollama = AsyncMock(return_value=ollama_status)  # type: ignore[method-assign]
+        service.check_groq = AsyncMock(return_value=groq_status)  # type: ignore[method-assign]
         service.check_cboe = AsyncMock(return_value=cboe_status)  # type: ignore[method-assign]
 
         results = await service.check_all()
@@ -308,8 +318,8 @@ class TestCheckAll:
             error="connection refused",
             checked_at=_utc_now(),
         )
-        ollama_status = HealthStatus(
-            service_name="ollama",
+        groq_status = HealthStatus(
+            service_name="groq",
             available=True,
             latency_ms=20.0,
             checked_at=_utc_now(),
@@ -324,7 +334,7 @@ class TestCheckAll:
 
         service.check_yfinance = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
         service.check_fred = AsyncMock(return_value=fred_status)  # type: ignore[method-assign]
-        service.check_ollama = AsyncMock(return_value=ollama_status)  # type: ignore[method-assign]
+        service.check_groq = AsyncMock(return_value=groq_status)  # type: ignore[method-assign]
         service.check_cboe = AsyncMock(return_value=cboe_status)  # type: ignore[method-assign]
 
         results = await service.check_all()
@@ -333,7 +343,7 @@ class TestCheckAll:
         names_available = {r.service_name: r.available for r in results}
         assert names_available["yfinance"] is True
         assert names_available["fred"] is False
-        assert names_available["ollama"] is True
+        assert names_available["groq"] is True
         assert names_available["cboe"] is False
 
     @pytest.mark.asyncio
@@ -348,7 +358,7 @@ class TestCheckAll:
         # Simulate an unhandled exception escaping from check_fred
         service.check_yfinance = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
         service.check_fred = AsyncMock(side_effect=RuntimeError("boom"))  # type: ignore[method-assign]
-        service.check_ollama = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
+        service.check_groq = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
         service.check_cboe = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
 
         results = await service.check_all()

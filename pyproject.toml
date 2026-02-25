@@ -12,7 +12,6 @@ dependencies = [
     "httpx>=0.28",
     "lxml>=6.0.2",
     "numpy>=2.4",
-    "ollama>=0.6",
     "pandas>=3.0",
     "pydantic>=2.12",
     "pydantic-ai>=1.62",
