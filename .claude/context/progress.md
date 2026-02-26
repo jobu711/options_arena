@@ -3,10 +3,10 @@
 ## Current State
 
 - **Version**: 1.5.0 (MVP + AI Debate + Batch Mode + Export + Groq-Only)
-- **All 9 phases + 6 epics**: Complete and merged to master (2026-02-25)
-- **Branch**: `master` (1483 tests, all phases + epics merged)
-- **Tests**: 1483 (293 models + 214 pricing + 172 indicators + 108 scoring + 181 services + 42 data + 131 scan + 40 cli + 242 agents + 14 reporting + 16 misc + 30 integration)
-- **GitHub issues**: 1 open (#112), 113 closed
+- **All 9 phases + 7 epics**: Complete and merged to master (2026-02-26)
+- **Branch**: `master` (1484 tests, all phases + epics merged)
+- **Tests**: 1484 (293 models + 214 pricing + 172 indicators + 110 scoring + 181 services + 42 data + 131 scan + 40 cli + 241 agents + 14 reporting + 16 misc + 30 integration)
+- **GitHub issues**: 1 open (#112), 107 closed
 - **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`) commands
 - **AI provider**: Groq (cloud, `GROQ_API_KEY` env var or `ARENA_DEBATE__API_KEY`)
 
@@ -17,16 +17,23 @@
 | 1 | Models, enums, config | 293 | Complete |
 | 2 | Pricing (BSM + BAW) | 214 | Complete |
 | 3 | Technical indicators (18 functions) | 172 | Complete |
-| 4 | Scoring (normalize, composite, direction, contracts) | 108 | Complete |
+| 4 | Scoring (normalize, composite, direction, contracts) | 110 | Complete |
 | 5 | Services (market data, options, FRED, universe, health) | 181 | Complete |
 | 6 | Data layer (SQLite, migrations, repository) | 42 | Complete |
 | 7 | Scan pipeline (4-phase async orchestration) | 131 | Complete |
 | 8 | CLI (Typer + Rich, logging, SIGINT) | 40 | Complete |
-| 9 | AI debate (PydanticAI agents, Groq) | 242 | Complete |
+| 9 | AI debate (PydanticAI agents, Groq) | 241 | Complete |
 
 For detailed phase completion logs, see `progress-archive.md`.
 
 ## Recently Completed Epics
+
+### Epic 9: Data Integrity Hardening (2026-02-26) — #114
+End-to-end data integrity across all pipeline layers. OHLCV candle validators
+(`field_validator` + `model_validator`), OptionGreeks NaN defense on all 5 fields,
+zero-price rejection at service ingestion, MarketContext `float | None` fields with
+`completeness_ratio()` method, debate quality gate (60% minimum), cache TTL validation,
+NaN propagation guards in scoring. +82 new tests. Issues: #115-#119, PR #120.
 
 ### Epic 8: Groq-Only Migration + 12 Debate Improvements (2026-02-25)
 Removed Ollama provider entirely, made Groq sole LLM provider. Deleted `DebateProvider`
@@ -48,9 +55,6 @@ scan sequentially. Extracted `_debate_single()` for reuse, error isolation per t
 
 ### Epic 5: Bull Rebuttal Round (2026-02-25) — #93
 Optional bull rebuttal phase. Config: `enable_rebuttal`. Issues: #94-#99.
-
-### Epic 4: Volatility Agent (2026-02-25) — #82
-Optional volatility analysis agent. Config: `enable_volatility_agent`. Issues: #83-#92.
 
 ## Future Work (v2)
 

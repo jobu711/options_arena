@@ -27,6 +27,14 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **NaN for undefined ratios**: Division-by-zero returns `float("nan")` (not `0.0`) when
   mathematically undefined.
 - **Display guards**: CLI rendering checks `math.isfinite()` before formatting, falls back to `"--"`.
+- **OHLCV candle validators**: `field_validator` rejects zero/negative prices and non-finite values;
+  `model_validator(mode="after")` rejects impossible candles (high < low, prices outside range).
+  Ingestion loops wrap construction in `try/except PydanticValidationError` to skip bad rows.
+- **Zero-price rejection**: `fetch_quote()` and `fetch_ticker_info()` raise `TickerNotFoundError`
+  when price is None or <= 0. Bid/ask zero-fallback kept (legitimate for illiquid contracts).
+- **MarketContext completeness**: Optional indicator fields are `float | None` (not `0.0`).
+  `completeness_ratio()` returns fraction of populated fields. Debate quality gate requires
+  >= 60% completeness; below triggers data-driven fallback. Warning logged at < 80%.
 
 ### Service Layer Patterns
 - **Class-based DI**: Each service receives `config`, `cache`, `limiter` via `__init__`. Explicit `close()`.
