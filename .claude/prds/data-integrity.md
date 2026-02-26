@@ -1,7 +1,7 @@
 ---
 name: data-integrity
 description: End-to-end data integrity audit and hardening across all pipeline layers
-status: backlog
+status: complete
 created: 2026-02-26T08:56:43Z
 ---
 
