@@ -18,7 +18,9 @@ import asyncio
 import logging
 import math
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
+from enum import StrEnum
 
 import httpx
 from pydantic_ai import AgentRunResult
@@ -55,6 +57,20 @@ from options_arena.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class DebatePhase(StrEnum):
+    """Phases of the AI debate pipeline, reported via progress callback."""
+
+    BULL = "bull"
+    BEAR = "bear"
+    REBUTTAL = "rebuttal"
+    VOLATILITY = "volatility"
+    RISK = "risk"
+
+
+type DebateProgressCallback = Callable[[DebatePhase, str, float | None], None]
+"""Callback for debate progress: ``(phase, status, confidence_or_none)``."""
 
 
 def should_debate(ticker_score: TickerScore, config: DebateConfig) -> bool:
@@ -183,6 +199,7 @@ async def run_debate(
     ticker_info: TickerInfo,
     config: DebateConfig,
     repository: Repository | None = None,
+    progress: DebateProgressCallback | None = None,
 ) -> DebateResult:
     """Run AI debate on a ticker. On ANY failure, returns data-driven fallback -- never raises.
 
@@ -206,6 +223,9 @@ async def run_debate(
         Debate configuration (model, timeouts).
     repository
         Optional persistence layer. If provided, debate results are saved.
+    progress
+        Optional callback for real-time progress reporting. Called with
+        ``(phase, status, confidence)`` on agent start/complete.
 
     Returns
     -------
@@ -236,7 +256,7 @@ async def run_debate(
             )
         try:
             result = await asyncio.wait_for(
-                _run_agents(context, ticker_score, contracts, config, start_time),
+                _run_agents(context, ticker_score, contracts, config, start_time, progress),
                 timeout=config.max_total_duration,
             )
         except httpx.ConnectError as e:
@@ -280,12 +300,27 @@ async def run_debate(
     return result
 
 
+def _notify(
+    progress: DebateProgressCallback | None,
+    phase: DebatePhase,
+    status: str,
+    confidence: float | None = None,
+) -> None:
+    """Call progress callback if set. Never raises."""
+    if progress is not None:
+        try:
+            progress(phase, status, confidence)
+        except Exception:
+            logger.debug("Progress callback error (ignored)", exc_info=True)
+
+
 async def _run_agents(
     context: MarketContext,
     ticker_score: TickerScore,
     contracts: list[OptionContract],
     config: DebateConfig,
     start_time: float,
+    progress: DebateProgressCallback | None = None,
 ) -> DebateResult:
     """Run the sequential agent pipeline (bull -> bear -> [volatility] -> risk).
 
@@ -298,6 +333,7 @@ async def _run_agents(
 
     # --- Bull agent ---
     logger.info("Running bull agent for %s", context.ticker)
+    _notify(progress, DebatePhase.BULL, "started")
     bull_deps = DebateDeps(
         context=context,
         ticker_score=ticker_score,
@@ -318,9 +354,11 @@ async def _run_agents(
         context.ticker,
         bull_output.confidence,
     )
+    _notify(progress, DebatePhase.BULL, "completed", bull_output.confidence)
 
     # --- Bear agent ---
     logger.info("Running bear agent for %s", context.ticker)
+    _notify(progress, DebatePhase.BEAR, "started")
     bear_deps = DebateDeps(
         context=context,
         ticker_score=ticker_score,
@@ -342,6 +380,7 @@ async def _run_agents(
         context.ticker,
         bear_output.confidence,
     )
+    _notify(progress, DebatePhase.BEAR, "completed", bear_output.confidence)
 
     # --- Rebuttal + Volatility (parallel when both enabled, sequential otherwise) ---
     rebuttal_result: AgentRunResult[AgentResponse] | None = None
@@ -352,6 +391,8 @@ async def _run_agents(
     if config.enable_rebuttal and config.enable_volatility_agent:
         # Run both in parallel — they have no dependency on each other
         logger.info("Running rebuttal + volatility in parallel for %s", context.ticker)
+        _notify(progress, DebatePhase.REBUTTAL, "started")
+        _notify(progress, DebatePhase.VOLATILITY, "started")
         rebuttal_coro = _run_rebuttal(
             context,
             ticker_score,
@@ -385,8 +426,15 @@ async def _run_agents(
                 context.ticker,
                 parallel_results[0],
             )
+            _notify(progress, DebatePhase.REBUTTAL, "failed")
         else:
             rebuttal_result, rebuttal_output = parallel_results[0]
+            _notify(
+                progress,
+                DebatePhase.REBUTTAL,
+                "completed",
+                rebuttal_output.confidence,
+            )
         # Handle volatility result
         if isinstance(parallel_results[1], BaseException):
             logger.warning(
@@ -394,10 +442,18 @@ async def _run_agents(
                 context.ticker,
                 parallel_results[1],
             )
+            _notify(progress, DebatePhase.VOLATILITY, "failed")
         else:
             vol_result, vol_output = parallel_results[1]
+            _notify(
+                progress,
+                DebatePhase.VOLATILITY,
+                "completed",
+                vol_output.confidence,
+            )
     else:
         if config.enable_rebuttal:
+            _notify(progress, DebatePhase.REBUTTAL, "started")
             rebuttal_result, rebuttal_output = await _run_rebuttal(
                 context,
                 ticker_score,
@@ -408,7 +464,14 @@ async def _run_agents(
                 per_agent_timeout,
                 context_text,
             )
+            _notify(
+                progress,
+                DebatePhase.REBUTTAL,
+                "completed",
+                rebuttal_output.confidence,
+            )
         if config.enable_volatility_agent:
+            _notify(progress, DebatePhase.VOLATILITY, "started")
             vol_result, vol_output = await _run_volatility(
                 context,
                 ticker_score,
@@ -420,9 +483,16 @@ async def _run_agents(
                 per_agent_timeout,
                 context_text,
             )
+            _notify(
+                progress,
+                DebatePhase.VOLATILITY,
+                "completed",
+                vol_output.confidence,
+            )
 
     # --- Risk agent (always last — depends on all prior outputs) ---
     logger.info("Running risk agent for %s", context.ticker)
+    _notify(progress, DebatePhase.RISK, "started")
     risk_deps = DebateDeps(
         context=context,
         ticker_score=ticker_score,
@@ -449,6 +519,7 @@ async def _run_agents(
         thesis.direction.value,
         thesis.confidence,
     )
+    _notify(progress, DebatePhase.RISK, "completed", thesis.confidence)
 
     # Accumulate usage across all agents
     total_usage = bull_result.usage() + bear_result.usage() + risk_result.usage()

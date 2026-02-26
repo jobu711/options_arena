@@ -703,3 +703,52 @@ async def _stats_async() -> None:
     finally:
         await svc.close()
         await cache.close()
+
+
+# ---------------------------------------------------------------------------
+# serve command
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind address"),
+    port: int = typer.Option(8000, "--port", help="Port number"),
+    no_open: bool = typer.Option(False, "--no-open", help="Don't open browser automatically"),
+    reload: bool = typer.Option(False, "--reload", help="Enable auto-reload (dev mode)"),
+) -> None:
+    """Start the FastAPI web server and serve the Vue SPA."""
+    import ipaddress  # noqa: PLC0415
+
+    import uvicorn  # noqa: PLC0415
+
+    def _is_loopback(value: str) -> bool:
+        if value == "localhost":
+            return True
+        try:
+            return ipaddress.ip_address(value).is_loopback
+        except ValueError:
+            return False
+
+    if not _is_loopback(host):
+        err_console.print("[red]--host must be a loopback address (127.0.0.1 or localhost).[/red]")
+        raise typer.Exit(code=1)
+
+    if not no_open:
+        import threading  # noqa: PLC0415
+        import time  # noqa: PLC0415
+        import webbrowser  # noqa: PLC0415
+
+        def _open_browser() -> None:
+            time.sleep(1.5)  # Wait for uvicorn to start
+            webbrowser.open(f"http://{host}:{port}")
+
+        threading.Thread(target=_open_browser, daemon=True).start()
+
+    uvicorn.run(
+        "options_arena.api.app:create_app",
+        host=host,
+        port=port,
+        reload=reload,
+        factory=True,
+    )

@@ -1,7 +1,8 @@
 """Internal dataclasses and utilities for the debate system.
 
-DebateDeps and DebateResult are @dataclass (not Pydantic) because RunUsage
-is a plain dataclass — not Pydantic-serializable.
+DebateDeps is a @dataclass (PydanticAI convention for agent deps).
+DebateResult is a Pydantic BaseModel — enables FastAPI auto-serialization.
+RunUsage is a plain dataclass but Pydantic v2-compatible (uses Field annotations).
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ import math
 import re
 from dataclasses import dataclass
 
+from pydantic import BaseModel, ConfigDict
 from pydantic_ai.usage import RunUsage
 
 from options_arena.models import (
@@ -171,14 +173,15 @@ class DebateDeps:
     vol_response: VolatilityThesis | None = None  # For risk agent (vol context)
 
 
-@dataclass
-class DebateResult:
+class DebateResult(BaseModel):
     """Complete debate output returned by run_debate().
 
-    Uses @dataclass because RunUsage is a plain dataclass, not Pydantic-serializable.
-    Pydantic sub-models (AgentResponse, TradeThesis) are serialized individually for
-    persistence.
+    Pydantic BaseModel with ``frozen=True`` for immutability. Enables FastAPI
+    auto-serialization via ``model_dump_json()``. RunUsage is a plain dataclass
+    but Pydantic v2-compatible (uses ``Field`` annotations internally).
     """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     context: MarketContext
     bull_response: AgentResponse

@@ -1,0 +1,15 @@
+:root {
+  /* Financial accent colors (override PrimeVue defaults) */
+  --accent-green: #22c55e;        /* green-500 (bullish) */
+  --accent-red: #ef4444;          /* red-500 (bearish) */
+  --accent-yellow: #eab308;       /* yellow-500 (neutral) */
+  --accent-blue: #3b82f6;         /* blue-500 (risk agent) */
+  --accent-purple: #a855f7;       /* purple-500 (volatility agent) */
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+body {
+  margin: 0;
+  background: #0a0a0a;
+  color: #e5e5e5;
+}

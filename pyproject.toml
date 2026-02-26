@@ -9,6 +9,7 @@ description = "AI-powered options analysis tool for American-style U.S. equity o
 requires-python = ">=3.13"
 dependencies = [
     "aiosqlite>=0.22",
+    "fastapi>=0.133.1",
     "httpx>=0.28",
     "lxml>=6.0.2",
     "numpy>=2.4",
@@ -19,6 +20,7 @@ dependencies = [
     "rich>=14.3",
     "scipy>=1.17",
     "typer>=0.24",
+    "uvicorn[standard]>=0.41.0",
     "yfinance>=1.2",
 ]
 
@@ -50,6 +52,9 @@ line-length = 99
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "ANN"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/options_arena/api/routes/*.py" = ["B008"]
 
 [tool.mypy]
 strict = true
