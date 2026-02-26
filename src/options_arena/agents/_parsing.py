@@ -225,17 +225,16 @@ def render_context_block(ctx: MarketContext) -> str:
         f"DIRECTION: {ctx.direction_signal.value}",
     ]
 
-    # Options-specific fields — omit when unavailable (0.0 = not computed)
-    if ctx.iv_rank > 0.0:
-        lines.append(f"IV RANK: {ctx.iv_rank:.1f}")
-    if ctx.iv_percentile > 0.0:
-        lines.append(f"IV PERCENTILE: {ctx.iv_percentile:.1f}")
-    if ctx.put_call_ratio > 0.0:
-        lines.append(f"PUT/CALL RATIO: {ctx.put_call_ratio:.2f}")
-
-    # ATM IV 30D — only render when available (derived from first contract)
-    if ctx.atm_iv_30d > 0.0:
-        lines.append(f"ATM IV 30D: {ctx.atm_iv_30d:.1f}")
+    # Options-specific fields — omit when None or non-finite
+    for label, value, fmt in [
+        ("IV RANK", ctx.iv_rank, ".1f"),
+        ("IV PERCENTILE", ctx.iv_percentile, ".1f"),
+        ("PUT/CALL RATIO", ctx.put_call_ratio, ".2f"),
+        ("ATM IV 30D", ctx.atm_iv_30d, ".1f"),
+    ]:
+        rendered = _render_optional(label, value, fmt)
+        if rendered is not None:
+            lines.append(rendered)
 
     # Optional indicators — omit when None or non-finite
     for label, value in [

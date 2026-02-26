@@ -121,6 +121,193 @@ class TestOHLCV:
 
 
 # ---------------------------------------------------------------------------
+# OHLCV Validator Tests
+# ---------------------------------------------------------------------------
+
+
+class TestOHLCVValidators:
+    """Tests for OHLCV field and model validators."""
+
+    def test_ohlcv_valid_construction(self) -> None:
+        """OHLCV constructs successfully with valid data (positive case)."""
+        ohlcv = OHLCV(
+            ticker="AAPL",
+            date=date(2025, 6, 15),
+            open=Decimal("185.50"),
+            high=Decimal("187.25"),
+            low=Decimal("184.00"),
+            close=Decimal("186.75"),
+            volume=45_000_000,
+            adjusted_close=Decimal("186.75"),
+        )
+        assert ohlcv.open == Decimal("185.50")
+        assert ohlcv.high == Decimal("187.25")
+        assert ohlcv.low == Decimal("184.00")
+        assert ohlcv.close == Decimal("186.75")
+        assert ohlcv.volume == 45_000_000
+
+    @pytest.mark.parametrize("field", ["open", "high", "low", "close", "adjusted_close"])
+    def test_ohlcv_rejects_zero_price(self, field: str) -> None:
+        """OHLCV rejects zero for each price field."""
+        kwargs = {
+            "ticker": "AAPL",
+            "date": date(2025, 6, 15),
+            "open": Decimal("185.50"),
+            "high": Decimal("187.25"),
+            "low": Decimal("184.00"),
+            "close": Decimal("186.75"),
+            "volume": 45_000_000,
+            "adjusted_close": Decimal("186.75"),
+        }
+        kwargs[field] = Decimal("0")
+        with pytest.raises(ValidationError, match="price must be finite and > 0"):
+            OHLCV(**kwargs)
+
+    @pytest.mark.parametrize("field", ["open", "high", "low", "close", "adjusted_close"])
+    def test_ohlcv_rejects_negative_price(self, field: str) -> None:
+        """OHLCV rejects negative values for each price field."""
+        kwargs = {
+            "ticker": "AAPL",
+            "date": date(2025, 6, 15),
+            "open": Decimal("185.50"),
+            "high": Decimal("187.25"),
+            "low": Decimal("184.00"),
+            "close": Decimal("186.75"),
+            "volume": 45_000_000,
+            "adjusted_close": Decimal("186.75"),
+        }
+        kwargs[field] = Decimal("-10.00")
+        with pytest.raises(ValidationError, match="price must be finite and > 0"):
+            OHLCV(**kwargs)
+
+    @pytest.mark.parametrize("field", ["open", "high", "low", "close", "adjusted_close"])
+    def test_ohlcv_rejects_nan_price(self, field: str) -> None:
+        """OHLCV rejects Decimal('NaN') for each price field.
+
+        Pydantic's core validation may reject NaN before the field_validator runs,
+        so we match either our custom message or Pydantic's built-in 'finite_number' error.
+        """
+        kwargs = {
+            "ticker": "AAPL",
+            "date": date(2025, 6, 15),
+            "open": Decimal("185.50"),
+            "high": Decimal("187.25"),
+            "low": Decimal("184.00"),
+            "close": Decimal("186.75"),
+            "volume": 45_000_000,
+            "adjusted_close": Decimal("186.75"),
+        }
+        kwargs[field] = Decimal("NaN")
+        with pytest.raises(ValidationError, match="finite"):
+            OHLCV(**kwargs)
+
+    @pytest.mark.parametrize("field", ["open", "high", "low", "close", "adjusted_close"])
+    def test_ohlcv_rejects_inf_price(self, field: str) -> None:
+        """OHLCV rejects Decimal('Inf') for each price field.
+
+        Pydantic's core validation may reject Inf before the field_validator runs,
+        so we match either our custom message or Pydantic's built-in 'finite_number' error.
+        """
+        kwargs = {
+            "ticker": "AAPL",
+            "date": date(2025, 6, 15),
+            "open": Decimal("185.50"),
+            "high": Decimal("187.25"),
+            "low": Decimal("184.00"),
+            "close": Decimal("186.75"),
+            "volume": 45_000_000,
+            "adjusted_close": Decimal("186.75"),
+        }
+        kwargs[field] = Decimal("Inf")
+        with pytest.raises(ValidationError, match="finite"):
+            OHLCV(**kwargs)
+
+    def test_ohlcv_rejects_negative_volume(self) -> None:
+        """OHLCV rejects negative volume."""
+        with pytest.raises(ValidationError, match="volume must be >= 0"):
+            OHLCV(
+                ticker="AAPL",
+                date=date(2025, 6, 15),
+                open=Decimal("185.50"),
+                high=Decimal("187.25"),
+                low=Decimal("184.00"),
+                close=Decimal("186.75"),
+                volume=-1,
+                adjusted_close=Decimal("186.75"),
+            )
+
+    def test_ohlcv_allows_zero_volume(self) -> None:
+        """OHLCV accepts volume = 0 (valid for non-trading days)."""
+        ohlcv = OHLCV(
+            ticker="AAPL",
+            date=date(2025, 6, 15),
+            open=Decimal("185.50"),
+            high=Decimal("187.25"),
+            low=Decimal("184.00"),
+            close=Decimal("186.75"),
+            volume=0,
+            adjusted_close=Decimal("186.75"),
+        )
+        assert ohlcv.volume == 0
+
+    def test_ohlcv_rejects_high_less_than_low(self) -> None:
+        """OHLCV rejects candle where high < low."""
+        with pytest.raises(ValidationError, match=r"high .* must be >= low"):
+            OHLCV(
+                ticker="AAPL",
+                date=date(2025, 6, 15),
+                open=Decimal("183.00"),
+                high=Decimal("183.00"),
+                low=Decimal("185.00"),
+                close=Decimal("183.00"),
+                volume=45_000_000,
+                adjusted_close=Decimal("183.00"),
+            )
+
+    def test_ohlcv_rejects_open_outside_range(self) -> None:
+        """OHLCV rejects open price outside [low, high] range."""
+        with pytest.raises(ValidationError, match=r"open .* must be in"):
+            OHLCV(
+                ticker="AAPL",
+                date=date(2025, 6, 15),
+                open=Decimal("190.00"),  # above high
+                high=Decimal("187.25"),
+                low=Decimal("184.00"),
+                close=Decimal("186.75"),
+                volume=45_000_000,
+                adjusted_close=Decimal("186.75"),
+            )
+
+    def test_ohlcv_rejects_close_outside_range(self) -> None:
+        """OHLCV rejects close price outside [low, high] range."""
+        with pytest.raises(ValidationError, match=r"close .* must be in"):
+            OHLCV(
+                ticker="AAPL",
+                date=date(2025, 6, 15),
+                open=Decimal("185.50"),
+                high=Decimal("187.25"),
+                low=Decimal("184.00"),
+                close=Decimal("183.00"),  # below low
+                volume=45_000_000,
+                adjusted_close=Decimal("186.75"),
+            )
+
+    def test_ohlcv_allows_adjusted_close_outside_range(self) -> None:
+        """OHLCV allows adjusted_close outside [low, high] range (splits/dividends)."""
+        ohlcv = OHLCV(
+            ticker="AAPL",
+            date=date(2025, 6, 15),
+            open=Decimal("185.50"),
+            high=Decimal("187.25"),
+            low=Decimal("184.00"),
+            close=Decimal("186.75"),
+            volume=45_000_000,
+            adjusted_close=Decimal("93.375"),  # half due to 2:1 split
+        )
+        assert ohlcv.adjusted_close == Decimal("93.375")
+
+
+# ---------------------------------------------------------------------------
 # Quote Tests
 # ---------------------------------------------------------------------------
 

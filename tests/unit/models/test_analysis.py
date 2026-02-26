@@ -200,6 +200,113 @@ class TestMarketContext:
         restored = MarketContext.model_validate_json(json_str)
         assert restored == sample_market_context
 
+    def test_iv_rank_nan_raises(self) -> None:
+        """MarketContext rejects NaN iv_rank."""
+        with pytest.raises(ValidationError, match="finite"):
+            MarketContext(
+                ticker="AAPL",
+                current_price=Decimal("186.50"),
+                price_52w_high=Decimal("199.62"),
+                price_52w_low=Decimal("164.08"),
+                iv_rank=float("nan"),
+                rsi_14=42.0,
+                macd_signal=MacdSignal.BULLISH_CROSSOVER,
+                next_earnings=None,
+                dte_target=45,
+                target_strike=Decimal("185.00"),
+                target_delta=0.35,
+                sector="Technology",
+                dividend_yield=0.005,
+                exercise_style=ExerciseStyle.AMERICAN,
+                data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+            )
+
+    def test_iv_percentile_inf_raises(self) -> None:
+        """MarketContext rejects Inf iv_percentile."""
+        with pytest.raises(ValidationError, match="finite"):
+            MarketContext(
+                ticker="AAPL",
+                current_price=Decimal("186.50"),
+                price_52w_high=Decimal("199.62"),
+                price_52w_low=Decimal("164.08"),
+                iv_percentile=float("inf"),
+                rsi_14=42.0,
+                macd_signal=MacdSignal.BULLISH_CROSSOVER,
+                next_earnings=None,
+                dte_target=45,
+                target_strike=Decimal("185.00"),
+                target_delta=0.35,
+                sector="Technology",
+                dividend_yield=0.005,
+                exercise_style=ExerciseStyle.AMERICAN,
+                data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+            )
+
+    def test_put_call_ratio_nan_raises(self) -> None:
+        """MarketContext rejects NaN put_call_ratio."""
+        with pytest.raises(ValidationError, match="finite"):
+            MarketContext(
+                ticker="AAPL",
+                current_price=Decimal("186.50"),
+                price_52w_high=Decimal("199.62"),
+                price_52w_low=Decimal("164.08"),
+                put_call_ratio=float("nan"),
+                rsi_14=42.0,
+                macd_signal=MacdSignal.BULLISH_CROSSOVER,
+                next_earnings=None,
+                dte_target=45,
+                target_strike=Decimal("185.00"),
+                target_delta=0.35,
+                sector="Technology",
+                dividend_yield=0.005,
+                exercise_style=ExerciseStyle.AMERICAN,
+                data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+            )
+
+    def test_atm_iv_30d_neg_inf_raises(self) -> None:
+        """MarketContext rejects -Inf atm_iv_30d."""
+        with pytest.raises(ValidationError, match="finite"):
+            MarketContext(
+                ticker="AAPL",
+                current_price=Decimal("186.50"),
+                price_52w_high=Decimal("199.62"),
+                price_52w_low=Decimal("164.08"),
+                atm_iv_30d=float("-inf"),
+                rsi_14=42.0,
+                macd_signal=MacdSignal.BULLISH_CROSSOVER,
+                next_earnings=None,
+                dte_target=45,
+                target_strike=Decimal("185.00"),
+                target_delta=0.35,
+                sector="Technology",
+                dividend_yield=0.005,
+                exercise_style=ExerciseStyle.AMERICAN,
+                data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+            )
+
+    def test_optional_floats_accept_none(self) -> None:
+        """MarketContext accepts None for iv_rank, iv_percentile, atm_iv_30d, put_call_ratio."""
+        ctx = MarketContext(
+            ticker="AAPL",
+            current_price=Decimal("186.50"),
+            price_52w_high=Decimal("199.62"),
+            price_52w_low=Decimal("164.08"),
+            rsi_14=42.0,
+            macd_signal=MacdSignal.BULLISH_CROSSOVER,
+            next_earnings=None,
+            dte_target=45,
+            target_strike=Decimal("185.00"),
+            target_delta=0.35,
+            sector="Technology",
+            dividend_yield=0.005,
+            exercise_style=ExerciseStyle.AMERICAN,
+            data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+        )
+        assert ctx.iv_rank is None
+        assert ctx.iv_percentile is None
+        assert ctx.atm_iv_30d is None
+        assert ctx.put_call_ratio is None
+
 
 # ---------------------------------------------------------------------------
 # AgentResponse Tests
@@ -615,3 +722,90 @@ class TestVolatilityThesis:
         json_str = sample_volatility_thesis.model_dump_json()
         restored = VolatilityThesis.model_validate_json(json_str)
         assert restored == sample_volatility_thesis
+
+
+# ---------------------------------------------------------------------------
+# MarketContext completeness_ratio Tests
+# ---------------------------------------------------------------------------
+
+
+class TestCompletenessRatio:
+    """Tests for MarketContext.completeness_ratio() method."""
+
+    def _make_context(self, **overrides: object) -> MarketContext:
+        """Build a MarketContext with minimal required fields and optional overrides."""
+        defaults: dict[str, object] = {
+            "ticker": "AAPL",
+            "current_price": Decimal("185.50"),
+            "price_52w_high": Decimal("199.62"),
+            "price_52w_low": Decimal("164.08"),
+            "rsi_14": 50.0,
+            "macd_signal": MacdSignal.NEUTRAL,
+            "next_earnings": None,
+            "dte_target": 45,
+            "target_strike": Decimal("185.00"),
+            "target_delta": 0.35,
+            "sector": "Technology",
+            "dividend_yield": 0.005,
+            "exercise_style": ExerciseStyle.AMERICAN,
+            "data_timestamp": datetime(2026, 2, 25, 14, 0, 0, tzinfo=UTC),
+        }
+        defaults.update(overrides)
+        return MarketContext(**defaults)  # type: ignore[arg-type]
+
+    def test_completeness_all_none(self) -> None:
+        """All optional fields None returns 0.0."""
+        ctx = self._make_context()
+        assert ctx.completeness_ratio() == pytest.approx(0.0)
+
+    def test_completeness_all_populated(self) -> None:
+        """All 14 optional fields populated returns 1.0."""
+        ctx = self._make_context(
+            iv_rank=45.0,
+            iv_percentile=52.0,
+            atm_iv_30d=0.28,
+            put_call_ratio=0.85,
+            adx=28.4,
+            sma_alignment=0.7,
+            bb_width=42.1,
+            atr_pct=15.3,
+            stochastic_rsi=55.0,
+            relative_volume=65.0,
+            target_gamma=0.025,
+            target_theta=-0.045,
+            target_vega=0.32,
+            target_rho=0.08,
+        )
+        assert ctx.completeness_ratio() == pytest.approx(1.0)
+
+    def test_completeness_partial(self) -> None:
+        """7 of 14 fields populated returns 0.5."""
+        ctx = self._make_context(
+            iv_rank=45.0,
+            iv_percentile=52.0,
+            atm_iv_30d=0.28,
+            put_call_ratio=0.85,
+            adx=28.4,
+            sma_alignment=0.7,
+            bb_width=42.1,
+        )
+        assert ctx.completeness_ratio() == pytest.approx(7.0 / 14.0)
+
+    def test_completeness_some_none(self) -> None:
+        """4 of 14 fields populated returns correct fraction."""
+        ctx = self._make_context(
+            iv_rank=45.0,
+            iv_percentile=52.0,
+            target_gamma=0.025,
+            target_theta=-0.045,
+        )
+        assert ctx.completeness_ratio() == pytest.approx(4.0 / 14.0)
+
+    def test_completeness_zero_values_count_as_populated(self) -> None:
+        """Zero float values are NOT None — they count as populated."""
+        ctx = self._make_context(
+            iv_rank=0.0,
+            iv_percentile=0.0,
+            put_call_ratio=0.0,
+        )
+        assert ctx.completeness_ratio() == pytest.approx(3.0 / 14.0)

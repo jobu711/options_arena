@@ -199,6 +199,61 @@ class TestFetchOHLCV:
         # Verify it did not go through float imprecision
         assert result[0].open == Decimal("1.05")
 
+    async def test_invalid_candle_skipped_gracefully(self, service: MarketDataService) -> None:
+        """Bad candle (open > high) is skipped, valid candles retained."""
+        df = _make_ohlcv_df(
+            [
+                {
+                    "Date": "2025-01-02",
+                    "Open": 150.0,
+                    "High": 155.0,
+                    "Low": 149.0,
+                    "Close": 154.0,
+                    "Volume": 1000000,
+                },
+                {
+                    "Date": "2025-01-03",
+                    "Open": 999.0,  # open > high — invalid candle
+                    "High": 158.0,
+                    "Low": 153.0,
+                    "Close": 157.0,
+                    "Volume": 1200000,
+                },
+            ]
+        )
+        mock_ticker = MagicMock()
+        mock_ticker.history.return_value = df
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.Ticker.return_value = mock_ticker
+            result = await service.fetch_ohlcv("BADCANDLE", period="1y")
+
+        # Only the valid candle should be retained
+        assert len(result) == 1
+        assert result[0].open == Decimal("150.0")
+
+    async def test_all_candles_invalid_raises(self, service: MarketDataService) -> None:
+        """When all candles fail validation, raises InsufficientDataError."""
+        df = _make_ohlcv_df(
+            [
+                {
+                    "Date": "2025-01-02",
+                    "Open": 999.0,  # open > high
+                    "High": 155.0,
+                    "Low": 149.0,
+                    "Close": 154.0,
+                    "Volume": 1000000,
+                },
+            ]
+        )
+        mock_ticker = MagicMock()
+        mock_ticker.history.return_value = df
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.Ticker.return_value = mock_ticker
+            with pytest.raises(InsufficientDataError, match="invalid prices"):
+                await service.fetch_ohlcv("ALLINVALID")
+
     async def test_cache_hit_skips_yfinance_call(self, service: MarketDataService) -> None:
         """Second call returns from cache without calling yfinance again."""
         df = _make_ohlcv_df(
@@ -279,8 +334,79 @@ class TestFetchQuote:
 
         with patch("options_arena.services.market_data.yf") as mock_yf:
             mock_yf.Ticker.return_value = mock_ticker
-            with pytest.raises(TickerNotFoundError, match="No price data"):
+            with pytest.raises(TickerNotFoundError, match="invalid price data"):
                 await service.fetch_quote("INVALID")
+
+    async def test_fetch_quote_rejects_none_price(self, service: MarketDataService) -> None:
+        """When yfinance returns None for currentPrice, raises TickerNotFoundError."""
+        info = _make_info_dict(currentPrice=None, regularMarketPrice=None)
+        # Remove keys that fall back to None via `or` chain
+        info.pop("currentPrice", None)
+        info.pop("regularMarketPrice", None)
+        mock_ticker = MagicMock()
+        mock_ticker.info = info
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.Ticker.return_value = mock_ticker
+            with pytest.raises(TickerNotFoundError, match="invalid price data"):
+                await service.fetch_quote("NONEPRICE")
+
+    async def test_fetch_quote_rejects_zero_price(self, service: MarketDataService) -> None:
+        """When yfinance returns 0.0 for price, raises TickerNotFoundError.
+
+        Note: ``currentPrice=0.0`` is falsy so the ``or`` falls through to
+        ``regularMarketPrice``. Setting both to ``0.0`` ensures the zero
+        reaches ``safe_decimal`` and the ``<= Decimal("0")`` guard fires.
+        """
+        info = _make_info_dict(currentPrice=0.0, regularMarketPrice=0.0)
+        mock_ticker = MagicMock()
+        mock_ticker.info = info
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.Ticker.return_value = mock_ticker
+            with pytest.raises(TickerNotFoundError, match="invalid price data"):
+                await service.fetch_quote("ZEROPRICE")
+
+    async def test_fetch_quote_rejects_negative_price(self, service: MarketDataService) -> None:
+        """When yfinance returns a negative price, raises TickerNotFoundError."""
+        info = _make_info_dict(currentPrice=-5.0)
+        mock_ticker = MagicMock()
+        mock_ticker.info = info
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.Ticker.return_value = mock_ticker
+            with pytest.raises(TickerNotFoundError, match="invalid price data"):
+                await service.fetch_quote("NEGPRICE")
+
+    async def test_fetch_quote_allows_zero_bid_ask(self, service: MarketDataService) -> None:
+        """Zero bid/ask is legitimate for illiquid contracts — should NOT raise."""
+        info = _make_info_dict(bid=0.0, ask=0.0)
+        mock_ticker = MagicMock()
+        mock_ticker.info = info
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.Ticker.return_value = mock_ticker
+            result = await service.fetch_quote("ILLIQUID")
+
+        assert result.bid == Decimal("0")
+        assert result.ask == Decimal("0")
+        assert result.price == Decimal("185.5")
+
+    async def test_fetch_quote_valid_price_succeeds(self, service: MarketDataService) -> None:
+        """Positive price produces a valid Quote with correct fields."""
+        info = _make_info_dict(currentPrice=42.50, bid=42.40, ask=42.60, volume=100_000)
+        mock_ticker = MagicMock()
+        mock_ticker.info = info
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.Ticker.return_value = mock_ticker
+            result = await service.fetch_quote("GOOD")
+
+        assert isinstance(result, Quote)
+        assert result.price == Decimal("42.5")
+        assert result.bid == Decimal("42.4")
+        assert result.ask == Decimal("42.6")
+        assert result.volume == 100_000
 
 
 # ---------------------------------------------------------------------------
@@ -313,6 +439,52 @@ class TestFetchTickerInfo:
         assert result.dividend_rate == pytest.approx(0.96)
         assert result.trailing_dividend_rate == pytest.approx(0.92)
         assert result.current_price == Decimal("185.5")
+
+    async def test_fetch_ticker_info_rejects_none_price(self, service: MarketDataService) -> None:
+        """When yfinance returns None for currentPrice and previousClose, raises."""
+        info: dict[str, Any] = {
+            "shortName": "Ghost Corp",
+            "sector": "Unknown",
+            "marketCap": 1_000_000,
+        }
+        mock_ticker = MagicMock()
+        mock_ticker.info = info
+        mock_ticker.get_dividends.return_value = pd.Series(dtype=float)
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.Ticker.return_value = mock_ticker
+            with pytest.raises(TickerNotFoundError, match="invalid current price"):
+                await service.fetch_ticker_info("GHOST")
+
+    async def test_fetch_ticker_info_rejects_negative_price(
+        self, service: MarketDataService
+    ) -> None:
+        """When yfinance returns a negative price, raises TickerNotFoundError."""
+        info = _make_info_dict(currentPrice=-10.0)
+        mock_ticker = MagicMock()
+        mock_ticker.info = info
+        mock_ticker.get_dividends.return_value = pd.Series(dtype=float)
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.Ticker.return_value = mock_ticker
+            with pytest.raises(TickerNotFoundError, match="invalid current price"):
+                await service.fetch_ticker_info("NEGPRICE")
+
+    async def test_fetch_ticker_info_rejects_zero_price(self, service: MarketDataService) -> None:
+        """When yfinance returns 0.0 for currentPrice, raises TickerNotFoundError.
+
+        ``fetch_ticker_info`` uses ``currentPrice or previousClose``. Setting both
+        to ``0.0`` ensures the zero reaches ``safe_decimal`` and the guard fires.
+        """
+        info = _make_info_dict(currentPrice=0.0, previousClose=0.0)
+        mock_ticker = MagicMock()
+        mock_ticker.info = info
+        mock_ticker.get_dividends.return_value = pd.Series(dtype=float)
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.Ticker.return_value = mock_ticker
+            with pytest.raises(TickerNotFoundError, match="invalid current price"):
+                await service.fetch_ticker_info("ZEROTICKER")
 
 
 # ---------------------------------------------------------------------------

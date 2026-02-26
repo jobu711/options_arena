@@ -391,18 +391,18 @@ slice, never the full `AppSettings`.
 
 ```python
 class MarketContext(BaseModel):
-    """Snapshot of ticker state for analysis and (v2) debate agents.
+    """Snapshot of ticker state for analysis and debate agents.
     Keep flat — agents parse flat text better than nested objects."""
     ticker: str
     current_price: Decimal
     price_52w_high: Decimal
     price_52w_low: Decimal
-    iv_rank: float
-    iv_percentile: float
-    atm_iv_30d: float
-    rsi_14: float
-    macd_signal: str                       # "bullish_crossover", "bearish_crossover", "neutral"
-    put_call_ratio: float
+    iv_rank: float | None = None           # None when unavailable
+    iv_percentile: float | None = None     # None when unavailable
+    atm_iv_30d: float | None = None        # None when unavailable
+    rsi_14: float = 50.0
+    macd_signal: MacdSignal
+    put_call_ratio: float | None = None    # None when unavailable
     next_earnings: date | None
     dte_target: int
     target_strike: Decimal

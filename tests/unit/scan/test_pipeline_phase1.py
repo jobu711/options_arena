@@ -36,12 +36,16 @@ from options_arena.services.universe import SP500Constituent
 
 
 def _make_ohlcv_bars(ticker: str, n: int = 250) -> list[OHLCV]:
-    """Generate *n* synthetic OHLCV bars for a ticker."""
+    """Generate *n* synthetic OHLCV bars for a ticker.
+
+    Prices oscillate around a fixed base of 100 (no drift) so all values
+    stay safely positive and pass OHLCV candle validators.
+    """
     bars: list[OHLCV] = []
     base_price = 100.0
     for i in range(n):
         d = date(2024, 1, 1) + timedelta(days=i)
-        close = base_price + (i % 10) - 5
+        close = base_price + (i % 10) - 5  # oscillates in [95, 104]
         bars.append(
             OHLCV(
                 ticker=ticker,
@@ -54,7 +58,6 @@ def _make_ohlcv_bars(ticker: str, n: int = 250) -> list[OHLCV]:
                 volume=1_000_000 + i * 1000,
             )
         )
-        base_price = close
     return bars
 
 

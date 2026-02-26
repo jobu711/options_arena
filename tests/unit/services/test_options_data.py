@@ -241,6 +241,111 @@ async def test_market_iv_passthrough(service: OptionsDataService) -> None:
 
 
 # ---------------------------------------------------------------------------
+# zero-strike rejection
+# ---------------------------------------------------------------------------
+
+
+async def test_zero_strike_skipped(service: OptionsDataService) -> None:
+    """Contracts with zero strike are skipped gracefully."""
+    valid_row = {
+        "strike": 185.0,
+        "lastPrice": 5.50,
+        "bid": 5.30,
+        "ask": 5.70,
+        "volume": 500,
+        "openInterest": 2000,
+        "impliedVolatility": 0.32,
+    }
+    zero_strike_row = {
+        "strike": 0.0,
+        "lastPrice": 1.00,
+        "bid": 0.80,
+        "ask": 1.20,
+        "volume": 100,
+        "openInterest": 500,
+        "impliedVolatility": 0.25,
+    }
+    chain_result = _make_option_chain_result([valid_row, zero_strike_row], [])
+
+    mock_ticker = MagicMock()
+    mock_ticker.option_chain.return_value = chain_result
+
+    with patch("options_arena.services.options_data.yf") as mock_yf:
+        mock_yf.Ticker.return_value = mock_ticker
+        contracts = await service.fetch_chain("TEST", date(2026, 4, 18))
+
+    # Only the valid contract should remain
+    assert len(contracts) == 1
+    assert contracts[0].strike == Decimal("185.0")
+
+
+async def test_none_strike_skipped(service: OptionsDataService) -> None:
+    """Contracts with None strike are skipped gracefully."""
+    valid_row = {
+        "strike": 200.0,
+        "lastPrice": 3.00,
+        "bid": 2.80,
+        "ask": 3.20,
+        "volume": 200,
+        "openInterest": 1000,
+        "impliedVolatility": 0.28,
+    }
+    none_strike_row = {
+        "strike": None,
+        "lastPrice": 1.00,
+        "bid": 0.50,
+        "ask": 1.50,
+        "volume": 100,
+        "openInterest": 500,
+        "impliedVolatility": 0.30,
+    }
+    chain_result = _make_option_chain_result([valid_row, none_strike_row], [])
+
+    mock_ticker = MagicMock()
+    mock_ticker.option_chain.return_value = chain_result
+
+    with patch("options_arena.services.options_data.yf") as mock_yf:
+        mock_yf.Ticker.return_value = mock_ticker
+        contracts = await service.fetch_chain("TEST2", date(2026, 4, 18))
+
+    assert len(contracts) == 1
+    assert contracts[0].strike == Decimal("200.0")
+
+
+async def test_negative_strike_skipped(service: OptionsDataService) -> None:
+    """Contracts with negative strike are skipped gracefully."""
+    valid_row = {
+        "strike": 150.0,
+        "lastPrice": 4.00,
+        "bid": 3.80,
+        "ask": 4.20,
+        "volume": 300,
+        "openInterest": 1500,
+        "impliedVolatility": 0.35,
+    }
+    neg_strike_row = {
+        "strike": -5.0,
+        "lastPrice": 1.00,
+        "bid": 0.50,
+        "ask": 1.50,
+        "volume": 100,
+        "openInterest": 500,
+        "impliedVolatility": 0.30,
+    }
+    chain_result = _make_option_chain_result([], [valid_row, neg_strike_row])
+
+    mock_ticker = MagicMock()
+    mock_ticker.option_chain.return_value = chain_result
+
+    with patch("options_arena.services.options_data.yf") as mock_yf:
+        mock_yf.Ticker.return_value = mock_ticker
+        contracts = await service.fetch_chain("TEST3", date(2026, 4, 18))
+
+    assert len(contracts) == 1
+    assert contracts[0].strike == Decimal("150.0")
+
+
+# ---------------------------------------------------------------------------
 # exercise_style always AMERICAN
 # ---------------------------------------------------------------------------
 

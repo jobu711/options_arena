@@ -179,7 +179,7 @@ class TestBuildMarketContext:
         mock_ticker_info: TickerInfo,
         mock_option_contract: OptionContract,
     ) -> None:
-        """None indicator values default to safe values."""
+        """None indicator values pass through as None (except rsi_14 which has neutral default)."""
         score = TickerScore(
             ticker="AAPL",
             composite_score=50.0,
@@ -189,9 +189,9 @@ class TestBuildMarketContext:
         )
         ctx = build_market_context(score, mock_quote, mock_ticker_info, [mock_option_contract])
         assert ctx.rsi_14 == pytest.approx(50.0)  # default for None RSI
-        assert ctx.iv_rank == pytest.approx(0.0)  # default for None iv_rank
-        assert ctx.iv_percentile == pytest.approx(0.0)
-        assert ctx.put_call_ratio == pytest.approx(0.0)
+        assert ctx.iv_rank is None  # None passes through
+        assert ctx.iv_percentile is None
+        assert ctx.put_call_ratio is None
 
     def test_handles_empty_contracts(
         self,
@@ -1218,3 +1218,113 @@ class TestBullRebuttalIntegration:
         assert result.is_fallback is False
         assert isinstance(result.bull_rebuttal, AgentResponse)
         assert isinstance(result.vol_response, VolatilityThesis)
+
+
+# ---------------------------------------------------------------------------
+# Quality gate — completeness_ratio checks
+# ---------------------------------------------------------------------------
+
+
+class TestQualityGate:
+    """Tests for the MarketContext completeness quality gate in run_debate()."""
+
+    @pytest.mark.asyncio
+    async def test_quality_gate_below_60_triggers_fallback(
+        self,
+        mock_option_contract: OptionContract,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_debate_config: DebateConfig,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Completeness < 60% triggers data-driven fallback without calling agents."""
+        # IndicatorSignals with no options-specific signals populated
+        # Only rsi populated (1 indicator) -> 1/14 = 7% completeness
+        score = TickerScore(
+            ticker="AAPL",
+            composite_score=72.5,
+            direction=SignalDirection.BULLISH,
+            signals=IndicatorSignals(rsi=62.3),
+            scan_run_id=1,
+        )
+        run_agents_mock = AsyncMock()
+        monkeypatch.setattr("options_arena.agents.orchestrator._run_agents", run_agents_mock)
+        result = await run_debate(
+            ticker_score=score,
+            contracts=[mock_option_contract],
+            quote=mock_quote,
+            ticker_info=mock_ticker_info,
+            config=mock_debate_config,
+        )
+        assert result.is_fallback is True
+        run_agents_mock.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_quality_gate_above_60_proceeds(
+        self,
+        mock_ticker_score: TickerScore,
+        mock_option_contract: OptionContract,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_debate_config: DebateConfig,
+    ) -> None:
+        """Completeness >= 60% allows debate to proceed."""
+        # mock_ticker_score has rsi, adx, sma_alignment, bb_width, atr_pct,
+        # obv, relative_volume (7 signals), plus contract has greeks (4 more)
+        # -> 11/14 = ~79%  which is >= 60%
+        with (
+            bull_agent.override(model=TestModel()),
+            bear_agent.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
+        ):
+            result = await run_debate(
+                ticker_score=mock_ticker_score,
+                contracts=[mock_option_contract],
+                quote=mock_quote,
+                ticker_info=mock_ticker_info,
+                config=mock_debate_config,
+            )
+        assert result.is_fallback is False
+
+    @pytest.mark.asyncio
+    async def test_quality_gate_between_60_80_logs_warning(
+        self,
+        mock_option_contract: OptionContract,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_debate_config: DebateConfig,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Completeness between 60% and 80% logs a caution warning but proceeds."""
+        import logging
+
+        # Build a score with exactly 9 of 14 fields populated = 64%
+        score = TickerScore(
+            ticker="AAPL",
+            composite_score=72.5,
+            direction=SignalDirection.BULLISH,
+            signals=IndicatorSignals(
+                rsi=62.3,
+                adx=28.4,
+                sma_alignment=0.7,
+                bb_width=42.1,
+                atr_pct=15.3,
+            ),
+            scan_run_id=1,
+        )
+        with (
+            caplog.at_level(logging.WARNING, logger="options_arena.agents.orchestrator"),
+            bull_agent.override(model=TestModel()),
+            bear_agent.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
+        ):
+            result = await run_debate(
+                ticker_score=score,
+                contracts=[mock_option_contract],
+                quote=mock_quote,
+                ticker_info=mock_ticker_info,
+                config=mock_debate_config,
+            )
+        # Should proceed (not fallback) but log a warning
+        assert result.is_fallback is False
+        assert any("proceeding with caution" in record.message for record in caplog.records)

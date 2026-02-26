@@ -12,8 +12,9 @@ All ``Decimal`` fields use ``field_serializer`` to prevent float precision loss 
 import math
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from typing import Self
 
-from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, field_serializer, field_validator, model_validator
 
 from options_arena.models.enums import DividendSource, MarketCapTier
 
@@ -23,6 +24,12 @@ class OHLCV(BaseModel):
 
     Represents a single day's OHLCV data for a ticker.
     All price fields use ``Decimal`` constructed from strings for financial precision.
+
+    Validators enforce:
+      - All price fields are finite and > 0.
+      - Volume is non-negative (zero is valid for non-trading days).
+      - Candle consistency: high >= low, open and close within [low, high].
+      - adjusted_close is NOT constrained by high/low (splits/dividends can move it outside).
     """
 
     model_config = ConfigDict(frozen=True)
@@ -35,6 +42,44 @@ class OHLCV(BaseModel):
     close: Decimal
     volume: int
     adjusted_close: Decimal
+
+    @field_validator("open", "high", "low", "close", "adjusted_close")
+    @classmethod
+    def validate_price_positive(cls, v: Decimal) -> Decimal:
+        """Reject non-finite and non-positive prices."""
+        if not v.is_finite() or v <= Decimal("0"):
+            raise ValueError(f"price must be finite and > 0, got {v}")
+        return v
+
+    @field_validator("volume")
+    @classmethod
+    def validate_volume_non_negative(cls, v: int) -> int:
+        """Reject negative volume (zero is valid)."""
+        if v < 0:
+            raise ValueError(f"volume must be >= 0, got {v}")
+        return v
+
+    @model_validator(mode="after")
+    def validate_candle_consistency(self) -> Self:
+        """Enforce OHLC candle consistency.
+
+        Rules:
+          - high must be >= low.
+          - open must be in [low, high].
+          - close must be in [low, high].
+          - adjusted_close is exempt (splits/dividends can move it outside the range).
+        """
+        if self.high < self.low:
+            raise ValueError(f"high ({self.high}) must be >= low ({self.low})")
+        if not (self.low <= self.open <= self.high):
+            raise ValueError(
+                f"open ({self.open}) must be in [low ({self.low}), high ({self.high})]"
+            )
+        if not (self.low <= self.close <= self.high):
+            raise ValueError(
+                f"close ({self.close}) must be in [low ({self.low}), high ({self.high})]"
+            )
+        return self
 
     @field_serializer("open", "high", "low", "close", "adjusted_close")
     def serialize_decimal(self, v: Decimal) -> str:

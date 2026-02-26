@@ -55,9 +55,9 @@ class OptionGreeks(BaseModel):
     @field_validator("delta")
     @classmethod
     def validate_delta(cls, v: float) -> float:
-        """Ensure delta is within [-1.0, 1.0]."""
-        if not -1.0 <= v <= 1.0:
-            raise ValueError(f"delta must be in [-1.0, 1.0], got {v}")
+        """Ensure delta is finite and within [-1.0, 1.0]."""
+        if not math.isfinite(v) or not -1.0 <= v <= 1.0:
+            raise ValueError(f"delta must be finite and in [-1.0, 1.0], got {v}")
         return v
 
     @field_validator("gamma", "vega")
@@ -66,6 +66,18 @@ class OptionGreeks(BaseModel):
         """Ensure gamma and vega are finite and non-negative."""
         if not math.isfinite(v) or v < 0.0:
             raise ValueError(f"must be finite and >= 0, got {v}")
+        return v
+
+    @field_validator("theta", "rho")
+    @classmethod
+    def validate_finite(cls, v: float) -> float:
+        """Ensure theta and rho are finite (allow negative values).
+
+        Theta is normally negative (time decay costs money).
+        Rho can be either sign depending on option type and rate direction.
+        """
+        if not math.isfinite(v):
+            raise ValueError(f"must be finite, got {v}")
         return v
 
 
