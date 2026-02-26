@@ -38,9 +38,14 @@ _WEB_DIST = _PROJECT_ROOT / "web" / "dist"
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """Create all services at startup, close them at shutdown."""
     settings = AppSettings()
-    _DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    db = Database(_DATA_DIR / "options_arena.db")
+    if settings.data.db_path:
+        db_path = Path(settings.data.db_path)
+    else:
+        db_path = _DATA_DIR / "options_arena.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    db = Database(db_path)
     await db.connect()
     repo = Repository(db)
 
@@ -121,8 +126,27 @@ def create_app() -> FastAPI:
     _register_exception_handlers(app)
 
     # Serve Vue SPA from web/dist/ (mount AFTER API routes)
+    # NOTE: StaticFiles(html=True) only resolves index.html for directory paths,
+    # not for arbitrary SPA routes like /scan or /debate/123.  Use an explicit
+    # catch-all GET route so Vue Router history mode works for all client paths.
     if _WEB_DIST.exists():
-        app.mount("/", StaticFiles(directory=_WEB_DIST, html=True), name="spa")
+        from fastapi.responses import FileResponse  # noqa: PLC0415
+
+        _assets_dir = _WEB_DIST / "assets"
+        if _assets_dir.is_dir():
+            app.mount("/assets", StaticFiles(directory=_assets_dir), name="static-assets")
+
+        _index_html = _WEB_DIST / "index.html"
+        _resolved_dist = _WEB_DIST.resolve()
+
+        @app.get("/{path:path}", include_in_schema=False)
+        async def spa_fallback(path: str) -> FileResponse:
+            """Serve static files if they exist, otherwise index.html for SPA routing."""
+            if path:
+                file_path = (_WEB_DIST / path).resolve()
+                if file_path.is_file() and file_path.is_relative_to(_resolved_dist):
+                    return FileResponse(file_path)
+            return FileResponse(_index_html)
 
     return app
 

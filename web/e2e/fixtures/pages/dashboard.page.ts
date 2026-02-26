@@ -19,8 +19,8 @@ export class DashboardPage {
     this.recentDebates = page.locator('[data-testid="dashboard-recent-debates"]')
       .or(page.locator('[class*="recent-debates"]'))
     this.newScanBtn = selfHealingLocator(page, 'dashboard-btn-new-scan', 'New Scan', 'New Scan')
-    this.universeBtn = selfHealingLocator(page, 'dashboard-btn-universe', 'Universe', 'Universe')
-    this.healthBtn = selfHealingLocator(page, 'dashboard-btn-health', 'Health', 'Health')
+    this.universeBtn = selfHealingLocator(page, 'dashboard-btn-universe', 'View Universe', 'View Universe')
+    this.healthBtn = selfHealingLocator(page, 'dashboard-btn-health', 'Health Check', 'Health Check')
   }
 
   async goto(): Promise<void> {

@@ -20,7 +20,7 @@ export class ScanResultsPage {
     this.minScoreFilter = page.locator('[data-testid="min-score-filter"]')
       .or(page.locator('[aria-label="Min Score"]'))
     this.batchDebateBtn = page.locator('[data-testid="batch-debate-btn"]')
-      .or(page.locator('button:has-text("Batch Debate")'))
+      .or(page.locator('button:has-text("Debate Selected")'))
     this.rowCheckboxes = page.locator('.p-datatable-tbody .p-checkbox')
     this.tickerDrawer = page.locator('[data-testid="ticker-drawer"]')
       .or(page.locator('.p-drawer'))
@@ -37,14 +37,13 @@ export class ScanResultsPage {
 
   async getTickerAtRow(index: number): Promise<string> {
     const cell = this.page.locator(
-      `.p-datatable-tbody tr:nth-child(${index + 1}) td:first-child`,
+      `.p-datatable-tbody tr:nth-child(${index + 1}) [data-testid="ticker-cell"]`,
     )
     return cell.innerText()
   }
 
   async getAllTickers(): Promise<string[]> {
     const cells = this.page.locator('[data-testid="ticker-cell"]')
-      .or(this.page.locator('.p-datatable-tbody tr td:first-child'))
     return cells.allInnerTexts()
   }
 
@@ -54,14 +53,18 @@ export class ScanResultsPage {
 
   async searchTicker(query: string): Promise<void> {
     await this.searchInput.fill(query)
-    await this.page.waitForTimeout(300) // debounce
+    // Wait for debounce (300ms) + server response
+    await this.page.waitForTimeout(500)
   }
 
   async filterByDirection(direction: 'bullish' | 'bearish' | 'neutral'): Promise<void> {
     await this.directionFilter.click()
-    await this.page.locator(`[data-testid="direction-option-${direction}"]`)
-      .or(this.page.locator(`li:has-text("${direction}")`))
-      .click()
+    const label = direction.charAt(0).toUpperCase() + direction.slice(1)
+    // Use role-based selector for PrimeVue Select options (works across versions)
+    const option = this.page.getByRole('option', { name: label })
+      .or(this.page.locator(`li:has-text("${label}")`))
+    await option.waitFor({ state: 'visible' })
+    await option.click()
   }
 
   async selectRows(indices: number[]): Promise<void> {
@@ -97,7 +100,6 @@ export class ScanResultsPage {
     const row = this.page.locator(`.p-datatable-tbody tr:has-text("${ticker}")`)
     const scoreText = await row
       .locator('[data-testid="composite-score"]')
-      .or(row.locator('td:nth-child(2)'))
       .innerText()
     const score = parseFloat(scoreText)
     expect(score).toBeGreaterThanOrEqual(min)
@@ -110,7 +112,9 @@ export class ScanResultsPage {
 
   async expectEmptyState(): Promise<void> {
     await expect(
-      this.page.locator('[data-testid="empty-state"]').or(this.page.locator('.p-datatable-emptymessage')),
-    ).toBeVisible()
+      this.page.locator('[data-testid="empty-state"]')
+        .or(this.page.getByText('No results found matching your filters.'))
+        .first(),
+    ).toBeVisible({ timeout: 10_000 })
   }
 }

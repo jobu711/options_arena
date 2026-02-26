@@ -6,7 +6,7 @@
  */
 
 import { test, expect } from '../../fixtures/base.fixture'
-import { mockAllApis, mockPost } from '../../fixtures/mocks/api-handlers'
+import { mockAllApis, mockPost, pathMatcher } from '../../fixtures/mocks/api-handlers'
 import { buildScanRun, buildPaginatedScores } from '../../fixtures/builders/scan.builders'
 
 test.describe('Operation Mutex', () => {
@@ -20,7 +20,7 @@ test.describe('Operation Mutex', () => {
   test('second scan attempt returns 409 when scan is in progress', async ({ page }) => {
     // First POST succeeds
     let callCount = 0
-    await page.route('**/api/scan', async route => {
+    await page.route(pathMatcher('/api/scan'), async route => {
       if (route.request().method() === 'POST') {
         callCount++
         if (callCount === 1) {
@@ -37,7 +37,7 @@ test.describe('Operation Mutex', () => {
     await page.goto('/scan')
 
     const startBtn = page.locator('[data-testid="start-scan-btn"]')
-      .or(page.locator('button:has-text("Start Scan")'))
+      .or(page.locator('button:has-text("Run Scan")'))
 
     // First click — should succeed
     await startBtn.click()
@@ -73,7 +73,7 @@ test.describe('Operation Mutex', () => {
       await checkboxes.first().click()
 
       const batchBtn = page.locator('[data-testid="batch-debate-btn"]')
-        .or(page.locator('button:has-text("Batch Debate")'))
+        .or(page.locator('button:has-text("Debate Selected")'))
 
       if (await batchBtn.isEnabled()) {
         await batchBtn.click()
@@ -93,7 +93,7 @@ test.describe('Operation Mutex', () => {
     await page.goto('/scan')
 
     const startBtn = page.locator('[data-testid="start-scan-btn"]')
-      .or(page.locator('button:has-text("Start Scan")'))
+      .or(page.locator('button:has-text("Run Scan")'))
 
     // Button should start enabled
     await expect(startBtn).toBeEnabled()

@@ -64,6 +64,22 @@ test.describe('Scan Results Table', () => {
   })
 
   test('filters by ticker search', async ({ page }) => {
+    // Override scores mock to return filtered results when search param is present
+    await page.route(`**/api/scan/${SCAN_ID}/scores*`, route => {
+      const url = new URL(route.request().url())
+      const search = url.searchParams.get('search')
+      if (search) {
+        const all = buildPaginatedScores(50)
+        const filtered = all.items.filter(s =>
+          s.ticker.toUpperCase().includes(search.toUpperCase()),
+        )
+        return route.fulfill({
+          json: { items: filtered, total: filtered.length, page: 1, pages: 1 },
+        })
+      }
+      return route.fulfill({ json: buildPaginatedScores(50) })
+    })
+
     const resultsPage = new ScanResultsPage(page)
     await resultsPage.goto(SCAN_ID)
 
@@ -71,6 +87,7 @@ test.describe('Scan Results Table', () => {
 
     // Only rows containing "AAPL" should remain
     const tickers = await resultsPage.getAllTickers()
+    expect(tickers.length).toBeGreaterThan(0)
     for (const ticker of tickers) {
       expect(ticker.toUpperCase()).toContain('AAPL')
     }
@@ -81,6 +98,9 @@ test.describe('Scan Results Table', () => {
     await resultsPage.goto(SCAN_ID)
 
     await resultsPage.filterByDirection('bullish')
+
+    // Wait for URL to update after direction change
+    await page.waitForTimeout(300)
 
     // URL should include direction param
     const url = new URL(page.url())
@@ -118,6 +138,8 @@ test.describe('Scan Results Table', () => {
 
     const resultsPage = new ScanResultsPage(page)
     await resultsPage.goto(SCAN_ID)
+    // Wait for loading to finish so the empty template renders
+    await page.waitForTimeout(500)
     await resultsPage.expectEmptyState()
   })
 
@@ -125,13 +147,14 @@ test.describe('Scan Results Table', () => {
     const resultsPage = new ScanResultsPage(page)
     await resultsPage.goto(SCAN_ID)
 
-    // Batch button should be disabled with no selection
-    await expect(resultsPage.batchDebateBtn).toBeDisabled()
+    // Batch "Debate Selected" button should not exist with no selection (v-if)
+    await expect(resultsPage.batchDebateBtn).toBeHidden()
 
     // Select 2 rows
     await resultsPage.selectRows([0, 1])
 
-    // Now batch button should be enabled
+    // Now batch button should appear and be enabled
+    await expect(resultsPage.batchDebateBtn).toBeVisible()
     await expect(resultsPage.batchDebateBtn).toBeEnabled()
   })
 })
