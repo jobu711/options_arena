@@ -45,12 +45,12 @@ class MarketContext(BaseModel):
     current_price: Decimal
     price_52w_high: Decimal
     price_52w_low: Decimal
-    iv_rank: float
-    iv_percentile: float
-    atm_iv_30d: float
-    rsi_14: float
+    iv_rank: float | None = None
+    iv_percentile: float | None = None
+    atm_iv_30d: float | None = None
+    rsi_14: float = 50.0  # RSI has meaningful neutral at 50
     macd_signal: MacdSignal
-    put_call_ratio: float
+    put_call_ratio: float | None = None
     next_earnings: date | None
     dte_target: int
     target_strike: Decimal
@@ -80,6 +80,39 @@ class MarketContext(BaseModel):
 
     # Contract pricing
     contract_mid: Decimal | None = None  # mid price of recommended contract
+
+    def completeness_ratio(self) -> float:
+        """Fraction of optional context fields that are populated (not None).
+
+        Checks all ``float | None`` analysis fields — indicators, Greeks, and
+        options-specific data. Core identity fields (ticker, price, sector) and
+        fields with meaningful defaults (rsi_14, composite_score) are excluded.
+
+        Returns
+        -------
+        float
+            Value in [0.0, 1.0]. 1.0 means all optional fields are populated.
+        """
+        checkable_fields: list[float | None] = [
+            self.iv_rank,
+            self.iv_percentile,
+            self.atm_iv_30d,
+            self.put_call_ratio,
+            self.adx,
+            self.sma_alignment,
+            self.bb_width,
+            self.atr_pct,
+            self.stochastic_rsi,
+            self.relative_volume,
+            self.target_gamma,
+            self.target_theta,
+            self.target_vega,
+            self.target_rho,
+        ]
+        if not checkable_fields:
+            return 1.0
+        populated = sum(1 for f in checkable_fields if f is not None)
+        return populated / len(checkable_fields)
 
     @field_validator("data_timestamp")
     @classmethod

@@ -495,3 +495,74 @@ class TestComputeCitationDensity:
         text_a = "RSI 14 is bullish."
         text_b = "ADX shows trend."
         assert compute_citation_density(context, text_a, text_b) == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# render_context_block — None field handling
+# ---------------------------------------------------------------------------
+
+
+class TestRenderContextBlockNoneFields:
+    """Tests for render_context_block handling of float | None fields."""
+
+    def test_render_context_none_iv_rank_omitted(
+        self,
+        mock_market_context: MarketContext,
+    ) -> None:
+        """When iv_rank is None, IV RANK line is omitted from context block."""
+        mock_market_context.iv_rank = None
+        text = render_context_block(mock_market_context)
+        assert "IV RANK" not in text
+
+    def test_render_context_none_iv_percentile_omitted(
+        self,
+        mock_market_context: MarketContext,
+    ) -> None:
+        """When iv_percentile is None, IV PERCENTILE line is omitted."""
+        mock_market_context.iv_percentile = None
+        text = render_context_block(mock_market_context)
+        assert "IV PERCENTILE" not in text
+
+    def test_render_context_none_put_call_ratio_omitted(
+        self,
+        mock_market_context: MarketContext,
+    ) -> None:
+        """When put_call_ratio is None, PUT/CALL RATIO line is omitted."""
+        mock_market_context.put_call_ratio = None
+        text = render_context_block(mock_market_context)
+        assert "PUT/CALL RATIO" not in text
+
+    def test_render_context_none_atm_iv_omitted(
+        self,
+        mock_market_context: MarketContext,
+    ) -> None:
+        """When atm_iv_30d is None, ATM IV 30D line is omitted."""
+        mock_market_context.atm_iv_30d = None
+        text = render_context_block(mock_market_context)
+        assert "ATM IV 30D" not in text
+
+    def test_render_context_populated_fields_present(
+        self,
+        mock_market_context: MarketContext,
+    ) -> None:
+        """When fields are populated, they appear in the context block."""
+        # mock_market_context has iv_rank=45.2, iv_percentile=52.1, put_call_ratio=0.85
+        text = render_context_block(mock_market_context)
+        assert "IV RANK: 45.2" in text
+        assert "IV PERCENTILE: 52.1" in text
+        assert "PUT/CALL RATIO: 0.85" in text
+
+    def test_render_context_all_optional_none(
+        self,
+        mock_market_context: MarketContext,
+    ) -> None:
+        """When all optional fields are None, static fields still present."""
+        mock_market_context.iv_rank = None
+        mock_market_context.iv_percentile = None
+        mock_market_context.atm_iv_30d = None
+        mock_market_context.put_call_ratio = None
+        text = render_context_block(mock_market_context)
+        # Core fields still present
+        assert "TICKER: AAPL" in text
+        assert "RSI(14):" in text
+        assert "COMPOSITE SCORE:" in text

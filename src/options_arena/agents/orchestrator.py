@@ -76,9 +76,10 @@ def build_market_context(
 ) -> MarketContext:
     """Map scan pipeline output to ``MarketContext`` for agent consumption.
 
-    Uses safe defaults for ``None`` values — ``MarketContext`` requires all float
-    fields to be actual floats. Options-specific indicators (``iv_rank``,
-    ``iv_percentile``, ``put_call_ratio``) may be ``None`` on ``TickerScore.signals``.
+    Passes ``None`` through for optional float fields so that
+    ``MarketContext.completeness_ratio()`` accurately reflects data availability.
+    Options-specific indicators (``iv_rank``, ``iv_percentile``,
+    ``put_call_ratio``) may be ``None`` on ``TickerScore.signals``.
 
     Parameters
     ----------
@@ -116,16 +117,16 @@ def build_market_context(
         current_price=quote.price,
         price_52w_high=ticker_info.fifty_two_week_high,
         price_52w_low=ticker_info.fifty_two_week_low,
-        iv_rank=signals.iv_rank if signals.iv_rank is not None else 0.0,
-        iv_percentile=signals.iv_percentile if signals.iv_percentile is not None else 0.0,
+        iv_rank=signals.iv_rank,
+        iv_percentile=signals.iv_percentile,
         atm_iv_30d=(
             first_contract.market_iv
             if first_contract is not None and first_contract.market_iv > 0
-            else 0.0
+            else None
         ),
         rsi_14=signals.rsi if signals.rsi is not None else 50.0,
         macd_signal=macd_signal,
-        put_call_ratio=(signals.put_call_ratio if signals.put_call_ratio is not None else 0.0),
+        put_call_ratio=signals.put_call_ratio,
         next_earnings=None,
         dte_target=dte_target,
         target_strike=target_strike,
@@ -217,7 +218,21 @@ async def run_debate(
     if not should_debate(ticker_score, config):
         logger.info("Skipping debate for %s: signal too weak", ticker_score.ticker)
         result = _build_screening_fallback(context, ticker_score, contracts, config, start_time)
+    elif context.completeness_ratio() < 0.6:
+        ratio = context.completeness_ratio()
+        logger.warning(
+            "MarketContext completeness %.0f%% < 60%% for %s — using data-driven fallback",
+            ratio * 100,
+            context.ticker,
+        )
+        result = _build_fallback_result(context, ticker_score, contracts, config, start_time)
     else:
+        if context.completeness_ratio() < 0.8:
+            logger.warning(
+                "MarketContext completeness %.0f%% < 80%% for %s — proceeding with caution",
+                context.completeness_ratio() * 100,
+                context.ticker,
+            )
         try:
             result = await asyncio.wait_for(
                 _run_agents(context, ticker_score, contracts, config, start_time),
