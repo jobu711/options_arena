@@ -718,7 +718,21 @@ def serve(
     reload: bool = typer.Option(False, "--reload", help="Enable auto-reload (dev mode)"),
 ) -> None:
     """Start the FastAPI web server and serve the Vue SPA."""
+    import ipaddress  # noqa: PLC0415
+
     import uvicorn  # noqa: PLC0415
+
+    def _is_loopback(value: str) -> bool:
+        if value == "localhost":
+            return True
+        try:
+            return ipaddress.ip_address(value).is_loopback
+        except ValueError:
+            return False
+
+    if not _is_loopback(host):
+        err_console.print("[red]--host must be a loopback address (127.0.0.1 or localhost).[/red]")
+        raise typer.Exit(code=1)
 
     if not no_open:
         import threading  # noqa: PLC0415

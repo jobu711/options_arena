@@ -44,15 +44,23 @@ def test_serve_calls_uvicorn_with_defaults(mock_run: MagicMock) -> None:
 @patch("uvicorn.run")
 def test_serve_custom_host_port(mock_run: MagicMock) -> None:
     """serve passes custom host and port to uvicorn."""
-    result = runner.invoke(app, ["serve", "--host", "0.0.0.0", "--port", "3000", "--no-open"])
+    result = runner.invoke(app, ["serve", "--host", "127.0.0.1", "--port", "3000", "--no-open"])
     assert result.exit_code == 0
     mock_run.assert_called_once_with(
         "options_arena.api.app:create_app",
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=3000,
         reload=False,
         factory=True,
     )
+
+
+@patch("uvicorn.run")
+def test_serve_rejects_non_loopback_host(mock_run: MagicMock) -> None:
+    """serve rejects non-loopback hosts like 0.0.0.0."""
+    result = runner.invoke(app, ["serve", "--host", "0.0.0.0", "--no-open"])
+    assert result.exit_code == 1
+    mock_run.assert_not_called()
 
 
 @patch("uvicorn.run")
