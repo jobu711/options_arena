@@ -12,11 +12,11 @@ defineProps<Props>()
 </script>
 
 <template>
-  <div class="agent-card" :style="{ '--agent-color': color }">
+  <div class="agent-card" :style="{ '--agent-color': color }" :data-testid="`agent-card-${agentName.toLowerCase().replace(/\\s/g, '-')}`">
     <div class="agent-header">
       <span class="agent-icon pi pi-user" />
       <span class="agent-name">{{ agentName }}</span>
-      <ConfidenceBadge :value="response.confidence" />
+      <ConfidenceBadge :value="response.confidence" :data-testid="`agent-confidence-${agentName.toLowerCase().replace(/\\s/g, '-')}`" />
     </div>
 
     <p class="agent-argument">{{ response.argument }}</p>

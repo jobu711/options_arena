@@ -236,6 +236,7 @@ onUnmounted(() => {
         placeholder="Search ticker..."
         size="small"
         class="search-input"
+        data-testid="ticker-search"
       />
       <Select
         v-model="direction"
@@ -244,6 +245,7 @@ onUnmounted(() => {
         optionValue="value"
         placeholder="Direction"
         size="small"
+        data-testid="direction-filter"
         @change="onDirectionChange()"
       />
       <div class="batch-actions">
@@ -254,6 +256,7 @@ onUnmounted(() => {
           severity="info"
           size="small"
           :disabled="anyBusy"
+          data-testid="batch-debate-btn"
           @click="onDebateSelected()"
         />
         <Button
@@ -262,6 +265,7 @@ onUnmounted(() => {
           severity="secondary"
           size="small"
           :disabled="anyBusy"
+          data-testid="batch-debate-top5-btn"
           @click="onDebateTop5()"
         />
       </div>
@@ -287,16 +291,17 @@ onUnmounted(() => {
       @page="onPage"
       @row-click="onRowClick"
       class="results-table"
+      data-testid="scan-results-table"
     >
       <Column selectionMode="multiple" :style="{ width: '3rem' }" />
       <Column field="ticker" header="Ticker" :sortable="true" :style="{ width: '100px' }">
         <template #body="{ data }">
-          <span class="ticker-cell mono">{{ data.ticker }}</span>
+          <span class="ticker-cell mono" data-testid="ticker-cell">{{ data.ticker }}</span>
         </template>
       </Column>
       <Column field="composite_score" header="Score" :sortable="true" :style="{ width: '80px' }">
         <template #body="{ data }">
-          <span class="mono">{{ data.composite_score.toFixed(1) }}</span>
+          <span class="mono" data-testid="composite-score">{{ data.composite_score.toFixed(1) }}</span>
         </template>
       </Column>
       <Column field="direction" header="Direction" :sortable="true" :style="{ width: '110px' }">
@@ -313,12 +318,13 @@ onUnmounted(() => {
             size="small"
             text
             :disabled="anyBusy"
+            :data-testid="`debate-btn-${data.ticker}`"
             @click.stop="startDebate(data.ticker)"
           />
         </template>
       </Column>
       <template #empty>
-        <div class="empty-msg">No results found matching your filters.</div>
+        <div class="empty-msg" data-testid="empty-state">No results found matching your filters.</div>
       </template>
     </DataTable>
 

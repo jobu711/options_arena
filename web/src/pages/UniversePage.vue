@@ -48,17 +48,18 @@ onMounted(() => void fetchStats())
         :loading="refreshing"
         severity="secondary"
         size="small"
+        data-testid="universe-refresh-btn"
         @click="refreshUniverse()"
       />
     </div>
 
-    <div v-if="stats" class="stats-bar">
+    <div v-if="stats" class="stats-bar" data-testid="universe-stats">
       <div class="stat-card">
-        <span class="stat-value mono">{{ stats.optionable_count.toLocaleString() }}</span>
+        <span class="stat-value mono" data-testid="universe-optionable-count">{{ stats.optionable_count.toLocaleString() }}</span>
         <span class="stat-label">Optionable Tickers</span>
       </div>
       <div class="stat-card">
-        <span class="stat-value mono">{{ stats.sp500_count.toLocaleString() }}</span>
+        <span class="stat-value mono" data-testid="universe-sp500-count">{{ stats.sp500_count.toLocaleString() }}</span>
         <span class="stat-label">S&P 500 Constituents</span>
       </div>
     </div>

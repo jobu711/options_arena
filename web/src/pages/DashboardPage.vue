@@ -55,12 +55,13 @@ onUnmounted(() => {
     <h1>Dashboard</h1>
 
     <!-- Health Strip -->
-    <div v-if="healthStore.services.length > 0" class="health-strip">
+    <div v-if="healthStore.services.length > 0" class="health-strip" data-testid="dashboard-health-strip">
       <span
         v-for="svc in healthStore.services"
         :key="svc.service_name"
         class="health-chip"
         :title="`${svc.service_name}: ${svc.available ? 'ok' : 'down'}`"
+        :data-testid="`health-dot-${svc.service_name.toLowerCase().replace(/\\s/g, '-')}`"
       >
         <HealthDot :available="svc.available" :latency-ms="svc.latency_ms" />
         <span class="chip-label">{{ svc.service_name }}</span>
@@ -73,18 +74,21 @@ onUnmounted(() => {
         label="New Scan"
         icon="pi pi-play"
         severity="success"
+        data-testid="dashboard-btn-new-scan"
         @click="router.push('/scan')"
       />
       <Button
         label="View Universe"
         icon="pi pi-globe"
         severity="secondary"
+        data-testid="dashboard-btn-universe"
         @click="router.push('/universe')"
       />
       <Button
         label="Health Check"
         icon="pi pi-heart"
         severity="secondary"
+        data-testid="dashboard-btn-health"
         @click="router.push('/health')"
       />
     </div>
@@ -92,7 +96,7 @@ onUnmounted(() => {
     <!-- Latest Scan Card -->
     <section class="section">
       <h2>Latest Scan</h2>
-      <div v-if="latestScan" class="scan-card">
+      <div v-if="latestScan" class="scan-card" data-testid="dashboard-latest-scan">
         <div class="scan-info">
           <span class="scan-preset">{{ latestScan.preset.toUpperCase() }}</span>
           <span class="scan-meta">
@@ -110,13 +114,13 @@ onUnmounted(() => {
           @click="router.push(`/scan/${latestScan.id}`)"
         />
       </div>
-      <p v-else-if="!loading" class="empty-msg">No scans yet. Run your first scan to get started.</p>
+      <p v-else-if="!loading" class="empty-msg" data-testid="empty-state">No scans yet. Run your first scan to get started.</p>
     </section>
 
     <!-- Recent Debates -->
     <section class="section">
       <h2>Recent Debates</h2>
-      <div v-if="recentDebates.length > 0" class="debate-list">
+      <div v-if="recentDebates.length > 0" class="debate-list" data-testid="dashboard-recent-debates">
         <div
           v-for="debate in recentDebates"
           :key="debate.id"

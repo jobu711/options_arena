@@ -41,10 +41,10 @@ onMounted(() => void debateStore.fetchDebate(debateId))
 <template>
   <div class="page">
     <!-- Loading State -->
-    <div v-if="debateStore.loading" class="loading-msg">Loading debate...</div>
+    <div v-if="debateStore.loading" class="loading-msg" data-testid="loading-skeleton">Loading debate...</div>
 
     <!-- Error State -->
-    <div v-else-if="debateStore.error" class="error-msg">{{ debateStore.error }}</div>
+    <div v-else-if="debateStore.error" class="error-msg" data-testid="error-state">{{ debateStore.error }}</div>
 
     <!-- Debate Content -->
     <template v-else-if="debateStore.currentDebate">
@@ -55,6 +55,7 @@ onMounted(() => void debateStore.fetchDebate(debateId))
             v-if="debateStore.currentDebate.is_fallback"
             value="Fallback"
             severity="warn"
+            data-testid="fallback-badge"
           />
         </div>
         <div class="header-actions">
@@ -63,6 +64,7 @@ onMounted(() => void debateStore.fetchDebate(debateId))
             icon="pi pi-download"
             severity="secondary"
             size="small"
+            data-testid="debate-export-md"
             @click="exportDebate('md')"
           />
           <Button
@@ -70,18 +72,20 @@ onMounted(() => void debateStore.fetchDebate(debateId))
             icon="pi pi-file-pdf"
             severity="secondary"
             size="small"
+            data-testid="debate-export-pdf"
             @click="exportDebate('pdf')"
           />
         </div>
       </div>
 
       <!-- Thesis Banner -->
-      <div v-if="debateStore.currentDebate.thesis" class="thesis-banner">
+      <div v-if="debateStore.currentDebate.thesis" class="thesis-banner" data-testid="thesis-card">
         <div class="thesis-main">
           <div class="thesis-verdict">
             <span class="verdict-label">Verdict</span>
             <DirectionBadge
               :direction="debateStore.currentDebate.thesis.direction as 'bullish' | 'bearish' | 'neutral'"
+              data-testid="thesis-direction"
             />
           </div>
           <div class="thesis-confidence">
@@ -103,7 +107,7 @@ onMounted(() => void debateStore.fetchDebate(debateId))
             <span class="strategy-value">{{ debateStore.currentDebate.thesis.recommended_strategy }}</span>
           </div>
         </div>
-        <p class="thesis-summary">{{ debateStore.currentDebate.thesis.summary }}</p>
+        <p class="thesis-summary" data-testid="thesis-summary">{{ debateStore.currentDebate.thesis.summary }}</p>
         <div v-if="debateStore.currentDebate.thesis.key_factors.length > 0" class="thesis-factors">
           <span class="factors-label">Key Factors:</span>
           <span
@@ -122,24 +126,28 @@ onMounted(() => void debateStore.fetchDebate(debateId))
           agent-name="Bull Agent"
           :response="debateStore.currentDebate.bull_response"
           color="#22c55e"
+          data-testid="agent-card-bull"
         />
         <AgentCard
           v-if="debateStore.currentDebate.bear_response"
           agent-name="Bear Agent"
           :response="debateStore.currentDebate.bear_response"
           color="#ef4444"
+          data-testid="agent-card-bear"
         />
         <AgentCard
           v-if="tryParseAgent(debateStore.currentDebate.bull_rebuttal)"
           agent-name="Bull Rebuttal"
           :response="tryParseAgent(debateStore.currentDebate.bull_rebuttal)!"
           color="#86efac"
+          data-testid="agent-card-rebuttal"
         />
         <AgentCard
           v-if="tryParseAgent(debateStore.currentDebate.vol_response)"
           agent-name="Volatility Agent"
           :response="tryParseAgent(debateStore.currentDebate.vol_response)!"
           color="#a855f7"
+          data-testid="agent-card-volatility"
         />
       </div>
 

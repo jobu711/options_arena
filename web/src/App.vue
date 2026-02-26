@@ -8,10 +8,10 @@ import Toast from 'primevue/toast'
     <nav class="app-nav">
       <div class="nav-brand">Options Arena</div>
       <div class="nav-links">
-        <RouterLink to="/" class="nav-link">Dashboard</RouterLink>
-        <RouterLink to="/scan" class="nav-link">Scan</RouterLink>
-        <RouterLink to="/universe" class="nav-link">Universe</RouterLink>
-        <RouterLink to="/health" class="nav-link">Health</RouterLink>
+        <RouterLink to="/" class="nav-link" data-testid="nav-link-dashboard">Dashboard</RouterLink>
+        <RouterLink to="/scan" class="nav-link" data-testid="nav-link-scan">Scan</RouterLink>
+        <RouterLink to="/universe" class="nav-link" data-testid="nav-link-universe">Universe</RouterLink>
+        <RouterLink to="/health" class="nav-link" data-testid="nav-link-health">Health</RouterLink>
       </div>
     </nav>
     <main class="app-main">

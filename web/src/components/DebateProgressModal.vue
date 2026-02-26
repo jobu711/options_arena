@@ -100,6 +100,7 @@ function closeBatch(): void {
     :modal="true"
     :closable="batchComplete"
     :style="{ width: batchMode ? '520px' : '400px' }"
+    :data-testid="batchMode ? 'batch-progress-modal' : 'debate-progress-modal'"
     @update:visible="emit('update:visible', $event)"
   >
     <!-- SINGLE DEBATE MODE -->

@@ -64,6 +64,7 @@ function formatDate(iso: string): string {
     position="right"
     :header="score?.ticker ?? 'Ticker Detail'"
     :style="{ width: '400px' }"
+    data-testid="ticker-drawer"
     @update:visible="emit('update:visible', $event)"
   >
     <template v-if="score">

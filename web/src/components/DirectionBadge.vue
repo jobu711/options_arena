@@ -7,7 +7,7 @@ defineProps<Props>()
 </script>
 
 <template>
-  <span class="direction-badge" :class="`dir--${direction}`">
+  <span class="direction-badge" :class="`dir--${direction}`" data-testid="direction-badge">
     {{ direction }}
   </span>
 </template>

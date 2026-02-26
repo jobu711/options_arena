@@ -1,0 +1,5 @@
+reports/
+!reports/.gitkeep
+test-results/
+blob-*/
+.e2e-test-*.db

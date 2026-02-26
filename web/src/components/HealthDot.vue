@@ -14,7 +14,7 @@ function dotClass(): string {
 </script>
 
 <template>
-  <span class="health-dot" :class="dotClass()" :title="available ? 'Healthy' : 'Down'" />
+  <span class="health-dot" :class="dotClass()" :title="available ? 'Healthy' : 'Down'" data-testid="health-dot" />
 </template>
 
 <style scoped>

@@ -35,6 +35,7 @@ function formatTime(iso: string): string {
         :loading="healthStore.loading"
         severity="secondary"
         size="small"
+        data-testid="health-refresh-btn"
         @click="healthStore.fetchHealth()"
       />
     </div>
@@ -51,9 +52,10 @@ function formatTime(iso: string): string {
         :key="svc.service_name"
         class="service-card"
         :class="{ 'service-card--down': !svc.available }"
+        :data-testid="`health-card-${svc.service_name.toLowerCase().replace(/\\s/g, '-')}`"
       >
         <div class="service-header">
-          <HealthDot :available="svc.available" :latency-ms="svc.latency_ms" />
+          <HealthDot :available="svc.available" :latency-ms="svc.latency_ms" :data-testid="`health-dot-${svc.service_name.toLowerCase().replace(/\\s/g, '-')}`" />
           <span class="service-name">{{ svc.service_name }}</span>
         </div>
         <div class="service-details">

@@ -17,7 +17,7 @@ const level = computed(() => {
 </script>
 
 <template>
-  <span class="confidence-badge" :class="`confidence--${level}`">
+  <span class="confidence-badge" :class="`confidence--${level}`" data-testid="confidence-badge">
     {{ pct }}
   </span>
 </template>

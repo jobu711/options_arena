@@ -93,7 +93,7 @@ onUnmounted(() => wsClose?.())
 
 <template>
   <div class="page">
-    <h1>Scan</h1>
+    <h1 data-testid="scan-title">Scan</h1>
 
     <!-- Launch Panel -->
     <div class="launch-panel">
@@ -104,6 +104,7 @@ onUnmounted(() => wsClose?.())
         optionValue="value"
         placeholder="Select preset"
         :disabled="scanStore.isScanning || opStore.inProgress"
+        data-testid="preset-selector"
       />
       <Button
         label="Run Scan"
@@ -111,6 +112,7 @@ onUnmounted(() => wsClose?.())
         severity="success"
         :disabled="scanStore.isScanning || opStore.inProgress"
         :loading="scanStore.isScanning"
+        data-testid="start-scan-btn"
         @click="runScan()"
       />
     </div>
@@ -136,6 +138,7 @@ onUnmounted(() => wsClose?.())
         :rows="10"
         responsiveLayout="scroll"
         class="scans-table"
+        data-testid="scan-list-table"
         @row-click="(e: { data: { id: number } }) => viewResults(e.data.id)"
       >
         <Column header="ID" field="id" :style="{ width: '60px' }">
@@ -167,7 +170,7 @@ onUnmounted(() => wsClose?.())
           <template #body="{ data }">{{ formatDate(data.started_at) }}</template>
         </Column>
         <template #empty>
-          <div class="empty-msg">No scans yet. Run your first scan above.</div>
+          <div class="empty-msg" data-testid="scan-list-empty">No scans yet. Run your first scan above.</div>
         </template>
       </DataTable>
     </section>

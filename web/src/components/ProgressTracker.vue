@@ -29,7 +29,7 @@ function phaseState(index: number): 'complete' | 'active' | 'pending' {
 </script>
 
 <template>
-  <div class="progress-tracker">
+  <div class="progress-tracker" data-testid="progress-tracker">
     <div class="phases">
       <div
         v-for="(phase, index) in phases"
@@ -59,6 +59,7 @@ function phaseState(index: number): 'complete' | 'active' | 'pending' {
         severity="danger"
         size="small"
         outlined
+        data-testid="cancel-scan-btn"
         @click="emit('cancel')"
       />
     </div>
