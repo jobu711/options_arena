@@ -10,6 +10,7 @@ import { ScanPage } from '../../fixtures/pages/scan.page'
 import { mockAllApis, mockPost, pathMatcher } from '../../fixtures/mocks/api-handlers'
 import { buildScanRun } from '../../fixtures/builders/scan.builders'
 import { scanProgressSequence, scanCancelSequence } from '../../fixtures/mocks/ws-scenarios'
+import { injectFakeScanWebSocket } from '../../fixtures/mocks/ws-helpers'
 
 const SCAN_ID = 42
 
@@ -29,69 +30,7 @@ test.describe('Scan Launch', () => {
     // Uses a plain object (NOT Object.create(WebSocket.prototype)) to avoid
     // inheriting accessor properties that prevent onmessage/onopen assignment.
     const wsEvents = scanProgressSequence(SCAN_ID)
-    await page.addInitScript(
-      ({ events, scanId }) => {
-        const RealWS = window.WebSocket
-        window.WebSocket = function (
-          this: WebSocket,
-          url: string | URL,
-          protocols?: string | string[],
-        ) {
-          const urlStr = typeof url === 'string' ? url : url.toString()
-          if (urlStr.includes(`/ws/scan/${scanId}`)) {
-            // Plain object — own data properties for event handlers
-            const fake: Record<string, unknown> = {
-              readyState: 0,
-              url: urlStr,
-              protocol: '',
-              extensions: '',
-              bufferedAmount: 0,
-              binaryType: 'blob',
-              onopen: null,
-              onmessage: null,
-              onclose: null,
-              onerror: null,
-              CONNECTING: 0,
-              OPEN: 1,
-              CLOSING: 2,
-              CLOSED: 3,
-              send() {},
-              close() { fake.readyState = 3 },
-              addEventListener() {},
-              removeEventListener() {},
-              dispatchEvent() { return true },
-            }
-            // Simulate open + message events after a short delay
-            setTimeout(() => {
-              fake.readyState = 1
-              if (typeof fake.onopen === 'function') {
-                fake.onopen(new Event('open'))
-              }
-              let delay = 50
-              for (const event of events) {
-                delay += 150
-                setTimeout(() => {
-                  if (fake.readyState === 1 && typeof fake.onmessage === 'function') {
-                    fake.onmessage(new MessageEvent('message', {
-                      data: JSON.stringify(event),
-                    }))
-                  }
-                }, delay)
-              }
-            }, 50)
-            return fake as unknown as WebSocket
-          }
-          return new RealWS(url, protocols)
-        } as unknown as typeof WebSocket
-        Object.assign(window.WebSocket, {
-          CONNECTING: 0,
-          OPEN: 1,
-          CLOSING: 2,
-          CLOSED: 3,
-        })
-      },
-      { events: wsEvents, scanId: SCAN_ID },
-    )
+    await injectFakeScanWebSocket(page, SCAN_ID, wsEvents)
 
     const scanPage = new ScanPage(page)
     await scanPage.goto()
@@ -172,69 +111,7 @@ test.describe('Scan Launch', () => {
 
     // Inject fake WebSocket (plain object, no real connection)
     const wsEvents = scanCancelSequence(SCAN_ID)
-    await page.addInitScript(
-      ({ events, scanId }) => {
-        const RealWS = window.WebSocket
-        window.WebSocket = function (
-          this: WebSocket,
-          url: string | URL,
-          protocols?: string | string[],
-        ) {
-          const urlStr = typeof url === 'string' ? url : url.toString()
-          if (urlStr.includes(`/ws/scan/${scanId}`)) {
-            const fake: Record<string, unknown> = {
-              readyState: 0,
-              url: urlStr,
-              protocol: '',
-              extensions: '',
-              bufferedAmount: 0,
-              binaryType: 'blob',
-              onopen: null,
-              onmessage: null,
-              onclose: null,
-              onerror: null,
-              CONNECTING: 0,
-              OPEN: 1,
-              CLOSING: 2,
-              CLOSED: 3,
-              send() {},
-              close() { fake.readyState = 3 },
-              addEventListener() {},
-              removeEventListener() {},
-              dispatchEvent() { return true },
-            }
-            setTimeout(() => {
-              fake.readyState = 1
-              if (typeof fake.onopen === 'function') {
-                fake.onopen(new Event('open'))
-              }
-              // Send progress events quickly, delay last event (complete/cancelled)
-              let delay = 50
-              for (let i = 0; i < events.length; i++) {
-                const event = events[i]
-                delay += i < events.length - 1 ? 150 : 2000
-                setTimeout(() => {
-                  if (fake.readyState === 1 && typeof fake.onmessage === 'function') {
-                    fake.onmessage(new MessageEvent('message', {
-                      data: JSON.stringify(event),
-                    }))
-                  }
-                }, delay)
-              }
-            }, 50)
-            return fake as unknown as WebSocket
-          }
-          return new RealWS(url, protocols)
-        } as unknown as typeof WebSocket
-        Object.assign(window.WebSocket, {
-          CONNECTING: 0,
-          OPEN: 1,
-          CLOSING: 2,
-          CLOSED: 3,
-        })
-      },
-      { events: wsEvents, scanId: SCAN_ID },
-    )
+    await injectFakeScanWebSocket(page, SCAN_ID, wsEvents, { lastEventDelay: 2000 })
 
     const scanPage = new ScanPage(page)
     await scanPage.goto()

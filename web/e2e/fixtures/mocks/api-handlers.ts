@@ -60,12 +60,9 @@ export async function mockAllApis(
   )
 
   // Universe
-  await page.route(pathMatcher('/api/universe'), async route => {
-    if (route.request().method() === 'POST') {
-      return route.fulfill({ json: overrides.universe ?? DEFAULT_UNIVERSE })
-    }
-    return route.fulfill({ json: overrides.universe ?? DEFAULT_UNIVERSE })
-  })
+  await page.route(pathMatcher('/api/universe'), route =>
+    route.fulfill({ json: overrides.universe ?? DEFAULT_UNIVERSE }),
+  )
 
   // Scan list (GET /api/scan)
   if (overrides.scanList !== undefined) {

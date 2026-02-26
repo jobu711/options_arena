@@ -6,7 +6,7 @@
  */
 
 import { test, expect } from '../../fixtures/base.fixture'
-import { mockAllApis, mockServerError, mockTimeout, pathMatcher } from '../../fixtures/mocks/api-handlers'
+import { mockAllApis, pathMatcher } from '../../fixtures/mocks/api-handlers'
 import { buildScanRun } from '../../fixtures/builders/scan.builders'
 
 test.describe('API Failure Handling', () => {
@@ -36,7 +36,7 @@ test.describe('API Failure Handling', () => {
   })
 
   test('GET /api/health/services returning 503 shows degraded state', async ({ page }) => {
-    await page.route('**/api/health/services', route =>
+    await page.route(pathMatcher('/api/health/services'), route =>
       route.fulfill({
         status: 503,
         json: { detail: 'Service temporarily unavailable' },
@@ -74,7 +74,7 @@ test.describe('API Failure Handling', () => {
     // Mock scan list with a long delay then abort
     await page.route(pathMatcher('/api/scan'), async route => {
       if (route.request().method() === 'GET') {
-        await new Promise(resolve => setTimeout(resolve, 15_000))
+        await new Promise(resolve => setTimeout(resolve, 500))
         return route.abort('timedout')
       }
       return route.continue()

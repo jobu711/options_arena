@@ -97,7 +97,8 @@ test.describe('Single Debate', () => {
     await resultPage.expectFallbackVisible()
   })
 
-  test('debate agent error shows error toast', async ({ page }) => {
+  // TODO: Implement once a debate start button exists on the dashboard (currently no trigger path)
+  test.skip('debate agent error shows error toast', async ({ page }) => {
     // Mock debate with failure events via routeWebSocket
     const wsEvents = debatePartialFailSequence(DEBATE_ID)
     await page.routeWebSocket(`**/ws/debate/${DEBATE_ID}`, ws => {

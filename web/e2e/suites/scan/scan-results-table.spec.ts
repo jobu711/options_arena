@@ -100,7 +100,7 @@ test.describe('Scan Results Table', () => {
     await resultsPage.filterByDirection('bullish')
 
     // Wait for URL to update after direction change
-    await page.waitForTimeout(300)
+    await page.waitForURL(/direction=bullish/)
 
     // URL should include direction param
     const url = new URL(page.url())

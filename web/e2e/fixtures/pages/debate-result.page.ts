@@ -36,8 +36,8 @@ export class DebateResultPage {
     )
     await this.page.goto(`/debate/${debateId}`)
     await responsePromise
-    // Give Vue time to re-render after store update
-    await this.page.waitForTimeout(500)
+    // Wait for thesis card (present in both normal and fallback results)
+    await this.thesisCard.waitFor({ state: 'visible', timeout: 5_000 })
   }
 
   async expectBullCardVisible(): Promise<void> {
