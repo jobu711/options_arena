@@ -1,20 +1,65 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useToast } from 'primevue/usetoast'
 import DataTable, { type DataTableSortEvent, type DataTablePageEvent } from 'primevue/datatable'
 import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
+import Button from 'primevue/button'
 import DirectionBadge from '@/components/DirectionBadge.vue'
 import TickerDrawer from '@/components/TickerDrawer.vue'
+import DebateProgressModal from '@/components/DebateProgressModal.vue'
 import { useScanStore } from '@/stores/scan'
+import { useDebateStore } from '@/stores/debate'
+import { useWebSocket } from '@/composables/useWebSocket'
+import { ApiError } from '@/composables/useApi'
 import type { TickerScore } from '@/types'
+import type { DebateEvent } from '@/types/ws'
 
 const route = useRoute()
 const router = useRouter()
+const toast = useToast()
 const scanStore = useScanStore()
+const debateStore = useDebateStore()
 
 const scanId = Number(route.params.id)
+
+// Debate modal state
+const debateModalVisible = ref(false)
+const debatingTicker = ref('')
+
+async function startDebate(ticker: string): Promise<void> {
+  try {
+    debatingTicker.value = ticker
+    debateModalVisible.value = true
+    const debateId = await debateStore.startDebate(ticker, scanId)
+
+    useWebSocket<DebateEvent>({
+      url: `/ws/debate/${debateId}`,
+      onMessage(event) {
+        switch (event.type) {
+          case 'agent':
+            debateStore.updateAgentProgress(event)
+            break
+          case 'error':
+            debateStore.setDebateError(event.message)
+            break
+          case 'complete':
+            debateStore.setDebateComplete(event.debate_id)
+            debateModalVisible.value = false
+            router.push(`/debate/${event.debate_id}`)
+            break
+        }
+      },
+    })
+  } catch (e) {
+    debateModalVisible.value = false
+    debateStore.reset()
+    const msg = e instanceof ApiError ? e.message : 'Failed to start debate'
+    toast.add({ severity: 'error', summary: 'Error', detail: msg, life: 5000 })
+  }
+}
 
 // URL-synced filter state
 const search = ref((route.query.search as string) ?? '')
@@ -170,6 +215,19 @@ onMounted(() => void loadScores())
           <DirectionBadge :direction="data.direction" />
         </template>
       </Column>
+      <Column header="" :style="{ width: '100px' }">
+        <template #body="{ data }">
+          <Button
+            label="Debate"
+            icon="pi pi-comments"
+            severity="info"
+            size="small"
+            text
+            :disabled="debateStore.isDebating"
+            @click.stop="startDebate(data.ticker)"
+          />
+        </template>
+      </Column>
       <template #empty>
         <div class="empty-msg">No results found matching your filters.</div>
       </template>
@@ -180,6 +238,14 @@ onMounted(() => void loadScores())
       v-model:visible="drawerVisible"
       :score="selectedScore"
       :scan-id="scanId"
+    />
+
+    <!-- Debate Progress Modal -->
+    <DebateProgressModal
+      v-model:visible="debateModalVisible"
+      :ticker="debatingTicker"
+      :agents="debateStore.agentProgress"
+      :error="debateStore.error"
     />
   </div>
 </template>
