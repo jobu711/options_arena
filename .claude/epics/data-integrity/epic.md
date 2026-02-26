@@ -1,8 +1,9 @@
 ---
 name: data-integrity
-status: backlog
+status: completed
 created: 2026-02-26T09:02:19Z
-progress: 0%
+updated: 2026-02-26T09:46:47Z
+progress: 100%
 prd: .claude/prds/data-integrity.md
 github: https://github.com/jobu711/options_arena/issues/114
 ---
@@ -110,11 +111,11 @@ then Task 2 (service guards), then Task 3 (MarketContext + quality gate), then T
 
 ## Tasks Created
 
-- [ ] #115 - OHLCV candle integrity validators + OptionGreeks theta/rho NaN defense (parallel: true)
-- [ ] #116 - Reject zero prices at service ingestion (parallel: true)
-- [ ] #117 - MarketContext completeness validation + debate quality gate (parallel: false, depends: #115)
-- [ ] #118 - Cache TTL validation + indicator NaN propagation guard (parallel: true)
-- [ ] #119 - Test fixture audit and cleanup (parallel: false, depends: #115-#118)
+- [x] #115 - OHLCV candle integrity validators + OptionGreeks theta/rho NaN defense (parallel: true)
+- [x] #116 - Reject zero prices at service ingestion (parallel: true)
+- [x] #117 - MarketContext completeness validation + debate quality gate (parallel: false, depends: #115)
+- [x] #118 - Cache TTL validation + indicator NaN propagation guard (parallel: true)
+- [x] #119 - Test fixture audit and cleanup (parallel: false, depends: #115-#118)
 
 Total tasks: 5
 Parallel tasks: 3 (#115, #116, #118 can run concurrently)
