@@ -1235,6 +1235,7 @@ class TestQualityGate:
         mock_quote: Quote,
         mock_ticker_info: TickerInfo,
         mock_debate_config: DebateConfig,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Completeness < 60% triggers data-driven fallback without calling agents."""
         # IndicatorSignals with no options-specific signals populated
@@ -1246,6 +1247,8 @@ class TestQualityGate:
             signals=IndicatorSignals(rsi=62.3),
             scan_run_id=1,
         )
+        run_agents_mock = AsyncMock()
+        monkeypatch.setattr("options_arena.agents.orchestrator._run_agents", run_agents_mock)
         result = await run_debate(
             ticker_score=score,
             contracts=[mock_option_contract],
@@ -1254,6 +1257,7 @@ class TestQualityGate:
             config=mock_debate_config,
         )
         assert result.is_fallback is True
+        run_agents_mock.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_quality_gate_above_60_proceeds(

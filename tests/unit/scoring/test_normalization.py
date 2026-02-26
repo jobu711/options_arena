@@ -365,6 +365,28 @@ class TestNaNPropagation:
         # Fields not set at all remain inactive
         assert "iv_rank" not in active
 
+    def test_normalize_inf_treated_as_missing(self) -> None:
+        """+/-Inf values are excluded like NaN and map to None."""
+        universe = {
+            "NEG_INF": IndicatorSignals(rsi=float("-inf")),
+            "POS_INF": IndicatorSignals(rsi=float("inf")),
+            "VALID": IndicatorSignals(rsi=55.0),
+        }
+        result = percentile_rank_normalize(universe)
+
+        assert _field_val(result["NEG_INF"], "rsi") is None
+        assert _field_val(result["POS_INF"], "rsi") is None
+        assert _field_val(result["VALID"], "rsi") == pytest.approx(50.0)
+
+    def test_get_active_indicators_inf_excluded(self) -> None:
+        """+/-Inf values are not considered active."""
+        universe = {
+            "A": IndicatorSignals(adx=float("inf")),
+            "B": IndicatorSignals(adx=float("-inf")),
+        }
+        active = get_active_indicators(universe)
+        assert "adx" not in active
+
 
 # ---------------------------------------------------------------------------
 # Full pipeline integration

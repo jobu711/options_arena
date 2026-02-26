@@ -289,8 +289,8 @@ class MarketDataService:
                         adjusted_close=adj_close_d if adj_close_d is not None else close_d,
                     )
                 )
-            except PydanticValidationError:
-                logger.debug("Skipping invalid candle for %s on %s", ticker, row_date)
+            except PydanticValidationError as exc:
+                logger.debug("Skipping invalid candle for %s on %s: %s", ticker, row_date, exc)
                 continue
 
         if not records:

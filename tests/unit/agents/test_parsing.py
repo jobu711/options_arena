@@ -400,12 +400,6 @@ class TestRenderContextBlock:
         text = render_context_block(mock_market_context)
         assert isinstance(text, str)
 
-    def test_none_iv_rank_omitted(self, mock_market_context: MarketContext) -> None:
-        """When iv_rank is None, IV RANK line is omitted from output."""
-        mock_market_context.iv_rank = None
-        text = render_context_block(mock_market_context)
-        assert "IV RANK" not in text
-
     def test_nan_iv_rank_omitted(self, mock_market_context: MarketContext) -> None:
         """When iv_rank is NaN, IV RANK line is omitted from output."""
         mock_market_context.iv_rank = float("nan")

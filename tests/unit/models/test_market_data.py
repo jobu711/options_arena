@@ -252,7 +252,7 @@ class TestOHLCVValidators:
 
     def test_ohlcv_rejects_high_less_than_low(self) -> None:
         """OHLCV rejects candle where high < low."""
-        with pytest.raises(ValidationError, match="high .* must be >= low"):
+        with pytest.raises(ValidationError, match=r"high .* must be >= low"):
             OHLCV(
                 ticker="AAPL",
                 date=date(2025, 6, 15),
@@ -266,7 +266,7 @@ class TestOHLCVValidators:
 
     def test_ohlcv_rejects_open_outside_range(self) -> None:
         """OHLCV rejects open price outside [low, high] range."""
-        with pytest.raises(ValidationError, match="open .* must be in"):
+        with pytest.raises(ValidationError, match=r"open .* must be in"):
             OHLCV(
                 ticker="AAPL",
                 date=date(2025, 6, 15),
@@ -280,7 +280,7 @@ class TestOHLCVValidators:
 
     def test_ohlcv_rejects_close_outside_range(self) -> None:
         """OHLCV rejects close price outside [low, high] range."""
-        with pytest.raises(ValidationError, match="close .* must be in"):
+        with pytest.raises(ValidationError, match=r"close .* must be in"):
             OHLCV(
                 ticker="AAPL",
                 date=date(2025, 6, 15),

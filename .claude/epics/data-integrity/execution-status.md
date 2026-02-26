@@ -15,6 +15,6 @@ branch: epic/data-integrity
 
 ## Summary
 - 4 commits on epic/data-integrity branch
-- 49 new tests added (1402 → 1466, +64)
+- 64 new tests added (1402 → 1466, +64)
 - 0 regressions
 - All verification passing: ruff, mypy --strict, pytest
