@@ -68,6 +68,18 @@ class OptionGreeks(BaseModel):
             raise ValueError(f"must be finite and >= 0, got {v}")
         return v
 
+    @field_validator("theta", "rho")
+    @classmethod
+    def validate_finite(cls, v: float) -> float:
+        """Ensure theta and rho are finite (allow negative values).
+
+        Theta is normally negative (time decay costs money).
+        Rho can be either sign depending on option type and rate direction.
+        """
+        if not math.isfinite(v):
+            raise ValueError(f"must be finite, got {v}")
+        return v
+
 
 class OptionContract(BaseModel):
     """A single option contract with market data and optional computed Greeks.

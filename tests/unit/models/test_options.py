@@ -213,6 +213,78 @@ class TestOptionGreeks:
         restored = OptionGreeks.model_validate_json(json_str)
         assert restored == sample_greeks
 
+    def test_greeks_rejects_nan_theta(self) -> None:
+        """OptionGreeks rejects NaN theta."""
+        with pytest.raises(ValidationError, match="must be finite"):
+            OptionGreeks(
+                delta=0.45,
+                gamma=0.03,
+                theta=float("nan"),
+                vega=0.15,
+                rho=0.02,
+                pricing_model=PricingModel.BAW,
+            )
+
+    def test_greeks_rejects_inf_theta(self) -> None:
+        """OptionGreeks rejects Inf theta."""
+        with pytest.raises(ValidationError, match="must be finite"):
+            OptionGreeks(
+                delta=0.45,
+                gamma=0.03,
+                theta=float("inf"),
+                vega=0.15,
+                rho=0.02,
+                pricing_model=PricingModel.BAW,
+            )
+
+    def test_greeks_rejects_nan_rho(self) -> None:
+        """OptionGreeks rejects NaN rho."""
+        with pytest.raises(ValidationError, match="must be finite"):
+            OptionGreeks(
+                delta=0.45,
+                gamma=0.03,
+                theta=-0.08,
+                vega=0.15,
+                rho=float("nan"),
+                pricing_model=PricingModel.BAW,
+            )
+
+    def test_greeks_rejects_inf_rho(self) -> None:
+        """OptionGreeks rejects Inf rho."""
+        with pytest.raises(ValidationError, match="must be finite"):
+            OptionGreeks(
+                delta=0.45,
+                gamma=0.03,
+                theta=-0.08,
+                vega=0.15,
+                rho=float("inf"),
+                pricing_model=PricingModel.BAW,
+            )
+
+    def test_greeks_allows_negative_theta(self) -> None:
+        """OptionGreeks allows negative theta (time decay costs money)."""
+        greeks = OptionGreeks(
+            delta=0.45,
+            gamma=0.03,
+            theta=-1.25,
+            vega=0.15,
+            rho=0.02,
+            pricing_model=PricingModel.BAW,
+        )
+        assert greeks.theta == pytest.approx(-1.25)
+
+    def test_greeks_allows_negative_rho(self) -> None:
+        """OptionGreeks allows negative rho."""
+        greeks = OptionGreeks(
+            delta=0.45,
+            gamma=0.03,
+            theta=-0.08,
+            vega=0.15,
+            rho=-0.05,
+            pricing_model=PricingModel.BAW,
+        )
+        assert greeks.rho == pytest.approx(-0.05)
+
 
 # ---------------------------------------------------------------------------
 # OptionContract Tests

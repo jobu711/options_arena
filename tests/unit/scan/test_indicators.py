@@ -37,15 +37,17 @@ from options_arena.scan.indicators import (
 def make_ohlcv(n: int = 300) -> list[OHLCV]:
     """Generate *n* days of synthetic OHLCV data for testing.
 
-    Produces a simple oscillating price walk around 100 with volume
+    Produces a simple oscillating price around 100 with volume
     starting at 1 000 000 and increasing linearly.  300 bars exceeds
     the warmup of every indicator in the registry.
+
+    Prices are guaranteed > 0 by oscillating around a fixed base (no drift).
     """
     bars: list[OHLCV] = []
     base_price = 100.0
     for i in range(n):
         d = date(2024, 1, 1) + timedelta(days=i)
-        close = base_price + (i % 10) - 5
+        close = base_price + (i % 10) - 5  # oscillates in [95, 104]
         bars.append(
             OHLCV(
                 ticker="TEST",
@@ -58,7 +60,6 @@ def make_ohlcv(n: int = 300) -> list[OHLCV]:
                 volume=1_000_000 + i * 1000,
             )
         )
-        base_price = close
     return bars
 
 
