@@ -51,3 +51,15 @@ htmlcov/
 
 # Runtime logs
 logs/
+
+# Node.js / Vue frontend
+web/node_modules/
+web/dist/
+web/tsconfig.tsbuildinfo
+web/tsconfig.node.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
+
+# SQLite WAL/SHM files
+data/*.db-wal
+data/*.db-shm

@@ -703,3 +703,32 @@ async def _stats_async() -> None:
     finally:
         await svc.close()
         await cache.close()
+
+
+# ---------------------------------------------------------------------------
+# serve command
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind address"),
+    port: int = typer.Option(8000, "--port", help="Port number"),
+    no_open: bool = typer.Option(False, "--no-open", help="Don't open browser automatically"),
+    reload: bool = typer.Option(False, "--reload", help="Enable auto-reload (dev mode)"),
+) -> None:
+    """Start the FastAPI web server and serve the Vue SPA."""
+    import uvicorn  # noqa: PLC0415
+
+    if not no_open:
+        import webbrowser  # noqa: PLC0415
+
+        webbrowser.open(f"http://{host}:{port}")
+
+    uvicorn.run(
+        "options_arena.api.app:create_app",
+        host=host,
+        port=port,
+        reload=reload,
+        factory=True,
+    )
