@@ -324,10 +324,9 @@ class MarketDataService:
             )
 
         price_raw = info.get("currentPrice") or info.get("regularMarketPrice")
-        if price_raw is None:
-            raise TickerNotFoundError(f"No price data for {ticker}")
-
-        price = safe_decimal(price_raw) or Decimal("0")
+        price = safe_decimal(price_raw)
+        if price is None or price <= Decimal("0"):
+            raise TickerNotFoundError(ticker, f"invalid price data: {price_raw!r}")
         bid = safe_decimal(info.get("bid")) or Decimal("0")
         ask = safe_decimal(info.get("ask")) or Decimal("0")
         volume = safe_int(info.get("volume")) or 0
@@ -378,9 +377,9 @@ class MarketDataService:
 
         # Extract current price — prefer currentPrice, fall back to previousClose
         current_price_raw = info.get("currentPrice") or info.get("previousClose")
-        if current_price_raw is None:
-            raise TickerNotFoundError(f"No price data for {ticker}")
-        current_price = safe_decimal(current_price_raw) or Decimal("0")
+        current_price = safe_decimal(current_price_raw)
+        if current_price is None or current_price <= Decimal("0"):
+            raise TickerNotFoundError(ticker, f"invalid current price: {current_price_raw!r}")
 
         # Dividend waterfall
         dividend_yield, dividend_source, dividend_rate, trailing_dividend_rate = (
