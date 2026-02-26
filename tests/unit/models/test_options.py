@@ -166,6 +166,30 @@ class TestOptionGreeks:
         )
         assert greeks.delta == pytest.approx(-1.0)
 
+    def test_delta_nan_raises(self) -> None:
+        """OptionGreeks rejects NaN delta with ValidationError."""
+        with pytest.raises(ValidationError, match="delta"):
+            OptionGreeks(
+                delta=float("nan"),
+                gamma=0.03,
+                theta=-0.08,
+                vega=0.15,
+                rho=0.02,
+                pricing_model=PricingModel.BAW,
+            )
+
+    def test_delta_inf_raises(self) -> None:
+        """OptionGreeks rejects Inf delta with ValidationError."""
+        with pytest.raises(ValidationError, match="delta"):
+            OptionGreeks(
+                delta=float("inf"),
+                gamma=0.03,
+                theta=-0.08,
+                vega=0.15,
+                rho=0.02,
+                pricing_model=PricingModel.BAW,
+            )
+
     def test_negative_gamma_raises(self) -> None:
         """OptionGreeks rejects negative gamma with ValidationError."""
         with pytest.raises(ValidationError, match="must be finite and >= 0"):

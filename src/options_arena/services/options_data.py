@@ -84,10 +84,14 @@ def _row_to_contract(
         A fully constructed ``OptionContract`` with ``greeks=None`` and
         ``exercise_style=ExerciseStyle.AMERICAN``.
     """
+    strike = safe_decimal(row.get("strike"))
+    if strike is None or strike <= Decimal("0"):
+        raise ValueError(f"invalid strike price: {row.get('strike')!r}")
+
     return OptionContract(
         ticker=ticker,
         option_type=option_type,
-        strike=safe_decimal(row.get("strike")) or Decimal("0"),
+        strike=strike,
         expiration=expiration,
         bid=safe_decimal(row.get("bid")) or Decimal("0"),
         ask=safe_decimal(row.get("ask")) or Decimal("0"),
@@ -259,13 +263,19 @@ class OptionsDataService:
         calls_df: pd.DataFrame = chain_data.calls
         for _, row in calls_df.iterrows():
             if _passes_liquidity_filter(row, self._pricing_config):
-                contracts.append(_row_to_contract(row, ticker, OptionType.CALL, expiration))
+                try:
+                    contracts.append(_row_to_contract(row, ticker, OptionType.CALL, expiration))
+                except ValueError:
+                    logger.debug("Skipping call with invalid strike for %s", ticker)
 
         # Process puts DataFrame
         puts_df: pd.DataFrame = chain_data.puts
         for _, row in puts_df.iterrows():
             if _passes_liquidity_filter(row, self._pricing_config):
-                contracts.append(_row_to_contract(row, ticker, OptionType.PUT, expiration))
+                try:
+                    contracts.append(_row_to_contract(row, ticker, OptionType.PUT, expiration))
+                except ValueError:
+                    logger.debug("Skipping put with invalid strike for %s", ticker)
 
         # Cache the result
         ttl = self._cache.ttl_for("chain")

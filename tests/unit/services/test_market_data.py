@@ -199,6 +199,61 @@ class TestFetchOHLCV:
         # Verify it did not go through float imprecision
         assert result[0].open == Decimal("1.05")
 
+    async def test_invalid_candle_skipped_gracefully(self, service: MarketDataService) -> None:
+        """Bad candle (open > high) is skipped, valid candles retained."""
+        df = _make_ohlcv_df(
+            [
+                {
+                    "Date": "2025-01-02",
+                    "Open": 150.0,
+                    "High": 155.0,
+                    "Low": 149.0,
+                    "Close": 154.0,
+                    "Volume": 1000000,
+                },
+                {
+                    "Date": "2025-01-03",
+                    "Open": 999.0,  # open > high — invalid candle
+                    "High": 158.0,
+                    "Low": 153.0,
+                    "Close": 157.0,
+                    "Volume": 1200000,
+                },
+            ]
+        )
+        mock_ticker = MagicMock()
+        mock_ticker.history.return_value = df
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.Ticker.return_value = mock_ticker
+            result = await service.fetch_ohlcv("BADCANDLE", period="1y")
+
+        # Only the valid candle should be retained
+        assert len(result) == 1
+        assert result[0].open == Decimal("150.0")
+
+    async def test_all_candles_invalid_raises(self, service: MarketDataService) -> None:
+        """When all candles fail validation, raises InsufficientDataError."""
+        df = _make_ohlcv_df(
+            [
+                {
+                    "Date": "2025-01-02",
+                    "Open": 999.0,  # open > high
+                    "High": 155.0,
+                    "Low": 149.0,
+                    "Close": 154.0,
+                    "Volume": 1000000,
+                },
+            ]
+        )
+        mock_ticker = MagicMock()
+        mock_ticker.history.return_value = df
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.Ticker.return_value = mock_ticker
+            with pytest.raises(InsufficientDataError, match="invalid prices"):
+                await service.fetch_ohlcv("ALLINVALID")
+
     async def test_cache_hit_skips_yfinance_call(self, service: MarketDataService) -> None:
         """Second call returns from cache without calling yfinance again."""
         df = _make_ohlcv_df(
@@ -400,6 +455,20 @@ class TestFetchTickerInfo:
             mock_yf.Ticker.return_value = mock_ticker
             with pytest.raises(TickerNotFoundError, match="invalid current price"):
                 await service.fetch_ticker_info("GHOST")
+
+    async def test_fetch_ticker_info_rejects_negative_price(
+        self, service: MarketDataService
+    ) -> None:
+        """When yfinance returns a negative price, raises TickerNotFoundError."""
+        info = _make_info_dict(currentPrice=-10.0)
+        mock_ticker = MagicMock()
+        mock_ticker.info = info
+        mock_ticker.get_dividends.return_value = pd.Series(dtype=float)
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.Ticker.return_value = mock_ticker
+            with pytest.raises(TickerNotFoundError, match="invalid current price"):
+                await service.fetch_ticker_info("NEGPRICE")
 
     async def test_fetch_ticker_info_rejects_zero_price(self, service: MarketDataService) -> None:
         """When yfinance returns 0.0 for currentPrice, raises TickerNotFoundError.

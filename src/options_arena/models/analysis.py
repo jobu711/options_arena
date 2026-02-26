@@ -114,6 +114,14 @@ class MarketContext(BaseModel):
         populated = sum(1 for f in checkable_fields if f is not None)
         return populated / len(checkable_fields)
 
+    @field_validator("iv_rank", "iv_percentile", "atm_iv_30d", "put_call_ratio")
+    @classmethod
+    def validate_optional_finite(cls, v: float | None) -> float | None:
+        """Reject NaN/Inf on optional float fields while allowing None."""
+        if v is not None and not math.isfinite(v):
+            raise ValueError(f"must be finite, got {v}")
+        return v
+
     @field_validator("data_timestamp")
     @classmethod
     def validate_utc(cls, v: datetime) -> datetime:

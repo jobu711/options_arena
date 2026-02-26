@@ -293,8 +293,8 @@ async def run_debate(
 | First contract's `dte` | `dte_target` |
 | `ExerciseStyle.AMERICAN` (always for US equity) | `exercise_style` |
 
-Fields like `iv_rank`, `iv_percentile`, `atm_iv_30d`, `put_call_ratio` may be `None` on
-`TickerScore.signals` — use `0.0` as safe default for `MarketContext` (required float fields).
+Fields like `iv_rank`, `iv_percentile`, `atm_iv_30d`, `put_call_ratio` are `float | None`
+on both `TickerScore.signals` and `MarketContext` — pass `None` through (not `0.0`).
 
 ---
 
@@ -350,18 +350,18 @@ BULL_SYSTEM_PROMPT = """You are a bullish options analyst. ...\n\n""" + PROMPT_R
 ```python
 def render_context_block(ctx: MarketContext) -> str:
     """Render MarketContext as flat key-value text for agent consumption."""
-    return f"""TICKER: {ctx.ticker}
-PRICE: ${ctx.current_price}
-52W HIGH: ${ctx.price_52w_high}
-52W LOW: ${ctx.price_52w_low}
-RSI(14): {ctx.rsi_14:.1f}
-MACD: {ctx.macd_signal.value}
-IV RANK: {ctx.iv_rank:.1f}
-SECTOR: {ctx.sector}
-TARGET STRIKE: ${ctx.target_strike}
-TARGET DELTA: {ctx.target_delta:.2f}
-DTE: {ctx.dte_target}
-DIV YIELD: {ctx.dividend_yield:.2%}"""
+    # Static fields always present, optional float|None fields rendered via
+    # _render_optional() which guards against None AND NaN/Inf.
+    lines = [f"TICKER: {ctx.ticker}", f"PRICE: ${ctx.current_price}", ...]
+    for label, value, fmt in [
+        ("IV RANK", ctx.iv_rank, ".1f"),       # float | None
+        ("IV PERCENTILE", ctx.iv_percentile, ".1f"),
+        ("PUT/CALL RATIO", ctx.put_call_ratio, ".2f"),
+        ("ATM IV 30D", ctx.atm_iv_30d, ".1f"),
+    ]:
+        rendered = _render_optional(label, value, fmt)
+        if rendered is not None:
+            lines.append(rendered)
 ```
 
 ---

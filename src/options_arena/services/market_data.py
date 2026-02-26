@@ -19,6 +19,7 @@ from typing import Any, cast
 import pandas as pd
 import yfinance as yf  # type: ignore[import-untyped]
 from pydantic import BaseModel
+from pydantic import ValidationError as PydanticValidationError
 
 from options_arena.models.config import ServiceConfig
 from options_arena.models.enums import DividendSource, MarketCapTier
@@ -275,18 +276,22 @@ class MarketDataService:
                 logger.debug("Skipping row with None price for %s on %s", ticker, row_date)
                 continue
 
-            records.append(
-                OHLCV(
-                    ticker=ticker,
-                    date=row_date,
-                    open=open_d,
-                    high=high_d,
-                    low=low_d,
-                    close=close_d,
-                    volume=volume_i,
-                    adjusted_close=adj_close_d if adj_close_d is not None else close_d,
+            try:
+                records.append(
+                    OHLCV(
+                        ticker=ticker,
+                        date=row_date,
+                        open=open_d,
+                        high=high_d,
+                        low=low_d,
+                        close=close_d,
+                        volume=volume_i,
+                        adjusted_close=adj_close_d if adj_close_d is not None else close_d,
+                    )
                 )
-            )
+            except PydanticValidationError:
+                logger.debug("Skipping invalid candle for %s on %s", ticker, row_date)
+                continue
 
         if not records:
             raise InsufficientDataError(ticker, "all OHLCV rows had invalid prices")

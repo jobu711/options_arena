@@ -55,9 +55,9 @@ class OptionGreeks(BaseModel):
     @field_validator("delta")
     @classmethod
     def validate_delta(cls, v: float) -> float:
-        """Ensure delta is within [-1.0, 1.0]."""
-        if not -1.0 <= v <= 1.0:
-            raise ValueError(f"delta must be in [-1.0, 1.0], got {v}")
+        """Ensure delta is finite and within [-1.0, 1.0]."""
+        if not math.isfinite(v) or not -1.0 <= v <= 1.0:
+            raise ValueError(f"delta must be finite and in [-1.0, 1.0], got {v}")
         return v
 
     @field_validator("gamma", "vega")

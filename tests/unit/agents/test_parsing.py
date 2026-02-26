@@ -400,6 +400,30 @@ class TestRenderContextBlock:
         text = render_context_block(mock_market_context)
         assert isinstance(text, str)
 
+    def test_none_iv_rank_omitted(self, mock_market_context: MarketContext) -> None:
+        """When iv_rank is None, IV RANK line is omitted from output."""
+        mock_market_context.iv_rank = None
+        text = render_context_block(mock_market_context)
+        assert "IV RANK" not in text
+
+    def test_nan_iv_rank_omitted(self, mock_market_context: MarketContext) -> None:
+        """When iv_rank is NaN, IV RANK line is omitted from output."""
+        mock_market_context.iv_rank = float("nan")
+        text = render_context_block(mock_market_context)
+        assert "IV RANK" not in text
+
+    def test_inf_put_call_ratio_omitted(self, mock_market_context: MarketContext) -> None:
+        """When put_call_ratio is Inf, PUT/CALL RATIO line is omitted."""
+        mock_market_context.put_call_ratio = float("inf")
+        text = render_context_block(mock_market_context)
+        assert "PUT/CALL RATIO" not in text
+
+    def test_nan_atm_iv_omitted(self, mock_market_context: MarketContext) -> None:
+        """When atm_iv_30d is NaN, ATM IV 30D line is omitted."""
+        mock_market_context.atm_iv_30d = float("nan")
+        text = render_context_block(mock_market_context)
+        assert "ATM IV 30D" not in text
+
 
 # ---------------------------------------------------------------------------
 # strip_think_tags

@@ -215,22 +215,23 @@ async def run_debate(
     start_time = time.monotonic()
     context = build_market_context(ticker_score, quote, ticker_info, contracts)
 
+    completeness = context.completeness_ratio()
+
     if not should_debate(ticker_score, config):
         logger.info("Skipping debate for %s: signal too weak", ticker_score.ticker)
         result = _build_screening_fallback(context, ticker_score, contracts, config, start_time)
-    elif context.completeness_ratio() < 0.6:
-        ratio = context.completeness_ratio()
+    elif completeness < 0.6:
         logger.warning(
             "MarketContext completeness %.0f%% < 60%% for %s — using data-driven fallback",
-            ratio * 100,
+            completeness * 100,
             context.ticker,
         )
         result = _build_fallback_result(context, ticker_score, contracts, config, start_time)
     else:
-        if context.completeness_ratio() < 0.8:
+        if completeness < 0.8:
             logger.warning(
                 "MarketContext completeness %.0f%% < 80%% for %s — proceeding with caution",
-                context.completeness_ratio() * 100,
+                completeness * 100,
                 context.ticker,
             )
         try:

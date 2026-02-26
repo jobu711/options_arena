@@ -200,6 +200,113 @@ class TestMarketContext:
         restored = MarketContext.model_validate_json(json_str)
         assert restored == sample_market_context
 
+    def test_iv_rank_nan_raises(self) -> None:
+        """MarketContext rejects NaN iv_rank."""
+        with pytest.raises(ValidationError, match="finite"):
+            MarketContext(
+                ticker="AAPL",
+                current_price=Decimal("186.50"),
+                price_52w_high=Decimal("199.62"),
+                price_52w_low=Decimal("164.08"),
+                iv_rank=float("nan"),
+                rsi_14=42.0,
+                macd_signal=MacdSignal.BULLISH_CROSSOVER,
+                next_earnings=None,
+                dte_target=45,
+                target_strike=Decimal("185.00"),
+                target_delta=0.35,
+                sector="Technology",
+                dividend_yield=0.005,
+                exercise_style=ExerciseStyle.AMERICAN,
+                data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+            )
+
+    def test_iv_percentile_inf_raises(self) -> None:
+        """MarketContext rejects Inf iv_percentile."""
+        with pytest.raises(ValidationError, match="finite"):
+            MarketContext(
+                ticker="AAPL",
+                current_price=Decimal("186.50"),
+                price_52w_high=Decimal("199.62"),
+                price_52w_low=Decimal("164.08"),
+                iv_percentile=float("inf"),
+                rsi_14=42.0,
+                macd_signal=MacdSignal.BULLISH_CROSSOVER,
+                next_earnings=None,
+                dte_target=45,
+                target_strike=Decimal("185.00"),
+                target_delta=0.35,
+                sector="Technology",
+                dividend_yield=0.005,
+                exercise_style=ExerciseStyle.AMERICAN,
+                data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+            )
+
+    def test_put_call_ratio_nan_raises(self) -> None:
+        """MarketContext rejects NaN put_call_ratio."""
+        with pytest.raises(ValidationError, match="finite"):
+            MarketContext(
+                ticker="AAPL",
+                current_price=Decimal("186.50"),
+                price_52w_high=Decimal("199.62"),
+                price_52w_low=Decimal("164.08"),
+                put_call_ratio=float("nan"),
+                rsi_14=42.0,
+                macd_signal=MacdSignal.BULLISH_CROSSOVER,
+                next_earnings=None,
+                dte_target=45,
+                target_strike=Decimal("185.00"),
+                target_delta=0.35,
+                sector="Technology",
+                dividend_yield=0.005,
+                exercise_style=ExerciseStyle.AMERICAN,
+                data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+            )
+
+    def test_atm_iv_30d_neg_inf_raises(self) -> None:
+        """MarketContext rejects -Inf atm_iv_30d."""
+        with pytest.raises(ValidationError, match="finite"):
+            MarketContext(
+                ticker="AAPL",
+                current_price=Decimal("186.50"),
+                price_52w_high=Decimal("199.62"),
+                price_52w_low=Decimal("164.08"),
+                atm_iv_30d=float("-inf"),
+                rsi_14=42.0,
+                macd_signal=MacdSignal.BULLISH_CROSSOVER,
+                next_earnings=None,
+                dte_target=45,
+                target_strike=Decimal("185.00"),
+                target_delta=0.35,
+                sector="Technology",
+                dividend_yield=0.005,
+                exercise_style=ExerciseStyle.AMERICAN,
+                data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+            )
+
+    def test_optional_floats_accept_none(self) -> None:
+        """MarketContext accepts None for iv_rank, iv_percentile, atm_iv_30d, put_call_ratio."""
+        ctx = MarketContext(
+            ticker="AAPL",
+            current_price=Decimal("186.50"),
+            price_52w_high=Decimal("199.62"),
+            price_52w_low=Decimal("164.08"),
+            rsi_14=42.0,
+            macd_signal=MacdSignal.BULLISH_CROSSOVER,
+            next_earnings=None,
+            dte_target=45,
+            target_strike=Decimal("185.00"),
+            target_delta=0.35,
+            sector="Technology",
+            dividend_yield=0.005,
+            exercise_style=ExerciseStyle.AMERICAN,
+            data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+        )
+        assert ctx.iv_rank is None
+        assert ctx.iv_percentile is None
+        assert ctx.atm_iv_30d is None
+        assert ctx.put_call_ratio is None
+
 
 # ---------------------------------------------------------------------------
 # AgentResponse Tests
