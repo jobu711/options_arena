@@ -31,6 +31,7 @@ class ScanConfig(BaseModel):
     rsi_overbought: float = 70.0
     rsi_oversold: float = 30.0
     options_per_ticker_timeout: float = 120.0
+    options_batch_size: int = 5
 
 
 class PricingConfig(BaseModel):

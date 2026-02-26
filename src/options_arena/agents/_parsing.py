@@ -214,9 +214,6 @@ def render_context_block(ctx: MarketContext) -> str:
         f"52W LOW: ${ctx.price_52w_low}",
         f"RSI(14): {ctx.rsi_14:.1f}",
         f"MACD: {ctx.macd_signal.value}",
-        f"IV RANK: {ctx.iv_rank:.1f}",
-        f"IV PERCENTILE: {ctx.iv_percentile:.1f}",
-        f"PUT/CALL RATIO: {ctx.put_call_ratio:.2f}",
         f"SECTOR: {ctx.sector}",
         f"TARGET STRIKE: ${ctx.target_strike}",
         f"TARGET DELTA: {ctx.target_delta:.2f}",
@@ -227,6 +224,14 @@ def render_context_block(ctx: MarketContext) -> str:
         f"COMPOSITE SCORE: {ctx.composite_score:.1f}",
         f"DIRECTION: {ctx.direction_signal.value}",
     ]
+
+    # Options-specific fields — omit when unavailable (0.0 = not computed)
+    if ctx.iv_rank > 0.0:
+        lines.append(f"IV RANK: {ctx.iv_rank:.1f}")
+    if ctx.iv_percentile > 0.0:
+        lines.append(f"IV PERCENTILE: {ctx.iv_percentile:.1f}")
+    if ctx.put_call_ratio > 0.0:
+        lines.append(f"PUT/CALL RATIO: {ctx.put_call_ratio:.2f}")
 
     # ATM IV 30D — only render when available (derived from first contract)
     if ctx.atm_iv_30d > 0.0:

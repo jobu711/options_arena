@@ -94,6 +94,12 @@ def _extract_dividend_yield(
     if forward_yield is not None:
         yield_val = safe_float(forward_yield)
         if yield_val is not None:
+            # yfinance >= 1.2.0 returns dividendYield as a percentage number
+            # (e.g., 3.58 meaning 3.58%) instead of a decimal fraction (0.0358).
+            # Normalize: no real stock has a >100% annual dividend yield as a
+            # decimal fraction, so values > 1.0 are unambiguously percentages.
+            if yield_val > 1.0:
+                yield_val = yield_val / 100.0
             _cross_validate_yield(yield_val, dividend_rate, current_price, "forward")
             return (yield_val, DividendSource.FORWARD, dividend_rate, trailing_dividend_rate)
 

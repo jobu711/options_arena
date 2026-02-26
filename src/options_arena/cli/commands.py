@@ -34,10 +34,15 @@ from options_arena.cli.rendering import (
     render_scan_table,
 )
 from options_arena.data import Database, Repository
-from options_arena.models import TickerScore
+from options_arena.models import IndicatorSignals, TickerScore
 from options_arena.models.config import AppSettings
 from options_arena.models.enums import ScanPreset
 from options_arena.scan import CancellationToken, ScanPipeline, ScanResult
+from options_arena.scan.indicators import (
+    INDICATOR_REGISTRY,
+    compute_indicators,
+    ohlcv_to_dataframe,
+)
 from options_arena.scoring import recommend_contracts
 from options_arena.services.cache import ServiceCache
 from options_arena.services.fred import FredService
@@ -379,13 +384,30 @@ async def _debate_single(
     """
     ticker = ticker_score.ticker
 
-    quote = await market_data.fetch_quote(ticker)
-    ticker_info = await market_data.fetch_ticker_info(ticker)
-
-    # Fetch risk-free rate and option chains concurrently
+    # Fetch quote, ticker info, OHLCV, risk-free rate, and option chains concurrently
+    quote_task = market_data.fetch_quote(ticker)
+    info_task = market_data.fetch_ticker_info(ticker)
+    ohlcv_task = market_data.fetch_ohlcv(ticker, period="1y")
     risk_free_task = fred.fetch_risk_free_rate()
     chains_task = options_data.fetch_chain_all_expirations(ticker)
-    risk_free_rate, chain_results = await asyncio.gather(risk_free_task, chains_task)
+
+    quote, ticker_info, ohlcv_list, risk_free_rate, chain_results = await asyncio.gather(
+        quote_task, info_task, ohlcv_task, risk_free_task, chains_task
+    )
+
+    # Compute raw indicators from OHLCV data so the debate context gets
+    # actual values (e.g., RSI=65.3) instead of percentile-ranked values
+    # (e.g., RSI=99.0 meaning "higher than 99% of peers").
+    # TickerScore.signals from the DB contains percentile-ranked values.
+    raw_signals: IndicatorSignals
+    if ohlcv_list:
+        df = ohlcv_to_dataframe(ohlcv_list)
+        raw_signals = compute_indicators(df, INDICATOR_REGISTRY)
+    else:
+        raw_signals = ticker_score.signals
+
+    # Create a ticker score copy with raw indicator signals for the debate
+    debate_score = ticker_score.model_copy(update={"signals": raw_signals})
 
     # Flatten all contracts across expirations
     all_contracts = [c for chain in chain_results for c in chain.contracts]
@@ -394,7 +416,7 @@ async def _debate_single(
     spot = float(ticker_info.current_price)
     contracts = recommend_contracts(
         contracts=all_contracts,
-        direction=ticker_score.direction,
+        direction=debate_score.direction,
         spot=spot,
         risk_free_rate=risk_free_rate,
         dividend_yield=ticker_info.dividend_yield,
@@ -426,7 +448,7 @@ async def _debate_single(
         )
 
     return await run_debate(
-        ticker_score=ticker_score,
+        ticker_score=debate_score,
         contracts=contracts,
         quote=quote,
         ticker_info=ticker_info,

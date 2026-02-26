@@ -355,34 +355,45 @@ class ScanPipeline:
         risk_free_rate: float = await self._fred.fetch_risk_free_rate()
         logger.info("Risk-free rate: %.4f", risk_free_rate)
 
-        # Step 4: Concurrent per-ticker options processing
+        # Step 4: Per-ticker options processing in batches
+        # Processing all tickers concurrently overwhelms the rate limiter,
+        # causing timeouts. Batching ensures each batch's operations complete
+        # well within the per-ticker timeout.
         progress(ScanPhase.OPTIONS, 0, len(top_scores))
 
         per_ticker_timeout = self._settings.scan.options_per_ticker_timeout
-        tasks = [
-            asyncio.wait_for(
-                self._process_ticker_options(ts, risk_free_rate),
-                timeout=per_ticker_timeout,
-            )
-            for ts in top_scores
-        ]
-        results: list[tuple[str, list[OptionContract]] | BaseException] = await asyncio.gather(
-            *tasks, return_exceptions=True
-        )
-
+        batch_size = self._settings.scan.options_batch_size
         recommendations: dict[str, list[OptionContract]] = {}
-        for ts, result in zip(top_scores, results, strict=True):
-            if isinstance(result, BaseException):
-                logger.warning(
-                    "Options processing failed for %s: %s: %s",
-                    ts.ticker,
-                    type(result).__name__,
-                    result,
+        completed = 0
+
+        for batch_start in range(0, len(top_scores), batch_size):
+            batch = top_scores[batch_start : batch_start + batch_size]
+            batch_tasks = [
+                asyncio.wait_for(
+                    self._process_ticker_options(ts, risk_free_rate),
+                    timeout=per_ticker_timeout,
                 )
-            else:
-                ticker, contracts = result
-                if contracts:
-                    recommendations[ticker] = contracts
+                for ts in batch
+            ]
+            batch_results: list[
+                tuple[str, list[OptionContract]] | BaseException
+            ] = await asyncio.gather(*batch_tasks, return_exceptions=True)
+
+            for ts, result in zip(batch, batch_results, strict=True):
+                if isinstance(result, BaseException):
+                    logger.warning(
+                        "Options processing failed for %s: %s: %s",
+                        ts.ticker,
+                        type(result).__name__,
+                        result,
+                    )
+                else:
+                    ticker, contracts = result
+                    if contracts:
+                        recommendations[ticker] = contracts
+                completed += 1
+
+            progress(ScanPhase.OPTIONS, completed, len(top_scores))
 
         logger.info(
             "Options phase complete: %d recommendations from %d tickers",
