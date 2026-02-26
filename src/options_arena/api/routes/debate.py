@@ -20,6 +20,7 @@ from options_arena.api.schemas import (
     BatchDebateStarted,
     BatchTickerResult,
     DebateRequest,
+    DebateResultDetail,
     DebateResultSummary,
     DebateStarted,
 )
@@ -85,7 +86,7 @@ async def _run_debate_background(
             quote=quote,
             ticker_info=ticker_info,
             config=settings.debate,
-            repository=repo,
+            repository=None,  # Route handles persistence — avoid double save
             progress=bridge,
         )
 
@@ -186,101 +187,102 @@ async def _run_batch_debate_background(
     bridge: BatchProgressBridge,
     lock: asyncio.Lock,
 ) -> None:
-    """Run sequential debates for a batch of tickers."""
+    """Run sequential debates for a batch of tickers.
+
+    The lock is already acquired by the caller — this task releases it on completion.
+    """
     results: list[BatchTickerResult] = []
     try:
-        async with lock:
-            all_scores = await repo.get_scores_for_scan(scan_id)
-            for idx, ticker in enumerate(tickers):
-                bridge.batch_progress(ticker, idx + 1, len(tickers), "started")
-                try:
-                    quote = await market_data.fetch_quote(ticker)
-                    ticker_info = await market_data.fetch_ticker_info(ticker)
+        all_scores = await repo.get_scores_for_scan(scan_id)
+        for idx, ticker in enumerate(tickers):
+            bridge.batch_progress(ticker, idx + 1, len(tickers), "started")
+            try:
+                quote = await market_data.fetch_quote(ticker)
+                ticker_info = await market_data.fetch_ticker_info(ticker)
 
-                    score_match = next((s for s in all_scores if s.ticker == ticker), None)
-                    if score_match is None:
-                        from options_arena.models import (  # noqa: PLC0415
-                            IndicatorSignals,
-                            SignalDirection,
-                            TickerScore,
-                        )
-
-                        score_match = TickerScore(
-                            ticker=ticker,
-                            composite_score=50.0,
-                            direction=SignalDirection.NEUTRAL,
-                            signals=IndicatorSignals(),
-                        )
-
-                    contracts = []
-                    chain_results = await options_data.fetch_chain_all_expirations(ticker)
-                    for chain in chain_results:
-                        contracts.extend(chain.contracts)
-
-                    # Create a per-ticker agent bridge that forwards to the batch bridge
-                    agent_bridge = bridge.agent_bridge(ticker)
-
-                    result: DebateResult = await run_debate(
-                        ticker_score=score_match,
-                        contracts=contracts,
-                        quote=quote,
-                        ticker_info=ticker_info,
-                        config=settings.debate,
-                        repository=repo,
-                        progress=agent_bridge,
+                score_match = next((s for s in all_scores if s.ticker == ticker), None)
+                if score_match is None:
+                    from options_arena.models import (  # noqa: PLC0415
+                        IndicatorSignals,
+                        SignalDirection,
+                        TickerScore,
                     )
 
-                    total_tokens = (
-                        result.total_usage.input_tokens + result.total_usage.output_tokens
-                    )
-                    debate_id = await repo.save_debate(
-                        scan_run_id=scan_id,
+                    score_match = TickerScore(
                         ticker=ticker,
-                        bull_json=result.bull_response.model_dump_json(),
-                        bear_json=result.bear_response.model_dump_json(),
-                        risk_json=result.thesis.model_dump_json(),
-                        verdict_json=result.thesis.model_dump_json(),
-                        total_tokens=total_tokens,
-                        model_name=result.bull_response.model_used,
-                        duration_ms=result.duration_ms,
-                        is_fallback=result.is_fallback,
-                        vol_json=(
-                            result.vol_response.model_dump_json()
-                            if result.vol_response is not None
-                            else None
-                        ),
-                        rebuttal_json=(
-                            result.bull_rebuttal.model_dump_json()
-                            if result.bull_rebuttal is not None
-                            else None
-                        ),
+                        composite_score=50.0,
+                        direction=SignalDirection.NEUTRAL,
+                        signals=IndicatorSignals(),
                     )
 
-                    direction = result.thesis.direction.value
-                    confidence = result.thesis.confidence
-                    results.append(
-                        BatchTickerResult(
-                            ticker=ticker,
-                            debate_id=debate_id,
-                            direction=direction,
-                            confidence=confidence,
-                        )
-                    )
-                    bridge.batch_progress(ticker, idx + 1, len(tickers), "completed")
+                contracts = []
+                chain_results = await options_data.fetch_chain_all_expirations(ticker)
+                for chain in chain_results:
+                    contracts.extend(chain.contracts)
 
-                except Exception:
-                    logger.exception("Batch debate failed for %s", ticker)
-                    results.append(
-                        BatchTickerResult(ticker=ticker, error=f"Debate failed for {ticker}")
-                    )
-                    bridge.batch_progress(ticker, idx + 1, len(tickers), "failed")
+                # Create a per-ticker agent bridge that forwards to the batch bridge
+                agent_bridge = bridge.agent_bridge(ticker)
 
-            bridge.batch_complete(results)
+                result: DebateResult = await run_debate(
+                    ticker_score=score_match,
+                    contracts=contracts,
+                    quote=quote,
+                    ticker_info=ticker_info,
+                    config=settings.debate,
+                    repository=None,  # Route handles persistence — avoid double save
+                    progress=agent_bridge,
+                )
+
+                total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens
+                debate_id = await repo.save_debate(
+                    scan_run_id=scan_id,
+                    ticker=ticker,
+                    bull_json=result.bull_response.model_dump_json(),
+                    bear_json=result.bear_response.model_dump_json(),
+                    risk_json=result.thesis.model_dump_json(),
+                    verdict_json=result.thesis.model_dump_json(),
+                    total_tokens=total_tokens,
+                    model_name=result.bull_response.model_used,
+                    duration_ms=result.duration_ms,
+                    is_fallback=result.is_fallback,
+                    vol_json=(
+                        result.vol_response.model_dump_json()
+                        if result.vol_response is not None
+                        else None
+                    ),
+                    rebuttal_json=(
+                        result.bull_rebuttal.model_dump_json()
+                        if result.bull_rebuttal is not None
+                        else None
+                    ),
+                )
+
+                direction = result.thesis.direction.value
+                confidence = result.thesis.confidence
+                results.append(
+                    BatchTickerResult(
+                        ticker=ticker,
+                        debate_id=debate_id,
+                        direction=direction,
+                        confidence=confidence,
+                    )
+                )
+                bridge.batch_progress(ticker, idx + 1, len(tickers), "completed")
+
+            except Exception:
+                logger.exception("Batch debate failed for %s", ticker)
+                results.append(
+                    BatchTickerResult(ticker=ticker, error=f"Debate failed for {ticker}")
+                )
+                bridge.batch_progress(ticker, idx + 1, len(tickers), "failed")
+
+        bridge.batch_complete(results)
     except Exception:
         logger.exception("Batch %d failed unexpectedly", batch_id)
         bridge.error(f"Batch debate {batch_id} failed")
         bridge.batch_complete(results)
     finally:
+        lock.release()
         batch_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
             request.app.state, "batch_queues", {}
         )
@@ -301,7 +303,7 @@ async def start_batch_debate(
     if lock.locked():
         raise HTTPException(409, "Another operation is in progress")
 
-    # Determine tickers to debate
+    # Determine tickers to debate (before acquiring lock — these are read-only ops)
     if body.tickers is not None:
         tickers = [t.upper() for t in body.tickers]
     else:
@@ -313,6 +315,11 @@ async def start_batch_debate(
 
     if not tickers:
         raise HTTPException(422, "No tickers to debate")
+
+    # Acquire the lock atomically before creating the background task
+    if lock.locked():
+        raise HTTPException(409, "Another operation is in progress")
+    await lock.acquire()
 
     # Allocate batch ID
     if not hasattr(request.app.state, "batch_counter"):
@@ -388,35 +395,30 @@ async def list_debates(
 async def get_debate(
     debate_id: int,
     repo: Repository = Depends(get_repo),
-) -> dict[str, object]:
+) -> DebateResultDetail:
     """Get full debate result by ID."""
     row = await repo.get_debate_by_id(debate_id)
     if row is None:
         raise HTTPException(404, "Debate not found")
 
-    # Reconstruct structured response from stored JSON
-    result: dict[str, object] = {
-        "id": row.id,
-        "ticker": row.ticker,
-        "is_fallback": row.is_fallback,
-        "model_name": row.model_name,
-        "duration_ms": row.duration_ms,
-        "total_tokens": row.total_tokens,
-        "created_at": row.created_at.isoformat(),
-        "debate_mode": row.debate_mode,
-        "citation_density": row.citation_density,
-    }
+    # Parse stored JSON into typed models
+    bull = AgentResponse.model_validate_json(row.bull_json) if row.bull_json else None
+    bear = AgentResponse.model_validate_json(row.bear_json) if row.bear_json else None
+    thesis = TradeThesis.model_validate_json(row.verdict_json) if row.verdict_json else None
 
-    # Parse stored JSON into typed models for response
-    if row.bull_json is not None:
-        result["bull_response"] = AgentResponse.model_validate_json(row.bull_json).model_dump()
-    if row.bear_json is not None:
-        result["bear_response"] = AgentResponse.model_validate_json(row.bear_json).model_dump()
-    if row.verdict_json is not None:
-        result["thesis"] = TradeThesis.model_validate_json(row.verdict_json).model_dump()
-    if row.vol_json is not None:
-        result["vol_response"] = row.vol_json
-    if row.rebuttal_json is not None:
-        result["bull_rebuttal"] = row.rebuttal_json
-
-    return result
+    return DebateResultDetail(
+        id=row.id,
+        ticker=row.ticker,
+        is_fallback=row.is_fallback,
+        model_name=row.model_name,
+        duration_ms=row.duration_ms,
+        total_tokens=row.total_tokens,
+        created_at=row.created_at.isoformat(),
+        debate_mode=row.debate_mode,
+        citation_density=row.citation_density,
+        bull_response=bull,
+        bear_response=bear,
+        thesis=thesis,
+        vol_response=row.vol_json,
+        bull_rebuttal=row.rebuttal_json,
+    )

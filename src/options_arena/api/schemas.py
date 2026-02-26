@@ -10,7 +10,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from options_arena.models import ScanPreset, SignalDirection
+from options_arena.models import AgentResponse, ScanPreset, SignalDirection, TradeThesis
 
 # ---------------------------------------------------------------------------
 # Scan schemas (#126)
@@ -44,7 +44,7 @@ class TickerDetail(BaseModel):
     ticker: str
     composite_score: float
     direction: SignalDirection
-    contracts: list[dict[str, object]]
+    contracts: list[str]  # Contract identifiers — empty until contracts are persisted
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +78,25 @@ class DebateResultSummary(BaseModel):
     model_name: str
     duration_ms: int
     created_at: datetime
+
+
+class DebateResultDetail(BaseModel):
+    """Full debate result returned by ``GET /api/debate/{id}``."""
+
+    id: int
+    ticker: str
+    is_fallback: bool
+    model_name: str
+    duration_ms: int
+    total_tokens: int
+    created_at: str
+    debate_mode: str | None = None
+    citation_density: float | None = None
+    bull_response: AgentResponse | None = None
+    bear_response: AgentResponse | None = None
+    thesis: TradeThesis | None = None
+    vol_response: str | None = None
+    bull_rebuttal: str | None = None
 
 
 # ---------------------------------------------------------------------------

@@ -721,9 +721,15 @@ def serve(
     import uvicorn  # noqa: PLC0415
 
     if not no_open:
+        import threading  # noqa: PLC0415
+        import time  # noqa: PLC0415
         import webbrowser  # noqa: PLC0415
 
-        webbrowser.open(f"http://{host}:{port}")
+        def _open_browser() -> None:
+            time.sleep(1.5)  # Wait for uvicorn to start
+            webbrowser.open(f"http://{host}:{port}")
+
+        threading.Thread(target=_open_browser, daemon=True).start()
 
     uvicorn.run(
         "options_arena.api.app:create_app",

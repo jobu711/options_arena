@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
@@ -49,24 +48,31 @@ async def _run_scan_background(
     repo: Repository,
     lock: asyncio.Lock,
 ) -> None:
-    """Run the scan pipeline as a background task."""
+    """Run the scan pipeline as a background task.
+
+    The lock is already acquired by the caller — this task releases it on completion.
+    """
     try:
-        async with lock:
-            result: ScanResult = await pipeline.run(preset, token, bridge)
+        result: ScanResult = await pipeline.run(preset, token, bridge)
 
-            # Persist
-            actual_id = await repo.save_scan_run(result.scan_run)
-            await repo.save_ticker_scores(actual_id, result.scores)
+        # Persist
+        actual_id = await repo.save_scan_run(result.scan_run)
+        await repo.save_ticker_scores(actual_id, result.scores)
 
-            bridge.complete(actual_id, cancelled=result.cancelled)
+        bridge.complete(actual_id, cancelled=result.cancelled)
     except Exception:
         logger.exception("Scan %d failed", scan_id)
         bridge.error("Scan failed due to an internal error")
         bridge.complete(scan_id, cancelled=False)
     finally:
+        lock.release()
         # Clean up app.state references
         active_scans: dict[int, CancellationToken] = getattr(request.app.state, "active_scans", {})
         active_scans.pop(scan_id, None)
+        scan_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
+            request.app.state, "scan_queues", {}
+        )
+        scan_queues.pop(scan_id, None)
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +96,9 @@ async def start_scan(
     if lock.locked():
         raise HTTPException(409, "Another operation is in progress")
 
+    # Acquire the lock atomically before any awaits to prevent TOCTOU race
+    await lock.acquire()
+
     token = CancellationToken()
     bridge = WebSocketProgressBridge()
     pipeline = ScanPipeline(
@@ -101,15 +110,11 @@ async def start_scan(
         repository=repo,
     )
 
-    # Create a placeholder scan run to get an ID for WebSocket subscription
-    placeholder = ScanRun(
-        started_at=datetime.now(UTC),
-        preset=body.preset,
-        tickers_scanned=0,
-        tickers_scored=0,
-        recommendations=0,
-    )
-    scan_id = await repo.save_scan_run(placeholder)
+    # Use a counter for scan IDs (no orphaned placeholder rows)
+    if not hasattr(request.app.state, "scan_counter"):
+        request.app.state.scan_counter = 0
+    request.app.state.scan_counter += 1
+    scan_id: int = request.app.state.scan_counter
 
     # Register for WebSocket + cancellation
     if not hasattr(request.app.state, "active_scans"):
@@ -120,6 +125,7 @@ async def start_scan(
     request.app.state.active_scans[scan_id] = token
     request.app.state.scan_queues[scan_id] = bridge.queue
 
+    # Background task owns the lock and releases it on completion
     asyncio.create_task(
         _run_scan_background(request, scan_id, body.preset, token, bridge, pipeline, repo, lock)
     )

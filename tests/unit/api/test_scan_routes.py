@@ -175,10 +175,9 @@ async def test_cancel_scan_no_active(client: AsyncClient) -> None:
     assert response.status_code == 404
 
 
-async def test_post_scan_returns_202(client: AsyncClient, mock_repo: MagicMock) -> None:
-    """POST /api/scan returns 202 with scan_id."""
-    mock_repo.save_scan_run = AsyncMock(return_value=42)
+async def test_post_scan_returns_202(client: AsyncClient) -> None:
+    """POST /api/scan returns 202 with scan_id (counter-based, no DB placeholder)."""
     response = await client.post("/api/scan", json={"preset": "sp500"})
     assert response.status_code == 202
     data = response.json()
-    assert data["scan_id"] == 42
+    assert data["scan_id"] >= 1

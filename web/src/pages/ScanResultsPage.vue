@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import DataTable, { type DataTableSortEvent, type DataTablePageEvent } from 'primevue/datatable'
@@ -32,6 +32,10 @@ const debateModalVisible = ref(false)
 const debatingTicker = ref('')
 const batchModalVisible = ref(false)
 
+// WebSocket close handles for cleanup
+let debateWsClose: (() => void) | null = null
+let batchWsClose: (() => void) | null = null
+
 // Single debate
 async function startDebate(ticker: string): Promise<void> {
   try {
@@ -39,7 +43,7 @@ async function startDebate(ticker: string): Promise<void> {
     debateModalVisible.value = true
     const debateId = await debateStore.startDebate(ticker, scanId)
 
-    useWebSocket<DebateEvent>({
+    const { close } = useWebSocket<DebateEvent>({
       url: `/ws/debate/${debateId}`,
       onMessage(event) {
         switch (event.type) {
@@ -51,12 +55,14 @@ async function startDebate(ticker: string): Promise<void> {
             break
           case 'complete':
             debateStore.setDebateComplete(event.debate_id)
+            close()  // Stop reconnection — terminal event
             debateModalVisible.value = false
             router.push(`/debate/${event.debate_id}`)
             break
         }
       },
     })
+    debateWsClose = close
   } catch (e) {
     debateModalVisible.value = false
     debateStore.reset()
@@ -72,7 +78,7 @@ async function startBatchDebate(tickers: string[] | null, limit: number): Promis
     operationStore.start('batch_debate')
     const batchId = await debateStore.startBatchDebate(scanId, tickers, limit)
 
-    useWebSocket<BatchEvent>({
+    const { close } = useWebSocket<BatchEvent>({
       url: `/ws/batch/${batchId}`,
       onMessage(event) {
         switch (event.type) {
@@ -88,10 +94,12 @@ async function startBatchDebate(tickers: string[] | null, limit: number): Promis
           case 'batch_complete':
             debateStore.setBatchComplete(event.results)
             operationStore.finish()
+            close()  // Stop reconnection — terminal event
             break
         }
       },
     })
+    batchWsClose = close
   } catch (e) {
     batchModalVisible.value = false
     debateStore.resetBatch()
@@ -206,6 +214,10 @@ watch(search, () => {
 })
 
 onMounted(() => void loadScores())
+onUnmounted(() => {
+  debateWsClose?.()
+  batchWsClose?.()
+})
 </script>
 
 <template>

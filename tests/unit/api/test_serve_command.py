@@ -70,12 +70,13 @@ def test_serve_reload_flag(mock_run: MagicMock) -> None:
 
 
 @patch("uvicorn.run")
-@patch("webbrowser.open")
-def test_serve_opens_browser_by_default(mock_browser: MagicMock, mock_run: MagicMock) -> None:
-    """serve opens browser unless --no-open is set."""
+@patch("threading.Thread")
+def test_serve_opens_browser_by_default(mock_thread: MagicMock, mock_run: MagicMock) -> None:
+    """serve starts a background thread to open browser unless --no-open is set."""
     result = runner.invoke(app, ["serve"])
     assert result.exit_code == 0
-    mock_browser.assert_called_once_with("http://127.0.0.1:8000")
+    mock_thread.assert_called_once()
+    mock_thread.return_value.start.assert_called_once()
     mock_run.assert_called_once()
 
 

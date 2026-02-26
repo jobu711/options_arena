@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import os
 import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 
 from options_arena.api.deps import get_repo
 from options_arena.data import Repository
@@ -141,13 +143,15 @@ async def export_debate(
     filename = f"{row.ticker}_debate_{debate_id}"
 
     if fmt == "md":
-        tmp = Path(tempfile.mktemp(suffix=".md"))
-        tmp.write_text(md_content, encoding="utf-8")
+        with tempfile.NamedTemporaryFile(suffix=".md", delete=False) as tmp_fd:
+            tmp_path = tmp_fd.name
+        Path(tmp_path).write_text(md_content, encoding="utf-8")
         return FileResponse(
-            path=str(tmp),
+            path=tmp_path,
             filename=f"{filename}.md",
             media_type="text/markdown",
             headers={"Content-Disposition": f'attachment; filename="{filename}.md"'},
+            background=BackgroundTask(os.unlink, tmp_path),
         )
 
     # PDF
@@ -157,11 +161,13 @@ async def export_debate(
         raise HTTPException(501, "PDF export requires weasyprint") from None
 
     html = f"<html><body><pre>{md_content}</pre></body></html>"
-    tmp = Path(tempfile.mktemp(suffix=".pdf"))
-    HTML(string=html).write_pdf(str(tmp))
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_fd:
+        tmp_path = tmp_fd.name
+    HTML(string=html).write_pdf(tmp_path)
     return FileResponse(
-        path=str(tmp),
+        path=tmp_path,
         filename=f"{filename}.pdf",
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}.pdf"'},
+        background=BackgroundTask(os.unlink, tmp_path),
     )

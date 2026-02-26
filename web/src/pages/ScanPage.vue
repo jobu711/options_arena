@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
@@ -50,6 +50,7 @@ async function runScan(): Promise<void> {
           case 'complete':
             scanStore.setComplete(event)
             opStore.finish()
+            close()  // Stop reconnection — terminal event
             if (event.cancelled) {
               toast.add({ severity: 'info', summary: 'Scan Cancelled', life: 3000 })
             } else {
@@ -87,6 +88,7 @@ function formatDate(iso: string): string {
 }
 
 onMounted(() => void scanStore.fetchScans())
+onUnmounted(() => wsClose?.())
 </script>
 
 <template>

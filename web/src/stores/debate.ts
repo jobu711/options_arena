@@ -138,6 +138,7 @@ export const useDebateStore = defineStore('debate', () => {
 
   function setDebateComplete(_debateId: number): void {
     currentDebateId.value = null
+    agentProgress.value = []
   }
 
   function setDebateError(message: string): void {

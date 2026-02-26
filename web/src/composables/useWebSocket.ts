@@ -1,6 +1,6 @@
 /** Generic typed WebSocket composable with auto-reconnect. */
 
-import { ref, onUnmounted } from 'vue'
+import { ref, onUnmounted, getCurrentInstance } from 'vue'
 
 interface UseWebSocketOptions<T> {
   url: string
@@ -15,8 +15,11 @@ export function useWebSocket<T>(options: UseWebSocketOptions<T>) {
   const reconnecting = ref(false)
   let ws: WebSocket | null = null
   let reconnectCount = 0
+  let stopped = false
 
   function connect(): void {
+    if (stopped) return
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = options.url.startsWith('ws')
       ? options.url
@@ -36,6 +39,10 @@ export function useWebSocket<T>(options: UseWebSocketOptions<T>) {
 
     ws.onclose = () => {
       connected.value = false
+      if (stopped) {
+        reconnecting.value = false
+        return
+      }
       const max = options.maxReconnectAttempts ?? 5
       if (reconnectCount < max) {
         reconnecting.value = true
@@ -59,12 +66,17 @@ export function useWebSocket<T>(options: UseWebSocketOptions<T>) {
   }
 
   function close(): void {
-    reconnectCount = Infinity // prevent reconnect
+    stopped = true
+    reconnecting.value = false
     ws?.close()
   }
 
   connect()
-  onUnmounted(close)
+
+  // Only register onUnmounted if called during synchronous setup
+  if (getCurrentInstance()) {
+    onUnmounted(close)
+  }
 
   return { connected, reconnecting, send, close }
 }
