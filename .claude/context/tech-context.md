@@ -33,6 +33,7 @@
 | @primeuix/themes | ^2.0.3 | Aura dark theme preset |
 | vite | ^7.3.1 | Dev server + build tool |
 | typescript | ^5.9.3 | Type checking (`vue-tsc --noEmit`) |
+| @playwright/test | ^1.52.0 | E2E testing (38 tests, 4 parallel workers) |
 
 ### Python Web Dependencies
 | Package | Version | Purpose |
@@ -120,6 +121,7 @@ All three must pass before any commit.
 - **Frontend**: Vue 3 SPA (`web/`) — TypeScript, Pinia stores, PrimeVue Aura dark theme
 - **Launch**: `options-arena serve` (loopback-only, auto-opens browser)
 - **Dev mode**: Vite dev server (:5173) proxies `/api/*` and `/ws/*` to FastAPI (:8000)
-- **Production**: FastAPI serves `web/dist/` via `StaticFiles(html=True)` — single process, single port
+- **Production**: FastAPI serves `web/dist/` via catch-all GET route + `/assets` mount — single process, single port
+- **E2E tests**: Playwright (38 tests) — page objects, API mocks, fake WebSocket via `addInitScript`, 4 parallel workers with isolated DBs
 - **WebSocket**: Real-time progress for scans (4-phase) and debates (agent steps, batch)
 - **Operation mutex**: `asyncio.Lock` — one scan or batch debate at a time (409 if busy)
