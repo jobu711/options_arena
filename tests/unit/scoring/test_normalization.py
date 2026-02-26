@@ -284,6 +284,93 @@ class TestGetActiveIndicators:
 # ---------------------------------------------------------------------------
 
 
+class TestNaNPropagation:
+    """Verify graceful handling of NaN, all-NaN, and empty inputs."""
+
+    def test_normalize_all_nan_series(self) -> None:
+        """All-NaN input through normalization: every field stays None."""
+        universe = {
+            "A": IndicatorSignals(rsi=float("nan"), adx=float("nan")),
+            "B": IndicatorSignals(rsi=float("nan"), adx=float("nan")),
+        }
+        result = percentile_rank_normalize(universe)
+
+        # All NaN treated as missing -> None in output
+        for ticker in ("A", "B"):
+            assert _field_val(result[ticker], "rsi") is None
+            assert _field_val(result[ticker], "adx") is None
+
+    def test_normalize_mixed_nan_series(self) -> None:
+        """Mixed NaN and valid values: NaN entries get None, valid entries ranked."""
+        universe = {
+            "NAN1": IndicatorSignals(rsi=float("nan"), adx=50.0),
+            "VALID": IndicatorSignals(rsi=50.0, adx=80.0),
+            "NAN2": IndicatorSignals(rsi=float("nan"), adx=float("nan")),
+            "ALSO_VALID": IndicatorSignals(rsi=80.0, adx=20.0),
+        }
+        result = percentile_rank_normalize(universe)
+
+        # RSI: only VALID (50.0) and ALSO_VALID (80.0) participate
+        assert _field_val(result["NAN1"], "rsi") is None
+        assert _field_val(result["NAN2"], "rsi") is None
+        assert _field_val(result["VALID"], "rsi") == pytest.approx(0.0)
+        assert _field_val(result["ALSO_VALID"], "rsi") == pytest.approx(100.0)
+
+        # ADX: NAN1 (50.0), VALID (80.0), ALSO_VALID (20.0) — NAN2 excluded
+        assert _field_val(result["NAN2"], "adx") is None
+        assert _field_val(result["ALSO_VALID"], "adx") == pytest.approx(0.0)
+        assert _field_val(result["NAN1"], "adx") == pytest.approx(50.0)
+        assert _field_val(result["VALID"], "adx") == pytest.approx(100.0)
+
+    def test_normalize_empty_series(self) -> None:
+        """Empty universe returns empty dict without error."""
+        result = percentile_rank_normalize({})
+        assert result == {}
+
+    def test_invert_all_nan_preserves_none(self) -> None:
+        """Inversion of all-NaN normalized universe: None values stay None."""
+        # Simulate normalization output where all inverted fields are None
+        normalized = {
+            "A": IndicatorSignals(
+                bb_width=None,
+                atr_pct=None,
+                keltner_width=None,
+                relative_volume=None,
+            ),
+        }
+        result = invert_indicators(normalized)
+
+        for field in INVERTED_INDICATORS:
+            assert _field_val(result["A"], field) is None
+
+    def test_get_active_indicators_all_nan(self) -> None:
+        """All-NaN universe returns empty active set."""
+        universe = {
+            "A": IndicatorSignals(rsi=float("nan"), adx=float("nan")),
+            "B": IndicatorSignals(rsi=float("nan"), adx=float("nan")),
+        }
+        active = get_active_indicators(universe)
+        assert "rsi" not in active
+        assert "adx" not in active
+
+    def test_get_active_indicators_mixed_nan(self) -> None:
+        """Mixed NaN/valid: only fields with at least one finite value are active."""
+        universe = {
+            "A": IndicatorSignals(rsi=float("nan"), adx=30.0),
+            "B": IndicatorSignals(rsi=50.0, adx=float("nan")),
+        }
+        active = get_active_indicators(universe)
+        assert "rsi" in active
+        assert "adx" in active
+        # Fields not set at all remain inactive
+        assert "iv_rank" not in active
+
+
+# ---------------------------------------------------------------------------
+# Full pipeline integration
+# ---------------------------------------------------------------------------
+
+
 class TestFullPipeline:
     """End-to-end: normalize -> invert -> verify."""
 

@@ -190,7 +190,13 @@ class ServiceCache:
             value: Raw bytes to store.
             ttl: Time-to-live in seconds. ``0`` or ``None`` means permanent.
                 Short-TTL data types (quote, chain) stay in-memory only.
+
+        Raises:
+            ValueError: If *ttl* is negative.
         """
+        if ttl is not None and ttl < 0:
+            raise ValueError(f"ttl must be >= 0, got {ttl}")
+
         now_mono = time.monotonic()
 
         # Compute monotonic expiry for in-memory tier (0.0 = permanent sentinel)

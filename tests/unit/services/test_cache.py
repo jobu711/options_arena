@@ -368,3 +368,35 @@ def test_ttl_constants_values() -> None:
     assert TTL_FUNDAMENTALS == 86400
     assert TTL_REFERENCE == 86400
     assert TTL_FAILURE == 86400
+
+
+# ---------------------------------------------------------------------------
+# TTL validation
+# ---------------------------------------------------------------------------
+
+
+async def test_cache_set_rejects_negative_ttl(memory_cache: ServiceCache) -> None:
+    """Passing ttl=-1 raises ValueError with a descriptive message."""
+    with pytest.raises(ValueError, match=r"ttl must be >= 0, got -1"):
+        await memory_cache.set("yf:ohlcv:AAPL:1y", b"data", ttl=-1)
+
+
+async def test_cache_set_accepts_zero_ttl(memory_cache: ServiceCache) -> None:
+    """ttl=0 is valid (permanent storage) and does not raise."""
+    await memory_cache.set("yf:ohlcv:AAPL:1y", b"permanent", ttl=0)
+    result = await memory_cache.get("yf:ohlcv:AAPL:1y")
+    assert result == b"permanent"
+
+
+async def test_cache_set_accepts_none_ttl(memory_cache: ServiceCache) -> None:
+    """ttl=None is valid (permanent storage) and does not raise."""
+    await memory_cache.set("yf:ohlcv:SPY:1y", b"also_permanent", ttl=None)
+    result = await memory_cache.get("yf:ohlcv:SPY:1y")
+    assert result == b"also_permanent"
+
+
+async def test_cache_set_accepts_positive_ttl(memory_cache: ServiceCache) -> None:
+    """ttl=300 (positive) is valid and stores the value normally."""
+    await memory_cache.set("yf:reference:FRED:rate", b"rate_data", ttl=300)
+    result = await memory_cache.get("yf:reference:FRED:rate")
+    assert result == b"rate_data"
