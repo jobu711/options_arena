@@ -23,6 +23,7 @@ from options_arena.agents._parsing import (
     render_context_block,
     strip_think_tags,
 )
+from options_arena.agents.orchestrator import DebatePhase
 from options_arena.models import (
     AgentResponse,
     MarketContext,
@@ -584,3 +585,104 @@ class TestRenderContextBlockNoneFields:
         assert "TICKER: AAPL" in text
         assert "RSI(14):" in text
         assert "COMPOSITE SCORE:" in text
+
+
+# ---------------------------------------------------------------------------
+# DebateResult — Pydantic BaseModel features
+# ---------------------------------------------------------------------------
+
+
+class TestDebateResultPydantic:
+    """Tests for DebateResult as a Pydantic BaseModel (frozen, serializable)."""
+
+    def test_model_dump_json_roundtrip(
+        self,
+        mock_market_context: MarketContext,
+        mock_agent_response: AgentResponse,
+        mock_trade_thesis: TradeThesis,
+    ) -> None:
+        """DebateResult serializes to JSON and deserializes back correctly."""
+        result = DebateResult(
+            context=mock_market_context,
+            bull_response=mock_agent_response,
+            bear_response=mock_agent_response,
+            thesis=mock_trade_thesis,
+            total_usage=RunUsage(),
+            duration_ms=1000,
+            is_fallback=False,
+        )
+        json_str = result.model_dump_json()
+        assert isinstance(json_str, str)
+        assert '"ticker":"AAPL"' in json_str or '"ticker": "AAPL"' in json_str
+
+    def test_frozen_rejects_mutation(
+        self,
+        mock_market_context: MarketContext,
+        mock_agent_response: AgentResponse,
+        mock_trade_thesis: TradeThesis,
+    ) -> None:
+        """DebateResult is frozen — attribute assignment raises."""
+        result = DebateResult(
+            context=mock_market_context,
+            bull_response=mock_agent_response,
+            bear_response=mock_agent_response,
+            thesis=mock_trade_thesis,
+            total_usage=RunUsage(),
+            duration_ms=1000,
+            is_fallback=False,
+        )
+        with pytest.raises(Exception):  # noqa: B017
+            result.is_fallback = True  # type: ignore[misc]
+
+    def test_model_dump_includes_all_fields(
+        self,
+        mock_market_context: MarketContext,
+        mock_agent_response: AgentResponse,
+        mock_trade_thesis: TradeThesis,
+    ) -> None:
+        """model_dump() includes all DebateResult fields."""
+        result = DebateResult(
+            context=mock_market_context,
+            bull_response=mock_agent_response,
+            bear_response=mock_agent_response,
+            thesis=mock_trade_thesis,
+            total_usage=RunUsage(),
+            duration_ms=1000,
+            is_fallback=False,
+            citation_density=0.75,
+        )
+        dump = result.model_dump()
+        assert "context" in dump
+        assert "bull_response" in dump
+        assert "bear_response" in dump
+        assert "thesis" in dump
+        assert "total_usage" in dump
+        assert "duration_ms" in dump
+        assert "is_fallback" in dump
+        assert "citation_density" in dump
+        assert dump["citation_density"] == pytest.approx(0.75)
+
+
+# ---------------------------------------------------------------------------
+# DebatePhase StrEnum
+# ---------------------------------------------------------------------------
+
+
+class TestDebatePhase:
+    """Tests for DebatePhase enum."""
+
+    def test_has_all_phases(self) -> None:
+        """DebatePhase defines exactly 5 phases."""
+        assert len(DebatePhase) == 5
+
+    def test_values(self) -> None:
+        """DebatePhase values are lowercase strings."""
+        assert DebatePhase.BULL == "bull"
+        assert DebatePhase.BEAR == "bear"
+        assert DebatePhase.REBUTTAL == "rebuttal"
+        assert DebatePhase.VOLATILITY == "volatility"
+        assert DebatePhase.RISK == "risk"
+
+    def test_is_str_subclass(self) -> None:
+        """DebatePhase members are str instances (StrEnum)."""
+        assert isinstance(DebatePhase.BULL, str)

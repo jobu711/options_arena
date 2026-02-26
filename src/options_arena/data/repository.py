@@ -222,6 +222,15 @@ class Repository:
         logger.debug("Saved debate id=%d for ticker=%s", row_id, ticker)
         return row_id
 
+    async def get_debate_by_id(self, debate_id: int) -> DebateRow | None:
+        """Get a single debate by its primary key, or None if not found."""
+        conn = self._db.conn
+        async with conn.execute("SELECT * FROM ai_theses WHERE id = ?", (debate_id,)) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        return self._row_to_debate_row(row)
+
     async def get_debates_for_ticker(self, ticker: str, limit: int = 5) -> list[DebateRow]:
         """Get recent debates for a ticker, newest first."""
         conn = self._db.conn

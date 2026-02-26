@@ -17,7 +17,7 @@ The orchestrator does **not fetch data** — the caller (CLI) provides all input
 |------|---------|---------|
 | `CLAUDE.md` | Module conventions and rules | — |
 | `model_config.py` | `build_debate_model()` — Groq-only model builder | Config utility |
-| `_parsing.py` | `DebateDeps`, `DebateResult`, `strip_think_tags()`, `PROMPT_RULES_APPENDIX`, `build_cleaned_agent_response()`, `build_cleaned_trade_thesis()` | Internal |
+| `_parsing.py` | `DebateDeps`, `DebateResult` (Pydantic BaseModel), `strip_think_tags()`, `PROMPT_RULES_APPENDIX`, `build_cleaned_agent_response()`, `build_cleaned_trade_thesis()` | Internal |
 | `bull.py` | Bull agent + system prompt + output validator | PydanticAI Agent |
 | `bear.py` | Bear agent + dynamic prompt (receives bull argument) | PydanticAI Agent |
 | `risk.py` | Risk agent + dynamic prompt (receives both arguments) | PydanticAI Agent |
@@ -185,9 +185,10 @@ by the orchestrator from already-validated models.
 ## DebateResult
 
 ```python
-@dataclass
-class DebateResult:
+class DebateResult(BaseModel):
     """Complete debate output returned by run_debate()."""
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     context: MarketContext
     bull_response: AgentResponse
     bear_response: AgentResponse
@@ -197,7 +198,9 @@ class DebateResult:
     is_fallback: bool            # True if data-driven, False if AI-generated
 ```
 
-**Why `@dataclass` not Pydantic**: `RunUsage` is a plain dataclass (not Pydantic-serializable).
+**Pydantic BaseModel**: Enables FastAPI auto-serialization via `model_dump_json()`.
+`RunUsage` is a plain dataclass but Pydantic v2-compatible (uses `Field` annotations).
+`arbitrary_types_allowed=True` for defensive compatibility.
 Persistence serializes the Pydantic sub-models individually; stores
 `total_usage.input_tokens + total_usage.output_tokens` as `total_tokens` in DB.
 

@@ -32,6 +32,7 @@ from options_arena.agents._parsing import DebateResult
 from options_arena.agents.bear import bear_agent
 from options_arena.agents.bull import bull_agent
 from options_arena.agents.orchestrator import (
+    DebatePhase,
     _derive_macd_signal,
     _extract_top_signals,
     _format_contract_refs,
@@ -1328,3 +1329,118 @@ class TestQualityGate:
         # Should proceed (not fallback) but log a warning
         assert result.is_fallback is False
         assert any("proceeding with caution" in record.message for record in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# run_debate() — progress callback
+# ---------------------------------------------------------------------------
+
+
+class TestRunDebateProgress:
+    """Tests for the optional progress callback parameter."""
+
+    @pytest.mark.asyncio
+    async def test_progress_callback_called_on_success(
+        self,
+        mock_ticker_score: TickerScore,
+        mock_option_contract: OptionContract,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+    ) -> None:
+        """Progress callback is called for bull/bear/risk start+complete."""
+        from options_arena.agents.orchestrator import DebatePhase
+
+        calls: list[tuple[DebatePhase, str, float | None]] = []
+
+        def on_progress(phase: DebatePhase, status: str, confidence: float | None) -> None:
+            calls.append((phase, status, confidence))
+
+        config = DebateConfig(
+            agent_timeout=10.0,
+            max_total_duration=30.0,
+        )
+        with (
+            bull_agent.override(model=TestModel()),
+            bear_agent.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
+        ):
+            result = await run_debate(
+                ticker_score=mock_ticker_score,
+                contracts=[mock_option_contract],
+                quote=mock_quote,
+                ticker_info=mock_ticker_info,
+                config=config,
+                progress=on_progress,
+            )
+        assert result.is_fallback is False
+
+        # Bull started + completed, Bear started + completed, Risk started + completed
+        phases = [(c[0], c[1]) for c in calls]
+        assert (DebatePhase.BULL, "started") in phases
+        assert (DebatePhase.BULL, "completed") in phases
+        assert (DebatePhase.BEAR, "started") in phases
+        assert (DebatePhase.BEAR, "completed") in phases
+        assert (DebatePhase.RISK, "started") in phases
+        assert (DebatePhase.RISK, "completed") in phases
+
+    @pytest.mark.asyncio
+    async def test_progress_callback_none_works(
+        self,
+        mock_ticker_score: TickerScore,
+        mock_option_contract: OptionContract,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_debate_config: DebateConfig,
+    ) -> None:
+        """progress=None (default) works without errors — backward compatible."""
+        with (
+            bull_agent.override(model=TestModel()),
+            bear_agent.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
+        ):
+            result = await run_debate(
+                ticker_score=mock_ticker_score,
+                contracts=[mock_option_contract],
+                quote=mock_quote,
+                ticker_info=mock_ticker_info,
+                config=mock_debate_config,
+                progress=None,
+            )
+        assert result.is_fallback is False
+
+    @pytest.mark.asyncio
+    async def test_progress_callback_error_does_not_crash_debate(
+        self,
+        mock_ticker_score: TickerScore,
+        mock_option_contract: OptionContract,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+    ) -> None:
+        """A failing progress callback does not crash the debate."""
+
+        def on_progress(
+            phase: DebatePhase,
+            status: str,
+            confidence: float | None,  # noqa: ARG001
+        ) -> None:
+            raise RuntimeError("callback error")
+
+        config = DebateConfig(
+            agent_timeout=10.0,
+            max_total_duration=30.0,
+        )
+        with (
+            bull_agent.override(model=TestModel()),
+            bear_agent.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
+        ):
+            result = await run_debate(
+                ticker_score=mock_ticker_score,
+                contracts=[mock_option_contract],
+                quote=mock_quote,
+                ticker_info=mock_ticker_info,
+                config=config,
+                progress=on_progress,
+            )
+        # Debate succeeds despite callback failures
+        assert result.is_fallback is False

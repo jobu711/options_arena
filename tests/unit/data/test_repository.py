@@ -615,3 +615,47 @@ async def test_debate_metadata_defaults(repo: Repository) -> None:
     row = debates[0]
     assert row.debate_mode == "full"
     assert row.citation_density == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------------------
+# get_debate_by_id
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_debate_by_id_returns_debate(repo: Repository) -> None:
+    """get_debate_by_id returns the correct DebateRow when it exists."""
+    debate_id = await repo.save_debate(
+        scan_run_id=None,
+        ticker="AAPL",
+        bull_json='{"agent": "bull"}',
+        bear_json='{"agent": "bear"}',
+        risk_json=None,
+        verdict_json='{"direction": "bullish"}',
+        total_tokens=500,
+        model_name="llama-3.3-70b",
+        duration_ms=1200,
+        is_fallback=False,
+        debate_mode="base",
+        citation_density=0.65,
+    )
+
+    row = await repo.get_debate_by_id(debate_id)
+
+    assert row is not None
+    assert isinstance(row, DebateRow)
+    assert row.id == debate_id
+    assert row.ticker == "AAPL"
+    assert row.total_tokens == 500
+    assert row.model_name == "llama-3.3-70b"
+    assert row.duration_ms == 1200
+    assert row.is_fallback is False
+    assert row.debate_mode == "base"
+    assert row.citation_density == pytest.approx(0.65)
+
+
+@pytest.mark.asyncio
+async def test_get_debate_by_id_returns_none_for_missing(repo: Repository) -> None:
+    """get_debate_by_id returns None when the debate ID does not exist."""
+    row = await repo.get_debate_by_id(99999)
+    assert row is None
