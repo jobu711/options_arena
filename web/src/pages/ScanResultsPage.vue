@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import DataTable, { type DataTableSortEvent, type DataTablePageEvent } from 'primevue/datatable'
@@ -12,23 +12,27 @@ import TickerDrawer from '@/components/TickerDrawer.vue'
 import DebateProgressModal from '@/components/DebateProgressModal.vue'
 import { useScanStore } from '@/stores/scan'
 import { useDebateStore } from '@/stores/debate'
+import { useOperationStore } from '@/stores/operation'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { ApiError } from '@/composables/useApi'
 import type { TickerScore } from '@/types'
-import type { DebateEvent } from '@/types/ws'
+import type { DebateEvent, BatchEvent } from '@/types/ws'
 
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 const scanStore = useScanStore()
 const debateStore = useDebateStore()
+const operationStore = useOperationStore()
 
 const scanId = Number(route.params.id)
 
-// Debate modal state
+// Modal state
 const debateModalVisible = ref(false)
 const debatingTicker = ref('')
+const batchModalVisible = ref(false)
 
+// Single debate
 async function startDebate(ticker: string): Promise<void> {
   try {
     debatingTicker.value = ticker
@@ -61,6 +65,60 @@ async function startDebate(ticker: string): Promise<void> {
   }
 }
 
+// Batch debate
+async function startBatchDebate(tickers: string[] | null, limit: number): Promise<void> {
+  try {
+    batchModalVisible.value = true
+    operationStore.start('batch_debate')
+    const batchId = await debateStore.startBatchDebate(scanId, tickers, limit)
+
+    useWebSocket<BatchEvent>({
+      url: `/ws/batch/${batchId}`,
+      onMessage(event) {
+        switch (event.type) {
+          case 'batch_progress':
+            debateStore.updateBatchProgress(event)
+            break
+          case 'agent':
+            debateStore.updateBatchAgentProgress(event)
+            break
+          case 'error':
+            debateStore.setBatchError(event.message)
+            break
+          case 'batch_complete':
+            debateStore.setBatchComplete(event.results)
+            operationStore.finish()
+            break
+        }
+      },
+    })
+  } catch (e) {
+    batchModalVisible.value = false
+    debateStore.resetBatch()
+    operationStore.finish()
+    const msg = e instanceof ApiError ? e.message : 'Failed to start batch debate'
+    toast.add({ severity: 'error', summary: 'Error', detail: msg, life: 5000 })
+  }
+}
+
+function onDebateSelected(): void {
+  const tickers = selectedTickers.value.map((s) => s.ticker)
+  void startBatchDebate(tickers, tickers.length)
+}
+
+function onDebateTop5(): void {
+  void startBatchDebate(null, 5)
+}
+
+function onBatchModalClose(): void {
+  batchModalVisible.value = false
+  debateStore.resetBatch()
+}
+
+const anyBusy = computed(
+  () => debateStore.isDebating || debateStore.isBatching || operationStore.inProgress,
+)
+
 // URL-synced filter state
 const search = ref((route.query.search as string) ?? '')
 const direction = ref<string | undefined>((route.query.direction as string) ?? undefined)
@@ -79,7 +137,7 @@ const directionOptions = [
 const drawerVisible = ref(false)
 const selectedScore = ref<TickerScore | null>(null)
 
-// Batch selection (wired in #127)
+// Batch selection
 const selectedTickers = ref<TickerScore[]>([])
 
 function buildParams(): Record<string, string | number | undefined> {
@@ -159,7 +217,7 @@ onMounted(() => void loadScores())
       </span>
     </div>
 
-    <!-- Filters -->
+    <!-- Filters + Batch Actions -->
     <div class="filters">
       <InputText
         v-model="search"
@@ -176,6 +234,25 @@ onMounted(() => void loadScores())
         size="small"
         @change="onDirectionChange()"
       />
+      <div class="batch-actions">
+        <Button
+          v-if="selectedTickers.length > 0"
+          :label="`Debate Selected (${selectedTickers.length})`"
+          icon="pi pi-comments"
+          severity="info"
+          size="small"
+          :disabled="anyBusy"
+          @click="onDebateSelected()"
+        />
+        <Button
+          label="Debate Top 5"
+          icon="pi pi-bolt"
+          severity="secondary"
+          size="small"
+          :disabled="anyBusy"
+          @click="onDebateTop5()"
+        />
+      </div>
     </div>
 
     <!-- Data Table -->
@@ -223,7 +300,7 @@ onMounted(() => void loadScores())
             severity="info"
             size="small"
             text
-            :disabled="debateStore.isDebating"
+            :disabled="anyBusy"
             @click.stop="startDebate(data.ticker)"
           />
         </template>
@@ -240,12 +317,23 @@ onMounted(() => void loadScores())
       :scan-id="scanId"
     />
 
-    <!-- Debate Progress Modal -->
+    <!-- Single Debate Progress Modal -->
     <DebateProgressModal
       v-model:visible="debateModalVisible"
       :ticker="debatingTicker"
       :agents="debateStore.agentProgress"
       :error="debateStore.error"
+    />
+
+    <!-- Batch Debate Progress Modal -->
+    <DebateProgressModal
+      :visible="batchModalVisible"
+      :batch-mode="true"
+      :batch-tickers="debateStore.batchTickers"
+      :batch-results="debateStore.batchResults"
+      :batch-complete="debateStore.batchComplete"
+      :error="debateStore.error"
+      @update:visible="onBatchModalClose()"
     />
   </div>
 </template>
@@ -272,10 +360,17 @@ onMounted(() => void loadScores())
   gap: 0.75rem;
   margin-bottom: 1rem;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .search-input {
   min-width: 200px;
+}
+
+.batch-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
 }
 
 .results-table :deep(tr) {

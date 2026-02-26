@@ -12,12 +12,13 @@ branch: epic/web-ui
 - #123 — Debate API: REST endpoints + export (+11 route tests)
 - #129 — Supporting pages: backend routes + Vue frontend (Dashboard, Universe, Health) (+6 route tests, +12 schema tests, +3 repo tests)
 - #128 — Scan frontend: ScanPage, ScanResultsPage, TickerDrawer, ProgressTracker, DirectionBadge, ConfidenceBadge, scan/operation stores, useWebSocket composable
+- #125 — Debate frontend: DebateResultPage, AgentCard, DebateProgressModal, debate store, debate trigger on ScanResultsPage
+
+## In Progress
+- #127 — Batch debate: API endpoint + batch progress modal
 
 ## Ready (dependencies met)
-- #125 — Debate frontend (depends on #128 done, #123 done)
-
-## Blocked
-- #127 — Batch debate (depends on #125)
+(none)
 
 ## Dependency Graph
 ```

@@ -81,6 +81,36 @@ class DebateResultSummary(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Batch debate schemas (#127)
+# ---------------------------------------------------------------------------
+
+
+class BatchDebateRequest(BaseModel):
+    """Request body for ``POST /api/debate/batch``."""
+
+    scan_id: int
+    limit: int = 5
+    tickers: list[str] | None = None
+
+
+class BatchDebateStarted(BaseModel):
+    """Response for ``POST /api/debate/batch`` (202)."""
+
+    batch_id: int
+    tickers: list[str]
+
+
+class BatchTickerResult(BaseModel):
+    """Per-ticker result summary in batch completion event."""
+
+    ticker: str
+    debate_id: int | None = None
+    direction: str | None = None
+    confidence: float | None = None
+    error: str | None = None
+
+
+# ---------------------------------------------------------------------------
 # Supporting page schemas (#129)
 # ---------------------------------------------------------------------------
 

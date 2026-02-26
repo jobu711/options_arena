@@ -18,5 +18,11 @@ export type {
   DebateCompleteEvent,
   DebateErrorEvent,
   DebateEvent,
+  BatchProgressEvent,
+  BatchAgentEvent,
+  BatchTickerResultEvent,
+  BatchCompleteEvent,
+  BatchErrorEvent,
+  BatchEvent,
   CancelMessage,
 } from './ws'

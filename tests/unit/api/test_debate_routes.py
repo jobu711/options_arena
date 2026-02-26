@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
@@ -9,7 +10,13 @@ import pytest
 from httpx import AsyncClient
 
 from options_arena.data.repository import DebateRow
-from options_arena.models import AgentResponse, SignalDirection, TradeThesis
+from options_arena.models import (
+    AgentResponse,
+    IndicatorSignals,
+    SignalDirection,
+    TickerScore,
+    TradeThesis,
+)
 
 
 def _make_debate_row(debate_id: int = 1) -> DebateRow:
@@ -130,3 +137,85 @@ async def test_export_debate_unsupported_format(client: AsyncClient, mock_repo: 
     mock_repo.get_debate_by_id = AsyncMock(return_value=_make_debate_row())
     response = await client.get("/api/debate/1/export?format=csv")
     assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Batch debate tests (#127)
+# ---------------------------------------------------------------------------
+
+
+def _make_ticker_scores() -> list[TickerScore]:
+    """Create a list of sample TickerScore for batch tests."""
+    tickers = ["AAPL", "MSFT", "GOOGL", "NVDA", "AMZN"]
+    return [
+        TickerScore(
+            ticker=t,
+            composite_score=90.0 - i * 5,
+            direction=SignalDirection.BULLISH,
+            signals=IndicatorSignals(),
+        )
+        for i, t in enumerate(tickers)
+    ]
+
+
+async def test_batch_debate_returns_202(client: AsyncClient, mock_repo: MagicMock) -> None:
+    """POST /api/debate/batch returns 202 with batch_id and tickers."""
+    mock_repo.get_scores_for_scan = AsyncMock(return_value=_make_ticker_scores())
+    response = await client.post("/api/debate/batch", json={"scan_id": 1, "limit": 3})
+    assert response.status_code == 202
+    data = response.json()
+    assert "batch_id" in data
+    assert data["batch_id"] >= 1
+    assert len(data["tickers"]) == 3
+    assert data["tickers"] == ["AAPL", "MSFT", "GOOGL"]
+
+
+async def test_batch_debate_with_explicit_tickers(
+    client: AsyncClient, mock_repo: MagicMock
+) -> None:
+    """POST /api/debate/batch with explicit tickers uses those tickers."""
+    response = await client.post(
+        "/api/debate/batch",
+        json={"scan_id": 1, "tickers": ["TSLA", "META"]},
+    )
+    assert response.status_code == 202
+    data = response.json()
+    assert data["tickers"] == ["TSLA", "META"]
+
+
+async def test_batch_debate_scan_not_found(client: AsyncClient, mock_repo: MagicMock) -> None:
+    """POST /api/debate/batch returns 404 when scan has no scores."""
+    mock_repo.get_scores_for_scan = AsyncMock(return_value=[])
+    response = await client.post("/api/debate/batch", json={"scan_id": 999})
+    assert response.status_code == 404
+
+
+async def test_batch_debate_409_when_locked(client: AsyncClient, test_app: object) -> None:
+    """POST /api/debate/batch returns 409 when operation lock is held."""
+    from options_arena.api.deps import get_operation_lock  # noqa: PLC0415
+
+    # Create a pre-locked Lock
+    locked = asyncio.Lock()
+    await locked.acquire()
+
+    test_app.dependency_overrides[get_operation_lock] = lambda: locked  # type: ignore[union-attr]
+    try:
+        response = await client.post("/api/debate/batch", json={"scan_id": 1, "tickers": ["AAPL"]})
+        assert response.status_code == 409
+    finally:
+        locked.release()
+
+
+async def test_batch_debate_empty_tickers(client: AsyncClient) -> None:
+    """POST /api/debate/batch with empty tickers list returns 422."""
+    response = await client.post("/api/debate/batch", json={"scan_id": 1, "tickers": []})
+    assert response.status_code == 422
+
+
+async def test_batch_debate_default_limit(client: AsyncClient, mock_repo: MagicMock) -> None:
+    """POST /api/debate/batch with default limit=5 selects top 5."""
+    mock_repo.get_scores_for_scan = AsyncMock(return_value=_make_ticker_scores())
+    response = await client.post("/api/debate/batch", json={"scan_id": 1})
+    assert response.status_code == 202
+    data = response.json()
+    assert len(data["tickers"]) == 5
