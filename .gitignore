@@ -26,6 +26,10 @@ Thumbs.db
 .claude/settings.local.json
 .mcp.json
 
+# Environment secrets
+.env
+.env.*
+
 # Generated output
 reports/
 data/*.db
