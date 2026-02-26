@@ -101,12 +101,57 @@ def create_app() -> FastAPI:
     )
 
     # Register API routes
+    from options_arena.api.routes.config import router as config_router  # noqa: PLC0415
+    from options_arena.api.routes.debate import router as debate_router  # noqa: PLC0415
+    from options_arena.api.routes.export import router as export_router  # noqa: PLC0415
     from options_arena.api.routes.health import router as health_router  # noqa: PLC0415
+    from options_arena.api.routes.scan import router as scan_router  # noqa: PLC0415
+    from options_arena.api.routes.universe import router as universe_router  # noqa: PLC0415
+    from options_arena.api.ws import router as ws_router  # noqa: PLC0415
 
     app.include_router(health_router)
+    app.include_router(scan_router)
+    app.include_router(debate_router)
+    app.include_router(export_router)
+    app.include_router(universe_router)
+    app.include_router(config_router)
+    app.include_router(ws_router)
+
+    # Exception handlers for domain errors
+    _register_exception_handlers(app)
 
     # Serve Vue SPA from web/dist/ (mount AFTER API routes)
     if _WEB_DIST.exists():
         app.mount("/", StaticFiles(directory=_WEB_DIST, html=True), name="spa")
 
     return app
+
+
+def _register_exception_handlers(app: FastAPI) -> None:
+    """Map domain exceptions to HTTP status codes."""
+    from fastapi.responses import JSONResponse  # noqa: PLC0415
+
+    from options_arena.utils import (  # noqa: PLC0415
+        DataSourceUnavailableError,
+        InsufficientDataError,
+        RateLimitExceededError,
+        TickerNotFoundError,
+    )
+
+    @app.exception_handler(TickerNotFoundError)
+    async def _ticker_not_found(request: object, exc: TickerNotFoundError) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+    @app.exception_handler(InsufficientDataError)
+    async def _insufficient_data(request: object, exc: InsufficientDataError) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+    @app.exception_handler(DataSourceUnavailableError)
+    async def _data_source_unavailable(
+        request: object, exc: DataSourceUnavailableError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+    @app.exception_handler(RateLimitExceededError)
+    async def _rate_limit_exceeded(request: object, exc: RateLimitExceededError) -> JSONResponse:
+        return JSONResponse(status_code=429, content={"detail": str(exc)})

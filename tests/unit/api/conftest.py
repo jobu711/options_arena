@@ -26,8 +26,14 @@ def mock_repo() -> MagicMock:
     repo = MagicMock()
     repo.get_recent_scans = AsyncMock(return_value=[])
     repo.get_latest_scan = AsyncMock(return_value=None)
+    repo.get_scan_by_id = AsyncMock(return_value=None)
     repo.get_scores_for_scan = AsyncMock(return_value=[])
+    repo.save_scan_run = AsyncMock(return_value=1)
+    repo.save_ticker_scores = AsyncMock(return_value=None)
     repo.get_debate_by_id = AsyncMock(return_value=None)
+    repo.get_debates_for_ticker = AsyncMock(return_value=[])
+    repo.get_recent_debates = AsyncMock(return_value=[])
+    repo.save_debate = AsyncMock(return_value=1)
     return repo
 
 
@@ -52,7 +58,10 @@ def mock_fred() -> MagicMock:
 @pytest.fixture()
 def mock_universe() -> MagicMock:
     """Mock UniverseService."""
-    return MagicMock()
+    svc = MagicMock()
+    svc.fetch_optionable_tickers = AsyncMock(return_value=["AAPL", "MSFT", "GOOGL"])
+    svc.fetch_sp500_constituents = AsyncMock(return_value=[])
+    return svc
 
 
 @pytest.fixture()

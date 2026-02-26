@@ -53,6 +53,9 @@ line-length = 99
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "ANN"]
 
+[tool.ruff.lint.per-file-ignores]
+"src/options_arena/api/routes/*.py" = ["B008"]
+
 [tool.mypy]
 strict = true
 warn_return_any = true

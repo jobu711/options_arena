@@ -1,2 +1,5 @@
-/* Type re-exports — populated as API types are defined in later tasks. */
-export {}
+export type { HealthStatus } from './health'
+export type { UniverseStats } from './universe'
+export type { ScanRun, TickerScore, PaginatedResponse } from './scan'
+export type { DebateResultSummary } from './debate'
+export type { ConfigResponse } from './config'

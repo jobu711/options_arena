@@ -231,6 +231,17 @@ class Repository:
             return None
         return self._row_to_debate_row(row)
 
+    async def get_recent_debates(self, limit: int = 20) -> list[DebateRow]:
+        """Get the N most recent debates across all tickers, newest first."""
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT * FROM ai_theses ORDER BY id DESC LIMIT ?", (limit,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+        debates = [self._row_to_debate_row(row) for row in rows]
+        logger.debug("Retrieved %d recent debates", len(debates))
+        return debates
+
     async def get_debates_for_ticker(self, ticker: str, limit: int = 5) -> list[DebateRow]:
         """Get recent debates for a ticker, newest first."""
         conn = self._db.conn
