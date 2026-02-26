@@ -92,4 +92,15 @@ Phase 3: Liquidity pre-filter → Top 50 → option chains → recommend contrac
 Phase 4: Persist to SQLite
 ```
 
+### Web API Patterns
+- **App factory**: `create_app()` with `lifespan()` — services created once, stored on `app.state`
+- **Dependency injection**: `Depends()` providers in `deps.py` — `get_repo()`, `get_market_data()`, etc.
+- **Operation mutex**: Single `asyncio.Lock` — one scan or batch debate at a time. Lock acquired
+  atomically in handler, released in background task's `finally` block (not `async with lock:`).
+- **Background tasks**: `asyncio.create_task()` for scans/debates. Counter-based IDs (no DB placeholder).
+- **WebSocket bridge**: `WebSocketProgressBridge` converts sync `ProgressCallback` → `asyncio.Queue`
+  → WebSocket JSON events. Queue cleanup in `finally` blocks to prevent memory leaks.
+- **Loopback-only**: `serve` command rejects non-loopback `--host` values (security).
+- **Static serving**: `StaticFiles(directory=web/dist, html=True)` mounted after API routes.
+
 For detailed algorithm specs, see `system-patterns-reference.md`.

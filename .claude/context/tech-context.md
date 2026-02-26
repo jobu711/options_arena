@@ -1,10 +1,3 @@
----
-created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-25T14:39:17Z
-version: 5.7
-author: Claude Code PM System
----
-
 # Tech Context
 
 ## Language & Runtime
@@ -29,6 +22,23 @@ author: Claude Code PM System
 | rich | >=14.3.2 | Terminal output formatting (tables, colors, progress) |
 | pydantic-settings | >=2.13.0 | Configuration management |
 | lxml | >=6.0.2 | HTML parsing for Wikipedia S&P 500 table |
+
+### Web Runtime (separate `web/package.json`)
+| Package | Version | Purpose |
+|---------|---------|---------|
+| vue | ^3.5.29 | SPA framework (Composition API + `<script setup>`) |
+| vue-router | ^5.0.3 | Client-side routing (6 routes, lazy-loaded) |
+| pinia | ^3.0.4 | State management (scan, debate, health, operation stores) |
+| primevue | ^4.5.4 | UI component library (DataTable, Dialog, Toast, Drawer) |
+| @primeuix/themes | ^2.0.3 | Aura dark theme preset |
+| vite | ^7.3.1 | Dev server + build tool |
+| typescript | ^5.9.3 | Type checking (`vue-tsc --noEmit`) |
+
+### Python Web Dependencies
+| Package | Version | Purpose |
+|---------|---------|---------|
+| fastapi | >=0.115.12 | REST API + WebSocket backend |
+| uvicorn | >=0.34.3 | ASGI server for FastAPI |
 
 ### Optional
 | Package | Version | Purpose |
@@ -100,10 +110,16 @@ All three must pass before any commit.
 
 - **Command**: `options-arena` (installed via `pyproject.toml` `[project.scripts]`)
 - **Entry point**: `options_arena.cli:app` (Typer app)
-- **Commands**: `scan`, `health`, `universe` (refresh/list/stats), `debate` (`--batch`, `--export md|pdf`)
+- **Commands**: `scan`, `health`, `universe` (refresh/list/stats), `debate` (`--batch`, `--export md|pdf`), `serve`
 - **Logging**: Dual-handler (RichHandler stderr + RotatingFileHandler `logs/options_arena.log`)
 - **SIGINT**: `signal.signal()` double-press pattern (graceful then force)
 
 ## Web UI
 
-No web UI currently implemented. CLI-only for v1. Web UI deferred to v2.
+- **Backend**: FastAPI app factory (`src/options_arena/api/`) — REST + WebSocket, served by uvicorn
+- **Frontend**: Vue 3 SPA (`web/`) — TypeScript, Pinia stores, PrimeVue Aura dark theme
+- **Launch**: `options-arena serve` (loopback-only, auto-opens browser)
+- **Dev mode**: Vite dev server (:5173) proxies `/api/*` and `/ws/*` to FastAPI (:8000)
+- **Production**: FastAPI serves `web/dist/` via `StaticFiles(html=True)` — single process, single port
+- **WebSocket**: Real-time progress for scans (4-phase) and debates (agent steps, batch)
+- **Operation mutex**: `asyncio.Lock` — one scan or batch debate at a time (409 if busy)

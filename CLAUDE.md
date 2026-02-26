@@ -40,11 +40,12 @@ src/options_arena/
     services/     # External API access, caching, rate limit → has own CLAUDE.md
     scan/         # 4-phase pipeline orchestration           → has own CLAUDE.md
     data/         # SQLite persistence (WAL, migrations)     → has own CLAUDE.md
-    analysis/     # Future: enhanced scoring, signals        → has own CLAUDE.md
-    reporting/    # Future: report generation & disclaimers  → has own CLAUDE.md
+    api/          # FastAPI REST + WebSocket backend          → has own CLAUDE.md
+    reporting/    # Report generation & disclaimers          → has own CLAUDE.md
     utils/        # DataFetchError exception hierarchy
 data/migrations/  # Sequential SQL migration files
-tests/            # 1,402 tests (unit + integration)         → has own CLAUDE.md
+web/              # Vue 3 SPA (TypeScript, Pinia, PrimeVue)  → has own CLAUDE.md
+tests/            # 1,577 tests (unit + integration)         → has own CLAUDE.md
 ```
 
 Each module's CLAUDE.md has the detailed file listing. Read it before modifying that module.
@@ -110,6 +111,7 @@ uses pandas Series/DataFrames (not dicts) as its data interchange format.
 | `scan/` | Pipeline orchestration (4 async phases) | `models/`, `services/`, `scoring/`, `indicators/`, `data/` | `pricing/` directly, `httpx`, `yfinance`, `print()` |
 | `utils/` | Exception hierarchy | Nothing | APIs, logic, I/O |
 | `agents/` | PydanticAI debate orchestration | `models/`, `services/`, `pydantic_ai` | Other agents, indicators |
+| `api/` | FastAPI REST + WebSocket (top of stack) | `models/`, `services/`, `data/`, `scan/`, `agents/`, `reporting/` | N/A |
 | `cli/` | Terminal interface (top of stack) | Everything | N/A |
 
 **Key boundary rules**:
@@ -119,6 +121,7 @@ uses pandas Series/DataFrames (not dicts) as its data interchange format.
 - `scan/` orchestrates but never calls `pricing/` directly (that's `scoring/contracts.py`'s job).
 - `agents/` have no knowledge of each other. The orchestrator coordinates them.
 - `models/` defines data shapes. No business logic, no I/O.
+- `api/` and `cli/` are sibling entry points — neither imports from the other.
 
 ### Pydantic Model Patterns (Context7-verified)
 

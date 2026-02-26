@@ -2,6 +2,40 @@
 
 Historical completion logs for Options Arena. Current state is in `progress.md`.
 
+## Epic 10: Web UI (2026-02-26) — #121, PR #130
+
+Full-stack Web UI: Vue 3 SPA (TypeScript, Pinia, Vue Router, PrimeVue Aura dark) +
+FastAPI backend. `options-arena serve` command launches uvicorn with browser auto-open.
+REST endpoints for scan, debate, export, health, universe, config. WebSocket progress
+streaming for scans (4-phase) and debates (agent steps + batch). Operation mutex via
+`asyncio.Lock` (409 if busy). Loopback-only host guard. 11 bug fixes from code analysis
+(race conditions, memory leaks, temp file cleanup, type safety, WebSocket lifecycle).
++93 new tests (82 API + 8 serve + 3 misc). Issues: #122-#129.
+
+## Epic 9: Data Integrity Hardening (2026-02-26) — #114
+
+End-to-end data integrity across all pipeline layers. OHLCV candle validators,
+OptionGreeks NaN defense, zero-price rejection, MarketContext completeness,
+debate quality gate (60% minimum), cache TTL validation, NaN propagation guards.
++82 new tests. Issues: #115-#119, PR #120.
+
+## Epic 8: Groq-Only Migration + 12 Debate Improvements (2026-02-25)
+
+Removed Ollama, Groq sole LLM provider. Simplified DebateConfig, Groq health check,
+parallel rebuttal+volatility, score-confidence clamping, citation density, A/B logging.
+
+## Epic 7: Debate Export (2026-02-25) — #107
+
+Markdown/PDF export via `--export md|pdf`. Issues: #109-#113.
+
+## Epic 6: Multi-Ticker Batch Debate (2026-02-25) — #101
+
+`debate --batch` and `--batch-limit N`. Issues: #102-#106.
+
+## Epic 5: Bull Rebuttal Round (2026-02-25) — #93
+
+Optional bull rebuttal phase. Issues: #94-#99.
+
 ## Completed Work (Phase 1)
 
 ### Issue #18 — Models, Enums, Exceptions (Done)

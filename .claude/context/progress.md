@@ -2,12 +2,13 @@
 
 ## Current State
 
-- **Version**: 1.5.0 (MVP + AI Debate + Batch Mode + Export + Groq-Only)
-- **All 9 phases + 7 epics**: Complete and merged to master (2026-02-26)
-- **Branch**: `master` (1484 tests, all phases + epics merged)
-- **Tests**: 1484 (293 models + 214 pricing + 172 indicators + 110 scoring + 181 services + 42 data + 131 scan + 40 cli + 241 agents + 14 reporting + 16 misc + 30 integration)
-- **GitHub issues**: 1 open (#112), 107 closed
-- **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`) commands
+- **Version**: 2.0.0 (Full-stack: CLI + Web UI)
+- **All 9 phases + 10 epics**: Complete and merged to master (2026-02-26)
+- **Branch**: `master` (1,577 tests, all phases + epics merged)
+- **Tests**: 1,577 (293 models + 214 pricing + 172 indicators + 110 scoring + 181 services + 42 data + 131 scan + 40 cli + 241 agents + 14 reporting + 82 api + 16 misc + 41 integration)
+- **GitHub issues**: 10 open (#112, #121-#129), 107 closed
+- **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`), `serve`
+- **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
 - **AI provider**: Groq (cloud, `GROQ_API_KEY` env var or `ARENA_DEBATE__API_KEY`)
 
 ## Phase Summary
@@ -23,47 +24,29 @@
 | 7 | Scan pipeline (4-phase async orchestration) | 131 | Complete |
 | 8 | CLI (Typer + Rich, logging, SIGINT) | 40 | Complete |
 | 9 | AI debate (PydanticAI agents, Groq) | 241 | Complete |
+| 10 | Web UI (FastAPI + Vue 3 SPA) | 82 | Complete |
 
-For detailed phase completion logs, see `progress-archive.md`.
+For detailed phase/epic completion logs, see `progress-archive.md`.
 
-## Recently Completed Epics
+## Recently Completed Epic
 
-### Epic 9: Data Integrity Hardening (2026-02-26) — #114
-End-to-end data integrity across all pipeline layers. OHLCV candle validators
-(`field_validator` + `model_validator`), OptionGreeks NaN defense on all 5 fields,
-zero-price rejection at service ingestion, MarketContext `float | None` fields with
-`completeness_ratio()` method, debate quality gate (60% minimum), cache TTL validation,
-NaN propagation guards in scoring. +82 new tests. Issues: #115-#119, PR #120.
+### Epic 10: Web UI (2026-02-26) — #121, PR #130
+Full-stack Web UI: Vue 3 SPA (TypeScript, Pinia, Vue Router, PrimeVue Aura dark) +
+FastAPI backend (`src/options_arena/api/`). `options-arena serve` launches uvicorn with
+browser auto-open (loopback-only). REST endpoints for scan, debate, export, health,
+universe, config. WebSocket progress streaming. Operation mutex (`asyncio.Lock`, 409
+if busy). 11 bug fixes from code analysis (race conditions, memory leaks, type safety).
++93 new tests. Issues: #122-#129.
 
-### Epic 8: Groq-Only Migration + 12 Debate Improvements (2026-02-25)
-Removed Ollama provider entirely, made Groq sole LLM provider. Deleted `DebateProvider`
-enum, simplified `DebateConfig` (renamed groq_model→model, groq_api_key→api_key),
-added Groq health check, parallel rebuttal+volatility, score-confidence clamping,
-citation density scoring, A/B logging (debate_mode, citation_density columns),
-list-length validators, IV rank/percentile clarification, Greeks guidance in prompts.
-Removed `ollama` dependency.
-
-### Epic 7: Debate Export (2026-02-25) — #107
-Markdown and PDF export for debate results via `--export md|pdf` and `--export-dir` flags.
-New `reporting/` module with `debate_export.py`. PDF requires optional `weasyprint` dep
-(`pip install options-arena[pdf]`). +14 tests. Issues: #109-#113.
-
-### Epic 6: Multi-Ticker Batch Debate (2026-02-25) — #101
-`debate --batch` and `--batch-limit N` flags to debate top-scored tickers from the latest
-scan sequentially. Extracted `_debate_single()` for reuse, error isolation per ticker,
-`render_batch_summary_table()` summary. +11 tests. Issues: #102-#106.
-
-### Epic 5: Bull Rebuttal Round (2026-02-25) — #93
-Optional bull rebuttal phase. Config: `enable_rebuttal`. Issues: #94-#99.
-
-## Future Work (v2)
+## Future Work
 
 - Batch export support (`debate --batch --export md`, issue #112)
+- Close web-ui epic issues (#121-#129) now merged
 - Additional LLM providers (Anthropic Claude, OpenAI)
 - Options liquidity weighting in composite scoring
-- Web UI (deferred from earlier attempts)
 - Real-time market data streaming
 - Multi-round debate (bear rebuttal, second rounds)
+- Frontend testing (Vitest + Vue Test Utils)
 
 ## Blockers
 
