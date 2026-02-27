@@ -1,7 +1,7 @@
 /** Typed fetch wrapper for API calls. */
 
 interface ApiOptions {
-  method?: 'GET' | 'POST' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   body?: unknown
   params?: Record<string, string | number | undefined>
   signal?: AbortSignal
@@ -33,6 +33,9 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   if (!res.ok) {
     const detail = await res.json().catch(() => ({ detail: res.statusText }))
     throw new ApiError(res.status, (detail as { detail?: string }).detail ?? 'Unknown error')
+  }
+  if (res.status === 204) {
+    return undefined as T
   }
   return res.json() as Promise<T>
 }

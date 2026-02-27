@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
@@ -9,6 +9,7 @@ import Column from 'primevue/column'
 import ProgressTracker from '@/components/ProgressTracker.vue'
 import { useScanStore } from '@/stores/scan'
 import { useOperationStore } from '@/stores/operation'
+import { useWatchlistStore } from '@/stores/watchlist'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { ApiError } from '@/composables/useApi'
 import type { ScanEvent } from '@/types/ws'
@@ -17,8 +18,15 @@ const router = useRouter()
 const toast = useToast()
 const scanStore = useScanStore()
 const opStore = useOperationStore()
+const watchlistStore = useWatchlistStore()
 
 const SCAN_PHASES = ['universe', 'scoring', 'options', 'persist']
+
+const scanModeOptions = [
+  { label: 'Preset', value: 'preset' },
+  { label: 'Watchlist', value: 'watchlist' },
+]
+const scanMode = ref<'preset' | 'watchlist'>('preset')
 
 const presetOptions = [
   { label: 'S&P 500', value: 'sp500' },
@@ -26,6 +34,17 @@ const presetOptions = [
   { label: 'ETFs', value: 'etfs' },
 ]
 const selectedPreset = ref('sp500')
+const selectedWatchlistId = ref<number | null>(null)
+
+const watchlistSelectOptions = computed(() =>
+  watchlistStore.watchlists.map((w) => ({ label: w.name, value: w.id })),
+)
+
+const canStartScan = computed(() => {
+  if (scanStore.isScanning || opStore.inProgress) return false
+  if (scanMode.value === 'watchlist' && !selectedWatchlistId.value) return false
+  return true
+})
 
 // WebSocket connection for live scan progress
 let wsClose: (() => void) | null = null
@@ -33,7 +52,8 @@ let wsClose: (() => void) | null = null
 async function runScan(): Promise<void> {
   try {
     opStore.start('scan')
-    const scanId = await scanStore.startScan(selectedPreset.value)
+    const watchlistId = scanMode.value === 'watchlist' ? selectedWatchlistId.value ?? undefined : undefined
+    const scanId = await scanStore.startScan(selectedPreset.value, watchlistId)
 
     // Connect to WebSocket for progress updates
     const { close } = useWebSocket<ScanEvent>({
@@ -87,7 +107,10 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleString()
 }
 
-onMounted(() => void scanStore.fetchScans())
+onMounted(() => {
+  void scanStore.fetchScans()
+  void watchlistStore.fetchWatchlists()
+})
 onUnmounted(() => wsClose?.())
 </script>
 
@@ -98,6 +121,16 @@ onUnmounted(() => wsClose?.())
     <!-- Launch Panel -->
     <div class="launch-panel">
       <Select
+        v-model="scanMode"
+        :options="scanModeOptions"
+        optionLabel="label"
+        optionValue="value"
+        :disabled="scanStore.isScanning || opStore.inProgress"
+        data-testid="scan-mode-selector"
+        :style="{ width: '130px' }"
+      />
+      <Select
+        v-if="scanMode === 'preset'"
         v-model="selectedPreset"
         :options="presetOptions"
         optionLabel="label"
@@ -106,11 +139,21 @@ onUnmounted(() => wsClose?.())
         :disabled="scanStore.isScanning || opStore.inProgress"
         data-testid="preset-selector"
       />
+      <Select
+        v-else
+        v-model="selectedWatchlistId"
+        :options="watchlistSelectOptions"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Select watchlist"
+        :disabled="scanStore.isScanning || opStore.inProgress"
+        data-testid="watchlist-selector"
+      />
       <Button
         label="Run Scan"
         icon="pi pi-play"
         severity="success"
-        :disabled="scanStore.isScanning || opStore.inProgress"
+        :disabled="!canStartScan"
         :loading="scanStore.isScanning"
         data-testid="start-scan-btn"
         @click="runScan()"

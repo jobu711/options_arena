@@ -9,6 +9,7 @@ export type {
   AgentProgressEntry,
 } from './debate'
 export type { ConfigResponse } from './config'
+export type { Watchlist, WatchlistTicker, WatchlistDetail } from './watchlist'
 export type {
   ScanProgressEvent,
   ScanErrorEvent,

@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useToast } from 'primevue/usetoast'
 import Drawer from 'primevue/drawer'
 import Button from 'primevue/button'
+import Dialog from 'primevue/dialog'
+import Select from 'primevue/select'
 import DirectionBadge from './DirectionBadge.vue'
-import { api } from '@/composables/useApi'
+import { api, ApiError } from '@/composables/useApi'
+import { useWatchlistStore } from '@/stores/watchlist'
 import type { TickerScore, DebateResultSummary } from '@/types'
 
 interface Props {
@@ -16,9 +20,14 @@ interface Props {
 const props = defineProps<Props>()
 const emit = defineEmits<{ 'update:visible': [value: boolean] }>()
 const router = useRouter()
+const toast = useToast()
+const watchlistStore = useWatchlistStore()
 
 const debates = ref<DebateResultSummary[]>([])
 const loadingDebates = ref(false)
+const watchlistDialogVisible = ref(false)
+const selectedWatchlistId = ref<number | null>(null)
+const addingToWatchlist = ref(false)
 
 watch(
   () => props.score?.ticker,
@@ -56,6 +65,34 @@ function formatSignalValue(val: number | null): string {
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString()
 }
+
+function openWatchlistDialog(): void {
+  selectedWatchlistId.value = null
+  watchlistDialogVisible.value = true
+}
+
+async function handleAddToWatchlist(): Promise<void> {
+  if (!selectedWatchlistId.value || !props.score) return
+
+  addingToWatchlist.value = true
+  try {
+    await watchlistStore.addTicker(selectedWatchlistId.value, props.score.ticker)
+    watchlistDialogVisible.value = false
+    toast.add({
+      severity: 'success',
+      summary: 'Added',
+      detail: `${props.score.ticker} added to watchlist`,
+      life: 3000,
+    })
+  } catch (e) {
+    const msg = e instanceof ApiError ? e.message : 'Failed to add ticker to watchlist'
+    toast.add({ severity: 'error', summary: 'Error', detail: msg, life: 5000 })
+  } finally {
+    addingToWatchlist.value = false
+  }
+}
+
+onMounted(() => void watchlistStore.fetchWatchlists())
 </script>
 
 <template>
@@ -116,9 +153,60 @@ function formatDate(iso: string): string {
           size="small"
           disabled
         />
+        <Button
+          label="Add to Watchlist"
+          icon="pi pi-bookmark"
+          severity="secondary"
+          size="small"
+          data-testid="add-to-watchlist-btn"
+          @click="openWatchlistDialog()"
+        />
       </div>
     </template>
   </Drawer>
+
+  <!-- Add to Watchlist Dialog -->
+  <Dialog
+    v-model:visible="watchlistDialogVisible"
+    header="Add to Watchlist"
+    :style="{ width: '350px' }"
+    modal
+    data-testid="add-to-watchlist-dialog"
+  >
+    <div class="watchlist-select-form">
+      <p class="watchlist-select-label">
+        Add <strong>{{ score?.ticker }}</strong> to:
+      </p>
+      <Select
+        v-model="selectedWatchlistId"
+        :options="watchlistStore.watchlists.map(w => ({ label: w.name, value: w.id }))"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Select a watchlist"
+        class="full-width"
+        data-testid="watchlist-picker"
+      />
+      <div v-if="watchlistStore.watchlists.length === 0" class="no-watchlists-msg">
+        No watchlists found. Create one on the Watchlists page first.
+      </div>
+    </div>
+    <template #footer>
+      <Button
+        label="Cancel"
+        severity="secondary"
+        text
+        @click="watchlistDialogVisible = false"
+      />
+      <Button
+        label="Add"
+        icon="pi pi-plus"
+        :loading="addingToWatchlist"
+        :disabled="!selectedWatchlistId"
+        data-testid="confirm-add-to-watchlist-btn"
+        @click="handleAddToWatchlist()"
+      />
+    </template>
+  </Dialog>
 </template>
 
 <style scoped>
@@ -202,5 +290,28 @@ function formatDate(iso: string): string {
   margin-top: 1.5rem;
   padding-top: 1rem;
   border-top: 1px solid var(--p-surface-700, #333);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.watchlist-select-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.watchlist-select-label {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.no-watchlists-msg {
+  font-size: 0.85rem;
+  color: var(--p-surface-500, #666);
 }
 </style>

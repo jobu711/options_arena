@@ -10,6 +10,7 @@ import Toast from 'primevue/toast'
       <div class="nav-links">
         <RouterLink to="/" class="nav-link" data-testid="nav-link-dashboard">Dashboard</RouterLink>
         <RouterLink to="/scan" class="nav-link" data-testid="nav-link-scan">Scan</RouterLink>
+        <RouterLink to="/watchlists" class="nav-link" data-testid="nav-link-watchlists">Watchlists</RouterLink>
         <RouterLink to="/universe" class="nav-link" data-testid="nav-link-universe">Universe</RouterLink>
         <RouterLink to="/health" class="nav-link" data-testid="nav-link-health">Health</RouterLink>
       </div>
