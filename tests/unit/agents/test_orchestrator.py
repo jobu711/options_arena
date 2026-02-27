@@ -1230,7 +1230,7 @@ class TestQualityGate:
     """Tests for the MarketContext completeness quality gate in run_debate()."""
 
     @pytest.mark.asyncio
-    async def test_quality_gate_below_60_triggers_fallback(
+    async def test_quality_gate_below_40_triggers_fallback(
         self,
         mock_option_contract: OptionContract,
         mock_quote: Quote,
@@ -1238,9 +1238,9 @@ class TestQualityGate:
         mock_debate_config: DebateConfig,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Completeness < 60% triggers data-driven fallback without calling agents."""
+        """Completeness < 40% triggers data-driven fallback without calling agents."""
         # IndicatorSignals with no options-specific signals populated
-        # Only rsi populated (1 indicator) -> 1/14 = 7% completeness
+        # rsi not in completeness check; only atm_iv_30d + 4 Greeks = 5/14 = 36%
         score = TickerScore(
             ticker="AAPL",
             composite_score=72.5,
@@ -1261,7 +1261,7 @@ class TestQualityGate:
         run_agents_mock.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_quality_gate_above_60_proceeds(
+    async def test_quality_gate_above_40_proceeds(
         self,
         mock_ticker_score: TickerScore,
         mock_option_contract: OptionContract,
@@ -1269,10 +1269,10 @@ class TestQualityGate:
         mock_ticker_info: TickerInfo,
         mock_debate_config: DebateConfig,
     ) -> None:
-        """Completeness >= 60% allows debate to proceed."""
+        """Completeness >= 40% allows debate to proceed."""
         # mock_ticker_score has rsi, adx, sma_alignment, bb_width, atr_pct,
         # obv, relative_volume (7 signals), plus contract has greeks (4 more)
-        # -> 11/14 = ~79%  which is >= 60%
+        # -> 10/14 = ~71%  which is >= 40%
         with (
             bull_agent.override(model=TestModel()),
             bear_agent.override(model=TestModel()),
@@ -1288,7 +1288,7 @@ class TestQualityGate:
         assert result.is_fallback is False
 
     @pytest.mark.asyncio
-    async def test_quality_gate_between_60_80_logs_warning(
+    async def test_quality_gate_between_40_60_logs_warning(
         self,
         mock_option_contract: OptionContract,
         mock_quote: Quote,
@@ -1296,10 +1296,11 @@ class TestQualityGate:
         mock_debate_config: DebateConfig,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """Completeness between 60% and 80% logs a caution warning but proceeds."""
+        """Completeness between 40% and 60% logs a caution warning but proceeds."""
         import logging
 
-        # Build a score with exactly 9 of 14 fields populated = 64%
+        # Build a score with 7 of 14 fields populated = 50%
+        # (2 indicators + atm_iv_30d from contract + 4 Greeks = 7/14)
         score = TickerScore(
             ticker="AAPL",
             composite_score=72.5,
@@ -1308,8 +1309,6 @@ class TestQualityGate:
                 rsi=62.3,
                 adx=28.4,
                 sma_alignment=0.7,
-                bb_width=42.1,
-                atr_pct=15.3,
             ),
             scan_run_id=1,
         )
