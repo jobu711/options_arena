@@ -92,6 +92,7 @@ github: [Will be updated when synced to GitHub]
 depends_on: []  # List of task numbers this depends on, e.g., [001, 002]
 parallel: true  # Can this run in parallel with other tasks?
 conflicts_with: []  # Tasks that modify same files, e.g., [003, 004]
+zone: ""  # foundation | engine | interface — auto-detected from file paths if omitted
 ---
 
 # Task: [Task Title]
@@ -140,6 +141,7 @@ Save tasks as: `.claude/epics/$ARGUMENTS/{task_number}.md`
 - **depends_on**: List task numbers that must complete before this can start (e.g., [001, 002])
 - **parallel**: Set to true if this can run alongside other tasks without conflicts
 - **conflicts_with**: List task numbers that modify the same files (helps coordination)
+- **zone**: One of `foundation`, `engine`, or `interface` — see "6a. Zone Assignment" for mapping
 
 ### 5. Task Types to Consider
 - **Setup tasks**: Environment, dependencies, scaffolding
@@ -152,6 +154,21 @@ Save tasks as: `.claude/epics/$ARGUMENTS/{task_number}.md`
 
 ### 6. Parallelization
 Mark tasks with `parallel: true` if they can be worked on simultaneously without conflicts.
+
+### 6a. Zone Assignment
+
+Assign a `zone` to each task based on which modules its files touch:
+
+| Zone | Modules |
+|------|---------|
+| `foundation` | models/, pricing/, indicators/, utils/ |
+| `engine` | services/, scoring/, data/, scan/ |
+| `interface` | agents/, cli/, api/, reporting/, web/ |
+
+**Rules:**
+- If the task's "Technical Details" or "Files to Modify" references modules from a single zone, use that zone.
+- If a task spans multiple zones, assign the **highest-layer** zone: `interface` > `engine` > `foundation`.
+- If no module can be detected (e.g., docs-only tasks), default to `foundation`.
 
 ### 7. Execution Strategy
 

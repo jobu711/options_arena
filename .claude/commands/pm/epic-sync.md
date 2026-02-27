@@ -128,7 +128,71 @@ epic_number=$(gh issue create \
 
 Store the returned issue number for epic frontmatter update.
 
-### 2. Create Task Sub-Issues
+### 2. Detect Zone and Blocked-By for Each Task
+
+Before creating issues, compute the zone label and blocked-by metadata for each task file.
+
+#### Zone Detection
+
+For each task file, detect the zone from frontmatter or file paths in the body:
+
+```bash
+detect_zone() {
+  local task_file="$1"
+
+  # 1. Check frontmatter zone: field first
+  local fm_zone
+  fm_zone=$(grep '^zone:' "$task_file" | sed 's/^zone: *//' | tr -d '"' | xargs)
+  if [ -n "$fm_zone" ] && [ "$fm_zone" != '""' ]; then
+    echo "$fm_zone"
+    return
+  fi
+
+  # 2. Fall back to scanning file paths in body for module names
+  local body
+  body=$(sed '1,/^---$/d; 1,/^---$/d' "$task_file")
+
+  local has_interface=false has_engine=false has_foundation=false
+
+  # Interface modules: agents/, cli/, api/, reporting/, web/
+  if echo "$body" | grep -qE '(agents/|cli/|api/|reporting/|web/)'; then
+    has_interface=true
+  fi
+  # Engine modules: services/, scoring/, data/, scan/
+  if echo "$body" | grep -qE '(services/|scoring/|data/|scan/)'; then
+    has_engine=true
+  fi
+  # Foundation modules: models/, pricing/, indicators/, utils/
+  if echo "$body" | grep -qE '(models/|pricing/|indicators/|utils/)'; then
+    has_foundation=true
+  fi
+
+  # Highest-layer wins: interface > engine > foundation
+  if [ "$has_interface" = true ]; then
+    echo "interface"
+  elif [ "$has_engine" = true ]; then
+    echo "engine"
+  elif [ "$has_foundation" = true ]; then
+    echo "foundation"
+  else
+    echo "foundation"  # default
+  fi
+}
+```
+
+#### Blocked-By Extraction
+
+Extract `depends_on` from frontmatter (will be resolved to real issue IDs in Step 3a):
+
+```bash
+get_depends_on() {
+  local task_file="$1"
+  # Extract depends_on list, e.g., [001, 002] → "001 002"
+  grep '^depends_on:' "$task_file" | sed 's/^depends_on: *//' | tr -d '[]' | tr ',' ' ' | xargs
+}
+```
+
+### 3. Create Task Sub-Issues
 
 Check if gh-sub-issue is available:
 ```bash
@@ -156,6 +220,19 @@ if [ "$task_count" -lt 5 ]; then
     # Extract task name from frontmatter
     task_name=$(grep '^name:' "$task_file" | sed 's/^name: *//')
 
+    # Detect zone for this task
+    zone=$(detect_zone "$task_file")
+
+    # Check if task has dependencies
+    deps=$(get_depends_on "$task_file")
+
+    # Build label string: always include task, auto-task, epic:{name}, zone:{zone}
+    labels="task,auto-task,epic:$ARGUMENTS,zone:$zone"
+    # Add "ready" label only if task has no dependencies
+    if [ -z "$deps" ]; then
+      labels="$labels,ready"
+    fi
+
     # Strip frontmatter from task content
     sed '1,/^---$/d; 1,/^---$/d' "$task_file" > /tmp/task-body.md
 
@@ -165,14 +242,14 @@ if [ "$task_count" -lt 5 ]; then
         --parent "$epic_number" \
         --title "$task_name" \
         --body-file /tmp/task-body.md \
-        --label "task,epic:$ARGUMENTS" \
+        --label "$labels" \
         --json number -q .number)
     else
       task_number=$(gh issue create \
         --repo "$REPO" \
         --title "$task_name" \
         --body-file /tmp/task-body.md \
-        --label "task,epic:$ARGUMENTS" \
+        --label "$labels" \
         --json number -q .number)
     fi
 
@@ -181,7 +258,7 @@ if [ "$task_count" -lt 5 ]; then
   done
 
   # After creating all issues, update references and rename files
-  # This follows the same process as step 3 below
+  # This follows the same process as step 4 below
 fi
 ```
 
@@ -198,9 +275,18 @@ if [ "$task_count" -ge 5 ]; then
     subissue_cmd="gh issue create --repo \"$REPO\""
   fi
 
+  # Pre-compute zone and deps for each task (pass to agents)
+  for task_file in .claude/epics/$ARGUMENTS/[0-9][0-9][0-9].md; do
+    [ -f "$task_file" ] || continue
+    zone=$(detect_zone "$task_file")
+    deps=$(get_depends_on "$task_file")
+    labels="task,auto-task,epic:$ARGUMENTS,zone:$zone"
+    [ -z "$deps" ] && labels="$labels,ready"
+    echo "$(basename "$task_file"):$labels" >> /tmp/task-labels.txt
+  done
+
   # Batch tasks for parallel processing
   # Spawn agents to create sub-issues in parallel with proper labels
-  # Each agent must use: --label "task,epic:$ARGUMENTS"
 fi
 ```
 
@@ -213,22 +299,23 @@ Task:
     Create GitHub sub-issues for tasks in epic $ARGUMENTS
     Parent epic issue: #$epic_number
 
-    Tasks to process:
-    - {list of 3-4 task files}
+    Tasks to process (with pre-computed labels):
+    - {task_file}: labels="{labels from /tmp/task-labels.txt}"
 
     For each task file:
     1. Extract task name from frontmatter
     2. Strip frontmatter using: sed '1,/^---$/d; 1,/^---$/d'
-    3. Create sub-issue using:
+    3. Create sub-issue using the EXACT labels provided:
        - If gh-sub-issue available:
          gh sub-issue create --parent $epic_number --title "$task_name" \
-           --body-file /tmp/task-body.md --label "task,epic:$ARGUMENTS"
-       - Otherwise: 
+           --body-file /tmp/task-body.md --label "$labels"
+       - Otherwise:
          gh issue create --repo "$REPO" --title "$task_name" --body-file /tmp/task-body.md \
-           --label "task,epic:$ARGUMENTS"
+           --label "$labels"
     4. Record: task_file:issue_number
 
-    IMPORTANT: Always include --label parameter with "task,epic:$ARGUMENTS"
+    IMPORTANT: Use the exact label string provided for each task. Labels include:
+    task, auto-task, epic:{name}, zone:{zone}, and optionally "ready" for unblocked tasks.
 
     Return mapping of files to issue numbers.
 ```
@@ -238,13 +325,14 @@ Consolidate results from parallel agents:
 # Collect all mappings from agents
 cat /tmp/batch-*/mapping.txt >> /tmp/task-mapping.txt
 
-# IMPORTANT: After consolidation, follow step 3 to:
+# IMPORTANT: After consolidation, follow step 4 to:
 # 1. Build old->new ID mapping
 # 2. Update all task references (depends_on, conflicts_with)
 # 3. Rename files with proper frontmatter updates
+# Then follow step 4a to inject blocked-by lines
 ```
 
-### 3. Rename Task Files and Update References
+### 4. Rename Task Files and Update References
 
 First, build a mapping of old numbers to new issue IDs:
 ```bash
@@ -293,7 +381,54 @@ while IFS=: read -r task_file task_number; do
 done < /tmp/task-mapping.txt
 ```
 
-### 4. Update Epic with Task List (Fallback Only)
+### 4a. Inject Blocked-By into Issue Bodies
+
+After all issues are created and the old→new ID mapping is built (`/tmp/id-mapping.txt`),
+inject `**Blocked By**` lines into the bodies of tasks that have dependencies. This two-pass
+approach ensures the blocked-by lines use real GitHub issue IDs (not sequential task numbers).
+
+```bash
+# For each task that has depends_on, inject **Blocked By** into the GitHub issue body
+for task_file in .claude/epics/$ARGUMENTS/[0-9]*.md; do
+  [ -f "$task_file" ] || continue
+
+  # Get the issue number for this task (filename is now the issue number)
+  issue_num=$(basename "$task_file" .md)
+
+  # Extract depends_on from frontmatter (already updated to real issue IDs in step 4)
+  deps=$(grep '^depends_on:' "$task_file" | sed 's/^depends_on: *//' | tr -d '[]' | tr ',' ' ' | xargs)
+
+  # Skip tasks with no dependencies
+  [ -z "$deps" ] && continue
+
+  # Build the **Blocked By** string with # prefixes: #123, #456
+  blocked_by_str=""
+  for dep in $deps; do
+    if [ -n "$blocked_by_str" ]; then
+      blocked_by_str="$blocked_by_str, #$dep"
+    else
+      blocked_by_str="#$dep"
+    fi
+  done
+
+  # Fetch current issue body
+  gh issue view "$issue_num" --repo "$REPO" --json body -q .body > /tmp/current-body.md
+
+  # Prepend **Blocked By** line at the top of the body
+  {
+    echo "**Blocked By**: $blocked_by_str"
+    echo ""
+    cat /tmp/current-body.md
+  } > /tmp/updated-body.md
+
+  # Update the issue
+  gh issue edit "$issue_num" --repo "$REPO" --body-file /tmp/updated-body.md
+
+  echo "Injected blocked-by into #$issue_num: $blocked_by_str"
+done
+```
+
+### 5a. Update Epic with Task List (Fallback Only)
 
 If NOT using gh-sub-issue, add task list to epic:
 
@@ -318,11 +453,11 @@ fi
 
 With gh-sub-issue, this is automatic!
 
-### 5. Update Epic File
+### 6. Update Epic File
 
 Update the epic file with GitHub URL, timestamp, and real task IDs:
 
-#### 5a. Update Frontmatter
+#### 6a. Update Frontmatter
 ```bash
 # Get repo info
 repo=$(gh repo view --json nameWithOwner -q .nameWithOwner)
@@ -335,7 +470,7 @@ sed -i.bak "/^updated:/c\updated: $current_date" .claude/epics/$ARGUMENTS/epic.m
 rm .claude/epics/$ARGUMENTS/epic.md.bak
 ```
 
-#### 5b. Update Tasks Created Section
+#### 6b. Update Tasks Created Section
 ```bash
 # Create a temporary file with the updated Tasks Created section
 cat > /tmp/tasks-section.md << 'EOF'
@@ -391,7 +526,7 @@ rm .claude/epics/$ARGUMENTS/epic.md.backup
 rm /tmp/tasks-section.md
 ```
 
-### 6. Create Mapping File
+### 7. Create Mapping File
 
 Create `.claude/epics/$ARGUMENTS/github-mapping.md`:
 ```bash
@@ -419,7 +554,7 @@ echo "" >> .claude/epics/$ARGUMENTS/github-mapping.md
 echo "Synced: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> .claude/epics/$ARGUMENTS/github-mapping.md
 ```
 
-### 7. Create Worktree
+### 8. Create Worktree
 
 Follow `/rules/worktree-operations.md` to create development worktree:
 
@@ -434,13 +569,15 @@ git worktree add ../epic-$ARGUMENTS -b epic/$ARGUMENTS
 echo "✅ Created worktree: ../epic-$ARGUMENTS"
 ```
 
-### 8. Output
+### 9. Output
 
 ```
 ✅ Synced to GitHub
   - Epic: #{epic_number} - {epic_title}
   - Tasks: {count} sub-issues created
-  - Labels applied: epic, task, epic:{name}
+  - Labels applied: task, auto-task, epic:{name}, zone:{zone} (+ ready for unblocked)
+  - Blocked-by injected: {blocked_count} tasks have **Blocked By** lines
+  - Ready tasks: {ready_count} tasks labeled "ready" (no dependencies)
   - Files renamed: 001.md → {issue_id}.md
   - References updated: depends_on/conflicts_with now use issue IDs
   - Worktree: ../epic-$ARGUMENTS
@@ -449,6 +586,10 @@ Next steps:
   - Start parallel execution: /pm:epic-start $ARGUMENTS
   - Or work on single issue: /pm:issue-start {issue_number}
   - View epic: https://github.com/{owner}/{repo}/issues/{epic_number}
+
+CI/CD integration:
+  - Issues with "ready" label can be picked up immediately
+  - When a blocking issue closes, unblock.yml auto-adds "ready" to dependents
 ```
 
 ## Error Handling
