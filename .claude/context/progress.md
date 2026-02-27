@@ -6,7 +6,7 @@
 - **All 9 phases + 10 epics**: Complete and merged to master (2026-02-26)
 - **Branch**: `master` (1,577 tests, all phases + epics merged)
 - **Tests**: 1,577 Python + 38 E2E (293 models + 214 pricing + 172 indicators + 110 scoring + 181 services + 42 data + 131 scan + 40 cli + 241 agents + 14 reporting + 82 api + 16 misc + 41 integration + 38 Playwright E2E)
-- **GitHub issues**: 10 open (#112, #121-#129), 107 closed
+- **GitHub issues**: 0 open, 118 closed
 - **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`), `serve`
 - **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
 - **AI provider**: Groq (cloud, `GROQ_API_KEY` env var or `ARENA_DEBATE__API_KEY`)

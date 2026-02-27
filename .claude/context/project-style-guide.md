@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-17T08:51:05Z
-version: 1.0
+last_updated: 2026-02-27T11:40:38Z
+version: 2.0.0
 author: Claude Code PM System
 ---
 
