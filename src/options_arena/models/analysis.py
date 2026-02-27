@@ -51,6 +51,7 @@ class MarketContext(BaseModel):
     rsi_14: float = 50.0  # RSI has meaningful neutral at 50
     macd_signal: MacdSignal
     put_call_ratio: float | None = None
+    max_pain_distance: float | None = None
     next_earnings: date | None
     dte_target: int
     target_strike: Decimal
@@ -102,6 +103,7 @@ class MarketContext(BaseModel):
             self.iv_percentile,
             self.atm_iv_30d,
             self.put_call_ratio,
+            self.max_pain_distance,
             self.adx,
             self.sma_alignment,
             self.bb_width,
@@ -112,18 +114,22 @@ class MarketContext(BaseModel):
         # Only count Greeks when contracts are available — without contracts,
         # Greeks are inherently absent and shouldn't lower the ratio.
         if self.contract_mid is not None:
-            checkable_fields.extend([
-                self.target_gamma,
-                self.target_theta,
-                self.target_vega,
-                self.target_rho,
-            ])
+            checkable_fields.extend(
+                [
+                    self.target_gamma,
+                    self.target_theta,
+                    self.target_vega,
+                    self.target_rho,
+                ]
+            )
         if not checkable_fields:
             return 1.0
         populated = sum(1 for f in checkable_fields if f is not None)
         return populated / len(checkable_fields)
 
-    @field_validator("iv_rank", "iv_percentile", "atm_iv_30d", "put_call_ratio")
+    @field_validator(
+        "iv_rank", "iv_percentile", "atm_iv_30d", "put_call_ratio", "max_pain_distance"
+    )
     @classmethod
     def validate_optional_finite(cls, v: float | None) -> float | None:
         """Reject NaN/Inf on optional float fields while allowing None."""

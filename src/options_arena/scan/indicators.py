@@ -11,6 +11,7 @@ Public API:
   - ``INDICATOR_REGISTRY`` -- 14 entries (options-specific indicators excluded).
   - ``ohlcv_to_dataframe`` -- Convert ``list[OHLCV]`` to indicator-ready DataFrame.
   - ``compute_indicators`` -- Generic dispatch: registry + DataFrame -> IndicatorSignals.
+  - ``compute_options_indicators`` -- Compute put_call_ratio and max_pain_distance from chain.
 """
 
 from __future__ import annotations
@@ -21,14 +22,18 @@ from collections.abc import Callable
 from enum import StrEnum
 from typing import NamedTuple
 
+import numpy as np
 import pandas as pd
 
 from options_arena.indicators.moving_averages import sma_alignment, vwap_deviation
+from options_arena.indicators.options_specific import max_pain, put_call_ratio_volume
 from options_arena.indicators.oscillators import rsi, stoch_rsi, williams_r
 from options_arena.indicators.trend import adx, roc, supertrend
 from options_arena.indicators.volatility import atr_percent, bb_width, keltner_width
 from options_arena.indicators.volume import ad_trend, obv_trend, relative_volume
+from options_arena.models.enums import OptionType
 from options_arena.models.market_data import OHLCV
+from options_arena.models.options import OptionContract
 from options_arena.models.scan import IndicatorSignals
 
 logger = logging.getLogger(__name__)
@@ -168,5 +173,105 @@ def compute_indicators(
                 exc_info=True,
             )
             setattr(signals, spec.field_name, None)
+
+    return signals
+
+
+def compute_options_indicators(
+    contracts: list[OptionContract],
+    spot: float,
+) -> IndicatorSignals:
+    """Compute options-specific indicators from the full option chain.
+
+    Calculates ``put_call_ratio`` (volume-weighted) and ``max_pain_distance``
+    (percent distance from max-pain strike to spot) from the raw chain before
+    any filtering.  These enrich ``TickerScore.signals`` so that
+    ``MarketContext.completeness_ratio()`` reflects actual data availability.
+
+    Parameters
+    ----------
+    contracts
+        Full option chain (all expirations, unfiltered).
+    spot
+        Current underlying price (used for max_pain_distance calculation).
+
+    Returns
+    -------
+    IndicatorSignals
+        Partial signals with only ``put_call_ratio`` and ``max_pain_distance``
+        set (all other fields remain ``None``).
+    """
+    signals = IndicatorSignals()
+
+    if not contracts or spot <= 0:
+        logger.debug("compute_options_indicators: no contracts or invalid spot (%.2f)", spot)
+        return signals
+
+    # Separate calls and puts
+    calls = [c for c in contracts if c.option_type == OptionType.CALL]
+    puts = [c for c in contracts if c.option_type == OptionType.PUT]
+
+    # --- Put/Call Ratio (volume-weighted) ---
+    if calls and puts:
+        total_call_volume = sum(c.volume for c in calls)
+        total_put_volume = sum(c.volume for c in puts)
+        ratio = put_call_ratio_volume(total_put_volume, total_call_volume)
+        if math.isfinite(ratio):
+            signals.put_call_ratio = ratio
+            logger.debug(
+                "put_call_ratio=%.3f (put_vol=%d, call_vol=%d)",
+                ratio,
+                total_put_volume,
+                total_call_volume,
+            )
+        else:
+            logger.debug(
+                "put_call_ratio is NaN (call_vol=%d) — setting to None",
+                total_call_volume,
+            )
+    else:
+        logger.debug(
+            "put_call_ratio: skipped (calls=%d, puts=%d)",
+            len(calls),
+            len(puts),
+        )
+
+    # --- Max Pain Distance ---
+    # Aggregate OI by unique strike across all contracts
+    strike_oi: dict[float, tuple[int, int]] = {}  # strike → (call_oi, put_oi)
+    for c in contracts:
+        s = float(c.strike)
+        call_oi, put_oi = strike_oi.get(s, (0, 0))
+        if c.option_type == OptionType.CALL:
+            call_oi += c.open_interest
+        else:
+            put_oi += c.open_interest
+        strike_oi[s] = (call_oi, put_oi)
+
+    if strike_oi:
+        total_oi = sum(co + po for co, po in strike_oi.values())
+        if total_oi > 0:
+            try:
+                sorted_strikes = sorted(strike_oi.keys())
+                strikes_series = pd.Series(sorted_strikes, dtype=float)
+                call_oi_series = pd.Series([strike_oi[s][0] for s in sorted_strikes], dtype=float)
+                put_oi_series = pd.Series([strike_oi[s][1] for s in sorted_strikes], dtype=float)
+
+                mp_strike = max_pain(strikes_series, call_oi_series, put_oi_series)
+                if math.isfinite(mp_strike) and not np.isnan(mp_strike):
+                    distance_pct = abs(mp_strike - spot) / spot * 100.0
+                    signals.max_pain_distance = distance_pct
+                    logger.debug(
+                        "max_pain_distance=%.2f%% (max_pain_strike=%.2f, spot=%.2f)",
+                        distance_pct,
+                        mp_strike,
+                        spot,
+                    )
+            except Exception:
+                logger.warning("max_pain computation failed", exc_info=True)
+        else:
+            logger.debug("max_pain: skipped — total OI is 0")
+    else:
+        logger.debug("max_pain: skipped — no strike OI data")
 
     return signals

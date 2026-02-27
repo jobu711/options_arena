@@ -80,6 +80,19 @@ async def _run_debate_background(
         for chain in chain_results:
             contracts.extend(chain.contracts)
 
+        # Enrich with options-specific indicators from the full chain
+        if contracts:
+            from options_arena.scan.indicators import (  # noqa: PLC0415
+                compute_options_indicators,
+            )
+
+            spot = float(ticker_info.current_price)
+            options_signals = compute_options_indicators(contracts, spot)
+            if options_signals.put_call_ratio is not None:
+                score_match.signals.put_call_ratio = options_signals.put_call_ratio
+            if options_signals.max_pain_distance is not None:
+                score_match.signals.max_pain_distance = options_signals.max_pain_distance
+
         result: DebateResult = await run_debate(
             ticker_score=score_match,
             contracts=contracts,
@@ -222,6 +235,19 @@ async def _run_batch_debate_background(
                 for chain in chain_results:
                     contracts.extend(chain.contracts)
 
+                # Enrich with options-specific indicators from the full chain
+                if contracts:
+                    from options_arena.scan.indicators import (  # noqa: PLC0415
+                        compute_options_indicators,
+                    )
+
+                    batch_spot = float(ticker_info.current_price)
+                    options_signals = compute_options_indicators(contracts, batch_spot)
+                    if options_signals.put_call_ratio is not None:
+                        score_match.signals.put_call_ratio = options_signals.put_call_ratio
+                    if options_signals.max_pain_distance is not None:
+                        score_match.signals.max_pain_distance = options_signals.max_pain_distance
+
                 # Create a per-ticker agent bridge that forwards to the batch bridge
                 agent_bridge = bridge.agent_bridge(ticker)
 
@@ -245,9 +271,7 @@ async def _run_batch_debate_background(
                     verdict_json=result.thesis.model_dump_json(),
                     total_tokens=total_tokens,
                     model_name=(
-                        settings.debate.model
-                        if not result.is_fallback
-                        else "data-driven-fallback"
+                        settings.debate.model if not result.is_fallback else "data-driven-fallback"
                     ),
                     duration_ms=result.duration_ms,
                     is_fallback=result.is_fallback,
