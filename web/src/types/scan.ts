@@ -25,3 +25,41 @@ export interface PaginatedResponse<T> {
   page: number
   pages: number
 }
+
+/** Option Greeks computed by pricing engine. */
+export interface OptionGreeks {
+  delta: number
+  gamma: number
+  theta: number
+  vega: number
+  rho: number
+  pricing_model: 'bsm' | 'baw'
+}
+
+/** Recommended option contract from GET /api/scan/:id/scores/:ticker. */
+export interface OptionContract {
+  ticker: string
+  option_type: 'call' | 'put'
+  strike: string
+  expiration: string
+  bid: string
+  ask: string
+  last: string
+  volume: number
+  open_interest: number
+  exercise_style: 'american' | 'european'
+  market_iv: number
+  greeks: OptionGreeks | null
+  mid: string
+  spread: string
+  dte: number
+}
+
+/** Ticker detail with score + recommended contracts. */
+export interface TickerDetail {
+  ticker: string
+  composite_score: number
+  direction: 'bullish' | 'bearish' | 'neutral'
+  contracts: OptionContract[]
+}
+

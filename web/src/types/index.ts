@@ -1,15 +1,6 @@
 export type { HealthStatus } from './health'
 export type { UniverseStats } from './universe'
-export type {
-  ScanRun,
-  TickerScore,
-  PaginatedResponse,
-  OptionGreeks,
-  OptionContract,
-  TickerDetail,
-  ScoreChange,
-  ScanDiffResult,
-} from './scan'
+export type { ScanRun, TickerScore, PaginatedResponse, OptionGreeks, OptionContract, TickerDetail } from './scan'
 export type {
   DebateResultSummary,
   DebateResult,
