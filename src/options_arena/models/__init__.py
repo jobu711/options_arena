@@ -18,6 +18,7 @@ from options_arena.models.config import (
     ScanConfig,
     ServiceConfig,
 )
+from options_arena.models.diff import DebateTrendPoint, ScanDiffResult, ScoreChange
 from options_arena.models.enums import (
     DividendSource,
     ExerciseStyle,
@@ -36,6 +37,7 @@ from options_arena.models.health import HealthStatus
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
 from options_arena.models.options import OptionContract, OptionGreeks, OptionSpread, SpreadLeg
 from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
+from options_arena.models.watchlist import Watchlist, WatchlistDetail, WatchlistTicker
 
 __all__ = [
     # Enums
@@ -76,6 +78,14 @@ __all__ = [
     "PricingConfig",
     "ScanConfig",
     "ServiceConfig",
+    # Diff
+    "DebateTrendPoint",
+    "ScanDiffResult",
+    "ScoreChange",
+    # Watchlist
+    "Watchlist",
+    "WatchlistDetail",
+    "WatchlistTicker",
     # Health
     "HealthStatus",
 ]

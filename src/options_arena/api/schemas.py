@@ -10,7 +10,13 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from options_arena.models import AgentResponse, ScanPreset, SignalDirection, TradeThesis
+from options_arena.models import (
+    AgentResponse,
+    DebateTrendPoint,
+    ScanPreset,
+    SignalDirection,
+    TradeThesis,
+)
 
 # ---------------------------------------------------------------------------
 # Scan schemas (#126)
@@ -149,3 +155,47 @@ class UniverseStats(BaseModel):
 
     optionable_count: int
     sp500_count: int
+
+
+# ---------------------------------------------------------------------------
+# v2.1 Watchlist schemas (#133)
+# ---------------------------------------------------------------------------
+
+
+class WatchlistCreateRequest(BaseModel):
+    """Request body for ``POST /api/watchlist``."""
+
+    name: str
+    description: str | None = None
+
+
+class WatchlistUpdateRequest(BaseModel):
+    """Request body for ``PUT /api/watchlist/{id}``."""
+
+    name: str | None = None
+    description: str | None = None
+
+
+class WatchlistAddTickerRequest(BaseModel):
+    """Request body for ``POST /api/watchlist/{id}/ticker``."""
+
+    ticker: str
+
+
+# ---------------------------------------------------------------------------
+# v2.1 Scan diff schemas (#133)
+# ---------------------------------------------------------------------------
+
+
+class ScanDiffRequest(BaseModel):
+    """Request body for ``GET /api/scan/diff``."""
+
+    old_scan_id: int
+    new_scan_id: int
+
+
+class DebateTrendResponse(BaseModel):
+    """Response for ``GET /api/debate/trend/{ticker}``."""
+
+    ticker: str
+    points: list[DebateTrendPoint]
