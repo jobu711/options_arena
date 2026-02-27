@@ -18,6 +18,8 @@ from options_arena.models import (
     ScanRun,
     SignalDirection,
     TickerScore,
+    Watchlist,
+    WatchlistTicker,
 )
 
 logger = logging.getLogger(__name__)
@@ -167,6 +169,155 @@ class Repository:
             direction=SignalDirection(row["direction"]),
             signals=IndicatorSignals.model_validate_json(row["signals_json"]),
             scan_run_id=int(row["scan_run_id"]),
+        )
+
+    # ------------------------------------------------------------------
+    # Watchlist persistence
+    # ------------------------------------------------------------------
+
+    async def create_watchlist(self, name: str, description: str | None = None) -> int:
+        """Create a new watchlist.  Returns the database-assigned ID (lastrowid)."""
+        conn = self._db.conn
+        now = datetime.now(UTC).isoformat()
+        cursor = await conn.execute(
+            "INSERT INTO watchlists (name, description, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?)",
+            (name, description, now, now),
+        )
+        await conn.commit()
+        row_id: int = cursor.lastrowid  # type: ignore[assignment]
+        logger.debug("Created watchlist id=%d name=%s", row_id, name)
+        return row_id
+
+    async def get_watchlist_by_id(self, watchlist_id: int) -> Watchlist | None:
+        """Get a watchlist by its primary key, or None if not found."""
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT * FROM watchlists WHERE id = ?", (watchlist_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        return self._row_to_watchlist(row)
+
+    async def get_watchlist_by_name(self, name: str) -> Watchlist | None:
+        """Get a watchlist by name, or None if not found."""
+        conn = self._db.conn
+        async with conn.execute("SELECT * FROM watchlists WHERE name = ?", (name,)) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        return self._row_to_watchlist(row)
+
+    async def get_all_watchlists(self) -> list[Watchlist]:
+        """Get all watchlists ordered by name ascending."""
+        conn = self._db.conn
+        async with conn.execute("SELECT * FROM watchlists ORDER BY name ASC") as cursor:
+            rows = await cursor.fetchall()
+        watchlists = [self._row_to_watchlist(row) for row in rows]
+        logger.debug("Retrieved %d watchlists", len(watchlists))
+        return watchlists
+
+    async def add_ticker_to_watchlist(self, watchlist_id: int, ticker: str) -> None:
+        """Add a ticker to a watchlist and update the watchlist's updated_at."""
+        conn = self._db.conn
+        now = datetime.now(UTC).isoformat()
+        await conn.execute(
+            "INSERT INTO watchlist_tickers (watchlist_id, ticker, added_at) VALUES (?, ?, ?)",
+            (watchlist_id, ticker, now),
+        )
+        await conn.execute(
+            "UPDATE watchlists SET updated_at = ? WHERE id = ?",
+            (now, watchlist_id),
+        )
+        await conn.commit()
+        logger.debug("Added ticker=%s to watchlist id=%d", ticker, watchlist_id)
+
+    async def remove_ticker_from_watchlist(self, watchlist_id: int, ticker: str) -> None:
+        """Remove a ticker from a watchlist and update the watchlist's updated_at."""
+        conn = self._db.conn
+        now = datetime.now(UTC).isoformat()
+        await conn.execute(
+            "DELETE FROM watchlist_tickers WHERE watchlist_id = ? AND ticker = ?",
+            (watchlist_id, ticker),
+        )
+        await conn.execute(
+            "UPDATE watchlists SET updated_at = ? WHERE id = ?",
+            (now, watchlist_id),
+        )
+        await conn.commit()
+        logger.debug("Removed ticker=%s from watchlist id=%d", ticker, watchlist_id)
+
+    async def get_tickers_for_watchlist(self, watchlist_id: int) -> list[WatchlistTicker]:
+        """Get all tickers for a watchlist ordered by added_at ascending."""
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT * FROM watchlist_tickers WHERE watchlist_id = ? ORDER BY added_at ASC",
+            (watchlist_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        tickers = [self._row_to_watchlist_ticker(row) for row in rows]
+        logger.debug("Retrieved %d tickers for watchlist id=%d", len(tickers), watchlist_id)
+        return tickers
+
+    async def update_watchlist(
+        self,
+        watchlist_id: int,
+        name: str | None = None,
+        description: str | None = None,
+    ) -> None:
+        """Update watchlist fields.  Always bumps updated_at."""
+        conn = self._db.conn
+        now = datetime.now(UTC).isoformat()
+        set_clauses: list[str] = ["updated_at = ?"]
+        params: list[str | int] = [now]
+        if name is not None:
+            set_clauses.append("name = ?")
+            params.append(name)
+        if description is not None:
+            set_clauses.append("description = ?")
+            params.append(description)
+        params.append(watchlist_id)
+        await conn.execute(
+            f"UPDATE watchlists SET {', '.join(set_clauses)} WHERE id = ?",  # noqa: S608
+            tuple(params),
+        )
+        await conn.commit()
+        logger.debug("Updated watchlist id=%d", watchlist_id)
+
+    async def delete_watchlist(self, watchlist_id: int) -> None:
+        """Delete a watchlist and all its ticker memberships."""
+        conn = self._db.conn
+        await conn.execute("DELETE FROM watchlist_tickers WHERE watchlist_id = ?", (watchlist_id,))
+        await conn.execute("DELETE FROM watchlists WHERE id = ?", (watchlist_id,))
+        await conn.commit()
+        logger.debug("Deleted watchlist id=%d", watchlist_id)
+
+    @staticmethod
+    def _row_to_watchlist(row: Row) -> Watchlist:
+        """Reconstruct a Watchlist from an aiosqlite.Row."""
+        raw_updated_at: str | None = row["updated_at"]
+        raw_description: str | None = row["description"]
+        return Watchlist(
+            id=int(row["id"]),
+            name=str(row["name"]),
+            description=raw_description,
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=(
+                datetime.fromisoformat(raw_updated_at)
+                if raw_updated_at is not None
+                else datetime.fromisoformat(row["created_at"])
+            ),
+        )
+
+    @staticmethod
+    def _row_to_watchlist_ticker(row: Row) -> WatchlistTicker:
+        """Reconstruct a WatchlistTicker from an aiosqlite.Row."""
+        return WatchlistTicker(
+            id=int(row["id"]),
+            watchlist_id=int(row["watchlist_id"]),
+            ticker=str(row["ticker"]),
+            added_at=datetime.fromisoformat(row["added_at"]),
         )
 
     # ------------------------------------------------------------------
