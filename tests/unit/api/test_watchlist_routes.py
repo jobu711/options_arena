@@ -6,11 +6,9 @@ import sqlite3
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 from httpx import AsyncClient
 
 from options_arena.models import Watchlist, WatchlistTicker
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -53,9 +51,7 @@ async def test_create_watchlist_201(client: AsyncClient, mock_repo: MagicMock) -
     assert data["id"] == 1
 
 
-async def test_create_watchlist_duplicate_409(
-    client: AsyncClient, mock_repo: MagicMock
-) -> None:
+async def test_create_watchlist_duplicate_409(client: AsyncClient, mock_repo: MagicMock) -> None:
     """POST /api/watchlists with duplicate name returns 409."""
     mock_repo.create_watchlist = AsyncMock(
         side_effect=sqlite3.IntegrityError("UNIQUE constraint failed")
@@ -80,13 +76,9 @@ async def test_list_watchlists_empty(client: AsyncClient, mock_repo: MagicMock) 
     assert response.json() == []
 
 
-async def test_list_watchlists_returns_data(
-    client: AsyncClient, mock_repo: MagicMock
-) -> None:
+async def test_list_watchlists_returns_data(client: AsyncClient, mock_repo: MagicMock) -> None:
     """GET /api/watchlists returns list of watchlists."""
-    mock_repo.get_all_watchlists = AsyncMock(
-        return_value=[_make_watchlist(1), _make_watchlist(2)]
-    )
+    mock_repo.get_all_watchlists = AsyncMock(return_value=[_make_watchlist(1), _make_watchlist(2)])
 
     response = await client.get("/api/watchlists")
     assert response.status_code == 200
@@ -99,9 +91,7 @@ async def test_list_watchlists_returns_data(
 # ---------------------------------------------------------------------------
 
 
-async def test_get_watchlist_detail_200(
-    client: AsyncClient, mock_repo: MagicMock
-) -> None:
+async def test_get_watchlist_detail_200(client: AsyncClient, mock_repo: MagicMock) -> None:
     """GET /api/watchlists/1 returns 200 with watchlist detail including tickers."""
     mock_repo.get_watchlist_by_id = AsyncMock(return_value=_make_watchlist())
     mock_repo.get_tickers_for_watchlist = AsyncMock(
@@ -116,9 +106,7 @@ async def test_get_watchlist_detail_200(
     assert data["tickers"][0]["ticker"] == "AAPL"
 
 
-async def test_get_watchlist_not_found_404(
-    client: AsyncClient, mock_repo: MagicMock
-) -> None:
+async def test_get_watchlist_not_found_404(client: AsyncClient, mock_repo: MagicMock) -> None:
     """GET /api/watchlists/999 returns 404 when not found."""
     mock_repo.get_watchlist_by_id = AsyncMock(return_value=None)
 
@@ -177,30 +165,22 @@ async def test_add_ticker_201(client: AsyncClient, mock_repo: MagicMock) -> None
     """POST /api/watchlists/1/tickers returns 201 with new ticker."""
     mock_repo.get_watchlist_by_id = AsyncMock(return_value=_make_watchlist())
     mock_repo.add_ticker_to_watchlist = AsyncMock(return_value=None)
-    mock_repo.get_tickers_for_watchlist = AsyncMock(
-        return_value=[_make_watchlist_ticker("AAPL")]
-    )
+    mock_repo.get_tickers_for_watchlist = AsyncMock(return_value=[_make_watchlist_ticker("AAPL")])
 
-    response = await client.post(
-        "/api/watchlists/1/tickers", json={"ticker": "AAPL"}
-    )
+    response = await client.post("/api/watchlists/1/tickers", json={"ticker": "AAPL"})
     assert response.status_code == 201
     data = response.json()
     assert data["ticker"] == "AAPL"
 
 
-async def test_add_ticker_duplicate_409(
-    client: AsyncClient, mock_repo: MagicMock
-) -> None:
+async def test_add_ticker_duplicate_409(client: AsyncClient, mock_repo: MagicMock) -> None:
     """POST /api/watchlists/1/tickers with duplicate ticker returns 409."""
     mock_repo.get_watchlist_by_id = AsyncMock(return_value=_make_watchlist())
     mock_repo.add_ticker_to_watchlist = AsyncMock(
         side_effect=sqlite3.IntegrityError("UNIQUE constraint failed")
     )
 
-    response = await client.post(
-        "/api/watchlists/1/tickers", json={"ticker": "AAPL"}
-    )
+    response = await client.post("/api/watchlists/1/tickers", json={"ticker": "AAPL"})
     assert response.status_code == 409
     assert "already in watchlist" in response.json()["detail"]
 
@@ -231,9 +211,7 @@ async def test_watchlist_not_found_for_ticker_ops_404(
     mock_repo.get_watchlist_by_id = AsyncMock(return_value=None)
 
     # Add ticker to missing watchlist
-    add_resp = await client.post(
-        "/api/watchlists/999/tickers", json={"ticker": "AAPL"}
-    )
+    add_resp = await client.post("/api/watchlists/999/tickers", json={"ticker": "AAPL"})
     assert add_resp.status_code == 404
 
     # Remove ticker from missing watchlist

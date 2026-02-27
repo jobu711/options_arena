@@ -142,7 +142,14 @@ async def start_scan(
     # Background task owns the lock and releases it on completion
     asyncio.create_task(
         _run_scan_background(
-            request, scan_id, body.preset, token, bridge, pipeline, repo, lock,
+            request,
+            scan_id,
+            body.preset,
+            token,
+            bridge,
+            pipeline,
+            repo,
+            lock,
             watchlist_tickers=watchlist_tickers,
         )
     )

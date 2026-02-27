@@ -31,7 +31,7 @@ async def create_watchlist(
     try:
         watchlist_id = await repo.create_watchlist(body.name, body.description)
     except sqlite3.IntegrityError:
-        raise HTTPException(409, f"Watchlist with name '{body.name}' already exists")
+        raise HTTPException(409, f"Watchlist with name '{body.name}' already exists") from None
     watchlist = await repo.get_watchlist_by_id(watchlist_id)
     if watchlist is None:  # pragma: no cover — should never happen after successful insert
         raise HTTPException(500, "Failed to retrieve created watchlist")
@@ -110,7 +110,7 @@ async def add_ticker(
     try:
         await repo.add_ticker_to_watchlist(watchlist_id, ticker_upper)
     except sqlite3.IntegrityError:
-        raise HTTPException(409, f"Ticker '{ticker_upper}' already in watchlist")
+        raise HTTPException(409, f"Ticker '{ticker_upper}' already in watchlist") from None
     # Return the newly added ticker
     tickers = await repo.get_tickers_for_watchlist(watchlist_id)
     match = next((t for t in tickers if t.ticker == ticker_upper), None)

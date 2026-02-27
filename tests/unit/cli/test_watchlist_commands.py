@@ -80,14 +80,10 @@ def test_watchlist_create(mock_db_cls: MagicMock, mock_repo_cls: MagicMock) -> N
 
 @patch("options_arena.cli.commands.Repository")
 @patch("options_arena.cli.commands.Database")
-def test_watchlist_create_duplicate(
-    mock_db_cls: MagicMock, mock_repo_cls: MagicMock
-) -> None:
+def test_watchlist_create_duplicate(mock_db_cls: MagicMock, mock_repo_cls: MagicMock) -> None:
     """watchlist wl-create with duplicate name exits with code 1."""
     _mock_db, mock_repo = _setup_mocks(mock_db_cls, mock_repo_cls)
-    mock_repo.create_watchlist = AsyncMock(
-        side_effect=Exception("UNIQUE constraint failed")
-    )
+    mock_repo.create_watchlist = AsyncMock(side_effect=Exception("UNIQUE constraint failed"))
 
     result = runner.invoke(app, ["watchlist", "wl-create", "Existing"])
     assert result.exit_code == 1
@@ -113,9 +109,7 @@ def test_watchlist_list_empty(mock_db_cls: MagicMock, mock_repo_cls: MagicMock) 
 
 @patch("options_arena.cli.commands.Repository")
 @patch("options_arena.cli.commands.Database")
-def test_watchlist_list_with_data(
-    mock_db_cls: MagicMock, mock_repo_cls: MagicMock
-) -> None:
+def test_watchlist_list_with_data(mock_db_cls: MagicMock, mock_repo_cls: MagicMock) -> None:
     """watchlist list with data renders a table with watchlist names."""
     _mock_db, mock_repo = _setup_mocks(mock_db_cls, mock_repo_cls)
     mock_repo.get_all_watchlists = AsyncMock(
@@ -152,9 +146,7 @@ def test_watchlist_show(mock_db_cls: MagicMock, mock_repo_cls: MagicMock) -> Non
 
 @patch("options_arena.cli.commands.Repository")
 @patch("options_arena.cli.commands.Database")
-def test_watchlist_show_not_found(
-    mock_db_cls: MagicMock, mock_repo_cls: MagicMock
-) -> None:
+def test_watchlist_show_not_found(mock_db_cls: MagicMock, mock_repo_cls: MagicMock) -> None:
     """watchlist wl-show with unknown name exits with code 1."""
     _mock_db, mock_repo = _setup_mocks(mock_db_cls, mock_repo_cls)
     mock_repo.get_watchlist_by_name = AsyncMock(return_value=None)
