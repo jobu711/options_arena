@@ -79,9 +79,12 @@ def scan(
     top_n: int = typer.Option(50, "--top-n", "-n", help="Top N tickers for options analysis"),
     min_score: float = typer.Option(0.0, "--min-score", help="Minimum composite score"),
     sectors: str | None = typer.Option(None, "--sectors", help="Comma-separated GICS sectors"),
+    watchlist: str | None = typer.Option(  # noqa: B008
+        None, "--watchlist", "-w", help="Watchlist name for targeted scan"
+    ),
 ) -> None:
     """Run the full scan pipeline: universe -> scoring -> options -> persist."""
-    asyncio.run(_scan_async(preset, top_n, min_score, sectors))
+    asyncio.run(_scan_async(preset, top_n, min_score, sectors, watchlist))
 
 
 async def _scan_async(
@@ -89,6 +92,7 @@ async def _scan_async(
     top_n: int,
     min_score: float,
     sectors: str | None,
+    watchlist_name: str | None = None,
 ) -> None:
     """Run the scan pipeline with full service lifecycle management."""
     if sectors is not None:
@@ -121,6 +125,23 @@ async def _scan_async(
         await db.connect()
         repo = Repository(db)
 
+        # Resolve watchlist name to ticker list
+        watchlist_tickers: list[str] | None = None
+        if watchlist_name is not None:
+            wl = await repo.get_watchlist_by_name(watchlist_name)
+            if wl is None:
+                err_console.print(f"[red]Watchlist '{watchlist_name}' not found[/red]")
+                raise typer.Exit(code=1)
+            tickers = await repo.get_tickers_for_watchlist(wl.id)  # type: ignore[arg-type]
+            if not tickers:
+                err_console.print(f"[red]Watchlist '{watchlist_name}' is empty[/red]")
+                raise typer.Exit(code=1)
+            watchlist_tickers = [t.ticker for t in tickers]
+            console.print(
+                f"[cyan]Scanning watchlist '{watchlist_name}':"
+                f" {len(watchlist_tickers)} tickers[/cyan]"
+            )
+
         # Services (DI pattern)
         market_data = MarketDataService(settings.service, cache, limiter)
         options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
@@ -145,7 +166,9 @@ async def _scan_async(
             transient=False,
         ) as progress:
             callback = RichProgressCallback(progress)
-            result = await pipeline.run(preset, token, callback)
+            result = await pipeline.run(
+                preset, token, callback, watchlist_tickers=watchlist_tickers
+            )
 
         # Render results
         elapsed = time.monotonic() - start_time
@@ -713,6 +736,205 @@ async def _stats_async() -> None:
     finally:
         await svc.close()
         await cache.close()
+
+
+# ---------------------------------------------------------------------------
+# watchlist subcommands
+# ---------------------------------------------------------------------------
+
+watchlist_app = typer.Typer(
+    help="Manage watchlists for targeted scanning.",
+    no_args_is_help=True,
+)
+app.add_typer(watchlist_app, name="watchlist")
+
+
+@watchlist_app.command()
+def wl_create(
+    name: str = typer.Argument(..., help="Watchlist name"),
+    description: str | None = typer.Option(  # noqa: B008
+        None, "--description", "-d", help="Watchlist description"
+    ),
+) -> None:
+    """Create a new watchlist."""
+    asyncio.run(_wl_create_async(name, description))
+
+
+async def _wl_create_async(name: str, description: str | None) -> None:
+    """Create a watchlist in the database."""
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    db = Database(_DATA_DIR / "options_arena.db")
+    await db.connect()
+    repo = Repository(db)
+    try:
+        wl_id = await repo.create_watchlist(name, description)
+        console.print(f"[green]Created watchlist '{name}' (id={wl_id})[/green]")
+    except Exception as exc:
+        if "UNIQUE" in str(exc):
+            err_console.print(f"[red]Watchlist '{name}' already exists[/red]")
+            raise typer.Exit(code=1) from exc
+        raise
+    finally:
+        await db.close()
+
+
+@watchlist_app.command("list")
+def wl_list() -> None:
+    """List all watchlists."""
+    asyncio.run(_wl_list_async())
+
+
+async def _wl_list_async() -> None:
+    """List all watchlists from the database."""
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    db = Database(_DATA_DIR / "options_arena.db")
+    await db.connect()
+    repo = Repository(db)
+    try:
+        watchlists = await repo.get_all_watchlists()
+        if not watchlists:
+            console.print("[yellow]No watchlists found.[/yellow]")
+            return
+        from rich.table import Table  # noqa: PLC0415
+
+        table = Table(title="Watchlists")
+        table.add_column("ID", justify="right")
+        table.add_column("Name", style="bold")
+        table.add_column("Description")
+        table.add_column("Updated", justify="right")
+        for wl in watchlists:
+            table.add_row(
+                str(wl.id),
+                wl.name,
+                wl.description or "",
+                wl.updated_at.strftime("%Y-%m-%d %H:%M") if wl.updated_at else "--",
+            )
+        console.print(table)
+    finally:
+        await db.close()
+
+
+@watchlist_app.command()
+def wl_show(
+    name: str = typer.Argument(..., help="Watchlist name"),
+) -> None:
+    """Show watchlist details and tickers."""
+    asyncio.run(_wl_show_async(name))
+
+
+async def _wl_show_async(name: str) -> None:
+    """Display watchlist metadata and ticker membership."""
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    db = Database(_DATA_DIR / "options_arena.db")
+    await db.connect()
+    repo = Repository(db)
+    try:
+        wl = await repo.get_watchlist_by_name(name)
+        if wl is None:
+            err_console.print(f"[red]Watchlist '{name}' not found[/red]")
+            raise typer.Exit(code=1)
+        tickers = await repo.get_tickers_for_watchlist(wl.id)  # type: ignore[arg-type]
+        console.print(f"[bold]{wl.name}[/bold]")
+        if wl.description:
+            console.print(f"  {wl.description}")
+        console.print(f"  Tickers: {len(tickers)}")
+        if tickers:
+            from rich.table import Table  # noqa: PLC0415
+
+            table = Table()
+            table.add_column("Ticker", style="bold")
+            table.add_column("Added", justify="right")
+            for t in tickers:
+                table.add_row(t.ticker, t.added_at.strftime("%Y-%m-%d %H:%M"))
+            console.print(table)
+    finally:
+        await db.close()
+
+
+@watchlist_app.command()
+def wl_add(
+    name: str = typer.Argument(..., help="Watchlist name"),
+    tickers: list[str] = typer.Argument(..., help="Tickers to add"),  # noqa: B008
+) -> None:
+    """Add tickers to a watchlist."""
+    asyncio.run(_wl_add_async(name, tickers))
+
+
+async def _wl_add_async(name: str, tickers: list[str]) -> None:
+    """Add one or more tickers to an existing watchlist."""
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    db = Database(_DATA_DIR / "options_arena.db")
+    await db.connect()
+    repo = Repository(db)
+    try:
+        wl = await repo.get_watchlist_by_name(name)
+        if wl is None:
+            err_console.print(f"[red]Watchlist '{name}' not found[/red]")
+            raise typer.Exit(code=1)
+        added = 0
+        for ticker in tickers:
+            try:
+                await repo.add_ticker_to_watchlist(wl.id, ticker.upper())  # type: ignore[arg-type]
+                added += 1
+            except Exception as exc:
+                if "UNIQUE" in str(exc):
+                    console.print(f"[yellow]{ticker.upper()} already in watchlist[/yellow]")
+                else:
+                    raise
+        console.print(f"[green]Added {added} ticker(s) to '{name}'[/green]")
+    finally:
+        await db.close()
+
+
+@watchlist_app.command()
+def wl_remove(
+    name: str = typer.Argument(..., help="Watchlist name"),
+    ticker: str = typer.Argument(..., help="Ticker to remove"),
+) -> None:
+    """Remove a ticker from a watchlist."""
+    asyncio.run(_wl_remove_async(name, ticker))
+
+
+async def _wl_remove_async(name: str, ticker: str) -> None:
+    """Remove a single ticker from a watchlist."""
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    db = Database(_DATA_DIR / "options_arena.db")
+    await db.connect()
+    repo = Repository(db)
+    try:
+        wl = await repo.get_watchlist_by_name(name)
+        if wl is None:
+            err_console.print(f"[red]Watchlist '{name}' not found[/red]")
+            raise typer.Exit(code=1)
+        await repo.remove_ticker_from_watchlist(wl.id, ticker.upper())  # type: ignore[arg-type]
+        console.print(f"[green]Removed {ticker.upper()} from '{name}'[/green]")
+    finally:
+        await db.close()
+
+
+@watchlist_app.command()
+def wl_delete(
+    name: str = typer.Argument(..., help="Watchlist name"),
+) -> None:
+    """Delete a watchlist and all its tickers."""
+    asyncio.run(_wl_delete_async(name))
+
+
+async def _wl_delete_async(name: str) -> None:
+    """Delete a watchlist and all associated ticker memberships."""
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    db = Database(_DATA_DIR / "options_arena.db")
+    await db.connect()
+    repo = Repository(db)
+    try:
+        wl = await repo.get_watchlist_by_name(name)
+        if wl is None:
+            err_console.print(f"[red]Watchlist '{name}' not found[/red]")
+            raise typer.Exit(code=1)
+        await repo.delete_watchlist(wl.id)  # type: ignore[arg-type]
+        console.print(f"[green]Deleted watchlist '{name}'[/green]")
+    finally:
+        await db.close()
 
 
 # ---------------------------------------------------------------------------
