@@ -86,6 +86,7 @@ class ScanPipeline:
         preset: ScanPreset,
         token: CancellationToken,
         progress: ProgressCallback,
+        watchlist_tickers: list[str] | None = None,
     ) -> ScanResult:
         """Orchestrate all pipeline phases with cancellation checks between phases.
 
@@ -93,6 +94,7 @@ class ScanPipeline:
             preset: Universe preset (FULL, SP500, ETFS).
             token: Instance-scoped cancellation token checked between phases.
             progress: Callback for reporting per-phase progress.
+            watchlist_tickers: Override universe with a specific ticker list (watchlist mode).
 
         Returns:
             A ``ScanResult`` with all phases completed (or partial if cancelled).
@@ -101,7 +103,9 @@ class ScanPipeline:
         phases_completed = 0
 
         # Phase 1: Universe + OHLCV
-        universe_result = await self._phase_universe(preset, progress)
+        universe_result = await self._phase_universe(
+            preset, progress, watchlist_tickers=watchlist_tickers
+        )
         phases_completed = 1
         if token.is_cancelled:
             return self._make_cancelled_result(
@@ -150,13 +154,14 @@ class ScanPipeline:
         self,
         preset: ScanPreset,
         progress: ProgressCallback,
+        watchlist_tickers: list[str] | None = None,
     ) -> UniverseResult:
         """Phase 1: Fetch universe tickers, S&P 500 sectors, and OHLCV data.
 
         Steps:
-            1. Fetch optionable tickers from CBOE.
-            2. Fetch S&P 500 constituents and build sector dict.
-            3. If preset is SP500, filter tickers to S&P 500 only.
+            1. Fetch optionable tickers from CBOE (skipped in watchlist mode).
+            2. Fetch S&P 500 constituents and build sector dict (skipped in watchlist mode).
+            3. If preset is SP500, filter tickers to S&P 500 only (skipped in watchlist mode).
             4. Batch-fetch OHLCV for all tickers.
             5. Filter by minimum bar count (``ohlcv_min_bars``).
             6. Report progress.
@@ -164,33 +169,41 @@ class ScanPipeline:
         Returns:
             ``UniverseResult`` with tickers, OHLCV map, sectors, and counts.
         """
-        # Step 1: Fetch optionable tickers
-        all_tickers = await self._universe.fetch_optionable_tickers()
-        logger.info("Universe: %d optionable tickers fetched", len(all_tickers))
-
-        # Step 2: Fetch S&P 500 constituents
-        sp500_constituents = await self._universe.fetch_sp500_constituents()
-        sp500_sectors: dict[str, str] = {c.ticker: c.sector for c in sp500_constituents}
-        logger.info("S&P 500: %d constituents fetched", len(sp500_sectors))
-
-        # Step 3: Filter by preset
         tickers: list[str]
-        if preset == ScanPreset.SP500:
-            sp500_set = set(sp500_sectors.keys())
-            tickers = [t for t in all_tickers if t in sp500_set]
-            logger.info(
-                "SP500 preset: filtered %d -> %d tickers",
-                len(all_tickers),
-                len(tickers),
-            )
+        sp500_sectors: dict[str, str]
+
+        if watchlist_tickers is not None:
+            # Watchlist mode: use provided tickers directly, skip Steps 1-3
+            tickers = watchlist_tickers
+            sp500_sectors = {}
+            logger.info("Watchlist mode: %d tickers provided", len(tickers))
         else:
-            if preset == ScanPreset.ETFS:
-                logger.warning(
-                    "ETFS preset selected but ETF-only filtering is not yet implemented; "
-                    "using full universe (%d tickers)",
+            # Step 1: Fetch optionable tickers
+            all_tickers = await self._universe.fetch_optionable_tickers()
+            logger.info("Universe: %d optionable tickers fetched", len(all_tickers))
+
+            # Step 2: Fetch S&P 500 constituents
+            sp500_constituents = await self._universe.fetch_sp500_constituents()
+            sp500_sectors = {c.ticker: c.sector for c in sp500_constituents}
+            logger.info("S&P 500: %d constituents fetched", len(sp500_sectors))
+
+            # Step 3: Filter by preset
+            if preset == ScanPreset.SP500:
+                sp500_set = set(sp500_sectors.keys())
+                tickers = [t for t in all_tickers if t in sp500_set]
+                logger.info(
+                    "SP500 preset: filtered %d -> %d tickers",
                     len(all_tickers),
+                    len(tickers),
                 )
-            tickers = all_tickers
+            else:
+                if preset == ScanPreset.ETFS:
+                    logger.warning(
+                        "ETFS preset selected but ETF-only filtering is not yet implemented; "
+                        "using full universe (%d tickers)",
+                        len(all_tickers),
+                    )
+                tickers = all_tickers
 
         # Step 4: Batch-fetch OHLCV
         progress(ScanPhase.UNIVERSE, 0, len(tickers))

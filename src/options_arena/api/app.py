@@ -112,6 +112,7 @@ def create_app() -> FastAPI:
     from options_arena.api.routes.health import router as health_router  # noqa: PLC0415
     from options_arena.api.routes.scan import router as scan_router  # noqa: PLC0415
     from options_arena.api.routes.universe import router as universe_router  # noqa: PLC0415
+    from options_arena.api.routes.watchlist import router as watchlist_router  # noqa: PLC0415
     from options_arena.api.ws import router as ws_router  # noqa: PLC0415
 
     app.include_router(health_router)
@@ -120,6 +121,7 @@ def create_app() -> FastAPI:
     app.include_router(export_router)
     app.include_router(universe_router)
     app.include_router(config_router)
+    app.include_router(watchlist_router)
     app.include_router(ws_router)
 
     # Exception handlers for domain errors

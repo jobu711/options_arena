@@ -47,13 +47,16 @@ async def _run_scan_background(
     pipeline: ScanPipeline,
     repo: Repository,
     lock: asyncio.Lock,
+    watchlist_tickers: list[str] | None = None,
 ) -> None:
     """Run the scan pipeline as a background task.
 
     The lock is already acquired by the caller — this task releases it on completion.
     """
     try:
-        result: ScanResult = await pipeline.run(preset, token, bridge)
+        result: ScanResult = await pipeline.run(
+            preset, token, bridge, watchlist_tickers=watchlist_tickers
+        )
 
         # Persist
         actual_id = await repo.save_scan_run(result.scan_run)
@@ -96,6 +99,17 @@ async def start_scan(
     if lock.locked():
         raise HTTPException(409, "Another operation is in progress")
 
+    # Resolve watchlist_id → ticker list
+    watchlist_tickers: list[str] | None = None
+    if body.watchlist_id is not None:
+        watchlist = await repo.get_watchlist_by_id(body.watchlist_id)
+        if watchlist is None:
+            raise HTTPException(404, f"Watchlist {body.watchlist_id} not found")
+        ticker_rows = await repo.get_tickers_for_watchlist(body.watchlist_id)
+        if not ticker_rows:
+            raise HTTPException(422, "Watchlist is empty")
+        watchlist_tickers = [t.ticker for t in ticker_rows]
+
     # Acquire the lock atomically before any awaits to prevent TOCTOU race
     await lock.acquire()
 
@@ -127,7 +141,10 @@ async def start_scan(
 
     # Background task owns the lock and releases it on completion
     asyncio.create_task(
-        _run_scan_background(request, scan_id, body.preset, token, bridge, pipeline, repo, lock)
+        _run_scan_background(
+            request, scan_id, body.preset, token, bridge, pipeline, repo, lock,
+            watchlist_tickers=watchlist_tickers,
+        )
     )
     return ScanStarted(scan_id=scan_id)
 

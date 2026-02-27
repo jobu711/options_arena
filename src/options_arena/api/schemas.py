@@ -27,6 +27,7 @@ class ScanRequest(BaseModel):
     """Request body for ``POST /api/scan``."""
 
     preset: ScanPreset = ScanPreset.SP500
+    watchlist_id: int | None = None
 
 
 class ScanStarted(BaseModel):
