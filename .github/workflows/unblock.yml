@@ -1,0 +1,40 @@
+name: Unblock Dependent Issues
+on:
+  issues:
+    types: [closed]
+
+jobs:
+  unblock:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find and unblock dependent issues
+        run: |
+          CLOSED=${{ github.event.issue.number }}
+          gh issue list --repo ${{ github.repository }} --label "auto-task" --state open --limit 100 \
+            --json number,body | python3 -c "
+          import json, sys, re, subprocess
+          issues = json.load(sys.stdin)
+          for issue in issues:
+              body = issue.get('body', '')
+              m = re.search(r'\*\*Blocked By\*\*:\s*(.+)', body)
+              if not m:
+                  continue
+              blockers = [b.strip().lstrip('#') for b in m.group(1).split(',') if b.strip() != 'none']
+              if '${CLOSED}' not in blockers:
+                  continue
+              all_closed = True
+              for b in blockers:
+                  r = subprocess.run(['gh','issue','view',b,'--repo','${{ github.repository }}','--json','state','--jq','.state'],
+                      capture_output=True, text=True)
+                  if r.stdout.strip() != 'CLOSED':
+                      all_closed = False
+                      break
+              if all_closed:
+                  num = str(issue['number'])
+                  subprocess.run(['gh','issue','edit',num,'--repo','${{ github.repository }}','--add-label','ready'])
+                  subprocess.run(['gh','issue','comment',num,'--repo','${{ github.repository }}',
+                      '--body','All blockers resolved. Issue is now ready for work.'])
+                  print(f'Unblocked #{num}')
+          "
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
