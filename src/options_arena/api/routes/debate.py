@@ -23,6 +23,7 @@ from options_arena.api.schemas import (
     DebateResultDetail,
     DebateResultSummary,
     DebateStarted,
+    DebateTrendResponse,
 )
 from options_arena.api.ws import BatchProgressBridge, DebateProgressBridge
 from options_arena.data import Repository
@@ -419,6 +420,19 @@ async def list_debates(
             )
         )
     return summaries
+
+
+@router.get("/debate/trend/{ticker}")
+async def get_debate_trend(
+    ticker: str,
+    repo: Repository = Depends(get_repo),
+    limit: int = Query(20, ge=1, le=100),
+) -> DebateTrendResponse:
+    """Get debate confidence trend for a ticker."""
+    points = await repo.get_debate_trend_for_ticker(ticker.upper(), limit=limit)
+    if not points:
+        raise HTTPException(404, f"No debates found for {ticker.upper()}")
+    return DebateTrendResponse(ticker=ticker.upper(), points=points)
 
 
 @router.get("/debate/{debate_id}")

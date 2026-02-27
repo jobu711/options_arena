@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
+import ToggleSwitch from 'primevue/toggleswitch'
 import HealthDot from '@/components/HealthDot.vue'
 import { useHealthStore } from '@/stores/health'
 import { api } from '@/composables/useApi'
@@ -14,6 +15,20 @@ const latestScan = ref<ScanRun | null>(null)
 const recentDebates = ref<DebateResultSummary[]>([])
 const config = ref<ConfigResponse | null>(null)
 const loading = ref(true)
+const lastUpdated = ref<Date | null>(null)
+const autoRefreshEnabled = ref(localStorage.getItem('dashboard_auto_refresh') !== 'false')
+const now = ref(new Date())
+let dashboardInterval: ReturnType<typeof setInterval> | null = null
+let nowInterval: ReturnType<typeof setInterval> | null = null
+
+const lastUpdatedText = computed<string>(() => {
+  if (!lastUpdated.value) return ''
+  const diffMs = now.value.getTime() - lastUpdated.value.getTime()
+  const seconds = Math.floor(diffMs / 1000)
+  if (seconds < 60) return `${seconds}s ago`
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes}m ago`
+})
 
 async function loadDashboard(): Promise<void> {
   loading.value = true
@@ -26,6 +41,7 @@ async function loadDashboard(): Promise<void> {
     latestScan.value = scans[0] ?? null
     recentDebates.value = debates
     config.value = cfg
+    lastUpdated.value = new Date()
   } finally {
     loading.value = false
   }
@@ -39,20 +55,59 @@ function formatConfidence(val: number): string {
   return `${(val * 100).toFixed(0)}%`
 }
 
+function startDashboardRefresh(): void {
+  stopDashboardRefresh()
+  dashboardInterval = setInterval(() => void loadDashboard(), 60_000)
+}
+
+function stopDashboardRefresh(): void {
+  if (dashboardInterval !== null) {
+    clearInterval(dashboardInterval)
+    dashboardInterval = null
+  }
+}
+
+function toggleAutoRefresh(): void {
+  localStorage.setItem('dashboard_auto_refresh', String(autoRefreshEnabled.value))
+  if (autoRefreshEnabled.value) {
+    startDashboardRefresh()
+  } else {
+    stopDashboardRefresh()
+  }
+}
+
 onMounted(() => {
   void loadDashboard()
   void healthStore.fetchHealth()
-  healthStore.startAutoRefresh(60_000)
+  healthStore.startAutoRefresh(30_000)
+  if (autoRefreshEnabled.value) {
+    startDashboardRefresh()
+  }
+  nowInterval = setInterval(() => { now.value = new Date() }, 1_000)
 })
 
 onUnmounted(() => {
   healthStore.stopAutoRefresh()
+  stopDashboardRefresh()
+  if (nowInterval !== null) {
+    clearInterval(nowInterval)
+    nowInterval = null
+  }
 })
 </script>
 
 <template>
   <div class="page">
-    <h1>Dashboard</h1>
+    <div class="page-header">
+      <h1>Dashboard</h1>
+      <div class="header-controls">
+        <span v-if="lastUpdated" class="last-updated mono">{{ lastUpdatedText }}</span>
+        <div class="refresh-toggle">
+          <label class="toggle-label">Auto-refresh</label>
+          <ToggleSwitch v-model="autoRefreshEnabled" @change="toggleAutoRefresh" />
+        </div>
+      </div>
+    </div>
 
     <!-- Health Strip -->
     <div v-if="healthStore.services.length > 0" class="health-strip" data-testid="dashboard-health-strip">
@@ -166,6 +221,39 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.page-header h1 {
+  margin: 0;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.last-updated {
+  font-size: 0.8rem;
+  color: var(--p-surface-500, #666);
+}
+
+.refresh-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toggle-label {
+  font-size: 0.8rem;
+  color: var(--p-surface-400, #888);
+}
+
 .health-strip {
   display: flex;
   gap: 0.75rem;

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import AgentCard from '@/components/AgentCard.vue'
 import DirectionBadge from '@/components/DirectionBadge.vue'
 import ConfidenceBadge from '@/components/ConfidenceBadge.vue'
+import DebateTrendChart from '@/components/DebateTrendChart.vue'
 import { useDebateStore } from '@/stores/debate'
 import type { AgentResponse } from '@/types/debate'
 
@@ -36,6 +37,14 @@ function exportDebate(fmt: 'md' | 'pdf'): void {
 }
 
 onMounted(() => void debateStore.fetchDebate(debateId))
+
+// Fetch trend data when debate loads
+watch(
+  () => debateStore.currentDebate?.ticker,
+  (ticker) => {
+    if (ticker) void debateStore.fetchTrend(ticker)
+  },
+)
 </script>
 
 <template>
@@ -117,6 +126,12 @@ onMounted(() => void debateStore.fetchDebate(debateId))
           >{{ f }}</span>
         </div>
         <p class="thesis-risk">{{ debateStore.currentDebate.thesis.risk_assessment }}</p>
+      </div>
+
+      <!-- Confidence Trend -->
+      <div v-if="debateStore.trendData.length >= 2" class="trend-section">
+        <h2>Confidence Trend</h2>
+        <DebateTrendChart :points="debateStore.trendData" :height="220" />
       </div>
 
       <!-- Agent Cards Grid -->
@@ -300,6 +315,17 @@ onMounted(() => void debateStore.fetchDebate(debateId))
   color: var(--p-surface-400, #888);
   margin: 0;
   font-style: italic;
+}
+
+/* Confidence Trend */
+.trend-section {
+  margin-bottom: 1.5rem;
+}
+
+.trend-section h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem 0;
+  color: var(--p-surface-300, #aaa);
 }
 
 /* Agent Cards Grid */

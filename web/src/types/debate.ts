@@ -59,3 +59,18 @@ export interface AgentProgressEntry {
   status: 'pending' | 'started' | 'completed' | 'failed'
   confidence: number | null
 }
+
+/** Single point in a debate confidence trend. */
+export interface DebateTrendPoint {
+  ticker: string
+  direction: 'bullish' | 'bearish' | 'neutral'
+  confidence: number
+  is_fallback: boolean
+  created_at: string
+}
+
+/** Response from GET /api/debate/trend/{ticker}. */
+export interface DebateTrendResponse {
+  ticker: string
+  points: DebateTrendPoint[]
+}

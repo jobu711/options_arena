@@ -31,10 +31,13 @@ export const useHealthStore = defineStore('health', () => {
   }
 
   let intervalId: ReturnType<typeof setInterval> | null = null
+  const autoRefreshEnabled = ref(localStorage.getItem('health_auto_refresh') !== 'false')
 
   function startAutoRefresh(intervalMs = 60_000): void {
     stopAutoRefresh()
     intervalId = setInterval(() => void fetchHealth(), intervalMs)
+    autoRefreshEnabled.value = true
+    localStorage.setItem('health_auto_refresh', 'true')
   }
 
   function stopAutoRefresh(): void {
@@ -42,6 +45,8 @@ export const useHealthStore = defineStore('health', () => {
       clearInterval(intervalId)
       intervalId = null
     }
+    autoRefreshEnabled.value = false
+    localStorage.setItem('health_auto_refresh', 'false')
   }
 
   return {
@@ -51,6 +56,7 @@ export const useHealthStore = defineStore('health', () => {
     lastChecked,
     allHealthy,
     degradedCount,
+    autoRefreshEnabled,
     fetchHealth,
     startAutoRefresh,
     stopAutoRefresh,

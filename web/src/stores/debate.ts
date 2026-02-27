@@ -5,6 +5,7 @@ import type {
   DebateResultSummary,
   DebateResult,
   AgentProgressEntry,
+  DebateTrendPoint,
 } from '@/types/debate'
 import type { BatchTickerResultEvent } from '@/types/ws'
 
@@ -25,6 +26,10 @@ export const useDebateStore = defineStore('debate', () => {
   const agentProgress = ref<AgentProgressEntry[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+
+  // Trend state
+  const trendData = ref<DebateTrendPoint[]>([])
+  const trendTicker = ref<string | null>(null)
 
   // Batch state
   const batchId = ref<number | null>(null)
@@ -209,6 +214,18 @@ export const useDebateStore = defineStore('debate', () => {
     error.value = message
   }
 
+  async function fetchTrend(ticker: string): Promise<void> {
+    trendTicker.value = ticker
+    try {
+      const res = await api<{ ticker: string; points: DebateTrendPoint[] }>(
+        `/api/debate/trend/${ticker.toUpperCase()}`,
+      )
+      trendData.value = res.points
+    } catch {
+      trendData.value = []
+    }
+  }
+
   function reset(): void {
     currentDebateId.value = null
     agentProgress.value = []
@@ -230,6 +247,8 @@ export const useDebateStore = defineStore('debate', () => {
     agentProgress,
     loading,
     error,
+    trendData,
+    trendTicker,
     batchId,
     batchTickers,
     batchResults,
@@ -241,6 +260,7 @@ export const useDebateStore = defineStore('debate', () => {
     fetchDebate,
     startDebate,
     startBatchDebate,
+    fetchTrend,
     updateAgentProgress,
     setDebateComplete,
     setDebateError,
