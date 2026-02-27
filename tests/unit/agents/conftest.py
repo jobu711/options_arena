@@ -30,6 +30,18 @@ from options_arena.models import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _set_groq_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set a dummy GROQ_API_KEY so build_debate_model() doesn't raise.
+
+    Agent tests override models with TestModel() which takes precedence over
+    the model built by build_debate_model(), but the key validation happens
+    before agent.run() is called. Without this, CI (which has no real key)
+    triggers the fallback path in every test.
+    """
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_test_dummy_key_for_unit_tests")
+
+
 @pytest.fixture()
 def mock_market_context() -> MarketContext:
     """Realistic MarketContext for AAPL."""

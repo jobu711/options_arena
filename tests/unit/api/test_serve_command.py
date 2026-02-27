@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
@@ -9,6 +10,11 @@ from typer.testing import CliRunner
 from options_arena.cli import app
 
 runner = CliRunner()
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape codes so assertions work in all terminals."""
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 
 def test_serve_command_exists() -> None:
@@ -21,10 +27,11 @@ def test_serve_command_exists() -> None:
 def test_serve_help_shows_options() -> None:
     """serve --help lists all options."""
     result = runner.invoke(app, ["serve", "--help"])
-    assert "--host" in result.output
-    assert "--port" in result.output
-    assert "--no-open" in result.output
-    assert "--reload" in result.output
+    output = _strip_ansi(result.output)
+    assert "--host" in output
+    assert "--port" in output
+    assert "--no-open" in output
+    assert "--reload" in output
 
 
 @patch("uvicorn.run")
