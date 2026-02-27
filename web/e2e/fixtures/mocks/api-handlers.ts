@@ -10,6 +10,14 @@ import type { ScanRun, PaginatedResponse, TickerScore } from '../../../src/types
 import type { HealthStatus } from '../../../src/types'
 import { buildAllHealthy } from '../builders/health.builders'
 
+/** URL pattern: glob string or predicate function. */
+type UrlPattern = string | ((url: URL) => boolean)
+
+/** Match a URL by its pathname, ignoring query parameters. */
+export function pathMatcher(path: string): (url: URL) => boolean {
+  return (url: URL) => url.pathname === path
+}
+
 export interface MockOverrides {
   healthServices?: HealthStatus[]
   config?: Record<string, unknown>
@@ -37,34 +45,28 @@ export async function mockAllApis(
   overrides: MockOverrides = {},
 ): Promise<void> {
   // Health — liveness
-  await page.route('**/api/health', async route => {
-    if (route.request().url().endsWith('/api/health')) {
-      return route.fulfill({ json: { status: 'ok' } })
-    }
-    return route.continue()
-  })
+  await page.route(pathMatcher('/api/health'), route =>
+    route.fulfill({ json: { status: 'ok' } }),
+  )
 
   // Health — services
-  await page.route('**/api/health/services', route =>
+  await page.route(pathMatcher('/api/health/services'), route =>
     route.fulfill({ json: overrides.healthServices ?? buildAllHealthy() }),
   )
 
   // Config
-  await page.route('**/api/config', route =>
+  await page.route(pathMatcher('/api/config'), route =>
     route.fulfill({ json: overrides.config ?? DEFAULT_CONFIG }),
   )
 
   // Universe
-  await page.route('**/api/universe', async route => {
-    if (route.request().method() === 'POST') {
-      return route.fulfill({ json: overrides.universe ?? DEFAULT_UNIVERSE })
-    }
-    return route.fulfill({ json: overrides.universe ?? DEFAULT_UNIVERSE })
-  })
+  await page.route(pathMatcher('/api/universe'), route =>
+    route.fulfill({ json: overrides.universe ?? DEFAULT_UNIVERSE }),
+  )
 
   // Scan list (GET /api/scan)
   if (overrides.scanList !== undefined) {
-    await page.route('**/api/scan', async route => {
+    await page.route(pathMatcher('/api/scan'), async route => {
       if (route.request().method() === 'GET') {
         return route.fulfill({ json: overrides.scanList })
       }
@@ -83,7 +85,7 @@ export async function mockAllApis(
 /** Mock a specific POST endpoint to return a fixed response. */
 export async function mockPost(
   page: Page,
-  pathPattern: string,
+  pathPattern: UrlPattern,
   status: number,
   body: unknown,
 ): Promise<void> {
@@ -98,7 +100,7 @@ export async function mockPost(
 /** Mock a specific GET endpoint to return a fixed response. */
 export async function mockGet(
   page: Page,
-  pathPattern: string,
+  pathPattern: UrlPattern,
   body: unknown,
   status: number = 200,
 ): Promise<void> {
@@ -110,7 +112,7 @@ export async function mockGet(
 /** Mock an endpoint to simulate a timeout (delay then abort). */
 export async function mockTimeout(
   page: Page,
-  pathPattern: string,
+  pathPattern: UrlPattern,
   delayMs: number = 30_000,
 ): Promise<void> {
   await page.route(pathPattern, async route => {
@@ -122,7 +124,7 @@ export async function mockTimeout(
 /** Mock an endpoint to return a server error. */
 export async function mockServerError(
   page: Page,
-  pathPattern: string,
+  pathPattern: UrlPattern,
   detail: string = 'Internal server error',
 ): Promise<void> {
   await page.route(pathPattern, route =>

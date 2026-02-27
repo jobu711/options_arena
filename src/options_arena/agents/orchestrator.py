@@ -174,8 +174,49 @@ def build_market_context(
         target_rho=(
             first_contract.greeks.rho if first_contract and first_contract.greeks else None
         ),
+        # Options-specific indicators
+        max_pain_distance=signals.max_pain_distance,
         # Contract pricing
         contract_mid=first_contract.mid if first_contract else None,
+    )
+
+
+def _log_completeness_breakdown(context: MarketContext, ratio: float) -> None:
+    """Log which MarketContext fields are populated vs missing for diagnostics."""
+    field_checks: list[tuple[str, float | None]] = [
+        ("iv_rank", context.iv_rank),
+        ("iv_percentile", context.iv_percentile),
+        ("atm_iv_30d", context.atm_iv_30d),
+        ("put_call_ratio", context.put_call_ratio),
+        ("max_pain_distance", context.max_pain_distance),
+        ("adx", context.adx),
+        ("sma_alignment", context.sma_alignment),
+        ("bb_width", context.bb_width),
+        ("atr_pct", context.atr_pct),
+        ("stochastic_rsi", context.stochastic_rsi),
+        ("relative_volume", context.relative_volume),
+    ]
+    if context.contract_mid is not None:
+        field_checks.extend(
+            [
+                ("target_gamma", context.target_gamma),
+                ("target_theta", context.target_theta),
+                ("target_vega", context.target_vega),
+                ("target_rho", context.target_rho),
+            ]
+        )
+
+    populated = [name for name, val in field_checks if val is not None]
+    missing = [name for name, val in field_checks if val is None]
+
+    logger.info(
+        "MarketContext completeness for %s: %.0f%% (%d/%d) — populated=[%s], missing=[%s]",
+        context.ticker,
+        ratio * 100,
+        len(populated),
+        len(field_checks),
+        ", ".join(populated),
+        ", ".join(missing),
     )
 
 
@@ -237,20 +278,23 @@ async def run_debate(
 
     completeness = context.completeness_ratio()
 
+    # Log completeness breakdown for diagnostics
+    _log_completeness_breakdown(context, completeness)
+
     if not should_debate(ticker_score, config):
         logger.info("Skipping debate for %s: signal too weak", ticker_score.ticker)
         result = _build_screening_fallback(context, ticker_score, contracts, config, start_time)
-    elif completeness < 0.6:
+    elif completeness < 0.4:
         logger.warning(
-            "MarketContext completeness %.0f%% < 60%% for %s — using data-driven fallback",
+            "MarketContext completeness %.0f%% < 40%% for %s — using data-driven fallback",
             completeness * 100,
             context.ticker,
         )
         result = _build_fallback_result(context, ticker_score, contracts, config, start_time)
     else:
-        if completeness < 0.8:
+        if completeness < 0.6:
             logger.warning(
-                "MarketContext completeness %.0f%% < 80%% for %s — proceeding with caution",
+                "MarketContext completeness %.0f%% < 60%% for %s — proceeding with caution",
                 completeness * 100,
                 context.ticker,
             )

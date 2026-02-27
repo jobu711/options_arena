@@ -101,6 +101,8 @@ Phase 4: Persist to SQLite
 - **WebSocket bridge**: `WebSocketProgressBridge` converts sync `ProgressCallback` → `asyncio.Queue`
   → WebSocket JSON events. Queue cleanup in `finally` blocks to prevent memory leaks.
 - **Loopback-only**: `serve` command rejects non-loopback `--host` values (security).
-- **Static serving**: `StaticFiles(directory=web/dist, html=True)` mounted after API routes.
+- **Static serving**: Explicit catch-all GET `/{path:path}` route (not `StaticFiles(html=True)`) serves
+  static files if they exist, otherwise `index.html` for Vue Router history mode. `/assets` mounted
+  separately via `StaticFiles`. Configurable DB path via `DataConfig.db_path` for test isolation.
 
 For detailed algorithm specs, see `system-patterns-reference.md`.

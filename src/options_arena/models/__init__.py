@@ -12,6 +12,7 @@ from options_arena.models.analysis import (
 )
 from options_arena.models.config import (
     AppSettings,
+    DataConfig,
     DebateConfig,
     PricingConfig,
     ScanConfig,
@@ -70,6 +71,7 @@ __all__ = [
     "TickerScore",
     # Config
     "AppSettings",
+    "DataConfig",
     "DebateConfig",
     "PricingConfig",
     "ScanConfig",

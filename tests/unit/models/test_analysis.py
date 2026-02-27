@@ -284,6 +284,27 @@ class TestMarketContext:
                 data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
             )
 
+    def test_max_pain_distance_nan_raises(self) -> None:
+        """MarketContext rejects NaN max_pain_distance."""
+        with pytest.raises(ValidationError, match="finite"):
+            MarketContext(
+                ticker="AAPL",
+                current_price=Decimal("186.50"),
+                price_52w_high=Decimal("199.62"),
+                price_52w_low=Decimal("164.08"),
+                max_pain_distance=float("nan"),
+                rsi_14=42.0,
+                macd_signal=MacdSignal.BULLISH_CROSSOVER,
+                next_earnings=None,
+                dte_target=45,
+                target_strike=Decimal("185.00"),
+                target_delta=0.35,
+                sector="Technology",
+                dividend_yield=0.005,
+                exercise_style=ExerciseStyle.AMERICAN,
+                data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+            )
+
     def test_optional_floats_accept_none(self) -> None:
         """MarketContext accepts None for iv_rank, iv_percentile, atm_iv_30d, put_call_ratio."""
         ctx = MarketContext(
@@ -758,13 +779,14 @@ class TestCompletenessRatio:
         ctx = self._make_context()
         assert ctx.completeness_ratio() == pytest.approx(0.0)
 
-    def test_completeness_all_populated(self) -> None:
-        """All 14 optional fields populated returns 1.0."""
+    def test_completeness_all_populated_with_contracts(self) -> None:
+        """All 15 optional fields populated (with contract) returns 1.0."""
         ctx = self._make_context(
             iv_rank=45.0,
             iv_percentile=52.0,
             atm_iv_30d=0.28,
             put_call_ratio=0.85,
+            max_pain_distance=2.5,
             adx=28.4,
             sma_alignment=0.7,
             bb_width=42.1,
@@ -775,11 +797,29 @@ class TestCompletenessRatio:
             target_theta=-0.045,
             target_vega=0.32,
             target_rho=0.08,
+            contract_mid=Decimal("3.50"),
         )
         assert ctx.completeness_ratio() == pytest.approx(1.0)
 
-    def test_completeness_partial(self) -> None:
-        """7 of 14 fields populated returns 0.5."""
+    def test_completeness_all_indicators_no_contract(self) -> None:
+        """All 11 indicator fields populated without contract returns 1.0."""
+        ctx = self._make_context(
+            iv_rank=45.0,
+            iv_percentile=52.0,
+            atm_iv_30d=0.28,
+            put_call_ratio=0.85,
+            max_pain_distance=2.5,
+            adx=28.4,
+            sma_alignment=0.7,
+            bb_width=42.1,
+            atr_pct=15.3,
+            stochastic_rsi=55.0,
+            relative_volume=65.0,
+        )
+        assert ctx.completeness_ratio() == pytest.approx(1.0)
+
+    def test_completeness_partial_no_contract(self) -> None:
+        """7 of 11 indicator fields populated (no contract) returns 7/11."""
         ctx = self._make_context(
             iv_rank=45.0,
             iv_percentile=52.0,
@@ -789,17 +829,47 @@ class TestCompletenessRatio:
             sma_alignment=0.7,
             bb_width=42.1,
         )
-        assert ctx.completeness_ratio() == pytest.approx(7.0 / 14.0)
+        assert ctx.completeness_ratio() == pytest.approx(7.0 / 11.0)
 
-    def test_completeness_some_none(self) -> None:
-        """4 of 14 fields populated returns correct fraction."""
+    def test_completeness_partial_with_contract(self) -> None:
+        """7 indicator + 4 Greeks of 15 total (with contract) returns 11/15."""
+        ctx = self._make_context(
+            iv_rank=45.0,
+            iv_percentile=52.0,
+            atm_iv_30d=0.28,
+            put_call_ratio=0.85,
+            adx=28.4,
+            sma_alignment=0.7,
+            bb_width=42.1,
+            target_gamma=0.025,
+            target_theta=-0.045,
+            target_vega=0.32,
+            target_rho=0.08,
+            contract_mid=Decimal("3.50"),
+        )
+        assert ctx.completeness_ratio() == pytest.approx(11.0 / 15.0)
+
+    def test_completeness_some_none_no_contract(self) -> None:
+        """2 indicator fields populated (no contract, Greeks ignored) returns 2/11."""
+        ctx = self._make_context(
+            iv_rank=45.0,
+            iv_percentile=52.0,
+            # target_gamma/theta set but ignored without contract_mid
+            target_gamma=0.025,
+            target_theta=-0.045,
+        )
+        assert ctx.completeness_ratio() == pytest.approx(2.0 / 11.0)
+
+    def test_completeness_some_none_with_contract(self) -> None:
+        """4 of 15 fields populated (with contract) returns 4/15."""
         ctx = self._make_context(
             iv_rank=45.0,
             iv_percentile=52.0,
             target_gamma=0.025,
             target_theta=-0.045,
+            contract_mid=Decimal("2.10"),
         )
-        assert ctx.completeness_ratio() == pytest.approx(4.0 / 14.0)
+        assert ctx.completeness_ratio() == pytest.approx(4.0 / 15.0)
 
     def test_completeness_zero_values_count_as_populated(self) -> None:
         """Zero float values are NOT None — they count as populated."""
@@ -808,4 +878,11 @@ class TestCompletenessRatio:
             iv_percentile=0.0,
             put_call_ratio=0.0,
         )
-        assert ctx.completeness_ratio() == pytest.approx(3.0 / 14.0)
+        # No contract_mid → denominator is 11 (indicators only)
+        assert ctx.completeness_ratio() == pytest.approx(3.0 / 11.0)
+
+    def test_completeness_max_pain_distance_counted(self) -> None:
+        """max_pain_distance is included in the completeness ratio check."""
+        ctx = self._make_context(max_pain_distance=2.5)
+        # Only max_pain_distance populated out of 11 base fields
+        assert ctx.completeness_ratio() == pytest.approx(1.0 / 11.0)

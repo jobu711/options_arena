@@ -66,6 +66,12 @@ class ServiceConfig(BaseModel):
     cache_ttl_after_hours: int = 3600
 
 
+class DataConfig(BaseModel):
+    """Data layer configuration — controls database path."""
+
+    db_path: str | None = None
+
+
 class DebateConfig(BaseModel):
     """AI debate configuration — controls Groq LLM, timeouts, and fallback behavior.
 
@@ -162,3 +168,4 @@ class AppSettings(BaseSettings):
     pricing: PricingConfig = PricingConfig()
     service: ServiceConfig = ServiceConfig()
     debate: DebateConfig = DebateConfig()
+    data: DataConfig = DataConfig()

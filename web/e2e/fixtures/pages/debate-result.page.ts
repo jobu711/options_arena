@@ -20,25 +20,24 @@ export class DebateResultPage {
     this.riskCard = page.locator('[data-testid="agent-card-risk"]')
       .or(page.locator('[class*="agent-card"]:has-text("Risk")'))
     this.thesisCard = page.locator('[data-testid="thesis-card"]')
-      .or(page.locator('[class*="thesis"]'))
     this.exportMdBtn = page.locator('[data-testid="debate-export-md"]')
-      .or(page.locator('button:has-text("Markdown")'))
+      .or(page.locator('button:has-text("Export MD")'))
     this.exportPdfBtn = page.locator('[data-testid="debate-export-pdf"]')
       .or(page.locator('button:has-text("PDF")'))
     this.fallbackBadge = page.locator('[data-testid="fallback-badge"]')
-      .or(page.locator(':text("fallback")'))
     this.directionBadge = page.locator('[data-testid="thesis-direction"]')
       .or(page.locator('[data-testid="direction-badge"]'))
   }
 
   async goto(debateId: number): Promise<void> {
+    // Wait for the debate API response to complete before proceeding
+    const responsePromise = this.page.waitForResponse(
+      resp => resp.url().includes(`/api/debate/${debateId}`) && resp.status() === 200,
+    )
     await this.page.goto(`/debate/${debateId}`)
-    // Wait for at least one agent card or thesis to render
-    await this.page.locator('[data-testid^="agent-card"]')
-      .or(this.page.locator('[class*="agent-card"]'))
-      .or(this.thesisCard)
-      .first()
-      .waitFor({ state: 'visible' })
+    await responsePromise
+    // Wait for thesis card (present in both normal and fallback results)
+    await this.thesisCard.waitFor({ state: 'visible', timeout: 5_000 })
   }
 
   async expectBullCardVisible(): Promise<void> {

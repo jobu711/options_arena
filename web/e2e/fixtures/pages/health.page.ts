@@ -7,7 +7,7 @@ export class HealthPage {
   constructor(page: Page) {
     this.page = page
     this.refreshBtn = page.locator('[data-testid="health-refresh-btn"]')
-      .or(page.locator('button:has-text("Refresh")'))
+      .or(page.locator('button:has-text("Re-check")'))
   }
 
   async goto(): Promise<void> {

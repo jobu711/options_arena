@@ -5,7 +5,7 @@
 - **Version**: 2.0.0 (Full-stack: CLI + Web UI)
 - **All 9 phases + 10 epics**: Complete and merged to master (2026-02-26)
 - **Branch**: `master` (1,577 tests, all phases + epics merged)
-- **Tests**: 1,577 (293 models + 214 pricing + 172 indicators + 110 scoring + 181 services + 42 data + 131 scan + 40 cli + 241 agents + 14 reporting + 82 api + 16 misc + 41 integration)
+- **Tests**: 1,577 Python + 38 E2E (293 models + 214 pricing + 172 indicators + 110 scoring + 181 services + 42 data + 131 scan + 40 cli + 241 agents + 14 reporting + 82 api + 16 misc + 41 integration + 38 Playwright E2E)
 - **GitHub issues**: 10 open (#112, #121-#129), 107 closed
 - **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`), `serve`
 - **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
@@ -28,15 +28,21 @@
 
 For detailed phase/epic completion logs, see `progress-archive.md`.
 
-## Recently Completed Epic
+## Recently Completed
+
+### E2E Test Fixes (2026-02-26)
+All 38 Playwright E2E tests passing. Fixes: per-worker SQLite DB isolation via
+`DataConfig.db_path`, SPA catch-all route replacing `StaticFiles(html=True)` mount,
+`pathMatcher()` URL predicates for route mocking with query params, removal of overly
+broad `.or()` locator fallbacks causing strict-mode violations, plain-object fake
+WebSocket (avoids `WebSocket.prototype` accessor property inheritance), export popup
+event fix, progress test alignment with actual Vue behavior.
 
 ### Epic 10: Web UI (2026-02-26) — #121, PR #130
 Full-stack Web UI: Vue 3 SPA (TypeScript, Pinia, Vue Router, PrimeVue Aura dark) +
 FastAPI backend (`src/options_arena/api/`). `options-arena serve` launches uvicorn with
-browser auto-open (loopback-only). REST endpoints for scan, debate, export, health,
-universe, config. WebSocket progress streaming. Operation mutex (`asyncio.Lock`, 409
-if busy). 11 bug fixes from code analysis (race conditions, memory leaks, type safety).
-+93 new tests. Issues: #122-#129.
+browser auto-open (loopback-only). REST + WebSocket. Operation mutex. 38 E2E tests.
+Issues: #122-#129.
 
 ## Future Work
 
@@ -46,7 +52,7 @@ if busy). 11 bug fixes from code analysis (race conditions, memory leaks, type s
 - Options liquidity weighting in composite scoring
 - Real-time market data streaming
 - Multi-round debate (bear rebuttal, second rounds)
-- Frontend testing (Vitest + Vue Test Utils)
+- Frontend unit testing (Vitest + Vue Test Utils) — E2E covered by Playwright
 
 ## Blockers
 

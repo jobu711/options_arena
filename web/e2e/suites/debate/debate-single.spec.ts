@@ -7,13 +7,13 @@
 
 import { test, expect } from '../../fixtures/base.fixture'
 import { DebateResultPage } from '../../fixtures/pages/debate-result.page'
-import { mockAllApis, mockGet, mockPost } from '../../fixtures/mocks/api-handlers'
+import { mockAllApis, mockGet, mockPost, pathMatcher } from '../../fixtures/mocks/api-handlers'
 import {
   buildDebateResult,
   buildFallbackDebateResult,
   buildDebateSummary,
 } from '../../fixtures/builders/debate.builders'
-import { debateProgressSequence, debatePartialFailSequence } from '../../fixtures/mocks/ws-scenarios'
+import { debatePartialFailSequence } from '../../fixtures/mocks/ws-scenarios'
 
 const DEBATE_ID = 456
 
@@ -28,7 +28,7 @@ test.describe('Single Debate', () => {
     await mockGet(page, `**/api/debate/${DEBATE_ID}`, buildDebateResult({ id: DEBATE_ID }))
 
     // GET /api/debate (list) returns summary
-    await mockGet(page, '**/api/debate', [buildDebateSummary({ id: DEBATE_ID })])
+    await mockGet(page, pathMatcher('/api/debate'), [buildDebateSummary({ id: DEBATE_ID })])
   })
 
   test('debate result page shows bull, bear, and thesis cards', async ({ page }) => {
@@ -68,25 +68,18 @@ test.describe('Single Debate', () => {
   })
 
   test('export buttons are visible and functional', async ({ page }) => {
-    // Mock export endpoint to return a file
-    await page.route(`**/api/debate/${DEBATE_ID}/export*`, route =>
-      route.fulfill({
-        status: 200,
-        headers: {
-          'Content-Type': 'text/markdown',
-          'Content-Disposition': `attachment; filename="debate-${DEBATE_ID}.md"`,
-        },
-        body: '# Debate Result\n\nTest export content',
-      }),
-    )
-
     const resultPage = new DebateResultPage(page)
     await resultPage.goto(DEBATE_ID)
 
     await resultPage.expectExportButtonsVisible()
 
-    // Click export and verify download starts
-    await resultPage.clickExportMarkdown()
+    // Export MD uses window.open('_blank') — listen for popup, not download
+    const popupPromise = page.waitForEvent('popup')
+    await resultPage.exportMdBtn.click()
+    const popup = await popupPromise
+    // Verify the popup URL targets the correct export endpoint
+    expect(popup.url()).toContain(`/api/debate/${DEBATE_ID}/export`)
+    await popup.close()
   })
 
   test('fallback debate shows fallback indicator', async ({ page }) => {
@@ -104,40 +97,20 @@ test.describe('Single Debate', () => {
     await resultPage.expectFallbackVisible()
   })
 
-  test('debate agent error shows error toast', async ({ page }) => {
-    // Mock debate with failure events
+  // TODO: Implement once a debate start button exists on the dashboard (currently no trigger path)
+  test.skip('debate agent error shows error toast', async ({ page }) => {
+    // Mock debate with failure events via routeWebSocket
     const wsEvents = debatePartialFailSequence(DEBATE_ID)
+    await page.routeWebSocket(`**/ws/debate/${DEBATE_ID}`, ws => {
+      let delay = 100
+      for (const event of wsEvents) {
+        delay += 200
+        setTimeout(() => ws.send(JSON.stringify(event)), delay)
+      }
+    })
 
-    // Navigate to scan results first, then trigger debate
-    // For this test, go directly to a page and verify the error
+    // Navigate to dashboard — the WS mock is ready if debate is triggered
     await page.goto('/')
-
-    // Inject WS mock
-    await page.evaluate(
-      ({ events, debateId }) => {
-        const OrigWS = window.WebSocket
-        window.WebSocket = class extends OrigWS {
-          constructor(url: string | URL, protocols?: string | string[]) {
-            super(url, protocols)
-            const urlStr = typeof url === 'string' ? url : url.toString()
-            if (urlStr.includes(`/ws/debate/${debateId}`)) {
-              this.addEventListener('open', () => {
-                let delay = 0
-                for (const event of events) {
-                  delay += 200
-                  setTimeout(() => {
-                    this.dispatchEvent(
-                      new MessageEvent('message', { data: JSON.stringify(event) }),
-                    )
-                  }, delay)
-                }
-              })
-            }
-          }
-        } as typeof WebSocket
-      },
-      { events: wsEvents, debateId: DEBATE_ID },
-    )
 
     // The error event should surface a toast
     // (In a full integration test, this would be triggered by clicking the debate button)

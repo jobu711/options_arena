@@ -14,7 +14,7 @@ export class ScanPage {
   constructor(page: Page) {
     this.page = page
     this.title = page.locator('[data-testid="scan-title"]').or(page.locator('h1'))
-    this.startScanBtn = selfHealingLocator(page, 'start-scan-btn', 'Start Scan', 'Start Scan')
+    this.startScanBtn = selfHealingLocator(page, 'start-scan-btn', 'Run Scan', 'Run Scan')
     this.cancelScanBtn = selfHealingLocator(page, 'cancel-scan-btn', 'Cancel Scan', 'Cancel')
     this.presetSelector = page.locator('[data-testid="preset-selector"]')
       .or(page.locator('[aria-label="Scan Preset"]'))
@@ -23,7 +23,6 @@ export class ScanPage {
     this.emptyState = page.locator('[data-testid="scan-list-empty"]')
       .or(page.locator('[data-testid="empty-state"]'))
     this.progressTracker = page.locator('[data-testid="progress-tracker"]')
-      .or(page.locator('[class*="progress"]'))
   }
 
   async goto(): Promise<void> {

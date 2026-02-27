@@ -51,6 +51,7 @@ class MarketContext(BaseModel):
     rsi_14: float = 50.0  # RSI has meaningful neutral at 50
     macd_signal: MacdSignal
     put_call_ratio: float | None = None
+    max_pain_distance: float | None = None
     next_earnings: date | None
     dte_target: int
     target_strike: Decimal
@@ -84,37 +85,51 @@ class MarketContext(BaseModel):
     def completeness_ratio(self) -> float:
         """Fraction of optional context fields that are populated (not None).
 
-        Checks all ``float | None`` analysis fields — indicators, Greeks, and
-        options-specific data. Core identity fields (ticker, price, sector) and
-        fields with meaningful defaults (rsi_14, composite_score) are excluded.
+        Checks ``float | None`` indicator and options-specific fields. Greeks
+        fields (gamma, theta, vega, rho) are only included when a recommended
+        contract exists (``contract_mid is not None``), so tickers without
+        contracts are not penalised for inherently missing Greeks.
+
+        Core identity fields (ticker, price, sector) and fields with meaningful
+        defaults (rsi_14, composite_score) are excluded.
 
         Returns
         -------
         float
-            Value in [0.0, 1.0]. 1.0 means all optional fields are populated.
+            Value in [0.0, 1.0]. 1.0 means all applicable optional fields are populated.
         """
         checkable_fields: list[float | None] = [
             self.iv_rank,
             self.iv_percentile,
             self.atm_iv_30d,
             self.put_call_ratio,
+            self.max_pain_distance,
             self.adx,
             self.sma_alignment,
             self.bb_width,
             self.atr_pct,
             self.stochastic_rsi,
             self.relative_volume,
-            self.target_gamma,
-            self.target_theta,
-            self.target_vega,
-            self.target_rho,
         ]
+        # Only count Greeks when contracts are available — without contracts,
+        # Greeks are inherently absent and shouldn't lower the ratio.
+        if self.contract_mid is not None:
+            checkable_fields.extend(
+                [
+                    self.target_gamma,
+                    self.target_theta,
+                    self.target_vega,
+                    self.target_rho,
+                ]
+            )
         if not checkable_fields:
             return 1.0
         populated = sum(1 for f in checkable_fields if f is not None)
         return populated / len(checkable_fields)
 
-    @field_validator("iv_rank", "iv_percentile", "atm_iv_30d", "put_call_ratio")
+    @field_validator(
+        "iv_rank", "iv_percentile", "atm_iv_30d", "put_call_ratio", "max_pain_distance"
+    )
     @classmethod
     def validate_optional_finite(cls, v: float | None) -> float | None:
         """Reject NaN/Inf on optional float fields while allowing None."""

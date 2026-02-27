@@ -419,6 +419,18 @@ class TestRenderContextBlock:
         text = render_context_block(mock_market_context)
         assert "ATM IV 30D" not in text
 
+    def test_contains_max_pain_distance(self, mock_market_context: MarketContext) -> None:
+        """Output contains MAX PAIN DISTANCE % when set."""
+        mock_market_context.max_pain_distance = 3.5
+        text = render_context_block(mock_market_context)
+        assert "MAX PAIN DISTANCE %: 3.5" in text
+
+    def test_none_max_pain_distance_omitted(self, mock_market_context: MarketContext) -> None:
+        """When max_pain_distance is None, MAX PAIN DISTANCE line is omitted."""
+        mock_market_context.max_pain_distance = None
+        text = render_context_block(mock_market_context)
+        assert "MAX PAIN DISTANCE" not in text
+
 
 # ---------------------------------------------------------------------------
 # strip_think_tags

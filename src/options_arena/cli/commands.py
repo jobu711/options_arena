@@ -412,8 +412,18 @@ async def _debate_single(
     # Flatten all contracts across expirations
     all_contracts = [c for chain in chain_results for c in chain.contracts]
 
-    # Select best contract via scoring/contracts.py (mirrors scan pipeline Phase 3)
+    # Enrich with options-specific indicators from the full chain
     spot = float(ticker_info.current_price)
+    if all_contracts:
+        from options_arena.scan.indicators import compute_options_indicators  # noqa: PLC0415
+
+        options_signals = compute_options_indicators(all_contracts, spot)
+        if options_signals.put_call_ratio is not None:
+            debate_score.signals.put_call_ratio = options_signals.put_call_ratio
+        if options_signals.max_pain_distance is not None:
+            debate_score.signals.max_pain_distance = options_signals.max_pain_distance
+
+    # Select best contract via scoring/contracts.py (mirrors scan pipeline Phase 3)
     contracts = recommend_contracts(
         contracts=all_contracts,
         direction=debate_score.direction,

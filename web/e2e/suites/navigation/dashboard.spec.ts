@@ -7,7 +7,7 @@
 
 import { test, expect } from '../../fixtures/base.fixture'
 import { DashboardPage } from '../../fixtures/pages/dashboard.page'
-import { mockAllApis, mockGet } from '../../fixtures/mocks/api-handlers'
+import { mockAllApis, mockGet, pathMatcher } from '../../fixtures/mocks/api-handlers'
 import { buildScanRun } from '../../fixtures/builders/scan.builders'
 import { buildDebateSummary } from '../../fixtures/builders/debate.builders'
 import { buildAllHealthy, buildOneDegraded } from '../../fixtures/builders/health.builders'
@@ -18,7 +18,7 @@ test.describe('Dashboard', () => {
       scanList: [buildScanRun({ id: 10 })],
       healthServices: buildAllHealthy(),
     })
-    await mockGet(page, '**/api/debate', [
+    await mockGet(page, pathMatcher('/api/debate'), [
       buildDebateSummary({ id: 1, ticker: 'AAPL', direction: 'bullish' }),
       buildDebateSummary({ id: 2, ticker: 'MSFT', direction: 'bearish' }),
     ])
@@ -88,7 +88,7 @@ test.describe('Dashboard', () => {
       scanList: [],
       healthServices: buildAllHealthy(),
     })
-    await mockGet(page, '**/api/debate', [])
+    await mockGet(page, pathMatcher('/api/debate'), [])
 
     const dashboard = new DashboardPage(page)
     await dashboard.goto()

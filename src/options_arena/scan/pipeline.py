@@ -24,6 +24,7 @@ from options_arena.models.market_data import OHLCV
 from options_arena.scan.indicators import (
     INDICATOR_REGISTRY,
     compute_indicators,
+    compute_options_indicators,
     ohlcv_to_dataframe,
 )
 from options_arena.scan.models import (
@@ -269,6 +270,24 @@ class ScanPipeline:
 
         logger.info("Computed indicators for %d tickers", len(raw_signals))
 
+        # Log per-indicator success rates for diagnostics
+        if raw_signals:
+            indicator_fields = [spec.field_name for spec in INDICATOR_REGISTRY]
+            total = len(raw_signals)
+            for field_name in indicator_fields:
+                populated = sum(
+                    1 for s in raw_signals.values() if getattr(s, field_name) is not None
+                )
+                rate = populated / total * 100.0
+                if rate < 80.0:
+                    logger.warning(
+                        "Indicator %s success rate: %.0f%% (%d/%d)",
+                        field_name,
+                        rate,
+                        populated,
+                        total,
+                    )
+
         # Step 2: Score universe (returns normalized signals on TickerScore)
         scored: list[TickerScore] = score_universe(raw_signals)
 
@@ -443,6 +462,13 @@ class ScanPipeline:
             return (ticker, [])
 
         spot = float(ticker_info.current_price)
+
+        # Compute options-specific indicators from full chain before filtering
+        options_signals = compute_options_indicators(all_contracts, spot)
+        if options_signals.put_call_ratio is not None:
+            ticker_score.signals.put_call_ratio = options_signals.put_call_ratio
+        if options_signals.max_pain_distance is not None:
+            ticker_score.signals.max_pain_distance = options_signals.max_pain_distance
 
         recommended = recommend_contracts(
             contracts=all_contracts,

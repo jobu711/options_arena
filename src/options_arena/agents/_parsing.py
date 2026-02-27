@@ -233,6 +233,7 @@ def render_context_block(ctx: MarketContext) -> str:
         ("IV RANK", ctx.iv_rank, ".1f"),
         ("IV PERCENTILE", ctx.iv_percentile, ".1f"),
         ("PUT/CALL RATIO", ctx.put_call_ratio, ".2f"),
+        ("MAX PAIN DISTANCE %", ctx.max_pain_distance, ".1f"),
         ("ATM IV 30D", ctx.atm_iv_30d, ".1f"),
     ]:
         rendered = _render_optional(label, value, fmt)
