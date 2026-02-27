@@ -84,14 +84,18 @@ class MarketContext(BaseModel):
     def completeness_ratio(self) -> float:
         """Fraction of optional context fields that are populated (not None).
 
-        Checks all ``float | None`` analysis fields — indicators, Greeks, and
-        options-specific data. Core identity fields (ticker, price, sector) and
-        fields with meaningful defaults (rsi_14, composite_score) are excluded.
+        Checks ``float | None`` indicator and options-specific fields. Greeks
+        fields (gamma, theta, vega, rho) are only included when a recommended
+        contract exists (``contract_mid is not None``), so tickers without
+        contracts are not penalised for inherently missing Greeks.
+
+        Core identity fields (ticker, price, sector) and fields with meaningful
+        defaults (rsi_14, composite_score) are excluded.
 
         Returns
         -------
         float
-            Value in [0.0, 1.0]. 1.0 means all optional fields are populated.
+            Value in [0.0, 1.0]. 1.0 means all applicable optional fields are populated.
         """
         checkable_fields: list[float | None] = [
             self.iv_rank,
@@ -104,11 +108,16 @@ class MarketContext(BaseModel):
             self.atr_pct,
             self.stochastic_rsi,
             self.relative_volume,
-            self.target_gamma,
-            self.target_theta,
-            self.target_vega,
-            self.target_rho,
         ]
+        # Only count Greeks when contracts are available — without contracts,
+        # Greeks are inherently absent and shouldn't lower the ratio.
+        if self.contract_mid is not None:
+            checkable_fields.extend([
+                self.target_gamma,
+                self.target_theta,
+                self.target_vega,
+                self.target_rho,
+            ])
         if not checkable_fields:
             return 1.0
         populated = sum(1 for f in checkable_fields if f is not None)

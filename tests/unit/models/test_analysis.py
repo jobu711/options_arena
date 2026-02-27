@@ -758,8 +758,8 @@ class TestCompletenessRatio:
         ctx = self._make_context()
         assert ctx.completeness_ratio() == pytest.approx(0.0)
 
-    def test_completeness_all_populated(self) -> None:
-        """All 14 optional fields populated returns 1.0."""
+    def test_completeness_all_populated_with_contracts(self) -> None:
+        """All 14 optional fields populated (with contract) returns 1.0."""
         ctx = self._make_context(
             iv_rank=45.0,
             iv_percentile=52.0,
@@ -775,11 +775,28 @@ class TestCompletenessRatio:
             target_theta=-0.045,
             target_vega=0.32,
             target_rho=0.08,
+            contract_mid=Decimal("3.50"),
         )
         assert ctx.completeness_ratio() == pytest.approx(1.0)
 
-    def test_completeness_partial(self) -> None:
-        """7 of 14 fields populated returns 0.5."""
+    def test_completeness_all_indicators_no_contract(self) -> None:
+        """All 10 indicator fields populated without contract returns 1.0."""
+        ctx = self._make_context(
+            iv_rank=45.0,
+            iv_percentile=52.0,
+            atm_iv_30d=0.28,
+            put_call_ratio=0.85,
+            adx=28.4,
+            sma_alignment=0.7,
+            bb_width=42.1,
+            atr_pct=15.3,
+            stochastic_rsi=55.0,
+            relative_volume=65.0,
+        )
+        assert ctx.completeness_ratio() == pytest.approx(1.0)
+
+    def test_completeness_partial_no_contract(self) -> None:
+        """7 of 10 indicator fields populated (no contract) returns 0.7."""
         ctx = self._make_context(
             iv_rank=45.0,
             iv_percentile=52.0,
@@ -789,15 +806,45 @@ class TestCompletenessRatio:
             sma_alignment=0.7,
             bb_width=42.1,
         )
-        assert ctx.completeness_ratio() == pytest.approx(7.0 / 14.0)
+        assert ctx.completeness_ratio() == pytest.approx(7.0 / 10.0)
 
-    def test_completeness_some_none(self) -> None:
-        """4 of 14 fields populated returns correct fraction."""
+    def test_completeness_partial_with_contract(self) -> None:
+        """7 indicator + 4 Greeks of 14 total (with contract) returns 11/14."""
+        ctx = self._make_context(
+            iv_rank=45.0,
+            iv_percentile=52.0,
+            atm_iv_30d=0.28,
+            put_call_ratio=0.85,
+            adx=28.4,
+            sma_alignment=0.7,
+            bb_width=42.1,
+            target_gamma=0.025,
+            target_theta=-0.045,
+            target_vega=0.32,
+            target_rho=0.08,
+            contract_mid=Decimal("3.50"),
+        )
+        assert ctx.completeness_ratio() == pytest.approx(11.0 / 14.0)
+
+    def test_completeness_some_none_no_contract(self) -> None:
+        """2 indicator fields populated (no contract, Greeks ignored) returns 2/10."""
+        ctx = self._make_context(
+            iv_rank=45.0,
+            iv_percentile=52.0,
+            # target_gamma/theta set but ignored without contract_mid
+            target_gamma=0.025,
+            target_theta=-0.045,
+        )
+        assert ctx.completeness_ratio() == pytest.approx(2.0 / 10.0)
+
+    def test_completeness_some_none_with_contract(self) -> None:
+        """4 of 14 fields populated (with contract) returns 4/14."""
         ctx = self._make_context(
             iv_rank=45.0,
             iv_percentile=52.0,
             target_gamma=0.025,
             target_theta=-0.045,
+            contract_mid=Decimal("2.10"),
         )
         assert ctx.completeness_ratio() == pytest.approx(4.0 / 14.0)
 
@@ -808,4 +855,5 @@ class TestCompletenessRatio:
             iv_percentile=0.0,
             put_call_ratio=0.0,
         )
-        assert ctx.completeness_ratio() == pytest.approx(3.0 / 14.0)
+        # No contract_mid → denominator is 10 (indicators only)
+        assert ctx.completeness_ratio() == pytest.approx(3.0 / 10.0)

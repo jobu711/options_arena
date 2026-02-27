@@ -100,7 +100,9 @@ async def _run_debate_background(
             risk_json=result.thesis.model_dump_json(),
             verdict_json=result.thesis.model_dump_json(),
             total_tokens=total_tokens,
-            model_name=result.bull_response.model_used,
+            model_name=(
+                settings.debate.model if not result.is_fallback else "data-driven-fallback"
+            ),
             duration_ms=result.duration_ms,
             is_fallback=result.is_fallback,
             vol_json=(
@@ -242,7 +244,11 @@ async def _run_batch_debate_background(
                     risk_json=result.thesis.model_dump_json(),
                     verdict_json=result.thesis.model_dump_json(),
                     total_tokens=total_tokens,
-                    model_name=result.bull_response.model_used,
+                    model_name=(
+                        settings.debate.model
+                        if not result.is_fallback
+                        else "data-driven-fallback"
+                    ),
                     duration_ms=result.duration_ms,
                     is_fallback=result.is_fallback,
                     vol_json=(
