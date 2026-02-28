@@ -13,6 +13,7 @@ import DebateProgressModal from '@/components/DebateProgressModal.vue'
 import { useScanStore } from '@/stores/scan'
 import { useDebateStore } from '@/stores/debate'
 import { useOperationStore } from '@/stores/operation'
+import { useWatchlistStore } from '@/stores/watchlist'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { ApiError } from '@/composables/useApi'
 import type { TickerScore } from '@/types'
@@ -24,6 +25,7 @@ const toast = useToast()
 const scanStore = useScanStore()
 const debateStore = useDebateStore()
 const operationStore = useOperationStore()
+const watchlistStore = useWatchlistStore()
 
 const scanId = Number(route.params.id)
 
@@ -233,7 +235,39 @@ function earningsClass(isoDate: string): string {
   return days < 7 ? 'earnings-warn' : 'earnings-normal'
 }
 
-onMounted(() => void loadScores())
+async function addToFirstWatchlist(ticker: string): Promise<void> {
+  if (watchlistStore.watchlists.length === 0) {
+    toast.add({
+      severity: 'warn',
+      summary: 'No Watchlists',
+      detail: 'Create a watchlist first from the Watchlists page.',
+      life: 5000,
+    })
+    return
+  }
+  const wl = watchlistStore.watchlists[0]
+  const added = await watchlistStore.addTicker(wl.id, ticker)
+  if (added) {
+    toast.add({
+      severity: 'success',
+      summary: 'Added',
+      detail: `${ticker} added to "${wl.name}".`,
+      life: 3000,
+    })
+  } else {
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: watchlistStore.error ?? 'Failed to add ticker',
+      life: 5000,
+    })
+  }
+}
+
+onMounted(() => {
+  void loadScores()
+  void watchlistStore.fetchWatchlists()
+})
 onUnmounted(() => {
   debateWsClose?.()
   batchWsClose?.()
@@ -340,18 +374,28 @@ onUnmounted(() => {
           <span v-else class="earnings-none" :data-testid="`earnings-${data.ticker}`">&mdash;</span>
         </template>
       </Column>
-      <Column header="" :style="{ width: '100px' }">
+      <Column header="" :style="{ width: '140px' }">
         <template #body="{ data }">
-          <Button
-            label="Debate"
-            icon="pi pi-comments"
-            severity="info"
-            size="small"
-            text
-            :disabled="anyBusy"
-            :data-testid="`debate-btn-${data.ticker}`"
-            @click.stop="startDebate(data.ticker)"
-          />
+          <div class="row-actions">
+            <Button
+              label="Debate"
+              icon="pi pi-comments"
+              severity="info"
+              size="small"
+              text
+              :disabled="anyBusy"
+              :data-testid="`debate-btn-${data.ticker}`"
+              @click.stop="startDebate(data.ticker)"
+            />
+            <Button
+              icon="pi pi-bookmark"
+              severity="secondary"
+              size="small"
+              text
+              :data-testid="`watchlist-btn-${data.ticker}`"
+              @click.stop="addToFirstWatchlist(data.ticker)"
+            />
+          </div>
         </template>
       </Column>
       <template #empty>
@@ -436,6 +480,12 @@ onUnmounted(() => {
 
 .mono {
   font-family: var(--font-mono);
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
 }
 
 .empty-msg {

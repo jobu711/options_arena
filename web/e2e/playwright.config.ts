@@ -65,9 +65,17 @@ export default defineConfig({
         baseURL: `http://127.0.0.1:${BASE_PORT + 3}`,
       },
     },
+    {
+      name: 'watchlist-workflows',
+      testDir: './suites/watchlist',
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: `http://127.0.0.1:${BASE_PORT + 4}`,
+      },
+    },
   ],
 
-  webServer: Array.from({ length: 4 }, (_, i) => ({
+  webServer: Array.from({ length: 5 }, (_, i) => ({
     command: `uv run uvicorn options_arena.api:create_app --factory --port ${BASE_PORT + i} --host 127.0.0.1`,
     port: BASE_PORT + i,
     reuseExistingServer: !process.env.CI,

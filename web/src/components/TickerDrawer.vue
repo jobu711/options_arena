@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { computed } from 'vue'
 import Drawer from 'primevue/drawer'
 import Button from 'primevue/button'
+import Select from 'primevue/select'
 import Message from 'primevue/message'
 import DirectionBadge from './DirectionBadge.vue'
 import { api } from '@/composables/useApi'
+import { useWatchlistStore } from '@/stores/watchlist'
+import { useToast } from 'primevue/usetoast'
 import type { TickerScore, DebateResultSummary } from '@/types'
 
 interface Props {
@@ -21,6 +24,43 @@ const router = useRouter()
 
 const debates = ref<DebateResultSummary[]>([])
 const loadingDebates = ref(false)
+const watchlistStore = useWatchlistStore()
+const toastService = useToast()
+const selectedWatchlistId = ref<number | null>(null)
+const addingToWatchlist = ref(false)
+
+function watchlistOptions(): Array<{ label: string; value: number }> {
+  return watchlistStore.watchlists.map((w) => ({
+    label: w.name,
+    value: w.id,
+  }))
+}
+
+async function onAddToWatchlist(): Promise<void> {
+  if (selectedWatchlistId.value === null || !props.score?.ticker) return
+  addingToWatchlist.value = true
+  const added = await watchlistStore.addTicker(selectedWatchlistId.value, props.score.ticker)
+  addingToWatchlist.value = false
+  if (added) {
+    toastService.add({
+      severity: 'success',
+      summary: 'Added',
+      detail: `${props.score.ticker} added to watchlist.`,
+      life: 3000,
+    })
+  } else {
+    toastService.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: watchlistStore.error ?? 'Failed to add ticker',
+      life: 5000,
+    })
+  }
+}
+
+onMounted(() => {
+  void watchlistStore.fetchWatchlists()
+})
 
 watch(
   () => props.score?.ticker,
@@ -141,6 +181,35 @@ function formatDate(iso: string): string {
           disabled
         />
       </div>
+
+      <div class="drawer-section watchlist-section">
+        <h3>Add to Watchlist</h3>
+        <div v-if="watchlistStore.watchlists.length > 0" class="watchlist-add-row">
+          <Select
+            v-model="selectedWatchlistId"
+            :options="watchlistOptions()"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select watchlist"
+            size="small"
+            data-testid="drawer-watchlist-select"
+            class="watchlist-add-select"
+          />
+          <Button
+            label="Add"
+            icon="pi pi-plus"
+            severity="success"
+            size="small"
+            :loading="addingToWatchlist"
+            :disabled="selectedWatchlistId === null"
+            data-testid="drawer-add-to-watchlist-btn"
+            @click="onAddToWatchlist"
+          />
+        </div>
+        <div v-else class="muted">
+          No watchlists yet. Create one from the Watchlists page.
+        </div>
+      </div>
     </template>
   </Drawer>
 </template>
@@ -226,5 +295,21 @@ function formatDate(iso: string): string {
   margin-top: 1.5rem;
   padding-top: 1rem;
   border-top: 1px solid var(--p-surface-700, #333);
+}
+
+.watchlist-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--p-surface-700, #333);
+}
+
+.watchlist-add-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.watchlist-add-select {
+  flex: 1;
 }
 </style>

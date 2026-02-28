@@ -1,4 +1,5 @@
 export type { HealthStatus } from './health'
+export type { Watchlist, WatchlistTicker, WatchlistDetail } from './watchlist'
 export type { UniverseStats } from './universe'
 export type { ScanRun, TickerScore, PaginatedResponse } from './scan'
 export type {

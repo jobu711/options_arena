@@ -168,6 +168,13 @@ onUnmounted(() => {
         data-testid="dashboard-btn-health"
         @click="router.push('/health')"
       />
+      <Button
+        label="Watchlists"
+        icon="pi pi-bookmark"
+        severity="secondary"
+        data-testid="dashboard-btn-watchlists"
+        @click="router.push('/watchlist')"
+      />
 
       <span class="quick-debate-separator" />
 
