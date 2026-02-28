@@ -1,12 +1,12 @@
 """Scan pipeline models for Options Arena.
 
 Three models for the scan pipeline:
-  IndicatorSignals -- 18 named indicator fields replacing ``dict[str, float]``.
+  IndicatorSignals -- 58 named indicator fields replacing ``dict[str, float]``.
   ScanRun          -- metadata for a completed scan run (frozen).
   TickerScore      -- scored ticker with typed indicator signals.
 
 ``IndicatorSignals`` is NOT frozen -- it gets populated incrementally during
-the scan pipeline.  All 18 fields default to ``None`` (indicator not computed).
+the scan pipeline.  All fields default to ``None`` (indicator not computed).
 Values are normalized 0--100 (percentile-ranked), not raw indicator values.
 """
 
@@ -19,7 +19,9 @@ from options_arena.models.enums import ScanPreset, SignalDirection
 
 
 class IndicatorSignals(BaseModel):
-    """18 named indicator fields.  Replaces ``dict[str, float]`` on TickerScore.
+    """58 named indicator fields (18 original + 40 DSE).
+
+    Replaces ``dict[str, float]`` on TickerScore.
 
     All fields are ``float | None`` -- ``None`` means the indicator could not be
     computed for this ticker (insufficient data, error, etc.).

@@ -407,7 +407,7 @@ class RiskAssessment(BaseModel):
     charm_decay_warning: str | None = None
     spread_quality_assessment: str | None = None
     key_risks: list[str]
-    risk_mitigants: list[str]
+    risk_mitigants: list[str]  # intentionally allows empty — a risk may have no mitigants
     recommended_position_size: str | None = None
     model_used: str
 
@@ -527,6 +527,14 @@ class ExtendedTradeThesis(TradeThesis):
     dissenting_agents: list[str] = []
     dimensional_scores: DimensionalScores | None = None
     agents_completed: int = 0
+
+    @field_validator("agents_completed")
+    @classmethod
+    def validate_agents_completed(cls, v: int) -> int:
+        """Ensure agents_completed is non-negative and within reasonable bounds."""
+        if not 0 <= v <= 20:
+            raise ValueError(f"agents_completed must be in [0, 20], got {v}")
+        return v
 
     @field_validator("agent_agreement_score")
     @classmethod

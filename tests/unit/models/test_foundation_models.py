@@ -881,6 +881,36 @@ class TestExtendedTradeThesis:
         )
         assert ett.agent_agreement_score == pytest.approx(1.0)
 
+    def test_agents_completed_negative_raises(self) -> None:
+        """ExtendedTradeThesis rejects negative agents_completed."""
+        with pytest.raises(ValidationError, match="agents_completed"):
+            ExtendedTradeThesis(
+                ticker="AAPL",
+                direction=SignalDirection.BULLISH,
+                confidence=0.7,
+                summary="test",
+                bull_score=7.0,
+                bear_score=4.0,
+                key_factors=["factor"],
+                risk_assessment="test",
+                agents_completed=-1,
+            )
+
+    def test_agents_completed_too_high_raises(self) -> None:
+        """ExtendedTradeThesis rejects agents_completed > 20."""
+        with pytest.raises(ValidationError, match="agents_completed"):
+            ExtendedTradeThesis(
+                ticker="AAPL",
+                direction=SignalDirection.BULLISH,
+                confidence=0.7,
+                summary="test",
+                bull_score=7.0,
+                bear_score=4.0,
+                key_factors=["factor"],
+                risk_assessment="test",
+                agents_completed=21,
+            )
+
     def test_inherits_confidence_clamping(self) -> None:
         """ExtendedTradeThesis inherits score-confidence clamping from TradeThesis."""
         ett = ExtendedTradeThesis(
