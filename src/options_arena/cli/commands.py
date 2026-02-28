@@ -445,7 +445,7 @@ async def _debate_single(
     # Lazy import: agents/ depends on pydantic-ai which may not be available.
     # Importing at call time keeps CLI tests (scan, health, universe) working
     # even when the optional dependency is absent.
-    from options_arena.agents import run_debate, run_debate_v2  # noqa: PLC0415
+    from options_arena.agents import run_debate_v2  # noqa: PLC0415
     from options_arena.scoring import compute_dimensional_scores  # noqa: PLC0415
 
     # Force fallback mode if requested (near-zero timeout triggers data-driven path)
@@ -466,28 +466,15 @@ async def _debate_single(
     except Exception:
         logger.debug("Could not compute dimensional scores for %s", ticker, exc_info=True)
 
-    # Use 6-agent protocol (v2) by default; fall back to 4-agent protocol on import error
-    try:
-        return await run_debate_v2(
-            ticker_score=debate_score,
-            contracts=contracts,
-            quote=quote,
-            ticker_info=ticker_info,
-            config=config,
-            repository=repo,
-            dimensional_scores=dim_scores,
-        )
-    except TypeError:
-        # Safety net: if run_debate_v2 signature is incompatible, fall back to v1
-        logger.warning("run_debate_v2 call failed, falling back to run_debate")
-        return await run_debate(
-            ticker_score=debate_score,
-            contracts=contracts,
-            quote=quote,
-            ticker_info=ticker_info,
-            config=config,
-            repository=repo,
-        )
+    return await run_debate_v2(
+        ticker_score=debate_score,
+        contracts=contracts,
+        quote=quote,
+        ticker_info=ticker_info,
+        config=config,
+        repository=repo,
+        dimensional_scores=dim_scores,
+    )
 
 
 async def _debate_async(

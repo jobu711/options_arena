@@ -49,6 +49,7 @@ from options_arena.scoring import (
     compute_dimensional_scores,
     compute_direction_signal,
     determine_direction,
+    percentile_rank_normalize,
     recommend_contracts,
     score_universe,
 )
@@ -477,6 +478,11 @@ class ScanPipeline:
             len(top_scores),
         )
 
+        # Normalize Phase 3 fields (raw domain values → 0-100 percentile ranks)
+        # so they are on the same scale as Phase 2 normalized fields.
+        _normalize_phase3_signals(top_scores)
+        _recompute_dimensional_scores(top_scores)
+
         progress(ScanPhase.OPTIONS, len(top_scores), len(top_scores))
 
         return OptionsResult(
@@ -562,13 +568,11 @@ class ScanPipeline:
             try:
                 ticker_df = ohlcv_to_dataframe(ohlcv_list)
                 close_series: pd.Series = ticker_df["close"]
-                volume_series: pd.Series = ticker_df["volume"]
 
                 dse_signals = compute_phase3_indicators(
                     contracts=all_contracts,
                     spot=spot,
                     close_series=close_series,
-                    volume_series=volume_series,
                     dividend_yield=ticker_info.dividend_yield,
                     next_earnings=earnings_date,
                     mp_strike=mp_strike,
@@ -735,6 +739,57 @@ class ScanPipeline:
         )
 
 
+# DSE field names computed in Phase 3 and merged into TickerScore.signals.
+# Also includes put_call_ratio and max_pain_distance (computed per-ticker in
+# Phase 3 via compute_options_indicators, not Phase 2).
+_PHASE3_FIELDS: tuple[str, ...] = (
+    # Options-specific (per-ticker Phase 3)
+    "put_call_ratio",
+    "max_pain_distance",
+    # IV Analytics
+    "iv_hv_spread",
+    "hv_20d",
+    "iv_term_slope",
+    "iv_term_shape",
+    "put_skew_index",
+    "call_skew_index",
+    "skew_ratio",
+    "vol_regime",
+    "ewma_vol_forecast",
+    "vol_cone_percentile",
+    "vix_correlation",
+    "expected_move",
+    "expected_move_ratio",
+    # Flow Analytics
+    "gex",
+    "oi_concentration",
+    "unusual_activity_score",
+    "max_pain_magnet",
+    # Second-Order Greeks
+    "vanna",
+    "charm",
+    "vomma",
+    # Risk
+    "pop",
+    "optimal_dte_score",
+    "spread_quality",
+    "max_loss_ratio",
+    # Fundamental
+    "earnings_em_ratio",
+    "days_to_earnings_impact",
+    "short_interest_ratio",
+    "div_ex_date_impact",
+    "iv_crush_history",
+    # Relative Strength & Regime
+    "rs_vs_spx",
+    "correlation_regime_shift",
+    "market_regime",
+    "vix_term_structure",
+    "risk_on_off_score",
+    "sector_relative_momentum",
+)
+
+
 def _extract_mp_strike(contracts: list[OptionContract]) -> float | None:
     """Extract the max-pain strike from an option chain.
 
@@ -784,33 +839,93 @@ def _merge_signals(
     Only DSE fields (Phase 3 indicators) are merged.  Original Phase 2 fields
     on *target* are never overwritten.  Mutates *target* in place.
     """
-    # DSE field names that are computed in Phase 3 and should be merged
-    _PHASE3_FIELDS: tuple[str, ...] = (
-        # IV Analytics
-        "iv_hv_spread",
-        "hv_20d",
-        "iv_term_slope",
-        "iv_term_shape",
-        "ewma_vol_forecast",
-        "vol_cone_percentile",
-        "expected_move",
-        "expected_move_ratio",
-        # Flow Analytics
-        "gex",
-        "oi_concentration",
-        "unusual_activity_score",
-        "max_pain_magnet",
-        # Fundamental
-        "earnings_em_ratio",
-        "days_to_earnings_impact",
-        "div_ex_date_impact",
-        "iv_crush_history",
-        # Relative Strength & Regime
-        "rs_vs_spx",
-        "correlation_regime_shift",
-    )
-
     for field_name in _PHASE3_FIELDS:
         value = getattr(source, field_name, None)
         if value is not None:
             setattr(target, field_name, value)
+
+
+def _normalize_phase3_signals(
+    top_scores: list[TickerScore],
+) -> None:
+    """Percentile-rank normalize Phase 3 fields across the top-N universe.
+
+    Phase 3 indicators are computed per-ticker and produce RAW domain values
+    (e.g., ``iv_hv_spread=0.15``, ``gex=50000``).  Phase 2 indicators on
+    ``TickerScore.signals`` are already percentile-ranked 0--100.  Mixing
+    scales breaks dimensional scoring.
+
+    This function:
+    1. Extracts Phase 3 fields into a sub-universe of ``IndicatorSignals``.
+    2. Runs ``percentile_rank_normalize()`` on those fields only.
+    3. Writes the normalized values back, overwriting raw Phase 3 values.
+
+    Phase 2 fields are untouched because only Phase 3 fields are populated
+    in the sub-universe (all others are ``None`` and excluded from ranking).
+
+    Mutates ``top_scores`` in place.
+    """
+    if len(top_scores) < 2:
+        return  # normalization needs >= 2 tickers to rank
+
+    phase3_field_set = frozenset(_PHASE3_FIELDS)
+
+    # Step 1: Extract Phase 3 fields into a sub-universe
+    sub_universe: dict[str, IndicatorSignals] = {}
+    for ts in top_scores:
+        kwargs: dict[str, float | None] = {}
+        for field_name in IndicatorSignals.model_fields:
+            if field_name in phase3_field_set:
+                kwargs[field_name] = getattr(ts.signals, field_name)
+            else:
+                kwargs[field_name] = None
+        sub_universe[ts.ticker] = IndicatorSignals(**kwargs)
+
+    # Step 2: Percentile-rank normalize across the top-N universe
+    normalized = percentile_rank_normalize(sub_universe)
+
+    # Step 3: Write normalized values back into each ticker's signals
+    for ts in top_scores:
+        norm_signals = normalized.get(ts.ticker)
+        if norm_signals is None:
+            continue
+        for field_name in _PHASE3_FIELDS:
+            norm_value: float | None = getattr(norm_signals, field_name)
+            if norm_value is not None:
+                setattr(ts.signals, field_name, norm_value)
+
+    logger.info(
+        "Phase 3 normalization complete: %d fields across %d tickers",
+        len(_PHASE3_FIELDS),
+        len(top_scores),
+    )
+
+
+def _recompute_dimensional_scores(
+    top_scores: list[TickerScore],
+) -> None:
+    """Refresh dimensional scores and direction confidence after Phase 3 normalization.
+
+    The Phase 2 computation only saw Phase 2 fields.  Now that Phase 3 fields
+    are also normalized 0--100, recomputing gives dimensional scoring the full
+    picture.
+
+    Mutates ``top_scores`` in place.
+    """
+    for ts in top_scores:
+        try:
+            dim_scores = compute_dimensional_scores(ts.signals)
+            ts.dimensional_scores = dim_scores
+
+            direction_signal = compute_direction_signal(
+                ts.signals,
+                ts.composite_score,
+                ts.direction,
+            )
+            ts.direction_confidence = direction_signal.confidence
+        except Exception:
+            logger.warning(
+                "Dimensional re-scoring failed for %s; keeping Phase 2 values",
+                ts.ticker,
+                exc_info=True,
+            )

@@ -418,17 +418,19 @@ async def list_debates(
         direction = "neutral"
         confidence = 0.0
         if row.verdict_json is not None:
+            from pydantic import ValidationError as PydanticValidationError  # noqa: PLC0415
+
             try:
                 # Try ExtendedTradeThesis first, fall back to TradeThesis
                 parsed_verdict: TradeThesis
                 try:
                     parsed_verdict = ExtendedTradeThesis.model_validate_json(row.verdict_json)
-                except Exception:
+                except PydanticValidationError:
                     parsed_verdict = TradeThesis.model_validate_json(row.verdict_json)
                 direction = parsed_verdict.direction.value
                 confidence = parsed_verdict.confidence
-            except Exception:
-                pass
+            except PydanticValidationError:
+                logger.warning("Failed to parse verdict JSON for debate %d", row.id, exc_info=True)
 
         summaries.append(
             DebateResultSummary(

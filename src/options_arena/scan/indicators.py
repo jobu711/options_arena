@@ -410,7 +410,6 @@ def compute_phase3_indicators(
     contracts: list[OptionContract],
     spot: float,
     close_series: pd.Series,
-    volume_series: pd.Series,
     dividend_yield: float,
     next_earnings: date | None,
     mp_strike: float | None,
@@ -434,8 +433,6 @@ def compute_phase3_indicators(
         Current underlying price.
     close_series
         Daily close price series from OHLCV (Phase 1 data).
-    volume_series
-        Daily volume series from OHLCV (Phase 1 data).
     dividend_yield
         Annual dividend yield as decimal fraction (from TickerInfo).
     next_earnings
