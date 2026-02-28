@@ -115,6 +115,56 @@ class TestClassifyMarketRegime:
         )
         assert result == MarketRegime.MEAN_REVERTING
 
+    def test_nan_vix_returns_mean_reverting(self) -> None:
+        """NaN VIX → MEAN_REVERTING (safe fallback, not silent misclassification)."""
+        result = classify_market_regime(
+            vix=float("nan"),
+            vix_sma_20=20.0,
+            spx_returns_20d=0.01,
+            spx_sma_slope=0.1,
+        )
+        assert result == MarketRegime.MEAN_REVERTING
+
+    def test_nan_vix_sma_returns_mean_reverting(self) -> None:
+        """NaN VIX SMA → MEAN_REVERTING."""
+        result = classify_market_regime(
+            vix=40.0,
+            vix_sma_20=float("nan"),
+            spx_returns_20d=0.01,
+            spx_sma_slope=0.1,
+        )
+        assert result == MarketRegime.MEAN_REVERTING
+
+    def test_nan_spx_returns_mean_reverting(self) -> None:
+        """NaN SPX returns → MEAN_REVERTING."""
+        result = classify_market_regime(
+            vix=15.0,
+            vix_sma_20=16.0,
+            spx_returns_20d=float("nan"),
+            spx_sma_slope=0.3,
+        )
+        assert result == MarketRegime.MEAN_REVERTING
+
+    def test_inf_vix_returns_mean_reverting(self) -> None:
+        """Inf VIX → MEAN_REVERTING (not CRISIS)."""
+        result = classify_market_regime(
+            vix=float("inf"),
+            vix_sma_20=20.0,
+            spx_returns_20d=0.01,
+            spx_sma_slope=0.1,
+        )
+        assert result == MarketRegime.MEAN_REVERTING
+
+    def test_negative_inf_spx_slope_returns_mean_reverting(self) -> None:
+        """Negative Inf SMA slope → MEAN_REVERTING."""
+        result = classify_market_regime(
+            vix=15.0,
+            vix_sma_20=16.0,
+            spx_returns_20d=0.05,
+            spx_sma_slope=float("-inf"),
+        )
+        assert result == MarketRegime.MEAN_REVERTING
+
 
 # ---------------------------------------------------------------------------
 # compute_vix_term_structure tests

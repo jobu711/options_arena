@@ -5,6 +5,8 @@ Functions for options flow analysis take pandas DataFrames/Series in, return
 ``float | None`` out. No Pydantic models, no API calls. Pure math.
 """
 
+import math
+
 import numpy as np
 import pandas as pd
 
@@ -19,7 +21,7 @@ def compute_gex(
     """Net Gamma Exposure (GEX).
 
     GEX = sum(call_OI * call_gamma * 100 * spot) - sum(put_OI * put_gamma * 100 * spot)
-    for strikes within ATM +/- 10 strikes.
+    for strikes within +/- 10% of spot price.
 
     Positive GEX implies dealer long gamma (stabilising); negative implies dealer
     short gamma (amplifying moves).
@@ -32,6 +34,9 @@ def compute_gex(
     Returns:
         Net GEX as float, or ``None`` if insufficient data.
     """
+    if not math.isfinite(spot) or spot <= 0.0:
+        return None
+
     required_cols = {"openInterest", "gamma"}
     if (
         chain_calls.empty
@@ -66,7 +71,8 @@ def compute_gex(
         np.nansum(puts["openInterest"].to_numpy() * puts["gamma"].to_numpy() * 100.0 * spot)
     )
 
-    return call_gex - put_gex
+    result = call_gex - put_gex
+    return result if math.isfinite(result) else None
 
 
 def compute_oi_concentration(chain: pd.DataFrame) -> float | None:
@@ -91,7 +97,8 @@ def compute_oi_concentration(chain: pd.DataFrame) -> float | None:
         return None
 
     max_oi = float(np.nanmax(oi))
-    return max_oi / total_oi
+    ratio = max_oi / total_oi
+    return ratio if math.isfinite(ratio) else None
 
 
 def compute_unusual_activity(chain: pd.DataFrame) -> float | None:
@@ -153,7 +160,9 @@ def compute_max_pain_magnet(spot: float, max_pain: float | None) -> float | None
     if max_pain is None:
         return None
 
-    if spot == 0.0:
+    if not math.isfinite(spot) or spot <= 0.0:
+        return None
+    if not math.isfinite(max_pain):
         return None
 
     distance = abs(spot - max_pain) / spot
@@ -203,4 +212,4 @@ def compute_dollar_volume_trend(
         return 0.0
 
     slope = float(np.sum((x - x_mean) * (clean - y_mean))) / denom
-    return slope
+    return slope if math.isfinite(slope) else None

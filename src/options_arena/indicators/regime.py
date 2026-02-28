@@ -42,6 +42,15 @@ def classify_market_regime(
     Returns:
         MarketRegime enum value.
     """
+    # Guard against NaN/Inf — fall through to MEAN_REVERTING would be silent & wrong
+    if (
+        not math.isfinite(vix)
+        or not math.isfinite(vix_sma_20)
+        or not math.isfinite(spx_returns_20d)
+        or not math.isfinite(spx_sma_slope)
+    ):
+        return MarketRegime.MEAN_REVERTING
+
     # Crisis: extreme VIX
     if vix >= 35.0:
         return MarketRegime.CRISIS

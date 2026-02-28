@@ -5,6 +5,8 @@ Functions for IV metrics take scalars; Put/Call ratios take ints;
 Max Pain takes pandas Series; PoP uses scipy.stats.norm.
 """
 
+import math
+
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
@@ -169,12 +171,16 @@ def compute_optimal_dte(theta: float, expected_value: float | None) -> float | N
     if expected_value is None:
         return None
 
+    if not math.isfinite(theta) or not math.isfinite(expected_value):
+        return None
+
     if theta == 0.0:
         return None
 
     # Use absolute theta so the ratio sign reflects expected_value direction
     abs_theta = abs(theta)
-    return expected_value / abs_theta
+    result = expected_value / abs_theta
+    return result if math.isfinite(result) else None
 
 
 def compute_spread_quality(chain: pd.DataFrame) -> float | None:
@@ -204,7 +210,7 @@ def compute_spread_quality(chain: pd.DataFrame) -> float | None:
         return None
 
     weighted_spread = float(np.nansum(spreads * oi)) / total_oi
-    return weighted_spread
+    return weighted_spread if math.isfinite(weighted_spread) else None
 
 
 def compute_max_loss_ratio(
@@ -223,6 +229,9 @@ def compute_max_loss_ratio(
     Returns:
         Ratio as float (>= 0), or ``None`` if either input is non-positive.
     """
+    if not math.isfinite(contract_cost) or not math.isfinite(account_risk_budget):
+        return None
+
     if contract_cost <= 0.0 or account_risk_budget <= 0.0:
         return None
 

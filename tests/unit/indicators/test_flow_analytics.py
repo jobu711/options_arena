@@ -96,6 +96,40 @@ class TestComputeGEX:
         result = compute_gex(calls, puts, spot=100.0)
         assert result is None
 
+    def test_nan_spot_returns_none(self) -> None:
+        """NaN spot returns None."""
+        calls = pd.DataFrame({"strike": [100.0], "openInterest": [100], "gamma": [0.05]})
+        puts = pd.DataFrame({"strike": [100.0], "openInterest": [80], "gamma": [0.04]})
+        assert compute_gex(calls, puts, spot=float("nan")) is None
+
+    def test_inf_spot_returns_none(self) -> None:
+        """Inf spot returns None."""
+        calls = pd.DataFrame({"strike": [100.0], "openInterest": [100], "gamma": [0.05]})
+        puts = pd.DataFrame({"strike": [100.0], "openInterest": [80], "gamma": [0.04]})
+        assert compute_gex(calls, puts, spot=float("inf")) is None
+
+    def test_zero_spot_returns_none(self) -> None:
+        """Zero spot returns None."""
+        calls = pd.DataFrame({"strike": [100.0], "openInterest": [100], "gamma": [0.05]})
+        puts = pd.DataFrame({"strike": [100.0], "openInterest": [80], "gamma": [0.04]})
+        assert compute_gex(calls, puts, spot=0.0) is None
+
+    def test_negative_spot_returns_none(self) -> None:
+        """Negative spot returns None."""
+        calls = pd.DataFrame({"strike": [100.0], "openInterest": [100], "gamma": [0.05]})
+        puts = pd.DataFrame({"strike": [100.0], "openInterest": [80], "gamma": [0.04]})
+        assert compute_gex(calls, puts, spot=-100.0) is None
+
+    def test_result_finiteness(self) -> None:
+        """Result is always finite when returned (not None)."""
+        calls = pd.DataFrame({"strike": [100.0], "openInterest": [100], "gamma": [0.05]})
+        puts = pd.DataFrame({"strike": [100.0], "openInterest": [80], "gamma": [0.04]})
+        import math
+
+        result = compute_gex(calls, puts, spot=100.0)
+        assert result is not None
+        assert math.isfinite(result)
+
     def test_filters_to_atm_range(self) -> None:
         """Strikes far from spot (>10%) are excluded from GEX calculation."""
         calls = pd.DataFrame(
@@ -306,6 +340,26 @@ class TestComputeMaxPainMagnet:
         """Zero spot returns None (div-by-zero guard)."""
         result = compute_max_pain_magnet(spot=0.0, max_pain=100.0)
         assert result is None
+
+    def test_nan_spot_returns_none(self) -> None:
+        """NaN spot returns None."""
+        assert compute_max_pain_magnet(spot=float("nan"), max_pain=100.0) is None
+
+    def test_inf_spot_returns_none(self) -> None:
+        """Inf spot returns None."""
+        assert compute_max_pain_magnet(spot=float("inf"), max_pain=100.0) is None
+
+    def test_negative_spot_returns_none(self) -> None:
+        """Negative spot returns None."""
+        assert compute_max_pain_magnet(spot=-100.0, max_pain=100.0) is None
+
+    def test_nan_max_pain_returns_none(self) -> None:
+        """NaN max_pain returns None."""
+        assert compute_max_pain_magnet(spot=100.0, max_pain=float("nan")) is None
+
+    def test_inf_max_pain_returns_none(self) -> None:
+        """Inf max_pain returns None."""
+        assert compute_max_pain_magnet(spot=100.0, max_pain=float("inf")) is None
 
 
 # ---------------------------------------------------------------------------

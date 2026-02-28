@@ -90,7 +90,6 @@ FAMILY_INDICATOR_MAP: dict[str, list[str]] = {
     "risk": [
         "pop",
         "optimal_dte_score",
-        "spread_quality",
         "max_loss_ratio",
         "vanna",
         "charm",

@@ -147,6 +147,26 @@ class TestComputeOptimalDTE:
         result = compute_optimal_dte(theta=-2.0, expected_value=None)
         assert result is None
 
+    def test_nan_theta_returns_none(self) -> None:
+        """NaN theta returns None."""
+        result = compute_optimal_dte(theta=float("nan"), expected_value=10.0)
+        assert result is None
+
+    def test_inf_theta_returns_none(self) -> None:
+        """Inf theta returns None."""
+        result = compute_optimal_dte(theta=float("inf"), expected_value=10.0)
+        assert result is None
+
+    def test_nan_ev_returns_none(self) -> None:
+        """NaN expected_value returns None."""
+        result = compute_optimal_dte(theta=-2.0, expected_value=float("nan"))
+        assert result is None
+
+    def test_inf_ev_returns_none(self) -> None:
+        """Inf expected_value returns None."""
+        result = compute_optimal_dte(theta=-2.0, expected_value=float("inf"))
+        assert result is None
+
 
 # ---------------------------------------------------------------------------
 # compute_spread_quality tests
@@ -216,6 +236,14 @@ class TestComputeSpreadQuality:
         result = compute_spread_quality(chain)
         assert result is None
 
+    def test_inf_spread_returns_none(self) -> None:
+        """Inf spread values produce None result."""
+        chain = pd.DataFrame(
+            {"bid": [0.0], "ask": [float("inf")], "openInterest": [100]}
+        )
+        result = compute_spread_quality(chain)
+        assert result is None
+
 
 # ---------------------------------------------------------------------------
 # compute_max_loss_ratio tests
@@ -281,6 +309,38 @@ class TestComputeMaxLossRatio:
         result = compute_max_loss_ratio(
             contract_cost=500.0,
             account_risk_budget=-10000.0,
+        )
+        assert result is None
+
+    def test_nan_cost_returns_none(self) -> None:
+        """NaN contract cost returns None."""
+        result = compute_max_loss_ratio(
+            contract_cost=float("nan"),
+            account_risk_budget=10000.0,
+        )
+        assert result is None
+
+    def test_inf_cost_returns_none(self) -> None:
+        """Inf contract cost returns None."""
+        result = compute_max_loss_ratio(
+            contract_cost=float("inf"),
+            account_risk_budget=10000.0,
+        )
+        assert result is None
+
+    def test_nan_budget_returns_none(self) -> None:
+        """NaN risk budget returns None."""
+        result = compute_max_loss_ratio(
+            contract_cost=500.0,
+            account_risk_budget=float("nan"),
+        )
+        assert result is None
+
+    def test_inf_budget_returns_none(self) -> None:
+        """Inf risk budget returns None."""
+        result = compute_max_loss_ratio(
+            contract_cost=500.0,
+            account_risk_budget=float("inf"),
         )
         assert result is None
 

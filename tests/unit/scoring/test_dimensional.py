@@ -270,13 +270,23 @@ class TestComputeDimensionalScores:
         with pytest.raises(Exception):  # noqa: B017
             result.trend = 99.0  # type: ignore[misc]
 
-    def test_spread_quality_contributes_to_both_families(self) -> None:
-        """spread_quality appears in both microstructure and risk families."""
+    def test_spread_quality_only_in_microstructure(self) -> None:
+        """spread_quality appears in microstructure only (not risk)."""
         signals = _make_signals(spread_quality=70.0)
         result = compute_dimensional_scores(signals)
 
         assert result.microstructure == pytest.approx(70.0, rel=1e-4)
-        assert result.risk == pytest.approx(70.0, rel=1e-4)
+        assert result.risk is None  # spread_quality not in risk family
+
+    def test_no_duplicate_indicators_across_families(self) -> None:
+        """No indicator appears in more than one family."""
+        seen: dict[str, str] = {}
+        for family, indicators in FAMILY_INDICATOR_MAP.items():
+            for ind in indicators:
+                assert ind not in seen, (
+                    f"'{ind}' duplicated: in '{seen[ind]}' and '{family}'"
+                )
+                seen[ind] = family
 
     def test_clamping_high_values(self) -> None:
         """Values above 100 are clamped to 100 in family score."""
