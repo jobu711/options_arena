@@ -26,3 +26,23 @@ export interface PaginatedResponse<T> {
   page: number
   pages: number
 }
+
+/** Score change for a single ticker between two scans. */
+export interface TickerDelta {
+  ticker: string
+  current_score: number
+  previous_score: number
+  score_change: number
+  current_direction: string
+  previous_direction: string
+  is_new: boolean
+}
+
+/** Full diff between two scans. */
+export interface ScanDiff {
+  current_scan_id: number
+  base_scan_id: number
+  added: string[]
+  removed: string[]
+  movers: TickerDelta[]
+}
