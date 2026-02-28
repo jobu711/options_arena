@@ -7,10 +7,11 @@ import Button from 'primevue/button'
 import Select from 'primevue/select'
 import Message from 'primevue/message'
 import DirectionBadge from './DirectionBadge.vue'
+import ScoreHistoryChart from './ScoreHistoryChart.vue'
 import { api } from '@/composables/useApi'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { useToast } from 'primevue/usetoast'
-import type { TickerScore, DebateResultSummary } from '@/types'
+import type { TickerScore, DebateResultSummary, HistoryPoint } from '@/types'
 
 interface Props {
   visible: boolean
@@ -24,6 +25,8 @@ const router = useRouter()
 
 const debates = ref<DebateResultSummary[]>([])
 const loadingDebates = ref(false)
+const history = ref<HistoryPoint[]>([])
+const loadingHistory = ref(false)
 const watchlistStore = useWatchlistStore()
 const toastService = useToast()
 const selectedWatchlistId = ref<number | null>(null)
@@ -67,17 +70,28 @@ watch(
   async (ticker) => {
     if (!ticker) {
       debates.value = []
+      history.value = []
       return
     }
     loadingDebates.value = true
+    loadingHistory.value = true
     try {
-      debates.value = await api<DebateResultSummary[]>('/api/debate', {
-        params: { ticker, limit: 5 },
-      })
+      const [debateData, historyData] = await Promise.all([
+        api<DebateResultSummary[]>('/api/debate', {
+          params: { ticker, limit: 5 },
+        }),
+        api<HistoryPoint[]>(`/api/ticker/${ticker}/history`, {
+          params: { limit: 20 },
+        }).catch(() => [] as HistoryPoint[]),
+      ])
+      debates.value = debateData
+      history.value = historyData
     } catch {
       debates.value = []
+      history.value = []
     } finally {
       loadingDebates.value = false
+      loadingHistory.value = false
     }
   },
 )
@@ -138,6 +152,12 @@ function formatDate(iso: string): string {
           <span class="score-value mono">{{ score.composite_score.toFixed(1) }}</span>
           <DirectionBadge :direction="score.direction" />
         </div>
+      </div>
+
+      <div class="drawer-section" data-testid="drawer-score-history">
+        <h3>Score History</h3>
+        <div v-if="loadingHistory" class="muted">Loading history...</div>
+        <ScoreHistoryChart v-else :history="history" />
       </div>
 
       <div class="drawer-section">

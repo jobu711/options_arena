@@ -7,7 +7,10 @@ import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Button from 'primevue/button'
+import Tag from 'primevue/tag'
+import Panel from 'primevue/panel'
 import DirectionBadge from '@/components/DirectionBadge.vue'
+import SparklineChart from '@/components/SparklineChart.vue'
 import TickerDrawer from '@/components/TickerDrawer.vue'
 import DebateProgressModal from '@/components/DebateProgressModal.vue'
 import { useScanStore } from '@/stores/scan'
@@ -15,8 +18,8 @@ import { useDebateStore } from '@/stores/debate'
 import { useOperationStore } from '@/stores/operation'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { useWebSocket } from '@/composables/useWebSocket'
-import { ApiError } from '@/composables/useApi'
-import type { TickerScore } from '@/types'
+import { api, ApiError } from '@/composables/useApi'
+import type { TickerScore, ScanRun, ScanDiff, TickerDelta, HistoryPoint } from '@/types'
 import type { DebateEvent, BatchEvent } from '@/types/ws'
 
 const route = useRoute()
@@ -37,6 +40,92 @@ const batchModalVisible = ref(false)
 // WebSocket close handles for cleanup
 let debateWsClose: (() => void) | null = null
 let batchWsClose: (() => void) | null = null
+
+// --- Scan comparison state ---
+const compareScanId = ref<number | null>(
+  route.query.compare ? Number(route.query.compare) : null,
+)
+const scanDiff = ref<ScanDiff | null>(null)
+const diffLoading = ref(false)
+
+// Build compare options from scan history (exclude current scan)
+const compareOptions = computed(() => {
+  const opts: Array<{ label: string; value: number | null }> = [
+    { label: 'None', value: null },
+  ]
+  for (const scan of scanStore.scans) {
+    if (scan.id !== scanId) {
+      const dateStr = new Date(scan.started_at).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+      opts.push({ label: `Scan #${scan.id} (${dateStr})`, value: scan.id })
+    }
+  }
+  return opts
+})
+
+// Lookup maps for fast access during rendering
+const diffByTicker = computed<Map<string, TickerDelta>>(() => {
+  const map = new Map<string, TickerDelta>()
+  if (scanDiff.value) {
+    for (const mover of scanDiff.value.movers) {
+      map.set(mover.ticker, mover)
+    }
+  }
+  return map
+})
+
+const addedTickers = computed<Set<string>>(() => {
+  return new Set(scanDiff.value?.added ?? [])
+})
+
+const topMovers = computed<TickerDelta[]>(() => {
+  if (!scanDiff.value) return []
+  return scanDiff.value.movers.slice(0, 5)
+})
+
+async function fetchDiff(baseId: number): Promise<void> {
+  diffLoading.value = true
+  try {
+    scanDiff.value = await api<ScanDiff>(`/api/scan/${scanId}/diff`, {
+      params: { base_id: baseId },
+    })
+  } catch (e) {
+    scanDiff.value = null
+    const msg = e instanceof ApiError ? e.message : 'Failed to load comparison'
+    toast.add({ severity: 'error', summary: 'Compare Error', detail: msg, life: 5000 })
+  } finally {
+    diffLoading.value = false
+  }
+}
+
+function onCompareChange(): void {
+  const query: Record<string, string> = { ...route.query as Record<string, string> }
+  if (compareScanId.value !== null) {
+    query.compare = String(compareScanId.value)
+    void fetchDiff(compareScanId.value)
+  } else {
+    delete query.compare
+    scanDiff.value = null
+  }
+  router.replace({ query })
+}
+
+/** Format a score change as a string: "+2.3" or "-1.5". */
+function formatDelta(change: number): string {
+  const sign = change >= 0 ? '+' : ''
+  return `${sign}${change.toFixed(1)}`
+}
+
+/** CSS class for delta chip based on sign. */
+function deltaClass(change: number): string {
+  if (change > 0) return 'delta-positive'
+  if (change < 0) return 'delta-negative'
+  return 'delta-neutral'
+}
 
 // Single debate
 async function startDebate(ticker: string): Promise<void> {
@@ -150,6 +239,35 @@ const selectedScore = ref<TickerScore | null>(null)
 // Batch selection
 const selectedTickers = ref<TickerScore[]>([])
 
+// Sparkline history data (ticker -> last 10 scores)
+const sparklineData = ref<Map<string, number[]>>(new Map())
+const sparklineDirections = ref<Map<string, string>>(new Map())
+
+/** Fetch score history for all tickers currently in the results table. */
+async function fetchSparklineData(): Promise<void> {
+  const tickers = scanStore.scores.map((s) => s.ticker)
+  if (tickers.length === 0) return
+
+  const results = await Promise.allSettled(
+    tickers.map((ticker) =>
+      api<HistoryPoint[]>(`/api/ticker/${ticker}/history`, { params: { limit: 10 } }),
+    ),
+  )
+
+  const scores = new Map<string, number[]>()
+  const directions = new Map<string, string>()
+  for (let i = 0; i < tickers.length; i++) {
+    const result = results[i]
+    if (result.status === 'fulfilled' && result.value.length >= 2) {
+      scores.set(tickers[i], result.value.map((p) => p.composite_score))
+      const last = result.value[result.value.length - 1]
+      directions.set(tickers[i], last.direction)
+    }
+  }
+  sparklineData.value = scores
+  sparklineDirections.value = directions
+}
+
 function buildParams(): Record<string, string | number | undefined> {
   return {
     page: page.value,
@@ -168,6 +286,7 @@ function syncUrl(): void {
   if (sortField.value !== 'composite_score') query.sort = sortField.value
   if (sortOrder.value === 1) query.order = 'asc'
   if (page.value > 1) query.page = String(page.value)
+  if (compareScanId.value !== null) query.compare = String(compareScanId.value)
   router.replace({ query })
 }
 
@@ -264,9 +383,16 @@ async function addToFirstWatchlist(ticker: string): Promise<void> {
   }
 }
 
-onMounted(() => {
-  void loadScores()
+onMounted(async () => {
+  await loadScores()
+  void fetchSparklineData()
   void watchlistStore.fetchWatchlists()
+  // Load scan list for compare dropdown
+  await scanStore.fetchScans(20)
+  // If compare param is in URL, fetch the diff
+  if (compareScanId.value !== null) {
+    void fetchDiff(compareScanId.value)
+  }
 })
 onUnmounted(() => {
   debateWsClose?.()
@@ -302,6 +428,18 @@ onUnmounted(() => {
         data-testid="direction-filter"
         @change="onDirectionChange()"
       />
+      <Select
+        v-model="compareScanId"
+        :options="compareOptions"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Compare with..."
+        size="small"
+        class="compare-select"
+        data-testid="compare-select"
+        :loading="diffLoading"
+        @change="onCompareChange()"
+      />
       <div class="batch-actions">
         <Button
           v-if="selectedTickers.length > 0"
@@ -324,6 +462,44 @@ onUnmounted(() => {
         />
       </div>
     </div>
+
+    <!-- Top Movers Summary (shown when comparison is active) -->
+    <Panel
+      v-if="scanDiff && topMovers.length > 0"
+      header="Top Movers"
+      :toggleable="true"
+      class="top-movers-panel"
+      data-testid="top-movers-panel"
+    >
+      <div class="movers-grid">
+        <div
+          v-for="mover in topMovers"
+          :key="mover.ticker"
+          class="mover-item"
+          :data-testid="`mover-${mover.ticker}`"
+        >
+          <span class="mover-ticker mono">{{ mover.ticker }}</span>
+          <span v-if="mover.is_new">
+            <Tag severity="success" value="NEW" data-testid="mover-new-tag" />
+          </span>
+          <span
+            v-else
+            class="mover-delta mono"
+            :class="deltaClass(mover.score_change)"
+            data-testid="mover-delta"
+          >{{ formatDelta(mover.score_change) }}</span>
+          <span class="mover-score mono">{{ mover.current_score.toFixed(1) }}</span>
+        </div>
+      </div>
+      <div v-if="scanDiff.added.length > 0" class="movers-summary">
+        <span class="summary-label">New tickers:</span>
+        <span class="mono">{{ scanDiff.added.length }}</span>
+      </div>
+      <div v-if="scanDiff.removed.length > 0" class="movers-summary">
+        <span class="summary-label">Removed:</span>
+        <span class="mono">{{ scanDiff.removed.length }}</span>
+      </div>
+    </Panel>
 
     <!-- Data Table -->
     <DataTable
@@ -348,19 +524,46 @@ onUnmounted(() => {
       data-testid="scan-results-table"
     >
       <Column selectionMode="multiple" :style="{ width: '3rem' }" />
-      <Column field="ticker" header="Ticker" :sortable="true" :style="{ width: '100px' }">
+      <Column field="ticker" header="Ticker" :sortable="true" :style="{ width: '120px' }">
         <template #body="{ data }">
-          <span class="ticker-cell mono" data-testid="ticker-cell">{{ data.ticker }}</span>
+          <span class="ticker-cell-wrapper">
+            <span class="ticker-cell mono" data-testid="ticker-cell">{{ data.ticker }}</span>
+            <Tag
+              v-if="addedTickers.has(data.ticker)"
+              severity="success"
+              value="NEW"
+              class="new-badge"
+              data-testid="new-badge"
+            />
+          </span>
         </template>
       </Column>
-      <Column field="composite_score" header="Score" :sortable="true" :style="{ width: '80px' }">
+      <Column field="composite_score" header="Score" :sortable="true" :style="{ width: '120px' }">
         <template #body="{ data }">
-          <span class="mono" data-testid="composite-score">{{ data.composite_score.toFixed(1) }}</span>
+          <span class="score-cell">
+            <span class="mono" data-testid="composite-score">{{ data.composite_score.toFixed(1) }}</span>
+            <span
+              v-if="diffByTicker.has(data.ticker) && !diffByTicker.get(data.ticker)!.is_new"
+              class="delta-chip mono"
+              :class="deltaClass(diffByTicker.get(data.ticker)!.score_change)"
+              data-testid="delta-chip"
+            >{{ formatDelta(diffByTicker.get(data.ticker)!.score_change) }}</span>
+          </span>
         </template>
       </Column>
       <Column field="direction" header="Direction" :sortable="true" :style="{ width: '110px' }">
         <template #body="{ data }">
           <DirectionBadge :direction="data.direction" />
+        </template>
+      </Column>
+      <Column header="Trend" :style="{ width: '100px' }">
+        <template #body="{ data }">
+          <SparklineChart
+            v-if="sparklineData.has(data.ticker)"
+            :scores="sparklineData.get(data.ticker)!"
+            :direction="(sparklineDirections.get(data.ticker) as 'bullish' | 'bearish' | 'neutral') ?? 'neutral'"
+          />
+          <span v-else class="sparkline-empty">&mdash;</span>
         </template>
       </Column>
       <Column field="next_earnings" header="Earnings" :sortable="true" :style="{ width: '90px' }">
@@ -460,12 +663,64 @@ onUnmounted(() => {
   min-width: 200px;
 }
 
+.compare-select {
+  min-width: 220px;
+}
+
 .batch-actions {
   display: flex;
   gap: 0.5rem;
   margin-left: auto;
 }
 
+/* Top movers panel */
+.top-movers-panel {
+  margin-bottom: 1rem;
+}
+
+.movers-grid {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.mover-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.mover-ticker {
+  font-weight: 600;
+  min-width: 50px;
+}
+
+.mover-score {
+  color: var(--p-surface-400, #888);
+  font-size: 0.85rem;
+}
+
+.mover-delta {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.movers-summary {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--p-surface-400, #888);
+  margin-top: 0.25rem;
+}
+
+.summary-label {
+  font-weight: 500;
+}
+
+/* Table styles */
 .results-table :deep(tr) {
   cursor: pointer;
 }
@@ -474,8 +729,46 @@ onUnmounted(() => {
   background: var(--p-surface-700, #2a2a2a) !important;
 }
 
+.ticker-cell-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .ticker-cell {
   font-weight: 600;
+}
+
+.new-badge {
+  font-size: 0.65rem;
+}
+
+.score-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.delta-chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+}
+
+.delta-positive {
+  color: var(--accent-green, #22c55e);
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.delta-negative {
+  color: var(--accent-red, #ef4444);
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.delta-neutral {
+  color: var(--p-surface-400, #888);
+  background: rgba(136, 136, 136, 0.1);
 }
 
 .mono {
@@ -505,5 +798,10 @@ onUnmounted(() => {
 
 .earnings-none {
   color: var(--p-surface-500, #666);
+}
+
+.sparkline-empty {
+  color: var(--p-surface-500, #666);
+  font-size: 0.8rem;
 }
 </style>

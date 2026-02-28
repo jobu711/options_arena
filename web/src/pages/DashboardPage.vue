@@ -4,13 +4,16 @@ import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import { useToast } from 'primevue/usetoast'
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
 import HealthDot from '@/components/HealthDot.vue'
+import SparklineChart from '@/components/SparklineChart.vue'
 import DebateProgressModal from '@/components/DebateProgressModal.vue'
 import { useHealthStore } from '@/stores/health'
 import { useDebateStore } from '@/stores/debate'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { api, ApiError } from '@/composables/useApi'
-import type { ScanRun, DebateResultSummary, ConfigResponse, DebateEvent } from '@/types'
+import type { ScanRun, DebateResultSummary, ConfigResponse, DebateEvent, TrendingTicker } from '@/types'
 
 const router = useRouter()
 const toast = useToast()
@@ -22,6 +25,10 @@ const recentDebates = ref<DebateResultSummary[]>([])
 const config = ref<ConfigResponse | null>(null)
 const loading = ref(true)
 
+// Trending data
+const trendingUp = ref<TrendingTicker[]>([])
+const trendingDown = ref<TrendingTicker[]>([])
+
 // Quick debate state
 const quickTicker = ref('')
 const debateLoading = ref(false)
@@ -32,14 +39,18 @@ let closeWs: (() => void) | null = null
 async function loadDashboard(): Promise<void> {
   loading.value = true
   try {
-    const [scans, debates, cfg] = await Promise.all([
+    const [scans, debates, cfg, bullish, bearish] = await Promise.all([
       api<ScanRun[]>('/api/scan', { params: { limit: 1 } }),
       api<DebateResultSummary[]>('/api/debate', { params: { limit: 5 } }),
       api<ConfigResponse>('/api/config'),
+      api<TrendingTicker[]>('/api/ticker/trending', { params: { direction: 'bullish' } }).catch(() => [] as TrendingTicker[]),
+      api<TrendingTicker[]>('/api/ticker/trending', { params: { direction: 'bearish' } }).catch(() => [] as TrendingTicker[]),
     ])
     latestScan.value = scans[0] ?? null
     recentDebates.value = debates
     config.value = cfg
+    trendingUp.value = bullish.slice(0, 5)
+    trendingDown.value = bearish.slice(0, 5)
   } finally {
     loading.value = false
   }
@@ -229,6 +240,82 @@ onUnmounted(() => {
         />
       </div>
       <p v-else-if="!loading" class="empty-msg" data-testid="empty-state">No scans yet. Run your first scan to get started.</p>
+    </section>
+
+    <!-- Trending Up -->
+    <section v-if="trendingUp.length > 0" class="section" data-testid="trending-up-section">
+      <h2>Trending Up</h2>
+      <DataTable
+        :value="trendingUp"
+        dataKey="ticker"
+        :rows="5"
+        class="trending-table"
+      >
+        <Column field="ticker" header="Ticker" :style="{ width: '80px' }">
+          <template #body="{ data }">
+            <span
+              class="ticker-link mono"
+              @click="router.push(`/ticker/${data.ticker}`)"
+            >{{ data.ticker }}</span>
+          </template>
+        </Column>
+        <Column header="Trend" :style="{ width: '100px' }">
+          <template #body="{ data }">
+            <SparklineChart
+              :scores="[data.latest_score - data.score_change, data.latest_score]"
+              :direction="data.direction"
+            />
+          </template>
+        </Column>
+        <Column field="latest_score" header="Score" :style="{ width: '70px' }">
+          <template #body="{ data }">
+            <span class="mono">{{ data.latest_score.toFixed(1) }}</span>
+          </template>
+        </Column>
+        <Column field="consecutive_scans" header="Scans" :style="{ width: '60px' }">
+          <template #body="{ data }">
+            <span class="mono">{{ data.consecutive_scans }}</span>
+          </template>
+        </Column>
+      </DataTable>
+    </section>
+
+    <!-- Trending Down -->
+    <section v-if="trendingDown.length > 0" class="section" data-testid="trending-down-section">
+      <h2>Trending Down</h2>
+      <DataTable
+        :value="trendingDown"
+        dataKey="ticker"
+        :rows="5"
+        class="trending-table"
+      >
+        <Column field="ticker" header="Ticker" :style="{ width: '80px' }">
+          <template #body="{ data }">
+            <span
+              class="ticker-link mono"
+              @click="router.push(`/ticker/${data.ticker}`)"
+            >{{ data.ticker }}</span>
+          </template>
+        </Column>
+        <Column header="Trend" :style="{ width: '100px' }">
+          <template #body="{ data }">
+            <SparklineChart
+              :scores="[data.latest_score - data.score_change, data.latest_score]"
+              :direction="data.direction"
+            />
+          </template>
+        </Column>
+        <Column field="latest_score" header="Score" :style="{ width: '70px' }">
+          <template #body="{ data }">
+            <span class="mono">{{ data.latest_score.toFixed(1) }}</span>
+          </template>
+        </Column>
+        <Column field="consecutive_scans" header="Scans" :style="{ width: '60px' }">
+          <template #body="{ data }">
+            <span class="mono">{{ data.consecutive_scans }}</span>
+          </template>
+        </Column>
+      </DataTable>
     </section>
 
     <!-- Recent Debates -->
@@ -470,5 +557,24 @@ onUnmounted(() => {
 .empty-msg {
   color: var(--p-surface-400, #888);
   font-size: 0.875rem;
+}
+
+.trending-table {
+  font-size: 0.875rem;
+}
+
+.trending-table :deep(tr) {
+  cursor: default;
+}
+
+.ticker-link {
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--p-surface-100, #eee);
+  transition: color 0.15s;
+}
+
+.ticker-link:hover {
+  color: var(--accent-blue, #3b82f6);
 }
 </style>
