@@ -202,7 +202,6 @@ class TestFetchEarningsDate:
     async def test_caches_result(
         self,
         service: MarketDataService,
-        cache: ServiceCache,
     ) -> None:
         """Should cache the result and serve from cache on second call."""
         future_date = date.today() + timedelta(days=10)

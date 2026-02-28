@@ -63,7 +63,7 @@ async function onCreateWatchlist(): Promise<void> {
       severity: 'success',
       summary: 'Watchlist Created',
       detail: `"${result.name}" created successfully.`,
-      life: 3000,
+      life: 5000,
     })
     showCreateDialog.value = false
     newWatchlistName.value = ''
@@ -94,7 +94,7 @@ function onDeleteWatchlist(): void {
           severity: 'success',
           summary: 'Deleted',
           detail: `"${wl.name}" deleted.`,
-          life: 3000,
+          life: 5000,
         })
         // Select next available or null
         selectedWatchlistId.value =
@@ -119,14 +119,13 @@ async function onRemoveTicker(ticker: string): Promise<void> {
       severity: 'info',
       summary: 'Removed',
       detail: `${ticker} removed from watchlist.`,
-      life: 3000,
+      life: 5000,
     })
   }
 }
 
 function onRowClick(event: { data: WatchlistTicker }): void {
-  // Navigate to debate for this ticker if there's a recent debate
-  void router.push(`/scan`)
+  void router.push(`/ticker/${event.data.ticker}`)
 }
 
 function formatRelativeDate(iso: string | null): string {

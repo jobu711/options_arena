@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from options_arena.models.enums import SignalDirection
+from options_arena.models.enums import ScanPreset, SignalDirection
 
 
 class HistoryPoint(BaseModel):
@@ -28,7 +28,7 @@ class HistoryPoint(BaseModel):
     scan_date: datetime
     composite_score: float
     direction: SignalDirection
-    preset: str
+    preset: ScanPreset
 
     @field_validator("scan_date")
     @classmethod

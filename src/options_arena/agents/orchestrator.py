@@ -277,7 +277,13 @@ async def run_debate(
         Complete debate output. ``is_fallback=True`` if AI debate failed.
     """
     start_time = time.monotonic()
-    context = build_market_context(ticker_score, quote, ticker_info, contracts)
+    context = build_market_context(
+        ticker_score,
+        quote,
+        ticker_info,
+        contracts,
+        next_earnings=ticker_score.next_earnings,
+    )
 
     completeness = context.completeness_ratio()
 

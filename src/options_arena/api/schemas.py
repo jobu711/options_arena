@@ -158,11 +158,6 @@ class WatchlistTickerRequest(BaseModel):
     ticker: str
 
 
-# ---------------------------------------------------------------------------
-# Supporting page schemas (#129)
-# ---------------------------------------------------------------------------
-
-
 class ConfigResponse(BaseModel):
     """Read-only safe config values (no secrets)."""
 

@@ -462,9 +462,23 @@ class ScanPipeline:
         info_task = self._market_data.fetch_ticker_info(ticker)
         earnings_task = self._market_data.fetch_earnings_date(ticker)
 
-        chain_results, ticker_info, earnings_date = await asyncio.gather(
-            chain_task, info_task, earnings_task
+        chain_results, ticker_info, earnings_result = await asyncio.gather(
+            chain_task, info_task, earnings_task, return_exceptions=True
         )
+
+        # Re-raise required data failures
+        if isinstance(chain_results, BaseException):
+            raise chain_results
+        if isinstance(ticker_info, BaseException):
+            raise ticker_info
+
+        # Earnings is optional — log and continue on failure
+        earnings_date: date | None
+        if isinstance(earnings_result, BaseException):
+            logger.warning("Earnings fetch failed for %s: %s", ticker, earnings_result)
+            earnings_date = None
+        else:
+            earnings_date = earnings_result
 
         # Flatten all contracts across expirations
         all_contracts: list[OptionContract] = []

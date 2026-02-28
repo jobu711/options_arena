@@ -314,7 +314,7 @@ class Repository:
                 scan_date=datetime.fromisoformat(row["started_at"]),
                 composite_score=float(row["composite_score"]),
                 direction=SignalDirection(row["direction"]),
-                preset=str(row["preset"]),
+                preset=ScanPreset(row["preset"]),
             )
             for row in rows
         ]
