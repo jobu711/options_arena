@@ -13,3 +13,87 @@ body {
   background: #0a0a0a;
   color: #e5e5e5;
 }
+
+/* ── PrimeVue DataTable dark theme overrides ── */
+.p-datatable-table-container {
+  background: var(--p-surface-900, #111);
+}
+
+.p-datatable-thead > tr > th {
+  background: var(--p-surface-800, #1a1a1a) !important;
+  color: var(--p-surface-300, #aaa) !important;
+  border-color: var(--p-surface-700, #333) !important;
+}
+
+.p-datatable-tbody > tr {
+  background: var(--p-surface-900, #111) !important;
+  color: var(--p-surface-100, #eee) !important;
+}
+
+.p-datatable-tbody > tr:hover {
+  background: var(--p-surface-800, #1a1a1a) !important;
+}
+
+.p-datatable-tbody > tr > td {
+  border-color: var(--p-surface-700, #333) !important;
+}
+
+/* Paginator dark theme */
+.p-paginator {
+  background: var(--p-surface-900, #111) !important;
+  border-color: var(--p-surface-700, #333) !important;
+  color: var(--p-surface-300, #aaa) !important;
+}
+
+/* Selection checkbox dark theme */
+.p-datatable .p-checkbox .p-checkbox-box {
+  background: var(--p-surface-800, #1a1a1a);
+  border-color: var(--p-surface-600, #444);
+}
+
+/* Panel component dark theme */
+.p-panel {
+  background: var(--p-surface-900, #111);
+  border-color: var(--p-surface-700, #333);
+}
+
+.p-panel .p-panel-header {
+  background: var(--p-surface-800, #1a1a1a) !important;
+  color: var(--p-surface-200, #ccc) !important;
+  border-color: var(--p-surface-700, #333) !important;
+}
+
+.p-panel .p-panel-content {
+  background: var(--p-surface-900, #111) !important;
+  color: var(--p-surface-200, #ccc) !important;
+}
+
+/* Select dropdown dark theme */
+.p-select-overlay {
+  background: var(--p-surface-800, #1a1a1a) !important;
+  border-color: var(--p-surface-700, #333) !important;
+}
+
+.p-select-option:hover {
+  background: var(--p-surface-700, #333) !important;
+}
+
+/* Dialog dark theme */
+.p-dialog {
+  background: var(--p-surface-800, #1a1a1a) !important;
+  color: var(--p-surface-100, #eee) !important;
+}
+
+.p-dialog .p-dialog-header {
+  background: var(--p-surface-800, #1a1a1a) !important;
+  color: var(--p-surface-100, #eee) !important;
+}
+
+.p-dialog .p-dialog-content {
+  background: var(--p-surface-800, #1a1a1a) !important;
+  color: var(--p-surface-200, #ccc) !important;
+}
+
+.p-dialog .p-dialog-footer {
+  background: var(--p-surface-800, #1a1a1a) !important;
+}
