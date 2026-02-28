@@ -238,9 +238,7 @@ class TestComputeSpreadQuality:
 
     def test_inf_spread_returns_none(self) -> None:
         """Inf spread values produce None result."""
-        chain = pd.DataFrame(
-            {"bid": [0.0], "ask": [float("inf")], "openInterest": [100]}
-        )
+        chain = pd.DataFrame({"bid": [0.0], "ask": [float("inf")], "openInterest": [100]})
         result = compute_spread_quality(chain)
         assert result is None
 

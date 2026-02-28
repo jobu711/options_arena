@@ -7,7 +7,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from options_arena.agents import DebateResult, run_debate
+from options_arena.agents import DebateResult, run_debate_v2
 from options_arena.api.deps import (
     get_market_data,
     get_operation_lock,
@@ -26,7 +26,8 @@ from options_arena.api.schemas import (
 )
 from options_arena.api.ws import BatchProgressBridge, DebateProgressBridge
 from options_arena.data import Repository
-from options_arena.models import AgentResponse, AppSettings, TradeThesis
+from options_arena.models import AgentResponse, AppSettings, ExtendedTradeThesis, TradeThesis
+from options_arena.scoring import compute_dimensional_scores
 from options_arena.services import MarketDataService, OptionsDataService
 
 logger = logging.getLogger(__name__)
@@ -93,7 +94,14 @@ async def _run_debate_background(
             if options_signals.max_pain_distance is not None:
                 score_match.signals.max_pain_distance = options_signals.max_pain_distance
 
-        result: DebateResult = await run_debate(
+        # Compute dimensional scores for the v2 protocol
+        dim_scores = None
+        try:
+            dim_scores = compute_dimensional_scores(score_match.signals)
+        except Exception:
+            logger.debug("Could not compute dimensional scores for %s", ticker, exc_info=True)
+
+        result: DebateResult = await run_debate_v2(
             ticker_score=score_match,
             contracts=contracts,
             quote=quote,
@@ -101,6 +109,7 @@ async def _run_debate_background(
             config=settings.debate,
             repository=None,  # Route handles persistence — avoid double save
             progress=bridge,
+            dimensional_scores=dim_scores,
         )
 
         # Persist debate to DB
@@ -248,10 +257,19 @@ async def _run_batch_debate_background(
                     if options_signals.max_pain_distance is not None:
                         score_match.signals.max_pain_distance = options_signals.max_pain_distance
 
+                # Compute dimensional scores for the v2 protocol
+                batch_dim_scores = None
+                try:
+                    batch_dim_scores = compute_dimensional_scores(score_match.signals)
+                except Exception:
+                    logger.debug(
+                        "Could not compute dimensional scores for %s", ticker, exc_info=True
+                    )
+
                 # Create a per-ticker agent bridge that forwards to the batch bridge
                 agent_bridge = bridge.agent_bridge(ticker)
 
-                result: DebateResult = await run_debate(
+                result: DebateResult = await run_debate_v2(
                     ticker_score=score_match,
                     contracts=contracts,
                     quote=quote,
@@ -259,6 +277,7 @@ async def _run_batch_debate_background(
                     config=settings.debate,
                     repository=None,  # Route handles persistence — avoid double save
                     progress=agent_bridge,
+                    dimensional_scores=batch_dim_scores,
                 )
 
                 total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens
@@ -400,9 +419,14 @@ async def list_debates(
         confidence = 0.0
         if row.verdict_json is not None:
             try:
-                thesis = TradeThesis.model_validate_json(row.verdict_json)
-                direction = thesis.direction.value
-                confidence = thesis.confidence
+                # Try ExtendedTradeThesis first, fall back to TradeThesis
+                parsed_verdict: TradeThesis
+                try:
+                    parsed_verdict = ExtendedTradeThesis.model_validate_json(row.verdict_json)
+                except Exception:
+                    parsed_verdict = TradeThesis.model_validate_json(row.verdict_json)
+                direction = parsed_verdict.direction.value
+                confidence = parsed_verdict.confidence
             except Exception:
                 pass
 
@@ -434,7 +458,25 @@ async def get_debate(
     # Parse stored JSON into typed models
     bull = AgentResponse.model_validate_json(row.bull_json) if row.bull_json else None
     bear = AgentResponse.model_validate_json(row.bear_json) if row.bear_json else None
-    thesis = TradeThesis.model_validate_json(row.verdict_json) if row.verdict_json else None
+
+    # Try ExtendedTradeThesis first (v2 protocol), fall back to TradeThesis
+    thesis: TradeThesis | None = None
+    contrarian_dissent: str | None = None
+    agent_agreement_score: float | None = None
+    dissenting_agents: list[str] = []
+    agents_completed: int | None = None
+    if row.verdict_json:
+        from pydantic import ValidationError as PydanticValidationError  # noqa: PLC0415
+
+        try:
+            ext_thesis = ExtendedTradeThesis.model_validate_json(row.verdict_json)
+            thesis = ext_thesis
+            contrarian_dissent = ext_thesis.contrarian_dissent
+            agent_agreement_score = ext_thesis.agent_agreement_score
+            dissenting_agents = list(ext_thesis.dissenting_agents)
+            agents_completed = ext_thesis.agents_completed
+        except PydanticValidationError:
+            thesis = TradeThesis.model_validate_json(row.verdict_json)
 
     return DebateResultDetail(
         id=row.id,
@@ -451,4 +493,8 @@ async def get_debate(
         thesis=thesis,
         vol_response=row.vol_json,
         bull_rebuttal=row.rebuttal_json,
+        contrarian_dissent=contrarian_dissent,
+        agent_agreement_score=agent_agreement_score,
+        dissenting_agents=dissenting_agents,
+        agents_completed=agents_completed,
     )

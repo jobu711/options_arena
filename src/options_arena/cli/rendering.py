@@ -17,7 +17,7 @@ from rich.text import Text
 
 from options_arena.agents._parsing import DebateResult
 from options_arena.data.repository import DebateRow
-from options_arena.models import TradeThesis, VolatilityThesis
+from options_arena.models import ExtendedTradeThesis, TradeThesis, VolatilityThesis
 from options_arena.models.health import HealthStatus
 from options_arena.scan.models import ScanResult
 
@@ -325,6 +325,9 @@ def _build_agent_panel_text(
 def _build_verdict_panel_text(thesis: TradeThesis) -> Text:
     """Build Rich Text for the verdict panel.
 
+    Detects ``ExtendedTradeThesis`` to render additional DSE fields:
+    agent agreement, dissenting agents, contrarian challenge, and dimensional scores.
+
     Uses ``markup=False`` on the Text to prevent bracket interpretation.
     """
     direction_style = _DIRECTION_STYLES.get(thesis.direction.value, "")
@@ -335,9 +338,23 @@ def _build_verdict_panel_text(thesis: TradeThesis) -> Text:
         f"Direction: {thesis.direction.value.upper()}",
         f"Confidence: {conf_str}",
         f"Bull Score: {bull_str} / Bear Score: {bear_str}",
-        "",
-        thesis.summary,
     ]
+
+    # Extended fields from 6-agent protocol
+    if isinstance(thesis, ExtendedTradeThesis):
+        if thesis.agent_agreement_score is not None and math.isfinite(
+            thesis.agent_agreement_score
+        ):
+            agents_total = thesis.agents_completed if thesis.agents_completed > 0 else 6
+            agreeing = round(thesis.agent_agreement_score * agents_total)
+            lines.append(
+                f"Agreement: {thesis.agent_agreement_score:.0%} ({agreeing}/{agents_total} agents)"
+            )
+        if thesis.dissenting_agents:
+            lines.append(f"Dissenting: {', '.join(thesis.dissenting_agents)}")
+
+    lines.append("")
+    lines.append(thesis.summary)
 
     if thesis.key_factors:
         lines.append("")
@@ -352,6 +369,34 @@ def _build_verdict_panel_text(thesis: TradeThesis) -> Text:
     if thesis.recommended_strategy is not None:
         lines.append("")
         lines.append(f"Recommended Strategy: {thesis.recommended_strategy.value.upper()}")
+
+    # Extended: contrarian challenge section
+    if isinstance(thesis, ExtendedTradeThesis) and thesis.contrarian_dissent:
+        lines.append("")
+        lines.append("Contrarian Challenge:")
+        lines.append(f"  {thesis.contrarian_dissent}")
+
+    # Extended: dimensional scores mini-table
+    if isinstance(thesis, ExtendedTradeThesis) and thesis.dimensional_scores is not None:
+        dim = thesis.dimensional_scores
+        dim_entries: list[tuple[str, float | None]] = [
+            ("Trend", dim.trend),
+            ("IV/Vol", dim.iv_vol),
+            ("HV/Vol", dim.hv_vol),
+            ("Flow", dim.flow),
+            ("Micro", dim.microstructure),
+            ("Fund", dim.fundamental),
+            ("Regime", dim.regime),
+            ("Risk", dim.risk),
+        ]
+        # Only render if at least one score is populated
+        populated = [(name, val) for name, val in dim_entries if val is not None]
+        if populated:
+            lines.append("")
+            lines.append("Dimensional Scores:")
+            for name, val in populated:
+                val_str = f"{val:.1f}" if math.isfinite(val) else "--"
+                lines.append(f"  {name:<8} {val_str}")
 
     # Build text without markup to avoid bracket interpretation
     text = Text("\n".join(lines))
@@ -447,12 +492,17 @@ def render_debate_history(debates: list[DebateRow], ticker: str) -> Table:
 
         if debate.verdict_json is not None:
             try:
-                thesis = TradeThesis.model_validate_json(debate.verdict_json)
-                direction_style = _DIRECTION_STYLES.get(thesis.direction.value, "")
-                direction_text = Text(thesis.direction.value.upper(), style=direction_style)
-                confidence_str = f"{thesis.confidence * 100:.0f}%"
+                # Try ExtendedTradeThesis first (v2 protocol), fall back to TradeThesis
+                parsed_thesis: TradeThesis
+                try:
+                    parsed_thesis = ExtendedTradeThesis.model_validate_json(debate.verdict_json)
+                except ValidationError:
+                    parsed_thesis = TradeThesis.model_validate_json(debate.verdict_json)
+                direction_style = _DIRECTION_STYLES.get(parsed_thesis.direction.value, "")
+                direction_text = Text(parsed_thesis.direction.value.upper(), style=direction_style)
+                confidence_str = f"{parsed_thesis.confidence * 100:.0f}%"
                 # Truncate summary to ~60 chars
-                summary_raw = thesis.summary
+                summary_raw = parsed_thesis.summary
                 summary_str = summary_raw[:57] + "..." if len(summary_raw) > 60 else summary_raw
             except ValidationError:
                 logger.debug(

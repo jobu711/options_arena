@@ -283,9 +283,7 @@ class TestComputeDimensionalScores:
         seen: dict[str, str] = {}
         for family, indicators in FAMILY_INDICATOR_MAP.items():
             for ind in indicators:
-                assert ind not in seen, (
-                    f"'{ind}' duplicated: in '{seen[ind]}' and '{family}'"
-                )
+                assert ind not in seen, f"'{ind}' duplicated: in '{seen[ind]}' and '{family}'"
                 seen[ind] = family
 
     def test_clamping_high_values(self) -> None:

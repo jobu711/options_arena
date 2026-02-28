@@ -9,13 +9,19 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from datetime import UTC, date, datetime
 
+import numpy as np
+import pandas as pd
+
 from options_arena.data import Repository
+from options_arena.indicators.options_specific import max_pain
 from options_arena.models import (
     AppSettings,
     IndicatorSignals,
     OptionContract,
+    OptionType,
     ScanPreset,
     ScanRun,
     TickerScore,
@@ -25,6 +31,7 @@ from options_arena.scan.indicators import (
     INDICATOR_REGISTRY,
     compute_indicators,
     compute_options_indicators,
+    compute_phase3_indicators,
     ohlcv_to_dataframe,
 )
 from options_arena.scan.models import (
@@ -38,7 +45,13 @@ from options_arena.scan.progress import (
     ProgressCallback,
     ScanPhase,
 )
-from options_arena.scoring import determine_direction, recommend_contracts, score_universe
+from options_arena.scoring import (
+    compute_dimensional_scores,
+    compute_direction_signal,
+    determine_direction,
+    recommend_contracts,
+    score_universe,
+)
 from options_arena.services import (
     FredService,
     MarketDataService,
@@ -309,8 +322,27 @@ class ScanPipeline:
                 config=scan_config,
             )
 
+        # Step 3b: Compute dimensional scores and direction confidence
+        for ts in scored:
+            try:
+                dim_scores = compute_dimensional_scores(ts.signals)
+                ts.dimensional_scores = dim_scores
+
+                direction_signal = compute_direction_signal(
+                    ts.signals,
+                    ts.composite_score,
+                    ts.direction,
+                )
+                ts.direction_confidence = direction_signal.confidence
+            except Exception:
+                logger.warning(
+                    "Dimensional scoring failed for %s; skipping",
+                    ts.ticker,
+                    exc_info=True,
+                )
+
         logger.info(
-            "Scoring phase complete: %d tickers scored and classified",
+            "Scoring phase complete: %d tickers scored, classified, and dimensionally scored",
             len(scored),
         )
 
@@ -381,6 +413,21 @@ class ScanPipeline:
         risk_free_rate: float = await self._fred.fetch_risk_free_rate()
         logger.info("Risk-free rate: %.4f", risk_free_rate)
 
+        # Step 3b: Extract SPX close series for relative-strength indicators
+        # SPX data may be available from Phase 1 OHLCV if "^GSPC" was in the universe,
+        # otherwise we attempt a lightweight fetch. Failure is non-fatal.
+        spx_close: pd.Series | None = None
+        try:
+            spx_ohlcv = ohlcv_map.get("^GSPC")
+            if spx_ohlcv is not None and len(spx_ohlcv) >= 60:
+                spx_df = ohlcv_to_dataframe(spx_ohlcv)
+                spx_close = spx_df["close"]
+                logger.info("SPX close series available from universe (%d bars)", len(spx_close))
+            else:
+                logger.debug("SPX data not in universe; relative strength indicators will be None")
+        except Exception:
+            logger.warning("Failed to extract SPX close series; rs_vs_spx will be None")
+
         # Step 4: Per-ticker options processing in batches
         # Processing all tickers concurrently overwhelms the rate limiter,
         # causing timeouts. Batching ensures each batch's operations complete
@@ -397,7 +444,7 @@ class ScanPipeline:
             batch = top_scores[batch_start : batch_start + batch_size]
             batch_tasks = [
                 asyncio.wait_for(
-                    self._process_ticker_options(ts, risk_free_rate),
+                    self._process_ticker_options(ts, risk_free_rate, ohlcv_map, spx_close),
                     timeout=per_ticker_timeout,
                 )
                 for ts in batch
@@ -442,8 +489,14 @@ class ScanPipeline:
         self,
         ticker_score: TickerScore,
         risk_free_rate: float,
+        ohlcv_map: dict[str, list[OHLCV]],
+        spx_close: pd.Series | None,
     ) -> tuple[str, list[OptionContract], date | None]:
         """Fetch chains + ticker info + earnings date for a single ticker.
+
+        Also computes Phase 3 DSE indicators (IV analytics, flow, fundamental,
+        relative strength) from chain + ticker data and merges them into the
+        ticker's ``IndicatorSignals``.
 
         Isolated per-ticker: exceptions propagate up to ``asyncio.gather``
         with ``return_exceptions=True``.
@@ -451,6 +504,8 @@ class ScanPipeline:
         Args:
             ticker_score: Scored ticker with direction set.
             risk_free_rate: Shared risk-free rate for this scan.
+            ohlcv_map: Ticker to OHLCV bars from Phase 1 (for close/volume series).
+            spx_close: SPX daily close prices for relative strength (None if unavailable).
 
         Returns:
             Tuple of (ticker, recommended contracts, next_earnings_date | None).
@@ -497,6 +552,42 @@ class ScanPipeline:
             ticker_score.signals.put_call_ratio = options_signals.put_call_ratio
         if options_signals.max_pain_distance is not None:
             ticker_score.signals.max_pain_distance = options_signals.max_pain_distance
+
+        # Compute max_pain strike directly from chain for Phase 3 indicators
+        mp_strike = _extract_mp_strike(all_contracts)
+
+        # Compute Phase 3 DSE indicators (IV analytics, flow, fundamental, RS)
+        ohlcv_list = ohlcv_map.get(ticker)
+        if ohlcv_list is not None and len(ohlcv_list) > 0:
+            try:
+                ticker_df = ohlcv_to_dataframe(ohlcv_list)
+                close_series: pd.Series = ticker_df["close"]
+                volume_series: pd.Series = ticker_df["volume"]
+
+                dse_signals = compute_phase3_indicators(
+                    contracts=all_contracts,
+                    spot=spot,
+                    close_series=close_series,
+                    volume_series=volume_series,
+                    dividend_yield=ticker_info.dividend_yield,
+                    next_earnings=earnings_date,
+                    mp_strike=mp_strike,
+                    spx_close=spx_close,
+                )
+
+                # Merge DSE signals into the ticker's existing signals
+                _merge_signals(ticker_score.signals, dse_signals)
+
+                logger.debug(
+                    "Phase 3 DSE indicators computed for %s",
+                    ticker,
+                )
+            except Exception:
+                logger.warning(
+                    "Phase 3 DSE indicators failed for %s; continuing with partial signals",
+                    ticker,
+                    exc_info=True,
+                )
 
         recommended = recommend_contracts(
             contracts=all_contracts,
@@ -642,3 +733,84 @@ class ScanPipeline:
             cancelled=True,
             phases_completed=phases_completed,
         )
+
+
+def _extract_mp_strike(contracts: list[OptionContract]) -> float | None:
+    """Extract the max-pain strike from an option chain.
+
+    Reuses the max_pain indicator function from ``indicators.options_specific``
+    to find the strike where total option holder pain is maximized (minimum
+    payout to option holders).
+
+    Returns ``None`` if the chain has no OI data or computation fails.
+    """
+    strike_oi: dict[float, tuple[int, int]] = {}
+    for c in contracts:
+        s = float(c.strike)
+        call_oi, put_oi = strike_oi.get(s, (0, 0))
+        if c.option_type == OptionType.CALL:
+            call_oi += c.open_interest
+        else:
+            put_oi += c.open_interest
+        strike_oi[s] = (call_oi, put_oi)
+
+    if not strike_oi:
+        return None
+
+    total_oi = sum(co + po for co, po in strike_oi.values())
+    if total_oi <= 0:
+        return None
+
+    try:
+        sorted_strikes = sorted(strike_oi.keys())
+        strikes_series = pd.Series(sorted_strikes, dtype=float)
+        call_oi_series = pd.Series([strike_oi[s][0] for s in sorted_strikes], dtype=float)
+        put_oi_series = pd.Series([strike_oi[s][1] for s in sorted_strikes], dtype=float)
+        mp = max_pain(strikes_series, call_oi_series, put_oi_series)
+        if math.isfinite(mp) and not np.isnan(mp):
+            return float(mp)
+    except Exception:
+        logger.warning("max_pain strike extraction failed", exc_info=True)
+
+    return None
+
+
+def _merge_signals(
+    target: IndicatorSignals,
+    source: IndicatorSignals,
+) -> None:
+    """Merge non-None fields from *source* into *target*.
+
+    Only DSE fields (Phase 3 indicators) are merged.  Original Phase 2 fields
+    on *target* are never overwritten.  Mutates *target* in place.
+    """
+    # DSE field names that are computed in Phase 3 and should be merged
+    _PHASE3_FIELDS: tuple[str, ...] = (
+        # IV Analytics
+        "iv_hv_spread",
+        "hv_20d",
+        "iv_term_slope",
+        "iv_term_shape",
+        "ewma_vol_forecast",
+        "vol_cone_percentile",
+        "expected_move",
+        "expected_move_ratio",
+        # Flow Analytics
+        "gex",
+        "oi_concentration",
+        "unusual_activity_score",
+        "max_pain_magnet",
+        # Fundamental
+        "earnings_em_ratio",
+        "days_to_earnings_impact",
+        "div_ex_date_impact",
+        "iv_crush_history",
+        # Relative Strength & Regime
+        "rs_vs_spx",
+        "correlation_regime_shift",
+    )
+
+    for field_name in _PHASE3_FIELDS:
+        value = getattr(source, field_name, None)
+        if value is not None:
+            setattr(target, field_name, value)
