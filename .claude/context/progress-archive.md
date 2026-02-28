@@ -2,6 +2,15 @@
 
 Historical completion logs for Options Arena. Current state is in `progress.md`.
 
+## Epic 11: v2.1.0 Close the Loop (2026-02-28) — #142, PR #150
+
+7 features: quick debate from dashboard (#143), watchlist backend (#144) + frontend
+(#145), scan delta view (#146), score history backend (#147) + frontend (#148), earnings
+calendar overlay (#149). New models: WatchlistItem, TickerDelta, ScanDiff, HistoryPoint,
+TrendingTicker. New pages: WatchlistPage, TickerDetailPage. Components: ScoreHistoryChart,
+SparklineChart. CLI subcommand: `watchlist`. 2 migrations (006, 007). 60 files changed,
++6,647 lines. 1,752 tests passing. All 3 verification gates passed.
+
 ## Epic 10: Web UI (2026-02-26) — #121, PR #130
 
 Full-stack Web UI: Vue 3 SPA (TypeScript, Pinia, Vue Router, PrimeVue Aura dark) +

@@ -105,4 +105,28 @@ Phase 4: Persist to SQLite
   static files if they exist, otherwise `index.html` for Vue Router history mode. `/assets` mounted
   separately via `StaticFiles`. Configurable DB path via `DataConfig.db_path` for test isolation.
 
+### Watchlist Pattern
+- SQLite-backed watchlist with `WatchlistItem` model (ticker, added_at, notes)
+- Repository CRUD: `add_to_watchlist()`, `remove_from_watchlist()`, `get_watchlist()`
+- API routes: `/api/watchlist` (GET/POST/DELETE)
+- CLI subcommand: `options-arena watchlist add/remove/list`
+- Frontend: WatchlistPage with add/remove, TickerDrawer integration
+
+### Score History & Trending Pattern
+- `HistoryPoint` (ticker, composite_score, direction, scanned_at) from scan_runs join ticker_scores
+- `TrendingTicker` (ticker, consecutive_scans, latest_score, score_change, direction)
+- Repository: `get_score_history(ticker, limit)`, `get_trending_tickers(direction, min_scans)`
+- Frontend: ScoreHistoryChart (Chart.js line), SparklineChart (inline mini-chart)
+
+### Scan Delta Pattern
+- `TickerDelta` and `ScanDiff` models compare current vs previous scan
+- API: `/api/scans/{id}/diff` returns movers (new, dropped, score changes)
+- Frontend: delta badges on ScanResultsPage
+
+### Earnings Calendar Pattern
+- `market_data.fetch_earnings_date()` via yfinance calendar, cached
+- `next_earnings` field on `TickerScore` (persisted in migration 007)
+- Earnings warning injected into debate prompts when within 7 days
+- Frontend: earnings date column + overlay on scan results
+
 For detailed algorithm specs, see `system-patterns-reference.md`.

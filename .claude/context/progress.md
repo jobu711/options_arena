@@ -2,12 +2,12 @@
 
 ## Current State
 
-- **Version**: 2.0.0 (Full-stack: CLI + Web UI)
-- **All 9 phases + 10 epics**: Complete and merged to master (2026-02-26)
-- **Branch**: `master` (1,577 tests, all phases + epics merged)
-- **Tests**: 1,577 Python + 38 E2E (293 models + 214 pricing + 172 indicators + 110 scoring + 181 services + 42 data + 131 scan + 40 cli + 241 agents + 14 reporting + 82 api + 16 misc + 41 integration + 38 Playwright E2E)
-- **GitHub issues**: 10 open (#112, #121-#129), 107 closed
-- **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`), `serve`
+- **Version**: 2.1.0 (Close the Loop — watchlists, debates, history, earnings, delta)
+- **All 9 phases + 11 epics**: Complete and merged to master (2026-02-28)
+- **Branch**: `master` (1,752 tests, all phases + epics merged)
+- **Tests**: 1,752 Python + 38 E2E
+- **GitHub issues**: 8 open (#142-#149), 124 closed
+- **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`), `serve`, `watchlist`
 - **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
 - **AI provider**: Groq (cloud, `GROQ_API_KEY` env var or `ARENA_DEBATE__API_KEY`)
 
@@ -30,24 +30,17 @@ For detailed phase/epic completion logs, see `progress-archive.md`.
 
 ## Recently Completed
 
-### E2E Test Fixes (2026-02-26)
-All 38 Playwright E2E tests passing. Fixes: per-worker SQLite DB isolation via
-`DataConfig.db_path`, SPA catch-all route replacing `StaticFiles(html=True)` mount,
-`pathMatcher()` URL predicates for route mocking with query params, removal of overly
-broad `.or()` locator fallbacks causing strict-mode violations, plain-object fake
-WebSocket (avoids `WebSocket.prototype` accessor property inheritance), export popup
-event fix, progress test alignment with actual Vue behavior.
-
-### Epic 10: Web UI (2026-02-26) — #121, PR #130
-Full-stack Web UI: Vue 3 SPA (TypeScript, Pinia, Vue Router, PrimeVue Aura dark) +
-FastAPI backend (`src/options_arena/api/`). `options-arena serve` launches uvicorn with
-browser auto-open (loopback-only). REST + WebSocket. Operation mutex. 38 E2E tests.
-Issues: #122-#129.
+### Epic 11: v2.1.0 Close the Loop (2026-02-28) — #142, PR #150
+7 features merged to master. Quick debate from dashboard (#143), watchlist backend
+(#144) + frontend (#145), scan delta view (#146), score history backend (#147) +
+frontend (#148), earnings calendar overlay (#149). New models: `WatchlistItem`,
+`TickerDelta`, `ScanDiff`, `HistoryPoint`, `TrendingTicker`. New pages: WatchlistPage,
+TickerDetailPage. New components: ScoreHistoryChart, SparklineChart. New CLI subcommand:
+`watchlist`. 2 new migrations (006, 007). +175 tests over v2.0.0.
 
 ## Future Work
 
-- Batch export support (`debate --batch --export md`, issue #112)
-- Close web-ui epic issues (#121-#129) now merged
+- Close v2.1.0 epic issues (#142-#149) now merged
 - Additional LLM providers (Anthropic Claude, OpenAI)
 - Options liquidity weighting in composite scoring
 - Real-time market data streaming
