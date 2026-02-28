@@ -1,12 +1,15 @@
-"""Options-specific indicators: IV Rank, IV Percentile, Put/Call Ratios, Max Pain.
+"""Options-specific indicators: IV Rank, IV Percentile, Put/Call Ratios, Max Pain,
+PoP, Optimal DTE, Spread Quality, Max Loss Ratio.
 
 Functions for IV metrics take scalars; Put/Call ratios take ints;
-Max Pain takes pandas Series.
+Max Pain takes pandas Series; PoP uses scipy.stats.norm.
 """
 
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
+from options_arena.models.enums import OptionType
 from options_arena.utils.exceptions import InsufficientDataError
 
 
@@ -122,3 +125,105 @@ def max_pain(
             best_strike = float(candidate)
 
     return best_strike
+
+
+def compute_pop(d2: float, option_type: OptionType) -> float | None:
+    """Probability of Profit (PoP): N(d2) for calls, N(-d2) for puts.
+
+    Uses the BSM d2 parameter which must be pre-computed by the caller.
+    PoP estimates the probability that the option expires in-the-money.
+
+    Args:
+        d2: BSM d2 value (pre-computed from the pricing formula).
+        option_type: CALL or PUT.
+
+    Returns:
+        PoP as float in [0, 1], or ``None`` if d2 is not finite.
+
+    Reference:
+        Black-Scholes-Merton (1973), d2 = d1 - sigma * sqrt(T).
+    """
+    if not np.isfinite(d2):
+        return None
+
+    match option_type:
+        case OptionType.CALL:
+            return float(norm.cdf(d2))
+        case OptionType.PUT:
+            return float(norm.cdf(-d2))
+
+
+def compute_optimal_dte(theta: float, expected_value: float | None) -> float | None:
+    """Theta-normalised expected value.
+
+    Higher values indicate better risk/reward per unit of daily time decay.
+    A position with high expected value but low theta is preferable.
+
+    Args:
+        theta: Daily theta (time decay), typically negative for long positions.
+        expected_value: Expected value of the position. ``None`` if unavailable.
+
+    Returns:
+        Ratio as float, or ``None`` if theta is zero or expected_value is ``None``.
+    """
+    if expected_value is None:
+        return None
+
+    if theta == 0.0:
+        return None
+
+    # Use absolute theta so the ratio sign reflects expected_value direction
+    abs_theta = abs(theta)
+    return expected_value / abs_theta
+
+
+def compute_spread_quality(chain: pd.DataFrame) -> float | None:
+    """OI-weighted average bid-ask spread. Lower is better.
+
+    Weights each contract's bid-ask spread by its open interest, giving
+    more importance to actively traded strikes.
+
+    Args:
+        chain: DataFrame with ``bid``, ``ask``, and ``openInterest`` columns.
+
+    Returns:
+        Weighted average spread as float (>= 0), or ``None`` if insufficient data.
+    """
+    required_cols = {"bid", "ask", "openInterest"}
+    if chain.empty or not required_cols.issubset(chain.columns):
+        return None
+
+    bid = chain["bid"].to_numpy(dtype=float)
+    ask = chain["ask"].to_numpy(dtype=float)
+    oi = chain["openInterest"].to_numpy(dtype=float)
+
+    spreads = ask - bid
+    total_oi = float(np.nansum(oi))
+
+    if total_oi == 0.0:
+        return None
+
+    weighted_spread = float(np.nansum(spreads * oi)) / total_oi
+    return weighted_spread
+
+
+def compute_max_loss_ratio(
+    contract_cost: float,
+    account_risk_budget: float,
+) -> float | None:
+    """Max loss ratio: contract_cost / account_risk_budget.
+
+    For long options, max loss is the premium paid. This ratio expresses
+    that loss as a fraction of the account's risk budget. Lower is better.
+
+    Args:
+        contract_cost: Premium paid for the contract (must be > 0).
+        account_risk_budget: Maximum acceptable loss per trade (must be > 0).
+
+    Returns:
+        Ratio as float (>= 0), or ``None`` if either input is non-positive.
+    """
+    if contract_cost <= 0.0 or account_risk_budget <= 0.0:
+        return None
+
+    return contract_cost / account_risk_budget
