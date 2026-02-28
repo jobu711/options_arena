@@ -260,8 +260,8 @@ async function fetchSparklineData(): Promise<void> {
     const result = results[i]
     if (result.status === 'fulfilled' && result.value.length >= 2) {
       scores.set(tickers[i], result.value.map((p) => p.composite_score))
-      const last = result.value[result.value.length - 1]
-      directions.set(tickers[i], last.direction)
+      const newest = result.value[0]
+      directions.set(tickers[i], newest.direction)
     }
   }
   sparklineData.value = scores

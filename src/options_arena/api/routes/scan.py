@@ -16,7 +16,13 @@ from options_arena.api.deps import (
     get_settings,
     get_universe,
 )
-from options_arena.api.schemas import PaginatedResponse, ScanRequest, ScanStarted, TickerDetail
+from options_arena.api.schemas import (
+    CancelScanResponse,
+    PaginatedResponse,
+    ScanRequest,
+    ScanStarted,
+    TickerDetail,
+)
 from options_arena.api.ws import WebSocketProgressBridge
 from options_arena.data import Repository
 from options_arena.models import (
@@ -280,8 +286,8 @@ async def get_scan_diff(
                 current_score=curr.composite_score,
                 previous_score=base.composite_score,
                 score_change=score_change,
-                current_direction=curr.direction.value,
-                previous_direction=base.direction.value,
+                current_direction=curr.direction,
+                previous_direction=base.direction,
                 is_new=False,
             )
         )
@@ -295,8 +301,8 @@ async def get_scan_diff(
                 current_score=curr.composite_score,
                 previous_score=0.0,
                 score_change=curr.composite_score,
-                current_direction=curr.direction.value,
-                previous_direction="",
+                current_direction=curr.direction,
+                previous_direction=None,
                 is_new=True,
             )
         )
@@ -314,7 +320,7 @@ async def get_scan_diff(
 
 
 @router.delete("/scan/current")
-async def cancel_scan(request: Request) -> dict[str, str]:
+async def cancel_scan(request: Request) -> CancelScanResponse:
     """Cancel the currently running scan."""
     active_scans: dict[int, CancellationToken] = getattr(request.app.state, "active_scans", {})
     if not active_scans:
@@ -322,4 +328,4 @@ async def cancel_scan(request: Request) -> dict[str, str]:
     for scan_id, token in active_scans.items():
         token.cancel()
         logger.info("Cancelled scan %d", scan_id)
-    return {"status": "cancelled"}
+    return CancelScanResponse(status="cancelled")

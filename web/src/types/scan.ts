@@ -34,7 +34,7 @@ export interface TickerDelta {
   previous_score: number
   score_change: number
   current_direction: string
-  previous_direction: string
+  previous_direction: string | null
   is_new: boolean
 }
 

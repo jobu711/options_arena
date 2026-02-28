@@ -45,7 +45,7 @@ interface ChartPoint {
 }
 
 const points = computed<ChartPoint[]>(() => {
-  const data = props.history
+  const data = [...props.history].reverse()
   if (data.length === 0) return []
 
   const count = data.length
@@ -76,7 +76,7 @@ function yTickY(value: number): number {
 
 // X-axis labels: show up to ~6 evenly spaced dates
 const xLabels = computed(() => {
-  const data = props.history
+  const data = [...props.history].reverse()
   if (data.length === 0) return []
   const maxLabels = Math.min(6, data.length)
   const step = Math.max(1, Math.floor((data.length - 1) / (maxLabels - 1)))

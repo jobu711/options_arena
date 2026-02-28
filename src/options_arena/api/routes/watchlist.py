@@ -11,10 +11,11 @@ from options_arena.api.deps import get_repo
 from options_arena.api.schemas import (
     WatchlistCreateRequest,
     WatchlistCreateResponse,
+    WatchlistTickerAddedResponse,
     WatchlistTickerRequest,
 )
 from options_arena.data import Repository
-from options_arena.models import Watchlist, WatchlistDetail, WatchlistTickerDetail
+from options_arena.models import SignalDirection, Watchlist, WatchlistDetail, WatchlistTickerDetail
 
 logger = logging.getLogger(__name__)
 
@@ -71,23 +72,23 @@ async def get_watchlist(
 
     # Get the latest scan for score lookups
     latest_scan = await repo.get_latest_scan()
-    scores_by_ticker: dict[str, tuple[float, str]] = {}
+    scores_by_ticker: dict[str, tuple[float, SignalDirection]] = {}
     if latest_scan is not None and latest_scan.id is not None:
         all_scores = await repo.get_scores_for_scan(latest_scan.id)
         for score in all_scores:
             scores_by_ticker[score.ticker] = (
                 score.composite_score,
-                score.direction.value,
+                score.direction,
             )
+
+    # Batch-fetch last debate dates (avoids N+1 query)
+    ticker_names = [wt.ticker for wt in tickers]
+    last_debate_dates = await repo.get_last_debate_dates(ticker_names)
 
     for wt in tickers:
         score_data = scores_by_ticker.get(wt.ticker)
         composite_score = score_data[0] if score_data is not None else None
         direction = score_data[1] if score_data is not None else None
-
-        # Get last debate date for this ticker
-        debates = await repo.get_debates_for_ticker(wt.ticker, limit=1)
-        last_debate_at = debates[0].created_at if debates else None
 
         enriched.append(
             WatchlistTickerDetail(
@@ -95,7 +96,7 @@ async def get_watchlist(
                 added_at=wt.added_at,
                 composite_score=composite_score,
                 direction=direction,
-                last_debate_at=last_debate_at,
+                last_debate_at=last_debate_dates.get(wt.ticker),
             )
         )
 
@@ -112,7 +113,7 @@ async def add_ticker(
     watchlist_id: int,
     body: WatchlistTickerRequest,
     repo: Repository = Depends(get_repo),
-) -> dict[str, str]:
+) -> WatchlistTickerAddedResponse:
     """Add a ticker to a watchlist.  Returns 409 on duplicate, 404 if watchlist not found."""
     watchlist = await repo.get_watchlist_by_id(watchlist_id)
     if watchlist is None:
@@ -121,7 +122,7 @@ async def add_ticker(
         await repo.add_ticker_to_watchlist(watchlist_id, body.ticker)
     except sqlite3.IntegrityError as exc:
         raise HTTPException(409, f"Ticker '{body.ticker.upper()}' already in watchlist") from exc
-    return {"status": "added", "ticker": body.ticker.upper()}
+    return WatchlistTickerAddedResponse(status="added", ticker=body.ticker.upper())
 
 
 @router.delete("/watchlist/{watchlist_id}/tickers/{ticker}", status_code=204)

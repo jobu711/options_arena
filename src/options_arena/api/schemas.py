@@ -173,6 +173,19 @@ class ConfigResponse(BaseModel):
     agent_timeout: float
 
 
+class WatchlistTickerAddedResponse(BaseModel):
+    """Response for adding a ticker to a watchlist."""
+
+    status: str
+    ticker: str
+
+
+class CancelScanResponse(BaseModel):
+    """Response for cancelling a scan."""
+
+    status: str
+
+
 class UniverseStats(BaseModel):
     """Universe statistics."""
 

@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from options_arena.models.enums import SignalDirection
+
 
 class HistoryPoint(BaseModel):
     """A single scan-score data point for a ticker.
@@ -25,7 +27,7 @@ class HistoryPoint(BaseModel):
     scan_id: int
     scan_date: datetime
     composite_score: float
-    direction: str
+    direction: SignalDirection
     preset: str
 
     @field_validator("scan_date")
@@ -55,7 +57,7 @@ class TrendingTicker(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     ticker: str
-    direction: str
+    direction: SignalDirection
     consecutive_scans: int
     latest_score: float
     score_change: float

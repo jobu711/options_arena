@@ -14,6 +14,8 @@ import math
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from options_arena.models.enums import SignalDirection
+
 
 class TickerDelta(BaseModel):
     """Score change for a single ticker between two scans.
@@ -28,8 +30,8 @@ class TickerDelta(BaseModel):
     current_score: float
     previous_score: float
     score_change: float
-    current_direction: str
-    previous_direction: str
+    current_direction: SignalDirection
+    previous_direction: SignalDirection | None
     is_new: bool
 
     @field_validator("current_score", "previous_score", "score_change")

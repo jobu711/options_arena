@@ -31,6 +31,7 @@ def mock_repo_watchlist(mock_repo: MagicMock) -> MagicMock:
     mock_repo.add_ticker_to_watchlist = AsyncMock(return_value=None)
     mock_repo.remove_ticker_from_watchlist = AsyncMock(return_value=None)
     mock_repo.get_tickers_for_watchlist = AsyncMock(return_value=[])
+    mock_repo.get_last_debate_dates = AsyncMock(return_value={})
     return mock_repo
 
 

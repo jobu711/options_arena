@@ -8,9 +8,12 @@ Three models for user-defined watchlists:
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict, field_validator
+
+from options_arena.models.enums import SignalDirection
 
 
 class Watchlist(BaseModel):
@@ -66,8 +69,16 @@ class WatchlistTickerDetail(BaseModel):
     ticker: str
     added_at: datetime
     composite_score: float | None = None
-    direction: str | None = None
+    direction: SignalDirection | None = None
     last_debate_at: datetime | None = None
+
+    @field_validator("composite_score")
+    @classmethod
+    def validate_composite_score(cls, v: float | None) -> float | None:
+        """Ensure composite_score is finite when provided."""
+        if v is not None and not math.isfinite(v):
+            raise ValueError(f"composite_score must be finite, got {v}")
+        return v
 
     @field_validator("added_at")
     @classmethod

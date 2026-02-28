@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from sqlite3 import Row
 
 from options_arena.data.database import Database
@@ -91,8 +91,8 @@ class Repository:
         conn = self._db.conn
         await conn.executemany(
             "INSERT INTO ticker_scores "
-            "(scan_run_id, ticker, composite_score, direction, signals_json) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "(scan_run_id, ticker, composite_score, direction, signals_json, next_earnings) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
             [
                 (
                     scan_id,
@@ -100,6 +100,7 @@ class Repository:
                     score.composite_score,
                     score.direction.value,
                     score.signals.model_dump_json(),
+                    score.next_earnings.isoformat() if score.next_earnings is not None else None,
                 )
                 for score in scores
             ],
@@ -165,11 +166,13 @@ class Repository:
     @staticmethod
     def _row_to_ticker_score(row: Row) -> TickerScore:
         """Reconstruct a TickerScore from an aiosqlite.Row."""
+        raw_earnings: str | None = row["next_earnings"]
         return TickerScore(
             ticker=str(row["ticker"]),
             composite_score=float(row["composite_score"]),
             direction=SignalDirection(row["direction"]),
             signals=IndicatorSignals.model_validate_json(row["signals_json"]),
+            next_earnings=date.fromisoformat(raw_earnings) if raw_earnings is not None else None,
             scan_run_id=int(row["scan_run_id"]),
         )
 
@@ -310,7 +313,7 @@ class Repository:
                 scan_id=int(row["scan_run_id"]),
                 scan_date=datetime.fromisoformat(row["started_at"]),
                 composite_score=float(row["composite_score"]),
-                direction=str(row["direction"]),
+                direction=SignalDirection(row["direction"]),
                 preset=str(row["preset"]),
             )
             for row in rows
@@ -387,7 +390,7 @@ class Repository:
             trending.append(
                 TrendingTicker(
                     ticker=ticker_name,
-                    direction=direction,
+                    direction=SignalDirection(direction),
                     consecutive_scans=consecutive,
                     latest_score=latest_score,
                     score_change=score_change,
@@ -403,6 +406,26 @@ class Repository:
             min_scans,
         )
         return trending
+
+    async def get_last_debate_dates(self, tickers: list[str]) -> dict[str, datetime]:
+        """Get the most recent debate date for each ticker in a single query."""
+        if not tickers:
+            return {}
+        conn = self._db.conn
+        placeholders = ", ".join("?" for _ in tickers)
+        async with conn.execute(
+            "SELECT ticker, MAX(created_at) as last_debate "
+            "FROM ai_theses "
+            f"WHERE ticker IN ({placeholders}) "
+            "GROUP BY ticker",
+            tuple(tickers),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        result: dict[str, datetime] = {
+            str(row["ticker"]): datetime.fromisoformat(row["last_debate"]) for row in rows
+        }
+        logger.debug("Retrieved last debate dates for %d tickers", len(result))
+        return result
 
     # ------------------------------------------------------------------
     # Watchlist persistence

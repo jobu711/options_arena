@@ -54,15 +54,15 @@ class TestTickerDelta:
         assert delta.is_new is False
 
     def test_construction_new_ticker(self) -> None:
-        """New ticker has is_new=True and empty previous_direction."""
+        """New ticker has is_new=True and None previous_direction."""
         delta = _make_delta(
             is_new=True,
             previous_score=0.0,
             score_change=85.0,
-            previous_direction="",
+            previous_direction=None,
         )
         assert delta.is_new is True
-        assert delta.previous_direction == ""
+        assert delta.previous_direction is None
 
     def test_frozen(self) -> None:
         """Frozen model rejects attribute reassignment."""
