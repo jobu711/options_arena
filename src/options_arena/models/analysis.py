@@ -23,7 +23,14 @@ import math
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, field_serializer, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from options_arena.models.enums import (
     CatalystImpact,
@@ -524,7 +531,7 @@ class ExtendedTradeThesis(TradeThesis):
 
     contrarian_dissent: str | None = None
     agent_agreement_score: float | None = None  # 0.0-1.0, fraction of agents agreeing
-    dissenting_agents: list[str] = []
+    dissenting_agents: list[str] = Field(default_factory=list)
     dimensional_scores: DimensionalScores | None = None
     agents_completed: int = 0
 

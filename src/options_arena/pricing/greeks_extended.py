@@ -17,8 +17,21 @@ Architecture:
 - Returns ``float`` (not ``None``) — these always produce a value given valid inputs.
 """
 
+import math
+
 from options_arena.models.enums import ExerciseStyle, OptionType
 from options_arena.pricing.dispatch import option_greeks
+
+
+def _inputs_valid(S: float, K: float, T: float, sigma: float) -> bool:
+    """Check that core pricing inputs are finite and positive."""
+    return (
+        all(math.isfinite(v) for v in (S, K, T, sigma))
+        and S > 0.0
+        and K > 0.0
+        and T > 0.0
+        and sigma > 0.0
+    )
 
 
 def compute_vanna(
@@ -33,7 +46,7 @@ def compute_vanna(
 ) -> float:
     """Vanna: d(delta)/d(sigma).
 
-    Central finite difference with dσ = 0.01.
+    Central finite difference with d_sigma = 0.01.
 
     Vanna measures how an option's delta changes when implied volatility changes.
     Positive vanna for OTM calls means delta increases as IV rises.
@@ -51,6 +64,9 @@ def compute_vanna(
     Returns:
         Vanna as float (d(delta)/d(sigma)).
     """
+    if not _inputs_valid(S, K, T, sigma):
+        return 0.0
+
     d_sigma = 0.01
 
     sigma_up = sigma + d_sigma
@@ -97,6 +113,9 @@ def compute_charm(
     Returns:
         Charm as float (d(delta)/d(T)).
     """
+    if not _inputs_valid(S, K, T, sigma):
+        return 0.0
+
     d_t = 1.0 / 365.0
 
     if T - d_t <= 0:
@@ -142,6 +161,9 @@ def compute_vomma(
     Returns:
         Vomma as float (d(vega)/d(sigma)).
     """
+    if not _inputs_valid(S, K, T, sigma):
+        return 0.0
+
     d_sigma = 0.01
 
     sigma_up = sigma + d_sigma

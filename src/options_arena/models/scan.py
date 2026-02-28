@@ -13,7 +13,7 @@ Values are normalized 0--100 (percentile-ranked), not raw indicator values.
 import math
 from datetime import date, datetime, timedelta
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from options_arena.models.enums import ScanPreset, SignalDirection
 
@@ -117,6 +117,16 @@ class IndicatorSignals(BaseModel):
 
     # --- DSE: Microstructure (1 new) ---
     volume_profile_skew: float | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_non_finite(cls, data: dict[str, object]) -> dict[str, object]:
+        """Replace NaN/Inf indicator values with None at the model boundary."""
+        if isinstance(data, dict):
+            for key, value in data.items():
+                if isinstance(value, float) and not math.isfinite(value):
+                    data[key] = None
+        return data
 
 
 class ScanRun(BaseModel):

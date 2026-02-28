@@ -135,7 +135,7 @@ class TestVanna:
         )
         # BSM vanna is same for puts and calls because
         # put delta = call delta - e^(-qT), so derivatives w.r.t. sigma match.
-        assert call_vanna == pytest.approx(put_vanna, abs=1e-4)
+        assert call_vanna == pytest.approx(put_vanna, rel=1e-4)
 
     @pytest.mark.parametrize(
         ("S", "K", "T", "r", "q", "sigma"),
@@ -396,7 +396,7 @@ class TestVomma:
             OptionType.PUT,
             ExerciseStyle.EUROPEAN,
         )
-        assert call_vomma == pytest.approx(put_vomma, abs=1e-4)
+        assert call_vomma == pytest.approx(put_vomma, rel=1e-4)
 
     def test_high_sigma_finite(self) -> None:
         """Vomma remains finite with high volatility."""
@@ -413,7 +413,7 @@ class TestVomma:
         assert math.isfinite(result)
 
     def test_low_sigma_finite(self) -> None:
-        """Vomma remains finite with low volatility (above dσ threshold)."""
+        """Vomma remains finite with low volatility (above d_sigma threshold)."""
         result = compute_vomma(
             STD_S,
             STD_K,

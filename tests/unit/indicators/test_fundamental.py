@@ -109,13 +109,13 @@ class TestEarningsImpact:
         """Earnings after expiration → 0.0."""
         result = compute_earnings_impact(45, 30)
         assert result is not None
-        assert result == 0.0
+        assert result == pytest.approx(0.0, abs=1e-9)
 
     def test_earnings_passed(self) -> None:
         """Negative days (earnings already passed) → 0.0."""
         result = compute_earnings_impact(-5, 30)
         assert result is not None
-        assert result == 0.0
+        assert result == pytest.approx(0.0, abs=1e-9)
 
     def test_none_days_to_earnings(self) -> None:
         """None days to earnings → None."""
@@ -197,13 +197,13 @@ class TestDivImpact:
         """Ex-date after expiration → 0.0."""
         result = compute_div_impact(0.03, 30, 45)
         assert result is not None
-        assert result == 0.0
+        assert result == pytest.approx(0.0, abs=1e-9)
 
     def test_ex_date_passed(self) -> None:
         """Negative days to ex → 0.0."""
         result = compute_div_impact(0.03, 30, -5)
         assert result is not None
-        assert result == 0.0
+        assert result == pytest.approx(0.0, abs=1e-9)
 
     def test_none_days_to_ex(self) -> None:
         """None days to ex → None."""

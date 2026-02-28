@@ -1004,8 +1004,7 @@ def compute_agreement_score(agent_directions: dict[str, SignalDirection]) -> flo
 def _get_majority_direction(agent_directions: dict[str, SignalDirection]) -> SignalDirection:
     """Determine the majority direction from agent directions.
 
-    Returns the direction with the most votes. Ties favor the direction
-    with higher weighted confidence. Falls back to NEUTRAL.
+    Returns the direction with the most votes. Ties return NEUTRAL.
     """
     if not agent_directions:
         return SignalDirection.NEUTRAL
@@ -1332,7 +1331,7 @@ async def _run_v2_agents(
     contracts: list[OptionContract],
     config: DebateConfig,
     start_time: float,
-    progress: DebateProgressCallback | None,
+    _progress: DebateProgressCallback | None,
     dimensional_scores: DimensionalScores | None,
     flow_output: FlowThesis | None,
     fundamental_output: FundamentalThesis | None,
