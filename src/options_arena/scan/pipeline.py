@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from options_arena.data import Repository
 from options_arena.models import (
@@ -125,6 +125,13 @@ class ScanPipeline:
 
         # Phase 3: Liquidity Pre-filter + Options + Contracts
         options_result = await self._phase_options(scoring_result, universe_result, progress)
+
+        # Populate next_earnings on TickerScore objects from Phase 3 earnings data
+        for ts in scoring_result.scores:
+            earnings = options_result.earnings_dates.get(ts.ticker)
+            if earnings is not None:
+                ts.next_earnings = earnings
+
         phases_completed = 3
         if token.is_cancelled:
             return self._make_cancelled_result(
@@ -383,6 +390,7 @@ class ScanPipeline:
         per_ticker_timeout = self._settings.scan.options_per_ticker_timeout
         batch_size = self._settings.scan.options_batch_size
         recommendations: dict[str, list[OptionContract]] = {}
+        earnings_dates: dict[str, date] = {}
         completed = 0
 
         for batch_start in range(0, len(top_scores), batch_size):
@@ -395,7 +403,7 @@ class ScanPipeline:
                 for ts in batch
             ]
             batch_results: list[
-                tuple[str, list[OptionContract]] | BaseException
+                tuple[str, list[OptionContract], date | None] | BaseException
             ] = await asyncio.gather(*batch_tasks, return_exceptions=True)
 
             for ts, result in zip(batch, batch_results, strict=True):
@@ -407,9 +415,11 @@ class ScanPipeline:
                         result,
                     )
                 else:
-                    ticker, contracts = result
+                    ticker, contracts, next_earnings = result
                     if contracts:
                         recommendations[ticker] = contracts
+                    if next_earnings is not None:
+                        earnings_dates[ticker] = next_earnings
                 completed += 1
 
             progress(ScanPhase.OPTIONS, completed, len(top_scores))
@@ -425,14 +435,15 @@ class ScanPipeline:
         return OptionsResult(
             recommendations=recommendations,
             risk_free_rate=risk_free_rate,
+            earnings_dates=earnings_dates,
         )
 
     async def _process_ticker_options(
         self,
         ticker_score: TickerScore,
         risk_free_rate: float,
-    ) -> tuple[str, list[OptionContract]]:
-        """Fetch chains + ticker info for a single ticker and recommend contracts.
+    ) -> tuple[str, list[OptionContract], date | None]:
+        """Fetch chains + ticker info + earnings date for a single ticker.
 
         Isolated per-ticker: exceptions propagate up to ``asyncio.gather``
         with ``return_exceptions=True``.
@@ -442,15 +453,32 @@ class ScanPipeline:
             risk_free_rate: Shared risk-free rate for this scan.
 
         Returns:
-            Tuple of (ticker, recommended contracts).
+            Tuple of (ticker, recommended contracts, next_earnings_date | None).
         """
         ticker = ticker_score.ticker
 
-        # Fetch chains and ticker info concurrently
+        # Fetch chains, ticker info, and earnings date concurrently
         chain_task = self._options_data.fetch_chain_all_expirations(ticker)
         info_task = self._market_data.fetch_ticker_info(ticker)
+        earnings_task = self._market_data.fetch_earnings_date(ticker)
 
-        chain_results, ticker_info = await asyncio.gather(chain_task, info_task)
+        chain_results, ticker_info, earnings_result = await asyncio.gather(
+            chain_task, info_task, earnings_task, return_exceptions=True
+        )
+
+        # Re-raise required data failures
+        if isinstance(chain_results, BaseException):
+            raise chain_results
+        if isinstance(ticker_info, BaseException):
+            raise ticker_info
+
+        # Earnings is optional — log and continue on failure
+        earnings_date: date | None
+        if isinstance(earnings_result, BaseException):
+            logger.warning("Earnings fetch failed for %s: %s", ticker, earnings_result)
+            earnings_date = None
+        else:
+            earnings_date = earnings_result
 
         # Flatten all contracts across expirations
         all_contracts: list[OptionContract] = []
@@ -459,7 +487,7 @@ class ScanPipeline:
 
         if not all_contracts:
             logger.info("No contracts found for %s", ticker)
-            return (ticker, [])
+            return (ticker, [], earnings_date)
 
         spot = float(ticker_info.current_price)
 
@@ -479,7 +507,7 @@ class ScanPipeline:
             config=self._settings.pricing,
         )
 
-        return (ticker, recommended)
+        return (ticker, recommended, earnings_date)
 
     async def _phase_persist(
         self,
@@ -553,6 +581,7 @@ class ScanPipeline:
             scores=scoring_result.scores,
             recommendations=options_result.recommendations,
             risk_free_rate=options_result.risk_free_rate,
+            earnings_dates=options_result.earnings_dates,
             phases_completed=4,
         )
 
@@ -588,6 +617,7 @@ class ScanPipeline:
             if options_result is not None
             else self._settings.pricing.risk_free_rate_fallback
         )
+        earnings_dates = options_result.earnings_dates if options_result is not None else {}
 
         logger.warning(
             "Scan cancelled after %d phases (%d tickers scanned, %d scored)",
@@ -608,6 +638,7 @@ class ScanPipeline:
             scores=scores,
             recommendations=recommendations,
             risk_free_rate=risk_free_rate,
+            earnings_dates=earnings_dates,
             cancelled=True,
             phases_completed=phases_completed,
         )

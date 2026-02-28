@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { computed } from 'vue'
 import Drawer from 'primevue/drawer'
 import Button from 'primevue/button'
+import Select from 'primevue/select'
+import Message from 'primevue/message'
 import DirectionBadge from './DirectionBadge.vue'
+import ScoreHistoryChart from './ScoreHistoryChart.vue'
 import { api } from '@/composables/useApi'
-import type { TickerScore, DebateResultSummary } from '@/types'
+import { useWatchlistStore } from '@/stores/watchlist'
+import { useToast } from 'primevue/usetoast'
+import type { TickerScore, DebateResultSummary, HistoryPoint } from '@/types'
 
 interface Props {
   visible: boolean
@@ -19,26 +25,89 @@ const router = useRouter()
 
 const debates = ref<DebateResultSummary[]>([])
 const loadingDebates = ref(false)
+const history = ref<HistoryPoint[]>([])
+const loadingHistory = ref(false)
+const watchlistStore = useWatchlistStore()
+const toastService = useToast()
+const selectedWatchlistId = ref<number | null>(null)
+const addingToWatchlist = ref(false)
+
+function watchlistOptions(): Array<{ label: string; value: number }> {
+  return watchlistStore.watchlists.map((w) => ({
+    label: w.name,
+    value: w.id,
+  }))
+}
+
+async function onAddToWatchlist(): Promise<void> {
+  if (selectedWatchlistId.value === null || !props.score?.ticker) return
+  addingToWatchlist.value = true
+  const added = await watchlistStore.addTicker(selectedWatchlistId.value, props.score.ticker)
+  addingToWatchlist.value = false
+  if (added) {
+    toastService.add({
+      severity: 'success',
+      summary: 'Added',
+      detail: `${props.score.ticker} added to watchlist.`,
+      life: 3000,
+    })
+  } else {
+    toastService.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: watchlistStore.error ?? 'Failed to add ticker',
+      life: 5000,
+    })
+  }
+}
+
+onMounted(() => {
+  void watchlistStore.fetchWatchlists()
+})
 
 watch(
   () => props.score?.ticker,
   async (ticker) => {
     if (!ticker) {
       debates.value = []
+      history.value = []
       return
     }
     loadingDebates.value = true
+    loadingHistory.value = true
     try {
-      debates.value = await api<DebateResultSummary[]>('/api/debate', {
-        params: { ticker, limit: 5 },
-      })
+      const [debateData, historyData] = await Promise.all([
+        api<DebateResultSummary[]>('/api/debate', {
+          params: { ticker, limit: 5 },
+        }),
+        api<HistoryPoint[]>(`/api/ticker/${ticker}/history`, {
+          params: { limit: 20 },
+        }).catch(() => [] as HistoryPoint[]),
+      ])
+      debates.value = debateData
+      history.value = historyData
     } catch {
       debates.value = []
+      history.value = []
     } finally {
       loadingDebates.value = false
+      loadingHistory.value = false
     }
   },
 )
+
+/** Compute days to next earnings from the score's next_earnings field. */
+const earningsDays = computed<number | null>(() => {
+  if (!props.score?.next_earnings) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const earnings = new Date(props.score.next_earnings + 'T00:00:00')
+  const diffMs = earnings.getTime() - today.getTime()
+  return Math.round(diffMs / (1000 * 60 * 60 * 24))
+})
+
+/** Whether earnings warning banner should be shown (< 7 days). */
+const showEarningsWarning = computed(() => earningsDays.value !== null && earningsDays.value < 7 && earningsDays.value >= 0)
 
 /** Format signal names for display: rsi → RSI, bb_width → BB Width */
 function formatSignalName(key: string): string {
@@ -68,12 +137,27 @@ function formatDate(iso: string): string {
     @update:visible="emit('update:visible', $event)"
   >
     <template v-if="score">
+      <Message
+        v-if="showEarningsWarning"
+        severity="warn"
+        :closable="false"
+        data-testid="earnings-warning"
+      >
+        Earnings in {{ earningsDays }} days &mdash; IV crush risk
+      </Message>
+
       <div class="drawer-section">
         <h3>Score</h3>
         <div class="score-row">
           <span class="score-value mono">{{ score.composite_score.toFixed(1) }}</span>
           <DirectionBadge :direction="score.direction" />
         </div>
+      </div>
+
+      <div class="drawer-section" data-testid="drawer-score-history">
+        <h3>Score History</h3>
+        <div v-if="loadingHistory" class="muted">Loading history...</div>
+        <ScoreHistoryChart v-else :history="history" />
       </div>
 
       <div class="drawer-section">
@@ -116,6 +200,35 @@ function formatDate(iso: string): string {
           size="small"
           disabled
         />
+      </div>
+
+      <div class="drawer-section watchlist-section">
+        <h3>Add to Watchlist</h3>
+        <div v-if="watchlistStore.watchlists.length > 0" class="watchlist-add-row">
+          <Select
+            v-model="selectedWatchlistId"
+            :options="watchlistOptions()"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select watchlist"
+            size="small"
+            data-testid="drawer-watchlist-select"
+            class="watchlist-add-select"
+          />
+          <Button
+            label="Add"
+            icon="pi pi-plus"
+            severity="success"
+            size="small"
+            :loading="addingToWatchlist"
+            :disabled="selectedWatchlistId === null"
+            data-testid="drawer-add-to-watchlist-btn"
+            @click="onAddToWatchlist"
+          />
+        </div>
+        <div v-else class="muted">
+          No watchlists yet. Create one from the Watchlists page.
+        </div>
       </div>
     </template>
   </Drawer>
@@ -202,5 +315,21 @@ function formatDate(iso: string): string {
   margin-top: 1.5rem;
   padding-top: 1rem;
   border-top: 1px solid var(--p-surface-700, #333);
+}
+
+.watchlist-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--p-surface-700, #333);
+}
+
+.watchlist-add-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.watchlist-add-select {
+  flex: 1;
 }
 </style>

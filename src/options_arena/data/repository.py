@@ -8,16 +8,20 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from sqlite3 import Row
 
 from options_arena.data.database import Database
 from options_arena.models import (
+    HistoryPoint,
     IndicatorSignals,
     ScanPreset,
     ScanRun,
     SignalDirection,
     TickerScore,
+    TrendingTicker,
+    Watchlist,
+    WatchlistTicker,
 )
 
 logger = logging.getLogger(__name__)
@@ -87,8 +91,8 @@ class Repository:
         conn = self._db.conn
         await conn.executemany(
             "INSERT INTO ticker_scores "
-            "(scan_run_id, ticker, composite_score, direction, signals_json) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "(scan_run_id, ticker, composite_score, direction, signals_json, next_earnings) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
             [
                 (
                     scan_id,
@@ -96,6 +100,7 @@ class Repository:
                     score.composite_score,
                     score.direction.value,
                     score.signals.model_dump_json(),
+                    score.next_earnings.isoformat() if score.next_earnings is not None else None,
                 )
                 for score in scores
             ],
@@ -161,11 +166,13 @@ class Repository:
     @staticmethod
     def _row_to_ticker_score(row: Row) -> TickerScore:
         """Reconstruct a TickerScore from an aiosqlite.Row."""
+        raw_earnings: str | None = row["next_earnings"]
         return TickerScore(
             ticker=str(row["ticker"]),
             composite_score=float(row["composite_score"]),
             direction=SignalDirection(row["direction"]),
             signals=IndicatorSignals.model_validate_json(row["signals_json"]),
+            next_earnings=date.fromisoformat(raw_earnings) if raw_earnings is not None else None,
             scan_run_id=int(row["scan_run_id"]),
         )
 
@@ -277,4 +284,270 @@ class Repository:
             citation_density=(
                 float(row["citation_density"]) if row["citation_density"] is not None else 0.0
             ),
+        )
+
+    # ------------------------------------------------------------------
+    # Score history
+    # ------------------------------------------------------------------
+
+    async def get_score_history(self, ticker: str, limit: int = 20) -> list[HistoryPoint]:
+        """Get score history for a ticker across recent scans.
+
+        Joins ``ticker_scores`` with ``scan_runs`` to produce chronological
+        score data.  Returns newest first, limited to *limit* entries.
+        """
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT ts.scan_run_id, sr.started_at, ts.composite_score, "
+            "ts.direction, sr.preset "
+            "FROM ticker_scores ts "
+            "JOIN scan_runs sr ON ts.scan_run_id = sr.id "
+            "WHERE ts.ticker = ? "
+            "ORDER BY sr.started_at DESC "
+            "LIMIT ?",
+            (ticker.upper(), limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        history = [
+            HistoryPoint(
+                scan_id=int(row["scan_run_id"]),
+                scan_date=datetime.fromisoformat(row["started_at"]),
+                composite_score=float(row["composite_score"]),
+                direction=SignalDirection(row["direction"]),
+                preset=ScanPreset(row["preset"]),
+            )
+            for row in rows
+        ]
+        logger.debug("Retrieved %d history points for ticker=%s", len(history), ticker.upper())
+        return history
+
+    async def get_trending_tickers(
+        self, direction: str, min_scans: int = 3
+    ) -> list[TrendingTicker]:
+        """Find tickers with consistent direction over consecutive recent scans.
+
+        1. Get all tickers from the latest scan.
+        2. For each, fetch last N score entries ordered by scan date descending.
+        3. Count consecutive entries matching *direction* from the most recent.
+        4. Filter to those with ``consecutive_scans >= min_scans``.
+        5. Sort by consecutive_scans descending.
+        """
+        conn = self._db.conn
+
+        # Step 1: find latest scan
+        async with conn.execute("SELECT id FROM scan_runs ORDER BY id DESC LIMIT 1") as cursor:
+            latest_row = await cursor.fetchone()
+        if latest_row is None:
+            return []
+        latest_scan_id = int(latest_row["id"])
+
+        # Step 2: get tickers from latest scan that match the requested direction
+        async with conn.execute(
+            "SELECT ticker, composite_score FROM ticker_scores "
+            "WHERE scan_run_id = ? AND direction = ?",
+            (latest_scan_id, direction),
+        ) as cursor:
+            candidate_rows = await cursor.fetchall()
+
+        if not candidate_rows:
+            return []
+
+        # Step 3: for each candidate, check consecutive scans with same direction
+        trending: list[TrendingTicker] = []
+        # Pre-fetch a reasonable lookback depth to avoid per-ticker queries
+        lookback = min_scans + 10  # enough depth to count streaks
+
+        for cand_row in candidate_rows:
+            ticker_name = str(cand_row["ticker"])
+            latest_score = float(cand_row["composite_score"])
+
+            async with conn.execute(
+                "SELECT ts.composite_score, ts.direction "
+                "FROM ticker_scores ts "
+                "JOIN scan_runs sr ON ts.scan_run_id = sr.id "
+                "WHERE ts.ticker = ? "
+                "ORDER BY sr.started_at DESC "
+                "LIMIT ?",
+                (ticker_name, lookback),
+            ) as cursor:
+                history_rows = list(await cursor.fetchall())
+
+            # Count consecutive matching direction from the most recent
+            consecutive = 0
+            for h_row in history_rows:
+                if str(h_row["direction"]) == direction:
+                    consecutive += 1
+                else:
+                    break
+
+            if consecutive < min_scans:
+                continue
+
+            # Compute score_change: latest - oldest in the streak
+            oldest_score = float(history_rows[consecutive - 1]["composite_score"])
+            score_change = latest_score - oldest_score
+
+            trending.append(
+                TrendingTicker(
+                    ticker=ticker_name,
+                    direction=SignalDirection(direction),
+                    consecutive_scans=consecutive,
+                    latest_score=latest_score,
+                    score_change=score_change,
+                )
+            )
+
+        # Sort by consecutive_scans descending
+        trending.sort(key=lambda t: t.consecutive_scans, reverse=True)
+        logger.debug(
+            "Found %d trending tickers for direction=%s min_scans=%d",
+            len(trending),
+            direction,
+            min_scans,
+        )
+        return trending
+
+    async def get_last_debate_dates(self, tickers: list[str]) -> dict[str, datetime]:
+        """Get the most recent debate date for each ticker in a single query."""
+        if not tickers:
+            return {}
+        conn = self._db.conn
+        placeholders = ", ".join("?" for _ in tickers)
+        async with conn.execute(
+            "SELECT ticker, MAX(created_at) as last_debate "
+            "FROM ai_theses "
+            f"WHERE ticker IN ({placeholders}) "
+            "GROUP BY ticker",
+            tuple(tickers),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        result: dict[str, datetime] = {
+            str(row["ticker"]): datetime.fromisoformat(row["last_debate"]) for row in rows
+        }
+        logger.debug("Retrieved last debate dates for %d tickers", len(result))
+        return result
+
+    # ------------------------------------------------------------------
+    # Watchlist persistence
+    # ------------------------------------------------------------------
+
+    async def create_watchlist(self, name: str) -> Watchlist:
+        """Create a new watchlist.  Returns the created model with DB-assigned ID.
+
+        Raises ``sqlite3.IntegrityError`` if a watchlist with this name already exists
+        (UNIQUE constraint on ``watchlists.name``).
+        """
+        conn = self._db.conn
+        created_at = datetime.now(UTC).isoformat()
+        cursor = await conn.execute(
+            "INSERT INTO watchlists (name, created_at) VALUES (?, ?)",
+            (name, created_at),
+        )
+        await conn.commit()
+        row_id: int = cursor.lastrowid  # type: ignore[assignment]
+        logger.debug("Created watchlist id=%d name=%s", row_id, name)
+        return Watchlist(
+            id=row_id,
+            name=name,
+            created_at=datetime.fromisoformat(created_at),
+        )
+
+    async def delete_watchlist(self, watchlist_id: int) -> None:
+        """Delete a watchlist and all its ticker memberships (cascade via FK).
+
+        Silently succeeds even if the watchlist does not exist.
+        """
+        conn = self._db.conn
+        # Delete tickers first (foreign key may not cascade without ON DELETE CASCADE)
+        await conn.execute("DELETE FROM watchlist_tickers WHERE watchlist_id = ?", (watchlist_id,))
+        await conn.execute("DELETE FROM watchlists WHERE id = ?", (watchlist_id,))
+        await conn.commit()
+        logger.debug("Deleted watchlist id=%d", watchlist_id)
+
+    async def add_ticker_to_watchlist(self, watchlist_id: int, ticker: str) -> None:
+        """Add a ticker to a watchlist.
+
+        Raises ``sqlite3.IntegrityError`` if the ticker is already in the watchlist
+        (UNIQUE constraint on ``(watchlist_id, ticker)``).
+        """
+        conn = self._db.conn
+        added_at = datetime.now(UTC).isoformat()
+        await conn.execute(
+            "INSERT INTO watchlist_tickers (watchlist_id, ticker, added_at) VALUES (?, ?, ?)",
+            (watchlist_id, ticker.upper(), added_at),
+        )
+        await conn.commit()
+        logger.debug("Added ticker %s to watchlist id=%d", ticker.upper(), watchlist_id)
+
+    async def remove_ticker_from_watchlist(self, watchlist_id: int, ticker: str) -> None:
+        """Remove a ticker from a watchlist.
+
+        Silently succeeds even if the ticker is not in the watchlist.
+        """
+        conn = self._db.conn
+        await conn.execute(
+            "DELETE FROM watchlist_tickers WHERE watchlist_id = ? AND ticker = ?",
+            (watchlist_id, ticker.upper()),
+        )
+        await conn.commit()
+        logger.debug("Removed ticker %s from watchlist id=%d", ticker.upper(), watchlist_id)
+
+    async def get_watchlists(self) -> list[Watchlist]:
+        """Get all watchlists, ordered by name."""
+        conn = self._db.conn
+        async with conn.execute("SELECT * FROM watchlists ORDER BY name ASC") as cursor:
+            rows = await cursor.fetchall()
+        watchlists = [self._row_to_watchlist(row) for row in rows]
+        logger.debug("Retrieved %d watchlists", len(watchlists))
+        return watchlists
+
+    async def get_watchlist_by_id(self, watchlist_id: int) -> Watchlist | None:
+        """Get a single watchlist by ID, or None if not found."""
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT * FROM watchlists WHERE id = ?", (watchlist_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        return self._row_to_watchlist(row)
+
+    async def get_watchlist_by_name(self, name: str) -> Watchlist | None:
+        """Get a single watchlist by name, or None if not found."""
+        conn = self._db.conn
+        async with conn.execute("SELECT * FROM watchlists WHERE name = ?", (name,)) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        return self._row_to_watchlist(row)
+
+    async def get_tickers_for_watchlist(self, watchlist_id: int) -> list[WatchlistTicker]:
+        """Get all tickers in a watchlist, ordered by ticker name."""
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT * FROM watchlist_tickers WHERE watchlist_id = ? ORDER BY ticker ASC",
+            (watchlist_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        tickers = [self._row_to_watchlist_ticker(row) for row in rows]
+        logger.debug("Retrieved %d tickers for watchlist %d", len(tickers), watchlist_id)
+        return tickers
+
+    @staticmethod
+    def _row_to_watchlist(row: Row) -> Watchlist:
+        """Reconstruct a Watchlist from an aiosqlite.Row."""
+        return Watchlist(
+            id=int(row["id"]),
+            name=str(row["name"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    @staticmethod
+    def _row_to_watchlist_ticker(row: Row) -> WatchlistTicker:
+        """Reconstruct a WatchlistTicker from an aiosqlite.Row."""
+        return WatchlistTicker(
+            id=int(row["id"]),
+            watchlist_id=int(row["watchlist_id"]),
+            ticker=str(row["ticker"]),
+            added_at=datetime.fromisoformat(row["added_at"]),
         )

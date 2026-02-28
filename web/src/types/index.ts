@@ -1,6 +1,7 @@
 export type { HealthStatus } from './health'
+export type { Watchlist, WatchlistTicker, WatchlistDetail } from './watchlist'
 export type { UniverseStats } from './universe'
-export type { ScanRun, TickerScore, PaginatedResponse } from './scan'
+export type { ScanRun, TickerScore, PaginatedResponse, TickerDelta, ScanDiff } from './scan'
 export type {
   DebateResultSummary,
   DebateResult,
@@ -9,6 +10,7 @@ export type {
   AgentProgressEntry,
 } from './debate'
 export type { ConfigResponse } from './config'
+export type { HistoryPoint, TrendingTicker } from './history'
 export type {
   ScanProgressEvent,
   ScanErrorEvent,

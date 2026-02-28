@@ -182,6 +182,7 @@ def _make_pipeline_for_persist(
 
     mock_universe = AsyncMock()
     mock_market_data = AsyncMock()
+    mock_market_data.fetch_earnings_date = AsyncMock(return_value=None)
     mock_options_data = AsyncMock()
     mock_fred = AsyncMock()
     mock_repository = AsyncMock()
@@ -410,6 +411,7 @@ class TestPhase4Cancellation:
         mock_market_data = AsyncMock()
         mock_market_data.fetch_batch_ohlcv = AsyncMock(return_value=batch)
         mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info("AAPL"))
+        mock_market_data.fetch_earnings_date = AsyncMock(return_value=None)
 
         mock_options_data = AsyncMock()
         mock_options_data.fetch_chain_all_expirations = AsyncMock(
@@ -491,6 +493,7 @@ class TestFullPipelineRun:
         mock_market_data = AsyncMock()
         mock_market_data.fetch_batch_ohlcv = AsyncMock(return_value=batch)
         mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info("AAPL"))
+        mock_market_data.fetch_earnings_date = AsyncMock(return_value=None)
 
         mock_options_data = AsyncMock()
         mock_options_data.fetch_chain_all_expirations = AsyncMock(
@@ -556,6 +559,7 @@ class TestFullPipelineRun:
         mock_market_data = AsyncMock()
         mock_market_data.fetch_batch_ohlcv = AsyncMock(return_value=batch)
         mock_market_data.fetch_ticker_info = AsyncMock(side_effect=lambda t: _make_ticker_info(t))
+        mock_market_data.fetch_earnings_date = AsyncMock(return_value=None)
 
         mock_options_data = AsyncMock()
         mock_options_data.fetch_chain_all_expirations = AsyncMock(

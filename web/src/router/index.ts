@@ -32,6 +32,16 @@ const routes: RouteRecordRaw[] = [
     name: 'health',
     component: () => import('../pages/HealthPage.vue'),
   },
+  {
+    path: '/watchlist',
+    name: 'watchlist',
+    component: () => import('../pages/WatchlistPage.vue'),
+  },
+  {
+    path: '/ticker/:ticker',
+    name: 'ticker-detail',
+    component: () => import('../pages/TickerDetailPage.vue'),
+  },
 ]
 
 const router = createRouter({

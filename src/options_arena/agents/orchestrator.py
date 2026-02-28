@@ -19,7 +19,7 @@ import logging
 import math
 import time
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from enum import StrEnum
 
 import httpx
@@ -89,6 +89,7 @@ def build_market_context(
     quote: Quote,
     ticker_info: TickerInfo,
     contracts: list[OptionContract],
+    next_earnings: date | None = None,
 ) -> MarketContext:
     """Map scan pipeline output to ``MarketContext`` for agent consumption.
 
@@ -107,6 +108,8 @@ def build_market_context(
         Fundamental data including dividend yield and 52-week range.
     contracts
         Recommended option contracts (may be empty).
+    next_earnings
+        Next earnings date for the ticker, or ``None`` if unknown.
 
     Returns
     -------
@@ -143,7 +146,7 @@ def build_market_context(
         rsi_14=signals.rsi if signals.rsi is not None else 50.0,
         macd_signal=macd_signal,
         put_call_ratio=signals.put_call_ratio,
-        next_earnings=None,
+        next_earnings=next_earnings,
         dte_target=dte_target,
         target_strike=target_strike,
         target_delta=target_delta,
@@ -274,7 +277,13 @@ async def run_debate(
         Complete debate output. ``is_fallback=True`` if AI debate failed.
     """
     start_time = time.monotonic()
-    context = build_market_context(ticker_score, quote, ticker_info, contracts)
+    context = build_market_context(
+        ticker_score,
+        quote,
+        ticker_info,
+        contracts,
+        next_earnings=ticker_score.next_earnings,
+    )
 
     completeness = context.completeness_ratio()
 

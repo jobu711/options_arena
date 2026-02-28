@@ -38,6 +38,7 @@ export function buildTickerScore(overrides: Partial<TickerScore> = {}): TickerSc
       cci_20: 45.0, williams_r: -38.0, roc_12: 2.1, mfi_14: 55.0,
       cmf_20: 0.08, keltner_position: 0.6,
     },
+    next_earnings: null,
     scan_run_id: 1,
     ...overrides,
   }

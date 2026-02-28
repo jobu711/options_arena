@@ -16,10 +16,24 @@ from options_arena.api.deps import (
     get_settings,
     get_universe,
 )
-from options_arena.api.schemas import PaginatedResponse, ScanRequest, ScanStarted, TickerDetail
+from options_arena.api.schemas import (
+    CancelScanResponse,
+    PaginatedResponse,
+    ScanRequest,
+    ScanStarted,
+    TickerDetail,
+)
 from options_arena.api.ws import WebSocketProgressBridge
 from options_arena.data import Repository
-from options_arena.models import AppSettings, ScanPreset, ScanRun, SignalDirection, TickerScore
+from options_arena.models import (
+    AppSettings,
+    ScanDiff,
+    ScanPreset,
+    ScanRun,
+    SignalDirection,
+    TickerDelta,
+    TickerScore,
+)
 from options_arena.scan import CancellationToken, ScanPipeline, ScanResult
 from options_arena.services import (
     FredService,
@@ -223,8 +237,90 @@ async def get_ticker_detail(
     )
 
 
+@router.get("/scan/{scan_id}/diff")
+async def get_scan_diff(
+    scan_id: int,
+    repo: Repository = Depends(get_repo),
+    base_id: int = Query(..., description="Base scan ID to compare against"),
+) -> ScanDiff:
+    """Compute the diff between two scans.
+
+    Compares the current scan (``scan_id``) against a baseline scan (``base_id``),
+    returning added/removed tickers and score deltas for common tickers.
+    """
+    # Validate both scans exist
+    current_scan = await repo.get_scan_by_id(scan_id)
+    if current_scan is None:
+        raise HTTPException(404, f"Scan {scan_id} not found")
+
+    base_scan = await repo.get_scan_by_id(base_id)
+    if base_scan is None:
+        raise HTTPException(404, f"Base scan {base_id} not found")
+
+    # Fetch scores for both scans
+    current_scores = await repo.get_scores_for_scan(scan_id)
+    base_scores = await repo.get_scores_for_scan(base_id)
+
+    # Build dicts keyed by ticker
+    current_by_ticker: dict[str, TickerScore] = {s.ticker: s for s in current_scores}
+    base_by_ticker: dict[str, TickerScore] = {s.ticker: s for s in base_scores}
+
+    current_tickers = set(current_by_ticker.keys())
+    base_tickers = set(base_by_ticker.keys())
+
+    # Set operations for added/removed
+    added = sorted(current_tickers - base_tickers)
+    removed = sorted(base_tickers - current_tickers)
+
+    # Compute deltas for common tickers + new tickers
+    movers: list[TickerDelta] = []
+
+    # Common tickers: compute score change
+    for ticker in current_tickers & base_tickers:
+        curr = current_by_ticker[ticker]
+        base = base_by_ticker[ticker]
+        score_change = curr.composite_score - base.composite_score
+        movers.append(
+            TickerDelta(
+                ticker=ticker,
+                current_score=curr.composite_score,
+                previous_score=base.composite_score,
+                score_change=score_change,
+                current_direction=curr.direction,
+                previous_direction=base.direction,
+                is_new=False,
+            )
+        )
+
+    # New tickers: score_change is the full current score (previous = 0)
+    for ticker in added:
+        curr = current_by_ticker[ticker]
+        movers.append(
+            TickerDelta(
+                ticker=ticker,
+                current_score=curr.composite_score,
+                previous_score=0.0,
+                score_change=curr.composite_score,
+                current_direction=curr.direction,
+                previous_direction=None,
+                is_new=True,
+            )
+        )
+
+    # Sort by absolute score change descending
+    movers.sort(key=lambda d: abs(d.score_change), reverse=True)
+
+    return ScanDiff(
+        current_scan_id=scan_id,
+        base_scan_id=base_id,
+        added=added,
+        removed=removed,
+        movers=movers,
+    )
+
+
 @router.delete("/scan/current")
-async def cancel_scan(request: Request) -> dict[str, str]:
+async def cancel_scan(request: Request) -> CancelScanResponse:
     """Cancel the currently running scan."""
     active_scans: dict[int, CancellationToken] = getattr(request.app.state, "active_scans", {})
     if not active_scans:
@@ -232,4 +328,4 @@ async def cancel_scan(request: Request) -> dict[str, str]:
     for scan_id, token in active_scans.items():
         token.cancel()
         logger.info("Cancelled scan %d", scan_id)
-    return {"status": "cancelled"}
+    return CancelScanResponse(status="cancelled")

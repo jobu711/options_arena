@@ -15,6 +15,7 @@ export interface TickerScore {
   composite_score: number
   direction: 'bullish' | 'bearish' | 'neutral'
   signals: Record<string, number | null>
+  next_earnings: string | null // ISO date string "YYYY-MM-DD" or null
   scan_run_id: number
 }
 
@@ -24,4 +25,24 @@ export interface PaginatedResponse<T> {
   total: number
   page: number
   pages: number
+}
+
+/** Score change for a single ticker between two scans. */
+export interface TickerDelta {
+  ticker: string
+  current_score: number
+  previous_score: number
+  score_change: number
+  current_direction: string
+  previous_direction: string | null
+  is_new: boolean
+}
+
+/** Full diff between two scans. */
+export interface ScanDiff {
+  current_scan_id: number
+  base_scan_id: number
+  added: string[]
+  removed: string[]
+  movers: TickerDelta[]
 }

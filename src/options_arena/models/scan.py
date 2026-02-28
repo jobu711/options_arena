@@ -11,7 +11,7 @@ Values are normalized 0--100 (percentile-ranked), not raw indicator values.
 """
 
 import math
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -106,4 +106,5 @@ class TickerScore(BaseModel):
         return v
 
     signals: IndicatorSignals  # typed model, NOT dict[str, float]
+    next_earnings: date | None = None  # populated in Phase 3 from yfinance calendar
     scan_run_id: int | None = None

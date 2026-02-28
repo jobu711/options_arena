@@ -2,32 +2,119 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
+import { useToast } from 'primevue/usetoast'
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
 import HealthDot from '@/components/HealthDot.vue'
+import SparklineChart from '@/components/SparklineChart.vue'
+import DebateProgressModal from '@/components/DebateProgressModal.vue'
 import { useHealthStore } from '@/stores/health'
-import { api } from '@/composables/useApi'
-import type { ScanRun, DebateResultSummary, ConfigResponse } from '@/types'
+import { useDebateStore } from '@/stores/debate'
+import { useWebSocket } from '@/composables/useWebSocket'
+import { api, ApiError } from '@/composables/useApi'
+import type { ScanRun, DebateResultSummary, ConfigResponse, DebateEvent, TrendingTicker } from '@/types'
 
 const router = useRouter()
+const toast = useToast()
 const healthStore = useHealthStore()
+const debateStore = useDebateStore()
 
 const latestScan = ref<ScanRun | null>(null)
 const recentDebates = ref<DebateResultSummary[]>([])
 const config = ref<ConfigResponse | null>(null)
 const loading = ref(true)
 
+// Trending data
+const trendingUp = ref<TrendingTicker[]>([])
+const trendingDown = ref<TrendingTicker[]>([])
+
+// Quick debate state
+const quickTicker = ref('')
+const debateLoading = ref(false)
+const showDebateProgress = ref(false)
+const quickDebateTicker = ref('')
+let closeWs: (() => void) | null = null
+
 async function loadDashboard(): Promise<void> {
   loading.value = true
   try {
-    const [scans, debates, cfg] = await Promise.all([
+    const [scans, debates, cfg, bullish, bearish] = await Promise.all([
       api<ScanRun[]>('/api/scan', { params: { limit: 1 } }),
       api<DebateResultSummary[]>('/api/debate', { params: { limit: 5 } }),
       api<ConfigResponse>('/api/config'),
+      api<TrendingTicker[]>('/api/ticker/trending', { params: { direction: 'bullish' } }).catch(() => [] as TrendingTicker[]),
+      api<TrendingTicker[]>('/api/ticker/trending', { params: { direction: 'bearish' } }).catch(() => [] as TrendingTicker[]),
     ])
     latestScan.value = scans[0] ?? null
     recentDebates.value = debates
     config.value = cfg
+    trendingUp.value = bullish.slice(0, 5)
+    trendingDown.value = bearish.slice(0, 5)
   } finally {
     loading.value = false
+  }
+}
+
+async function submitQuickDebate(): Promise<void> {
+  const ticker = quickTicker.value.trim().toUpperCase()
+  if (!ticker) return
+
+  debateLoading.value = true
+  quickDebateTicker.value = ticker
+  debateStore.reset()
+
+  try {
+    const debateId = await debateStore.startDebate(ticker, null)
+    showDebateProgress.value = true
+    quickTicker.value = ''
+
+    // Connect to WebSocket for progress
+    const { close } = useWebSocket<DebateEvent>({
+      url: `/ws/debate/${debateId}`,
+      onMessage(event: DebateEvent) {
+        switch (event.type) {
+          case 'agent':
+            debateStore.updateAgentProgress(event)
+            break
+          case 'error':
+            debateStore.setDebateError(event.message)
+            toast.add({
+              severity: 'error',
+              summary: 'Debate Error',
+              detail: event.message,
+              life: 5000,
+            })
+            break
+          case 'complete':
+            debateStore.setDebateComplete(event.debate_id)
+            showDebateProgress.value = false
+            void router.push(`/debate/${event.debate_id}`)
+            break
+        }
+      },
+      maxReconnectAttempts: 0,
+    })
+    closeWs = close
+  } catch (err: unknown) {
+    showDebateProgress.value = false
+    if (err instanceof ApiError && err.status === 409) {
+      toast.add({
+        severity: 'warn',
+        summary: 'Operation Busy',
+        detail: 'Another operation is already in progress.',
+        life: 5000,
+      })
+    } else {
+      toast.add({
+        severity: 'error',
+        summary: 'Debate Failed',
+        detail: err instanceof Error ? err.message : 'Failed to start debate',
+        life: 5000,
+      })
+    }
+  } finally {
+    debateLoading.value = false
   }
 }
 
@@ -47,6 +134,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   healthStore.stopAutoRefresh()
+  if (closeWs) closeWs()
 })
 </script>
 
@@ -91,7 +179,44 @@ onUnmounted(() => {
         data-testid="dashboard-btn-health"
         @click="router.push('/health')"
       />
+      <Button
+        label="Watchlists"
+        icon="pi pi-bookmark"
+        severity="secondary"
+        data-testid="dashboard-btn-watchlists"
+        @click="router.push('/watchlist')"
+      />
+
+      <span class="quick-debate-separator" />
+
+      <form class="quick-debate-form" @submit.prevent="submitQuickDebate">
+        <InputText
+          v-model="quickTicker"
+          placeholder="Ticker symbol..."
+          data-testid="quick-debate-input"
+          class="quick-debate-input"
+          :disabled="debateLoading"
+          @input="quickTicker = quickTicker.toUpperCase()"
+        />
+        <Button
+          label="Debate"
+          icon="pi pi-comments"
+          severity="info"
+          data-testid="quick-debate-btn"
+          :loading="debateLoading"
+          :disabled="!quickTicker.trim() || debateLoading"
+          @click="submitQuickDebate"
+        />
+      </form>
     </div>
+
+    <!-- Debate Progress Modal -->
+    <DebateProgressModal
+      v-model:visible="showDebateProgress"
+      :ticker="quickDebateTicker"
+      :agents="debateStore.agentProgress"
+      :error="debateStore.error"
+    />
 
     <!-- Latest Scan Card -->
     <section class="section">
@@ -115,6 +240,82 @@ onUnmounted(() => {
         />
       </div>
       <p v-else-if="!loading" class="empty-msg" data-testid="empty-state">No scans yet. Run your first scan to get started.</p>
+    </section>
+
+    <!-- Trending Up -->
+    <section v-if="trendingUp.length > 0" class="section" data-testid="trending-up-section">
+      <h2>Trending Up</h2>
+      <DataTable
+        :value="trendingUp"
+        dataKey="ticker"
+        :rows="5"
+        class="trending-table"
+      >
+        <Column field="ticker" header="Ticker" :style="{ width: '80px' }">
+          <template #body="{ data }">
+            <span
+              class="ticker-link mono"
+              @click="router.push(`/ticker/${data.ticker}`)"
+            >{{ data.ticker }}</span>
+          </template>
+        </Column>
+        <Column header="Trend" :style="{ width: '100px' }">
+          <template #body="{ data }">
+            <SparklineChart
+              :scores="[data.latest_score - data.score_change, data.latest_score]"
+              :direction="data.direction"
+            />
+          </template>
+        </Column>
+        <Column field="latest_score" header="Score" :style="{ width: '70px' }">
+          <template #body="{ data }">
+            <span class="mono">{{ data.latest_score.toFixed(1) }}</span>
+          </template>
+        </Column>
+        <Column field="consecutive_scans" header="Scans" :style="{ width: '60px' }">
+          <template #body="{ data }">
+            <span class="mono">{{ data.consecutive_scans }}</span>
+          </template>
+        </Column>
+      </DataTable>
+    </section>
+
+    <!-- Trending Down -->
+    <section v-if="trendingDown.length > 0" class="section" data-testid="trending-down-section">
+      <h2>Trending Down</h2>
+      <DataTable
+        :value="trendingDown"
+        dataKey="ticker"
+        :rows="5"
+        class="trending-table"
+      >
+        <Column field="ticker" header="Ticker" :style="{ width: '80px' }">
+          <template #body="{ data }">
+            <span
+              class="ticker-link mono"
+              @click="router.push(`/ticker/${data.ticker}`)"
+            >{{ data.ticker }}</span>
+          </template>
+        </Column>
+        <Column header="Trend" :style="{ width: '100px' }">
+          <template #body="{ data }">
+            <SparklineChart
+              :scores="[data.latest_score - data.score_change, data.latest_score]"
+              :direction="data.direction"
+            />
+          </template>
+        </Column>
+        <Column field="latest_score" header="Score" :style="{ width: '70px' }">
+          <template #body="{ data }">
+            <span class="mono">{{ data.latest_score.toFixed(1) }}</span>
+          </template>
+        </Column>
+        <Column field="consecutive_scans" header="Scans" :style="{ width: '60px' }">
+          <template #body="{ data }">
+            <span class="mono">{{ data.consecutive_scans }}</span>
+          </template>
+        </Column>
+      </DataTable>
     </section>
 
     <!-- Recent Debates -->
@@ -191,8 +392,28 @@ onUnmounted(() => {
 
 .quick-actions {
   display: flex;
+  align-items: center;
   gap: 0.75rem;
   margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.quick-debate-separator {
+  width: 1px;
+  height: 1.75rem;
+  background: var(--p-surface-600, #444);
+  flex-shrink: 0;
+}
+
+.quick-debate-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.quick-debate-input {
+  width: 140px;
+  text-transform: uppercase;
 }
 
 .section {
@@ -336,5 +557,24 @@ onUnmounted(() => {
 .empty-msg {
   color: var(--p-surface-400, #888);
   font-size: 0.875rem;
+}
+
+.trending-table {
+  font-size: 0.875rem;
+}
+
+.trending-table :deep(tr) {
+  cursor: default;
+}
+
+.ticker-link {
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--p-surface-100, #eee);
+  transition: color 0.15s;
+}
+
+.ticker-link:hover {
+  color: var(--accent-blue, #3b82f6);
 }
 </style>

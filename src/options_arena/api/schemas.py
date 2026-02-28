@@ -134,6 +134,30 @@ class BatchTickerResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Watchlist schemas (#144)
+# ---------------------------------------------------------------------------
+
+
+class WatchlistCreateRequest(BaseModel):
+    """Request body for ``POST /api/watchlist``."""
+
+    name: str
+
+
+class WatchlistCreateResponse(BaseModel):
+    """Response for ``POST /api/watchlist`` (201)."""
+
+    id: int
+    name: str
+
+
+class WatchlistTickerRequest(BaseModel):
+    """Request body for ``POST /api/watchlist/{id}/tickers``."""
+
+    ticker: str
+
+
 class ConfigResponse(BaseModel):
     """Read-only safe config values (no secrets)."""
 
@@ -142,6 +166,19 @@ class ConfigResponse(BaseModel):
     enable_rebuttal: bool
     enable_volatility_agent: bool
     agent_timeout: float
+
+
+class WatchlistTickerAddedResponse(BaseModel):
+    """Response for adding a ticker to a watchlist."""
+
+    status: str
+    ticker: str
+
+
+class CancelScanResponse(BaseModel):
+    """Response for cancelling a scan."""
+
+    status: str
 
 
 class UniverseStats(BaseModel):

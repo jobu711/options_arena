@@ -92,6 +92,7 @@ def _make_pipeline(
     mock_market_data.fetch_batch_ohlcv = AsyncMock(
         return_value=batch_result or _make_batch_result(tickers)
     )
+    mock_market_data.fetch_earnings_date = AsyncMock(return_value=None)
 
     mock_options_data = AsyncMock()
     mock_fred = AsyncMock()

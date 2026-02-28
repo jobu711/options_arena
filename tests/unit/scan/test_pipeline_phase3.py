@@ -183,6 +183,9 @@ def _make_pipeline(
     # FRED always returns the configured rate
     mock_fred.fetch_risk_free_rate = AsyncMock(return_value=fred_rate)
 
+    # Earnings date: return None (not testing earnings in this file)
+    mock_market_data.fetch_earnings_date = AsyncMock(return_value=None)
+
     # Default ticker info: return a generic TickerInfo for any ticker
     if ticker_infos is not None:
 
@@ -572,6 +575,7 @@ class TestPhase3Cancellation:
 
         mock_market_data = AsyncMock()
         mock_market_data.fetch_batch_ohlcv = AsyncMock(return_value=batch)
+        mock_market_data.fetch_earnings_date = AsyncMock(return_value=None)
 
         mock_options_data = AsyncMock()
         mock_fred = AsyncMock()

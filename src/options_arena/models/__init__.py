@@ -33,9 +33,17 @@ from options_arena.models.enums import (
     VolAssessment,
 )
 from options_arena.models.health import HealthStatus
+from options_arena.models.history import HistoryPoint, TrendingTicker
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
 from options_arena.models.options import OptionContract, OptionGreeks, OptionSpread, SpreadLeg
 from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
+from options_arena.models.scan_delta import ScanDiff, TickerDelta
+from options_arena.models.watchlist import (
+    Watchlist,
+    WatchlistDetail,
+    WatchlistTicker,
+    WatchlistTickerDetail,
+)
 
 __all__ = [
     # Enums
@@ -69,6 +77,9 @@ __all__ = [
     "IndicatorSignals",
     "ScanRun",
     "TickerScore",
+    # Scan delta
+    "ScanDiff",
+    "TickerDelta",
     # Config
     "AppSettings",
     "DataConfig",
@@ -76,6 +87,14 @@ __all__ = [
     "PricingConfig",
     "ScanConfig",
     "ServiceConfig",
+    # History
+    "HistoryPoint",
+    "TrendingTicker",
     # Health
     "HealthStatus",
+    # Watchlist
+    "Watchlist",
+    "WatchlistDetail",
+    "WatchlistTicker",
+    "WatchlistTickerDetail",
 ]
