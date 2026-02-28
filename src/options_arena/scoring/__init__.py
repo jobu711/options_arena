@@ -19,6 +19,14 @@ from options_arena.scoring.contracts import (
     select_by_delta,
     select_expiration,
 )
+from options_arena.scoring.dimensional import (
+    DEFAULT_FAMILY_WEIGHTS,
+    FAMILY_INDICATOR_MAP,
+    REGIME_WEIGHT_PROFILES,
+    apply_regime_weights,
+    compute_dimensional_scores,
+    compute_direction_signal,
+)
 from options_arena.scoring.direction import determine_direction
 from options_arena.scoring.normalization import (
     INVERTED_INDICATORS,
@@ -37,6 +45,13 @@ __all__: list[str] = [
     "composite_score",
     "score_universe",
     "INDICATOR_WEIGHTS",
+    # dimensional
+    "compute_dimensional_scores",
+    "compute_direction_signal",
+    "apply_regime_weights",
+    "FAMILY_INDICATOR_MAP",
+    "DEFAULT_FAMILY_WEIGHTS",
+    "REGIME_WEIGHT_PROFILES",
     # direction
     "determine_direction",
     # contracts

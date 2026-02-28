@@ -173,7 +173,7 @@ class TestVersionHeaders:
 
     def test_risk_source_has_v2_header(self) -> None:
         source = inspect.getsource(risk_module)
-        assert "# VERSION: v2.0" in source
+        assert "# VERSION: v2.1" in source
 
 
 # --- build_cleaned_agent_response tests ---

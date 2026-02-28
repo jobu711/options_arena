@@ -37,18 +37,26 @@ from options_arena.agents._parsing import (
 )
 from options_arena.agents.bear import bear_agent
 from options_arena.agents.bull import bull_agent
+from options_arena.agents.contrarian_agent import contrarian_agent
 from options_arena.agents.model_config import build_debate_model
-from options_arena.agents.risk import risk_agent
+from options_arena.agents.risk import risk_agent, risk_agent_v2
+from options_arena.agents.trend_agent import trend_agent
 from options_arena.agents.volatility import volatility_agent
 from options_arena.data.repository import Repository
 from options_arena.models import (
     AgentResponse,
+    ContrarianThesis,
     DebateConfig,
+    DimensionalScores,
     ExerciseStyle,
+    ExtendedTradeThesis,
+    FlowThesis,
+    FundamentalThesis,
     MacdSignal,
     MarketContext,
     OptionContract,
     Quote,
+    RiskAssessment,
     SignalDirection,
     TickerInfo,
     TickerScore,
@@ -949,3 +957,680 @@ async def _persist_result(
             result.context.ticker,
             exc_info=True,
         )
+
+
+# ---------------------------------------------------------------------------
+# 6-Agent Debate Protocol (v2)
+# ---------------------------------------------------------------------------
+
+# Agent vote weights for verdict synthesis
+AGENT_VOTE_WEIGHTS: dict[str, float] = {
+    "trend": 0.25,
+    "volatility": 0.20,
+    "flow": 0.20,
+    "fundamental": 0.15,
+    "risk": 0.15,
+    "contrarian": 0.05,
+}
+
+
+def compute_agreement_score(agent_directions: dict[str, SignalDirection]) -> float:
+    """Compute fraction of agents agreeing with the majority direction.
+
+    Returns a float in [0.0, 1.0]. With 0 agents, returns 0.0.
+    Only considers BULLISH/BEARISH for majority — NEUTRAL counts as non-agreeing.
+
+    Parameters
+    ----------
+    agent_directions
+        Mapping of agent name to their direction call.
+
+    Returns
+    -------
+    float
+        Fraction of agents agreeing with the majority direction.
+    """
+    if not agent_directions:
+        return 0.0
+
+    bullish_count = sum(1 for d in agent_directions.values() if d == SignalDirection.BULLISH)
+    bearish_count = sum(1 for d in agent_directions.values() if d == SignalDirection.BEARISH)
+    total = len(agent_directions)
+
+    majority_count = max(bullish_count, bearish_count)
+    return majority_count / total
+
+
+def _get_majority_direction(agent_directions: dict[str, SignalDirection]) -> SignalDirection:
+    """Determine the majority direction from agent directions.
+
+    Returns the direction with the most votes. Ties return NEUTRAL.
+    """
+    if not agent_directions:
+        return SignalDirection.NEUTRAL
+
+    bullish_count = sum(1 for d in agent_directions.values() if d == SignalDirection.BULLISH)
+    bearish_count = sum(1 for d in agent_directions.values() if d == SignalDirection.BEARISH)
+
+    if bullish_count > bearish_count:
+        return SignalDirection.BULLISH
+    if bearish_count > bullish_count:
+        return SignalDirection.BEARISH
+    return SignalDirection.NEUTRAL
+
+
+def _vol_strategy_str(vol: VolatilityThesis) -> str:
+    """Return the volatility strategy as a string, or 'none'."""
+    return vol.recommended_strategy.value if vol.recommended_strategy else "none"
+
+
+def _format_prior_outputs(
+    trend_output: AgentResponse | None,
+    vol_output: VolatilityThesis | None,
+    flow_output: FlowThesis | None,
+    fund_output: FundamentalThesis | None,
+    risk_output: RiskAssessment | None,
+) -> str:
+    """Format all prior agent outputs as text for the Contrarian agent prompt."""
+    sections: list[str] = []
+    if trend_output is not None:
+        sections.append(
+            f"TREND AGENT:\n"
+            f"  Direction: {trend_output.direction.value}\n"
+            f"  Confidence: {trend_output.confidence}\n"
+            f"  Argument: {trend_output.argument}"
+        )
+    if vol_output is not None:
+        sections.append(
+            f"VOLATILITY AGENT:\n"
+            f"  IV Assessment: {vol_output.iv_assessment}\n"
+            f"  Confidence: {vol_output.confidence}\n"
+            f"  Strategy: {_vol_strategy_str(vol_output)}"
+        )
+    if flow_output is not None:
+        sections.append(
+            f"FLOW AGENT:\n"
+            f"  Direction: {flow_output.direction.value}\n"
+            f"  Confidence: {flow_output.confidence}\n"
+            f"  GEX: {flow_output.gex_interpretation}"
+        )
+    if fund_output is not None:
+        sections.append(
+            f"FUNDAMENTAL AGENT:\n"
+            f"  Direction: {fund_output.direction.value}\n"
+            f"  Confidence: {fund_output.confidence}\n"
+            f"  Catalyst: {fund_output.catalyst_impact.value}"
+        )
+    if risk_output is not None:
+        sections.append(
+            f"RISK AGENT:\n"
+            f"  Risk Level: {risk_output.risk_level.value}\n"
+            f"  Confidence: {risk_output.confidence}\n"
+            f"  Max Loss: {risk_output.max_loss_estimate}"
+        )
+    return "\n\n".join(sections) if sections else "No prior agent outputs available."
+
+
+def synthesize_verdict(
+    agent_outputs: dict[str, AgentResponse | FlowThesis | FundamentalThesis | VolatilityThesis],
+    risk_assessment: RiskAssessment | None,
+    contrarian: ContrarianThesis | None,
+    dimensional_scores: DimensionalScores | None,
+    ticker: str,
+    config: DebateConfig,
+) -> ExtendedTradeThesis:
+    """Algorithmic verdict synthesis from all agent outputs.
+
+    Pure function -- no LLM calls. Computes weighted direction, agreement score,
+    and synthesizes a final verdict.
+
+    Parameters
+    ----------
+    agent_outputs
+        Mapping of agent name to their structured output.
+    risk_assessment
+        Expanded risk assessment from Phase 2, or None.
+    contrarian
+        Contrarian thesis from Phase 3, or None.
+    dimensional_scores
+        Dimensional scores from the scan pipeline, or None.
+    ticker
+        Ticker symbol for the verdict.
+    config
+        Debate configuration.
+
+    Returns
+    -------
+    ExtendedTradeThesis
+        Synthesized verdict with agreement scoring and contrarian context.
+    """
+    # --- Collect agent directions ---
+    agent_directions: dict[str, SignalDirection] = {}
+    for name, output in agent_outputs.items():
+        if isinstance(output, VolatilityThesis):
+            # Vol agent doesn't have a direction — skip for direction voting
+            continue
+        if hasattr(output, "direction"):
+            agent_directions[name] = output.direction
+
+    # --- Compute agreement score ---
+    agreement = compute_agreement_score(agent_directions)
+    majority_direction = _get_majority_direction(agent_directions)
+
+    # --- Weighted confidence ---
+    weighted_confidence = 0.0
+    total_weight = 0.0
+    for name, output in agent_outputs.items():
+        weight = AGENT_VOTE_WEIGHTS.get(name, 0.1)
+        if hasattr(output, "confidence"):
+            weighted_confidence += weight * output.confidence
+            total_weight += weight
+    if total_weight > 0:
+        weighted_confidence /= total_weight
+    else:
+        weighted_confidence = config.fallback_confidence
+
+    # Cap confidence when agreement is low
+    if agreement < 0.4:
+        weighted_confidence = min(weighted_confidence, 0.4)
+        logger.info(
+            "Capping confidence for %s: agreement=%.2f < 0.4 -> confidence capped at 0.4",
+            ticker,
+            agreement,
+        )
+
+    # Ensure confidence is within bounds
+    weighted_confidence = max(0.0, min(1.0, weighted_confidence))
+
+    # --- Collect key factors ---
+    key_factors: list[str] = []
+    for _name, output in agent_outputs.items():
+        if isinstance(output, AgentResponse) and output.key_points:
+            key_factors.extend(output.key_points[:2])
+        elif isinstance(output, FlowThesis) and output.key_flow_factors:
+            key_factors.extend(output.key_flow_factors[:2])
+        elif isinstance(output, FundamentalThesis) and output.key_fundamental_factors:
+            key_factors.extend(output.key_fundamental_factors[:2])
+        elif isinstance(output, VolatilityThesis) and output.key_vol_factors:
+            key_factors.extend(output.key_vol_factors[:2])
+    if not key_factors:
+        key_factors = [f"Composite analysis for {ticker}"]
+
+    # --- Dissenting agents ---
+    dissenting: list[str] = [
+        name
+        for name, direction in agent_directions.items()
+        if direction != majority_direction and direction != SignalDirection.NEUTRAL
+    ]
+
+    # --- Risk assessment text ---
+    risk_text = "No expanded risk assessment available."
+    if risk_assessment is not None:
+        risk_text = (
+            f"Risk level: {risk_assessment.risk_level.value}. "
+            f"Max loss: {risk_assessment.max_loss_estimate}. "
+            f"Key risks: {', '.join(risk_assessment.key_risks[:3])}."
+        )
+
+    # --- Summary ---
+    agents_completed = len(agent_outputs)
+    if risk_assessment is not None:
+        agents_completed += 1
+    if contrarian is not None:
+        agents_completed += 1
+
+    summary = (
+        f"6-agent protocol: {agents_completed} agents completed. "
+        f"Majority direction: {majority_direction.value} "
+        f"(agreement: {agreement:.0%}). "
+        f"Weighted confidence: {weighted_confidence:.2f}."
+    )
+
+    # --- Bull/bear scores (derived from direction votes) ---
+    bullish_count = sum(1 for d in agent_directions.values() if d == SignalDirection.BULLISH)
+    bearish_count = sum(1 for d in agent_directions.values() if d == SignalDirection.BEARISH)
+    total_dir_agents = max(bullish_count + bearish_count, 1)
+    bull_score = (bullish_count / total_dir_agents) * 10.0
+    bear_score = (bearish_count / total_dir_agents) * 10.0
+
+    # --- Contrarian dissent text ---
+    contrarian_text: str | None = None
+    if contrarian is not None:
+        contrarian_text = (
+            f"Contrarian ({contrarian.dissent_direction.value}, "
+            f"confidence={contrarian.dissent_confidence:.2f}): "
+            f"{contrarian.primary_challenge}"
+        )
+
+    return ExtendedTradeThesis(
+        ticker=ticker,
+        direction=majority_direction,
+        confidence=weighted_confidence,
+        summary=summary,
+        bull_score=bull_score,
+        bear_score=bear_score,
+        key_factors=key_factors[:10],
+        risk_assessment=risk_text,
+        recommended_strategy=None,
+        contrarian_dissent=contrarian_text,
+        agent_agreement_score=agreement,
+        dissenting_agents=dissenting,
+        dimensional_scores=dimensional_scores,
+        agents_completed=agents_completed,
+    )
+
+
+async def run_debate_v2(
+    ticker_score: TickerScore,
+    contracts: list[OptionContract],
+    quote: Quote,
+    ticker_info: TickerInfo,
+    config: DebateConfig,
+    repository: Repository | None = None,
+    progress: DebateProgressCallback | None = None,
+    dimensional_scores: DimensionalScores | None = None,
+    flow_output: FlowThesis | None = None,
+    fundamental_output: FundamentalThesis | None = None,
+) -> DebateResult:
+    """Run 6-agent debate protocol. Falls back to data-driven on failure.
+
+    Protocol flow:
+      Phase 1 (parallel): trend, volatility, [flow, fundamental from caller]
+      Phase 2 (sequential): risk_agent_v2 with Phase 1 outputs
+      Phase 3 (sequential): contrarian with all 5 outputs (skip if >= 2 failures)
+      Phase 4 (algorithmic): synthesize_verdict -> ExtendedTradeThesis
+
+    Flow and Fundamental agents are provided by the caller (from other tasks).
+    If not provided, they are treated as failed Phase 1 agents.
+
+    Parameters
+    ----------
+    ticker_score
+        Scored ticker from the scan pipeline.
+    contracts
+        Recommended option contracts for this ticker.
+    quote
+        Real-time price snapshot.
+    ticker_info
+        Fundamental data (sector, dividend yield, 52-week range).
+    config
+        Debate configuration (model, timeouts).
+    repository
+        Optional persistence layer.
+    progress
+        Optional callback for real-time progress reporting.
+    dimensional_scores
+        Optional dimensional scores from the scan pipeline.
+    flow_output
+        Optional pre-computed FlowThesis from a flow agent.
+    fundamental_output
+        Optional pre-computed FundamentalThesis from a fundamental agent.
+
+    Returns
+    -------
+    DebateResult
+        Complete debate output. ``is_fallback=True`` if all agents failed.
+    """
+    start_time = time.monotonic()
+    context = build_market_context(
+        ticker_score,
+        quote,
+        ticker_info,
+        contracts,
+        next_earnings=ticker_score.next_earnings,
+    )
+
+    completeness = context.completeness_ratio()
+    _log_completeness_breakdown(context, completeness)
+
+    if not should_debate(ticker_score, config):
+        logger.info("Skipping v2 debate for %s: signal too weak", ticker_score.ticker)
+        return _build_screening_fallback(context, ticker_score, contracts, config, start_time)
+
+    if completeness < 0.4:
+        logger.warning(
+            "MarketContext completeness %.0f%% < 40%% for %s — v2 fallback",
+            completeness * 100,
+            context.ticker,
+        )
+        return _build_fallback_result(context, ticker_score, contracts, config, start_time)
+
+    try:
+        result = await asyncio.wait_for(
+            _run_v2_agents(
+                context,
+                ticker_score,
+                contracts,
+                config,
+                start_time,
+                progress,
+                dimensional_scores,
+                flow_output,
+                fundamental_output,
+            ),
+            timeout=config.max_total_duration,
+        )
+    except Exception as e:
+        logger.warning(
+            "v2 debate failed for %s (%s: %s), using data-driven fallback",
+            context.ticker,
+            type(e).__name__,
+            e,
+        )
+        result = _build_fallback_result(context, ticker_score, contracts, config, start_time)
+
+    if repository is not None:
+        await _persist_result(result, ticker_score, config, repository)
+
+    return result
+
+
+async def _run_v2_agents(
+    context: MarketContext,
+    ticker_score: TickerScore,
+    contracts: list[OptionContract],
+    config: DebateConfig,
+    start_time: float,
+    _progress: DebateProgressCallback | None,
+    dimensional_scores: DimensionalScores | None,
+    flow_output: FlowThesis | None,
+    fundamental_output: FundamentalThesis | None,
+) -> DebateResult:
+    """Run the 6-agent pipeline. Raises on total failure."""
+    model = build_debate_model(config)
+    settings = ModelSettings(temperature=config.temperature)
+    per_agent_timeout = config.agent_timeout
+    context_text = render_context_block(context)
+
+    # ---------------------------------------------------------------
+    # Phase 1: parallel (trend + volatility) — flow & fundamental from caller
+    # ---------------------------------------------------------------
+    logger.info("Phase 1: running trend + volatility in parallel for %s", context.ticker)
+
+    base_deps = DebateDeps(
+        context=context,
+        ticker_score=ticker_score,
+        contracts=contracts,
+    )
+
+    # Build coroutines for local Phase 1 agents
+    trend_coro = asyncio.wait_for(
+        trend_agent.run(
+            f"Analyze trend and momentum for {context.ticker}.\n\n{context_text}",
+            model=model,
+            deps=base_deps,
+            model_settings=settings,
+        ),
+        timeout=per_agent_timeout,
+    )
+
+    vol_deps = DebateDeps(
+        context=context,
+        ticker_score=ticker_score,
+        contracts=contracts,
+    )
+    vol_coro = asyncio.wait_for(
+        volatility_agent.run(
+            f"Assess implied volatility for {context.ticker}.\n\n{context_text}",
+            model=model,
+            deps=vol_deps,
+            model_settings=settings,
+        ),
+        timeout=per_agent_timeout,
+    )
+
+    # Respect phase1_parallelism — batch if needed
+    parallelism = config.phase1_parallelism
+    phase1_coros = [trend_coro, vol_coro]
+
+    if parallelism >= len(phase1_coros):
+        phase1_results = await asyncio.gather(*phase1_coros, return_exceptions=True)
+    else:
+        # Run in batches
+        phase1_results: list[  # type: ignore[no-redef]
+            AgentRunResult[AgentResponse] | AgentRunResult[VolatilityThesis] | BaseException
+        ] = []
+        for i in range(0, len(phase1_coros), parallelism):
+            batch = phase1_coros[i : i + parallelism]
+            batch_results = await asyncio.gather(*batch, return_exceptions=True)
+            phase1_results.extend(batch_results)
+
+    # Extract Phase 1 outputs
+    trend_output: AgentResponse | None = None
+    vol_thesis: VolatilityThesis | None = None
+    total_usage = RunUsage()
+    phase1_failures = 0
+
+    trend_raw = phase1_results[0]
+    if isinstance(trend_raw, BaseException):
+        logger.warning("Trend agent failed for %s: %s", context.ticker, trend_raw)
+        phase1_failures += 1
+    else:
+        trend_run: AgentRunResult[AgentResponse] = trend_raw  # type: ignore[assignment]
+        trend_output = trend_run.output
+        total_usage = total_usage + trend_run.usage()
+        logger.info(
+            "Trend agent complete for %s: direction=%s, confidence=%.2f",
+            context.ticker,
+            trend_output.direction.value,
+            trend_output.confidence,
+        )
+
+    vol_raw = phase1_results[1]
+    if isinstance(vol_raw, BaseException):
+        logger.warning("Volatility agent failed for %s: %s", context.ticker, vol_raw)
+        phase1_failures += 1
+    else:
+        vol_run: AgentRunResult[VolatilityThesis] = vol_raw  # type: ignore[assignment]
+        vol_thesis = vol_run.output
+        total_usage = total_usage + vol_run.usage()
+        logger.info(
+            "Volatility agent complete for %s: iv=%s, confidence=%.2f",
+            context.ticker,
+            vol_thesis.iv_assessment,
+            vol_thesis.confidence,
+        )
+
+    # Count externally-provided agents that are missing as failures
+    if flow_output is None:
+        phase1_failures += 1
+    if fundamental_output is None:
+        phase1_failures += 1
+
+    logger.info(
+        "Phase 1 complete for %s: %d failures out of 4 agents",
+        context.ticker,
+        phase1_failures,
+    )
+
+    # Full data-driven fallback if all 4 Phase 1 agents failed
+    if phase1_failures >= 4:
+        logger.warning(
+            "All Phase 1 agents failed for %s — full data-driven fallback",
+            context.ticker,
+        )
+        return _build_fallback_result(context, ticker_score, contracts, config, start_time)
+
+    # ---------------------------------------------------------------
+    # Phase 2: Risk agent v2 (sequential, receives Phase 1 outputs)
+    # ---------------------------------------------------------------
+    logger.info("Phase 2: running risk agent v2 for %s", context.ticker)
+    risk_v2_output: RiskAssessment | None = None
+    try:
+        risk_deps = DebateDeps(
+            context=context,
+            ticker_score=ticker_score,
+            contracts=contracts,
+            trend_response=trend_output,
+            volatility_thesis=vol_thesis,
+            flow_thesis=flow_output,
+            fundamental_thesis=fundamental_output,
+        )
+        risk_result = await asyncio.wait_for(
+            risk_agent_v2.run(
+                f"Assess risk for {context.ticker} based on all agent outputs.\n\n{context_text}",
+                model=model,
+                deps=risk_deps,
+                model_settings=settings,
+            ),
+            timeout=per_agent_timeout,
+        )
+        risk_v2_output = risk_result.output
+        total_usage = total_usage + risk_result.usage()
+        logger.info(
+            "Risk agent v2 complete for %s: level=%s, confidence=%.2f",
+            context.ticker,
+            risk_v2_output.risk_level.value,
+            risk_v2_output.confidence,
+        )
+    except Exception as e:
+        logger.warning("Risk agent v2 failed for %s: %s", context.ticker, e)
+
+    # ---------------------------------------------------------------
+    # Phase 3: Contrarian (sequential, skip if >= 2 Phase 1 failures)
+    # ---------------------------------------------------------------
+    contrarian_output: ContrarianThesis | None = None
+    if phase1_failures < 2:
+        logger.info("Phase 3: running contrarian agent for %s", context.ticker)
+        try:
+            prior_text = _format_prior_outputs(
+                trend_output,
+                vol_thesis,
+                flow_output,
+                fundamental_output,
+                risk_v2_output,
+            )
+            contrarian_deps = DebateDeps(
+                context=context,
+                ticker_score=ticker_score,
+                contracts=contracts,
+                trend_response=trend_output,
+                volatility_thesis=vol_thesis,
+                flow_thesis=flow_output,
+                fundamental_thesis=fundamental_output,
+                risk_assessment=risk_v2_output,
+                all_prior_outputs=prior_text,
+            )
+            contrarian_result = await asyncio.wait_for(
+                contrarian_agent.run(
+                    f"Challenge the consensus for {context.ticker}.\n\n{context_text}",
+                    model=model,
+                    deps=contrarian_deps,
+                    model_settings=settings,
+                ),
+                timeout=per_agent_timeout,
+            )
+            contrarian_output = contrarian_result.output
+            total_usage = total_usage + contrarian_result.usage()
+            logger.info(
+                "Contrarian agent complete for %s: dissent=%s, confidence=%.2f",
+                context.ticker,
+                contrarian_output.dissent_direction.value,
+                contrarian_output.dissent_confidence,
+            )
+        except Exception as e:
+            logger.warning("Contrarian agent failed for %s: %s", context.ticker, e)
+    else:
+        logger.info(
+            "Phase 3 skipped for %s: %d Phase 1 failures (>= 2)",
+            context.ticker,
+            phase1_failures,
+        )
+
+    # ---------------------------------------------------------------
+    # Phase 4: Algorithmic verdict synthesis (no LLM)
+    # ---------------------------------------------------------------
+    logger.info("Phase 4: synthesizing verdict for %s", context.ticker)
+    agent_outputs: dict[
+        str, AgentResponse | FlowThesis | FundamentalThesis | VolatilityThesis
+    ] = {}
+    if trend_output is not None:
+        agent_outputs["trend"] = trend_output
+    if vol_thesis is not None:
+        agent_outputs["volatility"] = vol_thesis
+    if flow_output is not None:
+        agent_outputs["flow"] = flow_output
+    if fundamental_output is not None:
+        agent_outputs["fundamental"] = fundamental_output
+
+    thesis = synthesize_verdict(
+        agent_outputs=agent_outputs,
+        risk_assessment=risk_v2_output,
+        contrarian=contrarian_output,
+        dimensional_scores=dimensional_scores,
+        ticker=context.ticker,
+        config=config,
+    )
+
+    elapsed_ms = int((time.monotonic() - start_time) * 1000)
+
+    # Citation density scoring
+    agent_texts: list[str] = [thesis.summary, thesis.risk_assessment]
+    if trend_output is not None:
+        agent_texts.append(trend_output.argument)
+    density = compute_citation_density(context_text, *agent_texts)
+
+    logger.info(
+        "v2 debate complete for %s in %dms (agents=%d, agreement=%.2f, citation=%.2f)",
+        context.ticker,
+        elapsed_ms,
+        thesis.agents_completed,
+        thesis.agent_agreement_score or 0.0,
+        density,
+    )
+
+    # Build a bull/bear fallback response pair for backward-compatible DebateResult
+    bull_compat = trend_output or _build_fallback_agent_response(
+        "trend",
+        SignalDirection.NEUTRAL,
+        ticker_score,
+        contracts,
+        config,
+    )
+    bear_compat = _build_fallback_agent_response(
+        "bear",
+        SignalDirection.BEARISH,
+        ticker_score,
+        contracts,
+        config,
+    )
+
+    return DebateResult(
+        context=context,
+        bull_response=bull_compat,
+        bear_response=bear_compat,
+        thesis=thesis,
+        total_usage=total_usage,
+        duration_ms=elapsed_ms,
+        is_fallback=False,
+        bull_rebuttal=None,
+        vol_response=vol_thesis,
+        citation_density=density,
+    )
+
+
+def _build_fallback_agent_response(
+    agent_name: str,
+    direction: SignalDirection,
+    ticker_score: TickerScore,
+    contracts: list[OptionContract],
+    config: DebateConfig,
+) -> AgentResponse:
+    """Build a minimal AgentResponse for backward-compatible DebateResult fields."""
+    key_points = _extract_top_signals(ticker_score)
+    contract_refs = _format_contract_refs(contracts)
+    cap = config.fallback_confidence
+    confidence = min(ticker_score.composite_score / 100.0 * cap, cap)
+    return AgentResponse(
+        agent_name=agent_name,
+        direction=direction,
+        confidence=confidence,
+        argument=(
+            f"Data-driven {direction.value} assessment. "
+            f"Composite: {ticker_score.composite_score:.1f}/100."
+        ),
+        key_points=key_points[:3] if key_points else ["Composite score available"],
+        risks_cited=["Placeholder for v2 protocol"],
+        contracts_referenced=contract_refs[:3],
+        model_used="v2-protocol-compat",
+    )

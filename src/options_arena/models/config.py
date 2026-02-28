@@ -32,6 +32,10 @@ class ScanConfig(BaseModel):
     rsi_oversold: float = 30.0
     options_per_ticker_timeout: float = 120.0
     options_batch_size: int = 5
+    enable_iv_analytics: bool = True
+    enable_flow_analytics: bool = True
+    enable_fundamental: bool = True
+    enable_regime: bool = True
 
 
 class PricingConfig(BaseModel):
@@ -93,6 +97,8 @@ class DebateConfig(BaseModel):
     min_debate_score: float = 30.0
     enable_volatility_agent: bool = False
     enable_rebuttal: bool = False
+    phase1_parallelism: int = 4  # 4 for paid Groq, 2 for free tier
+    enable_regime_weights: bool = False  # opt-in regime-adjusted scoring weights
 
     @field_validator("min_debate_score")
     @classmethod
@@ -148,6 +154,14 @@ class DebateConfig(BaseModel):
         """Ensure retries is within [0, 5]."""
         if not 0 <= v <= 5:
             raise ValueError(f"retries must be in [0, 5], got {v}")
+        return v
+
+    @field_validator("phase1_parallelism")
+    @classmethod
+    def validate_phase1_parallelism(cls, v: int) -> int:
+        """Ensure phase1_parallelism is within [1, 8]."""
+        if not 1 <= v <= 8:
+            raise ValueError(f"phase1_parallelism must be in [1, 8], got {v}")
         return v
 
 
