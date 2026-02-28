@@ -2,18 +2,32 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
+import { useToast } from 'primevue/usetoast'
 import HealthDot from '@/components/HealthDot.vue'
+import DebateProgressModal from '@/components/DebateProgressModal.vue'
 import { useHealthStore } from '@/stores/health'
-import { api } from '@/composables/useApi'
-import type { ScanRun, DebateResultSummary, ConfigResponse } from '@/types'
+import { useDebateStore } from '@/stores/debate'
+import { useWebSocket } from '@/composables/useWebSocket'
+import { api, ApiError } from '@/composables/useApi'
+import type { ScanRun, DebateResultSummary, ConfigResponse, DebateEvent } from '@/types'
 
 const router = useRouter()
+const toast = useToast()
 const healthStore = useHealthStore()
+const debateStore = useDebateStore()
 
 const latestScan = ref<ScanRun | null>(null)
 const recentDebates = ref<DebateResultSummary[]>([])
 const config = ref<ConfigResponse | null>(null)
 const loading = ref(true)
+
+// Quick debate state
+const quickTicker = ref('')
+const debateLoading = ref(false)
+const showDebateProgress = ref(false)
+const quickDebateTicker = ref('')
+let closeWs: (() => void) | null = null
 
 async function loadDashboard(): Promise<void> {
   loading.value = true
@@ -28,6 +42,68 @@ async function loadDashboard(): Promise<void> {
     config.value = cfg
   } finally {
     loading.value = false
+  }
+}
+
+async function submitQuickDebate(): Promise<void> {
+  const ticker = quickTicker.value.trim().toUpperCase()
+  if (!ticker) return
+
+  debateLoading.value = true
+  quickDebateTicker.value = ticker
+  debateStore.reset()
+
+  try {
+    const debateId = await debateStore.startDebate(ticker, null)
+    showDebateProgress.value = true
+    quickTicker.value = ''
+
+    // Connect to WebSocket for progress
+    const { close } = useWebSocket<DebateEvent>({
+      url: `/ws/debate/${debateId}`,
+      onMessage(event: DebateEvent) {
+        switch (event.type) {
+          case 'agent':
+            debateStore.updateAgentProgress(event)
+            break
+          case 'error':
+            debateStore.setDebateError(event.message)
+            toast.add({
+              severity: 'error',
+              summary: 'Debate Error',
+              detail: event.message,
+              life: 5000,
+            })
+            break
+          case 'complete':
+            debateStore.setDebateComplete(event.debate_id)
+            showDebateProgress.value = false
+            void router.push(`/debate/${event.debate_id}`)
+            break
+        }
+      },
+      maxReconnectAttempts: 0,
+    })
+    closeWs = close
+  } catch (err: unknown) {
+    showDebateProgress.value = false
+    if (err instanceof ApiError && err.status === 409) {
+      toast.add({
+        severity: 'warn',
+        summary: 'Operation Busy',
+        detail: 'Another operation is already in progress.',
+        life: 5000,
+      })
+    } else {
+      toast.add({
+        severity: 'error',
+        summary: 'Debate Failed',
+        detail: err instanceof Error ? err.message : 'Failed to start debate',
+        life: 5000,
+      })
+    }
+  } finally {
+    debateLoading.value = false
   }
 }
 
@@ -47,6 +123,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   healthStore.stopAutoRefresh()
+  if (closeWs) closeWs()
 })
 </script>
 
@@ -91,7 +168,37 @@ onUnmounted(() => {
         data-testid="dashboard-btn-health"
         @click="router.push('/health')"
       />
+
+      <span class="quick-debate-separator" />
+
+      <form class="quick-debate-form" @submit.prevent="submitQuickDebate">
+        <InputText
+          v-model="quickTicker"
+          placeholder="Ticker symbol..."
+          data-testid="quick-debate-input"
+          class="quick-debate-input"
+          :disabled="debateLoading"
+          @input="quickTicker = quickTicker.toUpperCase()"
+        />
+        <Button
+          label="Debate"
+          icon="pi pi-comments"
+          severity="info"
+          data-testid="quick-debate-btn"
+          :loading="debateLoading"
+          :disabled="!quickTicker.trim() || debateLoading"
+          @click="submitQuickDebate"
+        />
+      </form>
     </div>
+
+    <!-- Debate Progress Modal -->
+    <DebateProgressModal
+      v-model:visible="showDebateProgress"
+      :ticker="quickDebateTicker"
+      :agents="debateStore.agentProgress"
+      :error="debateStore.error"
+    />
 
     <!-- Latest Scan Card -->
     <section class="section">
@@ -191,8 +298,28 @@ onUnmounted(() => {
 
 .quick-actions {
   display: flex;
+  align-items: center;
   gap: 0.75rem;
   margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.quick-debate-separator {
+  width: 1px;
+  height: 1.75rem;
+  background: var(--p-surface-600, #444);
+  flex-shrink: 0;
+}
+
+.quick-debate-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.quick-debate-input {
+  width: 140px;
+  text-transform: uppercase;
 }
 
 .section {
