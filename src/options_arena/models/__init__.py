@@ -33,6 +33,7 @@ from options_arena.models.enums import (
     VolAssessment,
 )
 from options_arena.models.health import HealthStatus
+from options_arena.models.history import HistoryPoint, TrendingTicker
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
 from options_arena.models.options import OptionContract, OptionGreeks, OptionSpread, SpreadLeg
 from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
@@ -82,6 +83,9 @@ __all__ = [
     "PricingConfig",
     "ScanConfig",
     "ServiceConfig",
+    # History
+    "HistoryPoint",
+    "TrendingTicker",
     # Health
     "HealthStatus",
     # Watchlist

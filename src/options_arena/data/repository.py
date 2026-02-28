@@ -13,11 +13,13 @@ from sqlite3 import Row
 
 from options_arena.data.database import Database
 from options_arena.models import (
+    HistoryPoint,
     IndicatorSignals,
     ScanPreset,
     ScanRun,
     SignalDirection,
     TickerScore,
+    TrendingTicker,
     Watchlist,
     WatchlistTicker,
 )
@@ -280,6 +282,127 @@ class Repository:
                 float(row["citation_density"]) if row["citation_density"] is not None else 0.0
             ),
         )
+
+    # ------------------------------------------------------------------
+    # Score history
+    # ------------------------------------------------------------------
+
+    async def get_score_history(self, ticker: str, limit: int = 20) -> list[HistoryPoint]:
+        """Get score history for a ticker across recent scans.
+
+        Joins ``ticker_scores`` with ``scan_runs`` to produce chronological
+        score data.  Returns newest first, limited to *limit* entries.
+        """
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT ts.scan_run_id, sr.started_at, ts.composite_score, "
+            "ts.direction, sr.preset "
+            "FROM ticker_scores ts "
+            "JOIN scan_runs sr ON ts.scan_run_id = sr.id "
+            "WHERE ts.ticker = ? "
+            "ORDER BY sr.started_at DESC "
+            "LIMIT ?",
+            (ticker.upper(), limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        history = [
+            HistoryPoint(
+                scan_id=int(row["scan_run_id"]),
+                scan_date=datetime.fromisoformat(row["started_at"]),
+                composite_score=float(row["composite_score"]),
+                direction=str(row["direction"]),
+                preset=str(row["preset"]),
+            )
+            for row in rows
+        ]
+        logger.debug("Retrieved %d history points for ticker=%s", len(history), ticker.upper())
+        return history
+
+    async def get_trending_tickers(
+        self, direction: str, min_scans: int = 3
+    ) -> list[TrendingTicker]:
+        """Find tickers with consistent direction over consecutive recent scans.
+
+        1. Get all tickers from the latest scan.
+        2. For each, fetch last N score entries ordered by scan date descending.
+        3. Count consecutive entries matching *direction* from the most recent.
+        4. Filter to those with ``consecutive_scans >= min_scans``.
+        5. Sort by consecutive_scans descending.
+        """
+        conn = self._db.conn
+
+        # Step 1: find latest scan
+        async with conn.execute("SELECT id FROM scan_runs ORDER BY id DESC LIMIT 1") as cursor:
+            latest_row = await cursor.fetchone()
+        if latest_row is None:
+            return []
+        latest_scan_id = int(latest_row["id"])
+
+        # Step 2: get tickers from latest scan that match the requested direction
+        async with conn.execute(
+            "SELECT ticker, composite_score FROM ticker_scores "
+            "WHERE scan_run_id = ? AND direction = ?",
+            (latest_scan_id, direction),
+        ) as cursor:
+            candidate_rows = await cursor.fetchall()
+
+        if not candidate_rows:
+            return []
+
+        # Step 3: for each candidate, check consecutive scans with same direction
+        trending: list[TrendingTicker] = []
+        # Pre-fetch a reasonable lookback depth to avoid per-ticker queries
+        lookback = min_scans + 10  # enough depth to count streaks
+
+        for cand_row in candidate_rows:
+            ticker_name = str(cand_row["ticker"])
+            latest_score = float(cand_row["composite_score"])
+
+            async with conn.execute(
+                "SELECT ts.composite_score, ts.direction "
+                "FROM ticker_scores ts "
+                "JOIN scan_runs sr ON ts.scan_run_id = sr.id "
+                "WHERE ts.ticker = ? "
+                "ORDER BY sr.started_at DESC "
+                "LIMIT ?",
+                (ticker_name, lookback),
+            ) as cursor:
+                history_rows = list(await cursor.fetchall())
+
+            # Count consecutive matching direction from the most recent
+            consecutive = 0
+            for h_row in history_rows:
+                if str(h_row["direction"]) == direction:
+                    consecutive += 1
+                else:
+                    break
+
+            if consecutive < min_scans:
+                continue
+
+            # Compute score_change: latest - oldest in the streak
+            oldest_score = float(history_rows[consecutive - 1]["composite_score"])
+            score_change = latest_score - oldest_score
+
+            trending.append(
+                TrendingTicker(
+                    ticker=ticker_name,
+                    direction=direction,
+                    consecutive_scans=consecutive,
+                    latest_score=latest_score,
+                    score_change=score_change,
+                )
+            )
+
+        # Sort by consecutive_scans descending
+        trending.sort(key=lambda t: t.consecutive_scans, reverse=True)
+        logger.debug(
+            "Found %d trending tickers for direction=%s min_scans=%d",
+            len(trending),
+            direction,
+            min_scans,
+        )
+        return trending
 
     # ------------------------------------------------------------------
     # Watchlist persistence
