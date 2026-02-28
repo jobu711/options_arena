@@ -192,7 +192,7 @@ onUnmounted(() => {
       <form class="quick-debate-form" @submit.prevent="submitQuickDebate">
         <InputText
           v-model="quickTicker"
-          placeholder="Ticker symbol..."
+          placeholder="Ticker"
           data-testid="quick-debate-input"
           class="quick-debate-input"
           :disabled="debateLoading"

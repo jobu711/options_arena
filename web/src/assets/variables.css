@@ -97,3 +97,38 @@ body {
 .p-dialog .p-dialog-footer {
   background: var(--p-surface-800, #1a1a1a) !important;
 }
+
+/* ── Input fields dark theme ── */
+.p-inputtext {
+  background: var(--p-surface-800, #1a1a1a) !important;
+  color: var(--p-surface-100, #eee) !important;
+  border-color: var(--p-surface-600, #444) !important;
+}
+
+.p-inputtext::placeholder {
+  color: var(--p-surface-500, #666) !important;
+}
+
+.p-inputtext:focus {
+  border-color: var(--accent-blue, #3b82f6) !important;
+  box-shadow: 0 0 0 1px var(--accent-blue, #3b82f6) !important;
+}
+
+/* Select input dark theme */
+.p-select {
+  background: var(--p-surface-800, #1a1a1a) !important;
+  color: var(--p-surface-100, #eee) !important;
+  border-color: var(--p-surface-600, #444) !important;
+}
+
+.p-select:hover {
+  border-color: var(--p-surface-500, #666) !important;
+}
+
+.p-select .p-select-label {
+  color: var(--p-surface-100, #eee) !important;
+}
+
+.p-select .p-select-label.p-placeholder {
+  color: var(--p-surface-500, #666) !important;
+}
