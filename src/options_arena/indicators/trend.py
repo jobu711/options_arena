@@ -1,8 +1,12 @@
-"""Trend indicators: Rate of Change, ADX, Supertrend.
+"""Trend indicators: Rate of Change, ADX, Supertrend, and trend extensions.
 
-All functions take pandas Series in, return pandas Series out.
+All functions take pandas Series in, return pandas Series or float | None out.
 NaN for warmup period — never filled or dropped.
 """
+
+from __future__ import annotations
+
+import math
 
 import numpy as np
 import pandas as pd
@@ -210,3 +214,218 @@ def supertrend(
 
     typed_result: pd.Series = result
     return typed_result
+
+
+# ---------------------------------------------------------------------------
+# Trend extension functions (Issue #152)
+# ---------------------------------------------------------------------------
+
+
+def compute_multi_tf_alignment(
+    daily_supertrend: pd.Series,
+    weekly_close: pd.Series,
+    weekly_period: int = 10,
+    weekly_multiplier: float = 3.0,
+) -> float | None:
+    """Multi-timeframe alignment: daily supertrend direction + weekly supertrend agreement.
+
+    Computes a weekly supertrend from ``weekly_close`` and compares the latest
+    daily and weekly trend directions.
+
+    Returns:
+        1.0  — both daily and weekly bullish (aligned uptrend).
+        -1.0 — both daily and weekly bearish (aligned downtrend).
+        0.0  — conflicting signals.
+        None — insufficient data or NaN at the latest bar.
+
+    Args:
+        daily_supertrend: Daily supertrend series (values +1 or -1, NaN for warmup).
+        weekly_close: Weekly closing prices (for computing weekly supertrend).
+        weekly_period: Supertrend period for weekly timeframe. Default 10.
+        weekly_multiplier: Supertrend multiplier for weekly timeframe. Default 3.0.
+    """
+    if daily_supertrend.empty or weekly_close.empty:
+        return None
+
+    # Latest daily trend
+    daily_latest = float(daily_supertrend.iloc[-1])
+    if not math.isfinite(daily_latest):
+        return None
+
+    # Compute a simple weekly supertrend from close only (approximate: uses close as
+    # proxy for high/low since we only have weekly close).  This is an approximation
+    # but sufficient for alignment scoring.
+    if len(weekly_close) < weekly_period + 1:
+        return None
+
+    # Use close as proxy for high/low to compute ATR-like measure (range = 0, so
+    # use rolling std * multiplier as a band width proxy)
+    rolling_std = weekly_close.rolling(weekly_period).std(ddof=0)
+    hl2 = weekly_close
+    upper_band = hl2 + weekly_multiplier * rolling_std
+    lower_band = hl2 - weekly_multiplier * rolling_std
+
+    # Iterative weekly trend determination
+    n = len(weekly_close)
+    close_arr = weekly_close.to_numpy(dtype=float)
+    upper_arr = upper_band.to_numpy(dtype=float)
+    lower_arr = lower_band.to_numpy(dtype=float)
+
+    weekly_trend = np.empty(n)
+    weekly_trend[:] = np.nan
+
+    # Find first valid index (after warmup)
+    first_valid = weekly_period
+    if first_valid >= n:
+        return None
+
+    weekly_trend[first_valid] = 1.0  # start with uptrend
+
+    for i in range(first_valid + 1, n):
+        if np.isnan(upper_arr[i]) or np.isnan(lower_arr[i]):
+            weekly_trend[i] = weekly_trend[i - 1]
+            continue
+        if weekly_trend[i - 1] == 1.0:
+            if close_arr[i] < lower_arr[i]:
+                weekly_trend[i] = -1.0
+            else:
+                weekly_trend[i] = 1.0
+        else:
+            if close_arr[i] > upper_arr[i]:
+                weekly_trend[i] = 1.0
+            else:
+                weekly_trend[i] = -1.0
+
+    weekly_latest = weekly_trend[-1]
+    if not math.isfinite(weekly_latest):
+        return None
+
+    # Alignment
+    if daily_latest > 0 and weekly_latest > 0:
+        return 1.0
+    if daily_latest < 0 and weekly_latest < 0:
+        return -1.0
+    return 0.0
+
+
+def compute_rsi_divergence(
+    close: pd.Series,
+    rsi: pd.Series,
+    lookback: int = 14,
+) -> float | None:
+    """RSI divergence detector.
+
+    Detects bullish and bearish divergences between price and RSI over the
+    trailing ``lookback`` bars.
+
+    Bullish divergence: price makes a lower low, RSI makes a higher low.
+    Bearish divergence: price makes a higher high, RSI makes a lower high.
+
+    Returns:
+        1.0 — bullish divergence detected.
+        -1.0 — bearish divergence detected.
+        0.0 — no divergence.
+        None — insufficient data.
+
+    Args:
+        close: Daily closing prices.
+        rsi: RSI series (0-100 scale).
+        lookback: Number of bars to look back for swing detection. Default 14.
+
+    Raises:
+        ValueError: If Series have mismatched lengths.
+    """
+    validate_aligned(close, rsi)
+
+    if len(close) < lookback + 1:
+        return None
+
+    # Extract the lookback window
+    close_window = close.iloc[-(lookback + 1) :]
+    rsi_window = rsi.iloc[-(lookback + 1) :]
+
+    # Drop NaN
+    valid_mask = close_window.notna() & rsi_window.notna()
+    close_clean = close_window[valid_mask]
+    rsi_clean = rsi_window[valid_mask]
+
+    if len(close_clean) < 3:
+        return None
+
+    # Compare first half min/max to second half min/max for swing detection
+    mid = len(close_clean) // 2
+
+    first_half_close = close_clean.iloc[:mid]
+    second_half_close = close_clean.iloc[mid:]
+    first_half_rsi = rsi_clean.iloc[:mid]
+    second_half_rsi = rsi_clean.iloc[mid:]
+
+    if first_half_close.empty or second_half_close.empty:
+        return None
+
+    # Bullish divergence: price lower low, RSI higher low
+    price_low_1 = float(first_half_close.min())
+    price_low_2 = float(second_half_close.min())
+    rsi_low_1 = float(first_half_rsi.min())
+    rsi_low_2 = float(second_half_rsi.min())
+
+    if (
+        math.isfinite(price_low_1)
+        and math.isfinite(price_low_2)
+        and math.isfinite(rsi_low_1)
+        and math.isfinite(rsi_low_2)
+        and price_low_2 < price_low_1
+        and rsi_low_2 > rsi_low_1
+    ):
+        return 1.0
+
+    # Bearish divergence: price higher high, RSI lower high
+    price_high_1 = float(first_half_close.max())
+    price_high_2 = float(second_half_close.max())
+    rsi_high_1 = float(first_half_rsi.max())
+    rsi_high_2 = float(second_half_rsi.max())
+
+    if (
+        math.isfinite(price_high_1)
+        and math.isfinite(price_high_2)
+        and math.isfinite(rsi_high_1)
+        and math.isfinite(rsi_high_2)
+        and price_high_2 > price_high_1
+        and rsi_high_2 < rsi_high_1
+    ):
+        return -1.0
+
+    return 0.0
+
+
+def compute_adx_exhaustion(
+    adx_series: pd.Series,
+    threshold: float = 40.0,
+) -> float | None:
+    """ADX exhaustion signal.
+
+    Detects when a strong trend (ADX above threshold) is showing signs of
+    exhaustion (ADX declining). This typically precedes a trend reversal or
+    consolidation.
+
+    Returns:
+        1.0 — ADX above threshold AND declining (trend exhaustion signal).
+        0.0 — no exhaustion signal (ADX below threshold or still rising).
+        None — insufficient data or NaN at the latest bars.
+
+    Args:
+        adx_series: ADX indicator series.
+        threshold: ADX level above which the trend is considered strong. Default 40.0.
+    """
+    if len(adx_series) < 2:
+        return None
+
+    current = float(adx_series.iloc[-1])
+    previous = float(adx_series.iloc[-2])
+
+    if not math.isfinite(current) or not math.isfinite(previous):
+        return None
+
+    if current > threshold and current < previous:
+        return 1.0
+    return 0.0
