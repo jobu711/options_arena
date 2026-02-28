@@ -134,6 +134,35 @@ class BatchTickerResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Watchlist schemas (#144)
+# ---------------------------------------------------------------------------
+
+
+class WatchlistCreateRequest(BaseModel):
+    """Request body for ``POST /api/watchlist``."""
+
+    name: str
+
+
+class WatchlistCreateResponse(BaseModel):
+    """Response for ``POST /api/watchlist`` (201)."""
+
+    id: int
+    name: str
+
+
+class WatchlistTickerRequest(BaseModel):
+    """Request body for ``POST /api/watchlist/{id}/tickers``."""
+
+    ticker: str
+
+
+# ---------------------------------------------------------------------------
+# Supporting page schemas (#129)
+# ---------------------------------------------------------------------------
+
+
 class ConfigResponse(BaseModel):
     """Read-only safe config values (no secrets)."""
 
