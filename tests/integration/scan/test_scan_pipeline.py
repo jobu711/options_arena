@@ -193,6 +193,7 @@ def _make_full_pipeline(
         return_value=batch_result or _make_batch_result(_tickers)
     )
     mock_market_data.fetch_ticker_info = AsyncMock(side_effect=lambda t: _make_ticker_info(t))
+    mock_market_data.fetch_earnings_date = AsyncMock(return_value=None)
 
     mock_options_data = AsyncMock()
     mock_options_data.fetch_chain_all_expirations = AsyncMock(

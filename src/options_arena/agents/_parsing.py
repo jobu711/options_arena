@@ -11,6 +11,7 @@ import logging
 import math
 import re
 from dataclasses import dataclass
+from datetime import date
 
 from pydantic import BaseModel, ConfigDict
 from pydantic_ai.usage import RunUsage
@@ -267,6 +268,17 @@ def render_context_block(ctx: MarketContext) -> str:
     # Optional contract mid — Decimal, not float
     if ctx.contract_mid is not None:
         lines.append(f"CONTRACT MID: ${ctx.contract_mid}")
+
+    # Earnings warning — appended when next earnings is within 7 days
+    if ctx.next_earnings is not None:
+        days_to_earnings = (ctx.next_earnings - date.today()).days
+        if days_to_earnings >= 0:
+            lines.append(f"NEXT EARNINGS: {ctx.next_earnings.isoformat()} ({days_to_earnings}d)")
+            if days_to_earnings <= 7:
+                lines.append(
+                    f"WARNING: Earnings in {days_to_earnings} days. "
+                    "IV crush risk is elevated. Factor this into your analysis."
+                )
 
     return "\n".join(lines)
 

@@ -12,6 +12,8 @@ They are NOT frozen -- the pipeline updates them during execution.
 
 from __future__ import annotations
 
+from datetime import date
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from options_arena.models import (
@@ -68,12 +70,14 @@ class OptionsResult(BaseModel):
     Attributes:
         recommendations: Ticker to recommended contracts mapping (0 or 1 contracts per ticker).
         risk_free_rate: Risk-free rate used for the entire scan (from FRED or fallback).
+        earnings_dates: Ticker to next earnings date mapping (None if unknown).
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     recommendations: dict[str, list[OptionContract]]
     risk_free_rate: float
+    earnings_dates: dict[str, date] = Field(default_factory=dict)
 
 
 class ScanResult(BaseModel):
@@ -84,6 +88,7 @@ class ScanResult(BaseModel):
         scores: All scored tickers with direction set.
         recommendations: Recommended contracts per ticker.
         risk_free_rate: FRED rate or fallback used for pricing.
+        earnings_dates: Ticker to next earnings date mapping.
         cancelled: True if the pipeline was cancelled mid-run.
         phases_completed: How far the pipeline progressed (0--4).
     """
@@ -94,5 +99,6 @@ class ScanResult(BaseModel):
     scores: list[TickerScore]
     recommendations: dict[str, list[OptionContract]]
     risk_free_rate: float
+    earnings_dates: dict[str, date] = Field(default_factory=dict)
     cancelled: bool = False
     phases_completed: int = Field(default=0, ge=0, le=4)

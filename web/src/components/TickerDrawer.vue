@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { computed } from 'vue'
 import Drawer from 'primevue/drawer'
 import Button from 'primevue/button'
+import Message from 'primevue/message'
 import DirectionBadge from './DirectionBadge.vue'
 import { api } from '@/composables/useApi'
 import type { TickerScore, DebateResultSummary } from '@/types'
@@ -40,6 +42,19 @@ watch(
   },
 )
 
+/** Compute days to next earnings from the score's next_earnings field. */
+const earningsDays = computed<number | null>(() => {
+  if (!props.score?.next_earnings) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const earnings = new Date(props.score.next_earnings + 'T00:00:00')
+  const diffMs = earnings.getTime() - today.getTime()
+  return Math.round(diffMs / (1000 * 60 * 60 * 24))
+})
+
+/** Whether earnings warning banner should be shown (< 7 days). */
+const showEarningsWarning = computed(() => earningsDays.value !== null && earningsDays.value < 7 && earningsDays.value >= 0)
+
 /** Format signal names for display: rsi → RSI, bb_width → BB Width */
 function formatSignalName(key: string): string {
   return key
@@ -68,6 +83,15 @@ function formatDate(iso: string): string {
     @update:visible="emit('update:visible', $event)"
   >
     <template v-if="score">
+      <Message
+        v-if="showEarningsWarning"
+        severity="warn"
+        :closable="false"
+        data-testid="earnings-warning"
+      >
+        Earnings in {{ earningsDays }} days &mdash; IV crush risk
+      </Message>
+
       <div class="drawer-section">
         <h3>Score</h3>
         <div class="score-row">

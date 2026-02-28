@@ -32,6 +32,7 @@ TTL_QUOTE_AFTER: int = 5 * 60  # 5 min after hours
 TTL_FUNDAMENTALS: int = 24 * 60 * 60  # 24 hrs
 TTL_REFERENCE: int = 24 * 60 * 60  # 24 hrs (FRED rate, universe)
 TTL_FAILURE: int = 24 * 60 * 60  # 24 hrs (cached failures)
+TTL_EARNINGS: int = 24 * 60 * 60  # 24 hrs — earnings dates rarely change intra-day
 
 # Data types that stay in-memory only (short-TTL, high-churn)
 _MEMORY_ONLY_TYPES: frozenset[str] = frozenset({"quote", "chain"})

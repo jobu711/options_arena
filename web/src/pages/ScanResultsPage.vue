@@ -213,6 +213,26 @@ watch(search, () => {
   searchTimeout = setTimeout(onSearch, 300)
 })
 
+/** Compute days to earnings from an ISO date string. */
+function earningsDte(isoDate: string): string {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const earnings = new Date(isoDate + 'T00:00:00')
+  const diffMs = earnings.getTime() - today.getTime()
+  const days = Math.round(diffMs / (1000 * 60 * 60 * 24))
+  return `${days}d`
+}
+
+/** CSS class for earnings DTE: red if < 7 days, gray otherwise. */
+function earningsClass(isoDate: string): string {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const earnings = new Date(isoDate + 'T00:00:00')
+  const diffMs = earnings.getTime() - today.getTime()
+  const days = Math.round(diffMs / (1000 * 60 * 60 * 24))
+  return days < 7 ? 'earnings-warn' : 'earnings-normal'
+}
+
 onMounted(() => void loadScores())
 onUnmounted(() => {
   debateWsClose?.()
@@ -307,6 +327,17 @@ onUnmounted(() => {
       <Column field="direction" header="Direction" :sortable="true" :style="{ width: '110px' }">
         <template #body="{ data }">
           <DirectionBadge :direction="data.direction" />
+        </template>
+      </Column>
+      <Column field="next_earnings" header="Earnings" :sortable="true" :style="{ width: '90px' }">
+        <template #body="{ data }">
+          <span
+            v-if="data.next_earnings"
+            class="mono"
+            :class="earningsClass(data.next_earnings)"
+            :data-testid="`earnings-${data.ticker}`"
+          >{{ earningsDte(data.next_earnings) }}</span>
+          <span v-else class="earnings-none" :data-testid="`earnings-${data.ticker}`">&mdash;</span>
         </template>
       </Column>
       <Column header="" :style="{ width: '100px' }">
@@ -411,5 +442,18 @@ onUnmounted(() => {
   text-align: center;
   padding: 2rem;
   color: var(--p-surface-400, #888);
+}
+
+.earnings-warn {
+  color: var(--accent-red, #ef4444);
+  font-weight: 600;
+}
+
+.earnings-normal {
+  color: var(--p-surface-400, #888);
+}
+
+.earnings-none {
+  color: var(--p-surface-500, #666);
 }
 </style>

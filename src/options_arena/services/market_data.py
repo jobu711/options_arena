@@ -24,7 +24,7 @@ from pydantic import ValidationError as PydanticValidationError
 from options_arena.models.config import ServiceConfig
 from options_arena.models.enums import DividendSource, MarketCapTier
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
-from options_arena.services.cache import TTL_FUNDAMENTALS, TTL_OHLCV, ServiceCache
+from options_arena.services.cache import TTL_EARNINGS, TTL_FUNDAMENTALS, TTL_OHLCV, ServiceCache
 from options_arena.services.helpers import fetch_with_retry, safe_decimal, safe_float, safe_int
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.utils.exceptions import (
@@ -448,6 +448,82 @@ class MarketDataService:
                 items.append(TickerOHLCVResult(ticker=ticker, data=result))
         return BatchOHLCVResult(results=items)
 
+    async def fetch_earnings_date(self, ticker: str) -> date | None:
+        """Fetch the next earnings date for *ticker* from yfinance.
+
+        Uses ``Ticker.calendar`` which returns a dict containing earnings
+        event data. The dict's ``"Earnings Date"`` key holds a list of
+        ``Timestamp`` objects (usually 1-2 entries for the estimated range).
+        We pick the earliest future date.
+
+        Returns ``None`` gracefully if yfinance has no earnings data — this is
+        expected for ~20% of tickers (small caps, REITs, etc.).
+
+        Cache TTL: 24 h (``TTL_EARNINGS``).
+        """
+        cache_key = f"yf:earnings:{ticker}"
+
+        cached = await self._cache.get(cache_key)
+        if cached is not None:
+            logger.debug("Cache hit for %s", cache_key)
+            return _deserialize_earnings_date(cached)
+
+        try:
+            async with self._limiter:
+                ticker_obj = yf.Ticker(ticker)
+                calendar: dict[str, Any] = await fetch_with_retry(
+                    lambda: self._yf_call(lambda: ticker_obj.calendar)
+                )
+        except Exception:
+            logger.debug("No earnings calendar available for %s", ticker)
+            # Cache the absence to avoid re-fetching on the same scan
+            await self._cache.set(cache_key, b"null", ttl=TTL_EARNINGS)
+            return None
+
+        if not calendar or not isinstance(calendar, dict):
+            await self._cache.set(cache_key, b"null", ttl=TTL_EARNINGS)
+            return None
+
+        # yfinance calendar dict uses "Earnings Date" key which holds a list
+        # of Timestamp objects. Some versions use different key patterns.
+        earnings_dates_raw = calendar.get("Earnings Date")
+        if earnings_dates_raw is None:
+            # Try alternative keys seen in some yfinance versions
+            earnings_dates_raw = calendar.get("earningsDate")
+
+        if not earnings_dates_raw:
+            logger.debug("No earnings dates in calendar for %s", ticker)
+            await self._cache.set(cache_key, b"null", ttl=TTL_EARNINGS)
+            return None
+
+        # Extract the earliest future date from the list
+        today = date.today()
+        earnings_date: date | None = None
+        for raw_date in earnings_dates_raw:
+            try:
+                if hasattr(raw_date, "date"):
+                    # pandas Timestamp
+                    d = raw_date.date()
+                elif isinstance(raw_date, str):
+                    d = date.fromisoformat(raw_date[:10])
+                else:
+                    d = date.fromisoformat(str(raw_date)[:10])
+
+                if d >= today and (earnings_date is None or d < earnings_date):
+                    earnings_date = d
+            except (ValueError, TypeError):
+                logger.debug("Unparseable earnings date for %s: %r", ticker, raw_date)
+                continue
+
+        # Cache result (even None → "null")
+        serialized = _serialize_earnings_date(earnings_date)
+        await self._cache.set(cache_key, serialized, ttl=TTL_EARNINGS)
+
+        if earnings_date is not None:
+            logger.debug("Earnings date for %s: %s", ticker, earnings_date.isoformat())
+
+        return earnings_date
+
     async def close(self) -> None:
         """Release resources. Safe to call multiple times."""
         logger.debug("MarketDataService closed")
@@ -487,3 +563,18 @@ def _serialize_ticker_info(info: TickerInfo) -> bytes:
 def _deserialize_ticker_info(data: bytes) -> TickerInfo:
     """Deserialize bytes from cache back into a TickerInfo model."""
     return TickerInfo.model_validate_json(data.decode("utf-8"))
+
+
+def _serialize_earnings_date(earnings_date: date | None) -> bytes:
+    """Serialize an optional date to bytes for cache storage."""
+    if earnings_date is None:
+        return b"null"
+    return earnings_date.isoformat().encode("utf-8")
+
+
+def _deserialize_earnings_date(data: bytes) -> date | None:
+    """Deserialize bytes from cache back into an optional date."""
+    text = data.decode("utf-8")
+    if text == "null":
+        return None
+    return date.fromisoformat(text)

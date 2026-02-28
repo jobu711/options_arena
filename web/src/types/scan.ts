@@ -15,6 +15,7 @@ export interface TickerScore {
   composite_score: number
   direction: 'bullish' | 'bearish' | 'neutral'
   signals: Record<string, number | null>
+  next_earnings: string | null // ISO date string "YYYY-MM-DD" or null
   scan_run_id: number
 }
 
