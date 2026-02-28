@@ -159,32 +159,38 @@ class TestPercentileRankNormalize:
         assert _field_val(result["NAN"], "rsi") is None
 
     def test_all_fields_populated(self) -> None:
-        """When all 18 fields are populated, every field gets a rank."""
-        full_signals = IndicatorSignals(
-            rsi=50.0,
-            stochastic_rsi=50.0,
-            williams_r=50.0,
-            adx=50.0,
-            roc=50.0,
-            supertrend=50.0,
-            atr_pct=50.0,
-            bb_width=50.0,
-            keltner_width=50.0,
-            obv=50.0,
-            ad=50.0,
-            relative_volume=50.0,
-            sma_alignment=50.0,
-            vwap_deviation=50.0,
-            iv_rank=50.0,
-            iv_percentile=50.0,
-            put_call_ratio=50.0,
-            max_pain_distance=50.0,
-        )
+        """When original 18 fields are populated, each gets a rank; DSE fields stay None."""
+        original_fields = [
+            "rsi",
+            "stochastic_rsi",
+            "williams_r",
+            "adx",
+            "roc",
+            "supertrend",
+            "atr_pct",
+            "bb_width",
+            "keltner_width",
+            "obv",
+            "ad",
+            "relative_volume",
+            "sma_alignment",
+            "vwap_deviation",
+            "iv_rank",
+            "iv_percentile",
+            "put_call_ratio",
+            "max_pain_distance",
+        ]
+        full_signals = IndicatorSignals(**{f: 50.0 for f in original_fields})
         universe = {"ONLY": full_signals}
         result = percentile_rank_normalize(universe)
 
-        for field in ALL_FIELDS:
+        for field in original_fields:
             assert _field_val(result["ONLY"], field) == pytest.approx(50.0)
+
+        # DSE fields not set — should remain None after normalization
+        dse_fields = [f for f in ALL_FIELDS if f not in original_fields]
+        for field in dse_fields:
+            assert _field_val(result["ONLY"], field) is None
 
 
 # ---------------------------------------------------------------------------

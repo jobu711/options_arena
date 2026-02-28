@@ -136,3 +136,46 @@ class VolAssessment(StrEnum):
     OVERPRICED = "overpriced"
     UNDERPRICED = "underpriced"
     FAIR = "fair"
+
+
+class MarketRegime(StrEnum):
+    """Market regime classification for regime-adjusted scoring weights."""
+
+    TRENDING = "trending"
+    MEAN_REVERTING = "mean_reverting"
+    VOLATILE = "volatile"
+    CRISIS = "crisis"
+
+
+class VolRegime(StrEnum):
+    """Implied volatility regime classification."""
+
+    LOW = "low"
+    NORMAL = "normal"
+    ELEVATED = "elevated"
+    EXTREME = "extreme"
+
+
+class IVTermStructureShape(StrEnum):
+    """IV term structure shape classification."""
+
+    CONTANGO = "contango"
+    FLAT = "flat"
+    BACKWARDATION = "backwardation"
+
+
+class RiskLevel(StrEnum):
+    """Quantified risk level for risk assessment."""
+
+    LOW = "low"
+    MODERATE = "moderate"
+    HIGH = "high"
+    EXTREME = "extreme"
+
+
+class CatalystImpact(StrEnum):
+    """Expected impact of upcoming catalysts (earnings, dividends, etc.)."""
+
+    LOW = "low"
+    MODERATE = "moderate"
+    HIGH = "high"

@@ -122,9 +122,9 @@ class TestIndicatorSignals:
         assert partial_signals.put_call_ratio is None
         assert partial_signals.max_pain_distance is None
 
-    def test_exactly_18_model_fields(self) -> None:
-        """IndicatorSignals has exactly 18 model fields."""
-        assert len(IndicatorSignals.model_fields) == 18
+    def test_exactly_58_model_fields(self) -> None:
+        """IndicatorSignals has exactly 58 model fields (18 original + 40 DSE)."""
+        assert len(IndicatorSignals.model_fields) == 58
 
     def test_not_frozen_can_reassign(self, empty_signals: IndicatorSignals) -> None:
         """IndicatorSignals is NOT frozen: fields can be reassigned."""
@@ -151,8 +151,8 @@ class TestIndicatorSignals:
             # All fields should have default None
             assert field_info.default is None, f"Field {field_name} should default to None"
 
-    def test_full_fill_all_18_fields(self) -> None:
-        """IndicatorSignals with all 18 fields set works correctly."""
+    def test_full_fill_original_18_fields(self) -> None:
+        """IndicatorSignals with all original 18 fields set works correctly."""
         signals = IndicatorSignals(
             rsi=50.0,
             stochastic_rsi=45.0,
@@ -173,8 +173,28 @@ class TestIndicatorSignals:
             put_call_ratio=48.0,
             max_pain_distance=33.0,
         )
-        # Verify none are None
-        for field_name in IndicatorSignals.model_fields:
+        # Verify original 18 are not None
+        original_fields = [
+            "rsi",
+            "stochastic_rsi",
+            "williams_r",
+            "adx",
+            "roc",
+            "supertrend",
+            "bb_width",
+            "atr_pct",
+            "keltner_width",
+            "obv",
+            "ad",
+            "relative_volume",
+            "sma_alignment",
+            "vwap_deviation",
+            "iv_rank",
+            "iv_percentile",
+            "put_call_ratio",
+            "max_pain_distance",
+        ]
+        for field_name in original_fields:
             assert getattr(signals, field_name) is not None, (
                 f"Field {field_name} should not be None"
             )

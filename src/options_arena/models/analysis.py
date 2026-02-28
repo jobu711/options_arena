@@ -1,10 +1,15 @@
 """Analysis models for Options Arena.
 
-Four models for market analysis and AI debate:
-  MarketContext      -- flat snapshot of ticker state for analysis and debate agents.
-  AgentResponse      -- structured response from a debate agent (frozen).
-  TradeThesis        -- final trade recommendation from the debate (frozen).
-  VolatilityThesis   -- structured output from the Volatility Agent (frozen).
+Nine models for market analysis and AI debate:
+  MarketContext        -- flat snapshot of ticker state for analysis and debate agents.
+  AgentResponse        -- structured response from a debate agent (frozen).
+  TradeThesis          -- final trade recommendation from the debate (frozen).
+  VolatilityThesis     -- structured output from the Volatility Agent (frozen).
+  FlowThesis           -- structured output from the Flow Agent (frozen).
+  RiskAssessment       -- expanded risk assessment from the Risk Agent (frozen).
+  FundamentalThesis    -- structured output from the Fundamental Agent (frozen).
+  ContrarianThesis     -- structured output from the Contrarian Agent (frozen).
+  ExtendedTradeThesis  -- TradeThesis extension with DSE fields (frozen).
 
 ``MarketContext`` is intentionally flat (not nested) because agents parse flat
 text better than nested objects.  ``AgentResponse``, ``TradeThesis``, and
@@ -21,12 +26,15 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, field_serializer, field_validator, model_validator
 
 from options_arena.models.enums import (
+    CatalystImpact,
     ExerciseStyle,
     MacdSignal,
+    RiskLevel,
     SignalDirection,
     SpreadType,
     VolAssessment,
 )
+from options_arena.models.scoring import DimensionalScores
 
 logger = logging.getLogger(__name__)
 
@@ -342,4 +350,191 @@ class VolatilityThesis(BaseModel):
         """Ensure at least one volatility factor is cited."""
         if len(v) < 1:
             raise ValueError("key_vol_factors must have at least 1 item")
+        return v
+
+
+class FlowThesis(BaseModel):
+    """Structured output from the Flow Agent.
+
+    Frozen (immutable after construction) -- represents a completed flow assessment.
+    ``confidence`` is validated to be within [0.0, 1.0] with ``math.isfinite()`` guard.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    direction: SignalDirection
+    confidence: float  # 0.0 to 1.0
+    gex_interpretation: str
+    smart_money_signal: str
+    oi_analysis: str
+    volume_confirmation: str
+    key_flow_factors: list[str]
+    model_used: str
+
+    @field_validator("confidence")
+    @classmethod
+    def validate_confidence(cls, v: float) -> float:
+        """Ensure confidence is finite and within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"confidence must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"confidence must be in [0, 1], got {v}")
+        return v
+
+    @field_validator("key_flow_factors")
+    @classmethod
+    def validate_key_flow_factors(cls, v: list[str]) -> list[str]:
+        """Ensure at least one flow factor is cited."""
+        if len(v) < 1:
+            raise ValueError("key_flow_factors must have at least 1 item")
+        return v
+
+
+class RiskAssessment(BaseModel):
+    """Expanded risk assessment output from the Risk Agent.
+
+    Frozen (immutable after construction) -- represents a completed risk assessment.
+    ``confidence`` is validated to be within [0.0, 1.0] with ``math.isfinite()`` guard.
+    ``pop_estimate`` (probability of profit) is also validated to [0.0, 1.0] when provided.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    risk_level: RiskLevel
+    confidence: float  # 0.0 to 1.0
+    pop_estimate: float | None = None  # Probability of Profit
+    max_loss_estimate: str
+    charm_decay_warning: str | None = None
+    spread_quality_assessment: str | None = None
+    key_risks: list[str]
+    risk_mitigants: list[str]
+    recommended_position_size: str | None = None
+    model_used: str
+
+    @field_validator("confidence")
+    @classmethod
+    def validate_confidence(cls, v: float) -> float:
+        """Ensure confidence is finite and within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"confidence must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"confidence must be in [0, 1], got {v}")
+        return v
+
+    @field_validator("pop_estimate")
+    @classmethod
+    def validate_pop_estimate(cls, v: float | None) -> float | None:
+        """Ensure pop_estimate is finite and within [0.0, 1.0] when provided."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"pop_estimate must be finite, got {v}")
+            if not 0.0 <= v <= 1.0:
+                raise ValueError(f"pop_estimate must be in [0, 1], got {v}")
+        return v
+
+    @field_validator("key_risks")
+    @classmethod
+    def validate_key_risks(cls, v: list[str]) -> list[str]:
+        """Ensure at least one risk is cited."""
+        if len(v) < 1:
+            raise ValueError("key_risks must have at least 1 item")
+        return v
+
+
+class FundamentalThesis(BaseModel):
+    """Structured output from the Fundamental Agent.
+
+    Frozen (immutable after construction) -- represents a completed fundamental assessment.
+    ``confidence`` is validated to be within [0.0, 1.0] with ``math.isfinite()`` guard.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    direction: SignalDirection
+    confidence: float  # 0.0 to 1.0
+    catalyst_impact: CatalystImpact
+    earnings_assessment: str
+    iv_crush_risk: str
+    short_interest_analysis: str | None = None
+    dividend_impact: str | None = None
+    key_fundamental_factors: list[str]
+    model_used: str
+
+    @field_validator("confidence")
+    @classmethod
+    def validate_confidence(cls, v: float) -> float:
+        """Ensure confidence is finite and within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"confidence must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"confidence must be in [0, 1], got {v}")
+        return v
+
+    @field_validator("key_fundamental_factors")
+    @classmethod
+    def validate_key_fundamental_factors(cls, v: list[str]) -> list[str]:
+        """Ensure at least one fundamental factor is cited."""
+        if len(v) < 1:
+            raise ValueError("key_fundamental_factors must have at least 1 item")
+        return v
+
+
+class ContrarianThesis(BaseModel):
+    """Structured output from the Contrarian Agent.
+
+    Frozen (immutable after construction) -- represents a completed contrarian assessment.
+    ``dissent_confidence`` is validated to be within [0.0, 1.0] with ``math.isfinite()`` guard.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    dissent_direction: SignalDirection  # the contrarian's opposing view
+    dissent_confidence: float  # 0.0 to 1.0 -- strength of the dissent
+    primary_challenge: str  # main argument against consensus
+    overlooked_risks: list[str]
+    consensus_weakness: str
+    alternative_scenario: str
+    model_used: str
+
+    @field_validator("dissent_confidence")
+    @classmethod
+    def validate_dissent_confidence(cls, v: float) -> float:
+        """Ensure dissent_confidence is finite and within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"dissent_confidence must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"dissent_confidence must be in [0, 1], got {v}")
+        return v
+
+    @field_validator("overlooked_risks")
+    @classmethod
+    def validate_overlooked_risks(cls, v: list[str]) -> list[str]:
+        """Ensure at least one overlooked risk is cited."""
+        if len(v) < 1:
+            raise ValueError("overlooked_risks must have at least 1 item")
+        return v
+
+
+class ExtendedTradeThesis(TradeThesis):
+    """Extended trade thesis with contrarian dissent, agreement scoring, and dimensional scores.
+
+    Inherits all fields from TradeThesis. Adds DSE-specific fields.
+    Frozen (inherited from TradeThesis).
+    """
+
+    contrarian_dissent: str | None = None
+    agent_agreement_score: float | None = None  # 0.0-1.0, fraction of agents agreeing
+    dissenting_agents: list[str] = []
+    dimensional_scores: DimensionalScores | None = None
+    agents_completed: int = 0
+
+    @field_validator("agent_agreement_score")
+    @classmethod
+    def validate_agent_agreement_score(cls, v: float | None) -> float | None:
+        """Ensure agent_agreement_score is finite and within [0.0, 1.0] when provided."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"agent_agreement_score must be finite, got {v}")
+            if not 0.0 <= v <= 1.0:
+                raise ValueError(f"agent_agreement_score must be in [0, 1], got {v}")
         return v

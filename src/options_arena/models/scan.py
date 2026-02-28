@@ -58,6 +58,64 @@ class IndicatorSignals(BaseModel):
     put_call_ratio: float | None = None
     max_pain_distance: float | None = None
 
+    # --- DSE: IV Volatility (13 new) ---
+    iv_hv_spread: float | None = None
+    hv_20d: float | None = None
+    iv_term_slope: float | None = None
+    iv_term_shape: float | None = None  # stored as float for normalized score
+    put_skew_index: float | None = None
+    call_skew_index: float | None = None
+    skew_ratio: float | None = None
+    vol_regime: float | None = None  # stored as float for normalized score
+    ewma_vol_forecast: float | None = None
+    vol_cone_percentile: float | None = None
+    vix_correlation: float | None = None
+    expected_move: float | None = None
+    expected_move_ratio: float | None = None
+
+    # --- DSE: Flow & OI (5 new) ---
+    gex: float | None = None
+    oi_concentration: float | None = None
+    unusual_activity_score: float | None = None
+    max_pain_magnet: float | None = None
+    dollar_volume_trend: float | None = None
+
+    # --- DSE: Second-Order Greeks (3 new) ---
+    vanna: float | None = None
+    charm: float | None = None
+    vomma: float | None = None
+
+    # --- DSE: Risk (4 new) ---
+    pop: float | None = None
+    optimal_dte_score: float | None = None
+    spread_quality: float | None = None
+    max_loss_ratio: float | None = None
+
+    # --- DSE: Trend Extensions (3 new) ---
+    multi_tf_alignment: float | None = None
+    rsi_divergence: float | None = None
+    adx_exhaustion: float | None = None
+
+    # --- DSE: Relative Strength (1 new) ---
+    rs_vs_spx: float | None = None
+
+    # --- DSE: Fundamental (5 new) ---
+    earnings_em_ratio: float | None = None
+    days_to_earnings_impact: float | None = None
+    short_interest_ratio: float | None = None
+    div_ex_date_impact: float | None = None
+    iv_crush_history: float | None = None
+
+    # --- DSE: Regime & Macro (5 new) ---
+    market_regime: float | None = None  # stored as float for normalized score
+    vix_term_structure: float | None = None
+    risk_on_off_score: float | None = None
+    sector_relative_momentum: float | None = None
+    correlation_regime_shift: float | None = None
+
+    # --- DSE: Microstructure (1 new) ---
+    volume_profile_skew: float | None = None
+
 
 class ScanRun(BaseModel):
     """Metadata for a completed scan run.
