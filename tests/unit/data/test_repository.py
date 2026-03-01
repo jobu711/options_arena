@@ -9,6 +9,7 @@ import pytest_asyncio
 from options_arena.data.database import Database
 from options_arena.data.repository import DebateRow, Repository
 from options_arena.models import (
+    GICSSector,
     IndicatorSignals,
     ScanPreset,
     ScanRun,
@@ -659,3 +660,129 @@ async def test_get_debate_by_id_returns_none_for_missing(repo: Repository) -> No
     """get_debate_by_id returns None when the debate ID does not exist."""
     row = await repo.get_debate_by_id(99999)
     assert row is None
+
+
+# ---------------------------------------------------------------------------
+# Sector + company_name round-trips
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_sector_round_trip(repo: Repository) -> None:
+    """TickerScore.sector survives save/load round-trip as GICSSector enum."""
+    score = make_ticker_score(
+        ticker="AAPL",
+        sector=GICSSector.INFORMATION_TECHNOLOGY,
+    )
+    scan = make_scan_run()
+    scan_id = await repo.save_scan_run(scan)
+    await repo.save_ticker_scores(scan_id, [score])
+
+    loaded = await repo.get_scores_for_scan(scan_id)
+    assert len(loaded) == 1
+    assert loaded[0].sector is GICSSector.INFORMATION_TECHNOLOGY
+    assert isinstance(loaded[0].sector, GICSSector)
+
+
+@pytest.mark.asyncio
+async def test_sector_none_round_trip(repo: Repository) -> None:
+    """TickerScore.sector=None (non-SP500 ticker) stored as NULL, loaded as None."""
+    score = make_ticker_score(ticker="XYZ", sector=None)
+    scan = make_scan_run()
+    scan_id = await repo.save_scan_run(scan)
+    await repo.save_ticker_scores(scan_id, [score])
+
+    loaded = await repo.get_scores_for_scan(scan_id)
+    assert len(loaded) == 1
+    assert loaded[0].sector is None
+
+
+@pytest.mark.asyncio
+async def test_company_name_round_trip(repo: Repository) -> None:
+    """TickerScore.company_name survives save/load round-trip."""
+    score = make_ticker_score(ticker="AAPL", company_name="Apple Inc.")
+    scan = make_scan_run()
+    scan_id = await repo.save_scan_run(scan)
+    await repo.save_ticker_scores(scan_id, [score])
+
+    loaded = await repo.get_scores_for_scan(scan_id)
+    assert len(loaded) == 1
+    assert loaded[0].company_name == "Apple Inc."
+
+
+@pytest.mark.asyncio
+async def test_company_name_none_round_trip(repo: Repository) -> None:
+    """TickerScore.company_name=None stored as NULL, loaded as None."""
+    score = make_ticker_score(ticker="AAPL", company_name=None)
+    scan = make_scan_run()
+    scan_id = await repo.save_scan_run(scan)
+    await repo.save_ticker_scores(scan_id, [score])
+
+    loaded = await repo.get_scores_for_scan(scan_id)
+    assert len(loaded) == 1
+    assert loaded[0].company_name is None
+
+
+@pytest.mark.asyncio
+async def test_sector_and_company_name_combined_round_trip(repo: Repository) -> None:
+    """Both sector and company_name survive round-trip together."""
+    score = make_ticker_score(
+        ticker="JPM",
+        sector=GICSSector.FINANCIALS,
+        company_name="JPMorgan Chase & Co.",
+    )
+    scan = make_scan_run()
+    scan_id = await repo.save_scan_run(scan)
+    await repo.save_ticker_scores(scan_id, [score])
+
+    loaded = await repo.get_scores_for_scan(scan_id)
+    assert len(loaded) == 1
+    assert loaded[0].sector is GICSSector.FINANCIALS
+    assert loaded[0].company_name == "JPMorgan Chase & Co."
+
+
+@pytest.mark.asyncio
+async def test_all_gics_sectors_round_trip(repo: Repository) -> None:
+    """All 11 GICS sectors survive save/load round-trip."""
+    scan = make_scan_run()
+    scan_id = await repo.save_scan_run(scan)
+
+    scores = [
+        make_ticker_score(ticker=f"T{i}", sector=sector) for i, sector in enumerate(GICSSector)
+    ]
+    await repo.save_ticker_scores(scan_id, scores)
+
+    loaded = await repo.get_scores_for_scan(scan_id)
+    assert len(loaded) == 11
+    loaded_sectors = {s.sector for s in loaded}
+    assert loaded_sectors == set(GICSSector)
+    for s in loaded:
+        assert isinstance(s.sector, GICSSector)
+
+
+@pytest.mark.asyncio
+async def test_mixed_sector_and_none_batch(repo: Repository) -> None:
+    """Batch of scores mixing populated sector and None sector."""
+    scores = [
+        make_ticker_score(
+            ticker="AAPL",
+            sector=GICSSector.INFORMATION_TECHNOLOGY,
+            company_name="Apple Inc.",
+        ),
+        make_ticker_score(
+            ticker="XYZ",
+            sector=None,
+            company_name=None,
+        ),
+    ]
+    scan = make_scan_run()
+    scan_id = await repo.save_scan_run(scan)
+    await repo.save_ticker_scores(scan_id, scores)
+
+    loaded = await repo.get_scores_for_scan(scan_id)
+    assert len(loaded) == 2
+    by_ticker = {s.ticker: s for s in loaded}
+    assert by_ticker["AAPL"].sector is GICSSector.INFORMATION_TECHNOLOGY
+    assert by_ticker["AAPL"].company_name == "Apple Inc."
+    assert by_ticker["XYZ"].sector is None
+    assert by_ticker["XYZ"].company_name is None

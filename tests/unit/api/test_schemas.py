@@ -15,10 +15,11 @@ from options_arena.api.schemas import (
     PaginatedResponse,
     ScanRequest,
     ScanStarted,
+    SectorInfo,
     TickerDetail,
     UniverseStats,
 )
-from options_arena.models import ScanPreset, SignalDirection
+from options_arena.models import GICSSector, ScanPreset, SignalDirection
 
 
 def test_scan_request_default_preset() -> None:
@@ -105,9 +106,17 @@ def test_config_response() -> None:
 
 
 def test_universe_stats() -> None:
-    """UniverseStats holds counts."""
+    """UniverseStats holds counts including etf_count."""
     stats = UniverseStats(optionable_count=5000, sp500_count=500)
     assert stats.optionable_count == 5000
+    # etf_count defaults to 0
+    assert stats.etf_count == 0
+
+
+def test_universe_stats_with_etf_count() -> None:
+    """UniverseStats includes etf_count when provided."""
+    stats = UniverseStats(optionable_count=5000, sp500_count=500, etf_count=42)
+    assert stats.etf_count == 42
 
 
 def test_scan_request_json_roundtrip() -> None:
@@ -133,3 +142,92 @@ def test_debate_result_summary_json_roundtrip() -> None:
     json_str = summary.model_dump_json()
     rebuilt = DebateResultSummary.model_validate_json(json_str)
     assert rebuilt == summary
+
+
+# ---------------------------------------------------------------------------
+# ScanRequest sector validation (#162)
+# ---------------------------------------------------------------------------
+
+
+def test_scan_request_default_sectors_empty() -> None:
+    """ScanRequest defaults to empty sectors list."""
+    req = ScanRequest()
+    assert req.sectors == []
+
+
+def test_scan_request_sectors_canonical_name() -> None:
+    """ScanRequest accepts canonical GICS sector names."""
+    req = ScanRequest(sectors=["Information Technology", "Energy"])
+    assert GICSSector.INFORMATION_TECHNOLOGY in req.sectors
+    assert GICSSector.ENERGY in req.sectors
+    assert len(req.sectors) == 2
+
+
+def test_scan_request_sectors_alias_normalization() -> None:
+    """ScanRequest normalizes sector aliases (technology -> Information Technology)."""
+    req = ScanRequest(sectors=["technology", "healthcare"])
+    assert GICSSector.INFORMATION_TECHNOLOGY in req.sectors
+    assert GICSSector.HEALTH_CARE in req.sectors
+
+
+def test_scan_request_sectors_short_names() -> None:
+    """ScanRequest normalizes short names: tech, telecom, staples."""
+    req = ScanRequest(sectors=["tech", "telecom", "staples"])
+    assert GICSSector.INFORMATION_TECHNOLOGY in req.sectors
+    assert GICSSector.COMMUNICATION_SERVICES in req.sectors
+    assert GICSSector.CONSUMER_STAPLES in req.sectors
+
+
+def test_scan_request_sectors_hyphenated() -> None:
+    """ScanRequest normalizes hyphenated variants."""
+    req = ScanRequest(sectors=["health-care", "real-estate"])
+    assert GICSSector.HEALTH_CARE in req.sectors
+    assert GICSSector.REAL_ESTATE in req.sectors
+
+
+def test_scan_request_sectors_underscored() -> None:
+    """ScanRequest normalizes underscored variants."""
+    req = ScanRequest(sectors=["information_technology", "consumer_discretionary"])
+    assert GICSSector.INFORMATION_TECHNOLOGY in req.sectors
+    assert GICSSector.CONSUMER_DISCRETIONARY in req.sectors
+
+
+def test_scan_request_sectors_invalid_raises_422() -> None:
+    """ScanRequest rejects invalid sector names with clear error."""
+    with pytest.raises(ValidationError, match="Unknown sector"):
+        ScanRequest(sectors=["nonexistent_sector"])
+
+
+def test_scan_request_sectors_enum_passthrough() -> None:
+    """ScanRequest accepts GICSSector enum values directly."""
+    req = ScanRequest(sectors=[GICSSector.ENERGY, GICSSector.UTILITIES])
+    assert req.sectors == [GICSSector.ENERGY, GICSSector.UTILITIES]
+
+
+def test_scan_request_sectors_json_roundtrip() -> None:
+    """ScanRequest with sectors survives JSON roundtrip."""
+    req = ScanRequest(preset=ScanPreset.SP500, sectors=["technology", "energy"])
+    json_str = req.model_dump_json()
+    rebuilt = ScanRequest.model_validate_json(json_str)
+    assert rebuilt.sectors == req.sectors
+    assert rebuilt.preset == req.preset
+
+
+# ---------------------------------------------------------------------------
+# SectorInfo schema (#162)
+# ---------------------------------------------------------------------------
+
+
+def test_sector_info() -> None:
+    """SectorInfo holds name and ticker_count."""
+    info = SectorInfo(name="Information Technology", ticker_count=75)
+    assert info.name == "Information Technology"
+    assert info.ticker_count == 75
+
+
+def test_sector_info_json_roundtrip() -> None:
+    """SectorInfo survives JSON roundtrip."""
+    info = SectorInfo(name="Energy", ticker_count=21)
+    json_str = info.model_dump_json()
+    rebuilt = SectorInfo.model_validate_json(json_str)
+    assert rebuilt == info

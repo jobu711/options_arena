@@ -22,6 +22,7 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
+from rich.table import Table
 
 from options_arena.cli.app import app
 from options_arena.cli.progress import RichProgressCallback, setup_sigint_handler
@@ -36,7 +37,7 @@ from options_arena.cli.rendering import (
 from options_arena.data import Database, Repository
 from options_arena.models import IndicatorSignals, TickerScore
 from options_arena.models.config import AppSettings
-from options_arena.models.enums import ScanPreset
+from options_arena.models.enums import SECTOR_ALIASES, GICSSector, ScanPreset
 from options_arena.scan import CancellationToken, ScanPipeline, ScanResult
 from options_arena.scan.indicators import (
     INDICATOR_REGISTRY,
@@ -72,6 +73,28 @@ _DATA_DIR = Path(__file__).resolve().parents[3] / "data"
 # ---------------------------------------------------------------------------
 
 
+def _parse_sectors(raw: list[str]) -> list[GICSSector]:
+    """Resolve raw sector strings to GICSSector enums via SECTOR_ALIASES.
+
+    Raises ``typer.BadParameter`` with valid options on unrecognised input.
+    """
+    result: list[GICSSector] = []
+    for item in raw:
+        key = item.strip().lower()
+        if key in SECTOR_ALIASES:
+            result.append(SECTOR_ALIASES[key])
+        else:
+            # Try direct enum construction (handles canonical values)
+            try:
+                result.append(GICSSector(item.strip()))
+            except ValueError:
+                valid = sorted({a for a in SECTOR_ALIASES if " " not in a and "-" not in a})
+                raise typer.BadParameter(
+                    f"Unknown sector {item!r}. Valid names: {', '.join(valid)}"
+                ) from None
+    return result
+
+
 @app.command()
 def scan(
     preset: ScanPreset = typer.Option(  # noqa: B008
@@ -79,9 +102,12 @@ def scan(
     ),
     top_n: int = typer.Option(50, "--top-n", "-n", help="Top N tickers for options analysis"),
     min_score: float = typer.Option(0.0, "--min-score", help="Minimum composite score"),
-    sectors: str | None = typer.Option(None, "--sectors", help="Comma-separated GICS sectors"),
+    sector: list[str] = typer.Option(  # noqa: B008
+        [], "--sector", "-s", help="Filter by GICS sector (repeatable)"
+    ),
 ) -> None:
     """Run the full scan pipeline: universe -> scoring -> options -> persist."""
+    sectors = _parse_sectors(sector)
     asyncio.run(_scan_async(preset, top_n, min_score, sectors))
 
 
@@ -89,20 +115,16 @@ async def _scan_async(
     preset: ScanPreset,
     top_n: int,
     min_score: float,
-    sectors: str | None,
+    sectors: list[GICSSector],
 ) -> None:
     """Run the scan pipeline with full service lifecycle management."""
-    if sectors is not None:
-        logger.warning(
-            "--sectors filtering is not yet implemented; ignoring --sectors=%s", sectors
-        )
-
     start_time = time.monotonic()
 
     # Config with CLI overrides
     settings = AppSettings()
     settings.scan.top_n = top_n
     settings.scan.min_score = min_score
+    settings.scan.sectors = sectors
 
     # Infrastructure (lightweight constructors — no I/O)
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -150,7 +172,7 @@ async def _scan_async(
 
         # Render results
         elapsed = time.monotonic() - start_time
-        _render_scan_results(result, elapsed)
+        _render_scan_results(result, elapsed, sectors=sectors)
 
     except Exception as exc:
         logger.exception("Scan pipeline failed")
@@ -172,12 +194,21 @@ async def _scan_async(
         await db.close()
 
 
-def _render_scan_results(result: ScanResult, elapsed: float) -> None:
+def _render_scan_results(
+    result: ScanResult,
+    elapsed: float,
+    sectors: list[GICSSector] | None = None,
+) -> None:
     """Render scan results: table + summary + disclaimer."""
     if result.cancelled:
         err_console.print(
             f"[yellow]Scan cancelled after {result.phases_completed}/4 phases.[/yellow]"
         )
+
+    # Show active sector filter when present
+    if sectors:
+        sector_names = ", ".join(s.value for s in sectors)
+        console.print(f"[bold cyan]Sector filter:[/bold cyan] {sector_names}\n")
 
     if result.scores:
         table = render_scan_table(result)
@@ -669,13 +700,22 @@ async def _list_async(sector: str | None, preset: ScanPreset) -> None:
             constituents = await svc.fetch_sp500_constituents()
             tickers_with_sector = [(c.ticker, c.sector) for c in constituents]
             if sector:
-                sectors = [s.strip() for s in sector.split(",")]
-                tickers_with_sector = [(t, s) for t, s in tickers_with_sector if s in sectors]
+                resolved = _parse_sectors([s.strip() for s in sector.split(",")])
+                resolved_values = {g.value for g in resolved}
+                tickers_with_sector = [
+                    (t, s) for t, s in tickers_with_sector if s in resolved_values
+                ]
             console.print(
                 f"[bold]{len(tickers_with_sector)} tickers[/bold] (preset={preset.value})"
             )
             for ticker, sec in sorted(tickers_with_sector):
                 console.print(f"  {ticker:<8} {sec}")
+        elif preset == ScanPreset.ETFS:
+            etf_tickers = await svc.fetch_etf_tickers()
+            console.print(f"[bold]{len(etf_tickers)} ETF tickers[/bold] (preset={preset.value})")
+            for i in range(0, len(etf_tickers), 8):
+                row = etf_tickers[i : i + 8]
+                console.print("  " + "  ".join(f"{t:<8}" for t in row))
         else:
             tickers = await svc.fetch_optionable_tickers()
             console.print(
@@ -684,6 +724,49 @@ async def _list_async(sector: str | None, preset: ScanPreset) -> None:
             for i in range(0, len(tickers), 8):
                 row = tickers[i : i + 8]
                 console.print("  " + "  ".join(f"{t:<8}" for t in row))
+    finally:
+        await svc.close()
+        await cache.close()
+
+
+@universe_app.command()
+def sectors() -> None:
+    """List all 11 GICS sectors with S&P 500 ticker counts."""
+    asyncio.run(_sectors_async())
+
+
+async def _sectors_async() -> None:
+    """Fetch S&P 500 constituents, group by sector, display Rich table."""
+    settings = AppSettings()
+    cache = ServiceCache(settings.service)
+    limiter = RateLimiter(
+        settings.service.rate_limit_rps, settings.service.max_concurrent_requests
+    )
+    svc = UniverseService(settings.service, cache, limiter)
+    try:
+        constituents = await svc.fetch_sp500_constituents()
+        from options_arena.services.universe import build_sector_map  # noqa: PLC0415
+
+        sector_map = build_sector_map(constituents)
+
+        # Count tickers per sector
+        counts: dict[GICSSector, int] = {}
+        for gics_sector in sector_map.values():
+            counts[gics_sector] = counts.get(gics_sector, 0) + 1
+
+        # Build Rich table sorted by count descending
+        table = Table(title="GICS Sectors (S&P 500)")
+        table.add_column("Sector", style="bold white")
+        table.add_column("Tickers", justify="right", style="cyan")
+
+        for gics_sector, count in sorted(counts.items(), key=lambda x: -x[1]):
+            table.add_row(gics_sector.value, str(count))
+
+        total = sum(counts.values())
+        table.add_section()
+        table.add_row("[bold]Total[/bold]", f"[bold]{total}[/bold]")
+
+        console.print(table)
     finally:
         await svc.close()
         await cache.close()

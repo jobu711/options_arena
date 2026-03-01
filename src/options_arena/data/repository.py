@@ -13,6 +13,7 @@ from sqlite3 import Row
 
 from options_arena.data.database import Database
 from options_arena.models import (
+    GICSSector,
     HistoryPoint,
     IndicatorSignals,
     ScanPreset,
@@ -91,8 +92,9 @@ class Repository:
         conn = self._db.conn
         await conn.executemany(
             "INSERT INTO ticker_scores "
-            "(scan_run_id, ticker, composite_score, direction, signals_json, next_earnings) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "(scan_run_id, ticker, composite_score, direction, signals_json, "
+            "next_earnings, sector, company_name) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 (
                     scan_id,
@@ -101,6 +103,8 @@ class Repository:
                     score.direction.value,
                     score.signals.model_dump_json(),
                     score.next_earnings.isoformat() if score.next_earnings is not None else None,
+                    score.sector.value if score.sector is not None else None,
+                    score.company_name,
                 )
                 for score in scores
             ],
@@ -167,12 +171,15 @@ class Repository:
     def _row_to_ticker_score(row: Row) -> TickerScore:
         """Reconstruct a TickerScore from an aiosqlite.Row."""
         raw_earnings: str | None = row["next_earnings"]
+        raw_sector: str | None = row["sector"]
         return TickerScore(
             ticker=str(row["ticker"]),
             composite_score=float(row["composite_score"]),
             direction=SignalDirection(row["direction"]),
             signals=IndicatorSignals.model_validate_json(row["signals_json"]),
             next_earnings=date.fromisoformat(raw_earnings) if raw_earnings is not None else None,
+            sector=GICSSector(raw_sector) if raw_sector is not None else None,
+            company_name=row["company_name"],
             scan_run_id=int(row["scan_run_id"]),
         )
 

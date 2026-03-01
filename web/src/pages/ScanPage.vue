@@ -4,14 +4,16 @@ import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Select from 'primevue/select'
+import MultiSelect from 'primevue/multiselect'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import ProgressTracker from '@/components/ProgressTracker.vue'
 import { useScanStore } from '@/stores/scan'
 import { useOperationStore } from '@/stores/operation'
 import { useWebSocket } from '@/composables/useWebSocket'
-import { ApiError } from '@/composables/useApi'
+import { api, ApiError } from '@/composables/useApi'
 import type { ScanEvent } from '@/types/ws'
+import type { SectorOption } from '@/types'
 
 const router = useRouter()
 const toast = useToast()
@@ -27,13 +29,32 @@ const presetOptions = [
 ]
 const selectedPreset = ref('sp500')
 
+// Sector filter state
+const sectorOptions = ref<Array<{ name: string; value: string }>>([])
+const selectedSectors = ref<string[]>([])
+
+async function fetchSectors(): Promise<void> {
+  try {
+    const data = await api<SectorOption[]>('/api/universe/sectors')
+    sectorOptions.value = data.map((s) => ({
+      name: `${s.name} (${s.ticker_count})`,
+      value: s.name,
+    }))
+  } catch {
+    sectorOptions.value = []
+  }
+}
+
 // WebSocket connection for live scan progress
 let wsClose: (() => void) | null = null
 
 async function runScan(): Promise<void> {
   try {
     opStore.start('scan')
-    const scanId = await scanStore.startScan(selectedPreset.value)
+    const scanId = await scanStore.startScan(
+      selectedPreset.value,
+      selectedSectors.value.length > 0 ? selectedSectors.value : undefined,
+    )
 
     // Connect to WebSocket for progress updates
     const { close } = useWebSocket<ScanEvent>({
@@ -87,7 +108,10 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleString()
 }
 
-onMounted(() => void scanStore.fetchScans())
+onMounted(() => {
+  void scanStore.fetchScans()
+  void fetchSectors()
+})
 onUnmounted(() => wsClose?.())
 </script>
 
@@ -106,6 +130,18 @@ onUnmounted(() => wsClose?.())
         :disabled="scanStore.isScanning || opStore.inProgress"
         data-testid="preset-selector"
       />
+      <MultiSelect
+        v-model="selectedSectors"
+        :options="sectorOptions"
+        optionLabel="name"
+        optionValue="value"
+        display="chip"
+        filter
+        placeholder="Filter by sector"
+        :disabled="scanStore.isScanning || opStore.inProgress"
+        class="sector-filter"
+        data-testid="sector-filter"
+      />
       <Button
         label="Run Scan"
         icon="pi pi-play"
@@ -115,6 +151,10 @@ onUnmounted(() => wsClose?.())
         data-testid="start-scan-btn"
         @click="runScan()"
       />
+    </div>
+    <div v-if="selectedSectors.length > 0" class="active-filter-info" data-testid="active-sector-filter">
+      Filtering by {{ selectedSectors.length }} sector{{ selectedSectors.length > 1 ? 's' : '' }}:
+      {{ selectedSectors.join(', ') }}
     </div>
 
     <!-- Progress Panel -->
@@ -182,7 +222,19 @@ onUnmounted(() => wsClose?.())
   display: flex;
   gap: 0.75rem;
   align-items: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.sector-filter {
+  min-width: 250px;
+  max-width: 500px;
+}
+
+.active-filter-info {
+  font-size: 0.85rem;
+  color: var(--p-surface-400, #888);
+  margin-bottom: 1rem;
 }
 
 .progress-panel {

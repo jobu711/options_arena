@@ -1,5 +1,5 @@
 ---
-allowed-tools: Task, Read, Glob, Grep, LS, Bash
+allowed-tools: Task, Read, Glob, Grep, LS, Bash, Edit, Write
 ---
 
 # Code Analyzer
@@ -102,6 +102,35 @@ VERIFIED SAFE:
 RECOMMENDATIONS:
 1. [Priority action items]
 ```
+
+### 4. Auto-Fix Issues (When on Epic Branch)
+
+After the code-analyzer agent returns findings, check if the current branch is `epic/*`:
+
+1. **CRITICAL and POTENTIAL issues with clear fixes**: Apply fixes automatically using Edit tool
+2. **Stage fixed files**: Run `git add` on each fixed file
+3. **Report fixes**: List each fix applied (file, issue, what changed)
+
+Skip auto-fix for:
+- Issues requiring architectural changes or user decisions
+- Findings marked VERIFIED SAFE
+- Low-confidence findings
+
+### 5. Write Analysis Stamp
+
+After analysis (and any auto-fixes) complete:
+
+1. If fixes were staged, the staged diff changed — compute fresh hash:
+   ```bash
+   git diff --staged | git hash-object --stdin
+   ```
+2. Write the hash to `.claude/.analyze-stamp`:
+   ```bash
+   git diff --staged | git hash-object --stdin > .claude/.analyze-stamp
+   ```
+3. This stamp allows the pre-commit hook to pass on next `git commit` attempt
+
+**Note**: The stamp is gitignored and transient. It only validates that `/analyze` reviewed the exact staged diff being committed.
 
 ## Error Handling
 

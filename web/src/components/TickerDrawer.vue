@@ -131,11 +131,18 @@ function formatDate(iso: string): string {
   <Drawer
     :visible="visible"
     position="right"
-    :header="score?.ticker ?? 'Ticker Detail'"
     :style="{ width: '400px' }"
     data-testid="ticker-drawer"
     @update:visible="emit('update:visible', $event)"
   >
+    <template #header>
+      <div class="drawer-header">
+        <span class="drawer-ticker">{{ score?.ticker ?? 'Ticker Detail' }}</span>
+        <span class="drawer-company-name" data-testid="drawer-company-name">
+          {{ score?.company_name ?? '\u2014' }}
+        </span>
+      </div>
+    </template>
     <template v-if="score">
       <Message
         v-if="showEarningsWarning"
@@ -235,6 +242,24 @@ function formatDate(iso: string): string {
 </template>
 
 <style scoped>
+.drawer-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.drawer-ticker {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.drawer-company-name {
+  font-size: 0.8rem;
+  color: var(--p-surface-400, #888);
+  font-weight: 400;
+}
+
 .drawer-section {
   margin-bottom: 1.25rem;
 }

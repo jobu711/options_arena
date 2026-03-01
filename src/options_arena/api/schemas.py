@@ -8,12 +8,19 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from options_arena.models import AgentResponse, ScanPreset, SignalDirection, TradeThesis
+from options_arena.models import (
+    AgentResponse,
+    GICSSector,
+    ScanPreset,
+    SignalDirection,
+    TradeThesis,
+)
+from options_arena.models.enums import SECTOR_ALIASES
 
 # ---------------------------------------------------------------------------
-# Scan schemas (#126)
+# Scan schemas (#126, #162)
 # ---------------------------------------------------------------------------
 
 
@@ -21,6 +28,36 @@ class ScanRequest(BaseModel):
     """Request body for ``POST /api/scan``."""
 
     preset: ScanPreset = ScanPreset.SP500
+    sectors: list[GICSSector] = []
+
+    @field_validator("sectors", mode="before")
+    @classmethod
+    def normalize_sectors(cls, v: list[str | GICSSector]) -> list[GICSSector]:
+        """Normalize sector input strings via SECTOR_ALIASES.
+
+        Same alias resolution as ``ScanConfig.normalize_sectors`` — accepts
+        canonical enum values, lowercase names, hyphenated, underscored,
+        and short-name variants. Raises ValueError for unrecognised inputs.
+        """
+        result: list[GICSSector] = []
+        for item in v:
+            if isinstance(item, GICSSector):
+                result.append(item)
+                continue
+            # Normalize: lowercase, strip whitespace
+            key = str(item).strip().lower()
+            if key in SECTOR_ALIASES:
+                result.append(SECTOR_ALIASES[key])
+            else:
+                # Try direct enum construction (handles canonical values)
+                try:
+                    result.append(GICSSector(str(item).strip()))
+                except ValueError:
+                    valid = sorted({s.value for s in GICSSector})
+                    raise ValueError(
+                        f"Unknown sector {item!r}. Valid sectors: {', '.join(valid)}"
+                    ) from None
+        return list(dict.fromkeys(result))
 
 
 class ScanStarted(BaseModel):
@@ -190,8 +227,16 @@ class CancelScanResponse(BaseModel):
     status: str
 
 
+class SectorInfo(BaseModel):
+    """Sector name with count of tickers in that sector."""
+
+    name: str
+    ticker_count: int
+
+
 class UniverseStats(BaseModel):
     """Universe statistics."""
 
     optionable_count: int
     sp500_count: int
+    etf_count: int = 0

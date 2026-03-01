@@ -15,7 +15,6 @@ Covers:
 
 from __future__ import annotations
 
-import logging
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock
@@ -83,6 +82,7 @@ def _make_pipeline(
     *,
     optionable_tickers: list[str] | None = None,
     sp500_constituents: list[SP500Constituent] | None = None,
+    etf_tickers: list[str] | None = None,
     batch_result: BatchOHLCVResult | None = None,
     settings: AppSettings | None = None,
 ) -> tuple[ScanPipeline, dict[str, AsyncMock]]:
@@ -96,6 +96,7 @@ def _make_pipeline(
     mock_universe = AsyncMock()
     mock_universe.fetch_optionable_tickers = AsyncMock(return_value=tickers)
     mock_universe.fetch_sp500_constituents = AsyncMock(return_value=sp500_constituents or [])
+    mock_universe.fetch_etf_tickers = AsyncMock(return_value=etf_tickers or [])
 
     mock_market_data = AsyncMock()
     mock_market_data.fetch_batch_ohlcv = AsyncMock(
@@ -331,40 +332,40 @@ class TestPhaseUniverse:
 # ---------------------------------------------------------------------------
 
 
-class TestETFSPresetWarning:
-    """ETFS preset logs a warning about unimplemented filtering."""
+class TestETFSPresetFiltering:
+    """ETFS preset filters to ETF tickers via fetch_etf_tickers()."""
 
-    async def test_etfs_preset_logs_warning(self, caplog: object) -> None:
-        """ScanPreset.ETFS emits a warning and uses the full universe."""
-        import _pytest.logging
+    async def test_etfs_preset_filters_to_etf_tickers(self) -> None:
+        """ScanPreset.ETFS filters universe to only ETF tickers."""
+        pipeline, mocks = _make_pipeline(
+            optionable_tickers=["AAPL", "SPY", "QQQ", "MSFT"],
+            etf_tickers=["SPY", "QQQ"],
+        )
 
-        assert isinstance(caplog, _pytest.logging.LogCaptureFixture)
+        result = await pipeline._phase_universe(ScanPreset.ETFS, _noop_progress)
 
-        pipeline, _ = _make_pipeline(optionable_tickers=["AAPL", "MSFT", "GOOG"])
+        # Only ETF tickers are included
+        assert sorted(result.tickers) == ["QQQ", "SPY"]
+        mocks["universe"].fetch_etf_tickers.assert_awaited_once()
 
-        with caplog.at_level(logging.WARNING, logger="options_arena.scan.pipeline"):
-            result = await pipeline._phase_universe(ScanPreset.ETFS, _noop_progress)
+    async def test_etfs_preset_empty_etfs_produces_empty_tickers(self) -> None:
+        """When no ETF tickers are found, result has no tickers."""
+        pipeline, _ = _make_pipeline(
+            optionable_tickers=["AAPL", "MSFT"],
+            etf_tickers=[],
+        )
 
-        # All tickers included (no filtering applied)
-        assert result.tickers == ["AAPL", "MSFT", "GOOG"]
+        result = await pipeline._phase_universe(ScanPreset.ETFS, _noop_progress)
 
-        # Warning was emitted
-        warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
-        assert any("ETFS" in msg and "not yet implemented" in msg for msg in warning_messages)
+        assert result.tickers == []
 
-    async def test_full_preset_no_etfs_warning(self, caplog: object) -> None:
-        """ScanPreset.FULL does NOT emit the ETFS warning."""
-        import _pytest.logging
+    async def test_full_preset_does_not_call_fetch_etf_tickers(self) -> None:
+        """ScanPreset.FULL does NOT call fetch_etf_tickers."""
+        pipeline, mocks = _make_pipeline(optionable_tickers=["AAPL"])
 
-        assert isinstance(caplog, _pytest.logging.LogCaptureFixture)
+        await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
 
-        pipeline, _ = _make_pipeline(optionable_tickers=["AAPL"])
-
-        with caplog.at_level(logging.WARNING, logger="options_arena.scan.pipeline"):
-            await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
-
-        warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
-        assert not any("ETFS" in msg for msg in warning_messages)
+        mocks["universe"].fetch_etf_tickers.assert_not_awaited()
 
 
 class TestPhase1Cancellation:

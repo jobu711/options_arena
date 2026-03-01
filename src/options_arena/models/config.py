@@ -19,6 +19,8 @@ from typing import Self
 from pydantic import BaseModel, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from options_arena.models.enums import SECTOR_ALIASES, GICSSector
+
 
 class ScanConfig(BaseModel):
     """Scan pipeline configuration — controls universe filtering and scoring thresholds."""
@@ -37,6 +39,35 @@ class ScanConfig(BaseModel):
     enable_flow_analytics: bool = True
     enable_fundamental: bool = True
     enable_regime: bool = True
+    sectors: list[GICSSector] = []
+
+    @field_validator("sectors", mode="before")
+    @classmethod
+    def normalize_sectors(cls, v: list[str | GICSSector]) -> list[GICSSector]:
+        """Normalize sector input strings via SECTOR_ALIASES.
+
+        Accepts canonical enum values, lowercase names, hyphenated, underscored,
+        and short-name variants. Raises ValueError for unrecognised inputs.
+        """
+        result: list[GICSSector] = []
+        for item in v:
+            if isinstance(item, GICSSector):
+                result.append(item)
+                continue
+            # Normalize: lowercase, strip whitespace
+            key = str(item).strip().lower()
+            if key in SECTOR_ALIASES:
+                result.append(SECTOR_ALIASES[key])
+            else:
+                # Try direct enum construction (handles canonical values)
+                try:
+                    result.append(GICSSector(str(item).strip()))
+                except ValueError:
+                    valid = sorted({s.value for s in GICSSector})
+                    raise ValueError(
+                        f"Unknown sector {item!r}. Valid sectors: {', '.join(valid)}"
+                    ) from None
+        return list(dict.fromkeys(result))
 
     @model_validator(mode="after")
     def validate_all_finite(self) -> Self:

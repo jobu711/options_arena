@@ -14,7 +14,12 @@ from options_arena.services.market_data import (
 )
 from options_arena.services.options_data import ExpirationChain, OptionsDataService
 from options_arena.services.rate_limiter import RateLimiter
-from options_arena.services.universe import SP500Constituent, UniverseService
+from options_arena.services.universe import (
+    SP500Constituent,
+    UniverseService,
+    build_sector_map,
+    filter_by_sectors,
+)
 
 __all__ = [
     "BatchOHLCVResult",
@@ -28,4 +33,6 @@ __all__ = [
     "ServiceCache",
     "TickerOHLCVResult",
     "UniverseService",
+    "build_sector_map",
+    "filter_by_sectors",
 ]

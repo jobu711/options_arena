@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from options_arena.models import (
     OHLCV,
+    GICSSector,
     IndicatorSignals,
     OptionContract,
     ScanRun,
@@ -31,7 +32,8 @@ class UniverseResult(BaseModel):
     Attributes:
         tickers: Full universe list of ticker symbols.
         ohlcv_map: Ticker to OHLCV bars mapping (successful fetches only).
-        sp500_sectors: Ticker to GICS sector mapping.
+        sp500_sectors: Ticker to raw GICS sector string mapping (from Wikipedia).
+        sector_map: Ticker to typed GICSSector enum mapping (normalized from sp500_sectors).
         failed_count: Number of tickers that failed OHLCV fetch.
         filtered_count: Number of tickers filtered for insufficient bars.
     """
@@ -41,6 +43,7 @@ class UniverseResult(BaseModel):
     tickers: list[str]
     ohlcv_map: dict[str, list[OHLCV]]
     sp500_sectors: dict[str, str]
+    sector_map: dict[str, GICSSector] = Field(default_factory=dict)
     failed_count: int
     filtered_count: int
 

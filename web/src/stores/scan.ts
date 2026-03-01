@@ -54,10 +54,14 @@ export const useScanStore = defineStore('scan', () => {
     }
   }
 
-  async function startScan(preset: string): Promise<number> {
+  async function startScan(preset: string, sectors?: string[]): Promise<number> {
+    const body: { preset: string; sectors?: string[] } = { preset }
+    if (sectors && sectors.length > 0) {
+      body.sectors = sectors
+    }
     const res = await api<{ scan_id: number }>('/api/scan', {
       method: 'POST',
-      body: { preset },
+      body,
     })
     currentScanId.value = res.scan_id
     progress.value = { phase: 'universe', current: 0, total: 0 }
