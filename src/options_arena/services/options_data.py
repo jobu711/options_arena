@@ -178,12 +178,12 @@ class OptionsDataService:
             )
         except TimeoutError as e:
             raise DataSourceUnavailableError(
-                "yfinance", f"timeout after {self._config.yfinance_timeout}s"
+                f"yfinance: timeout after {self._config.yfinance_timeout}s"
             ) from e
         except DataFetchError:
             raise
         except Exception as e:
-            raise DataSourceUnavailableError("yfinance", str(e)) from e
+            raise DataSourceUnavailableError(f"yfinance: {e}") from e
 
     async def fetch_expirations(self, ticker: str) -> list[date]:
         """Fetch available option expiration dates for a ticker.

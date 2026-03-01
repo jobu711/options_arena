@@ -124,14 +124,12 @@ class UniverseService:
                 response.raise_for_status()
             except TimeoutError as exc:
                 raise DataSourceUnavailableError(
-                    "CBOE", f"timeout after {self._config.cboe_timeout}s"
+                    f"CBOE: timeout after {self._config.cboe_timeout}s"
                 ) from exc
             except httpx.HTTPStatusError as exc:
-                raise DataSourceUnavailableError(
-                    "CBOE", f"HTTP {exc.response.status_code}"
-                ) from exc
+                raise DataSourceUnavailableError(f"CBOE: HTTP {exc.response.status_code}") from exc
             except httpx.HTTPError as exc:
-                raise DataSourceUnavailableError("CBOE", str(exc)) from exc
+                raise DataSourceUnavailableError(f"CBOE: {exc}") from exc
 
         # Parse CSV content
         tickers = self._parse_cboe_csv(response.text)
@@ -191,10 +189,10 @@ class UniverseService:
                 )
             except TimeoutError as exc:
                 raise DataSourceUnavailableError(
-                    "Wikipedia", f"timeout after {self._config.yfinance_timeout}s"
+                    f"Wikipedia: timeout after {self._config.yfinance_timeout}s"
                 ) from exc
             except Exception as exc:
-                raise DataSourceUnavailableError("Wikipedia", str(exc)) from exc
+                raise DataSourceUnavailableError(f"Wikipedia: {exc}") from exc
 
         if not tables:
             raise InsufficientDataError("No tables found at Wikipedia S&P 500 page")

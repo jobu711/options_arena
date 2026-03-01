@@ -1,4 +1,4 @@
-"""Options Arena — Validators, formatters, and helpers."""
+"""Options Arena — Domain exception hierarchy."""
 
 from options_arena.utils.exceptions import (
     DataFetchError,

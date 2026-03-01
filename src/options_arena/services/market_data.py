@@ -261,12 +261,12 @@ class MarketDataService:
             )
         except TimeoutError as exc:
             raise DataSourceUnavailableError(
-                "yfinance", f"timeout after {self._config.yfinance_timeout}s"
+                f"yfinance: timeout after {self._config.yfinance_timeout}s"
             ) from exc
         except DataFetchError:
             raise
         except Exception as exc:
-            raise DataSourceUnavailableError("yfinance", str(exc)) from exc
+            raise DataSourceUnavailableError(f"yfinance: {exc}") from exc
 
     async def fetch_ohlcv(self, ticker: str, period: str = "1y") -> list[OHLCV]:
         """Fetch OHLCV history for *ticker* from yfinance.
@@ -295,7 +295,7 @@ class MarketDataService:
             )
 
         if df.empty:
-            raise InsufficientDataError(ticker, "no OHLCV data returned by yfinance")
+            raise InsufficientDataError(f"{ticker}: no OHLCV data returned by yfinance")
 
         # Convert DataFrame rows to OHLCV models
         records: list[OHLCV] = []
@@ -335,7 +335,7 @@ class MarketDataService:
                 continue
 
         if not records:
-            raise InsufficientDataError(ticker, "all OHLCV rows had invalid prices")
+            raise InsufficientDataError(f"{ticker}: all OHLCV rows had invalid prices")
 
         # Sort by date ascending
         records.sort(key=lambda r: r.date)
@@ -372,7 +372,7 @@ class MarketDataService:
         price_raw = info.get("currentPrice") or info.get("regularMarketPrice")
         price = safe_decimal(price_raw)
         if price is None or price <= Decimal("0"):
-            raise TickerNotFoundError(ticker, f"invalid price data: {price_raw!r}")
+            raise TickerNotFoundError(f"{ticker}: invalid price data: {price_raw!r}")
         bid = safe_decimal(info.get("bid")) or Decimal("0")
         ask = safe_decimal(info.get("ask")) or Decimal("0")
         volume = safe_int(info.get("volume")) or 0
@@ -425,7 +425,7 @@ class MarketDataService:
         current_price_raw = info.get("currentPrice") or info.get("previousClose")
         current_price = safe_decimal(current_price_raw)
         if current_price is None or current_price <= Decimal("0"):
-            raise TickerNotFoundError(ticker, f"invalid current price: {current_price_raw!r}")
+            raise TickerNotFoundError(f"{ticker}: invalid current price: {current_price_raw!r}")
 
         # Dividend waterfall
         dividend_yield, dividend_source, dividend_rate, trailing_dividend_rate = (

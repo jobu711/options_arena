@@ -35,14 +35,14 @@ class TestFetchWithRetry:
 
     @pytest.mark.asyncio
     async def test_success_on_second_attempt_after_retryable_error(self) -> None:
-        factory = AsyncMock(side_effect=[DataSourceUnavailableError("yfinance", "timeout"), 99])
+        factory = AsyncMock(side_effect=[DataSourceUnavailableError("yfinance: timeout"), 99])
         result = await fetch_with_retry(factory, max_retries=3, base_delay=0.01)
         assert result == 99
         assert factory.await_count == 2
 
     @pytest.mark.asyncio
     async def test_exhaustion_raises_last_exception(self) -> None:
-        exc = DataSourceUnavailableError("yfinance", "gone")
+        exc = DataSourceUnavailableError("yfinance: gone")
         factory = AsyncMock(side_effect=exc)
         with pytest.raises(DataSourceUnavailableError, match="gone"):
             await fetch_with_retry(factory, max_retries=3, base_delay=0.01)
@@ -60,9 +60,9 @@ class TestFetchWithRetry:
         """Verify exponential backoff delays approximately double each time."""
         factory = AsyncMock(
             side_effect=[
-                DataSourceUnavailableError("s", "e1"),
-                DataSourceUnavailableError("s", "e2"),
-                DataSourceUnavailableError("s", "e3"),
+                DataSourceUnavailableError("s: e1"),
+                DataSourceUnavailableError("s: e2"),
+                DataSourceUnavailableError("s: e3"),
             ]
         )
         loop = asyncio.get_event_loop()
@@ -78,8 +78,8 @@ class TestFetchWithRetry:
     async def test_logs_warning_on_each_retry(self, caplog: pytest.LogCaptureFixture) -> None:
         factory = AsyncMock(
             side_effect=[
-                DataSourceUnavailableError("src", "err"),
-                DataSourceUnavailableError("src", "err"),
+                DataSourceUnavailableError("src: err"),
+                DataSourceUnavailableError("src: err"),
                 42,
             ]
         )
