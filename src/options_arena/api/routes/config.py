@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import os
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
+from options_arena.api.app import limiter
 from options_arena.api.deps import get_settings
 from options_arena.api.schemas import ConfigResponse
 from options_arena.models import AppSettings
@@ -14,7 +15,9 @@ router = APIRouter(prefix="/api", tags=["config"])
 
 
 @router.get("/config")
+@limiter.limit("60/minute")
 async def get_config(
+    request: Request,
     settings: AppSettings = Depends(get_settings),
 ) -> ConfigResponse:
     """Return safe configuration values (never the actual API key)."""

@@ -38,11 +38,36 @@ class ScanConfig(BaseModel):
     rsi_oversold: float = 30.0
     options_per_ticker_timeout: float = 120.0
     options_batch_size: int = 5
+    options_concurrency: int = 5
     enable_iv_analytics: bool = True
     enable_flow_analytics: bool = True
     enable_fundamental: bool = True
     enable_regime: bool = True
     sectors: list[GICSSector] = []
+
+    @field_validator("top_n")
+    @classmethod
+    def validate_top_n(cls, v: int) -> int:
+        """Ensure top_n is at least 1."""
+        if v < 1:
+            raise ValueError(f"top_n must be >= 1, got {v}")
+        return v
+
+    @field_validator("ohlcv_min_bars")
+    @classmethod
+    def validate_ohlcv_min_bars(cls, v: int) -> int:
+        """Ensure ohlcv_min_bars is at least 5."""
+        if v < 5:
+            raise ValueError(f"ohlcv_min_bars must be >= 5, got {v}")
+        return v
+
+    @field_validator("options_concurrency")
+    @classmethod
+    def validate_options_concurrency(cls, v: int) -> int:
+        """Ensure options_concurrency is at least 1."""
+        if v < 1:
+            raise ValueError(f"options_concurrency must be >= 1, got {v}")
+        return v
 
     @field_validator("sectors", mode="before")
     @classmethod
@@ -127,6 +152,12 @@ class ServiceConfig(BaseModel):
             if isinstance(value, float) and not math.isfinite(value):
                 raise ValueError(f"{name} must be finite, got {value}")
         return self
+
+
+class LogConfig(BaseModel):
+    """Logging configuration — controls JSON mode for structured logging."""
+
+    json_mode: bool = False
 
 
 class DataConfig(BaseModel):
@@ -252,3 +283,4 @@ class AppSettings(BaseSettings):
     service: ServiceConfig = ServiceConfig()
     debate: DebateConfig = DebateConfig()
     data: DataConfig = DataConfig()
+    log: LogConfig = LogConfig()

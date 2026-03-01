@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, Request
 
+from options_arena.api.app import limiter
 from options_arena.api.deps import get_repo
 from options_arena.data import Repository
 from options_arena.models import HistoryPoint, TrendingTicker
@@ -16,7 +17,9 @@ router = APIRouter(prefix="/api", tags=["ticker"])
 
 
 @router.get("/ticker/{ticker}/history")
+@limiter.limit("60/minute")
 async def get_ticker_history(
+    request: Request,
     ticker: str = Path(min_length=1, max_length=10, pattern=r"^[A-Z0-9.\-^]{1,10}$"),
     repo: Repository = Depends(get_repo),
     limit: int = Query(20, ge=1, le=100),
@@ -26,7 +29,9 @@ async def get_ticker_history(
 
 
 @router.get("/ticker/trending")
+@limiter.limit("60/minute")
 async def get_trending_tickers(
+    request: Request,
     repo: Repository = Depends(get_repo),
     direction: str = Query("bullish"),
     min_scans: int = Query(3, ge=1, le=50),

@@ -12,9 +12,13 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from starlette.responses import JSONResponse
 
 from options_arena.data import Database, Repository
 from options_arena.models.config import AppSettings
@@ -24,6 +28,9 @@ from options_arena.services.market_data import MarketDataService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.services.universe import UniverseService
+
+# Module-level limiter instance used by route decorators
+limiter = Limiter(key_func=get_remote_address)
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +109,18 @@ def create_app() -> FastAPI:
         version="1.5.0",
         lifespan=lifespan,
     )
+
+    # Rate limiter — stored on app.state for route decorator access
+    app.state.limiter = limiter
+
+    @app.exception_handler(RateLimitExceeded)
+    async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+        retry_after = getattr(exc, "retry_after", 60)
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Rate limit exceeded", "retry_after": retry_after},
+            headers={"Retry-After": str(retry_after)},
+        )
 
     # CORS — allow Vite dev server
     app.add_middleware(

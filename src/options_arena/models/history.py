@@ -41,9 +41,11 @@ class HistoryPoint(BaseModel):
     @field_validator("composite_score")
     @classmethod
     def validate_composite_score(cls, v: float) -> float:
-        """Ensure composite_score is finite."""
+        """Ensure composite_score is finite and within [0, 100]."""
         if not math.isfinite(v):
             raise ValueError(f"composite_score must be finite, got {v}")
+        if not 0.0 <= v <= 100.0:
+            raise ValueError(f"composite_score must be in [0, 100], got {v}")
         return v
 
 

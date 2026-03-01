@@ -31,7 +31,7 @@ app = typer.Typer(
 )
 
 
-def configure_logging(*, verbose: bool = False) -> None:
+def configure_logging(*, verbose: bool = False, json_mode: bool = False) -> None:
     """Configure dual-handler logging: Rich console + queue-backed rotating file.
 
     The file handler runs inside a ``QueueListener`` on a separate thread,
@@ -45,6 +45,8 @@ def configure_logging(*, verbose: bool = False) -> None:
     Args:
         verbose: If True, lower console handler to DEBUG. File handler
                  is always DEBUG regardless.
+        json_mode: If True, use JSON formatting for the file handler
+                   instead of plain text.
     """
     global _queue_listener  # noqa: PLW0603
 
@@ -75,7 +77,7 @@ def configure_logging(*, verbose: bool = False) -> None:
     )
     console_handler.setFormatter(logging.Formatter("%(message)s", datefmt="[%X]"))
 
-    # File handler: plain text, DEBUG, rotating — runs inside QueueListener
+    # File handler: plain text or JSON, DEBUG, rotating — runs inside QueueListener
     file_handler = RotatingFileHandler(
         LOG_FILE,
         maxBytes=5_242_880,  # 5 MB
@@ -83,7 +85,18 @@ def configure_logging(*, verbose: bool = False) -> None:
         encoding="utf-8",
     )
     file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(logging.Formatter(FILE_FORMAT, datefmt="%Y-%m-%d %H:%M:%S"))
+
+    if json_mode:
+        from pythonjsonlogger.json import JsonFormatter  # noqa: PLC0415
+
+        json_formatter = JsonFormatter(
+            fmt="%(asctime)s %(name)s %(levelname)s %(message)s",
+            rename_fields={"asctime": "timestamp", "levelname": "level"},
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        file_handler.setFormatter(json_formatter)
+    else:
+        file_handler.setFormatter(logging.Formatter(FILE_FORMAT, datefmt="%Y-%m-%d %H:%M:%S"))
 
     # QueueHandler + QueueListener: file handler runs on a separate thread,
     # avoiding Windows file-locking issues during log rotation.
@@ -106,6 +119,7 @@ def configure_logging(*, verbose: bool = False) -> None:
 @app.callback()
 def main(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show DEBUG output in console"),
+    json_log: bool = typer.Option(False, "--json-log", help="Enable JSON-formatted file logging"),
 ) -> None:
     """Options Arena -- AI-powered American-style options analysis."""
-    configure_logging(verbose=verbose)
+    configure_logging(verbose=verbose, json_mode=json_log)

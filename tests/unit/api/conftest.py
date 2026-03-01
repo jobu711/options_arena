@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from options_arena.api.app import create_app
+from options_arena.api.app import create_app, limiter
 from options_arena.api.deps import (
     get_fred,
     get_market_data,
@@ -77,6 +77,10 @@ def test_app(
     import asyncio  # noqa: PLC0415
 
     app = create_app()
+
+    # Disable rate limiting during tests to avoid 429 interference
+    limiter.enabled = False
+
     app.dependency_overrides[get_repo] = lambda: mock_repo
     app.dependency_overrides[get_market_data] = lambda: mock_market_data
     app.dependency_overrides[get_options_data] = lambda: mock_options_data

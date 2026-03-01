@@ -490,48 +490,51 @@ class ScanPipeline:
         except Exception:
             logger.warning("Failed to extract SPX close series; rs_vs_spx will be None")
 
-        # Step 4: Per-ticker options processing in batches
-        # Processing all tickers concurrently overwhelms the rate limiter,
-        # causing timeouts. Batching ensures each batch's operations complete
-        # well within the per-ticker timeout.
+        # Step 4: Per-ticker options processing with semaphore-bounded concurrency
+        # A semaphore limits concurrent chains-in-flight, allowing all tickers to
+        # start immediately while preventing rate-limiter overload.
         progress(ScanPhase.OPTIONS, 0, len(top_scores))
 
         per_ticker_timeout = self._settings.scan.options_per_ticker_timeout
-        batch_size = self._settings.scan.options_batch_size
+        concurrency = self._settings.scan.options_concurrency
+        sem = asyncio.Semaphore(concurrency)
         recommendations: dict[str, list[OptionContract]] = {}
         earnings_dates: dict[str, date] = {}
         completed = 0
 
-        for batch_start in range(0, len(top_scores), batch_size):
-            batch = top_scores[batch_start : batch_start + batch_size]
-            batch_tasks = [
-                asyncio.wait_for(
+        async def _fetch_with_sem(
+            ts: TickerScore,
+        ) -> tuple[str, list[OptionContract], date | None]:
+            async with sem:
+                return await asyncio.wait_for(
                     self._process_ticker_options(ts, risk_free_rate, ohlcv_map, spx_close),
                     timeout=per_ticker_timeout,
                 )
-                for ts in batch
-            ]
-            batch_results: list[
-                tuple[str, list[OptionContract], date | None] | BaseException
-            ] = await asyncio.gather(*batch_tasks, return_exceptions=True)
 
-            for ts, result in zip(batch, batch_results, strict=True):
-                if isinstance(result, BaseException):
-                    logger.warning(
-                        "Options processing failed for %s: %s: %s",
-                        ts.ticker,
-                        type(result).__name__,
-                        result,
-                    )
-                else:
-                    ticker, contracts, next_earnings = result
-                    if contracts:
-                        recommendations[ticker] = contracts
-                    if next_earnings is not None:
-                        earnings_dates[ticker] = next_earnings
-                completed += 1
+        all_results: list[
+            tuple[str, list[OptionContract], date | None] | BaseException
+        ] = await asyncio.gather(
+            *[_fetch_with_sem(ts) for ts in top_scores],
+            return_exceptions=True,
+        )
 
-            progress(ScanPhase.OPTIONS, completed, len(top_scores))
+        for ts, result in zip(top_scores, all_results, strict=True):
+            if isinstance(result, BaseException):
+                logger.warning(
+                    "Options processing failed for %s: %s: %s",
+                    ts.ticker,
+                    type(result).__name__,
+                    result,
+                )
+            else:
+                ticker, contracts, next_earnings = result
+                if contracts:
+                    recommendations[ticker] = contracts
+                if next_earnings is not None:
+                    earnings_dates[ticker] = next_earnings
+            completed += 1
+
+        progress(ScanPhase.OPTIONS, completed, len(top_scores))
 
         logger.info(
             "Options phase complete: %d recommendations from %d tickers",

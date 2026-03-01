@@ -9,10 +9,11 @@ import os
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
+from options_arena.api.app import limiter
 from options_arena.api.deps import get_repo
 from options_arena.data import Repository
 from options_arena.models import AgentResponse, TradeThesis
@@ -24,7 +25,9 @@ router = APIRouter(prefix="/api", tags=["export"])
 
 
 @router.get("/debate/{debate_id}/export")
+@limiter.limit("60/minute")
 async def export_debate(
+    request: Request,
     debate_id: int,
     repo: Repository = Depends(get_repo),
     fmt: str = Query("md", alias="format"),

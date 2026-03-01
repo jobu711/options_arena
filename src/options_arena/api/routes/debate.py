@@ -8,6 +8,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from options_arena.agents import DebateResult, run_debate_v2
+from options_arena.api.app import limiter
 from options_arena.api.deps import (
     get_market_data,
     get_operation_lock,
@@ -154,6 +155,7 @@ async def _run_debate_background(
 
 
 @router.post("/debate", status_code=202)
+@limiter.limit("5/minute")
 async def start_debate(
     request: Request,
     body: DebateRequest,
@@ -336,6 +338,7 @@ async def _run_batch_debate_background(
 
 
 @router.post("/debate/batch", status_code=202)
+@limiter.limit("5/minute")
 async def start_batch_debate(
     request: Request,
     body: BatchDebateRequest,
@@ -391,7 +394,9 @@ async def start_batch_debate(
 
 
 @router.get("/debate")
+@limiter.limit("60/minute")
 async def list_debates(
+    request: Request,
     repo: Repository = Depends(get_repo),
     ticker: str | None = Query(None),
     limit: int = Query(20, ge=1, le=100),
@@ -438,7 +443,9 @@ async def list_debates(
 
 
 @router.get("/debate/{debate_id}")
+@limiter.limit("60/minute")
 async def get_debate(
+    request: Request,
     debate_id: int,
     repo: Repository = Depends(get_repo),
 ) -> DebateResultDetail:
