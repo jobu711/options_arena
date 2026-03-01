@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Path, Query
 
 from options_arena.api.deps import get_repo
 from options_arena.data import Repository
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api", tags=["ticker"])
 
 @router.get("/ticker/{ticker}/history")
 async def get_ticker_history(
-    ticker: str,
+    ticker: str = Path(min_length=1, max_length=10, pattern=r"^[A-Z0-9.\-^]{1,10}$"),
     repo: Repository = Depends(get_repo),
     limit: int = Query(20, ge=1, le=100),
 ) -> list[HistoryPoint]:

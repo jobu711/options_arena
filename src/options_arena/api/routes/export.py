@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import html as html_module
 import logging
 import os
 import tempfile
@@ -160,7 +161,8 @@ async def export_debate(
     except ImportError:
         raise HTTPException(501, "PDF export requires weasyprint") from None
 
-    html = f"<html><body><pre>{md_content}</pre></body></html>"
+    escaped_content = html_module.escape(md_content)
+    html = f"<html><body><pre>{escaped_content}</pre></body></html>"
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_fd:
         tmp_path = tmp_fd.name
     HTML(string=html).write_pdf(tmp_path)

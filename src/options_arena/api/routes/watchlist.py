@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path
 
 from options_arena.api.deps import get_repo
 from options_arena.api.schemas import (
@@ -128,7 +128,7 @@ async def add_ticker(
 @router.delete("/watchlist/{watchlist_id}/tickers/{ticker}", status_code=204)
 async def remove_ticker(
     watchlist_id: int,
-    ticker: str,
+    ticker: str = Path(min_length=1, max_length=10, pattern=r"^[A-Z0-9.\-^]{1,10}$"),
     repo: Repository = Depends(get_repo),
 ) -> None:
     """Remove a ticker from a watchlist."""

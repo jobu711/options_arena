@@ -6,6 +6,7 @@ Most responses use existing Pydantic models from ``models/`` directly.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -18,6 +19,10 @@ from options_arena.models import (
     TradeThesis,
 )
 from options_arena.models.enums import SECTOR_ALIASES
+
+# Ticker format: uppercase letters, digits, dots (BRK.B), hyphens, caret (^VIX)
+_TICKER_PATTERN = r"^[A-Z0-9.\-^]{1,10}$"
+_TICKER_RE = re.compile(_TICKER_PATTERN)
 
 # ---------------------------------------------------------------------------
 # Scan schemas (#126, #162)
@@ -92,8 +97,22 @@ class TickerDetail(BaseModel):
 class DebateRequest(BaseModel):
     """Request body for ``POST /api/debate``."""
 
-    ticker: str
+    ticker: str = Field(min_length=1, max_length=10)
     scan_id: int | None = None
+
+    @field_validator("ticker", mode="before")
+    @classmethod
+    def normalize_ticker(cls, v: str) -> str:
+        """Uppercase and strip whitespace before pattern validation."""
+        if not isinstance(v, str):
+            raise ValueError("ticker must be a string")
+        v = v.upper().strip()
+        if not _TICKER_RE.match(v):
+            raise ValueError(
+                f"Invalid ticker format: {v!r}. "
+                "Must be 1-10 characters: A-Z, 0-9, dots, hyphens, or caret."
+            )
+        return v
 
 
 class DebateStarted(BaseModel):
@@ -155,7 +174,26 @@ class BatchDebateRequest(BaseModel):
 
     scan_id: int
     limit: int = 5
-    tickers: list[str] | None = None
+    tickers: list[str] | None = Field(default=None, max_length=50)
+
+    @field_validator("tickers", mode="before")
+    @classmethod
+    def normalize_tickers(cls, v: list[str] | None) -> list[str] | None:
+        """Uppercase, strip, and validate each ticker in the batch list."""
+        if v is None:
+            return None
+        result: list[str] = []
+        for item in v:
+            if not isinstance(item, str):
+                raise ValueError("each ticker must be a string")
+            normalized = item.upper().strip()
+            if not _TICKER_RE.match(normalized):
+                raise ValueError(
+                    f"Invalid ticker format: {normalized!r}. "
+                    "Must be 1-10 characters: A-Z, 0-9, dots, hyphens, or caret."
+                )
+            result.append(normalized)
+        return result
 
 
 class BatchDebateStarted(BaseModel):
@@ -201,7 +239,21 @@ class WatchlistCreateResponse(BaseModel):
 class WatchlistTickerRequest(BaseModel):
     """Request body for ``POST /api/watchlist/{id}/tickers``."""
 
-    ticker: str
+    ticker: str = Field(min_length=1, max_length=10)
+
+    @field_validator("ticker", mode="before")
+    @classmethod
+    def normalize_ticker(cls, v: str) -> str:
+        """Uppercase and strip whitespace before pattern validation."""
+        if not isinstance(v, str):
+            raise ValueError("ticker must be a string")
+        v = v.upper().strip()
+        if not _TICKER_RE.match(v):
+            raise ValueError(
+                f"Invalid ticker format: {v!r}. "
+                "Must be 1-10 characters: A-Z, 0-9, dots, hyphens, or caret."
+            )
+        return v
 
 
 class ConfigResponse(BaseModel):

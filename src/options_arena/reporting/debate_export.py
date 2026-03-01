@@ -7,6 +7,7 @@ GitHub-flavored Markdown report string. No I/O, no side effects.
 from __future__ import annotations
 
 import datetime
+import html as html_module
 import logging
 import math
 from pathlib import Path
@@ -270,6 +271,7 @@ def _render_pdf(md_content: str, path: Path) -> Path:
         raise ImportError(
             "PDF export requires weasyprint. Install: uv add 'options-arena[pdf]'"
         ) from None
-    html = f"<html><body><pre>{md_content}</pre></body></html>"
+    escaped = html_module.escape(md_content)
+    html = f"<html><body><pre>{escaped}</pre></body></html>"
     HTML(string=html).write_pdf(str(path))
     return path

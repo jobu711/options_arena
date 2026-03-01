@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 
 from options_arena.api.deps import (
     get_fred,
@@ -227,7 +227,7 @@ async def get_scores(
 @router.get("/scan/{scan_id}/scores/{ticker}")
 async def get_ticker_detail(
     scan_id: int,
-    ticker: str,
+    ticker: str = Path(min_length=1, max_length=10, pattern=r"^[A-Z0-9.\-^]{1,10}$"),
     repo: Repository = Depends(get_repo),
 ) -> TickerDetail:
     """Get a single ticker's score and recommended contracts."""
