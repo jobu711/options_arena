@@ -179,3 +179,62 @@ class CatalystImpact(StrEnum):
     LOW = "low"
     MODERATE = "moderate"
     HIGH = "high"
+
+
+class GICSSector(StrEnum):
+    """Global Industry Classification Standard (GICS) sectors.
+
+    Exactly 11 sectors matching the canonical GICS taxonomy.
+    Used for sector filtering in the scan pipeline.
+    """
+
+    COMMUNICATION_SERVICES = "Communication Services"
+    CONSUMER_DISCRETIONARY = "Consumer Discretionary"
+    CONSUMER_STAPLES = "Consumer Staples"
+    ENERGY = "Energy"
+    FINANCIALS = "Financials"
+    HEALTH_CARE = "Health Care"
+    INDUSTRIALS = "Industrials"
+    INFORMATION_TECHNOLOGY = "Information Technology"
+    MATERIALS = "Materials"
+    REAL_ESTATE = "Real Estate"
+    UTILITIES = "Utilities"
+
+
+SECTOR_ALIASES: dict[str, GICSSector] = {
+    # Canonical names (lowercase)
+    "communication services": GICSSector.COMMUNICATION_SERVICES,
+    "consumer discretionary": GICSSector.CONSUMER_DISCRETIONARY,
+    "consumer staples": GICSSector.CONSUMER_STAPLES,
+    "energy": GICSSector.ENERGY,
+    "financials": GICSSector.FINANCIALS,
+    "health care": GICSSector.HEALTH_CARE,
+    "industrials": GICSSector.INDUSTRIALS,
+    "information technology": GICSSector.INFORMATION_TECHNOLOGY,
+    "materials": GICSSector.MATERIALS,
+    "real estate": GICSSector.REAL_ESTATE,
+    "utilities": GICSSector.UTILITIES,
+    # Short names
+    "communication": GICSSector.COMMUNICATION_SERVICES,
+    "telecom": GICSSector.COMMUNICATION_SERVICES,
+    "discretionary": GICSSector.CONSUMER_DISCRETIONARY,
+    "staples": GICSSector.CONSUMER_STAPLES,
+    "healthcare": GICSSector.HEALTH_CARE,
+    "technology": GICSSector.INFORMATION_TECHNOLOGY,
+    "tech": GICSSector.INFORMATION_TECHNOLOGY,
+    "it": GICSSector.INFORMATION_TECHNOLOGY,
+    # Hyphenated variants
+    "communication-services": GICSSector.COMMUNICATION_SERVICES,
+    "consumer-discretionary": GICSSector.CONSUMER_DISCRETIONARY,
+    "consumer-staples": GICSSector.CONSUMER_STAPLES,
+    "health-care": GICSSector.HEALTH_CARE,
+    "information-technology": GICSSector.INFORMATION_TECHNOLOGY,
+    "real-estate": GICSSector.REAL_ESTATE,
+    # Underscored variants
+    "communication_services": GICSSector.COMMUNICATION_SERVICES,
+    "consumer_discretionary": GICSSector.CONSUMER_DISCRETIONARY,
+    "consumer_staples": GICSSector.CONSUMER_STAPLES,
+    "health_care": GICSSector.HEALTH_CARE,
+    "information_technology": GICSSector.INFORMATION_TECHNOLOGY,
+    "real_estate": GICSSector.REAL_ESTATE,
+}

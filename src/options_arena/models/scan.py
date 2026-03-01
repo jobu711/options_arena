@@ -17,7 +17,7 @@ from datetime import date, datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from options_arena.models.enums import ScanPreset, SignalDirection
+from options_arena.models.enums import GICSSector, ScanPreset, SignalDirection
 from options_arena.models.scoring import DimensionalScores
 
 
@@ -183,6 +183,8 @@ class TickerScore(BaseModel):
         return v
 
     signals: IndicatorSignals  # typed model, NOT dict[str, float]
+    sector: GICSSector | None = None  # GICS sector from S&P 500 constituents
+    company_name: str | None = None  # from TickerInfo.company_name
     next_earnings: date | None = None  # populated in Phase 3 from yfinance calendar
     scan_run_id: int | None = None
 

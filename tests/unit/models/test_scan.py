@@ -13,6 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 from options_arena.models import (
+    GICSSector,
     IndicatorSignals,
     ScanPreset,
     ScanRun,
@@ -377,3 +378,74 @@ class TestTickerScore:
         json_str = sample_ticker_score.model_dump_json()
         restored = TickerScore.model_validate_json(json_str)
         assert restored == sample_ticker_score
+
+    def test_sector_defaults_to_none(self) -> None:
+        """TickerScore.sector defaults to None."""
+        score = TickerScore(
+            ticker="AAPL",
+            composite_score=70.0,
+            direction=SignalDirection.BULLISH,
+            signals=IndicatorSignals(),
+        )
+        assert score.sector is None
+
+    def test_sector_accepts_gics_sector(self) -> None:
+        """TickerScore.sector accepts a GICSSector enum value."""
+        score = TickerScore(
+            ticker="AAPL",
+            composite_score=70.0,
+            direction=SignalDirection.BULLISH,
+            signals=IndicatorSignals(),
+            sector=GICSSector.INFORMATION_TECHNOLOGY,
+        )
+        assert score.sector is GICSSector.INFORMATION_TECHNOLOGY
+
+    def test_company_name_defaults_to_none(self) -> None:
+        """TickerScore.company_name defaults to None."""
+        score = TickerScore(
+            ticker="AAPL",
+            composite_score=70.0,
+            direction=SignalDirection.BULLISH,
+            signals=IndicatorSignals(),
+        )
+        assert score.company_name is None
+
+    def test_company_name_accepts_string(self) -> None:
+        """TickerScore.company_name accepts a string."""
+        score = TickerScore(
+            ticker="AAPL",
+            composite_score=70.0,
+            direction=SignalDirection.BULLISH,
+            signals=IndicatorSignals(),
+            company_name="Apple Inc.",
+        )
+        assert score.company_name == "Apple Inc."
+
+    def test_sector_and_company_name_json_roundtrip(self) -> None:
+        """TickerScore with sector and company_name survives JSON roundtrip."""
+        score = TickerScore(
+            ticker="MSFT",
+            composite_score=82.0,
+            direction=SignalDirection.BULLISH,
+            signals=IndicatorSignals(rsi=65.0),
+            sector=GICSSector.INFORMATION_TECHNOLOGY,
+            company_name="Microsoft Corporation",
+        )
+        json_str = score.model_dump_json()
+        restored = TickerScore.model_validate_json(json_str)
+        assert restored.sector is GICSSector.INFORMATION_TECHNOLOGY
+        assert restored.company_name == "Microsoft Corporation"
+        assert restored == score
+
+    def test_sector_none_json_roundtrip(self) -> None:
+        """TickerScore with None sector/company_name survives JSON roundtrip."""
+        score = TickerScore(
+            ticker="XYZ",
+            composite_score=50.0,
+            direction=SignalDirection.NEUTRAL,
+            signals=IndicatorSignals(),
+        )
+        json_str = score.model_dump_json()
+        restored = TickerScore.model_validate_json(json_str)
+        assert restored.sector is None
+        assert restored.company_name is None

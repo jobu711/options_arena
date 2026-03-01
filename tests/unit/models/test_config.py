@@ -17,6 +17,7 @@ from pydantic_settings import BaseSettings
 from options_arena.models import (
     AppSettings,
     DebateConfig,
+    GICSSector,
     PricingConfig,
     ScanConfig,
     ServiceConfig,
@@ -424,3 +425,73 @@ class TestDebateConfigPreScreening:
         monkeypatch.setenv("ARENA_DEBATE__ENABLE_VOLATILITY_AGENT", "true")
         settings = AppSettings()
         assert settings.debate.enable_volatility_agent is True
+
+
+# ---------------------------------------------------------------------------
+# ScanConfig.sectors field and alias validation
+# ---------------------------------------------------------------------------
+
+
+class TestScanConfigSectors:
+    def test_sectors_default_empty(self) -> None:
+        """ScanConfig.sectors defaults to empty list."""
+        config = ScanConfig()
+        assert config.sectors == []
+
+    def test_sectors_accepts_canonical_enum_values(self) -> None:
+        """Canonical GICSSector enum instances pass through."""
+        config = ScanConfig(sectors=[GICSSector.INFORMATION_TECHNOLOGY, GICSSector.ENERGY])
+        assert config.sectors == [GICSSector.INFORMATION_TECHNOLOGY, GICSSector.ENERGY]
+
+    def test_sectors_normalizes_short_names(self) -> None:
+        """Short aliases like 'tech' resolve to canonical values."""
+        config = ScanConfig(sectors=["tech", "healthcare"])
+        assert config.sectors == [
+            GICSSector.INFORMATION_TECHNOLOGY,
+            GICSSector.HEALTH_CARE,
+        ]
+
+    def test_sectors_normalizes_lowercase_canonical(self) -> None:
+        """Lowercase canonical names resolve correctly."""
+        config = ScanConfig(sectors=["information technology", "energy"])
+        assert config.sectors == [
+            GICSSector.INFORMATION_TECHNOLOGY,
+            GICSSector.ENERGY,
+        ]
+
+    def test_sectors_normalizes_hyphenated(self) -> None:
+        """Hyphenated variants resolve correctly."""
+        config = ScanConfig(sectors=["real-estate", "health-care"])
+        assert config.sectors == [GICSSector.REAL_ESTATE, GICSSector.HEALTH_CARE]
+
+    def test_sectors_normalizes_underscored(self) -> None:
+        """Underscored variants resolve correctly."""
+        config = ScanConfig(sectors=["real_estate", "consumer_staples"])
+        assert config.sectors == [GICSSector.REAL_ESTATE, GICSSector.CONSUMER_STAPLES]
+
+    def test_sectors_accepts_canonical_string_values(self) -> None:
+        """Canonical string values (mixed case) resolve via enum constructor."""
+        config = ScanConfig(sectors=["Information Technology", "Energy"])
+        assert config.sectors == [
+            GICSSector.INFORMATION_TECHNOLOGY,
+            GICSSector.ENERGY,
+        ]
+
+    def test_sectors_rejects_invalid_name(self) -> None:
+        """Unknown sector string raises ValueError."""
+        with pytest.raises(ValidationError, match="Unknown sector"):
+            ScanConfig(sectors=["nonexistent_sector"])
+
+    def test_sectors_mixed_enum_and_string(self) -> None:
+        """Mix of GICSSector enums and alias strings works."""
+        config = ScanConfig(sectors=[GICSSector.ENERGY, "tech"])
+        assert config.sectors == [GICSSector.ENERGY, GICSSector.INFORMATION_TECHNOLOGY]
+
+    def test_sectors_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_SCAN__SECTORS env var works via JSON string."""
+        monkeypatch.setenv("ARENA_SCAN__SECTORS", '["technology","energy"]')
+        settings = AppSettings()
+        assert settings.scan.sectors == [
+            GICSSector.INFORMATION_TECHNOLOGY,
+            GICSSector.ENERGY,
+        ]

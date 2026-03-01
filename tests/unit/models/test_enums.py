@@ -13,6 +13,7 @@ from enum import StrEnum
 from options_arena.models import (
     DividendSource,
     ExerciseStyle,
+    GICSSector,
     GreeksSource,
     MacdSignal,
     MarketCapTier,
@@ -23,6 +24,7 @@ from options_arena.models import (
     SignalDirection,
     SpreadType,
 )
+from options_arena.models.enums import SECTOR_ALIASES
 
 # ---------------------------------------------------------------------------
 # OptionType (2 members)
@@ -336,3 +338,87 @@ class TestGreeksSource:
     def test_greeks_source_string_serialization(self) -> None:
         assert str(GreeksSource.COMPUTED) == "computed"
         assert str(GreeksSource.MARKET) == "market"
+
+
+# ---------------------------------------------------------------------------
+# GICSSector (11 members)
+# ---------------------------------------------------------------------------
+
+
+class TestGICSSector:
+    def test_gics_sector_has_exactly_eleven_members(self) -> None:
+        assert len(GICSSector) == 11
+
+    def test_gics_sector_canonical_values(self) -> None:
+        assert GICSSector.COMMUNICATION_SERVICES == "Communication Services"
+        assert GICSSector.CONSUMER_DISCRETIONARY == "Consumer Discretionary"
+        assert GICSSector.CONSUMER_STAPLES == "Consumer Staples"
+        assert GICSSector.ENERGY == "Energy"
+        assert GICSSector.FINANCIALS == "Financials"
+        assert GICSSector.HEALTH_CARE == "Health Care"
+        assert GICSSector.INDUSTRIALS == "Industrials"
+        assert GICSSector.INFORMATION_TECHNOLOGY == "Information Technology"
+        assert GICSSector.MATERIALS == "Materials"
+        assert GICSSector.REAL_ESTATE == "Real Estate"
+        assert GICSSector.UTILITIES == "Utilities"
+
+    def test_gics_sector_is_str_enum(self) -> None:
+        assert issubclass(GICSSector, StrEnum)
+
+    def test_gics_sector_exhaustive_iteration(self) -> None:
+        expected = {
+            GICSSector.COMMUNICATION_SERVICES,
+            GICSSector.CONSUMER_DISCRETIONARY,
+            GICSSector.CONSUMER_STAPLES,
+            GICSSector.ENERGY,
+            GICSSector.FINANCIALS,
+            GICSSector.HEALTH_CARE,
+            GICSSector.INDUSTRIALS,
+            GICSSector.INFORMATION_TECHNOLOGY,
+            GICSSector.MATERIALS,
+            GICSSector.REAL_ESTATE,
+            GICSSector.UTILITIES,
+        }
+        assert set(GICSSector) == expected
+
+    def test_gics_sector_string_serialization(self) -> None:
+        assert str(GICSSector.INFORMATION_TECHNOLOGY) == "Information Technology"
+        assert str(GICSSector.HEALTH_CARE) == "Health Care"
+
+    def test_gics_sector_construction_from_canonical_value(self) -> None:
+        assert GICSSector("Information Technology") is GICSSector.INFORMATION_TECHNOLOGY
+
+
+# ---------------------------------------------------------------------------
+# SECTOR_ALIASES
+# ---------------------------------------------------------------------------
+
+
+class TestSectorAliases:
+    def test_all_canonical_lowercase_present(self) -> None:
+        """Every canonical sector name (lowered) should be in aliases."""
+        for sector in GICSSector:
+            assert sector.value.lower() in SECTOR_ALIASES
+            assert SECTOR_ALIASES[sector.value.lower()] is sector
+
+    def test_short_name_aliases(self) -> None:
+        assert SECTOR_ALIASES["tech"] is GICSSector.INFORMATION_TECHNOLOGY
+        assert SECTOR_ALIASES["technology"] is GICSSector.INFORMATION_TECHNOLOGY
+        assert SECTOR_ALIASES["it"] is GICSSector.INFORMATION_TECHNOLOGY
+        assert SECTOR_ALIASES["healthcare"] is GICSSector.HEALTH_CARE
+        assert SECTOR_ALIASES["telecom"] is GICSSector.COMMUNICATION_SERVICES
+
+    def test_hyphenated_aliases(self) -> None:
+        assert SECTOR_ALIASES["information-technology"] is GICSSector.INFORMATION_TECHNOLOGY
+        assert SECTOR_ALIASES["health-care"] is GICSSector.HEALTH_CARE
+        assert SECTOR_ALIASES["real-estate"] is GICSSector.REAL_ESTATE
+
+    def test_underscored_aliases(self) -> None:
+        assert SECTOR_ALIASES["information_technology"] is GICSSector.INFORMATION_TECHNOLOGY
+        assert SECTOR_ALIASES["health_care"] is GICSSector.HEALTH_CARE
+        assert SECTOR_ALIASES["real_estate"] is GICSSector.REAL_ESTATE
+
+    def test_all_aliases_map_to_valid_sector(self) -> None:
+        """Every alias value must be a valid GICSSector member."""
+        for alias, sector in SECTOR_ALIASES.items():
+            assert isinstance(sector, GICSSector), f"Alias {alias!r} maps to invalid sector"

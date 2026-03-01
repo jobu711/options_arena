@@ -24,9 +24,11 @@ from options_arena.models.config import (
     ServiceConfig,
 )
 from options_arena.models.enums import (
+    SECTOR_ALIASES,
     CatalystImpact,
     DividendSource,
     ExerciseStyle,
+    GICSSector,
     GreeksSource,
     IVTermStructureShape,
     MacdSignal,
@@ -61,6 +63,7 @@ __all__ = [
     "CatalystImpact",
     "DividendSource",
     "ExerciseStyle",
+    "GICSSector",
     "GreeksSource",
     "IVTermStructureShape",
     "MacdSignal",
@@ -70,6 +73,7 @@ __all__ = [
     "PositionSide",
     "PricingModel",
     "RiskLevel",
+    "SECTOR_ALIASES",
     "ScanPreset",
     "SignalDirection",
     "SpreadType",
