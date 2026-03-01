@@ -17,6 +17,14 @@ export interface TickerScore {
   signals: Record<string, number | null>
   next_earnings: string | null // ISO date string "YYYY-MM-DD" or null
   scan_run_id: number
+  sector: string | null
+  company_name: string | null
+}
+
+/** Sector option from GET /api/universe/sectors. */
+export interface SectorOption {
+  name: string
+  ticker_count: number
 }
 
 /** Paginated response wrapper. */

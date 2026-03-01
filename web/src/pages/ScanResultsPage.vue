@@ -6,6 +6,7 @@ import DataTable, { type DataTableSortEvent, type DataTablePageEvent } from 'pri
 import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
+import MultiSelect from 'primevue/multiselect'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import Panel from 'primevue/panel'
@@ -19,8 +20,30 @@ import { useOperationStore } from '@/stores/operation'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { api, ApiError } from '@/composables/useApi'
-import type { TickerScore, ScanRun, ScanDiff, TickerDelta, HistoryPoint } from '@/types'
+import type { TickerScore, ScanRun, ScanDiff, TickerDelta, HistoryPoint, SectorOption } from '@/types'
 import type { DebateEvent, BatchEvent } from '@/types/ws'
+
+/** Map GICS sector names to PrimeVue Tag severity values for color-coding. */
+type TagSeverity = 'info' | 'success' | 'warn' | 'danger' | 'secondary' | 'contrast'
+
+const SECTOR_COLORS: Record<string, TagSeverity | undefined> = {
+  'Information Technology': 'info',
+  'Health Care': 'success',
+  'Financials': 'secondary',
+  'Consumer Discretionary': 'warn',
+  'Communication Services': 'contrast',
+  'Industrials': undefined,
+  'Consumer Staples': 'success',
+  'Energy': 'danger',
+  'Utilities': 'secondary',
+  'Real Estate': 'warn',
+  'Materials': 'contrast',
+}
+
+function sectorSeverity(sector: string | null): TagSeverity | undefined {
+  if (!sector) return undefined
+  return SECTOR_COLORS[sector] ?? 'info'
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -232,6 +255,28 @@ const directionOptions = [
   { label: 'Neutral', value: 'neutral' },
 ]
 
+// Sector filter state
+const sectorFilterOptions = ref<Array<{ name: string; value: string }>>([])
+const selectedSectorFilters = ref<string[]>([])
+
+async function fetchSectorOptions(): Promise<void> {
+  try {
+    const data = await api<SectorOption[]>('/api/universe/sectors')
+    sectorFilterOptions.value = data.map((s) => ({
+      name: s.name,
+      value: s.name,
+    }))
+  } catch {
+    sectorFilterOptions.value = []
+  }
+}
+
+function onSectorFilterChange(): void {
+  page.value = 1
+  syncUrl()
+  void loadScores()
+}
+
 // Drawer state
 const drawerVisible = ref(false)
 const selectedScore = ref<TickerScore | null>(null)
@@ -269,7 +314,7 @@ async function fetchSparklineData(): Promise<void> {
 }
 
 function buildParams(): Record<string, string | number | undefined> {
-  return {
+  const params: Record<string, string | number | undefined> = {
     page: page.value,
     page_size: 50,
     sort: sortField.value,
@@ -277,6 +322,10 @@ function buildParams(): Record<string, string | number | undefined> {
     direction: direction.value,
     search: search.value || undefined,
   }
+  if (selectedSectorFilters.value.length > 0) {
+    params.sectors = selectedSectorFilters.value.join(',')
+  }
+  return params
 }
 
 function syncUrl(): void {
@@ -287,6 +336,7 @@ function syncUrl(): void {
   if (sortOrder.value === 1) query.order = 'asc'
   if (page.value > 1) query.page = String(page.value)
   if (compareScanId.value !== null) query.compare = String(compareScanId.value)
+  if (selectedSectorFilters.value.length > 0) query.sectors = selectedSectorFilters.value.join(',')
   router.replace({ query })
 }
 
@@ -384,9 +434,15 @@ async function addToFirstWatchlist(ticker: string): Promise<void> {
 }
 
 onMounted(async () => {
+  // Restore sector filters from URL
+  const sectorsParam = route.query.sectors as string | undefined
+  if (sectorsParam) {
+    selectedSectorFilters.value = sectorsParam.split(',')
+  }
   await loadScores()
   void fetchSparklineData()
   void watchlistStore.fetchWatchlists()
+  void fetchSectorOptions()
   // Load scan list for compare dropdown
   await scanStore.fetchScans(20)
   // If compare param is in URL, fetch the diff
@@ -406,6 +462,13 @@ onUnmounted(() => {
       <h1>Scan #{{ scanId }} Results</h1>
       <span class="total-count mono" v-if="scanStore.totalScores > 0">
         {{ scanStore.totalScores }} tickers
+      </span>
+      <span
+        v-if="selectedSectorFilters.length > 0"
+        class="active-sector-info"
+        data-testid="active-sector-filter"
+      >
+        Sectors: {{ selectedSectorFilters.join(', ') }}
       </span>
     </div>
 
@@ -427,6 +490,19 @@ onUnmounted(() => {
         size="small"
         data-testid="direction-filter"
         @change="onDirectionChange()"
+      />
+      <MultiSelect
+        v-model="selectedSectorFilters"
+        :options="sectorFilterOptions"
+        optionLabel="name"
+        optionValue="value"
+        display="chip"
+        filter
+        placeholder="Filter by sector"
+        size="small"
+        class="sector-filter"
+        data-testid="sector-filter"
+        @change="onSectorFilterChange()"
       />
       <Select
         v-model="compareScanId"
@@ -536,6 +612,18 @@ onUnmounted(() => {
               data-testid="new-badge"
             />
           </span>
+        </template>
+      </Column>
+      <Column field="sector" header="Sector" :sortable="true" :style="{ width: '160px' }">
+        <template #body="{ data }">
+          <Tag
+            v-if="data.sector"
+            :value="data.sector"
+            :severity="sectorSeverity(data.sector)"
+            class="sector-tag"
+            :data-testid="`sector-${data.ticker}`"
+          />
+          <span v-else class="sector-none" :data-testid="`sector-${data.ticker}`">&mdash;</span>
         </template>
       </Column>
       <Column field="composite_score" header="Score" :sortable="true" :style="{ width: '120px' }">
@@ -665,6 +753,26 @@ onUnmounted(() => {
 
 .compare-select {
   min-width: 220px;
+}
+
+.sector-filter {
+  min-width: 220px;
+  max-width: 400px;
+}
+
+.active-sector-info {
+  font-size: 0.8rem;
+  color: var(--accent-blue, #3b82f6);
+  margin-left: auto;
+}
+
+.sector-tag {
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.sector-none {
+  color: var(--p-surface-500, #666);
 }
 
 .batch-actions {

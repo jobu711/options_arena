@@ -1,7 +1,7 @@
 export type { HealthStatus } from './health'
 export type { Watchlist, WatchlistTicker, WatchlistDetail } from './watchlist'
 export type { UniverseStats } from './universe'
-export type { ScanRun, TickerScore, PaginatedResponse, TickerDelta, ScanDiff } from './scan'
+export type { ScanRun, TickerScore, PaginatedResponse, TickerDelta, ScanDiff, SectorOption } from './scan'
 export type {
   DebateResultSummary,
   DebateResult,
