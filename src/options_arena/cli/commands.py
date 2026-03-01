@@ -813,6 +813,69 @@ async def _stats_async() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _kill_stale_port_holder(host: str, port: int) -> None:
+    """Detect and kill a stale process holding the serve port.
+
+    On Windows, unclean shutdowns (terminal closed, process killed) can leave
+    the old server process alive. This checks the port before uvicorn tries to
+    bind and kills the stale holder to prevent ``[Errno 10048]``.
+    """
+    import socket  # noqa: PLC0415
+    import subprocess  # noqa: PLC0415
+    import sys  # noqa: PLC0415
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind((host, port))
+        # Port is free — nothing to do
+        return
+    except OSError:
+        pass  # Port in use — find and kill the holder
+    finally:
+        sock.close()
+
+    if sys.platform != "win32":
+        err_console.print(
+            f"[yellow]Port {port} is in use. Kill the existing process and retry.[/yellow]"
+        )
+        raise typer.Exit(code=1)
+
+    # Windows: use netstat to find the PID
+    try:
+        result = subprocess.run(
+            ["netstat", "-ano"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        pid: int | None = None
+        for line in result.stdout.splitlines():
+            # Match LISTENING on our host:port
+            if f"{host}:{port}" in line and "LISTENING" in line:
+                parts = line.split()
+                pid = int(parts[-1])
+                break
+
+        if pid is None:
+            err_console.print(
+                f"[yellow]Port {port} is in use but could not identify the process.[/yellow]"
+            )
+            raise typer.Exit(code=1)
+
+        err_console.print(
+            f"[yellow]Port {port} held by stale process (PID {pid}). Killing...[/yellow]"
+        )
+        subprocess.run(
+            ["taskkill", "/PID", str(pid), "/F"],
+            capture_output=True,
+            timeout=5,
+        )
+        err_console.print(f"[green]Killed PID {pid}. Starting server.[/green]")
+    except (subprocess.TimeoutExpired, ValueError, OSError) as exc:
+        err_console.print(f"[red]Failed to free port {port}: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+
 @app.command()
 def serve(
     host: str = typer.Option("127.0.0.1", "--host", help="Bind address"),
@@ -836,6 +899,9 @@ def serve(
     if not _is_loopback(host):
         err_console.print("[red]--host must be a loopback address (127.0.0.1 or localhost).[/red]")
         raise typer.Exit(code=1)
+
+    # Kill stale process holding the port (common on Windows after unclean shutdown)
+    _kill_stale_port_holder(host, port)
 
     if not no_open:
         import threading  # noqa: PLC0415
