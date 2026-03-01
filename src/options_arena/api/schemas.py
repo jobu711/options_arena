@@ -93,7 +93,7 @@ class DebateResultDetail(BaseModel):
     model_name: str
     duration_ms: int
     total_tokens: int
-    created_at: str
+    created_at: datetime
     debate_mode: str | None = None
     citation_density: float | None = None
     bull_response: AgentResponse | None = None

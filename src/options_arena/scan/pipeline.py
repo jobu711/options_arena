@@ -425,7 +425,30 @@ class ScanPipeline:
                 spx_close = spx_df["close"]
                 logger.info("SPX close series available from universe (%d bars)", len(spx_close))
             else:
-                logger.debug("SPX data not in universe; relative strength indicators will be None")
+                # Attempt lightweight fetch for SPX data
+                try:
+                    spx_batch = await self._market_data.fetch_batch_ohlcv(
+                        ["^GSPC"], period="1y"
+                    )
+                    if (
+                        spx_batch.results
+                        and spx_batch.results[0].ok
+                        and spx_batch.results[0].data is not None
+                        and len(spx_batch.results[0].data) >= 60
+                    ):
+                        spx_df = ohlcv_to_dataframe(spx_batch.results[0].data)
+                        spx_close = spx_df["close"]
+                        logger.info(
+                            "SPX close series fetched on-demand (%d bars)", len(spx_close)
+                        )
+                    else:
+                        logger.debug(
+                            "SPX fetch unavailable; relative strength indicators will be None"
+                        )
+                except Exception:
+                    logger.warning(
+                        "Failed to fetch SPX data; rs_vs_spx will be None", exc_info=True
+                    )
         except Exception:
             logger.warning("Failed to extract SPX close series; rs_vs_spx will be None")
 
@@ -480,8 +503,13 @@ class ScanPipeline:
 
         # Normalize Phase 3 fields (raw domain values → 0-100 percentile ranks)
         # so they are on the same scale as Phase 2 normalized fields.
-        _normalize_phase3_signals(top_scores)
-        _recompute_dimensional_scores(top_scores)
+        if len(top_scores) >= 2:
+            _normalize_phase3_signals(top_scores)
+            _recompute_dimensional_scores(top_scores)
+        else:
+            logger.info(
+                "Skipping Phase 3 re-score: need >=2 tickers for percentile normalization"
+            )
 
         progress(ScanPhase.OPTIONS, len(top_scores), len(top_scores))
 

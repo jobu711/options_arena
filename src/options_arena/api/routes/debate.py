@@ -478,7 +478,14 @@ async def get_debate(
             dissenting_agents = list(ext_thesis.dissenting_agents)
             agents_completed = ext_thesis.agents_completed
         except PydanticValidationError:
-            thesis = TradeThesis.model_validate_json(row.verdict_json)
+            try:
+                thesis = TradeThesis.model_validate_json(row.verdict_json)
+            except PydanticValidationError:
+                logger.warning(
+                    "Failed to parse verdict JSON for debate %d",
+                    debate_id,
+                    exc_info=True,
+                )
 
     return DebateResultDetail(
         id=row.id,
@@ -487,7 +494,7 @@ async def get_debate(
         model_name=row.model_name,
         duration_ms=row.duration_ms,
         total_tokens=row.total_tokens,
-        created_at=row.created_at.isoformat(),
+        created_at=row.created_at,
         debate_mode=row.debate_mode,
         citation_density=row.citation_density,
         bull_response=bull,

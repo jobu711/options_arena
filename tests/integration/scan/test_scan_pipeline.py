@@ -341,7 +341,8 @@ class TestFullPipelineHappyPath:
 
         mocks["universe"].fetch_optionable_tickers.assert_awaited_once()
         mocks["universe"].fetch_sp500_constituents.assert_awaited_once()
-        mocks["market_data"].fetch_batch_ohlcv.assert_awaited_once()
+        # Called twice: once for universe OHLCV, once for SPX fallback fetch
+        assert mocks["market_data"].fetch_batch_ohlcv.await_count == 2
         mocks["fred"].fetch_risk_free_rate.assert_awaited_once()
         mocks["repository"].save_scan_run.assert_awaited_once()
         mocks["repository"].save_ticker_scores.assert_awaited_once()

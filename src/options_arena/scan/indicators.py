@@ -631,11 +631,15 @@ def compute_phase3_indicators(
         if spx_close is not None and len(close_series) >= 60:
             ticker_returns = close_series.pct_change().dropna()
             spx_returns = spx_close.pct_change().dropna()
-            # Align by taking the shorter common length
-            min_len = min(len(ticker_returns), len(spx_returns))
-            if min_len >= 60:
-                t_ret = ticker_returns.iloc[-min_len:].reset_index(drop=True)
-                s_ret = spx_returns.iloc[-min_len:].reset_index(drop=True)
+            # Align by shared dates (inner join on index) to avoid mismatched days
+            aligned = pd.concat(
+                [ticker_returns.rename("ticker"), spx_returns.rename("spx")],
+                axis=1,
+                join="inner",
+            ).dropna()
+            if len(aligned) >= 60:
+                t_ret = aligned["ticker"]
+                s_ret = aligned["spx"]
                 rs = compute_rs_vs_spx(t_ret, s_ret)
                 if rs is not None and math.isfinite(rs):
                     signals.rs_vs_spx = rs
