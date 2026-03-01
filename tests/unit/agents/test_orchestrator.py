@@ -992,6 +992,7 @@ class TestVolatilityAgentIntegration:
     ) -> None:
         """When enable_volatility_agent=True, result.vol_response is not None."""
         config = DebateConfig(
+            api_key="test-key-not-used-with-TestModel",
             agent_timeout=10.0,
             max_total_duration=30.0,
             enable_volatility_agent=True,
@@ -1136,6 +1137,7 @@ class TestBullRebuttalIntegration:
     ) -> None:
         """When enable_rebuttal=True, result.bull_rebuttal is not None."""
         config = DebateConfig(
+            api_key="test-key-not-used-with-TestModel",
             agent_timeout=10.0,
             max_total_duration=30.0,
             enable_rebuttal=True,
@@ -1216,6 +1218,7 @@ class TestBullRebuttalIntegration:
     ) -> None:
         """When both enable_rebuttal and enable_volatility_agent are True, both are populated."""
         config = DebateConfig(
+            api_key="test-key-not-used-with-TestModel",
             agent_timeout=10.0,
             max_total_duration=30.0,
             enable_rebuttal=True,
@@ -1373,6 +1376,7 @@ class TestRunDebateProgress:
             calls.append((phase, status, confidence))
 
         config = DebateConfig(
+            api_key="test-key-not-used-with-TestModel",
             agent_timeout=10.0,
             max_total_duration=30.0,
         )
@@ -1443,6 +1447,7 @@ class TestRunDebateProgress:
             raise RuntimeError("callback error")
 
         config = DebateConfig(
+            api_key="test-key-not-used-with-TestModel",
             agent_timeout=10.0,
             max_total_duration=30.0,
         )

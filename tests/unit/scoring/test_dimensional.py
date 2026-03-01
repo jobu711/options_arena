@@ -283,9 +283,7 @@ class TestComputeDimensionalScores:
         seen: dict[str, str] = {}
         for family, indicators in FAMILY_INDICATOR_MAP.items():
             for ind in indicators:
-                assert ind not in seen, (
-                    f"'{ind}' duplicated: in '{seen[ind]}' and '{family}'"
-                )
+                assert ind not in seen, f"'{ind}' duplicated: in '{seen[ind]}' and '{family}'"
                 seen[ind] = family
 
     def test_clamping_high_values(self) -> None:
@@ -350,7 +348,7 @@ class TestApplyRegimeWeights:
         """All family scores None produce composite == 0.0."""
         scores = DimensionalScores()
         result = apply_regime_weights(scores)
-        assert result == 0.0
+        assert result == pytest.approx(0.0, abs=1e-9)
 
     def test_weight_redistribution_partial_none(self) -> None:
         """When some families are None, weights redistribute to remaining."""

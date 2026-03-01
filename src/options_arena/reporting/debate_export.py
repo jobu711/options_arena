@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -155,14 +156,57 @@ def export_debate_markdown(result: DebateResult) -> str:
         "",
         (f"**Direction**: {thesis.direction.value} | **Confidence**: {thesis.confidence:.0%}"),
         f"**Strategy**: {strategy_str}",
-        "",
-        thesis.summary,
-        "",
-        "### Risk Assessment",
-        "",
-        thesis.risk_assessment,
-        "",
     ]
+
+    # Extended fields from 6-agent protocol (v2)
+    from options_arena.models import ExtendedTradeThesis  # noqa: PLC0415
+
+    if isinstance(thesis, ExtendedTradeThesis):
+        if thesis.agent_agreement_score is not None and math.isfinite(
+            thesis.agent_agreement_score
+        ):
+            verdict_lines.append(f"**Agent Agreement**: {thesis.agent_agreement_score:.0%}")
+        if thesis.dissenting_agents:
+            verdict_lines.append(f"**Dissenting**: {', '.join(thesis.dissenting_agents)}")
+
+    verdict_lines.extend(
+        [
+            "",
+            thesis.summary,
+            "",
+            "### Risk Assessment",
+            "",
+            thesis.risk_assessment,
+        ]
+    )
+
+    # Extended: contrarian challenge section
+    if isinstance(thesis, ExtendedTradeThesis) and thesis.contrarian_dissent:
+        verdict_lines.extend(["", "### Contrarian Challenge", "", thesis.contrarian_dissent])
+
+    # Extended: dimensional scores table
+    if isinstance(thesis, ExtendedTradeThesis) and thesis.dimensional_scores is not None:
+        dim = thesis.dimensional_scores
+        dim_entries: list[tuple[str, float | None]] = [
+            ("Trend", dim.trend),
+            ("IV/Vol", dim.iv_vol),
+            ("HV/Vol", dim.hv_vol),
+            ("Flow", dim.flow),
+            ("Microstructure", dim.microstructure),
+            ("Fundamental", dim.fundamental),
+            ("Regime", dim.regime),
+            ("Risk", dim.risk),
+        ]
+        populated = [(name, val) for name, val in dim_entries if val is not None]
+        if populated:
+            verdict_lines.extend(["", "### Dimensional Scores", ""])
+            verdict_lines.append("| Family | Score |")
+            verdict_lines.append("|--------|-------|")
+            for name, val in populated:
+                val_str = f"{val:.1f}" if math.isfinite(val) else "--"
+                verdict_lines.append(f"| {name} | {val_str} |")
+
+    verdict_lines.append("")
     sections.append("\n".join(verdict_lines))
 
     # --- Disclaimer ---

@@ -54,6 +54,7 @@ from options_arena.services.universe import UniverseService
 
 if TYPE_CHECKING:
     from options_arena.agents import DebateResult
+    from options_arena.models import DimensionalScores
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -444,7 +445,8 @@ async def _debate_single(
     # Lazy import: agents/ depends on pydantic-ai which may not be available.
     # Importing at call time keeps CLI tests (scan, health, universe) working
     # even when the optional dependency is absent.
-    from options_arena.agents import run_debate  # noqa: PLC0415
+    from options_arena.agents import run_debate_v2  # noqa: PLC0415
+    from options_arena.scoring import compute_dimensional_scores  # noqa: PLC0415
 
     # Force fallback mode if requested (near-zero timeout triggers data-driven path)
     config = settings.debate
@@ -457,13 +459,21 @@ async def _debate_single(
             }
         )
 
-    return await run_debate(
+    # Compute dimensional scores from the debate signals for the v2 protocol
+    dim_scores: DimensionalScores | None = None
+    try:
+        dim_scores = compute_dimensional_scores(debate_score.signals)
+    except Exception:
+        logger.debug("Could not compute dimensional scores for %s", ticker, exc_info=True)
+
+    return await run_debate_v2(
         ticker_score=debate_score,
         contracts=contracts,
         quote=quote,
         ticker_info=ticker_info,
         config=config,
         repository=repo,
+        dimensional_scores=dim_scores,
     )
 
 

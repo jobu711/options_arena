@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from options_arena.models import AgentResponse, ScanPreset, SignalDirection, TradeThesis
 
@@ -81,7 +81,11 @@ class DebateResultSummary(BaseModel):
 
 
 class DebateResultDetail(BaseModel):
-    """Full debate result returned by ``GET /api/debate/{id}``."""
+    """Full debate result returned by ``GET /api/debate/{id}``.
+
+    Includes DSE fields from 6-agent protocol (v2). These are None/empty
+    for legacy 4-agent debates.
+    """
 
     id: int
     ticker: str
@@ -89,7 +93,7 @@ class DebateResultDetail(BaseModel):
     model_name: str
     duration_ms: int
     total_tokens: int
-    created_at: str
+    created_at: datetime
     debate_mode: str | None = None
     citation_density: float | None = None
     bull_response: AgentResponse | None = None
@@ -97,6 +101,11 @@ class DebateResultDetail(BaseModel):
     thesis: TradeThesis | None = None
     vol_response: str | None = None
     bull_rebuttal: str | None = None
+    # DSE fields from 6-agent protocol (v2)
+    contrarian_dissent: str | None = None
+    agent_agreement_score: float | None = None
+    dissenting_agents: list[str] = Field(default_factory=list)
+    agents_completed: int | None = None
 
 
 # ---------------------------------------------------------------------------

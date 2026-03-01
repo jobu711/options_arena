@@ -138,6 +138,7 @@ def _make_contract() -> OptionContract:
 
 def _make_config() -> DebateConfig:
     return DebateConfig(
+        api_key="test-key-not-used-with-TestModel",
         agent_timeout=5.0,
         max_total_duration=30.0,
         phase1_parallelism=4,

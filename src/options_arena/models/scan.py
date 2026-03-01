@@ -10,12 +10,15 @@ the scan pipeline.  All fields default to ``None`` (indicator not computed).
 Values are normalized 0--100 (percentile-ranked), not raw indicator values.
 """
 
+from __future__ import annotations
+
 import math
 from datetime import date, datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from options_arena.models.enums import ScanPreset, SignalDirection
+from options_arena.models.scoring import DimensionalScores
 
 
 class IndicatorSignals(BaseModel):
@@ -178,3 +181,15 @@ class TickerScore(BaseModel):
     signals: IndicatorSignals  # typed model, NOT dict[str, float]
     next_earnings: date | None = None  # populated in Phase 3 from yfinance calendar
     scan_run_id: int | None = None
+
+    # DSE dimensional scoring (populated after score_universe in Phase 2)
+    dimensional_scores: DimensionalScores | None = None
+    direction_confidence: float | None = None
+
+    @field_validator("direction_confidence")
+    @classmethod
+    def validate_direction_confidence(cls, v: float | None) -> float | None:
+        """Ensure direction_confidence is finite and within [0.0, 1.0] when set."""
+        if v is not None and (not math.isfinite(v) or not 0.0 <= v <= 1.0):
+            raise ValueError(f"direction_confidence must be in [0, 1], got {v}")
+        return v
