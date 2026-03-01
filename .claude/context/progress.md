@@ -2,11 +2,12 @@
 
 ## Current State
 
-- **Version**: 2.1.0 (Close the Loop — watchlists, debates, history, earnings, delta)
-- **All 9 phases + 11 epics**: Complete and merged to master (2026-02-28)
-- **Branch**: `master` (1,752 tests, all phases + epics merged)
-- **Tests**: 1,752 Python + 38 E2E
-- **GitHub issues**: 8 open (#142-#149), 124 closed
+- **Version**: 2.1.0 (Complete)
+- **All 9 phases + 12 epics**: Complete and merged to master (2026-03-01)
+- **Branch**: `master` (2,328 tests, all phases + epics merged)
+- **Tests**: 2,328 Python + 38 E2E
+- **GitHub issues**: 0 open, 158 closed
+- **CI**: GitHub Actions (3 gates: lint, typecheck, tests)
 - **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`), `serve`, `watchlist`
 - **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
 - **AI provider**: Groq (cloud, `GROQ_API_KEY` env var or `ARENA_DEBATE__API_KEY`)
@@ -30,21 +31,19 @@ For detailed phase/epic completion logs, see `progress-archive.md`.
 
 ## Recently Completed
 
-### Epic 11: v2.1.0 Close the Loop (2026-02-28) — #142, PR #150
-7 features merged to master. Quick debate from dashboard (#143), watchlist backend
-(#144) + frontend (#145), scan delta view (#146), score history backend (#147) +
-frontend (#148), earnings calendar overlay (#149). New models: `WatchlistItem`,
-`TickerDelta`, `ScanDiff`, `HistoryPoint`, `TrendingTicker`. New pages: WatchlistPage,
-TickerDetailPage. New components: ScoreHistoryChart, SparklineChart. New CLI subcommand:
-`watchlist`. 2 new migrations (006, 007). +175 tests over v2.0.0.
+### Epic 12: Deep Signal Engine (2026-03-01) — #151, PR #160
+40 DSE indicators across 8 analytical dimensions (trend, volatility, flow,
+fundamental, regime, IV analytics, options-specific, relative strength). 6-agent
+parallel debate protocol (trend, volatility, flow, fundamental → risk →
+contrarian). Multi-dimensional scoring with regime-adjusted weights. Phase 3
+normalization pipeline. Extended Greeks (charm, vanna, vomma, speed). IV surface
+utilities. CI workflow (GitHub Actions). +576 tests over v2.1.0.
 
 ## Future Work
 
-- Close v2.1.0 epic issues (#142-#149) now merged
 - Additional LLM providers (Anthropic Claude, OpenAI)
 - Options liquidity weighting in composite scoring
 - Real-time market data streaming
-- Multi-round debate (bear rebuttal, second rounds)
 - Frontend unit testing (Vitest + Vue Test Utils) — E2E covered by Playwright
 
 ## Blockers
