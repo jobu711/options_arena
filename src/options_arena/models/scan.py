@@ -124,11 +124,15 @@ class IndicatorSignals(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _normalize_non_finite(cls, data: dict[str, object]) -> dict[str, object]:
-        """Replace NaN/Inf indicator values with None at the model boundary."""
+        """Replace NaN/Inf indicator values with None at the model boundary.
+
+        Returns a shallow copy to avoid mutating the caller's input dict.
+        """
         if isinstance(data, dict):
-            for key, value in data.items():
-                if isinstance(value, float) and not math.isfinite(value):
-                    data[key] = None
+            data = {
+                k: (None if isinstance(v, float) and not math.isfinite(v) else v)
+                for k, v in data.items()
+            }
         return data
 
 

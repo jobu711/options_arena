@@ -80,20 +80,12 @@ class WatchlistTickerDetail(BaseModel):
             raise ValueError(f"composite_score must be finite, got {v}")
         return v
 
-    @field_validator("added_at")
+    @field_validator("added_at", "last_debate_at")
     @classmethod
-    def validate_utc(cls, v: datetime) -> datetime:
-        """Ensure added_at is UTC."""
-        if v.tzinfo is None or v.utcoffset() != timedelta(0):
-            raise ValueError("added_at must be UTC")
-        return v
-
-    @field_validator("last_debate_at")
-    @classmethod
-    def validate_last_debate_utc(cls, v: datetime | None) -> datetime | None:
-        """Ensure last_debate_at is UTC when provided."""
+    def validate_utc(cls, v: datetime | None) -> datetime | None:
+        """Ensure datetime fields are UTC when provided."""
         if v is not None and (v.tzinfo is None or v.utcoffset() != timedelta(0)):
-            raise ValueError("last_debate_at must be UTC")
+            raise ValueError("datetime must be UTC")
         return v
 
 

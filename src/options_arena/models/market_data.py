@@ -157,6 +157,14 @@ class TickerInfo(BaseModel):
     dividend_rate: float | None = None
     trailing_dividend_rate: float | None = None
 
+    @field_validator("dividend_rate", "trailing_dividend_rate")
+    @classmethod
+    def validate_optional_dividend_finite(cls, v: float | None) -> float | None:
+        """Ensure audit dividend fields are finite when provided."""
+        if v is not None and not math.isfinite(v):
+            raise ValueError(f"must be finite, got {v}")
+        return v
+
     current_price: Decimal
     fifty_two_week_high: Decimal
     fifty_two_week_low: Decimal

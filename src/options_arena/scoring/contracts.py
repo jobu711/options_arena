@@ -241,21 +241,9 @@ def compute_greeks(
                 contract.option_type,
             )
 
-            # OptionContract is frozen — create a new instance with greeks populated
-            new_contract = OptionContract(
-                ticker=contract.ticker,
-                option_type=contract.option_type,
-                strike=contract.strike,
-                expiration=contract.expiration,
-                bid=contract.bid,
-                ask=contract.ask,
-                last=contract.last,
-                volume=contract.volume,
-                open_interest=contract.open_interest,
-                exercise_style=contract.exercise_style,
-                market_iv=sigma,
-                greeks=greeks,
-            )
+            # OptionContract is frozen — use model_copy to avoid re-validating
+            # unchanged fields (idiomatic Pydantic v2 for frozen models).
+            new_contract = contract.model_copy(update={"greeks": greeks, "market_iv": sigma})
             result.append(new_contract)
 
         except (ValueError, OverflowError, ZeroDivisionError):

@@ -14,8 +14,9 @@ AppSettings() with no args is a valid production config.
 """
 
 import math
+from typing import Self
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,6 +38,14 @@ class ScanConfig(BaseModel):
     enable_fundamental: bool = True
     enable_regime: bool = True
 
+    @model_validator(mode="after")
+    def validate_all_finite(self) -> Self:
+        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
+        for name, value in self.__dict__.items():
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+        return self
+
 
 class PricingConfig(BaseModel):
     """Options pricing configuration — delta targeting, DTE range, IV solver parameters."""
@@ -55,6 +64,14 @@ class PricingConfig(BaseModel):
     iv_solver_tol: float = 1e-6
     iv_solver_max_iter: int = 50
 
+    @model_validator(mode="after")
+    def validate_all_finite(self) -> Self:
+        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
+        for name, value in self.__dict__.items():
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+        return self
+
 
 class ServiceConfig(BaseModel):
     """External service configuration — timeouts, rate limits, cache TTLs."""
@@ -68,6 +85,14 @@ class ServiceConfig(BaseModel):
     max_concurrent_requests: int = 5
     cache_ttl_market_hours: int = 300
     cache_ttl_after_hours: int = 3600
+
+    @model_validator(mode="after")
+    def validate_all_finite(self) -> Self:
+        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
+        for name, value in self.__dict__.items():
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+        return self
 
 
 class DataConfig(BaseModel):

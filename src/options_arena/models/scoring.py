@@ -8,6 +8,7 @@ import math
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from options_arena.models._validators import validate_non_empty_list, validate_unit_interval
 from options_arena.models.enums import SignalDirection
 
 
@@ -66,16 +67,10 @@ class DirectionSignal(BaseModel):
     @classmethod
     def validate_confidence(cls, v: float) -> float:
         """Ensure confidence is finite and within [0.0, 1.0]."""
-        if not math.isfinite(v):
-            raise ValueError(f"confidence must be finite, got {v}")
-        if not 0.0 <= v <= 1.0:
-            raise ValueError(f"confidence must be in [0, 1], got {v}")
-        return v
+        return validate_unit_interval(v, "confidence")
 
     @field_validator("contributing_signals")
     @classmethod
     def validate_contributing_signals(cls, v: list[str]) -> list[str]:
         """Ensure at least one contributing signal is present."""
-        if len(v) < 1:
-            raise ValueError("contributing_signals must have at least 1 item")
-        return v
+        return validate_non_empty_list(v, "contributing_signals")

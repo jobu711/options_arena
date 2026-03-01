@@ -14,7 +14,7 @@ Key design decisions:
 """
 
 import math
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, computed_field, field_serializer, field_validator
@@ -145,8 +145,8 @@ class OptionContract(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def dte(self) -> int:
-        """Days to expiration from today."""
-        return (self.expiration - date.today()).days
+        """Days to expiration from today (UTC)."""
+        return (self.expiration - datetime.now(UTC).date()).days
 
     @field_serializer("strike", "bid", "ask", "last")
     def serialize_decimal(self, v: Decimal) -> str:
@@ -179,11 +179,15 @@ class SpreadLeg(BaseModel):
 class OptionSpread(BaseModel):
     """A multi-leg option spread strategy.
 
+    Frozen (immutable after construction) -- consistent with other snapshot models.
+
     Attributes:
         spread_type: Type of spread (vertical, calendar, iron condor, etc.).
         legs: List of spread legs composing this strategy (at least 1).
         ticker: Underlying ticker symbol.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     spread_type: SpreadType
     legs: list[SpreadLeg]

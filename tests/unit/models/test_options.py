@@ -10,7 +10,7 @@ Tests cover:
 - Spread construction (SpreadLeg, OptionSpread)
 """
 
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -376,7 +376,7 @@ class TestOptionContract:
     def test_dte_computed_field(self) -> None:
         """OptionContract dte computed field returns correct days to expiration.
 
-        Mock date.today() to avoid test fragility from real calendar dates.
+        Mock datetime.now(UTC) to avoid test fragility from real calendar dates.
         """
         contract = OptionContract(
             ticker="AAPL",
@@ -391,11 +391,12 @@ class TestOptionContract:
             exercise_style=ExerciseStyle.AMERICAN,
             market_iv=0.32,
         )
-        # Mock date.today() in the options module where it is called
+        # Mock datetime.now(UTC) in the options module where it is called
         mock_today = date(2025, 6, 15)
-        with patch("options_arena.models.options.date") as mock_date:
-            mock_date.today.return_value = mock_today
-            mock_date.side_effect = lambda *args, **kw: date(*args, **kw)
+        mock_now = datetime(2025, 6, 15, 12, 0, 0, tzinfo=UTC)
+        with patch("options_arena.models.options.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
             expected_dte = (date(2025, 7, 18) - mock_today).days
             assert contract.dte == expected_dte
             assert contract.dte == 33

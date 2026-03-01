@@ -22,6 +22,7 @@ import logging
 import math
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from typing import Self
 
 from pydantic import (
     BaseModel,
@@ -32,6 +33,7 @@ from pydantic import (
     model_validator,
 )
 
+from options_arena.models._validators import validate_non_empty_list, validate_unit_interval
 from options_arena.models.enums import (
     CatalystImpact,
     ExerciseStyle,
@@ -142,8 +144,24 @@ class MarketContext(BaseModel):
         populated = sum(1 for f in checkable_fields if f is not None)
         return populated / len(checkable_fields)
 
+    @field_validator("rsi_14", "target_delta")
+    @classmethod
+    def validate_required_finite(cls, v: float) -> float:
+        """Reject NaN/Inf on required float fields."""
+        if not math.isfinite(v):
+            raise ValueError(f"must be finite, got {v}")
+        return v
+
     @field_validator(
-        "iv_rank", "iv_percentile", "atm_iv_30d", "put_call_ratio", "max_pain_distance"
+        "iv_rank",
+        "iv_percentile",
+        "atm_iv_30d",
+        "put_call_ratio",
+        "max_pain_distance",
+        "target_gamma",
+        "target_theta",
+        "target_vega",
+        "target_rho",
     )
     @classmethod
     def validate_optional_finite(cls, v: float | None) -> float | None:
@@ -193,27 +211,19 @@ class AgentResponse(BaseModel):
     @classmethod
     def validate_confidence(cls, v: float) -> float:
         """Ensure confidence is finite and within [0.0, 1.0]."""
-        if not math.isfinite(v):
-            raise ValueError(f"confidence must be finite, got {v}")
-        if not 0.0 <= v <= 1.0:
-            raise ValueError(f"confidence must be in [0, 1], got {v}")
-        return v
+        return validate_unit_interval(v, "confidence")
 
     @field_validator("key_points")
     @classmethod
     def validate_key_points(cls, v: list[str]) -> list[str]:
         """Ensure at least one key point is cited."""
-        if len(v) < 1:
-            raise ValueError("key_points must have at least 1 item")
-        return v
+        return validate_non_empty_list(v, "key_points")
 
     @field_validator("risks_cited")
     @classmethod
     def validate_risks_cited(cls, v: list[str]) -> list[str]:
         """Ensure at least one risk is cited."""
-        if len(v) < 1:
-            raise ValueError("risks_cited must have at least 1 item")
-        return v
+        return validate_non_empty_list(v, "risks_cited")
 
 
 class TradeThesis(BaseModel):
@@ -239,11 +249,7 @@ class TradeThesis(BaseModel):
     @classmethod
     def validate_confidence(cls, v: float) -> float:
         """Ensure confidence is finite and within [0.0, 1.0]."""
-        if not math.isfinite(v):
-            raise ValueError(f"confidence must be finite, got {v}")
-        if not 0.0 <= v <= 1.0:
-            raise ValueError(f"confidence must be in [0, 1], got {v}")
-        return v
+        return validate_unit_interval(v, "confidence")
 
     @field_validator("bull_score", "bear_score")
     @classmethod
@@ -259,12 +265,10 @@ class TradeThesis(BaseModel):
     @classmethod
     def validate_key_factors(cls, v: list[str]) -> list[str]:
         """Ensure at least one key factor is cited."""
-        if len(v) < 1:
-            raise ValueError("key_factors must have at least 1 item")
-        return v
+        return validate_non_empty_list(v, "key_factors")
 
     @model_validator(mode="after")
-    def clamp_confidence_on_mismatch(self) -> TradeThesis:
+    def clamp_confidence_on_mismatch(self) -> Self:
         """Warn and clamp confidence when scores contradict direction.
 
         Uses ``object.__setattr__`` to mutate the frozen instance during validation —
@@ -334,11 +338,7 @@ class VolatilityThesis(BaseModel):
     @classmethod
     def validate_confidence(cls, v: float) -> float:
         """Ensure confidence is finite and within [0.0, 1.0]."""
-        if not math.isfinite(v):
-            raise ValueError(f"confidence must be finite, got {v}")
-        if not 0.0 <= v <= 1.0:
-            raise ValueError(f"confidence must be in [0, 1], got {v}")
-        return v
+        return validate_unit_interval(v, "confidence")
 
     @field_validator("target_iv_entry", "target_iv_exit")
     @classmethod
@@ -355,9 +355,7 @@ class VolatilityThesis(BaseModel):
     @classmethod
     def validate_key_vol_factors(cls, v: list[str]) -> list[str]:
         """Ensure at least one volatility factor is cited."""
-        if len(v) < 1:
-            raise ValueError("key_vol_factors must have at least 1 item")
-        return v
+        return validate_non_empty_list(v, "key_vol_factors")
 
 
 class FlowThesis(BaseModel):
@@ -382,19 +380,13 @@ class FlowThesis(BaseModel):
     @classmethod
     def validate_confidence(cls, v: float) -> float:
         """Ensure confidence is finite and within [0.0, 1.0]."""
-        if not math.isfinite(v):
-            raise ValueError(f"confidence must be finite, got {v}")
-        if not 0.0 <= v <= 1.0:
-            raise ValueError(f"confidence must be in [0, 1], got {v}")
-        return v
+        return validate_unit_interval(v, "confidence")
 
     @field_validator("key_flow_factors")
     @classmethod
     def validate_key_flow_factors(cls, v: list[str]) -> list[str]:
         """Ensure at least one flow factor is cited."""
-        if len(v) < 1:
-            raise ValueError("key_flow_factors must have at least 1 item")
-        return v
+        return validate_non_empty_list(v, "key_flow_factors")
 
 
 class RiskAssessment(BaseModel):
@@ -422,11 +414,7 @@ class RiskAssessment(BaseModel):
     @classmethod
     def validate_confidence(cls, v: float) -> float:
         """Ensure confidence is finite and within [0.0, 1.0]."""
-        if not math.isfinite(v):
-            raise ValueError(f"confidence must be finite, got {v}")
-        if not 0.0 <= v <= 1.0:
-            raise ValueError(f"confidence must be in [0, 1], got {v}")
-        return v
+        return validate_unit_interval(v, "confidence")
 
     @field_validator("pop_estimate")
     @classmethod
@@ -443,9 +431,7 @@ class RiskAssessment(BaseModel):
     @classmethod
     def validate_key_risks(cls, v: list[str]) -> list[str]:
         """Ensure at least one risk is cited."""
-        if len(v) < 1:
-            raise ValueError("key_risks must have at least 1 item")
-        return v
+        return validate_non_empty_list(v, "key_risks")
 
 
 class FundamentalThesis(BaseModel):
@@ -471,19 +457,13 @@ class FundamentalThesis(BaseModel):
     @classmethod
     def validate_confidence(cls, v: float) -> float:
         """Ensure confidence is finite and within [0.0, 1.0]."""
-        if not math.isfinite(v):
-            raise ValueError(f"confidence must be finite, got {v}")
-        if not 0.0 <= v <= 1.0:
-            raise ValueError(f"confidence must be in [0, 1], got {v}")
-        return v
+        return validate_unit_interval(v, "confidence")
 
     @field_validator("key_fundamental_factors")
     @classmethod
     def validate_key_fundamental_factors(cls, v: list[str]) -> list[str]:
         """Ensure at least one fundamental factor is cited."""
-        if len(v) < 1:
-            raise ValueError("key_fundamental_factors must have at least 1 item")
-        return v
+        return validate_non_empty_list(v, "key_fundamental_factors")
 
 
 class ContrarianThesis(BaseModel):
@@ -507,19 +487,13 @@ class ContrarianThesis(BaseModel):
     @classmethod
     def validate_dissent_confidence(cls, v: float) -> float:
         """Ensure dissent_confidence is finite and within [0.0, 1.0]."""
-        if not math.isfinite(v):
-            raise ValueError(f"dissent_confidence must be finite, got {v}")
-        if not 0.0 <= v <= 1.0:
-            raise ValueError(f"dissent_confidence must be in [0, 1], got {v}")
-        return v
+        return validate_unit_interval(v, "dissent_confidence")
 
     @field_validator("overlooked_risks")
     @classmethod
     def validate_overlooked_risks(cls, v: list[str]) -> list[str]:
         """Ensure at least one overlooked risk is cited."""
-        if len(v) < 1:
-            raise ValueError("overlooked_risks must have at least 1 item")
-        return v
+        return validate_non_empty_list(v, "overlooked_risks")
 
 
 class ExtendedTradeThesis(TradeThesis):
