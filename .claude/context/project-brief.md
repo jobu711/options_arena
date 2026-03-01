@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-02-25T13:55:32Z
-version: 2.2
+last_updated: 2026-03-01T09:14:06Z
+version: 3.0
 author: Claude Code PM System
 ---
 
@@ -9,13 +9,13 @@ author: Claude Code PM System
 
 ## What It Is
 
-**Option Alpha** is an AI-powered options analysis tool that uses a multi-agent debate system to evaluate options contracts. Three AI agents (Bull, Bear, Risk) debate via locally-hosted Ollama models (Llama 3.1 8B), producing a structured verdict with risk assessment.
+**Options Arena** is an AI-powered options analysis tool that uses a multi-agent debate system to evaluate options contracts. AI agents debate via Groq cloud API (Llama 3.3 70B), producing a structured verdict with risk assessment. Includes CLI, web UI, and deep signal analysis.
 
 ## Why It Exists
 
-- Provides data-driven options analysis without relying on cloud AI services or paid APIs
-- Combines quantitative technical indicators with qualitative AI reasoning
-- Runs entirely locally for privacy and cost control
+- Provides data-driven options analysis with AI-powered reasoning
+- Combines quantitative technical indicators with qualitative AI debate
+- Multiple analysis modes: standard 3-agent and deep 6-agent protocols
 - Educational/research tool — NOT investment advice
 
 ## Project Goals
@@ -36,12 +36,12 @@ author: Claude Code PM System
 
 ## Scope Boundaries
 
-- **In scope (v1.2.0 — Complete)**: CLI tool, yfinance data, BAW/BSM pricing, SQLite persistence, 18 technical indicators, Rich terminal output, scan pipeline, health checks, universe management, AI debate system (Bull/Bear/Risk via PydanticAI + Ollama or Groq cloud)
-- **Deferred to v2**: Multi-round debate, web UI, reporting module, additional LLM providers (Anthropic, OpenAI)
-- **Out of scope**: Real-time streaming, portfolio management, trade execution
+- **In scope (v2.1.0 — Complete)**: CLI + Web UI, yfinance data, BAW/BSM pricing, SQLite persistence, 40+ indicators (18 core + DSE), Rich terminal output, scan pipeline, health checks, universe management, AI debate (standard + DSE 6-agent), rebuttal, batch debate, markdown/PDF export, watchlists, score history/trending, CI/CD
+- **Future**: Additional LLM providers (Anthropic Claude, OpenAI), real-time streaming, frontend unit tests
+- **Out of scope**: Portfolio management, trade execution
 
 ## Repository
 
 - **GitHub**: jobu711/options_arena
-- **Branch**: `master` (all 9 phases merged, 1,262 tests, 70 issues closed)
+- **Branch**: `master` (all phases + 12 epics merged, 2,328 tests, 158 issues closed)
 - **Package**: `options_arena` (PEP 8 compliant). PRD: `.claude/prds/options-arena.md`
