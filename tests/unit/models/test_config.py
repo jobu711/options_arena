@@ -152,7 +152,8 @@ class TestAppSettingsEnvOverrides:
     def test_env_override_service_groq_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ARENA_SERVICE__GROQ_API_KEY", "gsk_test_from_env")
         settings = AppSettings()
-        assert settings.service.groq_api_key == "gsk_test_from_env"
+        assert settings.service.groq_api_key is not None
+        assert settings.service.groq_api_key.get_secret_value() == "gsk_test_from_env"
 
     def test_env_override_type_coercion_string_to_int(
         self, monkeypatch: pytest.MonkeyPatch
@@ -215,7 +216,8 @@ class TestConfigConstructorOverrides:
 
     def test_constructor_override_service_groq_api_key(self) -> None:
         settings = AppSettings(service=ServiceConfig(groq_api_key="gsk_from_constructor"))
-        assert settings.service.groq_api_key == "gsk_from_constructor"
+        assert settings.service.groq_api_key is not None
+        assert settings.service.groq_api_key.get_secret_value() == "gsk_from_constructor"
 
     def test_constructor_takes_priority_over_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ARENA_SCAN__TOP_N", "30")
@@ -277,7 +279,8 @@ class TestDebateConfigDefaults:
         """ARENA_DEBATE__API_KEY env var overrides default."""
         monkeypatch.setenv("ARENA_DEBATE__API_KEY", "gsk_test_key_123")
         settings = AppSettings()
-        assert settings.debate.api_key == "gsk_test_key_123"
+        assert settings.debate.api_key is not None
+        assert settings.debate.api_key.get_secret_value() == "gsk_test_key_123"
 
     def test_debate_api_key_default_is_none(self) -> None:
         """Default api_key is None."""

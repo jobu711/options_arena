@@ -16,7 +16,7 @@ AppSettings() with no args is a valid production config.
 import math
 from typing import Self
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from options_arena.models.enums import SECTOR_ALIASES, GICSSector
@@ -30,6 +30,9 @@ class ScanConfig(BaseModel):
     min_price: float = 10.0
     min_dollar_volume: float = 10_000_000.0
     ohlcv_min_bars: int = 200
+    # Direction threshold defaults are standard technical analysis values:
+    # ADX < 15 = no trend (Wilder, 1978), RSI > 70 = overbought / < 30 = oversold
+    # (Wilder, 1978). Widely accepted across quantitative finance (AUDIT-017).
     adx_trend_threshold: float = 15.0
     rsi_overbought: float = 70.0
     rsi_oversold: float = 30.0
@@ -110,8 +113,8 @@ class ServiceConfig(BaseModel):
     yfinance_timeout: float = 15.0
     fred_timeout: float = 10.0
     cboe_timeout: float = 10.0
-    fred_api_key: str | None = None
-    groq_api_key: str | None = None
+    fred_api_key: SecretStr | None = None
+    groq_api_key: SecretStr | None = None
     rate_limit_rps: float = 2.0
     max_concurrent_requests: int = 5
     cache_ttl_market_hours: int = 300
@@ -143,7 +146,7 @@ class DebateConfig(BaseModel):
     """
 
     model: str = "llama-3.3-70b-versatile"
-    api_key: str | None = None
+    api_key: SecretStr | None = None
     agent_timeout: float = 60.0
     num_ctx: int = 8192
     retries: int = 2

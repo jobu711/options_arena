@@ -105,13 +105,14 @@ class FredService:
             logger.warning("Error reading FRED rate from cache, proceeding to fetch")
 
         # --- API key check ---
-        api_key = self._config.fred_api_key
-        if api_key is None:
+        if self._config.fred_api_key is None:
             logger.warning(
                 "FRED API key not configured, returning fallback rate %.4f",
                 fallback,
             )
             return fallback
+
+        api_key = self._config.fred_api_key.get_secret_value()
 
         # --- Fetch from FRED ---
         try:
