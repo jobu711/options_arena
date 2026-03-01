@@ -67,7 +67,7 @@ class ScanConfig(BaseModel):
                     raise ValueError(
                         f"Unknown sector {item!r}. Valid sectors: {', '.join(valid)}"
                     ) from None
-        return result
+        return list(dict.fromkeys(result))
 
     @model_validator(mode="after")
     def validate_all_finite(self) -> Self:

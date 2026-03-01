@@ -57,7 +57,7 @@ class ScanRequest(BaseModel):
                     raise ValueError(
                         f"Unknown sector {item!r}. Valid sectors: {', '.join(valid)}"
                     ) from None
-        return result
+        return list(dict.fromkeys(result))
 
 
 class ScanStarted(BaseModel):

@@ -700,8 +700,11 @@ async def _list_async(sector: str | None, preset: ScanPreset) -> None:
             constituents = await svc.fetch_sp500_constituents()
             tickers_with_sector = [(c.ticker, c.sector) for c in constituents]
             if sector:
-                sectors = [s.strip() for s in sector.split(",")]
-                tickers_with_sector = [(t, s) for t, s in tickers_with_sector if s in sectors]
+                resolved = _parse_sectors([s.strip() for s in sector.split(",")])
+                resolved_values = {g.value for g in resolved}
+                tickers_with_sector = [
+                    (t, s) for t, s in tickers_with_sector if s in resolved_values
+                ]
             console.print(
                 f"[bold]{len(tickers_with_sector)} tickers[/bold] (preset={preset.value})"
             )
