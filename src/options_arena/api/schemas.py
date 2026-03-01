@@ -20,8 +20,8 @@ from options_arena.models import (
 )
 from options_arena.models.enums import SECTOR_ALIASES
 
-# Ticker format: uppercase letters, digits, dots (BRK.B), hyphens, caret (^VIX)
-_TICKER_PATTERN = r"^[A-Z0-9.\-^]{1,10}$"
+# Ticker: must start with letter/digit/caret; then letters, digits, dots, hyphens, caret
+_TICKER_PATTERN = r"^[A-Z0-9^][A-Z0-9.\-^]{0,9}$"
 _TICKER_RE = re.compile(_TICKER_PATTERN)
 
 # ---------------------------------------------------------------------------

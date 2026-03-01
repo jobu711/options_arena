@@ -505,11 +505,15 @@ class ScanPipeline:
         async def _fetch_with_sem(
             ts: TickerScore,
         ) -> tuple[str, list[OptionContract], date | None]:
+            nonlocal completed
             async with sem:
-                return await asyncio.wait_for(
+                result = await asyncio.wait_for(
                     self._process_ticker_options(ts, risk_free_rate, ohlcv_map, spx_close),
                     timeout=per_ticker_timeout,
                 )
+                completed += 1
+                progress(ScanPhase.OPTIONS, completed, len(top_scores))
+                return result
 
         all_results: list[
             tuple[str, list[OptionContract], date | None] | BaseException
@@ -532,9 +536,6 @@ class ScanPipeline:
                     recommendations[ticker] = contracts
                 if next_earnings is not None:
                     earnings_dates[ticker] = next_earnings
-            completed += 1
-
-        progress(ScanPhase.OPTIONS, completed, len(top_scores))
 
         logger.info(
             "Options phase complete: %d recommendations from %d tickers",

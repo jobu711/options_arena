@@ -115,11 +115,11 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(RateLimitExceeded)
     async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
-        retry_after = getattr(exc, "retry_after", 60)
+        # RateLimitExceeded has no retry_after attr; exc.detail holds the limit string
         return JSONResponse(
             status_code=429,
-            content={"detail": "Rate limit exceeded", "retry_after": retry_after},
-            headers={"Retry-After": str(retry_after)},
+            content={"detail": f"Rate limit exceeded: {exc.detail}"},
+            headers={"Retry-After": "60"},
         )
 
     # CORS — allow Vite dev server

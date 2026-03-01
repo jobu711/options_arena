@@ -310,10 +310,14 @@ class TestFredServiceCaching:
 
         assert rate == pytest.approx(0.0425, rel=1e-6)
 
-        # Verify value was cached
+        # Verify value was cached (stored as JSON blob with rate + fetched_at)
         cached = await cache.get(_CACHE_KEY)
         assert cached is not None
-        assert float(cached.decode()) == pytest.approx(0.0425, rel=1e-6)
+        import json
+
+        blob = json.loads(cached.decode())
+        assert float(blob["rate"]) == pytest.approx(0.0425, rel=1e-6)
+        assert "fetched_at" in blob
 
 
 class TestFredServiceClose:

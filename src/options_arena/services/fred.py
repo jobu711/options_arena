@@ -120,8 +120,18 @@ class FredService:
         try:
             cached = await self._cache.get(_CACHE_KEY)
             if cached is not None:
-                rate = float(cached.decode())
-                self._cached_rate = CachedRate(rate=rate, fetched_at=datetime.now(UTC))
+                decoded = cached.decode()
+                # Support both JSON (with timestamp) and plain float (legacy)
+                if decoded.startswith("{"):
+                    import json as _json
+
+                    blob = _json.loads(decoded)
+                    rate = float(blob["rate"])
+                    fetched_at = datetime.fromisoformat(blob["fetched_at"])
+                else:
+                    rate = float(decoded)
+                    fetched_at = datetime.now(UTC)  # legacy: no timestamp available
+                self._cached_rate = CachedRate(rate=rate, fetched_at=fetched_at)
                 logger.debug("FRED rate cache hit: %.4f", rate)
                 return rate
         except Exception:
@@ -159,9 +169,12 @@ class FredService:
         now = datetime.now(UTC)
         self._cached_rate = CachedRate(rate=fetched_rate, fetched_at=now)
         try:
+            import json as _json
+
+            cache_blob = _json.dumps({"rate": fetched_rate, "fetched_at": now.isoformat()})
             await self._cache.set(
                 _CACHE_KEY,
-                str(fetched_rate).encode(),
+                cache_blob.encode(),
                 ttl=TTL_REFERENCE,
             )
             logger.debug("Cached FRED rate %.4f with TTL %ds", fetched_rate, TTL_REFERENCE)

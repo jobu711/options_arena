@@ -6,11 +6,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/verify-epic-commit.sh"
+            "command": "python .claude/hooks/verify-epic-commit.py"
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/analyze-epic-commit.sh"
+            "command": "python .claude/hooks/analyze-epic-commit.py"
           }
         ]
       }

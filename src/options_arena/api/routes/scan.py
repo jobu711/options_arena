@@ -226,7 +226,7 @@ async def get_scores(
 async def get_ticker_detail(
     request: Request,
     scan_id: int,
-    ticker: str = Path(min_length=1, max_length=10, pattern=r"^[A-Z0-9.\-^]{1,10}$"),
+    ticker: str = Path(min_length=1, max_length=10, pattern=r"^[A-Z0-9^][A-Z0-9.\-^]{0,9}$"),
     repo: Repository = Depends(get_repo),
 ) -> TickerDetail:
     """Get a single ticker's score and recommended contracts."""
