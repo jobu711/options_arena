@@ -148,6 +148,7 @@ def mock_debate_deps(
 def mock_debate_config() -> DebateConfig:
     """DebateConfig with reduced timeouts for fast tests."""
     return DebateConfig(
+        api_key="test-key-not-used-with-TestModel",
         agent_timeout=10.0,
         max_total_duration=30.0,
     )
