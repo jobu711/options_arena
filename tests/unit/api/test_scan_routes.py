@@ -9,6 +9,7 @@ import pytest
 from httpx import AsyncClient
 
 from options_arena.models import (
+    GICSSector,
     IndicatorSignals,
     ScanPreset,
     ScanRun,
@@ -181,3 +182,58 @@ async def test_post_scan_returns_202(client: AsyncClient) -> None:
     assert response.status_code == 202
     data = response.json()
     assert data["scan_id"] >= 1
+
+
+async def test_post_scan_with_sectors_returns_202(client: AsyncClient) -> None:
+    """POST /api/scan with sectors normalizes aliases and returns 202."""
+    response = await client.post("/api/scan", json={"preset": "sp500", "sectors": ["technology"]})
+    assert response.status_code == 202
+    data = response.json()
+    assert data["scan_id"] >= 1
+
+
+async def test_post_scan_with_invalid_sector_returns_422(client: AsyncClient) -> None:
+    """POST /api/scan with invalid sector returns 422."""
+    response = await client.post(
+        "/api/scan", json={"preset": "sp500", "sectors": ["nonexistent_sector"]}
+    )
+    assert response.status_code == 422
+
+
+async def test_post_scan_with_empty_sectors(client: AsyncClient) -> None:
+    """POST /api/scan with empty sectors list is valid (no filtering)."""
+    response = await client.post("/api/scan", json={"preset": "sp500", "sectors": []})
+    assert response.status_code == 202
+
+
+async def test_get_scores_includes_sector_field(client: AsyncClient, mock_repo: MagicMock) -> None:
+    """GET /api/scan/1/scores returns TickerScore with sector and company_name."""
+    score = TickerScore(
+        ticker="AAPL",
+        composite_score=85.0,
+        direction=SignalDirection.BULLISH,
+        signals=IndicatorSignals(rsi=65.2, adx=28.4),
+        scan_run_id=1,
+        sector=GICSSector.INFORMATION_TECHNOLOGY,
+        company_name="Apple Inc.",
+    )
+    mock_repo.get_scores_for_scan = AsyncMock(return_value=[score])
+    response = await client.get("/api/scan/1/scores")
+    assert response.status_code == 200
+    data = response.json()
+    item = data["items"][0]
+    assert item["sector"] == "Information Technology"
+    assert item["company_name"] == "Apple Inc."
+
+
+async def test_get_scores_sector_null_when_missing(
+    client: AsyncClient, mock_repo: MagicMock
+) -> None:
+    """GET /api/scan/1/scores returns null sector when not populated."""
+    score = _make_ticker_score("AAPL", 80.0)
+    mock_repo.get_scores_for_scan = AsyncMock(return_value=[score])
+    response = await client.get("/api/scan/1/scores")
+    assert response.status_code == 200
+    item = response.json()["items"][0]
+    assert item["sector"] is None
+    assert item["company_name"] is None

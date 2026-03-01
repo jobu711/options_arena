@@ -115,8 +115,15 @@ async def start_scan(
 
     token = CancellationToken()
     bridge = WebSocketProgressBridge()
+
+    # Apply per-request sector filter to settings (immutable copy pattern)
+    effective_settings = settings
+    if body.sectors:
+        scan_override = settings.scan.model_copy(update={"sectors": body.sectors})
+        effective_settings = settings.model_copy(update={"scan": scan_override})
+
     pipeline = ScanPipeline(
-        settings=settings,
+        settings=effective_settings,
         market_data=market_data,
         options_data=options_data,
         fred=fred,

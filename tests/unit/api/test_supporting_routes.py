@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from httpx import AsyncClient
 
 from options_arena.models import HealthStatus
+from options_arena.services.universe import SP500Constituent
 
 
 async def test_health_check(client: AsyncClient) -> None:
@@ -51,26 +52,92 @@ async def test_health_services(mock_cls: MagicMock, client: AsyncClient) -> None
 
 
 async def test_universe_stats(client: AsyncClient, mock_universe: MagicMock) -> None:
-    """GET /api/universe returns universe stats."""
+    """GET /api/universe returns universe stats with etf_count."""
     mock_universe.fetch_optionable_tickers = AsyncMock(return_value=["AAPL", "MSFT", "GOOGL"])
     mock_universe.fetch_sp500_constituents = AsyncMock(return_value=["AAPL", "MSFT"])
+    mock_universe.fetch_etf_tickers = AsyncMock(return_value=["SPY", "QQQ"])
     response = await client.get("/api/universe")
     assert response.status_code == 200
     data = response.json()
     assert data["optionable_count"] == 3
     assert data["sp500_count"] == 2
+    assert data["etf_count"] == 2
 
 
 async def test_universe_refresh(client: AsyncClient, mock_universe: MagicMock) -> None:
-    """POST /api/universe/refresh returns updated stats."""
+    """POST /api/universe/refresh returns updated stats with etf_count."""
     mock_universe.fetch_optionable_tickers = AsyncMock(
         return_value=["AAPL", "MSFT", "GOOGL", "TSLA"]
     )
     mock_universe.fetch_sp500_constituents = AsyncMock(return_value=["AAPL", "MSFT"])
+    mock_universe.fetch_etf_tickers = AsyncMock(return_value=["SPY"])
     response = await client.post("/api/universe/refresh")
     assert response.status_code == 200
     data = response.json()
     assert data["optionable_count"] == 4
+    assert data["etf_count"] == 1
+
+
+async def test_universe_sectors(client: AsyncClient, mock_universe: MagicMock) -> None:
+    """GET /api/universe/sectors returns GICS sectors with ticker counts."""
+    mock_universe.fetch_sp500_constituents = AsyncMock(
+        return_value=[
+            SP500Constituent(ticker="AAPL", sector="Information Technology"),
+            SP500Constituent(ticker="MSFT", sector="Information Technology"),
+            SP500Constituent(ticker="GOOGL", sector="Communication Services"),
+            SP500Constituent(ticker="XOM", sector="Energy"),
+        ]
+    )
+    response = await client.get("/api/universe/sectors")
+    assert response.status_code == 200
+    data = response.json()
+
+    # Should have 3 sectors represented
+    assert len(data) == 3
+
+    # Verify sorted alphabetically
+    names = [s["name"] for s in data]
+    assert names == sorted(names)
+
+    # Verify counts
+    sector_map = {s["name"]: s["ticker_count"] for s in data}
+    assert sector_map["Information Technology"] == 2
+    assert sector_map["Communication Services"] == 1
+    assert sector_map["Energy"] == 1
+
+
+async def test_universe_sectors_empty(client: AsyncClient, mock_universe: MagicMock) -> None:
+    """GET /api/universe/sectors returns empty list when no S&P 500 data."""
+    mock_universe.fetch_sp500_constituents = AsyncMock(return_value=[])
+    response = await client.get("/api/universe/sectors")
+    assert response.status_code == 200
+    data = response.json()
+    assert data == []
+
+
+async def test_universe_sectors_all_eleven(client: AsyncClient, mock_universe: MagicMock) -> None:
+    """GET /api/universe/sectors returns all 11 GICS sectors when all present."""
+    all_sectors = [
+        "Communication Services",
+        "Consumer Discretionary",
+        "Consumer Staples",
+        "Energy",
+        "Financials",
+        "Health Care",
+        "Industrials",
+        "Information Technology",
+        "Materials",
+        "Real Estate",
+        "Utilities",
+    ]
+    constituents = [
+        SP500Constituent(ticker=f"T{i}", sector=sector) for i, sector in enumerate(all_sectors)
+    ]
+    mock_universe.fetch_sp500_constituents = AsyncMock(return_value=constituents)
+    response = await client.get("/api/universe/sectors")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 11
 
 
 async def test_config_endpoint(client: AsyncClient) -> None:
