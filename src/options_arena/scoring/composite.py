@@ -56,6 +56,11 @@ INDICATOR_WEIGHTS: dict[str, tuple[float, str]] = {
     "max_pain_distance": (0.05, "options"),
 }
 
+# Validate weights sum to 1.0 at import time — catches drift before any scoring runs.
+assert abs(sum(w for w, _ in INDICATOR_WEIGHTS.values()) - 1.0) < 1e-9, (
+    "Indicator weights must sum to 1.0"
+)
+
 # Floor value substituted for percentile ranks <= 0 to avoid log(0).
 _FLOOR_VALUE: float = 1.0
 

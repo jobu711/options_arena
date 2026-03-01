@@ -368,7 +368,7 @@ async def start_batch_debate(
     try:
         await asyncio.wait_for(lock.acquire(), timeout=0.0)
     except TimeoutError:
-        raise HTTPException(409, "Another operation is in progress")
+        raise HTTPException(409, "Another operation is in progress") from None
 
     # Allocate batch ID (initialized in lifespan)
     request.app.state.batch_counter += 1

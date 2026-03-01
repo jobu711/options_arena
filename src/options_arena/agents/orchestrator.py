@@ -943,6 +943,7 @@ async def _persist_result(
             ),
             debate_mode=debate_mode,
             citation_density=result.citation_density,
+            market_context_json=result.context.model_dump_json(),
         )
         logger.debug(
             "Persisted debate for %s (tokens=%d, fallback=%s, mode=%s)",

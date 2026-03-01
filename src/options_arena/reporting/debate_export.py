@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from options_arena.agents._parsing import DebateResult
-    from options_arena.models import AgentResponse, VolatilityThesis
+    from options_arena.models import AgentResponse, MarketContext, VolatilityThesis
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +94,41 @@ def _render_vol_section(vol: VolatilityThesis) -> str:
     return "\n".join(lines)
 
 
+def _render_market_snapshot(ctx: MarketContext) -> str:
+    """Render a Market Snapshot section from the persisted MarketContext.
+
+    Args:
+        ctx: The MarketContext snapshot from the debate result.
+
+    Returns:
+        Markdown string for the Market Snapshot section.
+    """
+    lines: list[str] = [
+        "## Market Snapshot",
+        "",
+        "| Metric | Value |",
+        "|--------|-------|",
+        f"| Price | ${ctx.current_price} |",
+        f"| 52W High | ${ctx.price_52w_high} |",
+        f"| 52W Low | ${ctx.price_52w_low} |",
+        f"| Target Strike | ${ctx.target_strike} |",
+        f"| DTE | {ctx.dte_target} |",
+        f"| Target Delta | {ctx.target_delta:.2f} |",
+        f"| Sector | {ctx.sector} |",
+        f"| Dividend Yield | {ctx.dividend_yield:.2%} |",
+    ]
+
+    if ctx.iv_rank is not None and math.isfinite(ctx.iv_rank):
+        lines.append(f"| IV Rank | {ctx.iv_rank:.1f} |")
+    if ctx.iv_percentile is not None and math.isfinite(ctx.iv_percentile):
+        lines.append(f"| IV Percentile | {ctx.iv_percentile:.1f} |")
+    if ctx.contract_mid is not None:
+        lines.append(f"| Contract Mid | ${ctx.contract_mid} |")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
 def export_debate_markdown(result: DebateResult) -> str:
     """Convert a debate result into a Markdown report string.
 
@@ -105,7 +140,7 @@ def export_debate_markdown(result: DebateResult) -> str:
 
     Returns:
         A GitHub-flavored Markdown string containing the full report
-        with header, agent sections, verdict, and disclaimer.
+        with header, market snapshot, agent sections, verdict, and disclaimer.
     """
     now_utc = datetime.datetime.now(datetime.UTC)
     date_str = now_utc.strftime("%Y-%m-%d %H:%M UTC")
@@ -124,6 +159,10 @@ def export_debate_markdown(result: DebateResult) -> str:
         "",
     ]
     sections.append("\n".join(header_lines))
+
+    # --- Market Snapshot (uses persisted MarketContext for real prices) ---
+    if result.context is not None:
+        sections.append(_render_market_snapshot(result.context))
 
     # --- Bull Case ---
     sections.append(
