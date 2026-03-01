@@ -1,5 +1,19 @@
 {
   "hooks": {
-    "PreToolUse": []
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/verify-epic-commit.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/analyze-epic-commit.sh"
+          }
+        ]
+      }
+    ]
   }
 }
