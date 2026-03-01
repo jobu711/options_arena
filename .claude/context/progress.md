@@ -31,18 +31,21 @@ For detailed phase/epic completion logs, see `progress-archive.md`.
 
 ## Recently Completed
 
+### CCPM Planning Phase Enhancements (2026-03-01)
+4 enhancements to the CCPM planning workflow:
+1. **Research phase** (`/pm:prd-research`) — parallel Explore agents investigate codebase before epic creation
+2. **Planning lock hook** (`planning-lock.py`) — blocks Write/Edit to `src/`, `tests/`, `web/`, `data/migrations/` during planning
+3. **Session checkpoint/resume** (`/pm:epic-checkpoint`, `/pm:epic-resume`) — persisted phase state in `checkpoint.json`
+4. **TDD-first task output** — `test_files` frontmatter + `## Test Plan` section in every decomposed task
+
+Also: archived production-audit epic, cleaned up 34 stale epic/PRD files.
+
 ### Epic 13: Ticker Universe Improve (2026-03-01) — #161
-Composable sector filtering, working ETF preset, and scan result enrichment.
-GICSSector StrEnum with 30+ case-insensitive aliases. Sector filtering across
-CLI (`--sector`), API (ScanRequest.sectors), and frontend (PrimeVue MultiSelect).
-ETF preset with 60+ curated tickers. TickerScore enrichment (sector column +
-company name). Migration 008. `GET /universe/sectors` endpoint. `universe sectors`
-CLI command. +124 tests.
+Composable sector filtering, working ETF preset, scan result enrichment.
++124 tests.
 
 ### Epic 12: Deep Signal Engine (2026-03-01) — #151, PR #160
-40 DSE indicators across 8 analytical dimensions. 6-agent parallel debate
-protocol. Multi-dimensional scoring with regime-adjusted weights. Extended Greeks.
-IV surface utilities. CI workflow (GitHub Actions). +576 tests.
+40 DSE indicators, 6-agent debate, regime-adjusted weights, CI workflow. +576 tests.
 
 ## Future Work
 
