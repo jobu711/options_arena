@@ -225,14 +225,16 @@ class ScanPipeline:
                 len(all_tickers),
                 len(tickers),
             )
+        elif preset == ScanPreset.ETFS:
+            etf_tickers = await self._universe.fetch_etf_tickers()
+            etf_set = frozenset(etf_tickers)
+            tickers = [t for t in all_tickers if t in etf_set]
+            logger.info(
+                "ETFS preset: filtered %d -> %d tickers",
+                len(all_tickers),
+                len(tickers),
+            )
         else:
-            if preset == ScanPreset.ETFS:
-                # TODO: Wire to self._universe.fetch_etf_tickers() when #166 lands
-                logger.warning(
-                    "ETFS preset selected but ETF-only filtering is not yet implemented; "
-                    "using full universe (%d tickers)",
-                    len(all_tickers),
-                )
             tickers = all_tickers
 
         # Step 3b: Apply sector filter (OR logic) when sectors are configured
