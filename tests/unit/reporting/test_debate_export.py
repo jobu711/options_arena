@@ -9,7 +9,7 @@ Tests cover:
   - PDF export raises ImportError when weasyprint is unavailable
   - Export directory is created automatically when it does not exist
   - Unsupported format raises ValueError
-  - Disclaimer is always present in output
+  - Disclaimer is NOT present in output (removed per AUDIT-010)
   - Rebuttal section omits risks subsection
 """
 
@@ -26,7 +26,6 @@ from options_arena.agents._parsing import DebateResult
 from options_arena.models import AgentResponse, MarketContext, TradeThesis, VolatilityThesis
 from options_arena.models.enums import ExerciseStyle, MacdSignal, SignalDirection, SpreadType
 from options_arena.reporting.debate_export import (
-    DISCLAIMER,
     export_debate_markdown,
     export_debate_to_file,
 )
@@ -233,12 +232,13 @@ def test_markdown_fallback_no_when_false() -> None:
     assert "**Fallback**: No" in md
 
 
-def test_markdown_contains_disclaimer() -> None:
-    """Disclaimer text must always appear in exported markdown."""
+def test_markdown_contains_no_disclaimer() -> None:
+    """Exported markdown must NOT contain any disclaimer text."""
     result = _make_debate_result()
     md = export_debate_markdown(result)
 
-    assert DISCLAIMER in md
+    assert "DISCLAIMER" not in md
+    assert "does not constitute" not in md.lower()
 
 
 def test_markdown_contains_ticker() -> None:
@@ -267,7 +267,7 @@ def test_export_to_file_writes_markdown(tmp_path: Path) -> None:
     assert "## Bull Case" in content
     assert "## Bear Case" in content
     assert "## Verdict" in content
-    assert DISCLAIMER in content
+    assert "DISCLAIMER" not in content
 
 
 def test_export_works_with_nested_directory(tmp_path: Path) -> None:

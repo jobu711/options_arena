@@ -144,11 +144,8 @@ async def _run_debate_background(
         bridge.error(f"Debate failed for {ticker}")
         bridge.complete(debate_id)
     finally:
-        # Clean up
-        debate_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
-            request.app.state, "debate_queues", {}
-        )
-        debate_queues.pop(debate_id, None)
+        # Clean up (initialized in lifespan)
+        request.app.state.debate_queues.pop(debate_id, None)
 
 
 # ---------------------------------------------------------------------------
@@ -334,10 +331,8 @@ async def _run_batch_debate_background(
         bridge.batch_complete(results)
     finally:
         lock.release()
-        batch_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
-            request.app.state, "batch_queues", {}
-        )
-        batch_queues.pop(batch_id, None)
+        # Clean up (initialized in lifespan)
+        request.app.state.batch_queues.pop(batch_id, None)
 
 
 @router.post("/debate/batch", status_code=202)
@@ -366,7 +361,7 @@ async def start_batch_debate(
 
     # Atomic try-acquire: eliminates TOCTOU race between lock.locked() and acquire()
     try:
-        await asyncio.wait_for(lock.acquire(), timeout=0.0)
+        await asyncio.wait_for(lock.acquire(), timeout=0.01)
     except TimeoutError:
         raise HTTPException(409, "Another operation is in progress") from None
 

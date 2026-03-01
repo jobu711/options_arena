@@ -80,13 +80,9 @@ async def _run_scan_background(
         bridge.complete(scan_id, cancelled=False)
     finally:
         lock.release()
-        # Clean up app.state references
-        active_scans: dict[int, CancellationToken] = getattr(request.app.state, "active_scans", {})
-        active_scans.pop(scan_id, None)
-        scan_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
-            request.app.state, "scan_queues", {}
-        )
-        scan_queues.pop(scan_id, None)
+        # Clean up app.state references (initialized in lifespan)
+        request.app.state.active_scans.pop(scan_id, None)
+        request.app.state.scan_queues.pop(scan_id, None)
 
 
 # ---------------------------------------------------------------------------
@@ -107,11 +103,11 @@ async def start_scan(
     universe: UniverseService = Depends(get_universe),
 ) -> ScanStarted:
     """Start a new scan pipeline in the background."""
-    if lock.locked():
-        raise HTTPException(409, "Another operation is in progress")
-
-    # Acquire the lock atomically before any awaits to prevent TOCTOU race
-    await lock.acquire()
+    # Atomic try-acquire: eliminates TOCTOU race between lock.locked() and acquire()
+    try:
+        await asyncio.wait_for(lock.acquire(), timeout=0.01)
+    except TimeoutError:
+        raise HTTPException(409, "Another operation is in progress") from None
 
     token = CancellationToken()
     bridge = WebSocketProgressBridge()
@@ -131,18 +127,11 @@ async def start_scan(
         repository=repo,
     )
 
-    # Use a counter for scan IDs (no orphaned placeholder rows)
-    if not hasattr(request.app.state, "scan_counter"):
-        request.app.state.scan_counter = 0
+    # Use a counter for scan IDs (initialized in lifespan)
     request.app.state.scan_counter += 1
     scan_id: int = request.app.state.scan_counter
 
     # Register for WebSocket + cancellation
-    if not hasattr(request.app.state, "active_scans"):
-        request.app.state.active_scans = {}
-    if not hasattr(request.app.state, "scan_queues"):
-        request.app.state.scan_queues = {}
-
     request.app.state.active_scans[scan_id] = token
     request.app.state.scan_queues[scan_id] = bridge.queue
 
@@ -329,7 +318,7 @@ async def get_scan_diff(
 @router.delete("/scan/current")
 async def cancel_scan(request: Request) -> CancelScanResponse:
     """Cancel the currently running scan."""
-    active_scans: dict[int, CancellationToken] = getattr(request.app.state, "active_scans", {})
+    active_scans: dict[int, CancellationToken] = request.app.state.active_scans
     if not active_scans:
         raise HTTPException(404, "No scan in progress")
     for scan_id, token in active_scans.items():

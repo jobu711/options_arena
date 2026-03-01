@@ -71,6 +71,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.universe = universe
     app.state.operation_lock = asyncio.Lock()
 
+    # Initialize counters and mutable state eagerly so route handlers
+    # never need lazy ``hasattr`` / ``getattr`` fallbacks.
+    app.state.scan_counter = 0
+    app.state.active_scans = {}
+    app.state.scan_queues = {}
+    app.state.debate_counter = 0
+    app.state.debate_queues = {}
+    app.state.batch_counter = 0
+    app.state.batch_queues = {}
+
     logger.info("API services started")
     yield
 

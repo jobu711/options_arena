@@ -16,10 +16,7 @@ from pydantic_ai.usage import RunUsage
 from options_arena.agents._parsing import DebateResult
 from options_arena.models import AgentResponse, MarketContext, TradeThesis
 from options_arena.models.enums import ExerciseStyle, MacdSignal, SignalDirection
-from options_arena.reporting.debate_export import (
-    DISCLAIMER,
-    export_debate_markdown,
-)
+from options_arena.reporting.debate_export import export_debate_markdown
 
 
 def _make_market_context(
@@ -184,7 +181,7 @@ def test_export_still_has_all_sections() -> None:
     assert "## Bull Case" in md
     assert "## Bear Case" in md
     assert "## Verdict" in md
-    assert DISCLAIMER in md
+    assert "DISCLAIMER" not in md
 
 
 def test_export_with_different_price() -> None:

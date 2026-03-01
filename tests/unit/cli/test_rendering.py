@@ -16,7 +16,6 @@ from rich.panel import Panel
 
 from options_arena.agents._parsing import DebateResult
 from options_arena.cli.rendering import (
-    DISCLAIMER,
     render_debate_panels,
     render_health_table,
     render_scan_table,
@@ -87,11 +86,11 @@ def test_render_health_table_mixed_statuses() -> None:
     assert table.row_count == 3
 
 
-def test_disclaimer_constant_exists() -> None:
-    """DISCLAIMER is a non-empty string."""
-    assert isinstance(DISCLAIMER, str)
-    assert len(DISCLAIMER) > 0
-    assert "financial advice" in DISCLAIMER.lower() or "educational" in DISCLAIMER.lower()
+def test_disclaimer_constant_removed() -> None:
+    """DISCLAIMER constant has been removed from the rendering module."""
+    import options_arena.cli.rendering as rendering_mod  # noqa: PLC0415
+
+    assert not hasattr(rendering_mod, "DISCLAIMER")
 
 
 # ---------------------------------------------------------------------------

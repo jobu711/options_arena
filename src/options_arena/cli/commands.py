@@ -27,7 +27,6 @@ from rich.table import Table
 from options_arena.cli.app import app
 from options_arena.cli.progress import RichProgressCallback, setup_sigint_handler
 from options_arena.cli.rendering import (
-    DISCLAIMER,
     render_batch_summary_table,
     render_debate_history,
     render_debate_panels,
@@ -222,9 +221,6 @@ def _render_scan_results(
         f"{rec_count} recommendations in {elapsed:.1f}s"
     )
 
-    # Regulatory disclaimer (ALWAYS printed)
-    console.print(f"\n{DISCLAIMER}")
-
 
 # ---------------------------------------------------------------------------
 # debate command
@@ -339,7 +335,6 @@ async def _batch_async(batch_limit: int, fallback_only: bool) -> None:
         console.print(
             f"\n[dim]{succeeded}/{len(results)} debates completed in {elapsed:.1f}s[/dim]"
         )
-        console.print(f"\n{DISCLAIMER}")
 
     except KeyboardInterrupt:
         err_console.print("\n[yellow]Batch debate cancelled.[/yellow]")
@@ -540,7 +535,6 @@ async def _debate_async(
                 return
             table = render_debate_history(debates, ticker)
             console.print(table)
-            console.print(f"\n{DISCLAIMER}")
             return
 
         # Get latest scan data for this ticker
@@ -585,9 +579,6 @@ async def _debate_async(
         console.print(
             f"\n[dim]Duration: {result.duration_ms / 1000:.1f}s | Tokens: {total_tokens}[/dim]"
         )
-
-        # Regulatory disclaimer (ALWAYS printed)
-        console.print(f"\n{DISCLAIMER}")
 
         # Export to file (after terminal rendering)
         if export is not None:
