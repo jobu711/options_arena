@@ -103,6 +103,30 @@ class Quote(BaseModel):
     volume: int
     timestamp: datetime
 
+    @field_validator("price")
+    @classmethod
+    def validate_price(cls, v: Decimal) -> Decimal:
+        """Ensure price is finite and positive."""
+        if not v.is_finite() or v <= Decimal("0"):
+            raise ValueError(f"price must be finite and positive, got {v}")
+        return v
+
+    @field_validator("bid", "ask")
+    @classmethod
+    def validate_bid_ask(cls, v: Decimal) -> Decimal:
+        """Ensure bid/ask is finite and non-negative (zero is valid for illiquid)."""
+        if not v.is_finite() or v < Decimal("0"):
+            raise ValueError(f"bid/ask must be finite and non-negative, got {v}")
+        return v
+
+    @field_validator("volume")
+    @classmethod
+    def validate_volume_non_negative(cls, v: int) -> int:
+        """Ensure volume is non-negative."""
+        if v < 0:
+            raise ValueError(f"volume must be >= 0, got {v}")
+        return v
+
     @field_validator("timestamp")
     @classmethod
     def validate_utc(cls, v: datetime) -> datetime:

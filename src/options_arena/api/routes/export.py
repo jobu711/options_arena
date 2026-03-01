@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import contextlib
+import html as html_module
 import logging
 import os
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
+from options_arena.api.app import limiter
 from options_arena.api.deps import get_repo
 from options_arena.data import Repository
 from options_arena.models import AgentResponse, TradeThesis
@@ -23,7 +25,9 @@ router = APIRouter(prefix="/api", tags=["export"])
 
 
 @router.get("/debate/{debate_id}/export")
+@limiter.limit("60/minute")
 async def export_debate(
+    request: Request,
     debate_id: int,
     repo: Repository = Depends(get_repo),
     fmt: str = Query("md", alias="format"),
@@ -109,23 +113,25 @@ async def export_debate(
         with contextlib.suppress(Exception):
             bull_rebuttal = AgentResponse.model_validate_json(row.rebuttal_json)
 
-    # Build minimal MarketContext for the export
-    context = MarketContext(
-        ticker=row.ticker,
-        current_price=Decimal("0"),
-        price_52w_high=Decimal("0"),
-        price_52w_low=Decimal("0"),
-        rsi_14=50.0,
-        macd_signal=MacdSignal.NEUTRAL,
-        next_earnings=None,
-        dte_target=30,
-        target_strike=Decimal("0"),
-        target_delta=0.0,
-        sector="Unknown",
-        dividend_yield=0.0,
-        exercise_style=ExerciseStyle.AMERICAN,
-        data_timestamp=datetime.now(UTC),
-    )
+    # Prefer persisted MarketContext; fall back to minimal placeholder
+    context: MarketContext | None = row.market_context
+    if context is None:
+        context = MarketContext(
+            ticker=row.ticker,
+            current_price=Decimal("0"),
+            price_52w_high=Decimal("0"),
+            price_52w_low=Decimal("0"),
+            rsi_14=50.0,
+            macd_signal=MacdSignal.NEUTRAL,
+            next_earnings=None,
+            dte_target=30,
+            target_strike=Decimal("0"),
+            target_delta=0.0,
+            sector="Unknown",
+            dividend_yield=0.0,
+            exercise_style=ExerciseStyle.AMERICAN,
+            data_timestamp=datetime.now(UTC),
+        )
 
     debate_result = DebateResult(
         context=context,
@@ -160,7 +166,8 @@ async def export_debate(
     except ImportError:
         raise HTTPException(501, "PDF export requires weasyprint") from None
 
-    html = f"<html><body><pre>{md_content}</pre></body></html>"
+    escaped_content = html_module.escape(md_content)
+    html = f"<html><body><pre>{escaped_content}</pre></body></html>"
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_fd:
         tmp_path = tmp_fd.name
     HTML(string=html).write_pdf(tmp_path)

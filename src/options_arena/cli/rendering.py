@@ -23,12 +23,6 @@ from options_arena.scan.models import ScanResult
 
 logger = logging.getLogger(__name__)
 
-DISCLAIMER = (
-    "[dim]This tool is for educational and informational purposes only. "
-    "It does not constitute financial advice. Options trading involves "
-    "substantial risk of loss. Past performance does not guarantee future results.[/dim]"
-)
-
 
 def render_health_table(statuses: list[HealthStatus]) -> Table:
     """Render health check results as a Rich table.

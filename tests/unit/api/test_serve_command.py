@@ -93,8 +93,10 @@ def test_serve_opens_browser_by_default(mock_thread: MagicMock, mock_run: MagicM
     """serve starts a background thread to open browser unless --no-open is set."""
     result = runner.invoke(app, ["serve"])
     assert result.exit_code == 0
-    mock_thread.assert_called_once()
-    mock_thread.return_value.start.assert_called_once()
+    # threading.Thread may also be called by QueueListener (logging), so check
+    # that at least one call had a browser-related target (daemon=True).
+    browser_calls = [c for c in mock_thread.call_args_list if c.kwargs.get("daemon") is True]
+    assert len(browser_calls) >= 1
     mock_run.assert_called_once()
 
 

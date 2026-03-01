@@ -5,8 +5,9 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 
+from options_arena.api.app import limiter
 from options_arena.api.deps import (
     get_fred,
     get_market_data,
@@ -80,13 +81,9 @@ async def _run_scan_background(
         bridge.complete(scan_id, cancelled=False)
     finally:
         lock.release()
-        # Clean up app.state references
-        active_scans: dict[int, CancellationToken] = getattr(request.app.state, "active_scans", {})
-        active_scans.pop(scan_id, None)
-        scan_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
-            request.app.state, "scan_queues", {}
-        )
-        scan_queues.pop(scan_id, None)
+        # Clean up app.state references (initialized in lifespan)
+        request.app.state.active_scans.pop(scan_id, None)
+        request.app.state.scan_queues.pop(scan_id, None)
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +92,7 @@ async def _run_scan_background(
 
 
 @router.post("/scan", status_code=202)
+@limiter.limit("5/minute")
 async def start_scan(
     request: Request,
     body: ScanRequest,
@@ -107,11 +105,11 @@ async def start_scan(
     universe: UniverseService = Depends(get_universe),
 ) -> ScanStarted:
     """Start a new scan pipeline in the background."""
-    if lock.locked():
-        raise HTTPException(409, "Another operation is in progress")
-
-    # Acquire the lock atomically before any awaits to prevent TOCTOU race
-    await lock.acquire()
+    # Atomic try-acquire: eliminates TOCTOU race between lock.locked() and acquire()
+    try:
+        await asyncio.wait_for(lock.acquire(), timeout=0.01)
+    except TimeoutError:
+        raise HTTPException(409, "Another operation is in progress") from None
 
     token = CancellationToken()
     bridge = WebSocketProgressBridge()
@@ -131,18 +129,11 @@ async def start_scan(
         repository=repo,
     )
 
-    # Use a counter for scan IDs (no orphaned placeholder rows)
-    if not hasattr(request.app.state, "scan_counter"):
-        request.app.state.scan_counter = 0
+    # Use a counter for scan IDs (initialized in lifespan)
     request.app.state.scan_counter += 1
     scan_id: int = request.app.state.scan_counter
 
     # Register for WebSocket + cancellation
-    if not hasattr(request.app.state, "active_scans"):
-        request.app.state.active_scans = {}
-    if not hasattr(request.app.state, "scan_queues"):
-        request.app.state.scan_queues = {}
-
     request.app.state.active_scans[scan_id] = token
     request.app.state.scan_queues[scan_id] = bridge.queue
 
@@ -154,7 +145,9 @@ async def start_scan(
 
 
 @router.get("/scan")
+@limiter.limit("60/minute")
 async def list_scans(
+    request: Request,
     repo: Repository = Depends(get_repo),
     limit: int = Query(10, ge=1, le=100),
 ) -> list[ScanRun]:
@@ -163,7 +156,9 @@ async def list_scans(
 
 
 @router.get("/scan/{scan_id}")
+@limiter.limit("60/minute")
 async def get_scan(
+    request: Request,
     scan_id: int,
     repo: Repository = Depends(get_repo),
 ) -> ScanRun:
@@ -175,7 +170,9 @@ async def get_scan(
 
 
 @router.get("/scan/{scan_id}/scores")
+@limiter.limit("60/minute")
 async def get_scores(
+    request: Request,
     scan_id: int,
     repo: Repository = Depends(get_repo),
     page: int = Query(1, ge=1),
@@ -225,9 +222,15 @@ async def get_scores(
 
 
 @router.get("/scan/{scan_id}/scores/{ticker}")
+@limiter.limit("60/minute")
 async def get_ticker_detail(
+    request: Request,
     scan_id: int,
-    ticker: str,
+    ticker: str = Path(
+        min_length=1,
+        max_length=10,
+        pattern=r"^[A-Z0-9][A-Z0-9.\-^]{0,9}$",
+    ),
     repo: Repository = Depends(get_repo),
 ) -> TickerDetail:
     """Get a single ticker's score and recommended contracts."""
@@ -245,7 +248,9 @@ async def get_ticker_detail(
 
 
 @router.get("/scan/{scan_id}/diff")
+@limiter.limit("60/minute")
 async def get_scan_diff(
+    request: Request,
     scan_id: int,
     repo: Repository = Depends(get_repo),
     base_id: int = Query(..., description="Base scan ID to compare against"),
@@ -327,9 +332,10 @@ async def get_scan_diff(
 
 
 @router.delete("/scan/current")
+@limiter.limit("60/minute")
 async def cancel_scan(request: Request) -> CancelScanResponse:
     """Cancel the currently running scan."""
-    active_scans: dict[int, CancellationToken] = getattr(request.app.state, "active_scans", {})
+    active_scans: dict[int, CancellationToken] = request.app.state.active_scans
     if not active_scans:
         raise HTTPException(404, "No scan in progress")
     for scan_id, token in active_scans.items():

@@ -38,6 +38,9 @@ class RateLimiter:
         try:
             await self._wait_for_token()
         except BaseException:
+            # Legitimate cleanup: release the semaphore permit on ANY failure
+            # (including CancelledError/KeyboardInterrupt) to prevent deadlocks.
+            # The exception IS re-raised after cleanup (AUDIT-016).
             self._semaphore.release()
             raise
 

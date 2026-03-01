@@ -12,9 +12,13 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from starlette.responses import JSONResponse
 
 from options_arena.data import Database, Repository
 from options_arena.models.config import AppSettings
@@ -24,6 +28,9 @@ from options_arena.services.market_data import MarketDataService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.services.universe import UniverseService
+
+# Module-level limiter instance used by route decorators
+limiter = Limiter(key_func=get_remote_address)
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +78,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.universe = universe
     app.state.operation_lock = asyncio.Lock()
 
+    # Initialize counters and mutable state eagerly so route handlers
+    # never need lazy ``hasattr`` / ``getattr`` fallbacks.
+    app.state.scan_counter = 0
+    app.state.active_scans = {}
+    app.state.scan_queues = {}
+    app.state.debate_counter = 0
+    app.state.debate_queues = {}
+    app.state.batch_counter = 0
+    app.state.batch_queues = {}
+
     logger.info("API services started")
     yield
 
@@ -92,6 +109,18 @@ def create_app() -> FastAPI:
         version="1.5.0",
         lifespan=lifespan,
     )
+
+    # Rate limiter — stored on app.state for route decorator access
+    app.state.limiter = limiter
+
+    @app.exception_handler(RateLimitExceeded)
+    async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+        # RateLimitExceeded has no retry_after attr; exc.detail holds the limit string
+        return JSONResponse(
+            status_code=429,
+            content={"detail": f"Rate limit exceeded: {exc.detail}"},
+            headers={"Retry-After": "60"},
+        )
 
     # CORS — allow Vite dev server
     app.add_middleware(

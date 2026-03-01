@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 from collections import Counter
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
+from options_arena.api.app import limiter
 from options_arena.api.deps import get_universe
 from options_arena.api.schemas import SectorInfo, UniverseStats
 from options_arena.services import UniverseService
@@ -18,7 +19,9 @@ router = APIRouter(prefix="/api", tags=["universe"])
 
 
 @router.get("/universe")
+@limiter.limit("60/minute")
 async def get_universe_stats(
+    request: Request,
     universe: UniverseService = Depends(get_universe),
 ) -> UniverseStats:
     """Get universe statistics including ETF count."""
@@ -33,7 +36,9 @@ async def get_universe_stats(
 
 
 @router.post("/universe/refresh")
+@limiter.limit("60/minute")
 async def refresh_universe(
+    request: Request,
     universe: UniverseService = Depends(get_universe),
 ) -> UniverseStats:
     """Trigger a refresh of the universe data and return updated stats."""
@@ -49,7 +54,9 @@ async def refresh_universe(
 
 
 @router.get("/universe/sectors")
+@limiter.limit("60/minute")
 async def get_sectors(
+    request: Request,
     universe: UniverseService = Depends(get_universe),
 ) -> list[SectorInfo]:
     """Return all GICS sectors with ticker counts from S&P 500 constituents."""

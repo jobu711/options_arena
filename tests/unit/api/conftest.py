@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from options_arena.api.app import create_app
+from options_arena.api.app import create_app, limiter
 from options_arena.api.deps import (
     get_fred,
     get_market_data,
@@ -77,6 +77,10 @@ def test_app(
     import asyncio  # noqa: PLC0415
 
     app = create_app()
+
+    # Disable rate limiting during tests to avoid 429 interference
+    limiter.enabled = False
+
     app.dependency_overrides[get_repo] = lambda: mock_repo
     app.dependency_overrides[get_market_data] = lambda: mock_market_data
     app.dependency_overrides[get_options_data] = lambda: mock_options_data
@@ -84,6 +88,17 @@ def test_app(
     app.dependency_overrides[get_universe] = lambda: mock_universe
     app.dependency_overrides[get_settings] = lambda: AppSettings()
     app.dependency_overrides[get_operation_lock] = lambda: asyncio.Lock()
+
+    # Initialize app.state counters and dicts (normally done by lifespan).
+    # Route handlers no longer use hasattr/getattr fallbacks (AUDIT-014).
+    app.state.scan_counter = 0
+    app.state.active_scans = {}
+    app.state.scan_queues = {}
+    app.state.debate_counter = 0
+    app.state.debate_queues = {}
+    app.state.batch_counter = 0
+    app.state.batch_queues = {}
+
     return app
 
 

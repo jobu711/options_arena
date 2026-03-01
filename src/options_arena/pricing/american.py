@@ -495,6 +495,10 @@ def american_greeks(
     """
     validate_positive_inputs(S, K)
 
+    # Guard: sigma must be finite (NaN/Inf would corrupt all bump-and-reprice Greeks)
+    if not math.isfinite(sigma):
+        raise ValueError(f"sigma must be a finite number, got {sigma}")
+
     # Edge case: at or past expiration or sigma effectively zero.
     if T <= 0.0 or sigma <= 0.0:
         return boundary_greeks(S, K, option_type, PricingModel.BAW)

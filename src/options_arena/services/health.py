@@ -108,7 +108,11 @@ class HealthService:
         start = time.monotonic()
 
         # Resolve API key: config > env > None
-        api_key = self._config.groq_api_key or os.environ.get("GROQ_API_KEY")
+        api_key: str | None = None
+        if self._config.groq_api_key is not None:
+            api_key = self._config.groq_api_key.get_secret_value()
+        else:
+            api_key = os.environ.get("GROQ_API_KEY")
         if api_key is None:
             latency_ms = (time.monotonic() - start) * 1000
             logger.warning("Groq health check failed: no API key configured")

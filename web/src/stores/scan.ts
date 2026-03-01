@@ -23,6 +23,9 @@ export const useScanStore = defineStore('scan', () => {
     loading.value = true
     try {
       scans.value = await api<ScanRun[]>('/api/scan', { params: { limit } })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch scans'
+      errors.value.push({ message })
     } finally {
       loading.value = false
     }

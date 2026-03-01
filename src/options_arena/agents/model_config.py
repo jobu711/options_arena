@@ -52,5 +52,5 @@ def build_debate_model(config: DebateConfig) -> Model:
 def _resolve_api_key(config: DebateConfig) -> str | None:
     """Resolve Groq API key with priority: config > env > None."""
     if config.api_key is not None:
-        return config.api_key
+        return config.api_key.get_secret_value()
     return os.environ.get("GROQ_API_KEY")

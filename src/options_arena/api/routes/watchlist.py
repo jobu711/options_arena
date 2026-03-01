@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 import sqlite3
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
 
+from options_arena.api.app import limiter
 from options_arena.api.deps import get_repo
 from options_arena.api.schemas import (
     WatchlistCreateRequest,
@@ -23,7 +24,9 @@ router = APIRouter(prefix="/api", tags=["watchlist"])
 
 
 @router.post("/watchlist", status_code=201)
+@limiter.limit("60/minute")
 async def create_watchlist(
+    request: Request,
     body: WatchlistCreateRequest,
     repo: Repository = Depends(get_repo),
 ) -> WatchlistCreateResponse:
@@ -36,7 +39,9 @@ async def create_watchlist(
 
 
 @router.delete("/watchlist/{watchlist_id}", status_code=204)
+@limiter.limit("60/minute")
 async def delete_watchlist(
+    request: Request,
     watchlist_id: int,
     repo: Repository = Depends(get_repo),
 ) -> None:
@@ -48,7 +53,9 @@ async def delete_watchlist(
 
 
 @router.get("/watchlist")
+@limiter.limit("60/minute")
 async def list_watchlists(
+    request: Request,
     repo: Repository = Depends(get_repo),
 ) -> list[Watchlist]:
     """List all watchlists, ordered by name."""
@@ -56,7 +63,9 @@ async def list_watchlists(
 
 
 @router.get("/watchlist/{watchlist_id}")
+@limiter.limit("60/minute")
 async def get_watchlist(
+    request: Request,
     watchlist_id: int,
     repo: Repository = Depends(get_repo),
 ) -> WatchlistDetail:
@@ -109,7 +118,9 @@ async def get_watchlist(
 
 
 @router.post("/watchlist/{watchlist_id}/tickers", status_code=201)
+@limiter.limit("60/minute")
 async def add_ticker(
+    request: Request,
     watchlist_id: int,
     body: WatchlistTickerRequest,
     repo: Repository = Depends(get_repo),
@@ -126,9 +137,15 @@ async def add_ticker(
 
 
 @router.delete("/watchlist/{watchlist_id}/tickers/{ticker}", status_code=204)
+@limiter.limit("60/minute")
 async def remove_ticker(
+    request: Request,
     watchlist_id: int,
-    ticker: str,
+    ticker: str = Path(
+        min_length=1,
+        max_length=10,
+        pattern=r"^[A-Z0-9][A-Z0-9.\-^]{0,9}$",
+    ),
     repo: Repository = Depends(get_repo),
 ) -> None:
     """Remove a ticker from a watchlist."""

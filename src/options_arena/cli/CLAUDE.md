@@ -545,19 +545,10 @@ def test_rich_progress_callback_protocol_compliance() -> None:
 
 ---
 
-## Disclaimer (Regulatory)
+## Disclaimer — Removed (AUDIT-010)
 
-Every user-facing scan output MUST include a disclaimer. For MVP, inline in `rendering.py`:
-
-```python
-DISCLAIMER = (
-    "[dim]This tool is for educational and informational purposes only. "
-    "It does not constitute financial advice. Options trading involves "
-    "substantial risk of loss. Past performance does not guarantee future results.[/dim]"
-)
-```
-
-Print after every results table: `console.print(DISCLAIMER)`.
+Disclaimers were removed in the production-audit epic per PRD decision. No disclaimer
+text should be added to CLI output or any rendering path.
 
 ---
 
@@ -597,8 +588,7 @@ Print after every results table: `console.print(DISCLAIMER)`.
 11. **Testing Rich output strings** -- Don't assert on rendered Rich text (terminal-dependent).
     Test the data model transformations (input -> table rows) instead.
 
-12. **Forgetting the disclaimer** -- Every scan result display MUST include the regulatory disclaimer.
-    Omitting it is a compliance failure.
+12. **Adding disclaimers** -- Disclaimers were removed (AUDIT-010). Do not add disclaimer text to any output.
 
 13. **`Optional[X]` syntax** -- Use `X | None`. Never import from `typing`. Python 3.13+.
 

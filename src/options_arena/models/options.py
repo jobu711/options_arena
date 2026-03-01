@@ -122,6 +122,30 @@ class OptionContract(BaseModel):
     market_iv: float
     greeks: OptionGreeks | None = None
 
+    @field_validator("strike")
+    @classmethod
+    def validate_strike_positive(cls, v: Decimal) -> Decimal:
+        """Ensure strike is finite and positive."""
+        if not v.is_finite() or v <= Decimal("0"):
+            raise ValueError(f"strike must be finite and positive, got {v}")
+        return v
+
+    @field_validator("bid", "ask", "last")
+    @classmethod
+    def validate_price_non_negative(cls, v: Decimal) -> Decimal:
+        """Ensure bid/ask/last is finite and non-negative."""
+        if not v.is_finite() or v < Decimal("0"):
+            raise ValueError(f"price must be finite and non-negative, got {v}")
+        return v
+
+    @field_validator("volume", "open_interest")
+    @classmethod
+    def validate_int_non_negative(cls, v: int) -> int:
+        """Ensure volume and open_interest are non-negative."""
+        if v < 0:
+            raise ValueError(f"must be >= 0, got {v}")
+        return v
+
     @field_validator("market_iv")
     @classmethod
     def validate_market_iv_non_negative(cls, v: float) -> float:

@@ -16,6 +16,7 @@ from options_arena.models import (
     GICSSector,
     HistoryPoint,
     IndicatorSignals,
+    MarketContext,
     ScanPreset,
     ScanRun,
     SignalDirection,
@@ -52,6 +53,7 @@ class DebateRow:
     created_at: datetime
     debate_mode: str = "full"
     citation_density: float = 0.0
+    market_context: MarketContext | None = None
 
 
 class Repository:
@@ -203,6 +205,7 @@ class Repository:
         rebuttal_json: str | None = None,
         debate_mode: str = "full",
         citation_density: float = 0.0,
+        market_context_json: str | None = None,
     ) -> int:
         """Persist a debate result.  Returns the database-assigned ID."""
         conn = self._db.conn
@@ -211,8 +214,8 @@ class Repository:
             "INSERT INTO ai_theses "
             "(scan_run_id, ticker, bull_json, bear_json, risk_json, verdict_json, "
             "vol_json, rebuttal_json, total_tokens, model_name, duration_ms, is_fallback, "
-            "created_at, debate_mode, citation_density) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "created_at, debate_mode, citation_density, market_context_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 scan_run_id,
                 ticker,
@@ -229,6 +232,7 @@ class Repository:
                 created_at,
                 debate_mode,
                 citation_density,
+                market_context_json,
             ),
         )
         await conn.commit()
@@ -272,6 +276,7 @@ class Repository:
     def _row_to_debate_row(row: Row) -> DebateRow:
         """Reconstruct a DebateRow from an aiosqlite.Row."""
         raw_scan_run_id = row["scan_run_id"]
+        raw_market_context: str | None = row["market_context_json"]
         return DebateRow(
             id=int(row["id"]),
             scan_run_id=int(raw_scan_run_id) if raw_scan_run_id is not None else None,
@@ -290,6 +295,11 @@ class Repository:
             debate_mode=str(row["debate_mode"]) if row["debate_mode"] is not None else "full",
             citation_density=(
                 float(row["citation_density"]) if row["citation_density"] is not None else 0.0
+            ),
+            market_context=(
+                MarketContext.model_validate_json(raw_market_context)
+                if raw_market_context is not None
+                else None
             ),
         )
 
