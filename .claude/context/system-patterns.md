@@ -123,6 +123,15 @@ Phase 4: Persist to SQLite
 - API: `/api/scans/{id}/diff` returns movers (new, dropped, score changes)
 - Frontend: delta badges on ScanResultsPage
 
+### Sector Filtering Pattern
+- `GICSSector` StrEnum (11 GICS sectors) + `SECTOR_ALIASES` dict (30+ case-insensitive aliases)
+- `field_validator("sectors", mode="before")` normalizes aliases → enum, deduplicates via `dict.fromkeys()`
+- `UniverseService.build_sector_map()` maps S&P 500 tickers → GICSSector from Wikipedia data
+- `UniverseService.filter_by_sectors()` pure helper with OR logic across selected sectors
+- Pipeline Phase 1 applies sector filter; Phase 2-3 enriches TickerScore with sector + company_name
+- Migration 008 adds nullable `sector`/`company_name` columns to `ticker_scores`
+- ETF preset: 60+ curated seed tickers verified via yfinance, 24h cache
+
 ### Earnings Calendar Pattern
 - `market_data.fetch_earnings_date()` via yfinance calendar, cached
 - `next_earnings` field on `TickerScore` (persisted in migration 007)

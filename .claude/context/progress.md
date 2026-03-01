@@ -3,10 +3,10 @@
 ## Current State
 
 - **Version**: 2.1.0 (Complete)
-- **All 9 phases + 12 epics**: Complete and merged to master (2026-03-01)
-- **Branch**: `master` (2,328 tests, all phases + epics merged)
-- **Tests**: 2,328 Python + 38 E2E
-- **GitHub issues**: 0 open, 158 closed
+- **All 9 phases + 13 epics**: Complete and merged to master (2026-03-01)
+- **Branch**: `master` (2,454 tests, all phases + epics merged)
+- **Tests**: 2,454 Python + 38 E2E
+- **GitHub issues**: 0 open, 168 closed
 - **CI**: GitHub Actions (3 gates: lint, typecheck, tests)
 - **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`), `serve`, `watchlist`
 - **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
@@ -31,13 +31,18 @@ For detailed phase/epic completion logs, see `progress-archive.md`.
 
 ## Recently Completed
 
+### Epic 13: Ticker Universe Improve (2026-03-01) — #161
+Composable sector filtering, working ETF preset, and scan result enrichment.
+GICSSector StrEnum with 30+ case-insensitive aliases. Sector filtering across
+CLI (`--sector`), API (ScanRequest.sectors), and frontend (PrimeVue MultiSelect).
+ETF preset with 60+ curated tickers. TickerScore enrichment (sector column +
+company name). Migration 008. `GET /universe/sectors` endpoint. `universe sectors`
+CLI command. +124 tests.
+
 ### Epic 12: Deep Signal Engine (2026-03-01) — #151, PR #160
-40 DSE indicators across 8 analytical dimensions (trend, volatility, flow,
-fundamental, regime, IV analytics, options-specific, relative strength). 6-agent
-parallel debate protocol (trend, volatility, flow, fundamental → risk →
-contrarian). Multi-dimensional scoring with regime-adjusted weights. Phase 3
-normalization pipeline. Extended Greeks (charm, vanna, vomma, speed). IV surface
-utilities. CI workflow (GitHub Actions). +576 tests over v2.1.0.
+40 DSE indicators across 8 analytical dimensions. 6-agent parallel debate
+protocol. Multi-dimensional scoring with regime-adjusted weights. Extended Greeks.
+IV surface utilities. CI workflow (GitHub Actions). +576 tests.
 
 ## Future Work
 
