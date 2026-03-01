@@ -189,6 +189,14 @@ class DebateConfig(BaseModel):
             raise ValueError(f"phase1_parallelism must be in [1, 8], got {v}")
         return v
 
+    @model_validator(mode="after")
+    def validate_all_finite(self) -> Self:
+        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
+        for name, value in self.__dict__.items():
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+        return self
+
 
 class AppSettings(BaseSettings):
     """Root application settings — the sole BaseSettings subclass.

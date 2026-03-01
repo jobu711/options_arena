@@ -241,8 +241,9 @@ def compute_greeks(
                 contract.option_type,
             )
 
-            # OptionContract is frozen — use model_copy to avoid re-validating
-            # unchanged fields (idiomatic Pydantic v2 for frozen models).
+            # OptionContract is frozen — model_copy skips validators on ALL
+            # fields (including updated ones). Safe here because greeks was
+            # constructed via OptionGreeks(...) and sigma passed isfinite above.
             new_contract = contract.model_copy(update={"greeks": greeks, "market_iv": sigma})
             result.append(new_contract)
 

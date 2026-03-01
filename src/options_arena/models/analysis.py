@@ -144,7 +144,7 @@ class MarketContext(BaseModel):
         populated = sum(1 for f in checkable_fields if f is not None)
         return populated / len(checkable_fields)
 
-    @field_validator("rsi_14", "target_delta")
+    @field_validator("rsi_14", "target_delta", "dividend_yield", "composite_score")
     @classmethod
     def validate_required_finite(cls, v: float) -> float:
         """Reject NaN/Inf on required float fields."""
@@ -158,6 +158,12 @@ class MarketContext(BaseModel):
         "atm_iv_30d",
         "put_call_ratio",
         "max_pain_distance",
+        "adx",
+        "sma_alignment",
+        "bb_width",
+        "atr_pct",
+        "stochastic_rsi",
+        "relative_volume",
         "target_gamma",
         "target_theta",
         "target_vega",

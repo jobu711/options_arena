@@ -578,3 +578,14 @@ class TestOptionSpread:
         assert spread.ticker == "AAPL"
         assert spread.legs[0].side == PositionSide.LONG
         assert spread.legs[1].side == PositionSide.SHORT
+
+    def test_frozen_enforcement(self, sample_contract: OptionContract) -> None:
+        """OptionSpread is frozen: attribute reassignment raises ValidationError."""
+        leg = SpreadLeg(contract=sample_contract, side=PositionSide.LONG)
+        spread = OptionSpread(
+            spread_type=SpreadType.VERTICAL,
+            legs=[leg],
+            ticker="AAPL",
+        )
+        with pytest.raises(ValidationError):
+            spread.spread_type = SpreadType.CALENDAR  # type: ignore[misc]
