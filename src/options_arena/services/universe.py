@@ -2,7 +2,8 @@
 
 Fetches the optionable ticker universe from CBOE, classifies tickers by
 S&P 500 membership and GICS sector (via Wikipedia), and provides
-``MarketCapTier`` classification. Two external data sources:
+``MarketCapTier`` classification. Includes ETF detection and sector
+filtering helpers. Two external data sources:
 CBOE CSV (optionable universe) and Wikipedia table (S&P 500 constituents).
 """
 
@@ -11,13 +12,15 @@ import io
 import json
 import logging
 import re
+from typing import Any
 
 import httpx
 import pandas as pd
+import yfinance as yf  # type: ignore[import-untyped]
 from pydantic import BaseModel
 
 from options_arena.models.config import ServiceConfig
-from options_arena.models.enums import MarketCapTier
+from options_arena.models.enums import SECTOR_ALIASES, GICSSector, MarketCapTier
 from options_arena.services.cache import TTL_REFERENCE, ServiceCache
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.utils.exceptions import DataSourceUnavailableError, InsufficientDataError
@@ -40,6 +43,83 @@ _TICKER_RE: re.Pattern[str] = re.compile(r"^[A-Z]{1,5}(\.[A-Z])?$")
 # Cache keys
 _CACHE_KEY_CBOE = "cboe:reference:universe:optionable"
 _CACHE_KEY_SP500 = "wiki:reference:sp500:constituents"
+_CACHE_KEY_ETFS = "yf:reference:universe:etfs"
+
+# Curated ETF seed list — well-known optionable ETFs that are reliably available
+# on CBOE. Cross-referenced against the CBOE optionable list.
+_ETF_SEED_LIST: frozenset[str] = frozenset(
+    {
+        # Broad market
+        "SPY",
+        "QQQ",
+        "IWM",
+        "DIA",
+        "VOO",
+        "VTI",
+        "IVV",
+        "RSP",
+        # Sector SPDR
+        "XLF",
+        "XLE",
+        "XLK",
+        "XLV",
+        "XLI",
+        "XLP",
+        "XLU",
+        "XLY",
+        "XLB",
+        "XLRE",
+        "XLC",
+        # Other sector / thematic
+        "SMH",
+        "XBI",
+        "XOP",
+        "KRE",
+        "XHB",
+        "XRT",
+        "ARKK",
+        "ARKG",
+        # Fixed income
+        "TLT",
+        "HYG",
+        "LQD",
+        "TIP",
+        "BND",
+        "AGG",
+        "SHY",
+        "IEF",
+        # International
+        "EEM",
+        "EFA",
+        "FXI",
+        "INDA",
+        "EWZ",
+        "EWJ",
+        "VWO",
+        "IEMG",
+        # Commodity
+        "GLD",
+        "SLV",
+        "USO",
+        "GDX",
+        "GDXJ",
+        "UNG",
+        # Volatility
+        "VXX",
+        "UVXY",
+        "SVXY",
+        # Leveraged
+        "TQQQ",
+        "SQQQ",
+        "SPXL",
+        "SPXS",
+        "SOXL",
+        "SOXS",
+        # Real estate
+        "VNQ",
+        "IYR",
+    }
+)
 
 # Market cap tier boundaries in dollars
 _MEGA_CAP_THRESHOLD: int = 200_000_000_000
@@ -251,6 +331,72 @@ class UniverseService:
             return MarketCapTier.SMALL
         return MarketCapTier.MICRO
 
+    async def fetch_etf_tickers(self) -> list[str]:
+        """Fetch ETF tickers from the CBOE optionable list with 24h cache.
+
+        Uses a curated seed list of well-known ETFs cross-referenced against
+        the CBOE optionable universe. For any seed ticker present in the CBOE
+        list, verifies ETF status via yfinance ``Ticker.info["quoteType"]``.
+        Uses ``asyncio.gather(return_exceptions=True)`` for batch fault
+        isolation so one failed lookup never crashes the entire detection.
+
+        Returns:
+            Sorted, deduplicated list of ETF ticker symbols.
+
+        Raises:
+            DataSourceUnavailableError: If CBOE is unreachable (propagated
+                from ``fetch_optionable_tickers``).
+        """
+        # Check cache first
+        cached = await self._cache.get(_CACHE_KEY_ETFS)
+        if cached is not None:
+            etf_tickers: list[str] = json.loads(cached.decode())
+            logger.debug("ETF universe cache hit: %d tickers", len(etf_tickers))
+            return etf_tickers
+
+        # Fetch CBOE optionable list (uses its own cache)
+        optionable = await self.fetch_optionable_tickers()
+        optionable_set = frozenset(optionable)
+
+        # Cross-reference seed list with CBOE — only check tickers that are optionable
+        candidates = sorted(_ETF_SEED_LIST & optionable_set)
+
+        if not candidates:
+            logger.warning("No ETF seed tickers found in CBOE optionable list")
+            await self._cache.set(
+                _CACHE_KEY_ETFS,
+                json.dumps([]).encode(),
+                ttl=TTL_REFERENCE,
+            )
+            return []
+
+        # Batch-check via yfinance with fault isolation
+        tasks = [self._check_etf(ticker) for ticker in candidates]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        confirmed_etfs: list[str] = []
+        for ticker, result in zip(candidates, results, strict=True):
+            if isinstance(result, Exception):
+                logger.debug("ETF check failed for %s: %s", ticker, result)
+                # Include seed tickers even on yfinance failure — seed list
+                # is curated and reliable
+                confirmed_etfs.append(ticker)
+            elif result:
+                confirmed_etfs.append(ticker)
+
+        confirmed_etfs.sort()
+
+        logger.info("ETF universe detected: %d tickers", len(confirmed_etfs))
+
+        # Cache for 24 hours
+        await self._cache.set(
+            _CACHE_KEY_ETFS,
+            json.dumps(confirmed_etfs).encode(),
+            ttl=TTL_REFERENCE,
+        )
+
+        return confirmed_etfs
+
     async def close(self) -> None:
         """Close the shared httpx client."""
         await self._client.aclose()
@@ -258,6 +404,29 @@ class UniverseService:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    async def _check_etf(self, ticker: str) -> bool:
+        """Check if a ticker is an ETF via yfinance quoteType.
+
+        Args:
+            ticker: Ticker symbol to check.
+
+        Returns:
+            ``True`` if yfinance reports ``quoteType == "ETF"``, ``False`` otherwise.
+        """
+        try:
+            info: dict[str, Any] = await asyncio.wait_for(
+                asyncio.to_thread(lambda: yf.Ticker(ticker).info),
+                timeout=self._config.yfinance_timeout,
+            )
+            quote_type = info.get("quoteType", "")
+            return str(quote_type).upper() == "ETF"
+        except TimeoutError:
+            logger.debug("ETF check timeout for %s", ticker)
+            raise
+        except Exception as exc:
+            logger.debug("ETF check error for %s: %s", ticker, exc)
+            raise
 
     @staticmethod
     def _parse_cboe_csv(content: str) -> list[str]:
@@ -343,3 +512,86 @@ class UniverseService:
 
         result.sort()
         return result
+
+
+# ---------------------------------------------------------------------------
+# Standalone helpers — pure functions, no service instance needed
+# ---------------------------------------------------------------------------
+
+
+def build_sector_map(constituents: list[SP500Constituent]) -> dict[str, GICSSector]:
+    """Build a ticker-to-GICS-sector mapping from S&P 500 constituents.
+
+    Handles Wikipedia sector strings that may differ from canonical GICS names
+    by trying direct ``GICSSector(sector_str)`` construction, then falling back
+    to ``SECTOR_ALIASES`` for short names and variant formats.
+
+    Args:
+        constituents: List of ``SP500Constituent`` models (ticker + sector string).
+
+    Returns:
+        Mapping from ticker symbol to ``GICSSector`` enum. Tickers whose sector
+        string cannot be resolved are silently skipped with a warning log.
+    """
+    result: dict[str, GICSSector] = {}
+    for constituent in constituents:
+        sector = _resolve_sector(constituent.sector)
+        if sector is not None:
+            result[constituent.ticker] = sector
+        else:
+            logger.warning(
+                "Could not resolve sector %r for ticker %s",
+                constituent.sector,
+                constituent.ticker,
+            )
+    return result
+
+
+def filter_by_sectors(
+    tickers: list[str],
+    sectors: list[GICSSector],
+    sp500_map: dict[str, GICSSector],
+) -> list[str]:
+    """Filter tickers by GICS sector membership (OR logic).
+
+    Pure function. If ``sectors`` is empty, returns all tickers unchanged.
+    Only tickers present in ``sp500_map`` can match; tickers not in the map
+    are excluded when sector filtering is active.
+
+    Args:
+        tickers: List of ticker symbols to filter.
+        sectors: GICS sectors to include (OR logic — ticker matches if in any).
+        sp500_map: Mapping from ticker to ``GICSSector`` (from ``build_sector_map``).
+
+    Returns:
+        Filtered list of tickers belonging to at least one of the specified sectors.
+        Preserves input order. If ``sectors`` is empty, returns ``tickers`` unchanged.
+    """
+    if not sectors:
+        return tickers
+
+    sector_set = frozenset(sectors)
+    return [t for t in tickers if sp500_map.get(t) in sector_set]
+
+
+def _resolve_sector(sector_str: str) -> GICSSector | None:
+    """Resolve a sector string to a GICSSector enum value.
+
+    Tries direct enum construction first, then falls back to SECTOR_ALIASES
+    with case-insensitive matching.
+
+    Args:
+        sector_str: Sector name from Wikipedia or other source.
+
+    Returns:
+        Resolved ``GICSSector`` or ``None`` if unrecognised.
+    """
+    # Try direct enum construction (handles canonical values like "Energy")
+    try:
+        return GICSSector(sector_str.strip())
+    except ValueError:
+        pass
+
+    # Fall back to aliases (lowercase lookup)
+    key = sector_str.strip().lower()
+    return SECTOR_ALIASES.get(key)
