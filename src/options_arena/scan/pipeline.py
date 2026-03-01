@@ -18,7 +18,9 @@ import pandas as pd
 from options_arena.data import Repository
 from options_arena.indicators.options_specific import max_pain
 from options_arena.models import (
+    SECTOR_ALIASES,
     AppSettings,
+    GICSSector,
     IndicatorSignals,
     OptionContract,
     OptionType,
@@ -189,10 +191,29 @@ class ScanPipeline:
         all_tickers = await self._universe.fetch_optionable_tickers()
         logger.info("Universe: %d optionable tickers fetched", len(all_tickers))
 
-        # Step 2: Fetch S&P 500 constituents
+        # Step 2: Fetch S&P 500 constituents and build typed sector_map
         sp500_constituents = await self._universe.fetch_sp500_constituents()
         sp500_sectors: dict[str, str] = {c.ticker: c.sector for c in sp500_constituents}
         logger.info("S&P 500: %d constituents fetched", len(sp500_sectors))
+
+        # Build typed sector_map from raw sector strings via SECTOR_ALIASES
+        sector_map: dict[str, GICSSector] = {}
+        for ticker, raw_sector in sp500_sectors.items():
+            key = raw_sector.strip().lower()
+            gics = SECTOR_ALIASES.get(key)
+            if gics is not None:
+                sector_map[ticker] = gics
+            else:
+                # Try direct enum construction for canonical values
+                try:
+                    sector_map[ticker] = GICSSector(raw_sector.strip())
+                except ValueError:
+                    logger.debug(
+                        "Unknown sector %r for %s; skipping sector assignment",
+                        raw_sector,
+                        ticker,
+                    )
+        logger.info("Sector map: %d tickers mapped to GICS sectors", len(sector_map))
 
         # Step 3: Filter by preset
         tickers: list[str]
@@ -206,12 +227,26 @@ class ScanPipeline:
             )
         else:
             if preset == ScanPreset.ETFS:
+                # TODO: Wire to self._universe.fetch_etf_tickers() when #166 lands
                 logger.warning(
                     "ETFS preset selected but ETF-only filtering is not yet implemented; "
                     "using full universe (%d tickers)",
                     len(all_tickers),
                 )
             tickers = all_tickers
+
+        # Step 3b: Apply sector filter (OR logic) when sectors are configured
+        configured_sectors = self._settings.scan.sectors
+        if configured_sectors:
+            sector_set = frozenset(configured_sectors)
+            before_count = len(tickers)
+            tickers = [t for t in tickers if sector_map.get(t) in sector_set]
+            logger.info(
+                "Sector filter: %d -> %d tickers (sectors=%s)",
+                before_count,
+                len(tickers),
+                ", ".join(s.value for s in configured_sectors),
+            )
 
         # Step 4: Batch-fetch OHLCV
         progress(ScanPhase.UNIVERSE, 0, len(tickers))
@@ -254,6 +289,7 @@ class ScanPipeline:
             tickers=tickers,
             ohlcv_map=ohlcv_map,
             sp500_sectors=sp500_sectors,
+            sector_map=sector_map,
             failed_count=failed_count,
             filtered_count=filtered_count,
         )
@@ -313,6 +349,7 @@ class ScanPipeline:
         scored: list[TickerScore] = score_universe(raw_signals)
 
         # Step 3: Classify direction using RAW values (not normalized)
+        # and enrich with sector from Phase 1 sector_map
         scan_config = self._settings.scan
         for ts in scored:
             raw = raw_signals[ts.ticker]
@@ -322,6 +359,9 @@ class ScanPipeline:
                 sma_alignment=raw.sma_alignment or 0.0,
                 config=scan_config,
             )
+            sector = universe_result.sector_map.get(ts.ticker)
+            if sector is not None:
+                ts.sector = sector
 
         # Step 3b: Compute dimensional scores and direction confidence
         for ts in scored:
@@ -562,6 +602,9 @@ class ScanPipeline:
             earnings_date = None
         else:
             earnings_date = earnings_result
+
+        # Enrich ticker_score with company_name from ticker info
+        ticker_score.company_name = ticker_info.company_name
 
         # Flatten all contracts across expirations
         all_contracts: list[OptionContract] = []
