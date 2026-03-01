@@ -427,9 +427,7 @@ class ScanPipeline:
             else:
                 # Attempt lightweight fetch for SPX data
                 try:
-                    spx_batch = await self._market_data.fetch_batch_ohlcv(
-                        ["^GSPC"], period="1y"
-                    )
+                    spx_batch = await self._market_data.fetch_batch_ohlcv(["^GSPC"], period="1y")
                     if (
                         spx_batch.results
                         and spx_batch.results[0].ok
@@ -438,9 +436,7 @@ class ScanPipeline:
                     ):
                         spx_df = ohlcv_to_dataframe(spx_batch.results[0].data)
                         spx_close = spx_df["close"]
-                        logger.info(
-                            "SPX close series fetched on-demand (%d bars)", len(spx_close)
-                        )
+                        logger.info("SPX close series fetched on-demand (%d bars)", len(spx_close))
                     else:
                         logger.debug(
                             "SPX fetch unavailable; relative strength indicators will be None"
@@ -507,9 +503,7 @@ class ScanPipeline:
             _normalize_phase3_signals(top_scores)
             _recompute_dimensional_scores(top_scores)
         else:
-            logger.info(
-                "Skipping Phase 3 re-score: need >=2 tickers for percentile normalization"
-            )
+            logger.info("Skipping Phase 3 re-score: need >=2 tickers for percentile normalization")
 
         progress(ScanPhase.OPTIONS, len(top_scores), len(top_scores))
 
