@@ -7,6 +7,8 @@ on ANY error -- this service never raises.
 """
 
 import logging
+from datetime import UTC, datetime, timedelta
+from typing import NamedTuple
 
 import httpx
 
@@ -21,6 +23,14 @@ _FRED_SERIES_ID: str = "DGS10"
 _FRED_MISSING_VALUE: str = "."
 _CACHE_KEY: str = "fred:rate:DGS10"
 _PERCENTAGE_DIVISOR: float = 100.0
+_STALENESS_THRESHOLD: timedelta = timedelta(hours=48)
+
+
+class CachedRate(NamedTuple):
+    """A cached risk-free rate with its fetch timestamp."""
+
+    rate: float
+    fetched_at: datetime
 
 
 class FredService:
@@ -45,6 +55,7 @@ class FredService:
         self._config = config
         self._pricing_config = pricing_config
         self._cache = cache
+        self._cached_rate: CachedRate | None = None
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(
                 10.0,
@@ -94,11 +105,23 @@ class FredService:
         Returns:
             Risk-free rate as decimal fraction, or fallback on any error.
         """
-        # --- Cache check ---
+        # --- In-memory staleness-aware cache check ---
+        if self._cached_rate is not None:
+            age = datetime.now(UTC) - self._cached_rate.fetched_at
+            if age > _STALENESS_THRESHOLD:
+                logger.warning(
+                    "FRED risk-free rate is %.0f hours old; consider refreshing",
+                    age.total_seconds() / 3600,
+                )
+            logger.debug("FRED rate in-memory cache hit: %.4f", self._cached_rate.rate)
+            return self._cached_rate.rate
+
+        # --- Two-tier cache check ---
         try:
             cached = await self._cache.get(_CACHE_KEY)
             if cached is not None:
                 rate = float(cached.decode())
+                self._cached_rate = CachedRate(rate=rate, fetched_at=datetime.now(UTC))
                 logger.debug("FRED rate cache hit: %.4f", rate)
                 return rate
         except Exception:
@@ -133,6 +156,8 @@ class FredService:
             return fallback
 
         # --- Cache successful result ---
+        now = datetime.now(UTC)
+        self._cached_rate = CachedRate(rate=fetched_rate, fetched_at=now)
         try:
             await self._cache.set(
                 _CACHE_KEY,

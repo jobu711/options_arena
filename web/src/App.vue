@@ -1,6 +1,29 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import Toast from 'primevue/toast'
+import { useHealthStore } from '@/stores/health'
+import { useOperationStore } from '@/stores/operation'
+import { api } from '@/composables/useApi'
+
+const healthStore = useHealthStore()
+const operationStore = useOperationStore()
+
+onMounted(async () => {
+  // Fetch initial health status to populate the store on app load (AUDIT-027)
+  await healthStore.fetchHealth()
+
+  // Sync operation store: check if a scan or batch debate is already in progress
+  try {
+    const status = await api<{ status: string }>('/api/health')
+    if (status.status === 'ok' && !operationStore.inProgress) {
+      // Backend is reachable — operation store starts clean (no stale state)
+      operationStore.finish()
+    }
+  } catch {
+    // Backend unreachable — leave operation store as-is
+  }
+})
 </script>
 
 <template>
