@@ -110,11 +110,13 @@ class FredService:
             age = datetime.now(UTC) - self._cached_rate.fetched_at
             if age > _STALENESS_THRESHOLD:
                 logger.warning(
-                    "FRED risk-free rate is %.0f hours old; consider refreshing",
+                    "FRED risk-free rate is %.0f hours old; attempting refresh",
                     age.total_seconds() / 3600,
                 )
-            logger.debug("FRED rate in-memory cache hit: %.4f", self._cached_rate.rate)
-            return self._cached_rate.rate
+                # Fall through to attempt refresh from two-tier cache / FRED API
+            else:
+                logger.debug("FRED rate in-memory cache hit: %.4f", self._cached_rate.rate)
+                return self._cached_rate.rate
 
         # --- Two-tier cache check ---
         try:

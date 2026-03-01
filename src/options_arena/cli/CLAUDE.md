@@ -589,7 +589,6 @@ text should be added to CLI output or any rendering path.
     Test the data model transformations (input -> table rows) instead.
 
 12. **Adding disclaimers** -- Disclaimers were removed (AUDIT-010). Do not add disclaimer text to any output.
-    Omitting it is a compliance failure.
 
 13. **`Optional[X]` syntax** -- Use `X | None`. Never import from `typing`. Python 3.13+.
 

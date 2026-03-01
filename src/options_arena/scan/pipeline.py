@@ -507,13 +507,15 @@ class ScanPipeline:
         ) -> tuple[str, list[OptionContract], date | None]:
             nonlocal completed
             async with sem:
-                result = await asyncio.wait_for(
-                    self._process_ticker_options(ts, risk_free_rate, ohlcv_map, spx_close),
-                    timeout=per_ticker_timeout,
-                )
-                completed += 1
-                progress(ScanPhase.OPTIONS, completed, len(top_scores))
-                return result
+                try:
+                    result = await asyncio.wait_for(
+                        self._process_ticker_options(ts, risk_free_rate, ohlcv_map, spx_close),
+                        timeout=per_ticker_timeout,
+                    )
+                    return result
+                finally:
+                    completed += 1
+                    progress(ScanPhase.OPTIONS, completed, len(top_scores))
 
         all_results: list[
             tuple[str, list[OptionContract], date | None] | BaseException

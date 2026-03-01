@@ -336,23 +336,32 @@ class TestFredServiceStaleness:
     """Tests for FRED rate staleness tracking (AUDIT-018)."""
 
     @pytest.mark.asyncio
-    async def test_stale_rate_logs_warning_but_still_returns(
+    async def test_stale_rate_triggers_refresh(
         self,
         fred_service: FredService,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """A cached rate older than 48 hours emits a staleness warning but is returned."""
+        """A cached rate older than 48 hours emits warning and attempts refresh."""
         stale_time = datetime.now(UTC) - timedelta(hours=72)
         fred_service._cached_rate = CachedRate(rate=0.042, fetched_at=stale_time)
 
-        with caplog.at_level(logging.WARNING, logger="options_arena.services.fred"):
+        # Mock FRED to return a fresh rate
+        mock_response = _make_fred_response("4.0")
+        with (
+            caplog.at_level(logging.WARNING, logger="options_arena.services.fred"),
+            patch.object(
+                fred_service._client, "get", new_callable=AsyncMock, return_value=mock_response
+            ),
+        ):
             rate = await fred_service.fetch_risk_free_rate()
 
-        assert rate == pytest.approx(0.042, rel=1e-6)
+        # Staleness warning should have been logged
         assert any(
             "FRED risk-free rate is" in record.message and "hours old" in record.message
             for record in caplog.records
         )
+        # Fresh rate from FRED (not stale cached value)
+        assert rate == pytest.approx(0.04, rel=1e-6)
 
     @pytest.mark.asyncio
     async def test_fresh_rate_no_warning(
@@ -391,23 +400,24 @@ class TestFredServiceStaleness:
         assert age < timedelta(seconds=5)
 
     @pytest.mark.asyncio
-    async def test_stale_rate_at_exactly_48h_no_warning(
+    async def test_rate_under_48h_no_warning(
         self,
         fred_service: FredService,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """A rate at exactly 48 hours is NOT stale (boundary: > 48h triggers warning)."""
-        boundary_time = datetime.now(UTC) - timedelta(hours=48)
+        """A rate under 48 hours old is returned without staleness warning."""
+        # Use 47h to avoid timing flakiness at exact boundary
+        boundary_time = datetime.now(UTC) - timedelta(hours=47)
         fred_service._cached_rate = CachedRate(rate=0.042, fetched_at=boundary_time)
 
         with caplog.at_level(logging.WARNING, logger="options_arena.services.fred"):
             rate = await fred_service.fetch_risk_free_rate()
 
         assert rate == pytest.approx(0.042, rel=1e-6)
-        # At exactly 48h the timedelta comparison is <=, not >, so no warning.
-        # In practice the tiny elapsed time between setting and checking makes this
-        # slightly > 48h, but we test the boundary intent: age == 48h should not warn.
-        # If this test is flaky, remove it -- the > 48h case is the one that matters.
+        staleness_warnings = [
+            r for r in caplog.records if "hours old" in r.message and r.levelno == logging.WARNING
+        ]
+        assert len(staleness_warnings) == 0
 
     @pytest.mark.asyncio
     async def test_two_tier_cache_hit_populates_cached_rate(

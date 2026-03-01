@@ -21,7 +21,7 @@ async def get_config(
     settings: AppSettings = Depends(get_settings),
 ) -> ConfigResponse:
     """Return safe configuration values (never the actual API key)."""
-    has_api_key = settings.debate.api_key is not None or os.environ.get("GROQ_API_KEY") is not None
+    has_api_key = settings.debate.api_key is not None or bool(os.environ.get("GROQ_API_KEY"))
     return ConfigResponse(
         groq_api_key_set=has_api_key,
         scan_preset_default="sp500",

@@ -39,7 +39,11 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
 
   // If the caller already provided a signal, forward its abort to our controller
   if (options.signal) {
-    options.signal.addEventListener('abort', () => controller.abort(), { once: true })
+    if (options.signal.aborted) {
+      controller.abort()
+    } else {
+      options.signal.addEventListener('abort', () => controller.abort(), { once: true })
+    }
   }
 
   try {

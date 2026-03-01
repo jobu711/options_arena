@@ -11,7 +11,11 @@ const operationStore = useOperationStore()
 
 onMounted(async () => {
   // Fetch initial health status to populate the store on app load (AUDIT-027)
-  await healthStore.fetchHealth()
+  try {
+    await healthStore.fetchHealth()
+  } catch {
+    // Health check failed — store keeps default unhealthy state
+  }
 
   // Sync operation store: check if a scan or batch debate is already in progress
   try {

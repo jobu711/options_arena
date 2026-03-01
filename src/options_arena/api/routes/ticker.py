@@ -20,7 +20,11 @@ router = APIRouter(prefix="/api", tags=["ticker"])
 @limiter.limit("60/minute")
 async def get_ticker_history(
     request: Request,
-    ticker: str = Path(min_length=1, max_length=10, pattern=r"^[A-Z0-9^][A-Z0-9.\-^]{0,9}$"),
+    ticker: str = Path(
+        min_length=1,
+        max_length=10,
+        pattern=r"^[A-Z0-9][A-Z0-9.\-^]{0,9}$",
+    ),
     repo: Repository = Depends(get_repo),
     limit: int = Query(20, ge=1, le=100),
 ) -> list[HistoryPoint]:

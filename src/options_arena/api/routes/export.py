@@ -113,23 +113,25 @@ async def export_debate(
         with contextlib.suppress(Exception):
             bull_rebuttal = AgentResponse.model_validate_json(row.rebuttal_json)
 
-    # Build minimal MarketContext for the export
-    context = MarketContext(
-        ticker=row.ticker,
-        current_price=Decimal("0"),
-        price_52w_high=Decimal("0"),
-        price_52w_low=Decimal("0"),
-        rsi_14=50.0,
-        macd_signal=MacdSignal.NEUTRAL,
-        next_earnings=None,
-        dte_target=30,
-        target_strike=Decimal("0"),
-        target_delta=0.0,
-        sector="Unknown",
-        dividend_yield=0.0,
-        exercise_style=ExerciseStyle.AMERICAN,
-        data_timestamp=datetime.now(UTC),
-    )
+    # Prefer persisted MarketContext; fall back to minimal placeholder
+    context: MarketContext | None = row.market_context
+    if context is None:
+        context = MarketContext(
+            ticker=row.ticker,
+            current_price=Decimal("0"),
+            price_52w_high=Decimal("0"),
+            price_52w_low=Decimal("0"),
+            rsi_14=50.0,
+            macd_signal=MacdSignal.NEUTRAL,
+            next_earnings=None,
+            dte_target=30,
+            target_strike=Decimal("0"),
+            target_delta=0.0,
+            sector="Unknown",
+            dividend_yield=0.0,
+            exercise_style=ExerciseStyle.AMERICAN,
+            data_timestamp=datetime.now(UTC),
+        )
 
     debate_result = DebateResult(
         context=context,

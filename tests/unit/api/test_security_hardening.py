@@ -197,7 +197,7 @@ async def test_watchlist_add_invalid_ticker_returns_422(
 class TestHtmlEscapeInPdfExport:
     """Verify that <script> tags in markdown are escaped in PDF HTML output."""
 
-    def test_render_pdf_escapes_script_tags(self, tmp_path: object) -> None:
+    def test_render_pdf_escapes_script_tags(self) -> None:
         """Content containing <script> tags is HTML-escaped before embedding."""
         # We test the html.escape function directly since _render_pdf requires
         # weasyprint which may not be installed.

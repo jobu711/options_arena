@@ -141,7 +141,11 @@ async def add_ticker(
 async def remove_ticker(
     request: Request,
     watchlist_id: int,
-    ticker: str = Path(min_length=1, max_length=10, pattern=r"^[A-Z0-9^][A-Z0-9.\-^]{0,9}$"),
+    ticker: str = Path(
+        min_length=1,
+        max_length=10,
+        pattern=r"^[A-Z0-9][A-Z0-9.\-^]{0,9}$",
+    ),
     repo: Repository = Depends(get_repo),
 ) -> None:
     """Remove a ticker from a watchlist."""
