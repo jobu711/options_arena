@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
@@ -10,21 +11,30 @@ from options_arena.cli import app
 
 runner = CliRunner()
 
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape codes from Rich/Typer output."""
+    return _ANSI_RE.sub("", text)
+
 
 def test_serve_command_exists() -> None:
     """The serve command is accessible via the Typer app."""
     result = runner.invoke(app, ["serve", "--help"])
     assert result.exit_code == 0
-    assert "Start the FastAPI web server" in result.output
+    output = _strip_ansi(result.output)
+    assert "Start the FastAPI web server" in output
 
 
 def test_serve_help_shows_options() -> None:
     """serve --help lists all options."""
     result = runner.invoke(app, ["serve", "--help"])
-    assert "--host" in result.output
-    assert "--port" in result.output
-    assert "--no-open" in result.output
-    assert "--reload" in result.output
+    output = _strip_ansi(result.output)
+    assert "--host" in output
+    assert "--port" in output
+    assert "--no-open" in output
+    assert "--reload" in output
 
 
 @patch("uvicorn.run")
