@@ -434,7 +434,29 @@ git worktree add ../epic-$ARGUMENTS -b epic/$ARGUMENTS
 echo "✅ Created worktree: ../epic-$ARGUMENTS"
 ```
 
-### 8. Output
+### 8. Write Checkpoint (best-effort)
+
+Write `.claude/epics/$ARGUMENTS/checkpoint.json` with `phase: "synced"`.
+Get REAL current datetime. Failure to write checkpoint does not fail the command.
+
+```json
+{
+  "epic": "$ARGUMENTS",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync $ARGUMENTS",
+  "last_updated": "{current ISO datetime}",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}
+```
+
+Include `"research"` in `completed_phases` if `.claude/epics/$ARGUMENTS/research.md` exists.
+
+### 9. Output
 
 ```
 ✅ Synced to GitHub

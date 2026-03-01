@@ -46,6 +46,11 @@ Do not bother the user with preflight checks progress ("I'm not going to ..."). 
    - Ensure `.claude/epics/` directory exists or can be created
    - If cannot create, tell user: "❌ Cannot create epic directory. Please check permissions."
 
+6. **Check for research (non-blocking):**
+   - Check if `.claude/epics/$ARGUMENTS/research.md` exists
+   - If missing, warn: "⚠️ No research found. Consider running /pm:prd-research $ARGUMENTS first for better results."
+   - This is non-blocking — continue regardless
+
 ## Instructions
 
 You are a technical lead converting a Product Requirements Document into a detailed implementation epic for: **$ARGUMENTS**
@@ -57,6 +62,11 @@ You are a technical lead converting a Product Requirements Document into a detai
 - Extract the PRD description from frontmatter
 
 ### 2. Technical Analysis
+- If `.claude/epics/$ARGUMENTS/research.md` exists, read it first and incorporate findings:
+  - Use identified modules and patterns as starting points
+  - Address open questions from research
+  - Adopt the recommended architecture if sound
+  - Reference existing code to extend
 - Identify architectural decisions needed
 - Determine technology stack and approaches
 - Map functional requirements to technical components
@@ -150,7 +160,38 @@ Before saving the epic, verify:
 - [ ] Effort estimates are realistic
 - [ ] Architecture decisions are justified
 
-### 7. Post-Creation
+### 7. Create Planning Lock
+
+If `.claude/epics/$ARGUMENTS/.planning-lock` does not already exist, create it:
+```
+Planning phase active for epic: $ARGUMENTS
+Created by: /pm:prd-parse
+Remove with: /pm:epic-decompose $ARGUMENTS
+```
+
+### 8. Write Checkpoint (best-effort)
+
+Write `.claude/epics/$ARGUMENTS/checkpoint.json` with `phase: "planning"`.
+Get REAL current datetime. Failure to write checkpoint does not fail the command.
+
+```json
+{
+  "epic": "$ARGUMENTS",
+  "phase": "planning",
+  "last_command": "/pm:prd-parse $ARGUMENTS",
+  "last_updated": "{current ISO datetime}",
+  "completed_phases": ["prd-created", "planning"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}
+```
+
+If `research.md` exists, include `"research"` in `completed_phases` between `"prd-created"` and `"planning"`.
+
+### 9. Post-Creation
 
 After successfully creating the epic:
 1. Confirm: "✅ Epic created: .claude/epics/$ARGUMENTS/epic.md"
@@ -158,7 +199,8 @@ After successfully creating the epic:
    - Number of task categories identified
    - Key architecture decisions
    - Estimated effort
-3. Suggest next step: "Ready to break down into tasks? Run: /pm:epic-decompose $ARGUMENTS"
+3. Note if planning lock is active: "Planning lock active — code writes to src/, tests/, web/ blocked."
+4. Suggest next step: "Ready to break down into tasks? Run: /pm:epic-decompose $ARGUMENTS"
 
 ## Error Recovery
 

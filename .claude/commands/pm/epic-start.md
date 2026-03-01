@@ -151,7 +151,29 @@ branch: epic/$ARGUMENTS
 - {None yet}
 ```
 
-### 6. Monitor and Coordinate
+### 6. Write Checkpoint (best-effort)
+
+Write `.claude/epics/$ARGUMENTS/checkpoint.json` with `phase: "executing"`.
+Get REAL current datetime. Failure to write checkpoint does not fail the command.
+
+```json
+{
+  "epic": "$ARGUMENTS",
+  "phase": "executing",
+  "last_command": "/pm:epic-start $ARGUMENTS",
+  "last_updated": "{current ISO datetime}",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced", "executing"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}
+```
+
+Include `"research"` in `completed_phases` if `.claude/epics/$ARGUMENTS/research.md` exists.
+
+### 7. Monitor and Coordinate
 
 Set up monitoring:
 ```bash
@@ -172,7 +194,7 @@ Merge when complete:
 "
 ```
 
-### 7. Handle Dependencies
+### 8. Handle Dependencies
 
 As agents complete streams:
 - Check if any blocked issues are now ready

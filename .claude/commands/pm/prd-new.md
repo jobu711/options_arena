@@ -136,7 +136,8 @@ Before saving the PRD, verify:
 After successfully creating the PRD:
 1. Confirm: "✅ PRD created: .claude/prds/$ARGUMENTS.md"
 2. Show brief summary of what was captured
-3. Suggest next step: "Ready to create implementation epic? Run: /pm:prd-parse $ARGUMENTS"
+3. Suggest next step: "Ready to research the codebase? Run: /pm:prd-research $ARGUMENTS"
+4. Mention fallback: "(Or skip research and go directly to: /pm:prd-parse $ARGUMENTS)"
 
 ## Error Recovery
 

@@ -13,6 +13,24 @@
             "command": "python .claude/hooks/analyze-epic-commit.py"
           }
         ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/planning-lock.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/planning-lock.py"
+          }
+        ]
       }
     ]
   }

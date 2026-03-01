@@ -48,6 +48,12 @@ You are decomposing an epic into specific, actionable tasks for: **$ARGUMENTS**
 - Understand the technical approach and requirements
 - Review the task breakdown preview
 
+### 1b. Read Test Conventions
+- Load `tests/CLAUDE.md` to understand project test conventions
+- Note: pytest patterns, fixture usage, tolerance values, mocking strategies
+- If `.claude/epics/$ARGUMENTS/research.md` exists, also read its Test Strategy Preview section
+- These inform the Test Plan section in each task file
+
 ### 2. Analyze for Parallel Creation
 
 Determine if tasks can be created in parallel:
@@ -92,6 +98,7 @@ github: [Will be updated when synced to GitHub]
 depends_on: []  # List of task numbers this depends on, e.g., [001, 002]
 parallel: true  # Can this run in parallel with other tasks?
 conflicts_with: []  # Tasks that modify same files, e.g., [003, 004]
+test_files: []  # List of planned test file paths, e.g., [tests/unit/models/test_feature.py]
 ---
 
 # Task: [Task Title]
@@ -109,6 +116,32 @@ Clear, concise description of what needs to be done
 - Key considerations
 - Code locations/files affected
 
+## Test Plan
+
+### Test Files
+- `tests/unit/{module}/test_{feature}.py`
+
+### Test Cases
+```python
+class TestFeatureName:
+    def test_basic_functionality(self) -> None:
+        """Verify {behavior}."""
+        ...
+    def test_edge_case(self) -> None:
+        """Verify {edge case}."""
+        ...
+    def test_validation_rejects_invalid(self) -> None:
+        """Verify validation rejects {condition}."""
+        ...
+```
+
+### Edge Cases
+- {edge case 1}: {expected behavior}
+- {edge case 2}: {expected behavior}
+
+### Mocking Strategy
+- Mock {dependency} using {technique}
+
 ## Dependencies
 - [ ] Task/Issue dependencies
 - [ ] External dependencies
@@ -121,6 +154,7 @@ Clear, concise description of what needs to be done
 ## Definition of Done
 - [ ] Code implemented
 - [ ] Tests written and passing
+- [ ] All edge cases from Test Plan covered
 - [ ] Documentation updated
 - [ ] Code reviewed
 - [ ] Deployed to staging
@@ -199,6 +233,13 @@ Sequential tasks: {sequential_count}
 Estimated total effort: {sum of hours}
 ```
 
+Also add a Test Coverage Plan summary to the epic:
+```markdown
+## Test Coverage Plan
+Total test files planned: {count}
+Total test cases planned: {count}
+```
+
 Also update the epic's frontmatter progress if needed (still 0% until tasks actually start).
 
 ### 9. Quality Validation
@@ -209,8 +250,41 @@ Before finalizing tasks, verify:
 - [ ] Dependencies are logical and achievable
 - [ ] Parallel tasks don't conflict with each other
 - [ ] Combined tasks cover all epic requirements
+- [ ] Every task has a Test Plan with at least 3 test cases
+- [ ] Test file paths follow `tests/unit/{module}/` or `tests/integration/` conventions
+- [ ] Edge cases identified (minimum: empty input, error handling, validation)
+- [ ] `test_files` frontmatter matches Test Plan paths
 
-### 10. Post-Decomposition
+### 10. Remove Planning Lock
+
+Remove the planning lock file if it exists:
+```bash
+rm -f .claude/epics/$ARGUMENTS/.planning-lock
+```
+
+### 11. Write Checkpoint (best-effort)
+
+Write `.claude/epics/$ARGUMENTS/checkpoint.json` with `phase: "decomposition"`.
+Get REAL current datetime. Failure to write checkpoint does not fail the command.
+
+```json
+{
+  "epic": "$ARGUMENTS",
+  "phase": "decomposition",
+  "last_command": "/pm:epic-decompose $ARGUMENTS",
+  "last_updated": "{current ISO datetime}",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}
+```
+
+Only include `"research"` in `completed_phases` if `.claude/epics/$ARGUMENTS/research.md` exists.
+
+### 12. Post-Decomposition
 
 After successfully creating tasks:
 1. Confirm: "✅ Created {count} tasks for epic: $ARGUMENTS"
@@ -218,7 +292,9 @@ After successfully creating tasks:
    - Total tasks created
    - Parallel vs sequential breakdown
    - Total estimated effort
-3. Suggest next step: "Ready to sync to GitHub? Run: /pm:epic-sync $ARGUMENTS"
+   - Test coverage: {test_files_count} test files, {test_cases_count} test cases planned
+3. Note: "Planning lock removed — code writes are now allowed."
+4. Suggest next step: "Ready to sync to GitHub? Run: /pm:epic-sync $ARGUMENTS"
 
 ## Error Recovery
 
