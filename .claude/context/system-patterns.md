@@ -19,33 +19,22 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - Consumers import from the package, not submodules: `from options_arena.models import OptionContract`
 
 ### NaN/Inf Defense Pattern
-- **`math.isfinite()` at model boundaries**: Every Pydantic validator on numeric fields that use
-  `v < 0` or range checks must ALSO check `math.isfinite(v)` first, because NaN comparisons
-  always return False (NaN silently passes `v >= 0`).
-- **`math.isfinite()` at computation entry**: Pricing and scoring functions guard non-finite inputs
-  at entry before any arithmetic.
-- **NaN for undefined ratios**: Division-by-zero returns `float("nan")` (not `0.0`) when
-  mathematically undefined.
-- **Display guards**: CLI rendering checks `math.isfinite()` before formatting, falls back to `"--"`.
-- **OHLCV candle validators**: `field_validator` rejects zero/negative prices and non-finite values;
-  `model_validator(mode="after")` rejects impossible candles (high < low, prices outside range).
-  Ingestion loops wrap construction in `try/except PydanticValidationError` to skip bad rows.
-- **Zero-price rejection**: `fetch_quote()` and `fetch_ticker_info()` raise `TickerNotFoundError`
-  when price is None or <= 0. Bid/ask zero-fallback kept (legitimate for illiquid contracts).
-- **MarketContext completeness**: Optional indicator fields are `float | None` (not `0.0`).
-  `completeness_ratio()` returns fraction of populated fields. Debate quality gate requires
-  >= 60% completeness; below triggers data-driven fallback. Warning logged at < 80%.
+- **`math.isfinite()` at model boundaries**: Every numeric validator must check `isfinite()` before range checks — NaN silently passes `v >= 0`.
+- **`math.isfinite()` at computation entry**: Pricing/scoring guard non-finite inputs at entry.
+- **NaN for undefined ratios**: Division-by-zero returns `float("nan")`, not `0.0`.
+- **Display guards**: CLI checks `isfinite()` before formatting, falls back to `"--"`.
+- **OHLCV candle validators**: Rejects zero/negative/non-finite prices; `model_validator` rejects impossible candles.
+- **Zero-price rejection**: `fetch_quote()`/`fetch_ticker_info()` raise `TickerNotFoundError` when price is None/<=0.
+- **MarketContext completeness**: Optional fields are `float | None`. `completeness_ratio()` measures populated fields. Debate requires >=60%; <80% warns.
 
 ### Service Layer Patterns
-- **Class-based DI**: Each service receives `config`, `cache`, `limiter` via `__init__`. Explicit `close()`.
-- **Cache-first**: check cache → fetch if miss → store → return
-- **Shared httpx client**: one `AsyncClient` per service instance, closed via `await client.aclose()`
-- **Retry with backoff**: `fetch_with_retry()` accepts zero-arg async factory, exponential backoff (1s→16s)
-- **yfinance wrapping**: `_yf_call(fn, *args)` — `asyncio.to_thread(fn, *args)` + `wait_for(timeout)`. CRITICAL: pass callable + args separately, NOT `to_thread(fn())`.
-- **Two-tier caching**: in-memory LRU + SQLite WAL. Market-hours-aware TTL via `zoneinfo.ZoneInfo("America/New_York")`.
-- **Rate limiting**: Token bucket (`time.monotonic()`, NOT `time.time()`) + `asyncio.Semaphore`.
-- **Batch isolation**: `asyncio.gather(*tasks, return_exceptions=True)` — one failed ticker never crashes batch.
-- **FRED never raises**: always returns float, falls back to `PricingConfig.risk_free_rate_fallback`.
+- **Class-based DI**: `config`, `cache`, `limiter` via `__init__`. Explicit `close()`. Cache-first strategy.
+- **httpx**: one `AsyncClient` per service, closed via `aclose()`. Retry with exponential backoff (1s→16s).
+- **yfinance wrapping**: `_yf_call(fn, *args)` — `to_thread(fn, *args)` + `wait_for(timeout)`. CRITICAL: pass callable + args separately, NOT `to_thread(fn())`.
+- **Two-tier caching**: in-memory LRU + SQLite WAL. Market-hours-aware TTL.
+- **Rate limiting**: Token bucket (`time.monotonic()`) + `asyncio.Semaphore`.
+- **Batch isolation**: `asyncio.gather(*tasks, return_exceptions=True)` — one failure never crashes batch.
+- **FRED/OpenBB never raise**: return fallback/None on error.
 
 ### PydanticAI Agent Pattern
 - Module-level `Agent[Deps, OutputType]` instances (bull, bear, risk, volatility) — no classes
@@ -137,5 +126,13 @@ Phase 4: Persist to SQLite
 - `next_earnings` field on `TickerScore` (persisted in migration 007)
 - Earnings warning injected into debate prompts when within 7 days
 - Frontend: earnings date column + overlay on scan results
+
+### OpenBB Enrichment Pattern (Optional)
+- **Guarded imports**: `_get_obb()`/`_get_vader()` return SDK or `None` — never-raises contract on all methods
+- **Not in pyproject.toml**: version conflicts with fastapi/ruff — users install separately
+- **Config-gated**: `OpenBBConfig.enabled` master toggle + per-source toggles (fundamentals, flow, sentiment)
+- **MarketContext**: 11 enrichment fields + `enrichment_ratio()` (separate from `completeness_ratio()`)
+- **Agent context**: `_parsing.py` builds Fundamental/Flow/Sentiment prompt sections
+- **Models**: 5 frozen (`FundamentalSnapshot`, `UnusualFlowSnapshot`, `NewsHeadline`, `NewsSentimentSnapshot`, `OpenBBHealthStatus`)
 
 For detailed algorithm specs, see `system-patterns-reference.md`.

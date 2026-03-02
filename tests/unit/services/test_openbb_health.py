@@ -34,8 +34,11 @@ class TestCheckOpenBB:
         self, health_service: HealthService
     ) -> None:
         """ImportError → available=False, error='OpenBB SDK not installed'."""
-        # openbb is not installed in our test environment, so this is the natural result
-        result = await health_service.check_openbb()
+        import sys
+
+        # Force ImportError deterministically — None in sys.modules blocks import
+        with patch.dict(sys.modules, {"openbb": None}):
+            result = await health_service.check_openbb()
         assert result.service_name == "openbb"
         assert result.available is False
         assert result.error == "OpenBB SDK not installed"

@@ -193,7 +193,9 @@ class TestMarketContextEnrichment:
             forward_pe=24.1,
             news_sentiment=0.42,
         )
-        assert ctx_without.completeness_ratio() == ctx_with.completeness_ratio()
+        assert ctx_without.completeness_ratio() == pytest.approx(
+            ctx_with.completeness_ratio()
+        )
 
     def test_nan_rejected_in_pe_ratio(self) -> None:
         """NaN in pe_ratio raises ValidationError."""

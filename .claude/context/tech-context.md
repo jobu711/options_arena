@@ -45,6 +45,8 @@
 | Package | Version | Purpose |
 |---------|---------|---------|
 | weasyprint | >=63.0 | PDF export for debate results (`pip install options-arena[pdf]`) |
+| openbb | (external) | Fundamentals, unusual flow, news data — guarded imports, no pip extra (version conflicts) |
+| vaderSentiment | (external) | News headline sentiment scoring — used by OpenBB service layer |
 
 ### Dev
 | Package | Version | Purpose |
@@ -90,7 +92,7 @@ uv run mypy src/ --strict                            # type checking
 
 All three must pass before any commit.
 
-## External Services (Phase 5 — Implemented)
+## External Services
 
 | Service | Module | Protocol | Purpose | Fallback |
 |---------|--------|----------|---------|----------|
@@ -99,6 +101,7 @@ All three must pass before any commit.
 | CBOE | `universe.py` | httpx CSV download | Optionable ticker universe | Cached list (24h TTL) |
 | Wikipedia | `universe.py` | `pd.read_html` via `asyncio.to_thread` | S&P 500 constituents + GICS sectors | Cached list (24h TTL) |
 | Groq | `agents/orchestrator.py`, `health.py` | PydanticAI + GroqProvider (cloud API) | LLM debate agents (llama-3.3-70b-versatile) | Data-driven verdict |
+| OpenBB | `openbb_service.py`, `health.py` | OpenBB SDK (guarded import) | Fundamentals, unusual flow, news sentiment | `None` (optional enrichment) |
 
 ## Database
 

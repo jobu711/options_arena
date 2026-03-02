@@ -183,7 +183,9 @@ class OpenBBService:
             if not data_list:
                 return None
 
-            # Aggregate recent data into a flow snapshot
+            # Aggregate recent data into a flow snapshot.
+            # NOTE: short_volume is used as a proxy for put-side sentiment.
+            # Stockgrid short-selling data != true options put volume.
             latest = data_list[0] if isinstance(data_list, list) else data_list
             short_vol = _safe_int(getattr(latest, "short_volume", None))
             total_vol = _safe_int(getattr(latest, "total_volume", None))
