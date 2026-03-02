@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, computed_field, field_serializer, fi
 
 from options_arena.models.enums import (
     ExerciseStyle,
+    GreeksSource,
     OptionType,
     PositionSide,
     PricingModel,
@@ -121,6 +122,9 @@ class OptionContract(BaseModel):
     exercise_style: ExerciseStyle
     market_iv: float
     greeks: OptionGreeks | None = None
+    bid_iv: float | None = None
+    ask_iv: float | None = None
+    greeks_source: GreeksSource | None = None
 
     @field_validator("strike")
     @classmethod
@@ -152,6 +156,14 @@ class OptionContract(BaseModel):
         """Ensure market_iv is finite and non-negative."""
         if not math.isfinite(v) or v < 0.0:
             raise ValueError(f"market_iv must be finite and >= 0, got {v}")
+        return v
+
+    @field_validator("bid_iv", "ask_iv")
+    @classmethod
+    def validate_bid_ask_iv(cls, v: float | None) -> float | None:
+        """Ensure bid_iv/ask_iv is finite and non-negative when provided."""
+        if v is not None and (not math.isfinite(v) or v < 0.0):
+            raise ValueError(f"IV must be finite and >= 0, got {v}")
         return v
 
     @computed_field  # type: ignore[prop-decorator]

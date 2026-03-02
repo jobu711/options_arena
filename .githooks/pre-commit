@@ -42,10 +42,9 @@ def main() -> int:
             ["git", "hash-object", "--stdin"],
             input=diff_result.stdout,
             capture_output=True,
-            text=True,
             cwd=_PROJECT_ROOT,
         )
-        staged_hash = hash_result.stdout.strip()
+        staged_hash = hash_result.stdout.decode().strip()
     except Exception:
         return 0
 

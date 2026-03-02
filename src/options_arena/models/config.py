@@ -280,6 +280,9 @@ class OpenBBConfig(BaseModel):
     news_cache_ttl: int = 900
     request_timeout: int = 15
     max_retries: int = 2
+    cboe_chains_enabled: bool = False
+    chains_cache_ttl: int = 60
+    chain_validation_mode: bool = False
 
 
 class AppSettings(BaseSettings):
