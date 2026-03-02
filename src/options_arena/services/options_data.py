@@ -6,6 +6,11 @@ yfinance camelCase DataFrame rows to typed ``OptionContract`` models.
 Does NOT compute Greeks — that is ``pricing/dispatch.py``'s job. The yfinance
 ``impliedVolatility`` column is passed through as ``market_iv`` without
 re-annualization (it is already annualized).
+
+Architecture:
+    ``ChainProvider`` is a ``Protocol`` defining the chain-fetching contract.
+    ``YFinanceChainProvider`` implements it using yfinance.
+    ``OptionsDataService`` delegates to a ``ChainProvider`` (defaults to yfinance).
 """
 
 from __future__ import annotations
@@ -16,6 +21,7 @@ import logging
 from collections.abc import Callable
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Protocol, runtime_checkable
 
 import pandas as pd
 import yfinance as yf  # type: ignore[import-untyped]
@@ -30,6 +36,11 @@ from options_arena.services.rate_limiter import RateLimiter
 from options_arena.utils.exceptions import DataFetchError, DataSourceUnavailableError
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Module-level helpers (pure functions, no state)
+# ---------------------------------------------------------------------------
 
 
 def _passes_liquidity_filter(row: pd.Series[float], config: PricingConfig) -> bool:
@@ -115,19 +126,55 @@ def _cache_bytes_to_contracts(data: bytes) -> list[OptionContract]:
     return [OptionContract.model_validate(item) for item in raw]
 
 
-class ExpirationChain(BaseModel):
-    """Option contracts for a single expiration date."""
-
-    expiration: date
-    contracts: list[OptionContract]
+# ---------------------------------------------------------------------------
+# ChainProvider protocol
+# ---------------------------------------------------------------------------
 
 
-class OptionsDataService:
+@runtime_checkable
+class ChainProvider(Protocol):
+    """Protocol defining the contract for option chain data providers.
+
+    Any class implementing ``fetch_expirations`` and ``fetch_chain`` with
+    the correct signatures satisfies this protocol. Use
+    ``isinstance(obj, ChainProvider)`` at runtime to verify.
+    """
+
+    async def fetch_expirations(self, ticker: str) -> list[date]:
+        """Fetch available option expiration dates for a ticker.
+
+        Args:
+            ticker: The underlying ticker symbol.
+
+        Returns:
+            Sorted list of expiration dates.
+        """
+        ...
+
+    async def fetch_chain(self, ticker: str, expiration: date) -> list[OptionContract]:
+        """Fetch the option chain for a specific expiration date.
+
+        Args:
+            ticker: The underlying ticker symbol.
+            expiration: The target expiration date.
+
+        Returns:
+            List of ``OptionContract`` models that pass liquidity filters.
+        """
+        ...
+
+
+# ---------------------------------------------------------------------------
+# YFinanceChainProvider — yfinance implementation of ChainProvider
+# ---------------------------------------------------------------------------
+
+
+class YFinanceChainProvider:
     """Fetches option chains from yfinance with caching and rate limiting.
 
-    Applies basic liquidity filters and converts yfinance data to typed
-    ``OptionContract`` models. Does NOT compute Greeks — all contracts
-    have ``greeks=None``.
+    Applies basic liquidity filters (via module-level ``_passes_liquidity_filter``)
+    and converts yfinance data to typed ``OptionContract`` models. Does NOT
+    compute Greeks — all contracts have ``greeks=None``.
 
     Args:
         config: Service configuration with timeout settings.
@@ -188,7 +235,7 @@ class OptionsDataService:
     async def fetch_expirations(self, ticker: str) -> list[date]:
         """Fetch available option expiration dates for a ticker.
 
-        Returns dates sorted ascending. Uses the cache with ``chain`` TTL.
+        Returns dates sorted ascending. Uses the cache with ``reference`` TTL.
 
         Args:
             ticker: The underlying ticker symbol (e.g., ``"AAPL"``).
@@ -289,6 +336,98 @@ class OptionsDataService:
         )
         return contracts
 
+
+# ---------------------------------------------------------------------------
+# Pydantic model for grouped chain results
+# ---------------------------------------------------------------------------
+
+
+class ExpirationChain(BaseModel):
+    """Option contracts for a single expiration date."""
+
+    expiration: date
+    contracts: list[OptionContract]
+
+
+# ---------------------------------------------------------------------------
+# OptionsDataService — public facade delegating to a ChainProvider
+# ---------------------------------------------------------------------------
+
+
+class OptionsDataService:
+    """Fetches option chains with caching and rate limiting.
+
+    Delegates to an internal ``ChainProvider`` (defaults to
+    ``YFinanceChainProvider``). The public API (``fetch_chain``,
+    ``fetch_expirations``, ``fetch_chain_all_expirations``) is unchanged.
+
+    Args:
+        config: Service configuration with timeout settings.
+        pricing_config: Pricing configuration with OI/volume filter thresholds.
+        cache: Two-tier service cache for chain data.
+        limiter: Rate limiter for yfinance API calls.
+        provider: Optional chain provider override (defaults to yfinance).
+    """
+
+    def __init__(
+        self,
+        config: ServiceConfig,
+        pricing_config: PricingConfig,
+        cache: ServiceCache,
+        limiter: RateLimiter,
+        *,
+        provider: ChainProvider | None = None,
+    ) -> None:
+        self._config = config
+        self._pricing_config = pricing_config
+        self._cache = cache
+        self._limiter = limiter
+        self._provider: ChainProvider = provider or YFinanceChainProvider(
+            config=config,
+            pricing_config=pricing_config,
+            cache=cache,
+            limiter=limiter,
+        )
+
+    async def fetch_expirations(self, ticker: str) -> list[date]:
+        """Fetch available option expiration dates for a ticker.
+
+        Returns dates sorted ascending. Uses the cache with ``chain`` TTL.
+
+        Args:
+            ticker: The underlying ticker symbol (e.g., ``"AAPL"``).
+
+        Returns:
+            Sorted list of expiration dates.
+
+        Raises:
+            DataSourceUnavailableError: On yfinance timeout or error.
+        """
+        return await self._provider.fetch_expirations(ticker)
+
+    async def fetch_chain(
+        self,
+        ticker: str,
+        expiration: date,
+    ) -> list[OptionContract]:
+        """Fetch the option chain for a specific expiration date.
+
+        Applies liquidity filtering and converts yfinance data to typed
+        ``OptionContract`` models with ``greeks=None`` and
+        ``exercise_style=ExerciseStyle.AMERICAN``.
+
+        Args:
+            ticker: The underlying ticker symbol.
+            expiration: The target expiration date.
+
+        Returns:
+            List of ``OptionContract`` models that pass liquidity filters.
+
+        Raises:
+            DataSourceUnavailableError: On yfinance timeout or error.
+        """
+        return await self._provider.fetch_chain(ticker, expiration)
+
     async def fetch_chain_all_expirations(
         self,
         ticker: str,
@@ -335,4 +474,7 @@ class OptionsDataService:
         return chains
 
     async def close(self) -> None:
-        """Clean up resources. No-op for this service (no owned connections)."""
+        """Clean up resources. Delegates to provider if it has a ``close`` method."""
+        close_fn = getattr(self._provider, "close", None)
+        if close_fn is not None and callable(close_fn):
+            await close_fn()
