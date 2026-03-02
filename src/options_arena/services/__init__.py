@@ -12,6 +12,7 @@ from options_arena.services.market_data import (
     MarketDataService,
     TickerOHLCVResult,
 )
+from options_arena.services.openbb_service import OpenBBService
 from options_arena.services.options_data import ExpirationChain, OptionsDataService
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.services.universe import (
@@ -27,6 +28,7 @@ __all__ = [
     "FredService",
     "HealthService",
     "MarketDataService",
+    "OpenBBService",
     "OptionsDataService",
     "RateLimiter",
     "SP500Constituent",
