@@ -160,7 +160,14 @@ Before saving the epic, verify:
 - [ ] Effort estimates are realistic
 - [ ] Architecture decisions are justified
 
-### 7. Create Planning Lock
+### 7. Update PRD Status
+
+Update the PRD frontmatter status to `planned`:
+- Read `.claude/prds/$ARGUMENTS.md`
+- Change `status:` value to `planned` in frontmatter (may be `backlog` or `researched`)
+- Preserve all other frontmatter fields and content
+
+### 8. Create Planning Lock
 
 If `.claude/epics/$ARGUMENTS/.planning-lock` does not already exist, create it:
 ```
@@ -169,10 +176,14 @@ Created by: /pm:prd-parse
 Remove with: /pm:epic-decompose $ARGUMENTS
 ```
 
-### 8. Write Checkpoint (best-effort)
+### 9. Write Checkpoint (best-effort)
 
 Write `.claude/epics/$ARGUMENTS/checkpoint.json` with `phase: "planning"`.
 Get REAL current datetime. Failure to write checkpoint does not fail the command.
+
+If `checkpoint.json` already exists (e.g., from `/pm:prd-research`), read it first and preserve
+the `notes` and `blockers` fields. Update `phase`, `last_command`, `last_updated`, and merge
+`completed_phases`.
 
 ```json
 {
@@ -191,7 +202,7 @@ Get REAL current datetime. Failure to write checkpoint does not fail the command
 
 If `research.md` exists, include `"research"` in `completed_phases` between `"prd-created"` and `"planning"`.
 
-### 9. Post-Creation
+### 10. Post-Creation
 
 After successfully creating the epic:
 1. Confirm: "✅ Epic created: .claude/epics/$ARGUMENTS/epic.md"

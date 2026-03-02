@@ -168,14 +168,12 @@ High-level implementation approach based on codebase research.
 - S/M/L/XL with justification based on codebase analysis
 ```
 
-### 5. Create Planning Lock
+### 5. Update PRD Status
 
-Create `.claude/epics/$ARGUMENTS/.planning-lock` to prevent premature code writes:
-```
-Planning phase active for epic: $ARGUMENTS
-Created by: /pm:prd-research
-Remove with: /pm:epic-decompose $ARGUMENTS
-```
+Update the PRD frontmatter status from `backlog` to `researched`:
+- Read `.claude/prds/$ARGUMENTS.md`
+- Change `status: backlog` to `status: researched` in frontmatter
+- Preserve all other frontmatter fields and content
 
 ### 6. Write Checkpoint
 
@@ -206,8 +204,7 @@ After successfully creating the research document:
    - Key patterns to reuse
    - Open questions (if any)
    - Estimated complexity
-3. Note: "Planning lock active — code writes to src/, tests/, web/ blocked until decomposition."
-4. Suggest next step: "Ready to create implementation epic? Run: /pm:prd-parse $ARGUMENTS"
+3. Suggest next step: "Ready to create implementation epic? Run: /pm:prd-parse $ARGUMENTS"
 
 ## Error Recovery
 

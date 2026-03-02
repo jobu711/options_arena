@@ -1,0 +1,12 @@
+{
+  "epic": "openbb-wiring",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync openbb-wiring",
+  "last_updated": "2026-03-02T07:19:00Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "Epic #185 with 5 sub-issues (#186-#190). Task files renamed to match issue numbers."
+}

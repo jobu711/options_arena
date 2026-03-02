@@ -13,6 +13,8 @@ import os
 import sys
 from pathlib import Path
 
+# Resolve project root from script location: .claude/hooks/script.py → project root
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Prefixes where code writes are blocked during planning
 BLOCKED_PREFIXES = ("src/", "tests/", "web/", "data/migrations/")
@@ -83,7 +85,7 @@ def main() -> None:
     if tool_name not in ("Write", "Edit"):
         sys.exit(0)
 
-    cwd: str = data.get("cwd", ".")
+    cwd: str = data.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or _PROJECT_ROOT
     tool_input: dict = data.get("tool_input", {})  # type: ignore[assignment]
     file_path: str = tool_input.get("file_path", "")
 

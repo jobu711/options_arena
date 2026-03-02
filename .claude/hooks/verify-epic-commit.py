@@ -8,22 +8,55 @@ Cross-platform replacement for verify-epic-commit.sh — uses only Python stdlib
 no jq dependency.
 """
 
+import datetime
 import json
 import os
 import subprocess
 import sys
 
+# Resolve project root from script location: .claude/hooks/script.py → project root
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def _resolve_cwd(data: dict) -> str:  # type: ignore[type-arg]
+    """Resolve working directory with robust fallback chain."""
+    cwd = data.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or _PROJECT_ROOT
+    return cwd
+
+
+def _log_debug(label: str, raw_stdin: str) -> None:
+    """Append diagnostic info to hook debug log (temporary)."""
+    log_path = os.path.join(
+        os.environ.get("CLAUDE_PROJECT_DIR", _PROJECT_ROOT),
+        ".claude",
+        ".hook-debug.log",
+    )
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"\n--- {label} @ {datetime.datetime.now(datetime.UTC).isoformat()} ---\n")
+            f.write(f"CWD: {os.getcwd()}\n")
+            f.write(f"CLAUDE_PROJECT_DIR: {os.environ.get('CLAUDE_PROJECT_DIR', 'NOT SET')}\n")
+            f.write(f"_PROJECT_ROOT: {_PROJECT_ROOT}\n")
+            f.write(f"Script __file__: {os.path.abspath(__file__)}\n")
+            f.write(f"stdin length: {len(raw_stdin)}\n")
+            f.write(f"stdin: {raw_stdin[:500]}\n")
+    except Exception:
+        pass
+
 
 def main() -> None:
     # Read JSON from stdin
     raw = sys.stdin.read()
+
+    _log_debug("verify-epic-commit", raw)
+
     try:
         data = json.loads(raw)
     except (json.JSONDecodeError, ValueError):
         sys.exit(0)  # Can't parse, allow
 
     command: str = data.get("tool_input", {}).get("command", "")
-    cwd: str = data.get("cwd", ".")
+    cwd: str = _resolve_cwd(data)
 
     # Only intercept git commit commands
     if not command.startswith("git commit"):
