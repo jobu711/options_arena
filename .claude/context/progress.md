@@ -2,10 +2,10 @@
 
 ## Current State
 
-- **Version**: 2.1.0 (Complete)
+- **Version**: 2.1.0 (Complete) — OpenBB integration in progress
 - **All 9 phases + 13 epics**: Complete and merged to master (2026-03-01)
-- **Branch**: `master` (2,454 tests, all phases + epics merged)
-- **Tests**: 2,454 Python + 38 E2E
+- **Branch**: `epic/openbb-integration` (2,773 tests on branch, 2,454 on master)
+- **Tests**: 2,773 Python + 38 E2E
 - **GitHub issues**: 0 open, 168 closed
 - **CI**: GitHub Actions (3 gates: lint, typecheck, tests)
 - **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`), `serve`, `watchlist`
@@ -29,26 +29,33 @@
 
 For detailed phase/epic completion logs, see `progress-archive.md`.
 
+## In Progress
+
+### Epic 14: OpenBB Integration (2026-03-02) — #179-#183
+Optional enrichment via OpenBB Platform SDK: fundamentals, unusual flow, news sentiment.
+- 5 commits merged to `epic/openbb-integration` branch
+- Foundation: `models/openbb.py` (5 frozen models), `SentimentLabel` enum, `OpenBBConfig`
+- Service: `services/openbb_service.py` — guarded imports (`try/except ImportError`), never-raises contract
+- Wiring: `MarketContext` extended with 11 OpenBB enrichment fields + `enrichment_ratio()`
+- Agent context: `_parsing.py` builds OpenBB sections into agent prompt text
+- Health: `HealthService.check_openbb()` added to health check suite
+- Tests: +319 new tests (models, service, health, context, prompts, integration)
+- **Not yet merged to master** — epic branch only
+
 ## Recently Completed
 
 ### CCPM Planning Phase Enhancements (2026-03-01)
-4 enhancements to the CCPM planning workflow:
-1. **Research phase** (`/pm:prd-research`) — parallel Explore agents investigate codebase before epic creation
-2. **Planning lock hook** (`planning-lock.py`) — blocks Write/Edit to `src/`, `tests/`, `web/`, `data/migrations/` during planning
-3. **Session checkpoint/resume** (`/pm:epic-checkpoint`, `/pm:epic-resume`) — persisted phase state in `checkpoint.json`
-4. **TDD-first task output** — `test_files` frontmatter + `## Test Plan` section in every decomposed task
-
-Also: archived production-audit epic, cleaned up 34 stale epic/PRD files.
+4 enhancements: research phase, planning lock hook, session checkpoint/resume, TDD-first task output.
 
 ### Epic 13: Ticker Universe Improve (2026-03-01) — #161
-Composable sector filtering, working ETF preset, scan result enrichment.
-+124 tests.
+Composable sector filtering, working ETF preset, scan result enrichment. +124 tests.
 
 ### Epic 12: Deep Signal Engine (2026-03-01) — #151, PR #160
 40 DSE indicators, 6-agent debate, regime-adjusted weights, CI workflow. +576 tests.
 
 ## Future Work
 
+- OpenBB integration: CLI flags, web UI enrichment display, pipeline wiring
 - Additional LLM providers (Anthropic Claude, OpenAI)
 - Options liquidity weighting in composite scoring
 - Real-time market data streaming

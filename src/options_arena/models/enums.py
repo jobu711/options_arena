@@ -181,6 +181,17 @@ class CatalystImpact(StrEnum):
     HIGH = "high"
 
 
+class SentimentLabel(StrEnum):
+    """Sentiment classification for news or social media analysis.
+
+    Used by OpenBB integration to label aggregate news sentiment.
+    """
+
+    BULLISH = "bullish"
+    BEARISH = "bearish"
+    NEUTRAL = "neutral"
+
+
 class GICSSector(StrEnum):
     """Global Industry Classification Standard (GICS) sectors.
 

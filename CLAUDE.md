@@ -268,10 +268,10 @@ Auto-loaded context has a strict budget. Every line costs attention on all tasks
 
 | Category | Current | Max |
 |----------|---------|-----|
-| CLAUDE.md | 278 lines | 350 lines |
-| @-referenced context files | 216 lines | 300 lines |
+| CLAUDE.md | 281 lines | 350 lines |
+| @-referenced context files | 334 lines | 300 lines |
 | .claude/rules/ files | 379 lines | 400 lines |
-| **Grand total** | **873** | **1,050** |
+| **Grand total** | **994** | **1,050** |
 
 Rules:
 - `progress.md`: Current state only. Move completed work to `progress-archive.md`.

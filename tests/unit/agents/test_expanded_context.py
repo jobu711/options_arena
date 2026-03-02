@@ -5,7 +5,7 @@ Tests cover:
   - MarketContext construction with all new fields populated
   - MarketContext backward compatibility (new fields use defaults)
   - render_context_block includes non-None indicators, omits None
-  - render_context_block omits non-finite values (NaN, Inf)
+  - MarketContext rejects non-finite values (NaN, Inf) at construction
   - contract_mid Decimal serialization round-trip
   - build_market_context populates new fields from TickerScore and OptionContract
   - build_market_context uses defaults when contracts list is empty
@@ -167,19 +167,19 @@ class TestRenderContextBlockExpanded:
         assert "STOCHASTIC RSI" not in text
         assert "REL VOLUME" not in text
 
-    def test_omits_nan_indicators(self) -> None:
-        """NaN indicator values do NOT appear in the rendered block."""
-        ctx = _make_context(adx=float("nan"), bb_width=float("nan"))
-        text = render_context_block(ctx)
-        assert "ADX" not in text
-        assert "BB WIDTH" not in text
+    def test_rejects_nan_indicators(self) -> None:
+        """NaN indicator values are rejected by MarketContext validators."""
+        with pytest.raises(Exception, match="must be finite"):
+            _make_context(adx=float("nan"))
+        with pytest.raises(Exception, match="must be finite"):
+            _make_context(bb_width=float("nan"))
 
-    def test_omits_inf_indicators(self) -> None:
-        """Inf indicator values do NOT appear in the rendered block."""
-        ctx = _make_context(atr_pct=float("inf"), relative_volume=float("-inf"))
-        text = render_context_block(ctx)
-        assert "ATR %" not in text
-        assert "REL VOLUME" not in text
+    def test_rejects_inf_indicators(self) -> None:
+        """Inf indicator values are rejected by MarketContext validators."""
+        with pytest.raises(Exception, match="must be finite"):
+            _make_context(atr_pct=float("inf"))
+        with pytest.raises(Exception, match="must be finite"):
+            _make_context(relative_volume=float("-inf"))
 
     def test_includes_greeks_when_set(self) -> None:
         """Non-None Greek values appear with .4f precision."""

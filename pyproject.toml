@@ -28,6 +28,10 @@ dependencies = [
 
 [project.optional-dependencies]
 pdf = ["weasyprint>=63.0"]
+# NOTE: openbb extra omitted — OpenBB SDK pins fastapi<0.129 and ruff<0.14,
+# which conflicts with our fastapi>=0.133.1 and ruff>=0.15. Users who want
+# OpenBB enrichment should install openbb + vaderSentiment separately.
+# The service layer uses guarded imports (try/except ImportError).
 
 [project.scripts]
 options-arena = "options_arena.cli:app"
