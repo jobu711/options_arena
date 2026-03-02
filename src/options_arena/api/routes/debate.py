@@ -27,7 +27,13 @@ from options_arena.api.schemas import (
 )
 from options_arena.api.ws import BatchProgressBridge, DebateProgressBridge
 from options_arena.data import Repository
-from options_arena.models import AgentResponse, AppSettings, ExtendedTradeThesis, TradeThesis
+from options_arena.models import (
+    AgentResponse,
+    AppSettings,
+    ExtendedTradeThesis,
+    SentimentLabel,
+    TradeThesis,
+)
 from options_arena.models.openbb import (
     FundamentalSnapshot,
     NewsSentimentSnapshot,
@@ -109,7 +115,7 @@ async def _run_debate_background(
             logger.debug("Could not compute dimensional scores for %s", ticker, exc_info=True)
 
         # Fetch OpenBB enrichment (never-raises — methods return None on error)
-        openbb_svc: OpenBBService | None = request.app.state.openbb
+        openbb_svc: OpenBBService | None = getattr(request.app.state, "openbb", None)
         fundamentals: FundamentalSnapshot | None = None
         flow: UnusualFlowSnapshot | None = None
         sentiment: NewsSentimentSnapshot | None = None
@@ -288,7 +294,7 @@ async def _run_batch_debate_background(
                     )
 
                 # Fetch OpenBB enrichment (never-raises — methods return None on error)
-                batch_openbb: OpenBBService | None = request.app.state.openbb
+                batch_openbb: OpenBBService | None = getattr(request.app.state, "openbb", None)
                 batch_fundamentals: FundamentalSnapshot | None = None
                 batch_flow: UnusualFlowSnapshot | None = None
                 batch_sentiment: NewsSentimentSnapshot | None = None
@@ -553,6 +559,8 @@ async def get_debate(
         net_call_premium=mc.net_call_premium if mc else None,
         net_put_premium=mc.net_put_premium if mc else None,
         news_sentiment_score=mc.news_sentiment if mc else None,
-        news_sentiment_label=mc.news_sentiment_label if mc else None,
+        news_sentiment_label=(
+            SentimentLabel(mc.news_sentiment_label) if mc and mc.news_sentiment_label else None
+        ),
         enrichment_ratio=mc.enrichment_ratio() if mc else None,
     )

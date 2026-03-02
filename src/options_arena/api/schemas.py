@@ -15,6 +15,7 @@ from options_arena.models import (
     AgentResponse,
     GICSSector,
     ScanPreset,
+    SentimentLabel,
     SignalDirection,
     TradeThesis,
 )
@@ -173,7 +174,7 @@ class DebateResultDetail(BaseModel):
     net_call_premium: float | None = None
     net_put_premium: float | None = None
     news_sentiment_score: float | None = None
-    news_sentiment_label: str | None = None
+    news_sentiment_label: SentimentLabel | None = None
     enrichment_ratio: float | None = None
 
 

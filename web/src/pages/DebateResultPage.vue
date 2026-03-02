@@ -42,8 +42,8 @@ function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value)
 }
 
@@ -58,6 +58,22 @@ function sentimentColorClass(label: string | null): string {
   if (lower === 'negative' || lower === 'bearish') return 'sentiment-negative'
   return ''
 }
+
+/** True when any fundamental enrichment field is populated. */
+const hasFundamentalEnrichment = computed(() => {
+  const d = debate.value
+  if (!d) return false
+  return [
+    d.pe_ratio, d.forward_pe, d.peg_ratio, d.price_to_book,
+    d.debt_to_equity, d.revenue_growth, d.profit_margin,
+  ].some((v) => v != null)
+})
+
+/** True when any unusual flow enrichment field is populated. */
+const hasFlowEnrichment = computed(() => {
+  const d = debate.value
+  return d != null && (d.net_call_premium != null || d.net_put_premium != null)
+})
 
 function exportDebate(fmt: 'md' | 'pdf'): void {
   window.open(`/api/debate/${debateId}/export?format=${fmt}`, '_blank')
@@ -180,7 +196,7 @@ onMounted(() => void debateStore.fetchDebate(debateId))
       </div>
 
       <!-- Fundamental Profile (OpenBB enrichment) -->
-      <div v-if="debate?.pe_ratio != null" class="enrichment-section" data-testid="fundamental-profile">
+      <div v-if="hasFundamentalEnrichment" class="enrichment-section" data-testid="fundamental-profile">
         <h3 class="enrichment-header">Fundamental Profile</h3>
         <div class="enrichment-grid">
           <div v-if="debate.pe_ratio != null" class="meta-item">
@@ -215,7 +231,7 @@ onMounted(() => void debateStore.fetchDebate(debateId))
       </div>
 
       <!-- Unusual Flow (OpenBB enrichment) -->
-      <div v-if="debate?.net_call_premium != null" class="enrichment-section" data-testid="unusual-flow">
+      <div v-if="hasFlowEnrichment" class="enrichment-section" data-testid="unusual-flow">
         <h3 class="enrichment-header">Unusual Flow</h3>
         <div class="enrichment-grid">
           <div class="meta-item">
