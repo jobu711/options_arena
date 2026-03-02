@@ -48,6 +48,7 @@ from options_arena.services.cache import ServiceCache
 from options_arena.services.fred import FredService
 from options_arena.services.health import HealthService
 from options_arena.services.market_data import MarketDataService
+from options_arena.services.openbb_service import OpenBBService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.services.universe import UniverseService
@@ -238,6 +239,7 @@ def debate(
     ),
     export: str | None = typer.Option(None, "--export", help="Export format: md or pdf"),
     export_dir: str = typer.Option("./reports", "--export-dir", help="Export output directory"),
+    no_openbb: bool = typer.Option(False, "--no-openbb", help="Skip OpenBB enrichment"),
 ) -> None:
     """Run AI debate on a scored ticker."""
     if batch and ticker is not None:
@@ -254,13 +256,22 @@ def debate(
         raise typer.Exit(code=1)
 
     if batch:
-        asyncio.run(_batch_async(batch_limit, fallback_only))
+        asyncio.run(_batch_async(batch_limit, fallback_only, no_openbb=no_openbb))
     else:
         assert ticker is not None  # validated above
-        asyncio.run(_debate_async(ticker.upper(), history, fallback_only, export, export_dir))
+        asyncio.run(
+            _debate_async(
+                ticker.upper(), history, fallback_only, export, export_dir, no_openbb=no_openbb
+            )
+        )
 
 
-async def _batch_async(batch_limit: int, fallback_only: bool) -> None:
+async def _batch_async(
+    batch_limit: int,
+    fallback_only: bool,
+    *,
+    no_openbb: bool = False,
+) -> None:
     """Batch debate: run debates for top-scored tickers from the latest scan."""
     settings = AppSettings()
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -273,6 +284,7 @@ async def _batch_async(batch_limit: int, fallback_only: bool) -> None:
     market_data: MarketDataService | None = None
     options_data: OptionsDataService | None = None
     fred: FredService | None = None
+    openbb_svc: OpenBBService | None = None
 
     try:
         await db.connect()
@@ -298,6 +310,9 @@ async def _batch_async(batch_limit: int, fallback_only: bool) -> None:
         options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
         fred = FredService(settings.service, settings.pricing, cache)
 
+        if not no_openbb and settings.openbb.enabled:
+            openbb_svc = OpenBBService(settings.openbb, cache, limiter)
+
         err_console.print(f"[cyan]Batch debate: {len(top_scores)} tickers[/cyan]\n")
 
         results: list[tuple[str, DebateResult | None, str | None]] = []
@@ -315,6 +330,7 @@ async def _batch_async(batch_limit: int, fallback_only: bool) -> None:
                     fred,
                     repo,
                     fallback_only=fallback_only,
+                    openbb_svc=openbb_svc,
                 )
                 results.append((ticker, result, None))
                 # Brief per-ticker result
@@ -346,6 +362,8 @@ async def _batch_async(batch_limit: int, fallback_only: bool) -> None:
         err_console.print("[red]Batch failed. Check logs/options_arena.log for details.[/red]")
         raise typer.Exit(code=1) from exc
     finally:
+        if openbb_svc is not None:
+            await openbb_svc.close()
         if market_data is not None:
             await market_data.close()
         if options_data is not None:
@@ -390,6 +408,7 @@ async def _debate_single(
     repo: Repository,
     *,
     fallback_only: bool = False,
+    openbb_svc: OpenBBService | None = None,
 ) -> DebateResult:
     """Run a single AI debate for one ticker. Returns result without rendering.
 
@@ -405,6 +424,7 @@ async def _debate_single(
         fred: Pre-created FRED service.
         repo: Database repository for debate persistence.
         fallback_only: If True, force data-driven path by using near-zero timeouts.
+        openbb_svc: Optional OpenBB service for enrichment data (fundamentals, flow, sentiment).
 
     Returns:
         DebateResult with agent responses, thesis, usage, and duration.
@@ -468,6 +488,23 @@ async def _debate_single(
         len(contracts),
     )
 
+    # Fetch OpenBB enrichment data concurrently (never raises — returns None on error)
+    from options_arena.models.openbb import (  # noqa: PLC0415
+        FundamentalSnapshot,
+        NewsSentimentSnapshot,
+        UnusualFlowSnapshot,
+    )
+
+    fundamentals: FundamentalSnapshot | None = None
+    flow: UnusualFlowSnapshot | None = None
+    sentiment: NewsSentimentSnapshot | None = None
+    if openbb_svc is not None:
+        fundamentals, flow, sentiment = await asyncio.gather(
+            openbb_svc.fetch_fundamentals(ticker_score.ticker),
+            openbb_svc.fetch_unusual_flow(ticker_score.ticker),
+            openbb_svc.fetch_news_sentiment(ticker_score.ticker),
+        )
+
     # Lazy import: agents/ depends on pydantic-ai which may not be available.
     # Importing at call time keeps CLI tests (scan, health, universe) working
     # even when the optional dependency is absent.
@@ -500,6 +537,9 @@ async def _debate_single(
         config=config,
         repository=repo,
         dimensional_scores=dim_scores,
+        fundamentals=fundamentals,
+        flow=flow,
+        sentiment=sentiment,
     )
 
 
@@ -509,6 +549,8 @@ async def _debate_async(
     fallback_only: bool,
     export: str | None = None,
     export_dir: str = "./reports",
+    *,
+    no_openbb: bool = False,
 ) -> None:
     """Run AI debate with full service lifecycle management."""
     settings = AppSettings()
@@ -522,6 +564,7 @@ async def _debate_async(
     market_data: MarketDataService | None = None
     options_data: OptionsDataService | None = None
     fred: FredService | None = None
+    openbb_svc: OpenBBService | None = None
 
     try:
         await db.connect()
@@ -558,6 +601,9 @@ async def _debate_async(
         options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
         fred = FredService(settings.service, settings.pricing, cache)
 
+        if not no_openbb and settings.openbb.enabled:
+            openbb_svc = OpenBBService(settings.openbb, cache, limiter)
+
         err_console.print(f"[cyan]Fetching live data for {ticker}...[/cyan]")
         err_console.print(f"[cyan]Running debate for {ticker}...[/cyan]")
 
@@ -569,6 +615,7 @@ async def _debate_async(
             fred=fred,
             repo=repo,
             fallback_only=fallback_only,
+            openbb_svc=openbb_svc,
         )
 
         # Render debate output
@@ -594,6 +641,8 @@ async def _debate_async(
         err_console.print("[red]Debate failed. Check logs/options_arena.log for details.[/red]")
         raise typer.Exit(code=1) from exc
     finally:
+        if openbb_svc is not None:
+            await openbb_svc.close()
         if market_data is not None:
             await market_data.close()
         if options_data is not None:

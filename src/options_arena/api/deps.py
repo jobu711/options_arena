@@ -14,6 +14,7 @@ from options_arena.data import Repository
 from options_arena.models.config import AppSettings
 from options_arena.services.fred import FredService
 from options_arena.services.market_data import MarketDataService
+from options_arena.services.openbb_service import OpenBBService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.universe import UniverseService
 
@@ -46,6 +47,11 @@ def get_universe(request: Request) -> UniverseService:
 def get_settings(request: Request) -> AppSettings:
     """Inject the application settings."""
     return request.app.state.settings  # type: ignore[no-any-return]
+
+
+def get_openbb(request: Request) -> OpenBBService | None:
+    """Inject the OpenBB enrichment service (``None`` when disabled)."""
+    return request.app.state.openbb  # type: ignore[no-any-return]
 
 
 def get_operation_lock(request: Request) -> asyncio.Lock:

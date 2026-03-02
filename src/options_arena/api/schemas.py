@@ -162,6 +162,19 @@ class DebateResultDetail(BaseModel):
     agent_agreement_score: float | None = None
     dissenting_agents: list[str] = Field(default_factory=list)
     agents_completed: int | None = None
+    # OpenBB enrichment (extracted from MarketContext)
+    pe_ratio: float | None = None
+    forward_pe: float | None = None
+    peg_ratio: float | None = None
+    price_to_book: float | None = None
+    debt_to_equity: float | None = None
+    revenue_growth: float | None = None
+    profit_margin: float | None = None
+    net_call_premium: float | None = None
+    net_put_premium: float | None = None
+    news_sentiment_score: float | None = None
+    news_sentiment_label: str | None = None
+    enrichment_ratio: float | None = None
 
 
 # ---------------------------------------------------------------------------

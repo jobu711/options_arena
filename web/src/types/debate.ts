@@ -51,6 +51,20 @@ export interface DebateResult {
   thesis?: TradeThesis
   vol_response?: string // Raw JSON string (parsed on demand)
   bull_rebuttal?: string // Raw JSON string (parsed on demand)
+
+  // OpenBB enrichment (optional, from MarketContext)
+  pe_ratio?: number | null
+  forward_pe?: number | null
+  peg_ratio?: number | null
+  price_to_book?: number | null
+  debt_to_equity?: number | null
+  revenue_growth?: number | null
+  profit_margin?: number | null
+  net_call_premium?: number | null
+  net_put_premium?: number | null
+  news_sentiment_score?: number | null
+  news_sentiment_label?: string | null
+  enrichment_ratio?: number | null
 }
 
 /** Agent progress entry for the debate progress modal. */
