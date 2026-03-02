@@ -1,0 +1,160 @@
+#!/usr/bin/env python
+"""Native git commit-msg hook: requires /analyze stamp for large commits on epic/* branches.
+
+Git hook protocol: exit 0 = allow, exit 1 = deny, messages to stderr.
+Receives commit message file path as sys.argv[1].
+Replaces .claude/hooks/analyze-epic-commit.py (Claude Code PreToolUse hook).
+
+Size gate: skips fix:/chore:/docs:/test: prefixes and diffs under 100 lines.
+Uses only Python stdlib — no external dependencies.
+"""
+
+import os
+import re
+import subprocess
+import sys
+
+# Resolve project root from hook location: .githooks/commit-msg -> project root
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+_TRIVIAL_PREFIXES = ("fix:", "chore:", "docs:", "test:")
+
+
+def _read_commit_message(msg_file: str) -> str:
+    """Read commit message from file, stripping comment lines."""
+    try:
+        with open(msg_file, encoding="utf-8") as f:
+            lines = f.readlines()
+    except OSError:
+        return ""
+    # Strip lines starting with # (git comments)
+    return "".join(line for line in lines if not line.startswith("#")).strip()
+
+
+def _parse_lines_changed() -> int:
+    """Parse total lines changed from git diff --staged --stat summary line."""
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--staged", "--stat"],
+            capture_output=True,
+            text=True,
+            cwd=_PROJECT_ROOT,
+        )
+        output = result.stdout.strip()
+    except Exception:
+        return 0
+
+    if not output:
+        return 0
+
+    # Summary is the last line, e.g.: "3 files changed, 120 insertions(+), 45 deletions(-)"
+    summary = output.split("\n")[-1]
+
+    insertions = 0
+    deletions = 0
+
+    ins_match = re.search(r"(\d+)\s+insertion", summary)
+    if ins_match:
+        insertions = int(ins_match.group(1))
+
+    del_match = re.search(r"(\d+)\s+deletion", summary)
+    if del_match:
+        deletions = int(del_match.group(1))
+
+    return insertions + deletions
+
+
+def main() -> int:
+    # commit-msg hook receives message file path as first argument
+    if len(sys.argv) < 2:
+        return 0
+
+    msg_file = sys.argv[1]
+
+    # Check branch — only enforce on epic/* branches
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=_PROJECT_ROOT,
+        )
+        branch = result.stdout.strip()
+    except Exception:
+        return 0
+
+    if not branch.startswith("epic/"):
+        return 0
+
+    # --- SIZE GATE ---
+
+    # Read commit message and skip trivial prefixes
+    commit_msg = _read_commit_message(msg_file)
+    subject = commit_msg.split("\n", 1)[0].strip()
+    if subject.startswith(_TRIVIAL_PREFIXES):
+        return 0
+
+    # Skip small diffs (under 100 lines changed)
+    total_lines = _parse_lines_changed()
+    if total_lines < 100:
+        return 0
+
+    # --- END SIZE GATE ---
+
+    # Compute staged hash
+    try:
+        diff_result = subprocess.run(
+            ["git", "diff", "--staged"],
+            capture_output=True,
+            cwd=_PROJECT_ROOT,
+        )
+        hash_result = subprocess.run(
+            ["git", "hash-object", "--stdin"],
+            input=diff_result.stdout,
+            capture_output=True,
+            text=True,
+            cwd=_PROJECT_ROOT,
+        )
+        staged_hash = hash_result.stdout.strip()
+    except Exception:
+        return 0
+
+    # Defer if context7 hasn't passed yet (pre-commit hook handles that)
+    c7_stamp_file = os.path.join(_PROJECT_ROOT, ".claude", ".context7-stamp")
+    if not os.path.isfile(c7_stamp_file):
+        return 0
+
+    try:
+        with open(c7_stamp_file, encoding="utf-8") as f:
+            c7_hash = f.read().strip()
+    except OSError:
+        return 0
+
+    if c7_hash != staged_hash:
+        return 0  # Context7 stamp stale — let pre-commit handle it
+
+    # Context7 passed — check analyzer stamp
+    stamp_file = os.path.join(_PROJECT_ROOT, ".claude", ".analyze-stamp")
+    if os.path.isfile(stamp_file):
+        try:
+            with open(stamp_file, encoding="utf-8") as f:
+                stamp_hash = f.read().strip()
+            if stamp_hash == staged_hash:
+                return 0  # Verified — allow commit
+        except OSError:
+            pass  # Can't read stamp, fall through to block
+
+    # Block — analyzer stamp missing or stale
+    print(
+        f"Code analysis required for this large commit ({total_lines} lines) "
+        f"to epic branch '{branch}'.\n"
+        f"\n"
+        f"Run /analyze to review staged changes, fix findings, then retry.\n"
+        f"Use --no-verify to bypass in emergencies.",
+        file=sys.stderr,
+    )
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
