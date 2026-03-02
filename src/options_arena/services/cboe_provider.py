@@ -172,12 +172,12 @@ def _cboe_row_to_contract(
     if "ask_iv" in row.index:
         ask_iv = safe_float(row.get("ask_iv"))
 
-    # Compute market_iv: prefer implied_volatility column, fall back to mid of bid/ask IV
+    # Compute market_iv: prefer implied_volatility column, fall back to alternates/bid-ask mid
     raw_iv = safe_float(row.get("implied_volatility"))
     if raw_iv is not None and raw_iv >= 0.0:
         market_iv = raw_iv
-    elif raw_iv is None:
-        # Try impliedVolatility (alternate column name)
+    else:
+        # Primary IV missing or negative — try alternate column name
         raw_iv_alt = safe_float(row.get("impliedVolatility"))
         if raw_iv_alt is not None and raw_iv_alt >= 0.0:
             market_iv = raw_iv_alt

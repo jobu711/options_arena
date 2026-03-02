@@ -269,6 +269,14 @@ class HealthService:
                 checked_at=datetime.now(UTC),
             )
 
+        if self._cache is None or self._limiter is None:
+            return HealthStatus(
+                service_name="cboe_chains",
+                available=False,
+                error="Cache/limiter not provided for CBOE health check",
+                checked_at=datetime.now(UTC),
+            )
+
         from options_arena.services.cboe_provider import CBOEChainProvider  # noqa: PLC0415
 
         provider = CBOEChainProvider(

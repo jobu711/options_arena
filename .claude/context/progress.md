@@ -31,6 +31,15 @@ For detailed phase/epic completion logs, see `progress-archive.md`.
 
 ## In Progress
 
+### Epic 15: OpenBB Migration (2026-03-02) — #193-#199
+ChainProvider protocol abstraction: CBOE via OpenBB as primary, yfinance as fallback.
+- 7 commits on `epic/openbb-migration` branch, 78 new tests (2,917 total)
+- Protocol: `ChainProvider` + `YFinanceChainProvider` + `CBOEChainProvider`
+- Three-tier Greeks: CBOE native → local BAW/BSM → exclude
+- DI wiring: 5 call sites (CLI + API), health check for CBOE chains
+- Cutover: `cboe_chains_enabled=True` by default
+- **Not yet merged to master** — ready for `/pm:epic-merge openbb-migration`
+
 ### Epic 14: OpenBB Integration (2026-03-02) — #179-#183
 Optional enrichment via OpenBB Platform SDK: fundamentals, unusual flow, news sentiment.
 - 5 commits merged to `epic/openbb-integration` branch
@@ -55,7 +64,7 @@ Composable sector filtering, working ETF preset, scan result enrichment. +124 te
 
 ## Future Work
 
-- OpenBB integration: CLI flags, web UI enrichment display, pipeline wiring
+- OpenBB integration: web UI enrichment display, pipeline enrichment wiring
 - Additional LLM providers (Anthropic Claude, OpenAI)
 - Options liquidity weighting in composite scoring
 - Real-time market data streaming

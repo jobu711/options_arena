@@ -449,7 +449,7 @@ class OptionsDataService:
                 providers.append(cboe)
                 logger.info("Registered CBOE chain provider (primary)")
             else:
-                logger.warning(
+                logger.debug(
                     "CBOE chains enabled in config but OpenBB SDK not available — skipping"
                 )
 
@@ -491,6 +491,16 @@ class OptionsDataService:
                     e,
                 )
                 last_error = e
+            except Exception as e:
+                logger.warning(
+                    "Provider %s unexpected error in fetch_expirations for %s: %s",
+                    type(provider).__name__,
+                    ticker,
+                    e,
+                )
+                last_error = DataSourceUnavailableError(
+                    type(provider).__name__, str(e)
+                )
         raise last_error or DataSourceUnavailableError("options", "No chain providers available")
 
     async def fetch_chain(
@@ -543,6 +553,16 @@ class OptionsDataService:
                     e,
                 )
                 last_error = e
+            except Exception as e:
+                logger.warning(
+                    "Provider %s unexpected error in fetch_chain for %s: %s",
+                    type(provider).__name__,
+                    ticker,
+                    e,
+                )
+                last_error = DataSourceUnavailableError(
+                    type(provider).__name__, str(e)
+                )
         raise last_error or DataSourceUnavailableError("options", "No chain providers available")
 
     async def _validate_chain(
