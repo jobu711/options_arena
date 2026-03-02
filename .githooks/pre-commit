@@ -1,0 +1,75 @@
+#!/usr/bin/env python
+"""Native git pre-commit hook: requires Context7 verification stamp on epic/* branches.
+
+Git hook protocol: exit 0 = allow, exit 1 = deny, messages to stderr.
+Replaces .claude/hooks/verify-epic-commit.py (Claude Code PreToolUse hook).
+
+Uses only Python stdlib — no external dependencies.
+"""
+
+import os
+import subprocess
+import sys
+
+# Resolve project root from hook location: .githooks/pre-commit -> project root
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def main() -> int:
+    # Check branch — only enforce on epic/* branches
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=_PROJECT_ROOT,
+        )
+        branch = result.stdout.strip()
+    except Exception:
+        return 0
+
+    if not branch.startswith("epic/"):
+        return 0
+
+    # Compute hash of currently staged changes
+    try:
+        diff_result = subprocess.run(
+            ["git", "diff", "--staged"],
+            capture_output=True,
+            cwd=_PROJECT_ROOT,
+        )
+        hash_result = subprocess.run(
+            ["git", "hash-object", "--stdin"],
+            input=diff_result.stdout,
+            capture_output=True,
+            text=True,
+            cwd=_PROJECT_ROOT,
+        )
+        staged_hash = hash_result.stdout.strip()
+    except Exception:
+        return 0
+
+    # Check stamp file
+    stamp_file = os.path.join(_PROJECT_ROOT, ".claude", ".context7-stamp")
+    if os.path.isfile(stamp_file):
+        try:
+            with open(stamp_file, encoding="utf-8") as f:
+                stamp_hash = f.read().strip()
+            if stamp_hash == staged_hash:
+                return 0  # Verified — allow commit
+        except OSError:
+            pass  # Can't read stamp, fall through to block
+
+    # Stamp missing or stale — block commit
+    print(
+        f"Context7 verification required before committing to epic branch '{branch}'.\n"
+        f"\n"
+        f"Run /context7 to verify data structures against library docs, then retry.\n"
+        f"Use --no-verify to bypass in emergencies.",
+        file=sys.stderr,
+    )
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# DEPRECATED: Replaced by native git hooks in .githooks/commit-msg
+# This file is kept for reference only. The Bash matcher in .claude/settings.json
+# no longer invokes this script. Remove after confirming .githooks/ works.
 """Code analysis hook for epic/* branches (large commits only).
 
 Size gate: skips fix:/chore:/docs:/test: prefixes and diffs under 100 lines.

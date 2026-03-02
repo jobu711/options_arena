@@ -27,9 +27,21 @@ from options_arena.api.schemas import (
 )
 from options_arena.api.ws import BatchProgressBridge, DebateProgressBridge
 from options_arena.data import Repository
-from options_arena.models import AgentResponse, AppSettings, ExtendedTradeThesis, TradeThesis
+from options_arena.models import (
+    AgentResponse,
+    AppSettings,
+    ExtendedTradeThesis,
+    SentimentLabel,
+    TradeThesis,
+)
+from options_arena.models.openbb import (
+    FundamentalSnapshot,
+    NewsSentimentSnapshot,
+    UnusualFlowSnapshot,
+)
 from options_arena.scoring import compute_dimensional_scores
 from options_arena.services import MarketDataService, OptionsDataService
+from options_arena.services.openbb_service import OpenBBService
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +114,18 @@ async def _run_debate_background(
         except Exception:
             logger.debug("Could not compute dimensional scores for %s", ticker, exc_info=True)
 
+        # Fetch OpenBB enrichment (never-raises — methods return None on error)
+        openbb_svc: OpenBBService | None = getattr(request.app.state, "openbb", None)
+        fundamentals: FundamentalSnapshot | None = None
+        flow: UnusualFlowSnapshot | None = None
+        sentiment: NewsSentimentSnapshot | None = None
+        if openbb_svc is not None:
+            fundamentals, flow, sentiment = await asyncio.gather(
+                openbb_svc.fetch_fundamentals(ticker),
+                openbb_svc.fetch_unusual_flow(ticker),
+                openbb_svc.fetch_news_sentiment(ticker),
+            )
+
         result: DebateResult = await run_debate_v2(
             ticker_score=score_match,
             contracts=contracts,
@@ -111,6 +135,9 @@ async def _run_debate_background(
             repository=None,  # Route handles persistence — avoid double save
             progress=bridge,
             dimensional_scores=dim_scores,
+            fundamentals=fundamentals,
+            flow=flow,
+            sentiment=sentiment,
         )
 
         # Persist debate to DB
@@ -266,6 +293,18 @@ async def _run_batch_debate_background(
                         "Could not compute dimensional scores for %s", ticker, exc_info=True
                     )
 
+                # Fetch OpenBB enrichment (never-raises — methods return None on error)
+                batch_openbb: OpenBBService | None = getattr(request.app.state, "openbb", None)
+                batch_fundamentals: FundamentalSnapshot | None = None
+                batch_flow: UnusualFlowSnapshot | None = None
+                batch_sentiment: NewsSentimentSnapshot | None = None
+                if batch_openbb is not None:
+                    batch_fundamentals, batch_flow, batch_sentiment = await asyncio.gather(
+                        batch_openbb.fetch_fundamentals(ticker),
+                        batch_openbb.fetch_unusual_flow(ticker),
+                        batch_openbb.fetch_news_sentiment(ticker),
+                    )
+
                 # Create a per-ticker agent bridge that forwards to the batch bridge
                 agent_bridge = bridge.agent_bridge(ticker)
 
@@ -278,6 +317,9 @@ async def _run_batch_debate_background(
                     repository=None,  # Route handles persistence — avoid double save
                     progress=agent_bridge,
                     dimensional_scores=batch_dim_scores,
+                    fundamentals=batch_fundamentals,
+                    flow=batch_flow,
+                    sentiment=batch_sentiment,
                 )
 
                 total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens
@@ -484,6 +526,9 @@ async def get_debate(
                     exc_info=True,
                 )
 
+    # Extract OpenBB enrichment from MarketContext (already parsed by Repository)
+    mc = row.market_context
+
     return DebateResultDetail(
         id=row.id,
         ticker=row.ticker,
@@ -503,4 +548,19 @@ async def get_debate(
         agent_agreement_score=agent_agreement_score,
         dissenting_agents=dissenting_agents,
         agents_completed=agents_completed,
+        # OpenBB enrichment fields
+        pe_ratio=mc.pe_ratio if mc else None,
+        forward_pe=mc.forward_pe if mc else None,
+        peg_ratio=mc.peg_ratio if mc else None,
+        price_to_book=mc.price_to_book if mc else None,
+        debt_to_equity=mc.debt_to_equity if mc else None,
+        revenue_growth=mc.revenue_growth if mc else None,
+        profit_margin=mc.profit_margin if mc else None,
+        net_call_premium=mc.net_call_premium if mc else None,
+        net_put_premium=mc.net_put_premium if mc else None,
+        news_sentiment_score=mc.news_sentiment if mc else None,
+        news_sentiment_label=(
+            SentimentLabel(mc.news_sentiment_label) if mc and mc.news_sentiment_label else None
+        ),
+        enrichment_ratio=mc.enrichment_ratio() if mc else None,
     )

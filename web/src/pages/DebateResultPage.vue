@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
@@ -12,6 +12,9 @@ import type { AgentResponse } from '@/types/debate'
 const route = useRoute()
 const debateStore = useDebateStore()
 const debateId = Number(route.params.id)
+
+/** Shorthand for the current debate result. */
+const debate = computed(() => debateStore.currentDebate)
 
 function tryParseAgent(json: string | undefined): AgentResponse | null {
   if (!json) return null
@@ -30,6 +33,47 @@ function formatDuration(ms: number): string {
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString()
 }
+
+function formatPercent(value: number): string {
+  return `${(value * 100).toFixed(1)}%`
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)
+}
+
+function formatRatio(value: number): string {
+  return value.toFixed(2)
+}
+
+function sentimentColorClass(label: string | null): string {
+  if (!label) return ''
+  const lower = label.toLowerCase()
+  if (lower === 'positive' || lower === 'bullish') return 'sentiment-positive'
+  if (lower === 'negative' || lower === 'bearish') return 'sentiment-negative'
+  return ''
+}
+
+/** True when any fundamental enrichment field is populated. */
+const hasFundamentalEnrichment = computed(() => {
+  const d = debate.value
+  if (!d) return false
+  return [
+    d.pe_ratio, d.forward_pe, d.peg_ratio, d.price_to_book,
+    d.debt_to_equity, d.revenue_growth, d.profit_margin,
+  ].some((v) => v != null)
+})
+
+/** True when any unusual flow enrichment field is populated. */
+const hasFlowEnrichment = computed(() => {
+  const d = debate.value
+  return d != null && (d.net_call_premium != null || d.net_put_premium != null)
+})
 
 function exportDebate(fmt: 'md' | 'pdf'): void {
   window.open(`/api/debate/${debateId}/export?format=${fmt}`, '_blank')
@@ -151,6 +195,77 @@ onMounted(() => void debateStore.fetchDebate(debateId))
         />
       </div>
 
+      <!-- Fundamental Profile (OpenBB enrichment) -->
+      <div v-if="hasFundamentalEnrichment" class="enrichment-section" data-testid="fundamental-profile">
+        <h3 class="enrichment-header">Fundamental Profile</h3>
+        <div class="enrichment-grid">
+          <div v-if="debate.pe_ratio != null" class="meta-item">
+            <span class="meta-label">P/E Ratio</span>
+            <span class="meta-value mono">{{ formatRatio(debate.pe_ratio) }}</span>
+          </div>
+          <div v-if="debate.forward_pe != null" class="meta-item">
+            <span class="meta-label">Forward P/E</span>
+            <span class="meta-value mono">{{ formatRatio(debate.forward_pe) }}</span>
+          </div>
+          <div v-if="debate.peg_ratio != null" class="meta-item">
+            <span class="meta-label">PEG Ratio</span>
+            <span class="meta-value mono">{{ formatRatio(debate.peg_ratio) }}</span>
+          </div>
+          <div v-if="debate.price_to_book != null" class="meta-item">
+            <span class="meta-label">Price/Book</span>
+            <span class="meta-value mono">{{ formatRatio(debate.price_to_book) }}</span>
+          </div>
+          <div v-if="debate.debt_to_equity != null" class="meta-item">
+            <span class="meta-label">Debt/Equity</span>
+            <span class="meta-value mono">{{ formatRatio(debate.debt_to_equity) }}</span>
+          </div>
+          <div v-if="debate.revenue_growth != null" class="meta-item">
+            <span class="meta-label">Revenue Growth</span>
+            <span class="meta-value mono">{{ formatPercent(debate.revenue_growth) }}</span>
+          </div>
+          <div v-if="debate.profit_margin != null" class="meta-item">
+            <span class="meta-label">Profit Margin</span>
+            <span class="meta-value mono">{{ formatPercent(debate.profit_margin) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Unusual Flow (OpenBB enrichment) -->
+      <div v-if="hasFlowEnrichment" class="enrichment-section" data-testid="unusual-flow">
+        <h3 class="enrichment-header">Unusual Flow</h3>
+        <div class="enrichment-grid">
+          <div class="meta-item">
+            <span class="meta-label">Net Call Premium</span>
+            <span class="meta-value mono">{{ formatCurrency(debate.net_call_premium!) }}</span>
+          </div>
+          <div v-if="debate.net_put_premium != null" class="meta-item">
+            <span class="meta-label">Net Put Premium</span>
+            <span class="meta-value mono">{{ formatCurrency(debate.net_put_premium) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- News Sentiment (OpenBB enrichment) -->
+      <div v-if="debate?.news_sentiment_score != null" class="enrichment-section" data-testid="news-sentiment">
+        <h3 class="enrichment-header">News Sentiment</h3>
+        <div class="enrichment-grid">
+          <div class="meta-item">
+            <span class="meta-label">Sentiment Score</span>
+            <span
+              class="meta-value mono"
+              :class="sentimentColorClass(debate.news_sentiment_label ?? null)"
+            >{{ debate.news_sentiment_score.toFixed(2) }}</span>
+          </div>
+          <div v-if="debate.news_sentiment_label != null" class="meta-item">
+            <span class="meta-label">Sentiment Label</span>
+            <span
+              class="meta-value"
+              :class="sentimentColorClass(debate.news_sentiment_label)"
+            >{{ debate.news_sentiment_label }}</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Metadata Strip -->
       <div class="metadata-strip">
         <div class="meta-item">
@@ -168,6 +283,10 @@ onMounted(() => void debateStore.fetchDebate(debateId))
         <div v-if="debateStore.currentDebate.citation_density !== null" class="meta-item">
           <span class="meta-label">Citation Density</span>
           <span class="meta-value mono">{{ (debateStore.currentDebate.citation_density * 100).toFixed(0) }}%</span>
+        </div>
+        <div v-if="debate?.enrichment_ratio != null" class="meta-item">
+          <span class="meta-label">Enrichment</span>
+          <span class="meta-value mono">{{ (debate.enrichment_ratio * 100).toFixed(0) }}%</span>
         </div>
         <div v-if="debateStore.currentDebate.debate_mode" class="meta-item">
           <span class="meta-label">Mode</span>
@@ -340,6 +459,38 @@ onMounted(() => void debateStore.fetchDebate(debateId))
 
 .mono {
   font-family: var(--font-mono);
+}
+
+/* Enrichment Sections (OpenBB) */
+.enrichment-section {
+  background: var(--p-surface-800, #1a1a1a);
+  border: 1px solid var(--p-surface-700, #333);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.enrichment-header {
+  color: var(--p-text-muted-color, var(--p-surface-400, #888));
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.75rem 0;
+  font-weight: 600;
+}
+
+.enrichment-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.sentiment-positive {
+  color: var(--accent-green, #22c55e);
+}
+
+.sentiment-negative {
+  color: var(--accent-red, #ef4444);
 }
 
 .loading-msg,

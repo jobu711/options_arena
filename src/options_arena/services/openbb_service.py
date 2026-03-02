@@ -322,9 +322,7 @@ class OpenBBService:
             return snapshot
 
         except Exception:
-            logger.warning(
-                "OpenBB news sentiment fetch failed for %s", ticker, exc_info=True
-            )
+            logger.warning("OpenBB news sentiment fetch failed for %s", ticker, exc_info=True)
             return None
 
     async def close(self) -> None:
@@ -335,7 +333,10 @@ class OpenBBService:
     # ------------------------------------------------------------------
 
     async def _obb_call(  # noqa: ANN401
-        self, fn: Any, *args: Any, **kwargs: Any  # noqa: ANN401
+        self,
+        fn: Any,
+        *args: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> Any:  # noqa: ANN401
         """Wrap sync OpenBB call: ``to_thread`` + ``wait_for``."""
         return await asyncio.wait_for(

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# DEPRECATED: Replaced by native git hooks in .githooks/pre-commit
+# This file is kept for reference only. The Bash matcher in .claude/settings.json
+# no longer invokes this script. Remove after confirming .githooks/ works.
 """Pre-commit hook for epic/* branches: requires Context7 verification stamp.
 
 Reads JSON from stdin (Claude Code PreToolUse hook protocol).
