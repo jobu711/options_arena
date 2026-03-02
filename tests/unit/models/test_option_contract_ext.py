@@ -159,10 +159,10 @@ class TestOptionContractExtensions:
 class TestOpenBBConfigExtensions:
     """Tests for new OpenBBConfig fields: cboe_chains_enabled, chains_cache_ttl, etc."""
 
-    def test_cboe_chains_enabled_default_false(self) -> None:
-        """Verify cboe_chains_enabled defaults to False."""
+    def test_cboe_chains_enabled_default_true(self) -> None:
+        """Verify cboe_chains_enabled defaults to True (post-cutover)."""
         config = OpenBBConfig()
-        assert config.cboe_chains_enabled is False
+        assert config.cboe_chains_enabled is True
 
     def test_chains_cache_ttl_default(self) -> None:
         """Verify chains_cache_ttl defaults to 60."""
