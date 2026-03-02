@@ -5,6 +5,7 @@ All public functions return typed Pydantic models.
 """
 
 from options_arena.services.cache import ServiceCache
+from options_arena.services.cboe_provider import CBOEChainProvider
 from options_arena.services.fred import FredService
 from options_arena.services.health import HealthService
 from options_arena.services.market_data import (
@@ -29,6 +30,7 @@ from options_arena.services.universe import (
 
 __all__ = [
     "BatchOHLCVResult",
+    "CBOEChainProvider",
     "ChainProvider",
     "ExpirationChain",
     "FredService",
