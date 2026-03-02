@@ -51,9 +51,11 @@ from options_arena.models import (
     ExerciseStyle,
     ExtendedTradeThesis,
     FlowThesis,
+    FundamentalSnapshot,
     FundamentalThesis,
     MacdSignal,
     MarketContext,
+    NewsSentimentSnapshot,
     OptionContract,
     Quote,
     RiskAssessment,
@@ -61,6 +63,7 @@ from options_arena.models import (
     TickerInfo,
     TickerScore,
     TradeThesis,
+    UnusualFlowSnapshot,
     VolatilityThesis,
 )
 
@@ -98,6 +101,9 @@ def build_market_context(
     ticker_info: TickerInfo,
     contracts: list[OptionContract],
     next_earnings: date | None = None,
+    fundamentals: FundamentalSnapshot | None = None,
+    flow: UnusualFlowSnapshot | None = None,
+    sentiment: NewsSentimentSnapshot | None = None,
 ) -> MarketContext:
     """Map scan pipeline output to ``MarketContext`` for agent consumption.
 
@@ -189,6 +195,28 @@ def build_market_context(
         max_pain_distance=signals.max_pain_distance,
         # Contract pricing
         contract_mid=first_contract.mid if first_contract else None,
+        # OpenBB enrichment — fundamentals
+        pe_ratio=fundamentals.pe_ratio if fundamentals else None,
+        forward_pe=fundamentals.forward_pe if fundamentals else None,
+        peg_ratio=fundamentals.peg_ratio if fundamentals else None,
+        price_to_book=fundamentals.price_to_book if fundamentals else None,
+        debt_to_equity=fundamentals.debt_to_equity if fundamentals else None,
+        revenue_growth=fundamentals.revenue_growth if fundamentals else None,
+        profit_margin=fundamentals.profit_margin if fundamentals else None,
+        # OpenBB enrichment — unusual flow
+        net_call_premium=flow.net_call_premium if flow else None,
+        net_put_premium=flow.net_put_premium if flow else None,
+        options_put_call_ratio=flow.put_call_ratio if flow else None,
+        # OpenBB enrichment — news sentiment
+        news_sentiment=sentiment.aggregate_sentiment if sentiment else None,
+        news_sentiment_label=(
+            sentiment.sentiment_label.value if sentiment else None
+        ),
+        recent_headlines=(
+            [h.title for h in sentiment.headlines[:5]]
+            if sentiment and sentiment.headlines
+            else None
+        ),
     )
 
 
@@ -252,6 +280,9 @@ async def run_debate(
     config: DebateConfig,
     repository: Repository | None = None,
     progress: DebateProgressCallback | None = None,
+    fundamentals: FundamentalSnapshot | None = None,
+    flow: UnusualFlowSnapshot | None = None,
+    sentiment: NewsSentimentSnapshot | None = None,
 ) -> DebateResult:
     """Run AI debate on a ticker. On ANY failure, returns data-driven fallback -- never raises.
 
@@ -291,6 +322,9 @@ async def run_debate(
         ticker_info,
         contracts,
         next_earnings=ticker_score.next_earnings,
+        fundamentals=fundamentals,
+        flow=flow,
+        sentiment=sentiment,
     )
 
     completeness = context.completeness_ratio()
@@ -1232,6 +1266,9 @@ async def run_debate_v2(
     dimensional_scores: DimensionalScores | None = None,
     flow_output: FlowThesis | None = None,
     fundamental_output: FundamentalThesis | None = None,
+    fundamentals: FundamentalSnapshot | None = None,
+    flow: UnusualFlowSnapshot | None = None,
+    sentiment: NewsSentimentSnapshot | None = None,
 ) -> DebateResult:
     """Run 6-agent debate protocol. Falls back to data-driven on failure.
 
@@ -1279,6 +1316,9 @@ async def run_debate_v2(
         ticker_info,
         contracts,
         next_earnings=ticker_score.next_earnings,
+        fundamentals=fundamentals,
+        flow=flow,
+        sentiment=sentiment,
     )
 
     completeness = context.completeness_ratio()
