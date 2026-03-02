@@ -417,6 +417,44 @@ def render_context_block(ctx: MarketContext) -> str:
     if ctx.contract_mid is not None:
         lines.append(f"CONTRACT MID: ${ctx.contract_mid}")
 
+    # --- Fundamental Profile (OpenBB enrichment) ---
+    fundamental_lines = [
+        _render_optional("P/E", ctx.pe_ratio, ".1f"),
+        _render_optional("FORWARD P/E", ctx.forward_pe, ".1f"),
+        _render_optional("PEG", ctx.peg_ratio, ".2f"),
+        _render_optional("P/B", ctx.price_to_book, ".2f"),
+        _render_optional("DEBT/EQUITY", ctx.debt_to_equity, ".2f"),
+        _render_optional("REVENUE GROWTH", ctx.revenue_growth, ".1%"),
+        _render_optional("PROFIT MARGIN", ctx.profit_margin, ".1%"),
+    ]
+    filtered_fund = [ln for ln in fundamental_lines if ln is not None]
+    if filtered_fund:
+        lines.append("")
+        lines.append("## Fundamental Profile")
+        lines.extend(filtered_fund)
+
+    # --- Unusual Options Flow (OpenBB enrichment) ---
+    flow_lines = [
+        _render_optional("NET CALL PREMIUM ($)", ctx.net_call_premium, ",.0f"),
+        _render_optional("NET PUT PREMIUM ($)", ctx.net_put_premium, ",.0f"),
+        _render_optional("OPTIONS PUT/CALL RATIO", ctx.options_put_call_ratio, ".2f"),
+    ]
+    filtered_flow = [ln for ln in flow_lines if ln is not None]
+    if filtered_flow:
+        lines.append("")
+        lines.append("## Unusual Options Flow")
+        lines.extend(filtered_flow)
+
+    # --- News Sentiment (OpenBB enrichment) ---
+    if ctx.news_sentiment is not None and math.isfinite(ctx.news_sentiment):
+        lines.append("")
+        lines.append("## News Sentiment")
+        label = ctx.news_sentiment_label or "neutral"
+        lines.append(f"AGGREGATE: {label.title()} ({ctx.news_sentiment:+.2f})")
+        if ctx.recent_headlines:
+            for headline in ctx.recent_headlines[:5]:
+                lines.append(f'- "{headline}"')
+
     # Earnings warning — appended when next earnings is within 7 days
     if ctx.next_earnings is not None:
         days_to_earnings = (ctx.next_earnings - date.today()).days
