@@ -115,7 +115,11 @@ def contract() -> OptionContract:
         exercise_style=ExerciseStyle.AMERICAN,
         market_iv=0.285,
         greeks=OptionGreeks(
-            delta=0.35, gamma=0.025, theta=-0.045, vega=0.32, rho=0.08,
+            delta=0.35,
+            gamma=0.025,
+            theta=-0.045,
+            vega=0.32,
+            rho=0.08,
             pricing_model=PricingModel.BAW,
         ),
     )
@@ -254,7 +258,11 @@ class TestOpenBBDebateIntegration:
             volatility_agent.override(model=TestModel()),
         ):
             result = await run_debate(
-                ticker_score, [contract], quote, ticker_info, config,
+                ticker_score,
+                [contract],
+                quote,
+                ticker_info,
+                config,
             )
 
         assert result is not None
@@ -272,7 +280,10 @@ class TestOpenBBDebateIntegration:
     ) -> None:
         """render_context_block output includes '## Fundamental Profile' section."""
         ctx = build_market_context(
-            ticker_score, quote, ticker_info, [contract],
+            ticker_score,
+            quote,
+            ticker_info,
+            [contract],
             fundamentals=fundamentals,
         )
         block = render_context_block(ctx)
@@ -290,7 +301,10 @@ class TestOpenBBDebateIntegration:
     ) -> None:
         """render_context_block output includes '## Unusual Options Flow' section."""
         ctx = build_market_context(
-            ticker_score, quote, ticker_info, [contract],
+            ticker_score,
+            quote,
+            ticker_info,
+            [contract],
             flow=flow,
         )
         block = render_context_block(ctx)
@@ -307,7 +321,10 @@ class TestOpenBBDebateIntegration:
     ) -> None:
         """render_context_block includes '## News Sentiment' with headlines."""
         ctx = build_market_context(
-            ticker_score, quote, ticker_info, [contract],
+            ticker_score,
+            quote,
+            ticker_info,
+            [contract],
             sentiment=sentiment,
         )
         block = render_context_block(ctx)
@@ -324,7 +341,10 @@ class TestOpenBBDebateIntegration:
     ) -> None:
         """No OpenBB data → no new sections in context block."""
         ctx = build_market_context(
-            ticker_score, quote, ticker_info, [contract],
+            ticker_score,
+            quote,
+            ticker_info,
+            [contract],
         )
         block = render_context_block(ctx)
         assert "## Fundamental Profile" not in block

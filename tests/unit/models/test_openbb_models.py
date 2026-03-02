@@ -279,16 +279,12 @@ class TestFundamentalSnapshot:
 
     def test_negative_pe_ratio_allowed(self) -> None:
         """Negative P/E ratio is valid (company with losses)."""
-        snapshot = FundamentalSnapshot(
-            ticker="RIVN", pe_ratio=-42.0, fetched_at=NOW_UTC
-        )
+        snapshot = FundamentalSnapshot(ticker="RIVN", pe_ratio=-42.0, fetched_at=NOW_UTC)
         assert snapshot.pe_ratio == pytest.approx(-42.0)
 
     def test_negative_revenue_growth_allowed(self) -> None:
         """Negative revenue growth is valid (declining revenue)."""
-        snapshot = FundamentalSnapshot(
-            ticker="META", revenue_growth=-0.05, fetched_at=NOW_UTC
-        )
+        snapshot = FundamentalSnapshot(ticker="META", revenue_growth=-0.05, fetched_at=NOW_UTC)
         assert snapshot.revenue_growth == pytest.approx(-0.05)
 
 
@@ -464,9 +460,7 @@ class TestNewsHeadline:
 class TestNewsSentimentSnapshot:
     """Tests for the NewsSentimentSnapshot model."""
 
-    def test_valid_construction(
-        self, news_sentiment_snapshot: NewsSentimentSnapshot
-    ) -> None:
+    def test_valid_construction(self, news_sentiment_snapshot: NewsSentimentSnapshot) -> None:
         """NewsSentimentSnapshot constructs with all fields correctly assigned."""
         assert news_sentiment_snapshot.ticker == "AAPL"
         assert len(news_sentiment_snapshot.headlines) == 1
@@ -479,9 +473,7 @@ class TestNewsSentimentSnapshot:
         with pytest.raises(ValidationError):
             news_sentiment_snapshot.ticker = "MSFT"  # type: ignore[misc]
 
-    def test_json_roundtrip(
-        self, news_sentiment_snapshot: NewsSentimentSnapshot
-    ) -> None:
+    def test_json_roundtrip(self, news_sentiment_snapshot: NewsSentimentSnapshot) -> None:
         """NewsSentimentSnapshot survives JSON roundtrip."""
         json_str = news_sentiment_snapshot.model_dump_json()
         restored = NewsSentimentSnapshot.model_validate_json(json_str)

@@ -44,9 +44,7 @@ class TestCheckOpenBB:
         assert result.error == "OpenBB SDK not installed"
 
     @pytest.mark.asyncio
-    async def test_sdk_available_returns_available(
-        self, health_service: HealthService
-    ) -> None:
+    async def test_sdk_available_returns_available(self, health_service: HealthService) -> None:
         """Mocked successful import → available=True."""
         import sys
         from unittest.mock import MagicMock
@@ -69,6 +67,7 @@ class TestCheckOpenBB:
         """Generic exception → available=False with error message."""
         # Make the import raise a non-ImportError
         import builtins
+
         original_import = builtins.__import__
 
         def failing_import(name: str, *args: object, **kwargs: object) -> object:
@@ -104,9 +103,7 @@ class TestCheckAllIncludesOpenBB:
     """Tests for check_all() including OpenBB."""
 
     @pytest.mark.asyncio
-    async def test_check_all_returns_openbb_status(
-        self, health_service: HealthService
-    ) -> None:
+    async def test_check_all_returns_openbb_status(self, health_service: HealthService) -> None:
         """check_all() result includes 'openbb' service entry."""
         # Mock all external checks to avoid network calls
         health_service.check_yfinance = AsyncMock(  # type: ignore[method-assign]
@@ -128,9 +125,7 @@ class TestCheckAllIncludesOpenBB:
         assert "openbb" in service_names
 
     @pytest.mark.asyncio
-    async def test_check_all_count_is_five(
-        self, health_service: HealthService
-    ) -> None:
+    async def test_check_all_count_is_five(self, health_service: HealthService) -> None:
         """check_all() returns 5 statuses (yfinance, fred, groq, cboe, openbb)."""
         health_service.check_yfinance = AsyncMock(  # type: ignore[method-assign]
             return_value=_make_status("yfinance")

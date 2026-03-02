@@ -38,6 +38,7 @@ from options_arena.models.openbb import NewsHeadline
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_context(**overrides: object) -> MarketContext:
     """Build a MarketContext with sensible defaults, allowing field overrides."""
     from decimal import Decimal
@@ -193,9 +194,7 @@ class TestMarketContextEnrichment:
             forward_pe=24.1,
             news_sentiment=0.42,
         )
-        assert ctx_without.completeness_ratio() == pytest.approx(
-            ctx_with.completeness_ratio()
-        )
+        assert ctx_without.completeness_ratio() == pytest.approx(ctx_with.completeness_ratio())
 
     def test_nan_rejected_in_pe_ratio(self) -> None:
         """NaN in pe_ratio raises ValidationError."""
@@ -258,7 +257,10 @@ class TestBuildMarketContextOpenBB:
         """Fundamentals mapped correctly to MarketContext fields."""
         fund = _make_fundamentals()
         ctx = build_market_context(
-            mock_ticker_score, mock_quote, mock_ticker_info, [mock_option_contract],
+            mock_ticker_score,
+            mock_quote,
+            mock_ticker_info,
+            [mock_option_contract],
             fundamentals=fund,
         )
         assert ctx.pe_ratio == pytest.approx(28.5)
@@ -279,7 +281,10 @@ class TestBuildMarketContextOpenBB:
         """Flow data mapped correctly."""
         fl = _make_flow()
         ctx = build_market_context(
-            mock_ticker_score, mock_quote, mock_ticker_info, [mock_option_contract],
+            mock_ticker_score,
+            mock_quote,
+            mock_ticker_info,
+            [mock_option_contract],
             flow=fl,
         )
         assert ctx.net_call_premium == pytest.approx(4_200_000.0)
@@ -296,7 +301,10 @@ class TestBuildMarketContextOpenBB:
         """Sentiment mapped correctly, headlines present."""
         sent = _make_sentiment()
         ctx = build_market_context(
-            mock_ticker_score, mock_quote, mock_ticker_info, [mock_option_contract],
+            mock_ticker_score,
+            mock_quote,
+            mock_ticker_info,
+            [mock_option_contract],
             sentiment=sent,
         )
         assert ctx.news_sentiment == pytest.approx(0.42)
@@ -317,8 +325,13 @@ class TestBuildMarketContextOpenBB:
         fl = _make_flow()
         sent = _make_sentiment()
         ctx = build_market_context(
-            mock_ticker_score, mock_quote, mock_ticker_info, [mock_option_contract],
-            fundamentals=fund, flow=fl, sentiment=sent,
+            mock_ticker_score,
+            mock_quote,
+            mock_ticker_info,
+            [mock_option_contract],
+            fundamentals=fund,
+            flow=fl,
+            sentiment=sent,
         )
         assert ctx.pe_ratio is not None
         assert ctx.net_call_premium is not None
@@ -343,7 +356,10 @@ class TestBuildMarketContextOpenBB:
             profit_margin=None,
         )
         ctx = build_market_context(
-            mock_ticker_score, mock_quote, mock_ticker_info, [mock_option_contract],
+            mock_ticker_score,
+            mock_quote,
+            mock_ticker_info,
+            [mock_option_contract],
             fundamentals=fund,
         )
         assert ctx.pe_ratio == pytest.approx(28.5)
@@ -369,7 +385,10 @@ class TestBuildMarketContextOpenBB:
         ]
         sent = _make_sentiment(headlines=headlines, article_count=8)
         ctx = build_market_context(
-            mock_ticker_score, mock_quote, mock_ticker_info, [mock_option_contract],
+            mock_ticker_score,
+            mock_quote,
+            mock_ticker_info,
+            [mock_option_contract],
             sentiment=sent,
         )
         assert ctx.recent_headlines is not None
@@ -385,7 +404,10 @@ class TestBuildMarketContextOpenBB:
         """Empty headlines list → recent_headlines is None."""
         sent = _make_sentiment(headlines=[], article_count=0)
         ctx = build_market_context(
-            mock_ticker_score, mock_quote, mock_ticker_info, [mock_option_contract],
+            mock_ticker_score,
+            mock_quote,
+            mock_ticker_info,
+            [mock_option_contract],
             sentiment=sent,
         )
         assert ctx.recent_headlines is None

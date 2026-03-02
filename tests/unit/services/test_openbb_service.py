@@ -296,9 +296,7 @@ class TestFetchFundamentals:
     ) -> None:
         """Empty results list from SDK returns None."""
         obb = MagicMock()
-        obb.equity.fundamental.metrics = MagicMock(
-            return_value=SimpleNamespace(results=[])
-        )
+        obb.equity.fundamental.metrics = MagicMock(return_value=SimpleNamespace(results=[]))
         service = _make_service(config, mock_cache, mock_limiter, obb=obb)
 
         result = await service.fetch_fundamentals("AAPL")
@@ -414,9 +412,7 @@ class TestFetchNewsSentiment:
         obb = MagicMock()
         obb.news.company = MagicMock(return_value=_make_news_result(2))
         vader = MagicMock()
-        vader.polarity_scores = MagicMock(
-            side_effect=[{"compound": 0.8}, {"compound": -0.3}]
-        )
+        vader.polarity_scores = MagicMock(side_effect=[{"compound": 0.8}, {"compound": -0.3}])
         service = _make_service(config, mock_cache, mock_limiter, obb=obb, vader=vader)
 
         result = await service.fetch_news_sentiment("AAPL")
@@ -432,9 +428,7 @@ class TestFetchNewsSentiment:
         obb = MagicMock()
         obb.news.company = MagicMock(return_value=_make_news_result(2))
         vader = MagicMock()
-        vader.polarity_scores = MagicMock(
-            side_effect=[{"compound": 0.6}, {"compound": 0.4}]
-        )
+        vader.polarity_scores = MagicMock(side_effect=[{"compound": 0.6}, {"compound": 0.4}])
         service = _make_service(config, mock_cache, mock_limiter, obb=obb, vader=vader)
 
         result = await service.fetch_news_sentiment("AAPL")
@@ -610,9 +604,7 @@ class TestNeverRaises:
     ) -> None:
         """fetch_fundamentals catches all exceptions."""
         obb = MagicMock()
-        obb.equity.fundamental.metrics = MagicMock(
-            side_effect=Exception("catastrophic failure")
-        )
+        obb.equity.fundamental.metrics = MagicMock(side_effect=Exception("catastrophic failure"))
         service = _make_service(config, mock_cache, mock_limiter, obb=obb)
 
         result = await service.fetch_fundamentals("AAPL")
@@ -624,9 +616,7 @@ class TestNeverRaises:
     ) -> None:
         """fetch_unusual_flow catches all exceptions."""
         obb = MagicMock()
-        obb.equity.shorts.short_volume = MagicMock(
-            side_effect=Exception("catastrophic failure")
-        )
+        obb.equity.shorts.short_volume = MagicMock(side_effect=Exception("catastrophic failure"))
         service = _make_service(config, mock_cache, mock_limiter, obb=obb)
 
         result = await service.fetch_unusual_flow("AAPL")
