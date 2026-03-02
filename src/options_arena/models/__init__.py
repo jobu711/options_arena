@@ -20,6 +20,7 @@ from options_arena.models.config import (
     DataConfig,
     DebateConfig,
     LogConfig,
+    OpenBBConfig,
     PricingConfig,
     ScanConfig,
     ServiceConfig,
@@ -40,6 +41,7 @@ from options_arena.models.enums import (
     PricingModel,
     RiskLevel,
     ScanPreset,
+    SentimentLabel,
     SignalDirection,
     SpreadType,
     VolAssessment,
@@ -48,6 +50,13 @@ from options_arena.models.enums import (
 from options_arena.models.health import HealthStatus
 from options_arena.models.history import HistoryPoint, TrendingTicker
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
+from options_arena.models.openbb import (
+    FundamentalSnapshot,
+    NewsHeadline,
+    NewsSentimentSnapshot,
+    OpenBBHealthStatus,
+    UnusualFlowSnapshot,
+)
 from options_arena.models.options import OptionContract, OptionGreeks, OptionSpread, SpreadLeg
 from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
 from options_arena.models.scan_delta import ScanDiff, TickerDelta
@@ -76,6 +85,7 @@ __all__ = [
     "RiskLevel",
     "SECTOR_ALIASES",
     "ScanPreset",
+    "SentimentLabel",
     "SignalDirection",
     "SpreadType",
     "VolAssessment",
@@ -114,6 +124,7 @@ __all__ = [
     "DataConfig",
     "DebateConfig",
     "LogConfig",
+    "OpenBBConfig",
     "PricingConfig",
     "ScanConfig",
     "ServiceConfig",
@@ -122,6 +133,12 @@ __all__ = [
     "TrendingTicker",
     # Health
     "HealthStatus",
+    # OpenBB
+    "FundamentalSnapshot",
+    "NewsHeadline",
+    "NewsSentimentSnapshot",
+    "OpenBBHealthStatus",
+    "UnusualFlowSnapshot",
     # Watchlist
     "Watchlist",
     "WatchlistDetail",

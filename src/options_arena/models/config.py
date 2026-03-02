@@ -263,6 +263,25 @@ class DebateConfig(BaseModel):
         return self
 
 
+class OpenBBConfig(BaseModel):
+    """OpenBB Platform SDK configuration — controls optional enrichment data.
+
+    All features default to enabled. When ``enabled`` is ``False``, the entire
+    OpenBB integration is skipped. Individual data sources can be toggled via
+    ``fundamentals_enabled``, ``unusual_flow_enabled``, and ``news_sentiment_enabled``.
+    """
+
+    enabled: bool = True
+    fundamentals_enabled: bool = True
+    unusual_flow_enabled: bool = True
+    news_sentiment_enabled: bool = True
+    fundamentals_cache_ttl: int = 3600
+    flow_cache_ttl: int = 300
+    news_cache_ttl: int = 900
+    request_timeout: int = 15
+    max_retries: int = 2
+
+
 class AppSettings(BaseSettings):
     """Root application settings — the sole BaseSettings subclass.
 
@@ -284,3 +303,4 @@ class AppSettings(BaseSettings):
     debate: DebateConfig = DebateConfig()
     data: DataConfig = DataConfig()
     log: LogConfig = LogConfig()
+    openbb: OpenBBConfig = OpenBBConfig()
