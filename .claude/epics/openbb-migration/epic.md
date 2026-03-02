@@ -1,8 +1,8 @@
 ---
 name: openbb-migration
-status: backlog
+status: completed
 created: 2026-03-02T13:29:45Z
-progress: 0%
+progress: 100%
 prd: .claude/prds/openbb-migration.md
 github: https://github.com/jobu711/options_arena/issues/192
 ---
@@ -71,13 +71,13 @@ Task 6 → Task 7 (Integration Tests + Cutover)
 
 ## Task Breakdown Preview
 
-- [ ] Task 1: Model & config extensions — `OptionContract` new fields, `OpenBBConfig` CBOE fields, validators
-- [ ] Task 2: ChainProvider protocol + YFinanceChainProvider extraction from `OptionsDataService`
-- [ ] Task 3: CBOEChainProvider implementation — CBOE via OpenBB SDK, field mapping, Greeks mapping
-- [ ] Task 4: Provider orchestration + fallback in `OptionsDataService`
-- [ ] Task 5: Three-tier Greeks resolution in `scoring/contracts.py`
-- [ ] Task 6: DI wiring (CLI + API + pipeline), health check extension, parallel validation mode
-- [ ] Task 7: Integration tests + cutover (enable CBOE as default)
+- [x] Task 1: Model & config extensions — `OptionContract` new fields, `OpenBBConfig` CBOE fields, validators
+- [x] Task 2: ChainProvider protocol + YFinanceChainProvider extraction from `OptionsDataService`
+- [x] Task 3: CBOEChainProvider implementation — CBOE via OpenBB SDK, field mapping, Greeks mapping
+- [x] Task 4: Provider orchestration + fallback in `OptionsDataService`
+- [x] Task 5: Three-tier Greeks resolution in `scoring/contracts.py`
+- [x] Task 6: DI wiring (CLI + API + pipeline), health check extension, parallel validation mode
+- [x] Task 7: Integration tests + cutover (enable CBOE as default)
 
 ## Dependencies
 
@@ -109,13 +109,13 @@ Task 6 → Task 7 (Integration Tests + Cutover)
 
 ## Tasks Created
 
-- [ ] #193 - Model & Config Extensions (parallel: false — foundation)
-- [ ] #194 - ChainProvider Protocol + YFinanceChainProvider (parallel: true)
-- [ ] #196 - CBOEChainProvider Implementation (parallel: false)
-- [ ] #197 - Provider Orchestration + Fallback (parallel: false)
-- [ ] #195 - Three-Tier Greeks Resolution (parallel: true)
-- [ ] #198 - DI Wiring + Health Check + Validation Mode (parallel: false)
-- [ ] #199 - Integration Tests + Cutover (parallel: false)
+- [x] #193 - Model & Config Extensions (parallel: false — foundation)
+- [x] #194 - ChainProvider Protocol + YFinanceChainProvider (parallel: true)
+- [x] #196 - CBOEChainProvider Implementation (parallel: false)
+- [x] #197 - Provider Orchestration + Fallback (parallel: false)
+- [x] #195 - Three-Tier Greeks Resolution (parallel: true)
+- [x] #198 - DI Wiring + Health Check + Validation Mode (parallel: false)
+- [x] #199 - Integration Tests + Cutover (parallel: false)
 
 Total tasks: 7
 Parallel tasks: 2 (#194 + #195 can run in Wave 2)

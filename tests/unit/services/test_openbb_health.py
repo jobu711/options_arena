@@ -125,8 +125,8 @@ class TestCheckAllIncludesOpenBB:
         assert "openbb" in service_names
 
     @pytest.mark.asyncio
-    async def test_check_all_count_is_five(self, health_service: HealthService) -> None:
-        """check_all() returns 5 statuses (yfinance, fred, groq, cboe, openbb)."""
+    async def test_check_all_count_is_six(self, health_service: HealthService) -> None:
+        """check_all() returns 6 statuses (yfinance, fred, groq, cboe, openbb, cboe_chains)."""
         health_service.check_yfinance = AsyncMock(  # type: ignore[method-assign]
             return_value=_make_status("yfinance")
         )
@@ -141,7 +141,7 @@ class TestCheckAllIncludesOpenBB:
         )
 
         results = await health_service.check_all()
-        assert len(results) == 5
+        assert len(results) == 6
 
 
 def _make_status(name: str, available: bool = True) -> object:

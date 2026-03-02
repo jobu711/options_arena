@@ -89,8 +89,10 @@ def test_app(
     app.dependency_overrides[get_settings] = lambda: AppSettings()
     app.dependency_overrides[get_operation_lock] = lambda: asyncio.Lock()
 
-    # Initialize app.state counters and dicts (normally done by lifespan).
+    # Initialize app.state attributes normally set by lifespan.
     # Route handlers no longer use hasattr/getattr fallbacks (AUDIT-014).
+    app.state.cache = MagicMock()
+    app.state.limiter = MagicMock()
     app.state.scan_counter = 0
     app.state.active_scans = {}
     app.state.scan_queues = {}

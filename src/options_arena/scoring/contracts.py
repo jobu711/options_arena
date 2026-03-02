@@ -18,7 +18,7 @@ from datetime import date
 from decimal import Decimal
 
 from options_arena.models.config import PricingConfig
-from options_arena.models.enums import OptionType, SignalDirection
+from options_arena.models.enums import GreeksSource, OptionType, SignalDirection
 from options_arena.models.options import OptionContract
 from options_arena.pricing.dispatch import option_greeks, option_iv
 
@@ -156,7 +156,16 @@ def compute_greeks(
     risk_free_rate: float,
     dividend_yield: float,
 ) -> list[OptionContract]:
-    """Compute Greeks for each contract via ``pricing/dispatch.py``.
+    """Compute or preserve Greeks for each contract using three-tier resolution.
+
+    **Tier 1** — Contract already has ``greeks`` (e.g. from CBOE native data):
+    preserve existing Greeks as-is, set ``greeks_source=GreeksSource.MARKET``
+    if the source is not already set, skip ``pricing/dispatch.py`` entirely.
+
+    **Tier 2** — Contract has no ``greeks``: compute via ``pricing/dispatch.py``
+    (existing behavior), set ``greeks_source=GreeksSource.COMPUTED``.
+
+    **Tier 3** — Local computation fails: contract excluded (logged at warning).
 
     Since ``OptionContract`` is frozen, returns new instances with greeks
     populated. Contracts where computation fails are silently skipped
@@ -175,6 +184,25 @@ def compute_greeks(
     result: list[OptionContract] = []
 
     for contract in contracts:
+        # ------------------------------------------------------------------
+        # Tier 1: Contract already has Greeks (e.g. CBOE native)
+        # ------------------------------------------------------------------
+        if contract.greeks is not None:
+            update: dict[str, object] = {}
+            if contract.greeks_source is None:
+                update["greeks_source"] = GreeksSource.MARKET
+            new_contract = contract.model_copy(update=update) if update else contract
+            result.append(new_contract)
+            logger.debug(
+                "Tier 1 (market): %s strike %s — preserving existing Greeks",
+                contract.ticker,
+                contract.strike,
+            )
+            continue
+
+        # ------------------------------------------------------------------
+        # Tier 2: No Greeks — compute via pricing/dispatch.py
+        # ------------------------------------------------------------------
         try:
             time_to_expiry = contract.dte / _DAYS_PER_YEAR
             if time_to_expiry <= 0.0:
@@ -244,10 +272,17 @@ def compute_greeks(
             # OptionContract is frozen — model_copy skips validators on ALL
             # fields (including updated ones). Safe here because greeks was
             # constructed via OptionGreeks(...) and sigma passed isfinite above.
-            new_contract = contract.model_copy(update={"greeks": greeks, "market_iv": sigma})
+            new_contract = contract.model_copy(
+                update={
+                    "greeks": greeks,
+                    "market_iv": sigma,
+                    "greeks_source": GreeksSource.COMPUTED,
+                },
+            )
             result.append(new_contract)
 
         except (ValueError, OverflowError, ZeroDivisionError):
+            # Tier 3: Computation failed — contract excluded
             logger.warning(
                 "Greeks computation failed for %s strike %s: IV=%.4f, DTE=%d",
                 contract.ticker,
