@@ -63,7 +63,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     )
 
     market_data = MarketDataService(settings.service, cache, limiter)
-    options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
+    options_data = OptionsDataService(
+        settings.service,
+        settings.pricing,
+        cache,
+        limiter,
+        openbb_config=settings.openbb,
+    )
     fred = FredService(settings.service, settings.pricing, cache)
     universe = UniverseService(settings.service, cache, limiter)
 

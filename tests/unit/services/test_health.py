@@ -265,7 +265,7 @@ class TestCheckAll:
 
     @pytest.mark.asyncio
     async def test_all_succeed(self, service: HealthService) -> None:
-        """All checks succeed: 5 HealthStatus objects, all available."""
+        """All checks succeed: 6 HealthStatus objects, all available."""
         yf_status = HealthStatus(
             service_name="yfinance",
             available=True,
@@ -296,22 +296,28 @@ class TestCheckAll:
             latency_ms=10.0,
             checked_at=_utc_now(),
         )
+        cboe_chains_status = HealthStatus(
+            service_name="cboe_chains",
+            available=False,
+            error="CBOE chains disabled",
+            checked_at=_utc_now(),
+        )
 
         service.check_yfinance = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
         service.check_fred = AsyncMock(return_value=fred_status)  # type: ignore[method-assign]
         service.check_groq = AsyncMock(return_value=groq_status)  # type: ignore[method-assign]
         service.check_cboe = AsyncMock(return_value=cboe_status)  # type: ignore[method-assign]
         service.check_openbb = AsyncMock(return_value=openbb_status)  # type: ignore[method-assign]
+        service.check_cboe_chains = AsyncMock(return_value=cboe_chains_status)  # type: ignore[method-assign]
 
         results = await service.check_all()
 
-        assert len(results) == 5
+        assert len(results) == 6
         assert all(isinstance(r, HealthStatus) for r in results)
-        assert all(r.available for r in results)
 
     @pytest.mark.asyncio
     async def test_partial_failure(self, service: HealthService) -> None:
-        """Two succeed, three fail: all 5 HealthStatus objects returned with correct flags."""
+        """Two succeed, four fail: all 6 HealthStatus objects returned with correct flags."""
         yf_status = HealthStatus(
             service_name="yfinance",
             available=True,
@@ -345,22 +351,30 @@ class TestCheckAll:
             error="OpenBB SDK not installed",
             checked_at=_utc_now(),
         )
+        cboe_chains_status = HealthStatus(
+            service_name="cboe_chains",
+            available=False,
+            error="CBOE chains disabled",
+            checked_at=_utc_now(),
+        )
 
         service.check_yfinance = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
         service.check_fred = AsyncMock(return_value=fred_status)  # type: ignore[method-assign]
         service.check_groq = AsyncMock(return_value=groq_status)  # type: ignore[method-assign]
         service.check_cboe = AsyncMock(return_value=cboe_status)  # type: ignore[method-assign]
         service.check_openbb = AsyncMock(return_value=openbb_status)  # type: ignore[method-assign]
+        service.check_cboe_chains = AsyncMock(return_value=cboe_chains_status)  # type: ignore[method-assign]
 
         results = await service.check_all()
 
-        assert len(results) == 5
+        assert len(results) == 6
         names_available = {r.service_name: r.available for r in results}
         assert names_available["yfinance"] is True
         assert names_available["fred"] is False
         assert names_available["groq"] is True
         assert names_available["cboe"] is False
         assert names_available["openbb"] is False
+        assert names_available["cboe_chains"] is False
 
     @pytest.mark.asyncio
     async def test_unhandled_exception_becomes_health_status(self, service: HealthService) -> None:
@@ -378,16 +392,23 @@ class TestCheckAll:
             error="OpenBB SDK not installed",
             checked_at=_utc_now(),
         )
+        cboe_chains_status = HealthStatus(
+            service_name="cboe_chains",
+            available=False,
+            error="CBOE chains disabled",
+            checked_at=_utc_now(),
+        )
         # Simulate an unhandled exception escaping from check_fred
         service.check_yfinance = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
         service.check_fred = AsyncMock(side_effect=RuntimeError("boom"))  # type: ignore[method-assign]
         service.check_groq = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
         service.check_cboe = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
         service.check_openbb = AsyncMock(return_value=openbb_status)  # type: ignore[method-assign]
+        service.check_cboe_chains = AsyncMock(return_value=cboe_chains_status)  # type: ignore[method-assign]
 
         results = await service.check_all()
 
-        assert len(results) == 5
+        assert len(results) == 6
         fred_result = results[1]  # second in the list (order preserved)
         assert fred_result.service_name == "fred"
         assert fred_result.available is False

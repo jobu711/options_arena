@@ -146,7 +146,13 @@ async def _scan_async(
 
         # Services (DI pattern)
         market_data = MarketDataService(settings.service, cache, limiter)
-        options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
+        options_data = OptionsDataService(
+            settings.service,
+            settings.pricing,
+            cache,
+            limiter,
+            openbb_config=settings.openbb,
+        )
         fred = FredService(settings.service, settings.pricing, cache)
         universe_svc = UniverseService(settings.service, cache, limiter)
 
@@ -307,7 +313,13 @@ async def _batch_async(
 
         # Create services ONCE (shared across all tickers)
         market_data = MarketDataService(settings.service, cache, limiter)
-        options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
+        options_data = OptionsDataService(
+            settings.service,
+            settings.pricing,
+            cache,
+            limiter,
+            openbb_config=settings.openbb,
+        )
         fred = FredService(settings.service, settings.pricing, cache)
 
         if not no_openbb and settings.openbb.enabled:
@@ -598,7 +610,13 @@ async def _debate_async(
 
         # Create services for live data fetching
         market_data = MarketDataService(settings.service, cache, limiter)
-        options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
+        options_data = OptionsDataService(
+            settings.service,
+            settings.pricing,
+            cache,
+            limiter,
+            openbb_config=settings.openbb,
+        )
         fred = FredService(settings.service, settings.pricing, cache)
 
         if not no_openbb and settings.openbb.enabled:
@@ -667,7 +685,13 @@ def health() -> None:
 async def _health_async() -> None:
     """Run all health checks and render results."""
     settings = AppSettings()
-    svc = HealthService(settings.service)
+    cache = ServiceCache(settings.service)
+    limiter = RateLimiter(
+        settings.service.rate_limit_rps, settings.service.max_concurrent_requests
+    )
+    svc = HealthService(
+        settings.service, openbb_config=settings.openbb, cache=cache, limiter=limiter
+    )
     try:
         statuses = await svc.check_all()
         table = render_health_table(statuses)
@@ -677,6 +701,7 @@ async def _health_async() -> None:
             raise typer.Exit(code=1)
     finally:
         await svc.close()
+        await cache.close()
 
 
 # ---------------------------------------------------------------------------

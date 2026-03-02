@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from options_arena.api.deps import get_settings
 from options_arena.models import AppSettings, HealthStatus
@@ -23,13 +23,20 @@ async def health_check() -> dict[str, str]:
 
 @router.get("/health/services")
 async def check_services(
+    request: Request,
     settings: AppSettings = Depends(get_settings),
 ) -> list[HealthStatus]:
     """Run all health checks and return service statuses.
 
     Creates a temporary ``HealthService`` instance, runs checks, closes it.
+    Uses app-scoped cache and limiter for the CBOE chains health probe.
     """
-    svc = HealthService(settings.service)
+    svc = HealthService(
+        settings.service,
+        openbb_config=settings.openbb,
+        cache=request.app.state.cache,
+        limiter=request.app.state.limiter,
+    )
     try:
         return await svc.check_all()
     finally:

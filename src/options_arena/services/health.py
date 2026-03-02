@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 import httpx
 import yfinance as yf  # type: ignore[import-untyped]
 
-from options_arena.models.config import ServiceConfig
+from options_arena.models.config import OpenBBConfig, ServiceConfig
 from options_arena.models.health import HealthStatus
 
 logger = logging.getLogger(__name__)
@@ -26,8 +26,18 @@ class HealthService:
         config: Service configuration with timeouts, API keys, etc.
     """
 
-    def __init__(self, config: ServiceConfig) -> None:
+    def __init__(
+        self,
+        config: ServiceConfig,
+        *,
+        openbb_config: OpenBBConfig | None = None,
+        cache: object | None = None,
+        limiter: object | None = None,
+    ) -> None:
         self._config = config
+        self._openbb_config = openbb_config
+        self._cache = cache
+        self._limiter = limiter
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(10.0, connect=5.0),
         )
@@ -245,6 +255,57 @@ class HealthService:
                 checked_at=datetime.now(UTC),
             )
 
+    async def check_cboe_chains(self) -> HealthStatus:
+        """Test CBOE chain endpoint with a known ticker (AAPL).
+
+        Returns ``available=False`` if CBOE chains are disabled in config,
+        if the OpenBB SDK is not installed, or if the probe call fails.
+        """
+        if self._openbb_config is None or not self._openbb_config.cboe_chains_enabled:
+            return HealthStatus(
+                service_name="cboe_chains",
+                available=False,
+                error="CBOE chains disabled",
+                checked_at=datetime.now(UTC),
+            )
+
+        from options_arena.services.cboe_provider import CBOEChainProvider  # noqa: PLC0415
+
+        provider = CBOEChainProvider(
+            config=self._openbb_config,
+            cache=self._cache,  # type: ignore[arg-type]
+            limiter=self._limiter,  # type: ignore[arg-type]
+        )
+        if not provider.available:
+            return HealthStatus(
+                service_name="cboe_chains",
+                available=False,
+                error="OpenBB SDK not installed",
+                checked_at=datetime.now(UTC),
+            )
+
+        start = time.monotonic()
+        try:
+            await provider.fetch_expirations("AAPL")
+            latency_ms = (time.monotonic() - start) * 1000
+            logger.info("CBOE chains health check OK (%.1fms)", latency_ms)
+            return HealthStatus(
+                service_name="cboe_chains",
+                available=True,
+                latency_ms=latency_ms,
+                checked_at=datetime.now(UTC),
+            )
+        except Exception as exc:
+            latency_ms = (time.monotonic() - start) * 1000
+            logger.warning("CBOE chains health check failed: %s", exc)
+            return HealthStatus(
+                service_name="cboe_chains",
+                available=False,
+                latency_ms=latency_ms,
+                error=str(exc),
+                checked_at=datetime.now(UTC),
+            )
+
     async def check_all(self) -> list[HealthStatus]:
         """Run all health checks concurrently.
 
@@ -259,8 +320,9 @@ class HealthService:
             self.check_groq(),
             self.check_cboe(),
             self.check_openbb(),
+            self.check_cboe_chains(),
         ]
-        service_names = ["yfinance", "fred", "groq", "cboe", "openbb"]
+        service_names = ["yfinance", "fred", "groq", "cboe", "openbb", "cboe_chains"]
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         results: list[HealthStatus] = []

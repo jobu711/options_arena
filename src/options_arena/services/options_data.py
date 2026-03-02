@@ -395,6 +395,8 @@ class OptionsDataService:
         self._pricing_config = pricing_config
         self._cache = cache
         self._limiter = limiter
+        self._openbb_config = openbb_config
+        self._validation_mode = openbb_config is not None and openbb_config.chain_validation_mode
 
         # When a custom provider is injected (tests), use it as the sole provider
         if provider is not None:
@@ -402,6 +404,23 @@ class OptionsDataService:
             logger.info("Using injected chain provider: %s", type(provider).__name__)
         else:
             self._providers = self._build_provider_list(openbb_config, cache, limiter)
+
+        # Keep a reference to the yfinance provider for validation mode
+        self._yfinance_provider: YFinanceChainProvider | None = None
+        if self._validation_mode:
+            # Find the yfinance provider in the list
+            for p in self._providers:
+                if isinstance(p, YFinanceChainProvider):
+                    self._yfinance_provider = p
+                    break
+            if self._yfinance_provider is None:
+                # Build one if needed (e.g., when CBOE is primary and yfinance is fallback)
+                self._yfinance_provider = YFinanceChainProvider(
+                    config=config,
+                    pricing_config=pricing_config,
+                    cache=cache,
+                    limiter=limiter,
+                )
 
     def _build_provider_list(
         self,
@@ -485,6 +504,11 @@ class OptionsDataService:
         ``DataSourceUnavailableError``. The first provider to succeed
         returns the result; subsequent providers are not tried.
 
+        When ``chain_validation_mode`` is enabled, the primary result is
+        compared against a background yfinance fetch. The comparison is
+        logged at INFO level. Validation is observational only — it never
+        affects the return value.
+
         Args:
             ticker: The underlying ticker symbol.
             expiration: The target expiration date.
@@ -498,7 +522,19 @@ class OptionsDataService:
         last_error: DataSourceUnavailableError | None = None
         for provider in self._providers:
             try:
-                return await provider.fetch_chain(ticker, expiration)
+                primary_result = await provider.fetch_chain(ticker, expiration)
+                # Kick off validation if enabled and the primary provider isn't yfinance
+                if (
+                    self._validation_mode
+                    and self._yfinance_provider is not None
+                    and not isinstance(provider, YFinanceChainProvider)
+                ):
+                    asyncio.create_task(
+                        self._validate_chain(
+                            ticker, expiration, primary_result, self._yfinance_provider
+                        )
+                    )
+                return primary_result
             except DataSourceUnavailableError as e:
                 logger.warning(
                     "Provider %s failed fetch_chain for %s: %s",
@@ -508,6 +544,66 @@ class OptionsDataService:
                 )
                 last_error = e
         raise last_error or DataSourceUnavailableError("options", "No chain providers available")
+
+    async def _validate_chain(
+        self,
+        ticker: str,
+        expiration: date,
+        primary: list[OptionContract],
+        yfinance_provider: YFinanceChainProvider,
+    ) -> None:
+        """Compare primary provider chain against yfinance (observational only).
+
+        Runs in the background via ``asyncio.create_task``. Logs comparison
+        metrics at INFO level. Never raises — all errors are caught and logged.
+
+        Args:
+            ticker: The underlying ticker symbol.
+            expiration: The target expiration date.
+            primary: Contracts from the primary provider (e.g., CBOE).
+            yfinance_provider: The yfinance provider to fetch comparison data.
+        """
+        try:
+            yf_contracts = await yfinance_provider.fetch_chain(ticker, expiration)
+
+            # Strike coverage comparison
+            primary_strikes = {c.strike for c in primary}
+            yf_strikes = {c.strike for c in yf_contracts}
+            overlap = primary_strikes & yf_strikes
+            primary_only = primary_strikes - yf_strikes
+            yf_only = yf_strikes - primary_strikes
+
+            # IV comparison for overlapping strikes
+            iv_diffs: list[float] = []
+            primary_iv_map = {(c.strike, c.option_type): c.market_iv for c in primary}
+            yf_iv_map = {(c.strike, c.option_type): c.market_iv for c in yf_contracts}
+            for key in set(primary_iv_map) & set(yf_iv_map):
+                p_iv = primary_iv_map[key]
+                y_iv = yf_iv_map[key]
+                if p_iv > 0.0 and y_iv > 0.0:
+                    iv_diffs.append(abs(p_iv - y_iv))
+
+            avg_iv_diff = sum(iv_diffs) / len(iv_diffs) if iv_diffs else 0.0
+
+            logger.info(
+                "Chain validation %s exp %s: "
+                "strikes overlap=%d, primary_only=%d, yf_only=%d, "
+                "avg IV diff=%.4f (%d comparisons)",
+                ticker,
+                expiration.isoformat(),
+                len(overlap),
+                len(primary_only),
+                len(yf_only),
+                avg_iv_diff,
+                len(iv_diffs),
+            )
+        except Exception as exc:
+            logger.warning(
+                "Chain validation failed for %s exp %s: %s",
+                ticker,
+                expiration.isoformat(),
+                exc,
+            )
 
     async def fetch_chain_all_expirations(
         self,
