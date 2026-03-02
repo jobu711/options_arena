@@ -69,7 +69,7 @@ def _make_contract(
         ticker=ticker,
         option_type=option_type,
         strike=Decimal(strike),
-        expiration=date(2026, 4, 18),
+        expiration=date(2099, 4, 18),
         bid=Decimal("5.30"),
         ask=Decimal("5.70"),
         last=Decimal("5.50"),
@@ -136,7 +136,7 @@ class TestChainValidationMode:
         yf_mock.fetch_chain = AsyncMock(return_value=[_make_contract(strike="190.00")])
         service._yfinance_provider = yf_mock
 
-        result = await service.fetch_chain("AAPL", date(2026, 4, 18))
+        result = await service.fetch_chain("AAPL", date(2099, 4, 18))
 
         # Primary result returned
         assert len(result) == 1
@@ -146,7 +146,7 @@ class TestChainValidationMode:
         await asyncio.sleep(0.1)
 
         # yfinance should have been called in the background
-        yf_mock.fetch_chain.assert_awaited_once_with("AAPL", date(2026, 4, 18))
+        yf_mock.fetch_chain.assert_awaited_once_with("AAPL", date(2099, 4, 18))
 
     @pytest.mark.asyncio
     async def test_validation_mode_logs_comparison(
@@ -184,7 +184,7 @@ class TestChainValidationMode:
         service._yfinance_provider = yf_mock
 
         with caplog.at_level(logging.INFO, logger="options_arena.services.options_data"):
-            await service.fetch_chain("AAPL", date(2026, 4, 18))
+            await service.fetch_chain("AAPL", date(2099, 4, 18))
             await asyncio.sleep(0.1)
 
         # Check for validation log message
@@ -224,7 +224,7 @@ class TestChainValidationMode:
         yf_mock.fetch_chain = AsyncMock(return_value=yf_contracts)
         service._yfinance_provider = yf_mock
 
-        result = await service.fetch_chain("AAPL", date(2026, 4, 18))
+        result = await service.fetch_chain("AAPL", date(2099, 4, 18))
 
         # Must return CBOE result, not yfinance
         assert len(result) == 1
@@ -259,7 +259,7 @@ class TestChainValidationMode:
         service._yfinance_provider = yf_mock
 
         with caplog.at_level(logging.WARNING, logger="options_arena.services.options_data"):
-            result = await service.fetch_chain("AAPL", date(2026, 4, 18))
+            result = await service.fetch_chain("AAPL", date(2099, 4, 18))
             await asyncio.sleep(0.1)
 
         # Primary result returned despite yfinance failure
@@ -300,7 +300,7 @@ class TestChainValidationMode:
         assert service._validation_mode is False
         assert service._yfinance_provider is None
 
-        result = await service.fetch_chain("AAPL", date(2026, 4, 18))
+        result = await service.fetch_chain("AAPL", date(2099, 4, 18))
         assert result == expected
 
 

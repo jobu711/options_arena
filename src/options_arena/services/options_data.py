@@ -482,7 +482,20 @@ class OptionsDataService:
         last_error: DataSourceUnavailableError | None = None
         for provider in self._providers:
             try:
-                return await provider.fetch_expirations(ticker)
+                return await asyncio.wait_for(
+                    provider.fetch_expirations(ticker),
+                    timeout=self._config.yfinance_timeout,
+                )
+            except TimeoutError:
+                logger.warning(
+                    "Provider %s timed out in fetch_expirations for %s",
+                    type(provider).__name__,
+                    ticker,
+                )
+                last_error = DataSourceUnavailableError(
+                    type(provider).__name__,
+                    f"timeout after {self._config.yfinance_timeout}s",
+                )
             except DataSourceUnavailableError as e:
                 logger.warning(
                     "Provider %s failed fetch_expirations for %s: %s",
@@ -532,7 +545,10 @@ class OptionsDataService:
         last_error: DataSourceUnavailableError | None = None
         for provider in self._providers:
             try:
-                primary_result = await provider.fetch_chain(ticker, expiration)
+                primary_result = await asyncio.wait_for(
+                    provider.fetch_chain(ticker, expiration),
+                    timeout=self._config.yfinance_timeout,
+                )
                 # Kick off validation if enabled and the primary provider isn't yfinance
                 if (
                     self._validation_mode
@@ -545,6 +561,16 @@ class OptionsDataService:
                         )
                     )
                 return primary_result
+            except TimeoutError:
+                logger.warning(
+                    "Provider %s timed out in fetch_chain for %s",
+                    type(provider).__name__,
+                    ticker,
+                )
+                last_error = DataSourceUnavailableError(
+                    type(provider).__name__,
+                    f"timeout after {self._config.yfinance_timeout}s",
+                )
             except DataSourceUnavailableError as e:
                 logger.warning(
                     "Provider %s failed fetch_chain for %s: %s",

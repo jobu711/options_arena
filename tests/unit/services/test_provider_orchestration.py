@@ -60,7 +60,7 @@ def _make_contract(
         ticker=ticker,
         option_type=option_type,
         strike=Decimal(strike),
-        expiration=date(2026, 4, 18),
+        expiration=date(2099, 4, 18),
         bid=Decimal("5.30"),
         ask=Decimal("5.70"),
         last=Decimal("5.50"),
@@ -215,7 +215,7 @@ class TestProviderOrchestration:
         # Override providers list to simulate CBOE + yfinance
         service._providers = [cboe_provider, yfinance_provider]
 
-        result = await service.fetch_chain("AAPL", date(2026, 4, 18))
+        result = await service.fetch_chain("AAPL", date(2099, 4, 18))
         assert result == expected_contracts
 
     async def test_fallback_logs_warning(
@@ -238,7 +238,7 @@ class TestProviderOrchestration:
         service._providers = [cboe_provider, yfinance_provider]
 
         with caplog.at_level(logging.WARNING, logger="options_arena.services.options_data"):
-            await service.fetch_chain("AAPL", date(2026, 4, 18))
+            await service.fetch_chain("AAPL", date(2099, 4, 18))
 
         # Should have a warning about the failed provider
         warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
@@ -263,7 +263,7 @@ class TestProviderOrchestration:
         service._providers = [provider1, provider2]
 
         with pytest.raises(DataSourceUnavailableError, match="yfinance: also down"):
-            await service.fetch_chain("FAIL", date(2026, 4, 18))
+            await service.fetch_chain("FAIL", date(2099, 4, 18))
 
     async def test_fetch_expirations_fallback(
         self,
@@ -273,7 +273,7 @@ class TestProviderOrchestration:
         limiter: RateLimiter,
     ) -> None:
         """Verify expiration fetch also uses provider fallback."""
-        expected_expirations = [date(2026, 3, 21), date(2026, 4, 18)]
+        expected_expirations = [date(2099, 3, 21), date(2099, 4, 18)]
 
         cboe_provider = _MockProvider(
             error=DataSourceUnavailableError("CBOE: timeout"),
@@ -321,7 +321,7 @@ class TestProviderOrchestration:
         assert service._providers[0] is mock_provider
 
         # And it works correctly
-        result = await service.fetch_chain("AAPL", date(2026, 4, 18))
+        result = await service.fetch_chain("AAPL", date(2099, 4, 18))
         assert result == expected_contracts
 
     async def test_close_closes_all_providers(
@@ -386,6 +386,6 @@ class TestProviderOrchestration:
         )
         service._providers = [cboe_provider, yfinance_provider]
 
-        result = await service.fetch_chain("AAPL", date(2026, 4, 18))
+        result = await service.fetch_chain("AAPL", date(2099, 4, 18))
         assert len(result) == 1
         assert result[0].strike == Decimal("180.00")

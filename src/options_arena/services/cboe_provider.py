@@ -166,11 +166,15 @@ def _cboe_row_to_contract(
     ask_iv: float | None = None
     market_iv: float = 0.0
 
-    # Check for separate bid/ask IV columns
+    # Check for separate bid/ask IV columns (guard against negative/non-finite values)
     if "bid_iv" in row.index:
-        bid_iv = safe_float(row.get("bid_iv"))
+        raw_bid_iv = safe_float(row.get("bid_iv"))
+        if raw_bid_iv is not None and raw_bid_iv >= 0.0:
+            bid_iv = raw_bid_iv
     if "ask_iv" in row.index:
-        ask_iv = safe_float(row.get("ask_iv"))
+        raw_ask_iv = safe_float(row.get("ask_iv"))
+        if raw_ask_iv is not None and raw_ask_iv >= 0.0:
+            ask_iv = raw_ask_iv
 
     # Compute market_iv: prefer implied_volatility column, fall back to alternates/bid-ask mid
     raw_iv = safe_float(row.get("implied_volatility"))
@@ -415,10 +419,16 @@ class CBOEChainProvider:
             )
             return []
 
-        # Map each row to an OptionContract
+        # Map each row to an OptionContract (skip invalid rows gracefully)
         contracts: list[OptionContract] = []
         for _, row in df.iterrows():
-            contract = _cboe_row_to_contract(row, ticker, expiration)
+            try:
+                contract = _cboe_row_to_contract(row, ticker, expiration)
+            except (ValueError, TypeError) as exc:
+                logger.debug(
+                    "Skipping invalid CBOE row for %s %s: %s", ticker, expiration, exc
+                )
+                continue
             if contract is not None:
                 contracts.append(contract)
 

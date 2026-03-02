@@ -4,7 +4,7 @@ Validates backward compatibility, new field validators (bid_iv, ask_iv, greeks_s
 and CBOE-related OpenBBConfig fields.
 """
 
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -14,6 +14,9 @@ from options_arena.models.config import OpenBBConfig
 from options_arena.models.enums import ExerciseStyle, GreeksSource, OptionType, PricingModel
 from options_arena.models.options import OptionContract, OptionGreeks
 
+# Far-future date to avoid test staleness
+_FUTURE_EXP = date(2099, 4, 18)
+
 
 def _make_contract(**overrides: object) -> OptionContract:
     """Factory for OptionContract with sensible defaults."""
@@ -21,7 +24,7 @@ def _make_contract(**overrides: object) -> OptionContract:
         "ticker": "AAPL",
         "option_type": OptionType.CALL,
         "strike": Decimal("150.00"),
-        "expiration": date.today() + timedelta(days=45),
+        "expiration": _FUTURE_EXP,
         "bid": Decimal("5.00"),
         "ask": Decimal("5.50"),
         "last": Decimal("5.25"),
@@ -61,17 +64,17 @@ class TestOptionContractExtensions:
     def test_bid_iv_valid(self) -> None:
         """Verify bid_iv accepts valid non-negative finite float."""
         contract = _make_contract(bid_iv=0.35)
-        assert contract.bid_iv == 0.35
+        assert contract.bid_iv == pytest.approx(0.35, rel=1e-3)
 
     def test_ask_iv_valid(self) -> None:
         """Verify ask_iv accepts valid non-negative finite float."""
         contract = _make_contract(ask_iv=0.40)
-        assert contract.ask_iv == 0.40
+        assert contract.ask_iv == pytest.approx(0.40, rel=1e-3)
 
     def test_bid_iv_zero_valid(self) -> None:
         """Verify bid_iv=0.0 is valid (ATM near-zero-time options)."""
         contract = _make_contract(bid_iv=0.0)
-        assert contract.bid_iv == 0.0
+        assert contract.bid_iv == pytest.approx(0.0, abs=1e-9)
 
     def test_bid_iv_rejects_negative(self) -> None:
         """Verify bid_iv rejects negative values."""
@@ -152,7 +155,7 @@ class TestOptionContractExtensions:
             }
         )
         assert updated.greeks_source == GreeksSource.COMPUTED
-        assert updated.bid_iv == 0.25
+        assert updated.bid_iv == pytest.approx(0.25, rel=1e-3)
         assert updated.ask_iv is None  # unchanged
 
 

@@ -145,16 +145,16 @@ class TestYFinanceChainProvider:
     async def test_fetch_expirations_happy_path(self, provider: YFinanceChainProvider) -> None:
         """fetch_expirations returns sorted list[date] from yfinance .options."""
         mock_ticker = MagicMock()
-        mock_ticker.options = ("2026-04-18", "2026-03-21", "2026-05-16")
+        mock_ticker.options = ("2099-04-18", "2099-03-21", "2099-05-16")
 
         with patch("options_arena.services.options_data.yf") as mock_yf:
             mock_yf.Ticker.return_value = mock_ticker
             result = await provider.fetch_expirations("AAPL")
 
         assert result == [
-            date(2026, 3, 21),
-            date(2026, 4, 18),
-            date(2026, 5, 16),
+            date(2099, 3, 21),
+            date(2099, 4, 18),
+            date(2099, 5, 16),
         ]
         for d in result:
             assert isinstance(d, date)
@@ -190,13 +190,13 @@ class TestYFinanceChainProvider:
 
         with patch("options_arena.services.options_data.yf") as mock_yf:
             mock_yf.Ticker.return_value = mock_ticker
-            contracts = await provider.fetch_chain("AAPL", date(2026, 4, 18))
+            contracts = await provider.fetch_chain("AAPL", date(2099, 4, 18))
 
         assert len(contracts) == 2
         call = contracts[0]
         assert call.option_type == OptionType.CALL
         assert call.ticker == "AAPL"
-        assert call.expiration == date(2026, 4, 18)
+        assert call.expiration == date(2099, 4, 18)
         assert call.exercise_style == ExerciseStyle.AMERICAN
 
         put = contracts[1]
@@ -229,9 +229,9 @@ class TestYFinanceChainProvider:
             mock_yf.Ticker.return_value = mock_ticker
 
             # First call — hits yfinance
-            result1 = await provider.fetch_chain("CACHE", date(2026, 4, 18))
+            result1 = await provider.fetch_chain("CACHE", date(2099, 4, 18))
             # Second call — should use cache
-            result2 = await provider.fetch_chain("CACHE", date(2026, 4, 18))
+            result2 = await provider.fetch_chain("CACHE", date(2099, 4, 18))
 
         assert call_count == 1  # yfinance called only once
         assert len(result1) == len(result2)
@@ -259,7 +259,7 @@ class TestYFinanceChainProvider:
         with patch("options_arena.services.options_data.yf") as mock_yf:
             mock_yf.Ticker.return_value = mock_ticker
             with pytest.raises(DataSourceUnavailableError, match="timeout"):
-                await prov.fetch_chain("SLOW", date(2026, 4, 18))
+                await prov.fetch_chain("SLOW", date(2099, 4, 18))
 
     async def test_fetch_chain_liquidity_filter(self, provider: YFinanceChainProvider) -> None:
         """Contracts failing liquidity filter are excluded from results."""
@@ -289,7 +289,7 @@ class TestYFinanceChainProvider:
 
         with patch("options_arena.services.options_data.yf") as mock_yf:
             mock_yf.Ticker.return_value = mock_ticker
-            contracts = await provider.fetch_chain("FILT", date(2026, 5, 15))
+            contracts = await provider.fetch_chain("FILT", date(2099, 5, 15))
 
         assert len(contracts) == 1
         assert contracts[0].strike == Decimal("150.0")
@@ -312,7 +312,7 @@ class TestYFinanceChainProvider:
 
         with patch("options_arena.services.options_data.yf") as mock_yf:
             mock_yf.Ticker.return_value = mock_ticker
-            contracts = await provider.fetch_chain("QQQ", date(2026, 4, 17))
+            contracts = await provider.fetch_chain("QQQ", date(2099, 4, 17))
 
         for c in contracts:
             assert c.greeks is None
@@ -335,7 +335,7 @@ class TestYFinanceChainProvider:
 
         with patch("options_arena.services.options_data.yf") as mock_yf:
             mock_yf.Ticker.return_value = mock_ticker
-            contracts = await provider.fetch_chain("GS", date(2026, 6, 19))
+            contracts = await provider.fetch_chain("GS", date(2099, 6, 19))
 
         assert len(contracts) == 1
         assert contracts[0].greeks_source is None
@@ -358,7 +358,7 @@ class TestOptionsDataServiceDelegation:
     ) -> None:
         """OptionsDataService.fetch_expirations delegates to provider."""
         mock_ticker = MagicMock()
-        mock_ticker.options = ("2026-04-18", "2026-03-21")
+        mock_ticker.options = ("2099-04-18", "2099-03-21")
 
         service = OptionsDataService(config, pricing_config, cache, limiter)
 
@@ -366,7 +366,7 @@ class TestOptionsDataServiceDelegation:
             mock_yf.Ticker.return_value = mock_ticker
             result = await service.fetch_expirations("AAPL")
 
-        assert result == [date(2026, 3, 21), date(2026, 4, 18)]
+        assert result == [date(2099, 3, 21), date(2099, 4, 18)]
 
     async def test_service_uses_injected_provider(
         self,
@@ -378,7 +378,7 @@ class TestOptionsDataServiceDelegation:
         """OptionsDataService accepts a custom ChainProvider via constructor."""
         # Create a mock provider that satisfies ChainProvider protocol
         mock_provider = MagicMock(spec=YFinanceChainProvider)
-        mock_provider.fetch_expirations.return_value = [date(2026, 7, 17)]
+        mock_provider.fetch_expirations.return_value = [date(2099, 7, 17)]
         mock_provider.fetch_chain.return_value = []
 
         service = OptionsDataService(
@@ -386,12 +386,12 @@ class TestOptionsDataServiceDelegation:
         )
 
         expirations = await service.fetch_expirations("TEST")
-        assert expirations == [date(2026, 7, 17)]
+        assert expirations == [date(2099, 7, 17)]
         mock_provider.fetch_expirations.assert_awaited_once_with("TEST")
 
-        chain = await service.fetch_chain("TEST", date(2026, 7, 17))
+        chain = await service.fetch_chain("TEST", date(2099, 7, 17))
         assert chain == []
-        mock_provider.fetch_chain.assert_awaited_once_with("TEST", date(2026, 7, 17))
+        mock_provider.fetch_chain.assert_awaited_once_with("TEST", date(2099, 7, 17))
 
     async def test_service_default_provider_is_yfinance(
         self,

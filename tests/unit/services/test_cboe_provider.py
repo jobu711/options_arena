@@ -198,7 +198,7 @@ class TestFetchChain:
         call_row: dict[str, Any] = {
             "option_type": "call",
             "strike": 185.0,
-            "expiration": "2026-04-18",
+            "expiration": "2099-04-18",
             "bid": 5.30,
             "ask": 5.70,
             "last_price": 5.50,
@@ -214,7 +214,7 @@ class TestFetchChain:
         put_row: dict[str, Any] = {
             "option_type": "put",
             "strike": 185.0,
-            "expiration": "2026-04-18",
+            "expiration": "2099-04-18",
             "bid": 3.00,
             "ask": 3.40,
             "last_price": 3.20,
@@ -231,7 +231,7 @@ class TestFetchChain:
         mock_obb.derivatives.options.chains.return_value = _make_obb_result(df)
 
         provider = CBOEChainProvider(config, cache, limiter)
-        contracts = await provider.fetch_chain("AAPL", date(2026, 4, 18))
+        contracts = await provider.fetch_chain("AAPL", date(2099, 4, 18))
 
         assert len(contracts) == 2
 
@@ -239,7 +239,7 @@ class TestFetchChain:
         assert call.ticker == "AAPL"
         assert call.option_type == OptionType.CALL
         assert call.strike == Decimal("185.0")
-        assert call.expiration == date(2026, 4, 18)
+        assert call.expiration == date(2099, 4, 18)
         assert call.exercise_style == ExerciseStyle.AMERICAN
         assert call.bid == Decimal("5.3")
         assert call.ask == Decimal("5.7")
@@ -266,7 +266,7 @@ class TestFetchChain:
         row: dict[str, Any] = {
             "option_type": "call",
             "strike": 200.0,
-            "expiration": "2026-05-15",
+            "expiration": "2099-05-15",
             "bid": 8.00,
             "ask": 8.50,
             "volume": 100,
@@ -282,7 +282,7 @@ class TestFetchChain:
         mock_obb.derivatives.options.chains.return_value = _make_obb_result(df)
 
         provider = CBOEChainProvider(config, cache, limiter)
-        contracts = await provider.fetch_chain("MSFT", date(2026, 5, 15))
+        contracts = await provider.fetch_chain("MSFT", date(2099, 5, 15))
 
         assert len(contracts) == 1
         c = contracts[0]
@@ -310,7 +310,7 @@ class TestFetchChain:
         row: dict[str, Any] = {
             "option_type": "call",
             "strike": 150.0,
-            "expiration": "2026-06-19",
+            "expiration": "2099-06-19",
             "bid": 4.00,
             "ask": 4.50,
             "volume": 200,
@@ -326,7 +326,7 @@ class TestFetchChain:
         mock_obb.derivatives.options.chains.return_value = _make_obb_result(df)
 
         provider = CBOEChainProvider(config, cache, limiter)
-        contracts = await provider.fetch_chain("GOOG", date(2026, 6, 19))
+        contracts = await provider.fetch_chain("GOOG", date(2099, 6, 19))
 
         assert len(contracts) == 1
         assert contracts[0].greeks is None
@@ -347,7 +347,7 @@ class TestFetchChain:
         row: dict[str, Any] = {
             "option_type": "put",
             "strike": 170.0,
-            "expiration": "2026-04-18",
+            "expiration": "2099-04-18",
             "bid": 2.50,
             "ask": 3.00,
             "volume": 50,
@@ -366,7 +366,7 @@ class TestFetchChain:
         mock_obb.derivatives.options.chains.return_value = _make_obb_result(df)
 
         provider = CBOEChainProvider(config, cache, limiter)
-        contracts = await provider.fetch_chain("AMZN", date(2026, 4, 18))
+        contracts = await provider.fetch_chain("AMZN", date(2099, 4, 18))
 
         assert len(contracts) == 1
         c = contracts[0]
@@ -388,7 +388,7 @@ class TestFetchChain:
         row: dict[str, Any] = {
             "option_type": "call",
             "strike": 180.0,
-            "expiration": "2026-04-18",
+            "expiration": "2099-04-18",
             "bid": 6.00,
             "ask": 6.50,
             "volume": 150,
@@ -405,7 +405,7 @@ class TestFetchChain:
         mock_obb.derivatives.options.chains.return_value = _make_obb_result(df)
 
         provider = CBOEChainProvider(config, cache, limiter)
-        contracts = await provider.fetch_chain("META", date(2026, 4, 18))
+        contracts = await provider.fetch_chain("META", date(2099, 4, 18))
 
         assert len(contracts) == 1
         assert contracts[0].bid_iv is None
@@ -427,7 +427,7 @@ class TestFetchChain:
         mock_obb.derivatives.options.chains.return_value = _make_obb_result(df)
 
         provider = CBOEChainProvider(config, cache, limiter)
-        contracts = await provider.fetch_chain("EMPTY", date(2026, 4, 18))
+        contracts = await provider.fetch_chain("EMPTY", date(2099, 4, 18))
 
         assert contracts == []
 
@@ -447,7 +447,7 @@ class TestFetchChain:
         provider = CBOEChainProvider(config, cache, limiter)
 
         with pytest.raises(DataSourceUnavailableError, match="CBOE via OpenBB"):
-            await provider.fetch_chain("ERR", date(2026, 4, 18))
+            await provider.fetch_chain("ERR", date(2099, 4, 18))
 
     @patch("options_arena.services.cboe_provider._get_obb")
     async def test_fetch_chain_sdk_not_installed_raises(
@@ -462,7 +462,7 @@ class TestFetchChain:
         provider = CBOEChainProvider(config, cache, limiter)
 
         with pytest.raises(DataSourceUnavailableError, match="not installed"):
-            await provider.fetch_chain("AAPL", date(2026, 4, 18))
+            await provider.fetch_chain("AAPL", date(2099, 4, 18))
 
     @patch("options_arena.services.cboe_provider._get_obb")
     async def test_fetch_chain_chains_disabled_raises(
@@ -477,7 +477,7 @@ class TestFetchChain:
         provider = CBOEChainProvider(config_disabled, cache, limiter)
 
         with pytest.raises(DataSourceUnavailableError, match="not enabled"):
-            await provider.fetch_chain("AAPL", date(2026, 4, 18))
+            await provider.fetch_chain("AAPL", date(2099, 4, 18))
 
     @patch("options_arena.services.cboe_provider._get_obb")
     async def test_fetch_chain_cache_hit(
@@ -494,7 +494,7 @@ class TestFetchChain:
         row: dict[str, Any] = {
             "option_type": "call",
             "strike": 250.0,
-            "expiration": "2026-04-18",
+            "expiration": "2099-04-18",
             "bid": 10.0,
             "ask": 10.5,
             "volume": 100,
@@ -507,9 +507,9 @@ class TestFetchChain:
         provider = CBOEChainProvider(config, cache, limiter)
 
         # First call — hits SDK
-        result1 = await provider.fetch_chain("CACHE", date(2026, 4, 18))
+        result1 = await provider.fetch_chain("CACHE", date(2099, 4, 18))
         # Second call — should use cache
-        result2 = await provider.fetch_chain("CACHE", date(2026, 4, 18))
+        result2 = await provider.fetch_chain("CACHE", date(2099, 4, 18))
 
         # SDK called only once (the second call uses cache)
         assert mock_obb.derivatives.options.chains.call_count == 1
@@ -531,7 +531,7 @@ class TestFetchChain:
         row_match: dict[str, Any] = {
             "option_type": "call",
             "strike": 200.0,
-            "expiration": "2026-04-18",
+            "expiration": "2099-04-18",
             "bid": 5.0,
             "ask": 5.5,
             "volume": 100,
@@ -541,7 +541,7 @@ class TestFetchChain:
         row_other: dict[str, Any] = {
             "option_type": "call",
             "strike": 210.0,
-            "expiration": "2026-05-16",
+            "expiration": "2099-05-16",
             "bid": 3.0,
             "ask": 3.5,
             "volume": 50,
@@ -552,7 +552,7 @@ class TestFetchChain:
         mock_obb.derivatives.options.chains.return_value = _make_obb_result(df)
 
         provider = CBOEChainProvider(config, cache, limiter)
-        contracts = await provider.fetch_chain("FILT", date(2026, 4, 18))
+        contracts = await provider.fetch_chain("FILT", date(2099, 4, 18))
 
         assert len(contracts) == 1
         assert contracts[0].strike == Decimal("200.0")
@@ -572,7 +572,7 @@ class TestFetchChain:
         good_row: dict[str, Any] = {
             "option_type": "call",
             "strike": 150.0,
-            "expiration": "2026-04-18",
+            "expiration": "2099-04-18",
             "bid": 4.0,
             "ask": 4.5,
             "volume": 100,
@@ -582,7 +582,7 @@ class TestFetchChain:
         bad_row: dict[str, Any] = {
             "option_type": "call",
             "strike": 0.0,
-            "expiration": "2026-04-18",
+            "expiration": "2099-04-18",
             "bid": 1.0,
             "ask": 1.5,
             "volume": 10,
@@ -593,7 +593,7 @@ class TestFetchChain:
         mock_obb.derivatives.options.chains.return_value = _make_obb_result(df)
 
         provider = CBOEChainProvider(config, cache, limiter)
-        contracts = await provider.fetch_chain("SKIP", date(2026, 4, 18))
+        contracts = await provider.fetch_chain("SKIP", date(2099, 4, 18))
 
         assert len(contracts) == 1
         assert contracts[0].strike == Decimal("150.0")
@@ -614,7 +614,7 @@ class TestFetchChain:
             {
                 "option_type": "call",
                 "strike": 100.0,
-                "expiration": "2026-04-18",
+                "expiration": "2099-04-18",
                 "bid": 2.0,
                 "ask": 2.5,
                 "volume": 50,
@@ -624,7 +624,7 @@ class TestFetchChain:
             {
                 "option_type": "put",
                 "strike": 100.0,
-                "expiration": "2026-04-18",
+                "expiration": "2099-04-18",
                 "bid": 1.5,
                 "ask": 2.0,
                 "volume": 40,
@@ -636,7 +636,7 @@ class TestFetchChain:
         mock_obb.derivatives.options.chains.return_value = _make_obb_result(df)
 
         provider = CBOEChainProvider(config, cache, limiter)
-        contracts = await provider.fetch_chain("SPY", date(2026, 4, 18))
+        contracts = await provider.fetch_chain("SPY", date(2099, 4, 18))
 
         for c in contracts:
             assert c.exercise_style == ExerciseStyle.AMERICAN
@@ -663,10 +663,10 @@ class TestFetchExpirations:
         mock_get_obb.return_value = mock_obb
 
         rows = [
-            {"option_type": "call", "strike": 100.0, "expiration": "2026-05-16"},
-            {"option_type": "call", "strike": 110.0, "expiration": "2026-04-18"},
-            {"option_type": "put", "strike": 100.0, "expiration": "2026-05-16"},
-            {"option_type": "call", "strike": 120.0, "expiration": "2026-06-19"},
+            {"option_type": "call", "strike": 100.0, "expiration": "2099-05-16"},
+            {"option_type": "call", "strike": 110.0, "expiration": "2099-04-18"},
+            {"option_type": "put", "strike": 100.0, "expiration": "2099-05-16"},
+            {"option_type": "call", "strike": 120.0, "expiration": "2099-06-19"},
         ]
         df = _make_cboe_df(rows)
         mock_obb.derivatives.options.chains.return_value = _make_obb_result(df)
@@ -675,9 +675,9 @@ class TestFetchExpirations:
         expirations = await provider.fetch_expirations("AAPL")
 
         assert expirations == [
-            date(2026, 4, 18),
-            date(2026, 5, 16),
-            date(2026, 6, 19),
+            date(2099, 4, 18),
+            date(2099, 5, 16),
+            date(2099, 6, 19),
         ]
         for d in expirations:
             assert isinstance(d, date)
@@ -710,7 +710,7 @@ class TestFetchExpirations:
         mock_get_obb.return_value = mock_obb
 
         rows = [
-            {"option_type": "call", "strike": 100.0, "expiration": "2026-04-18"},
+            {"option_type": "call", "strike": 100.0, "expiration": "2099-04-18"},
         ]
         df = _make_cboe_df(rows)
         mock_obb.derivatives.options.chains.return_value = _make_obb_result(df)
@@ -826,7 +826,7 @@ class TestMarketIVMapping:
         row: dict[str, Any] = {
             "option_type": "call",
             "strike": 100.0,
-            "expiration": "2026-04-18",
+            "expiration": "2099-04-18",
             "bid": 2.0,
             "ask": 2.5,
             "volume": 50,
@@ -837,7 +837,7 @@ class TestMarketIVMapping:
         mock_obb.derivatives.options.chains.return_value = _make_obb_result(df)
 
         provider = CBOEChainProvider(config, cache, limiter)
-        contracts = await provider.fetch_chain("IV", date(2026, 4, 18))
+        contracts = await provider.fetch_chain("IV", date(2099, 4, 18))
 
         assert contracts[0].market_iv == pytest.approx(0.42, rel=1e-3)
 
@@ -856,7 +856,7 @@ class TestMarketIVMapping:
         row: dict[str, Any] = {
             "option_type": "call",
             "strike": 100.0,
-            "expiration": "2026-04-18",
+            "expiration": "2099-04-18",
             "bid": 2.0,
             "ask": 2.5,
             "volume": 50,
@@ -869,6 +869,6 @@ class TestMarketIVMapping:
         mock_obb.derivatives.options.chains.return_value = _make_obb_result(df)
 
         provider = CBOEChainProvider(config, cache, limiter)
-        contracts = await provider.fetch_chain("IVMID", date(2026, 4, 18))
+        contracts = await provider.fetch_chain("IVMID", date(2099, 4, 18))
 
         assert contracts[0].market_iv == pytest.approx(0.35, rel=1e-3)
