@@ -402,4 +402,5 @@ class TestOptionsDataServiceDelegation:
     ) -> None:
         """When no provider is given, OptionsDataService defaults to YFinanceChainProvider."""
         service = OptionsDataService(config, pricing_config, cache, limiter)
-        assert isinstance(service._provider, YFinanceChainProvider)
+        assert len(service._providers) == 1
+        assert isinstance(service._providers[0], YFinanceChainProvider)

@@ -1,4 +1,4 @@
-"""Options data service — fetches option chains from yfinance.
+"""Options data service — fetches option chains with provider orchestration.
 
 Applies basic liquidity filters (OI, volume, both-zero rejection) and converts
 yfinance camelCase DataFrame rows to typed ``OptionContract`` models.
@@ -10,7 +10,10 @@ re-annualization (it is already annualized).
 Architecture:
     ``ChainProvider`` is a ``Protocol`` defining the chain-fetching contract.
     ``YFinanceChainProvider`` implements it using yfinance.
-    ``OptionsDataService`` delegates to a ``ChainProvider`` (defaults to yfinance).
+    ``CBOEChainProvider`` implements it using OpenBB (optional).
+    ``OptionsDataService`` builds a prioritized provider list and iterates
+    with fallback on ``DataSourceUnavailableError``. CBOE is tried first
+    (when enabled and available), yfinance as fallback.
 """
 
 from __future__ import annotations
@@ -27,10 +30,11 @@ import pandas as pd
 import yfinance as yf  # type: ignore[import-untyped]
 from pydantic import BaseModel
 
-from options_arena.models.config import PricingConfig, ServiceConfig
+from options_arena.models.config import OpenBBConfig, PricingConfig, ServiceConfig
 from options_arena.models.enums import ExerciseStyle, OptionType
 from options_arena.models.options import OptionContract
 from options_arena.services.cache import ServiceCache
+from options_arena.services.cboe_provider import CBOEChainProvider
 from options_arena.services.helpers import fetch_with_retry, safe_decimal, safe_float, safe_int
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.utils.exceptions import DataFetchError, DataSourceUnavailableError
@@ -355,18 +359,26 @@ class ExpirationChain(BaseModel):
 
 
 class OptionsDataService:
-    """Fetches option chains with caching and rate limiting.
+    """Fetches option chains with provider orchestration and fallback.
 
-    Delegates to an internal ``ChainProvider`` (defaults to
-    ``YFinanceChainProvider``). The public API (``fetch_chain``,
-    ``fetch_expirations``, ``fetch_chain_all_expirations``) is unchanged.
+    Builds a prioritized list of ``ChainProvider`` instances and iterates
+    them with fallback on ``DataSourceUnavailableError``. When CBOE chains
+    are enabled (via ``OpenBBConfig``), CBOE is tried first; yfinance is
+    always the last-resort fallback.
+
+    Backward compatible: existing code that passes ``provider=`` or omits
+    ``openbb_config`` works exactly as before.
 
     Args:
         config: Service configuration with timeout settings.
         pricing_config: Pricing configuration with OI/volume filter thresholds.
         cache: Two-tier service cache for chain data.
-        limiter: Rate limiter for yfinance API calls.
-        provider: Optional chain provider override (defaults to yfinance).
+        limiter: Rate limiter for API calls.
+        provider: Optional chain provider override — when given, used as the
+            sole provider (ignores ``openbb_config``). Useful for tests.
+        openbb_config: Optional OpenBB configuration. When provided with
+            ``cboe_chains_enabled=True`` and the SDK is available, CBOE is
+            registered as the primary provider ahead of yfinance.
     """
 
     def __init__(
@@ -377,22 +389,67 @@ class OptionsDataService:
         limiter: RateLimiter,
         *,
         provider: ChainProvider | None = None,
+        openbb_config: OpenBBConfig | None = None,
     ) -> None:
         self._config = config
         self._pricing_config = pricing_config
         self._cache = cache
         self._limiter = limiter
-        self._provider: ChainProvider = provider or YFinanceChainProvider(
-            config=config,
-            pricing_config=pricing_config,
+
+        # When a custom provider is injected (tests), use it as the sole provider
+        if provider is not None:
+            self._providers: list[ChainProvider] = [provider]
+            logger.info("Using injected chain provider: %s", type(provider).__name__)
+        else:
+            self._providers = self._build_provider_list(openbb_config, cache, limiter)
+
+    def _build_provider_list(
+        self,
+        openbb_config: OpenBBConfig | None,
+        cache: ServiceCache,
+        limiter: RateLimiter,
+    ) -> list[ChainProvider]:
+        """Build the prioritized provider list from configuration.
+
+        CBOE (via OpenBB) is registered first when enabled and available.
+        ``YFinanceChainProvider`` is always appended as the last-resort fallback.
+
+        Args:
+            openbb_config: Optional OpenBB configuration with CBOE toggle.
+            cache: Two-tier service cache for chain data.
+            limiter: Rate limiter for API calls.
+
+        Returns:
+            Ordered list of ``ChainProvider`` instances.
+        """
+        providers: list[ChainProvider] = []
+
+        if openbb_config is not None and openbb_config.cboe_chains_enabled:
+            cboe = CBOEChainProvider(config=openbb_config, cache=cache, limiter=limiter)
+            if cboe.available:
+                providers.append(cboe)
+                logger.info("Registered CBOE chain provider (primary)")
+            else:
+                logger.warning(
+                    "CBOE chains enabled in config but OpenBB SDK not available — skipping"
+                )
+
+        yfinance_provider = YFinanceChainProvider(
+            config=self._config,
+            pricing_config=self._pricing_config,
             cache=cache,
             limiter=limiter,
         )
+        providers.append(yfinance_provider)
+        logger.info("Registered YFinance chain provider (fallback)")
+
+        return providers
 
     async def fetch_expirations(self, ticker: str) -> list[date]:
         """Fetch available option expiration dates for a ticker.
 
-        Returns dates sorted ascending. Uses the cache with ``chain`` TTL.
+        Iterates providers in priority order with fallback on
+        ``DataSourceUnavailableError``.
 
         Args:
             ticker: The underlying ticker symbol (e.g., ``"AAPL"``).
@@ -401,9 +458,21 @@ class OptionsDataService:
             Sorted list of expiration dates.
 
         Raises:
-            DataSourceUnavailableError: On yfinance timeout or error.
+            DataSourceUnavailableError: When all providers fail.
         """
-        return await self._provider.fetch_expirations(ticker)
+        last_error: DataSourceUnavailableError | None = None
+        for provider in self._providers:
+            try:
+                return await provider.fetch_expirations(ticker)
+            except DataSourceUnavailableError as e:
+                logger.warning(
+                    "Provider %s failed fetch_expirations for %s: %s",
+                    type(provider).__name__,
+                    ticker,
+                    e,
+                )
+                last_error = e
+        raise last_error or DataSourceUnavailableError("options", "No chain providers available")
 
     async def fetch_chain(
         self,
@@ -412,9 +481,9 @@ class OptionsDataService:
     ) -> list[OptionContract]:
         """Fetch the option chain for a specific expiration date.
 
-        Applies liquidity filtering and converts yfinance data to typed
-        ``OptionContract`` models with ``greeks=None`` and
-        ``exercise_style=ExerciseStyle.AMERICAN``.
+        Iterates providers in priority order with fallback on
+        ``DataSourceUnavailableError``. The first provider to succeed
+        returns the result; subsequent providers are not tried.
 
         Args:
             ticker: The underlying ticker symbol.
@@ -424,9 +493,21 @@ class OptionsDataService:
             List of ``OptionContract`` models that pass liquidity filters.
 
         Raises:
-            DataSourceUnavailableError: On yfinance timeout or error.
+            DataSourceUnavailableError: When all providers fail.
         """
-        return await self._provider.fetch_chain(ticker, expiration)
+        last_error: DataSourceUnavailableError | None = None
+        for provider in self._providers:
+            try:
+                return await provider.fetch_chain(ticker, expiration)
+            except DataSourceUnavailableError as e:
+                logger.warning(
+                    "Provider %s failed fetch_chain for %s: %s",
+                    type(provider).__name__,
+                    ticker,
+                    e,
+                )
+                last_error = e
+        raise last_error or DataSourceUnavailableError("options", "No chain providers available")
 
     async def fetch_chain_all_expirations(
         self,
@@ -474,7 +555,8 @@ class OptionsDataService:
         return chains
 
     async def close(self) -> None:
-        """Clean up resources. Delegates to provider if it has a ``close`` method."""
-        close_fn = getattr(self._provider, "close", None)
-        if close_fn is not None and callable(close_fn):
-            await close_fn()
+        """Clean up resources. Closes all providers that have a ``close`` method."""
+        for provider in self._providers:
+            close_fn = getattr(provider, "close", None)
+            if close_fn is not None and callable(close_fn):
+                await close_fn()
