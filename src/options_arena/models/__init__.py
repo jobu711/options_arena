@@ -15,7 +15,19 @@ from options_arena.models.analysis import (
     TradeThesis,
     VolatilityThesis,
 )
+from options_arena.models.analytics import (
+    ContractOutcome,
+    DeltaPerformanceResult,
+    HoldingPeriodResult,
+    IndicatorAttributionResult,
+    NormalizationStats,
+    PerformanceSummary,
+    RecommendedContract,
+    ScoreCalibrationBucket,
+    WinRateResult,
+)
 from options_arena.models.config import (
+    AnalyticsConfig,
     AppSettings,
     DataConfig,
     DebateConfig,
@@ -38,6 +50,7 @@ from options_arena.models.enums import (
     MarketCapTier,
     MarketRegime,
     OptionType,
+    OutcomeCollectionMethod,
     PositionSide,
     PricingModel,
     RiskLevel,
@@ -90,6 +103,7 @@ __all__ = [
     "MarketCapTier",
     "MarketRegime",
     "OptionType",
+    "OutcomeCollectionMethod",
     "PositionSide",
     "PricingModel",
     "RiskLevel",
@@ -119,6 +133,16 @@ __all__ = [
     "RiskAssessment",
     "TradeThesis",
     "VolatilityThesis",
+    # Analytics
+    "ContractOutcome",
+    "DeltaPerformanceResult",
+    "HoldingPeriodResult",
+    "IndicatorAttributionResult",
+    "NormalizationStats",
+    "PerformanceSummary",
+    "RecommendedContract",
+    "ScoreCalibrationBucket",
+    "WinRateResult",
     # Scan
     "IndicatorSignals",
     "ScanRun",
@@ -130,6 +154,7 @@ __all__ = [
     "DimensionalScores",
     "DirectionSignal",
     # Config
+    "AnalyticsConfig",
     "AppSettings",
     "DataConfig",
     "DebateConfig",
