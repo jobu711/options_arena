@@ -511,9 +511,7 @@ class OptionsDataService:
                     ticker,
                     e,
                 )
-                last_error = DataSourceUnavailableError(
-                    type(provider).__name__, str(e)
-                )
+                last_error = DataSourceUnavailableError(type(provider).__name__, str(e))
         raise last_error or DataSourceUnavailableError("options", "No chain providers available")
 
     async def fetch_chain(
@@ -586,9 +584,7 @@ class OptionsDataService:
                     ticker,
                     e,
                 )
-                last_error = DataSourceUnavailableError(
-                    type(provider).__name__, str(e)
-                )
+                last_error = DataSourceUnavailableError(type(provider).__name__, str(e))
         raise last_error or DataSourceUnavailableError("options", "No chain providers available")
 
     async def _validate_chain(

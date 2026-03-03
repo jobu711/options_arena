@@ -61,17 +61,9 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 On any error: data-driven fallback (is_fallback=True, confidence=0.3)
 ```
 
-### Batch Debate Pattern
-- `_debate_single()` extracted from `_debate_async()` — reusable for single and batch
-- `_batch_async()` loads top N scores from latest scan, creates services once, iterates sequentially
-- Error isolation: per-ticker try/except, failures logged and included in summary table
-- `render_batch_summary_table()` renders compact Rich Table at the end
-
-### Debate Export Pattern
-- `reporting/debate_export.py` generates markdown from `DebateResult`
-- PDF via optional `weasyprint` dependency (graceful `ImportError` if missing)
-- `--export md|pdf` and `--export-dir` flags on debate command
-- Export happens after rendering, before disclaimer
+### Batch Debate & Export Patterns
+- `_debate_single()` reusable for single and batch; `_batch_async()` iterates sequentially with per-ticker error isolation
+- `reporting/debate_export.py` generates markdown/PDF from `DebateResult`; PDF via optional `weasyprint`
 
 ### Scan Pipeline Data Flow
 ```
@@ -127,12 +119,16 @@ Phase 4: Persist to SQLite
 - Earnings warning injected into debate prompts when within 7 days
 - Frontend: earnings date column + overlay on scan results
 
+### ChainProvider Pattern (Option Chain Abstraction)
+- **Protocol**: `ChainProvider` with `fetch_chain()` method — `CBOEChainProvider` (primary) + `YFinanceChainProvider` (fallback)
+- **Three-tier Greeks**: CBOE native Greeks → local BAW/BSM computation → exclude contract
+- **Orchestration**: `options_data.py` tries CBOE with timeout, falls back to yfinance on any exception
+- **DI wiring**: Provider injected at 5 call sites (CLI + API); config-gated via `cboe_chains_enabled`
+
 ### OpenBB Enrichment Pattern (Optional)
-- **Guarded imports**: `_get_obb()`/`_get_vader()` return SDK or `None` — never-raises contract on all methods
-- **Not in pyproject.toml**: version conflicts with fastapi/ruff — users install separately
+- **Guarded imports**: `_get_obb()`/`_get_vader()` return SDK or `None` — never-raises contract
 - **Config-gated**: `OpenBBConfig.enabled` master toggle + per-source toggles (fundamentals, flow, sentiment)
 - **MarketContext**: 11 enrichment fields + `enrichment_ratio()` (separate from `completeness_ratio()`)
-- **Agent context**: `_parsing.py` builds Fundamental/Flow/Sentiment prompt sections
 - **Models**: 5 frozen (`FundamentalSnapshot`, `UnusualFlowSnapshot`, `NewsHeadline`, `NewsSentimentSnapshot`, `OpenBBHealthStatus`)
 
 For detailed algorithm specs, see `system-patterns-reference.md`.

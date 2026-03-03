@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-03-01T09:14:06Z
-version: 3.0
+last_updated: 2026-03-02T10:59:50Z
+version: 3.1
 author: Claude Code PM System
 ---
 
@@ -36,12 +36,12 @@ author: Claude Code PM System
 
 ## Scope Boundaries
 
-- **In scope (v2.1.0 — Complete)**: CLI + Web UI, yfinance data, BAW/BSM pricing, SQLite persistence, 40+ indicators (18 core + DSE), Rich terminal output, scan pipeline, health checks, universe management, AI debate (standard + DSE 6-agent), rebuttal, batch debate, markdown/PDF export, watchlists, score history/trending, CI/CD
-- **Future**: Additional LLM providers (Anthropic Claude, OpenAI), real-time streaming, frontend unit tests
+- **In scope (v2.2.0 — Complete)**: CLI + Web UI, yfinance data, BAW/BSM pricing, SQLite persistence, 40+ indicators (18 core + DSE), Rich terminal output, scan pipeline, health checks, universe management, AI debate (standard + DSE 6-agent), rebuttal, batch debate, markdown/PDF export, watchlists, score history/trending, CI/CD, OpenBB enrichment (fundamentals/flow/sentiment), CBOE chain provider with yfinance fallback
+- **Future**: Additional LLM providers (Anthropic Claude, OpenAI), real-time streaming, frontend unit tests, OpenBB web UI display
 - **Out of scope**: Portfolio management, trade execution
 
 ## Repository
 
 - **GitHub**: jobu711/options_arena
-- **Branch**: `master` (all phases + 12 epics merged, 2,328 tests, 158 issues closed)
+- **Branch**: `master` (all phases + 15 epics merged, 2,917 tests, 169 issues closed)
 - **Package**: `options_arena` (PEP 8 compliant). PRD: `.claude/prds/options-arena.md`

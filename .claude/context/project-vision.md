@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-03-01T09:14:06Z
-version: 3.0
+last_updated: 2026-03-02T10:59:50Z
+version: 4.0
 author: Claude Code PM System
 ---
 
@@ -9,7 +9,7 @@ author: Claude Code PM System
 
 ## Long-Term Direction
 
-Options Arena is a comprehensive options analysis platform that combines quantitative analysis with AI-driven qualitative reasoning via multi-agent debate. The system was built in phases and is now feature-complete at v2.1.0.
+Options Arena is a comprehensive options analysis platform that combines quantitative analysis with AI-driven qualitative reasoning via multi-agent debate. The system was built in phases and is now feature-complete at v2.2.0.
 
 ## Completed Phases
 
@@ -36,6 +36,14 @@ Options Arena is a comprehensive options analysis platform that combines quantit
 - Extended Greeks (charm, vanna, vomma, speed), IV surface utilities
 - CI workflow (GitHub Actions), +576 tests
 - **Total**: 2,328 tests, 158 GitHub issues closed
+
+### v2.2.0: OpenBB Integration + Chain Migration (Complete — 2026-03-02)
+- OpenBB enrichment: fundamentals, unusual flow, news sentiment (guarded imports, config-gated)
+- `ChainProvider` protocol: CBOE via OpenBB (primary) + yfinance (fallback)
+- Three-tier Greeks: CBOE native → local BAW/BSM → exclude
+- Provider orchestration with timeout + broad exception fallback
+- DI wiring at 5 call sites, CBOE health check, validation mode
+- **Total**: 2,917 tests, 169 GitHub issues closed, 15 epics complete
 
 ### Future
 - Additional LLM providers (Anthropic Claude, OpenAI)

@@ -5,7 +5,7 @@
 - **Version**: 2.2.0 — OpenBB chain migration complete
 - **All 9 phases + 15 epics**: Complete and merged to master
 - **Tests**: 2,917 Python + 38 E2E
-- **GitHub issues**: 0 open, 176 closed
+- **GitHub issues**: 7 open, 169 closed
 - **CI**: GitHub Actions (3 gates: lint, typecheck, tests)
 - **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`), `serve`, `watchlist`
 - **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`

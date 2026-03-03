@@ -159,6 +159,14 @@ class OpenBBService:
         if self._obb is None:
             return None
 
+        # Guard against missing shorts router — the openbb-stockgrid extension
+        # may not be loaded even when the package is installed.
+        if not hasattr(self._obb.equity, "shorts"):
+            logger.warning(
+                "OpenBB equity.shorts router not available — stockgrid extension may not be loaded"
+            )
+            return None
+
         try:
             # Cache check
             cache_key = f"openbb:flow:{ticker}"

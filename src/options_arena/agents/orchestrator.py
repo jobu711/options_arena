@@ -18,7 +18,7 @@ import asyncio
 import logging
 import math
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime
 from enum import StrEnum
 
@@ -38,6 +38,8 @@ from options_arena.agents._parsing import (
 from options_arena.agents.bear import bear_agent
 from options_arena.agents.bull import bull_agent
 from options_arena.agents.contrarian_agent import contrarian_agent
+from options_arena.agents.flow_agent import flow_agent
+from options_arena.agents.fundamental_agent import fundamental_agent
 from options_arena.agents.model_config import build_debate_model
 from options_arena.agents.risk import risk_agent, risk_agent_v2
 from options_arena.agents.trend_agent import trend_agent
@@ -1271,13 +1273,14 @@ async def run_debate_v2(
     """Run 6-agent debate protocol. Falls back to data-driven on failure.
 
     Protocol flow:
-      Phase 1 (parallel): trend, volatility, [flow, fundamental from caller]
+      Phase 1 (parallel): trend, volatility, [flow, fundamental if enrichment exists]
       Phase 2 (sequential): risk_agent_v2 with Phase 1 outputs
       Phase 3 (sequential): contrarian with all 5 outputs (skip if >= 2 failures)
       Phase 4 (algorithmic): synthesize_verdict -> ExtendedTradeThesis
 
-    Flow and Fundamental agents are provided by the caller (from other tasks).
-    If not provided, they are treated as failed Phase 1 agents.
+    Flow and Fundamental agents run locally in Phase 1 when enrichment data
+    exists (enrichment_ratio > 0) and the caller hasn't provided them externally.
+    If neither condition is met, they count as Phase 1 failures.
 
     Parameters
     ----------
@@ -1382,10 +1385,9 @@ async def _run_v2_agents(
     context_text = render_context_block(context)
 
     # ---------------------------------------------------------------
-    # Phase 1: parallel (trend + volatility) — flow & fundamental from caller
+    # Phase 1: parallel — trend + volatility always; flow + fundamental
+    # when enrichment data exists and not provided externally
     # ---------------------------------------------------------------
-    logger.info("Phase 1: running trend + volatility in parallel for %s", context.ticker)
-
     base_deps = DebateDeps(
         context=context,
         ticker_score=ticker_score,
@@ -1418,17 +1420,64 @@ async def _run_v2_agents(
         timeout=per_agent_timeout,
     )
 
+    # Build optional Phase 1 agent coroutines for flow/fundamental.
+    # Run locally when not provided externally AND enrichment data exists.
+    has_enrichment = context.enrichment_ratio() > 0.0
+
+    phase1_coros: list[Awaitable[object]] = [trend_coro, vol_coro]
+    phase1_labels = ["trend", "volatility"]
+
+    flow_coro = None
+    if flow_output is None and has_enrichment:
+        flow_deps = DebateDeps(
+            context=context,
+            ticker_score=ticker_score,
+            contracts=contracts,
+        )
+        flow_coro = asyncio.wait_for(
+            flow_agent.run(
+                f"Analyze options flow for {context.ticker}.\n\n{context_text}",
+                model=model,
+                deps=flow_deps,
+                model_settings=settings,
+            ),
+            timeout=per_agent_timeout,
+        )
+        phase1_coros.append(flow_coro)
+        phase1_labels.append("flow")
+
+    fundamental_coro = None
+    if fundamental_output is None and has_enrichment:
+        fund_deps = DebateDeps(
+            context=context,
+            ticker_score=ticker_score,
+            contracts=contracts,
+        )
+        fundamental_coro = asyncio.wait_for(
+            fundamental_agent.run(
+                f"Assess fundamental catalysts for {context.ticker}.\n\n{context_text}",
+                model=model,
+                deps=fund_deps,
+                model_settings=settings,
+            ),
+            timeout=per_agent_timeout,
+        )
+        phase1_coros.append(fundamental_coro)
+        phase1_labels.append("fundamental")
+
+    logger.info(
+        "Phase 1: running %s in parallel for %s",
+        " + ".join(phase1_labels),
+        context.ticker,
+    )
+
     # Respect phase1_parallelism — batch if needed
     parallelism = config.phase1_parallelism
-    phase1_coros = [trend_coro, vol_coro]
-
     if parallelism >= len(phase1_coros):
         phase1_results = await asyncio.gather(*phase1_coros, return_exceptions=True)
     else:
         # Run in batches
-        phase1_results: list[  # type: ignore[no-redef]
-            AgentRunResult[AgentResponse] | AgentRunResult[VolatilityThesis] | BaseException
-        ] = []
+        phase1_results: list[object | BaseException] = []  # type: ignore[no-redef]
         for i in range(0, len(phase1_coros), parallelism):
             batch = phase1_coros[i : i + parallelism]
             batch_results = await asyncio.gather(*batch, return_exceptions=True)
@@ -1440,6 +1489,7 @@ async def _run_v2_agents(
     total_usage = RunUsage()
     phase1_failures = 0
 
+    # --- Trend ---
     trend_raw = phase1_results[0]
     if isinstance(trend_raw, BaseException):
         logger.warning("Trend agent failed for %s: %s", context.ticker, trend_raw)
@@ -1455,6 +1505,7 @@ async def _run_v2_agents(
             trend_output.confidence,
         )
 
+    # --- Volatility ---
     vol_raw = phase1_results[1]
     if isinstance(vol_raw, BaseException):
         logger.warning("Volatility agent failed for %s: %s", context.ticker, vol_raw)
@@ -1470,10 +1521,44 @@ async def _run_v2_agents(
             vol_thesis.confidence,
         )
 
-    # Count externally-provided agents that are missing as failures
-    if flow_output is None:
+    # --- Flow (locally-run or externally-provided) ---
+    if "flow" in phase1_labels:
+        flow_idx = phase1_labels.index("flow")
+        flow_raw = phase1_results[flow_idx]
+        if isinstance(flow_raw, BaseException):
+            logger.warning("Flow agent failed for %s: %s", context.ticker, flow_raw)
+            phase1_failures += 1
+        else:
+            flow_run: AgentRunResult[FlowThesis] = flow_raw  # type: ignore[assignment]
+            flow_output = flow_run.output
+            total_usage = total_usage + flow_run.usage()
+            logger.info(
+                "Flow agent complete for %s: direction=%s, confidence=%.2f",
+                context.ticker,
+                flow_output.direction.value,
+                flow_output.confidence,
+            )
+    elif flow_output is None:
         phase1_failures += 1
-    if fundamental_output is None:
+
+    # --- Fundamental (locally-run or externally-provided) ---
+    if "fundamental" in phase1_labels:
+        fund_idx = phase1_labels.index("fundamental")
+        fund_raw = phase1_results[fund_idx]
+        if isinstance(fund_raw, BaseException):
+            logger.warning("Fundamental agent failed for %s: %s", context.ticker, fund_raw)
+            phase1_failures += 1
+        else:
+            fund_run: AgentRunResult[FundamentalThesis] = fund_raw  # type: ignore[assignment]
+            fundamental_output = fund_run.output
+            total_usage = total_usage + fund_run.usage()
+            logger.info(
+                "Fundamental agent complete for %s: direction=%s, confidence=%.2f",
+                context.ticker,
+                fundamental_output.direction.value,
+                fundamental_output.confidence,
+            )
+    elif fundamental_output is None:
         phase1_failures += 1
 
     logger.info(

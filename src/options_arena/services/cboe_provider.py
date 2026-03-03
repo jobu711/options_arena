@@ -346,7 +346,35 @@ class CBOEChainProvider:
 
         expirations = sorted(set(expirations))
 
-        # Cache the result
+        # Pre-cache per-expiration chains from the already-fetched full DF.
+        # This prevents N+1 API calls: fetch_chain() will hit cache instead of
+        # re-fetching the entire chain for each expiration.
+        df_exp_col = pd.to_datetime(df["expiration"]).dt.date
+        for exp in expirations:
+            chain_cache_key = f"cboe:chain:{ticker}:{exp.isoformat()}"
+            if await self._cache.get(chain_cache_key) is not None:
+                continue
+            exp_df = df[df_exp_col == exp]
+            contracts: list[OptionContract] = []
+            for _, row in exp_df.iterrows():
+                try:
+                    contract = _cboe_row_to_contract(row, ticker, exp)
+                except (ValueError, TypeError):
+                    continue
+                if contract is not None:
+                    contracts.append(contract)
+            await self._cache.set(
+                chain_cache_key,
+                _contracts_to_cache_bytes(contracts),
+                ttl=self._config.chains_cache_ttl,
+            )
+        logger.debug(
+            "Pre-cached %d per-expiration chains for %s from single CBOE fetch",
+            len(expirations),
+            ticker,
+        )
+
+        # Cache the expirations list
         cache_bytes = json.dumps([d.isoformat() for d in expirations]).encode("utf-8")
         await self._cache.set(cache_key, cache_bytes, ttl=self._config.chains_cache_ttl)
 
@@ -425,9 +453,7 @@ class CBOEChainProvider:
             try:
                 contract = _cboe_row_to_contract(row, ticker, expiration)
             except (ValueError, TypeError) as exc:
-                logger.debug(
-                    "Skipping invalid CBOE row for %s %s: %s", ticker, expiration, exc
-                )
+                logger.debug("Skipping invalid CBOE row for %s %s: %s", ticker, expiration, exc)
                 continue
             if contract is not None:
                 contracts.append(contract)

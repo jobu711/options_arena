@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-03-02T06:24:51Z
-version: 6.0
+last_updated: 2026-03-02T10:59:50Z
+version: 6.1
 author: Claude Code PM System
 ---
 
@@ -18,9 +18,9 @@ author: Claude Code PM System
 
 | Source | Data | Required? |
 |--------|------|-----------|
-| Yahoo Finance (yfinance) | OHLCV, quotes, ticker info, option chains, dividends | Yes |
+| Yahoo Finance (yfinance) | OHLCV, quotes, ticker info, option chains (fallback), dividends | Yes |
 | FRED (St. Louis Fed) | 10-year Treasury rate (risk-free rate) | No (5% fallback) |
-| CBOE | Optionable ticker universe (~5,286 tickers) | No (24h cached list) |
+| CBOE | Optionable ticker universe + option chains (primary provider via OpenBB) | No (24h cached list / yfinance fallback) |
 | Wikipedia | S&P 500 constituents + GICS sectors | No (24h cached list) |
 | Groq Cloud API | LLM debate agents (Llama 3.3 70B) | No (data-driven fallback) |
 | OpenBB SDK | Fundamentals, unusual flow, news sentiment | No (optional enrichment) |
