@@ -67,11 +67,18 @@ On any error: data-driven fallback (is_fallback=True, confidence=0.3)
 
 ### Scan Pipeline Data Flow
 ```
-Phase 1: Universe (~5,286 CBOE tickers) → OHLCV fetch
-Phase 2: Indicators → normalize → score → direction
-Phase 3: Liquidity pre-filter → Top 50 → option chains → recommend contracts
-Phase 4: Persist to SQLite
+Phase 1: Universe (~5,286 CBOE tickers) → sector filter → OHLCV fetch
+Phase 2: Indicators → normalize → score → direction → dimensional scores → direction filter
+Phase 3: Liquidity pre-filter → Top 50 → market cap filter → earnings filter → IV rank filter → option chains → recommend contracts
+Phase 4: Persist to SQLite (incl. dimensional_scores, direction_confidence, market_regime)
 ```
+
+### Pre-Scan Narrowing Pattern
+- **Config-driven**: 4 filter fields on `ScanConfig` (market_cap_tiers, exclude_near_earnings_days, direction_filter, min_iv_rank)
+- **Immutable override**: `model_copy(update={...})` pattern — API/CLI pass overrides, pipeline uses merged config
+- **Phase 2 direction filter**: Applied post-scoring, before Phase 3 (cheap, no API calls)
+- **Phase 3 filters**: Market cap tier (early return), earnings proximity (strict `<`, market timezone), IV rank (after DSE populates signals)
+- **Regime classification**: Raw signal thresholds in `ScanConfig` (crisis/volatile/mean_reverting), not hardcoded
 
 ### Web API Patterns
 - **App factory**: `create_app()` with `lifespan()` — services created once, stored on `app.state`
