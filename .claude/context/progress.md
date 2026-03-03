@@ -2,9 +2,9 @@
 
 ## Current State
 
-- **Version**: 2.4.0 — Analytics Persistence (contract tracking + outcome analytics) complete
-- **All 9 phases + 17 epics**: Complete and merged to master
-- **Tests**: 3,376 Python + 38 E2E
+- **Version**: 2.5.0 — Scan Filtering (dimensional scores, pre-scan narrowing, filter UI) complete
+- **All 9 phases + 18 epics**: Complete and merged to master
+- **Tests**: 3,485 Python + 38 E2E
 - **GitHub issues**: 0 open, 176 closed
 - **CI**: GitHub Actions (3 gates: lint, typecheck, tests)
 - **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`), `serve`, `watchlist`, `outcomes` (collect, summary)
@@ -33,6 +33,16 @@ For detailed phase/epic completion logs, see `progress-archive.md`.
 None.
 
 ## Recently Completed
+
+### Epic 18: Scan Filtering (2026-03-03) — #222-#226
+Dimensional scores persistence, API filtering, pre-scan narrowing, web UI. +109 tests.
+- Migration 015: dimensional_scores JSON, direction_confidence, market_regime columns
+- Repository: persist + query dimensional fields with 6 filter params
+- Pre-scan narrowing: market_cap_tiers, exclude_near_earnings_days, direction_filter, min_iv_rank
+- CLI: 4 new scan options (--market-cap, --exclude-earnings-days, --direction, --min-iv-rank)
+- API: ScanRequest extended, 6 dimensional query params on GET scores
+- Web: RegimeBanner, DimensionalScoreBars, ScanFilterPanel (9 filters), FilterPresets (6 presets)
+- ScanPage pre-scan filter controls, ScanResultsPage URL-synced post-scan filters
 
 ### Epic 17: Analytics Persistence (2026-03-03) — #209-#213
 Contract persistence, outcome tracking, analytics API. +138 tests.

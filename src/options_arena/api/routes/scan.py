@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 
@@ -195,6 +196,7 @@ async def get_scores(  # noqa: ANN201
     direction: str | None = Query(None),
     min_score: float = Query(0.0, ge=0.0),
     search: str | None = Query(None),
+    sectors: str | None = Query(None),
     # Dimensional filters (#224)
     min_confidence: float | None = Query(None, ge=0.0, le=1.0),
     market_regime: str | None = Query(None),
@@ -226,6 +228,13 @@ async def get_scores(  # noqa: ANN201
     if search:
         search_upper = search.upper()
         filtered = [s for s in filtered if search_upper in s.ticker.upper()]
+    if sectors:
+        sector_set = {s.strip().lower() for s in sectors.split(",") if s.strip()}
+        filtered = [
+            s
+            for s in filtered
+            if s.sector is not None and s.sector.lower() in sector_set
+        ]
 
     # Dimensional filters (#224)
     if min_confidence is not None:
@@ -272,20 +281,22 @@ async def get_scores(  # noqa: ANN201
             and s.dimensional_scores.risk is not None
             and s.dimensional_scores.risk >= min_risk
         ]
-    if max_earnings_days is not None:
-        today = date.today()
-        filtered = [
-            s
-            for s in filtered
-            if s.next_earnings is not None and (s.next_earnings - today).days <= max_earnings_days
-        ]
-    if min_earnings_days is not None:
-        today = date.today()
-        filtered = [
-            s
-            for s in filtered
-            if s.next_earnings is not None and (s.next_earnings - today).days >= min_earnings_days
-        ]
+    if max_earnings_days is not None or min_earnings_days is not None:
+        market_today = datetime.now(ZoneInfo("America/New_York")).date()
+        if max_earnings_days is not None:
+            filtered = [
+                s
+                for s in filtered
+                if s.next_earnings is not None
+                and (s.next_earnings - market_today).days <= max_earnings_days
+            ]
+        if min_earnings_days is not None:
+            filtered = [
+                s
+                for s in filtered
+                if s.next_earnings is not None
+                and (s.next_earnings - market_today).days >= min_earnings_days
+            ]
 
     # Sort
     reverse = order.lower() == "desc"

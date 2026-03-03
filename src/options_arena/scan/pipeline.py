@@ -12,6 +12,7 @@ import logging
 import math
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -402,11 +403,12 @@ class ScanPipeline:
                 raw_sig = raw_signals[ts.ticker]
                 regime_val = raw_sig.market_regime
                 if regime_val is not None and math.isfinite(regime_val):
-                    if regime_val >= 80:
+                    scan_cfg = self._settings.scan
+                    if regime_val >= scan_cfg.regime_crisis_threshold:
                         ts.market_regime = MarketRegime.CRISIS
-                    elif regime_val >= 60:
+                    elif regime_val >= scan_cfg.regime_volatile_threshold:
                         ts.market_regime = MarketRegime.VOLATILE
-                    elif regime_val >= 40:
+                    elif regime_val >= scan_cfg.regime_mean_reverting_threshold:
                         ts.market_regime = MarketRegime.MEAN_REVERTING
                     else:
                         ts.market_regime = MarketRegime.TRENDING
@@ -670,10 +672,11 @@ class ScanPipeline:
             return (ticker, [], earnings_date, ticker_info.current_price)
 
         if scan_config.exclude_near_earnings_days is not None and earnings_date is not None:
-            days_to_earnings = (earnings_date - date.today()).days
-            if days_to_earnings <= scan_config.exclude_near_earnings_days:
+            market_today = datetime.now(ZoneInfo("America/New_York")).date()
+            days_to_earnings = (earnings_date - market_today).days
+            if days_to_earnings < scan_config.exclude_near_earnings_days:
                 logger.info(
-                    "Filtered %s: earnings in %d days (<= %d)",
+                    "Filtered %s: earnings in %d days (< %d)",
                     ticker,
                     days_to_earnings,
                     scan_config.exclude_near_earnings_days,
@@ -736,6 +739,18 @@ class ScanPipeline:
                     ticker,
                     exc_info=True,
                 )
+
+        # Pre-scan narrowing: IV rank filter (applied after Phase 3 DSE populates iv_rank)
+        if scan_config.min_iv_rank is not None:
+            iv_rank = ticker_score.signals.iv_rank
+            if iv_rank is None or iv_rank < scan_config.min_iv_rank:
+                logger.info(
+                    "Filtered %s: iv_rank %s < min_iv_rank %.1f",
+                    ticker,
+                    iv_rank,
+                    scan_config.min_iv_rank,
+                )
+                return (ticker, [], earnings_date, entry_stock_price)
 
         recommended = recommend_contracts(
             contracts=all_contracts,

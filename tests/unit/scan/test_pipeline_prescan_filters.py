@@ -182,7 +182,7 @@ class TestEarningsProximityFilter:
         exclude_days = 7
 
         days_to_earnings = (earnings_date - today).days
-        should_filter = days_to_earnings <= exclude_days
+        should_filter = days_to_earnings < exclude_days
         assert should_filter is True
 
     def test_earnings_filter_passes_far_earnings(self) -> None:
@@ -192,7 +192,7 @@ class TestEarningsProximityFilter:
         exclude_days = 7
 
         days_to_earnings = (earnings_date - today).days
-        should_filter = days_to_earnings <= exclude_days
+        should_filter = days_to_earnings < exclude_days
         assert should_filter is False
 
     def test_earnings_filter_passes_without_earnings_date(self) -> None:
@@ -208,23 +208,33 @@ class TestEarningsProximityFilter:
         assert should_filter is False
 
     def test_earnings_filter_boundary_exact_days(self) -> None:
-        """Verify earnings on exact boundary day is excluded (inclusive)."""
+        """Verify earnings on exact boundary day passes (strict less-than)."""
         today = date.today()
         earnings_date = today + timedelta(days=7)
         exclude_days = 7
 
         days_to_earnings = (earnings_date - today).days
-        should_filter = days_to_earnings <= exclude_days
-        assert should_filter is True
+        should_filter = days_to_earnings < exclude_days
+        assert should_filter is False
 
     def test_earnings_filter_zero_days(self) -> None:
-        """Verify exclude_near_earnings_days=0 excludes tickers with earnings today."""
+        """Verify exclude_near_earnings_days=0 does not exclude (strict less-than)."""
         today = date.today()
         earnings_date = today
         exclude_days = 0
 
         days_to_earnings = (earnings_date - today).days
-        should_filter = days_to_earnings <= exclude_days
+        should_filter = days_to_earnings < exclude_days
+        assert should_filter is False
+
+    def test_earnings_filter_one_day_excludes_today(self) -> None:
+        """Verify exclude_near_earnings_days=1 excludes earnings today."""
+        today = date.today()
+        earnings_date = today
+        exclude_days = 1
+
+        days_to_earnings = (earnings_date - today).days
+        should_filter = days_to_earnings < exclude_days
         assert should_filter is True
 
     def test_earnings_filter_none_config_no_filter(self) -> None:

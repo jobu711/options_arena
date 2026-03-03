@@ -48,6 +48,10 @@ class ScanConfig(BaseModel):
     exclude_near_earnings_days: int | None = None
     direction_filter: SignalDirection | None = None
     min_iv_rank: float | None = None
+    # Regime classification thresholds (applied to raw market_regime signal, 0-100 scale)
+    regime_crisis_threshold: float = 80.0
+    regime_volatile_threshold: float = 60.0
+    regime_mean_reverting_threshold: float = 40.0
 
     @field_validator("market_cap_tiers", mode="before")
     @classmethod
