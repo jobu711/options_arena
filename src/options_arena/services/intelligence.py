@@ -438,7 +438,7 @@ class IntelligenceService:
                 for i in range(min(len(inst_df), 5)):
                     row = inst_df.iloc[i]
                     holder = str(row.get("Holder", "Unknown"))
-                    pct = safe_float(row.get("pctHeld"))
+                    pct = safe_float(row.get("pctHeld")) or safe_float(row.get("% Out"))
                     top_holders.append(holder)
                     if pct is not None:
                         top_holder_pcts.append(pct)
@@ -496,7 +496,7 @@ class IntelligenceService:
             async with self._limiter:
                 ticker_obj = yf.Ticker(ticker)
                 news_items = await asyncio.wait_for(
-                    asyncio.to_thread(ticker_obj.get_news, count=10),
+                    asyncio.to_thread(ticker_obj.get_news, _count=10),
                     timeout=self._config.request_timeout,
                 )
 
