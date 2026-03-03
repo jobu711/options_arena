@@ -17,6 +17,7 @@ from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.market_data import MarketDataService
 from options_arena.services.openbb_service import OpenBBService
 from options_arena.services.options_data import OptionsDataService
+from options_arena.services.outcome_collector import OutcomeCollector
 from options_arena.services.universe import UniverseService
 
 
@@ -63,3 +64,12 @@ def get_intelligence(request: Request) -> IntelligenceService | None:
 def get_operation_lock(request: Request) -> asyncio.Lock:
     """Inject the global operation mutex."""
     return request.app.state.operation_lock  # type: ignore[no-any-return]
+
+
+def get_outcome_collector(request: Request) -> OutcomeCollector:
+    """Inject the outcome collector service (created on-demand via DI)."""
+    return OutcomeCollector(
+        config=request.app.state.settings.analytics,
+        repository=Repository(request.app.state.db),
+        market_data=request.app.state.market_data,
+    )

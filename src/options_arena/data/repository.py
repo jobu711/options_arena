@@ -7,32 +7,41 @@ tuples, or Row objects.  Uses parameterized queries exclusively.
 from __future__ import annotations
 
 import logging
+import statistics
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from sqlite3 import Row
+
+import numpy as np
 
 from options_arena.data.database import Database
 from options_arena.models import (
     ContractOutcome,
+    DeltaPerformanceResult,
     ExerciseStyle,
     GICSSector,
     GreeksSource,
     HistoryPoint,
+    HoldingPeriodResult,
+    IndicatorAttributionResult,
     IndicatorSignals,
     MarketContext,
     NormalizationStats,
     OptionType,
     OutcomeCollectionMethod,
+    PerformanceSummary,
     PricingModel,
     RecommendedContract,
     ScanPreset,
     ScanRun,
+    ScoreCalibrationBucket,
     SignalDirection,
     TickerScore,
     TrendingTicker,
     Watchlist,
     WatchlistTicker,
+    WinRateResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -970,3 +979,387 @@ class Repository:
             collection_method=OutcomeCollectionMethod(row["collection_method"]),
             collected_at=datetime.fromisoformat(row["collected_at"]),
         )
+
+    # ------------------------------------------------------------------
+    # Analytics: Queries
+    # ------------------------------------------------------------------
+
+    async def get_win_rate_by_direction(self) -> list[WinRateResult]:
+        """Compute win rate grouped by signal direction.
+
+        Returns one ``WinRateResult`` per direction that has at least one
+        matched outcome. Empty list when no outcomes exist.
+        """
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT rc.direction, "
+            "  COUNT(*) AS total_contracts, "
+            "  SUM(CASE WHEN co.is_winner = 1 THEN 1 ELSE 0 END) AS winners, "
+            "  SUM(CASE WHEN co.is_winner = 0 THEN 1 ELSE 0 END) AS losers, "
+            "  AVG(co.is_winner) AS win_rate "
+            "FROM recommended_contracts rc "
+            "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
+            "WHERE co.is_winner IS NOT NULL "
+            "GROUP BY rc.direction"
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        results = [
+            WinRateResult(
+                direction=SignalDirection(row["direction"]),
+                total_contracts=int(row["total_contracts"]),
+                winners=int(row["winners"]),
+                losers=int(row["losers"]),
+                win_rate=float(row["win_rate"]),
+            )
+            for row in rows
+        ]
+        logger.debug("Win rate query returned %d directions", len(results))
+        return results
+
+    async def get_score_calibration(
+        self, bucket_size: float = 10.0
+    ) -> list[ScoreCalibrationBucket]:
+        """Bucket contracts by composite_score and compute returns per bucket.
+
+        Args:
+            bucket_size: Width of each score bucket (default 10.0).
+
+        Returns:
+            List of ``ScoreCalibrationBucket`` ordered by score_min ascending.
+        """
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT "
+            "  CAST(rc.composite_score / ? AS INTEGER) * ? AS score_min, "
+            "  CAST(rc.composite_score / ? AS INTEGER) * ? + ? AS score_max, "
+            "  COUNT(*) AS contract_count, "
+            "  AVG(co.contract_return_pct) AS avg_return_pct, "
+            "  AVG(co.is_winner) AS win_rate "
+            "FROM recommended_contracts rc "
+            "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
+            "WHERE co.contract_return_pct IS NOT NULL AND co.is_winner IS NOT NULL "
+            "GROUP BY CAST(rc.composite_score / ? AS INTEGER) "
+            "ORDER BY score_min",
+            (bucket_size, bucket_size, bucket_size, bucket_size, bucket_size, bucket_size),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        results = [
+            ScoreCalibrationBucket(
+                score_min=float(row["score_min"]),
+                score_max=float(row["score_max"]),
+                contract_count=int(row["contract_count"]),
+                avg_return_pct=float(row["avg_return_pct"]),
+                win_rate=float(row["win_rate"]),
+            )
+            for row in rows
+        ]
+        logger.debug("Score calibration: %d buckets (size=%.1f)", len(results), bucket_size)
+        return results
+
+    async def get_indicator_attribution(
+        self, indicator: str, holding_days: int = 5
+    ) -> list[IndicatorAttributionResult]:
+        """Correlate a normalized indicator value with contract returns.
+
+        Fetches (indicator_value, contract_return_pct) pairs by JOINing
+        ``recommended_contracts`` → ``ticker_scores`` (via scan_run_id + ticker)
+        → ``contract_outcomes`` (filtered by holding_days). Computes Pearson
+        correlation and quartile split averages in Python via numpy.
+
+        Args:
+            indicator: Indicator name (e.g. ``"rsi"``, ``"adx"``).
+            holding_days: Holding period to filter outcomes.
+
+        Returns:
+            Single-element list with correlation result, or empty list if
+            insufficient data (fewer than 3 data points).
+        """
+        conn = self._db.conn
+        # Join through ticker_scores signals_json to extract the indicator value.
+        # json_extract on signals_json pulls the indicator's normalized value.
+        async with conn.execute(
+            "SELECT "
+            "  json_extract(ts.signals_json, '$.' || ?) AS indicator_value, "
+            "  co.contract_return_pct "
+            "FROM recommended_contracts rc "
+            "JOIN ticker_scores ts ON ts.scan_run_id = rc.scan_run_id AND ts.ticker = rc.ticker "
+            "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
+            "WHERE co.holding_days = ? "
+            "  AND co.contract_return_pct IS NOT NULL "
+            "  AND json_extract(ts.signals_json, '$.' || ?) IS NOT NULL",
+            (indicator, holding_days, indicator),
+        ) as cursor:
+            rows = list(await cursor.fetchall())
+
+        if len(rows) < 3:
+            logger.debug(
+                "Indicator attribution: insufficient data for %s (n=%d)",
+                indicator,
+                len(rows),
+            )
+            return []
+
+        values = np.array([float(row["indicator_value"]) for row in rows])
+        returns = np.array([float(row["contract_return_pct"]) for row in rows])
+
+        # Pearson correlation via numpy
+        corr_matrix = np.corrcoef(values, returns)
+        correlation = float(corr_matrix[0, 1])
+        # Guard against NaN from constant arrays
+        if not np.isfinite(correlation):
+            correlation = 0.0
+
+        # Quartile split: top 25% vs bottom 25%
+        p75 = float(np.percentile(values, 75))
+        p25 = float(np.percentile(values, 25))
+        high_mask = values >= p75
+        low_mask = values <= p25
+
+        avg_when_high = float(np.mean(returns[high_mask])) if np.any(high_mask) else 0.0
+        avg_when_low = float(np.mean(returns[low_mask])) if np.any(low_mask) else 0.0
+
+        result = IndicatorAttributionResult(
+            indicator_name=indicator,
+            holding_days=holding_days,
+            correlation=correlation,
+            avg_return_when_high=avg_when_high,
+            avg_return_when_low=avg_when_low,
+            sample_size=len(rows),
+        )
+        logger.debug(
+            "Indicator attribution for %s: corr=%.3f n=%d", indicator, correlation, len(rows)
+        )
+        return [result]
+
+    async def get_optimal_holding_period(
+        self, direction: SignalDirection | None = None
+    ) -> list[HoldingPeriodResult]:
+        """Get return statistics grouped by holding_days and direction.
+
+        Optionally filter by signal direction. Median is computed in Python
+        because SQLite lacks a built-in median function.
+
+        Args:
+            direction: Optional filter for a specific direction.
+
+        Returns:
+            List of ``HoldingPeriodResult`` ordered by holding_days.
+        """
+        conn = self._db.conn
+        direction_val = direction.value if direction is not None else None
+        async with conn.execute(
+            "SELECT co.holding_days, rc.direction, "
+            "  co.contract_return_pct, co.is_winner "
+            "FROM recommended_contracts rc "
+            "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
+            "WHERE co.contract_return_pct IS NOT NULL "
+            "  AND co.is_winner IS NOT NULL "
+            "  AND co.holding_days IS NOT NULL "
+            "  AND (? IS NULL OR rc.direction = ?) "
+            "ORDER BY co.holding_days, rc.direction",
+            (direction_val, direction_val),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        # Group in Python to compute median
+        groups: dict[tuple[int, str], list[tuple[float, bool]]] = {}
+        for row in rows:
+            key = (int(row["holding_days"]), str(row["direction"]))
+            if key not in groups:
+                groups[key] = []
+            groups[key].append((float(row["contract_return_pct"]), bool(row["is_winner"])))
+
+        results: list[HoldingPeriodResult] = []
+        for (hd, dir_str), entries in sorted(groups.items()):
+            returns_list = [e[0] for e in entries]
+            winners = sum(1 for e in entries if e[1])
+            total = len(entries)
+            results.append(
+                HoldingPeriodResult(
+                    holding_days=hd,
+                    direction=SignalDirection(dir_str),
+                    avg_return_pct=sum(returns_list) / total,
+                    median_return_pct=statistics.median(returns_list),
+                    win_rate=winners / total,
+                    sample_size=total,
+                )
+            )
+
+        logger.debug("Holding period query returned %d groups", len(results))
+        return results
+
+    async def get_delta_performance(
+        self, bucket_size: float = 0.1, holding_days: int = 5
+    ) -> list[DeltaPerformanceResult]:
+        """Bucket contracts by delta and compute return statistics.
+
+        Args:
+            bucket_size: Width of each delta bucket (default 0.1).
+            holding_days: Filter outcomes to a specific holding period.
+
+        Returns:
+            List of ``DeltaPerformanceResult`` ordered by delta_min ascending.
+        """
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT "
+            "  CAST(rc.delta / ? AS INTEGER) * ? AS delta_min, "
+            "  CAST(rc.delta / ? AS INTEGER) * ? + ? AS delta_max, "
+            "  AVG(co.contract_return_pct) AS avg_return_pct, "
+            "  AVG(co.is_winner) AS win_rate, "
+            "  COUNT(*) AS sample_size "
+            "FROM recommended_contracts rc "
+            "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
+            "WHERE rc.delta IS NOT NULL "
+            "  AND co.holding_days = ? "
+            "  AND co.contract_return_pct IS NOT NULL "
+            "  AND co.is_winner IS NOT NULL "
+            "GROUP BY CAST(rc.delta / ? AS INTEGER) "
+            "ORDER BY delta_min",
+            (
+                bucket_size,
+                bucket_size,
+                bucket_size,
+                bucket_size,
+                bucket_size,
+                holding_days,
+                bucket_size,
+            ),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        results = [
+            DeltaPerformanceResult(
+                delta_min=float(row["delta_min"]),
+                delta_max=float(row["delta_max"]),
+                holding_days=holding_days,
+                avg_return_pct=float(row["avg_return_pct"]),
+                win_rate=float(row["win_rate"]),
+                sample_size=int(row["sample_size"]),
+            )
+            for row in rows
+        ]
+        logger.debug(
+            "Delta performance returned %d buckets (size=%.2f, hd=%d)",
+            len(results),
+            bucket_size,
+            holding_days,
+        )
+        return results
+
+    async def get_performance_summary(self, lookback_days: int = 30) -> PerformanceSummary:
+        """Compute aggregate performance summary over a lookback window.
+
+        Uses multiple queries: total contracts, outcomes with aggregates,
+        best direction by win rate, best holding period by average return.
+
+        Args:
+            lookback_days: Number of calendar days to look back.
+
+        Returns:
+            ``PerformanceSummary`` with optional fields ``None`` when no data.
+        """
+        conn = self._db.conn
+        cutoff = (datetime.now(UTC) - timedelta(days=lookback_days)).date()
+
+        # Total contracts in window
+        async with conn.execute(
+            "SELECT COUNT(*) AS cnt FROM recommended_contracts WHERE date(created_at) >= ?",
+            (cutoff.isoformat(),),
+        ) as cursor:
+            row = await cursor.fetchone()
+        total_contracts = int(row["cnt"]) if row else 0
+
+        # Outcomes joined with contracts in window
+        async with conn.execute(
+            "SELECT co.stock_return_pct, co.contract_return_pct, co.is_winner, "
+            "  co.holding_days, rc.direction "
+            "FROM contract_outcomes co "
+            "JOIN recommended_contracts rc ON co.recommended_contract_id = rc.id "
+            "WHERE date(rc.created_at) >= ? "
+            "  AND co.is_winner IS NOT NULL",
+            (cutoff.isoformat(),),
+        ) as cursor:
+            outcome_rows = list(await cursor.fetchall())
+
+        total_with_outcomes = len(outcome_rows)
+
+        if total_with_outcomes == 0:
+            return PerformanceSummary(
+                lookback_days=lookback_days,
+                total_contracts=total_contracts,
+                total_with_outcomes=0,
+            )
+
+        # Compute aggregates
+        winners = 0
+        stock_returns: list[float] = []
+        contract_returns: list[float] = []
+        direction_wins: dict[str, tuple[int, int]] = {}
+        holding_returns: dict[int, list[float]] = {}
+
+        for orow in outcome_rows:
+            if bool(orow["is_winner"]):
+                winners += 1
+            if orow["stock_return_pct"] is not None:
+                stock_returns.append(float(orow["stock_return_pct"]))
+            if orow["contract_return_pct"] is not None:
+                contract_returns.append(float(orow["contract_return_pct"]))
+
+            d = str(orow["direction"])
+            if d not in direction_wins:
+                direction_wins[d] = (0, 0)
+            d_w, d_t = direction_wins[d]
+            d_t += 1
+            if bool(orow["is_winner"]):
+                d_w += 1
+            direction_wins[d] = (d_w, d_t)
+
+            if orow["holding_days"] is not None and orow["contract_return_pct"] is not None:
+                hd = int(orow["holding_days"])
+                if hd not in holding_returns:
+                    holding_returns[hd] = []
+                holding_returns[hd].append(float(orow["contract_return_pct"]))
+
+        overall_win_rate = winners / total_with_outcomes
+        avg_stock = sum(stock_returns) / len(stock_returns) if stock_returns else None
+        avg_contract = sum(contract_returns) / len(contract_returns) if contract_returns else None
+
+        # Best direction by win rate
+        best_direction: SignalDirection | None = None
+        best_dir_rate = -1.0
+        for dir_str, (wins, total) in direction_wins.items():
+            if total > 0:
+                rate = wins / total
+                if rate > best_dir_rate:
+                    best_dir_rate = rate
+                    best_direction = SignalDirection(dir_str)
+
+        # Best holding period by average return
+        best_holding: int | None = None
+        best_holding_return = float("-inf")
+        for hd, rets in holding_returns.items():
+            avg = sum(rets) / len(rets) if rets else 0.0
+            if avg > best_holding_return:
+                best_holding_return = avg
+                best_holding = hd
+
+        summary = PerformanceSummary(
+            lookback_days=lookback_days,
+            total_contracts=total_contracts,
+            total_with_outcomes=total_with_outcomes,
+            overall_win_rate=overall_win_rate,
+            avg_stock_return_pct=avg_stock,
+            avg_contract_return_pct=avg_contract,
+            best_direction=best_direction,
+            best_holding_days=best_holding,
+        )
+        logger.debug(
+            "Performance summary: %d contracts, %d outcomes, wr=%.2f",
+            total_contracts,
+            total_with_outcomes,
+            overall_win_rate,
+        )
+        return summary
