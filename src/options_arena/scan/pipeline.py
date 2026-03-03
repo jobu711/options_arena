@@ -23,6 +23,7 @@ from options_arena.models import (
     AppSettings,
     GICSSector,
     IndicatorSignals,
+    MarketRegime,
     NormalizationStats,
     OptionContract,
     OptionType,
@@ -370,7 +371,7 @@ class ScanPipeline:
             if sector is not None:
                 ts.sector = sector
 
-        # Step 3b: Compute dimensional scores and direction confidence
+        # Step 3b: Compute dimensional scores, direction confidence, and market regime
         for ts in scored:
             try:
                 dim_scores = compute_dimensional_scores(ts.signals)
@@ -382,6 +383,19 @@ class ScanPipeline:
                     ts.direction,
                 )
                 ts.direction_confidence = direction_signal.confidence
+
+                # Derive market regime from raw regime signal threshold mapping
+                raw_sig = raw_signals[ts.ticker]
+                regime_val = raw_sig.market_regime
+                if regime_val is not None and math.isfinite(regime_val):
+                    if regime_val >= 80:
+                        ts.market_regime = MarketRegime.CRISIS
+                    elif regime_val >= 60:
+                        ts.market_regime = MarketRegime.VOLATILE
+                    elif regime_val >= 40:
+                        ts.market_regime = MarketRegime.MEAN_REVERTING
+                    else:
+                        ts.market_regime = MarketRegime.TRENDING
             except Exception:
                 logger.warning(
                     "Dimensional scoring failed for %s; skipping",

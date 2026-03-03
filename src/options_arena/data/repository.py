@@ -19,6 +19,7 @@ from options_arena.data.database import Database
 from options_arena.models import (
     ContractOutcome,
     DeltaPerformanceResult,
+    DimensionalScores,
     ExerciseStyle,
     GICSSector,
     GreeksSource,
@@ -27,6 +28,7 @@ from options_arena.models import (
     IndicatorAttributionResult,
     IndicatorSignals,
     MarketContext,
+    MarketRegime,
     NormalizationStats,
     OptionType,
     OutcomeCollectionMethod,
@@ -139,8 +141,9 @@ class Repository:
         await conn.executemany(
             "INSERT INTO ticker_scores "
             "(scan_run_id, ticker, composite_score, direction, signals_json, "
-            "next_earnings, sector, company_name) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "next_earnings, sector, company_name, "
+            "dimensional_scores_json, direction_confidence, market_regime) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 (
                     scan_id,
@@ -151,6 +154,11 @@ class Repository:
                     score.next_earnings.isoformat() if score.next_earnings is not None else None,
                     score.sector.value if score.sector is not None else None,
                     score.company_name,
+                    score.dimensional_scores.model_dump_json()
+                    if score.dimensional_scores is not None
+                    else None,
+                    score.direction_confidence,
+                    score.market_regime.value if score.market_regime is not None else None,
                 )
                 for score in scores
             ],
@@ -219,6 +227,9 @@ class Repository:
         """Reconstruct a TickerScore from an aiosqlite.Row."""
         raw_earnings: str | None = row["next_earnings"]
         raw_sector: str | None = row["sector"]
+        raw_dim_json: str | None = row["dimensional_scores_json"]
+        raw_confidence: float | None = row["direction_confidence"]
+        raw_regime: str | None = row["market_regime"]
         return TickerScore(
             ticker=str(row["ticker"]),
             composite_score=float(row["composite_score"]),
@@ -228,6 +239,17 @@ class Repository:
             sector=GICSSector(raw_sector) if raw_sector is not None else None,
             company_name=row["company_name"],
             scan_run_id=int(row["scan_run_id"]),
+            dimensional_scores=(
+                DimensionalScores.model_validate_json(raw_dim_json)
+                if raw_dim_json is not None
+                else None
+            ),
+            direction_confidence=(
+                float(raw_confidence) if raw_confidence is not None else None
+            ),
+            market_regime=(
+                MarketRegime(raw_regime) if raw_regime is not None else None
+            ),
         )
 
     # ------------------------------------------------------------------

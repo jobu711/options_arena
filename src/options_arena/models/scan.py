@@ -17,7 +17,7 @@ from datetime import date, datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from options_arena.models.enums import GICSSector, ScanPreset, SignalDirection
+from options_arena.models.enums import GICSSector, MarketRegime, ScanPreset, SignalDirection
 from options_arena.models.scoring import DimensionalScores
 
 
@@ -191,6 +191,7 @@ class TickerScore(BaseModel):
     # DSE dimensional scoring (populated after score_universe in Phase 2)
     dimensional_scores: DimensionalScores | None = None
     direction_confidence: float | None = None
+    market_regime: MarketRegime | None = None
 
     @field_validator("direction_confidence")
     @classmethod
