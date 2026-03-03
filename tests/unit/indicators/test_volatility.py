@@ -227,3 +227,21 @@ class TestKeltnerWidth:
         result = keltner_width(high, low, close, period=10)
         valid = result.dropna()
         assert all(v == pytest.approx(0.0, abs=1e-10) for v in valid)
+
+    def test_zero_middle_guard(self) -> None:
+        """Division by zero in middle EMA produces NaN, not exception.
+
+        Defensive guard: ``middle.replace(0.0, np.nan)`` prevents ZeroDivisionError.
+        Logically safe for positive-price data, but consistent with bb_width and atr_percent.
+        """
+        n = 25
+        # Construct data where close starts at 0.0 (artificial edge case)
+        close = pd.Series([0.0] * n)
+        high = pd.Series([1.0] * n)
+        low = pd.Series([0.0] * n)
+        result = keltner_width(high, low, close, period=10)
+        # With zero EMA, width should be NaN (not raise or inf)
+        valid_after_warmup = result.iloc[10:]
+        assert valid_after_warmup.isna().all() or all(
+            np.isfinite(v) for v in valid_after_warmup.dropna()
+        )

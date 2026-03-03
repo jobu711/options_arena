@@ -356,6 +356,36 @@ class TestRecommendedContract:
         assert isinstance(data["entry_stock_price"], str)
         assert isinstance(data["entry_mid"], str)
 
+    def test_entry_stock_price_none_serializes_as_null(
+        self, sample_recommended_contract: RecommendedContract
+    ) -> None:
+        """Verify None entry_stock_price serializes as null in JSON."""
+        contract = RecommendedContract(
+            scan_run_id=sample_recommended_contract.scan_run_id,
+            ticker=sample_recommended_contract.ticker,
+            option_type=sample_recommended_contract.option_type,
+            strike=sample_recommended_contract.strike,
+            bid=sample_recommended_contract.bid,
+            ask=sample_recommended_contract.ask,
+            expiration=sample_recommended_contract.expiration,
+            volume=sample_recommended_contract.volume,
+            open_interest=sample_recommended_contract.open_interest,
+            market_iv=sample_recommended_contract.market_iv,
+            exercise_style=sample_recommended_contract.exercise_style,
+            entry_stock_price=None,
+            entry_mid=sample_recommended_contract.entry_mid,
+            direction=sample_recommended_contract.direction,
+            composite_score=sample_recommended_contract.composite_score,
+            risk_free_rate=sample_recommended_contract.risk_free_rate,
+            created_at=sample_recommended_contract.created_at,
+        )
+        data = contract.model_dump(mode="json")
+        assert data["entry_stock_price"] is None
+
+        # Round-trip preserves None
+        restored = RecommendedContract.model_validate_json(contract.model_dump_json())
+        assert restored.entry_stock_price is None
+
     def test_rejects_non_finite_decimal_strike(self) -> None:
         """Verify non-finite Decimal strike rejected."""
         with pytest.raises(ValidationError, match="finite"):

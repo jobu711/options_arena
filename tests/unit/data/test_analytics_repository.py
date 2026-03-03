@@ -225,6 +225,19 @@ class TestRecommendedContractPersistence:
         assert c.last is None
 
     @pytest.mark.asyncio
+    async def test_null_entry_stock_price_roundtrip(self, repo: Repository, scan_id: int) -> None:
+        """Verify None entry_stock_price stored as NULL and reconstructed as None."""
+        contract = make_recommended_contract(
+            scan_run_id=scan_id,
+            entry_stock_price=None,
+        )
+        await repo.save_recommended_contracts(scan_id, [contract])
+
+        loaded = await repo.get_contracts_for_scan(scan_id)
+        assert len(loaded) == 1
+        assert loaded[0].entry_stock_price is None
+
+    @pytest.mark.asyncio
     async def test_get_contracts_for_ticker(self, repo: Repository, scan_id: int) -> None:
         """Verify ticker-filtered query returns correct contracts."""
         aapl = make_recommended_contract(scan_run_id=scan_id, ticker="AAPL")

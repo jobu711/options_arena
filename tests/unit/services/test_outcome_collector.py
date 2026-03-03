@@ -47,7 +47,7 @@ def make_contract(
     option_type: OptionType = OptionType.CALL,
     strike: Decimal = Decimal("185.00"),
     expiration: date = date(2026, 4, 15),
-    entry_stock_price: Decimal = Decimal("180.00"),
+    entry_stock_price: Decimal | None = Decimal("180.00"),
     entry_mid: Decimal = Decimal("5.00"),
     direction: SignalDirection = SignalDirection.BULLISH,
     **overrides: object,
@@ -133,11 +133,17 @@ class TestStockReturnComputation:
         result = collector._compute_stock_return(Decimal("100.00"), Decimal("90.00"))
         assert result == pytest.approx(-10.0)
 
-    def test_zero_entry_price_returns_zero(self) -> None:
+    def test_zero_entry_price_returns_none(self) -> None:
         """Verify zero entry price guards against division by zero."""
         collector = make_collector()
         result = collector._compute_stock_return(Decimal("0"), Decimal("100.00"))
-        assert result == pytest.approx(0.0)
+        assert result is None
+
+    def test_none_entry_price_returns_none(self) -> None:
+        """Verify None entry price returns None (unavailable data)."""
+        collector = make_collector()
+        result = collector._compute_stock_return(None, Decimal("100.00"))
+        assert result is None
 
 
 # ---------------------------------------------------------------------------

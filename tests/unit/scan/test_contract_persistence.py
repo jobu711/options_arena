@@ -197,6 +197,35 @@ class TestPipelineContractPersistence:
         assert options_result.entry_prices["MSFT"] == Decimal("415.60")
 
     @pytest.mark.asyncio
+    async def test_missing_entry_price_sets_none(self) -> None:
+        """Verify missing entry price produces entry_stock_price=None."""
+        pipeline, mocks = _make_pipeline_for_persist(save_scan_run_return=10)
+
+        contract = _make_option_contract("AAPL")
+        # No entry_prices for AAPL — pipeline should set None
+        options_result = OptionsResult(
+            recommendations={"AAPL": [contract]},
+            risk_free_rate=0.045,
+            entry_prices={},
+        )
+        scoring_result = _make_scoring_result(["AAPL"])
+
+        await pipeline._phase_persist(
+            started_at=datetime.now(UTC),
+            preset=ScanPreset.FULL,
+            universe_result=_make_universe_result(["AAPL"]),
+            scoring_result=scoring_result,
+            options_result=options_result,
+            progress=_noop_progress,
+        )
+
+        mocks["repository"].save_recommended_contracts.assert_awaited_once()
+        call_args = mocks["repository"].save_recommended_contracts.call_args
+        saved_contracts: list[RecommendedContract] = call_args.args[1]
+        assert len(saved_contracts) == 1
+        assert saved_contracts[0].entry_stock_price is None
+
+    @pytest.mark.asyncio
     async def test_no_contracts_no_error(self) -> None:
         """Verify Phase 4 handles ticker with 0 recommended contracts gracefully."""
         pipeline, mocks = _make_pipeline_for_persist(save_scan_run_return=5)

@@ -60,7 +60,7 @@ class RecommendedContract(BaseModel):
         rho: Interest rate sensitivity (optional).
         pricing_model: Which model (BSM/BAW) produced the Greeks (optional).
         greeks_source: Where the Greeks came from (optional).
-        entry_stock_price: Stock price at time of recommendation.
+        entry_stock_price: Stock price at time of recommendation (None if unavailable).
         entry_mid: Mid price of the contract at entry.
         direction: Signal direction from scoring.
         composite_score: Composite score from scoring pipeline.
@@ -91,14 +91,14 @@ class RecommendedContract(BaseModel):
     rho: float | None = None
     pricing_model: PricingModel | None = None
     greeks_source: GreeksSource | None = None
-    entry_stock_price: Decimal
+    entry_stock_price: Decimal | None = None
     entry_mid: Decimal
     direction: SignalDirection
     composite_score: float
     risk_free_rate: float
     created_at: datetime
 
-    @field_validator("strike", "bid", "ask", "entry_stock_price", "entry_mid")
+    @field_validator("strike", "bid", "ask", "entry_mid")
     @classmethod
     def validate_decimal_finite(cls, v: Decimal) -> Decimal:
         """Ensure required Decimal fields are finite."""
@@ -106,12 +106,12 @@ class RecommendedContract(BaseModel):
             raise ValueError(f"must be finite, got {v}")
         return v
 
-    @field_validator("last")
+    @field_validator("last", "entry_stock_price")
     @classmethod
-    def validate_last_finite(cls, v: Decimal | None) -> Decimal | None:
-        """Ensure last is finite when provided."""
+    def validate_optional_decimal_finite(cls, v: Decimal | None) -> Decimal | None:
+        """Ensure optional Decimal fields are finite when provided."""
         if v is not None and not v.is_finite():
-            raise ValueError(f"last must be finite, got {v}")
+            raise ValueError(f"must be finite, got {v}")
         return v
 
     @field_validator("market_iv", "composite_score", "risk_free_rate")

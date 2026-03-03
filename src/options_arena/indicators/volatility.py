@@ -128,7 +128,7 @@ def keltner_width(
 
     upper = middle + atr_mult * atr
     lower = middle - atr_mult * atr
-    width = (upper - lower) / middle
+    width = (upper - lower) / middle.replace(0.0, np.nan)
 
     # Set warmup to NaN
     width_result = width.copy()

@@ -385,6 +385,93 @@ class TestPhasePersist:
         assert persist_calls[0] == (ScanPhase.PERSIST, 1, 1)
 
 
+class TestPhase4AtomicPersistence:
+    """Phase 4 uses atomic commit — all saves deferred, single commit at end."""
+
+    async def test_save_methods_called_with_commit_false(self) -> None:
+        """All 4 save methods are called with commit=False."""
+        pipeline, mocks = _make_pipeline_for_persist(save_scan_run_return=1)
+
+        started_at = datetime.now(UTC)
+        universe_result = _make_universe_result(["AAPL"])
+        scoring_result = _make_scoring_result(["AAPL"])
+        options_result = _make_options_result(
+            recommendations={"AAPL": [_make_option_contract("AAPL")]}
+        )
+
+        await pipeline._phase_persist(
+            started_at=started_at,
+            preset=ScanPreset.FULL,
+            universe_result=universe_result,
+            scoring_result=scoring_result,
+            options_result=options_result,
+            progress=_noop_progress,
+        )
+
+        # save_scan_run called with commit=False
+        call_kwargs = mocks["repository"].save_scan_run.call_args
+        assert call_kwargs.kwargs.get("commit") is False
+
+        # save_ticker_scores called with commit=False
+        call_kwargs = mocks["repository"].save_ticker_scores.call_args
+        assert call_kwargs.kwargs.get("commit") is False
+
+        # save_recommended_contracts called with commit=False
+        call_kwargs = mocks["repository"].save_recommended_contracts.call_args
+        assert call_kwargs.kwargs.get("commit") is False
+
+    async def test_single_commit_called_after_all_saves(self) -> None:
+        """repository.commit() is called exactly once after all saves."""
+        pipeline, mocks = _make_pipeline_for_persist(save_scan_run_return=1)
+
+        started_at = datetime.now(UTC)
+        universe_result = _make_universe_result(["AAPL"])
+        scoring_result = _make_scoring_result(["AAPL"])
+        options_result = _make_options_result()
+
+        await pipeline._phase_persist(
+            started_at=started_at,
+            preset=ScanPreset.FULL,
+            universe_result=universe_result,
+            scoring_result=scoring_result,
+            options_result=options_result,
+            progress=_noop_progress,
+        )
+
+        mocks["repository"].commit.assert_awaited_once()
+
+    async def test_normalization_stats_commit_false(self) -> None:
+        """save_normalization_stats called with commit=False when stats exist."""
+        from options_arena.models import NormalizationStats
+
+        pipeline, mocks = _make_pipeline_for_persist(save_scan_run_return=1)
+
+        started_at = datetime.now(UTC)
+        universe_result = _make_universe_result(["AAPL"])
+        scoring_result = _make_scoring_result(["AAPL"])
+        scoring_result.normalization_stats = [
+            NormalizationStats(
+                scan_run_id=0,
+                indicator_name="rsi",
+                ticker_count=1,
+                created_at=datetime.now(UTC),
+            )
+        ]
+        options_result = _make_options_result()
+
+        await pipeline._phase_persist(
+            started_at=started_at,
+            preset=ScanPreset.FULL,
+            universe_result=universe_result,
+            scoring_result=scoring_result,
+            options_result=options_result,
+            progress=_noop_progress,
+        )
+
+        call_kwargs = mocks["repository"].save_normalization_stats.call_args
+        assert call_kwargs.kwargs.get("commit") is False
+
+
 class TestPhase4Cancellation:
     """Cancellation between Phase 3 and Phase 4."""
 

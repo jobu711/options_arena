@@ -86,8 +86,24 @@ class Repository:
     def __init__(self, db: Database) -> None:
         self._db = db
 
-    async def save_scan_run(self, scan_run: ScanRun) -> int:
-        """Persist a ScanRun.  Returns the database-assigned ID (lastrowid)."""
+    async def commit(self) -> None:
+        """Explicitly commit the current transaction.
+
+        Used by the scan pipeline to achieve atomic multi-step persistence:
+        all four save calls use ``commit=False``, then a single ``commit()``
+        ensures all-or-nothing semantics.
+        """
+        conn = self._db.conn
+        await conn.commit()
+
+    async def save_scan_run(self, scan_run: ScanRun, *, commit: bool = True) -> int:
+        """Persist a ScanRun.  Returns the database-assigned ID (lastrowid).
+
+        Args:
+            scan_run: The scan run to persist.
+            commit: Whether to commit immediately (default ``True``).
+                Pass ``False`` when batching multiple saves for atomic persistence.
+        """
         conn = self._db.conn
         cursor = await conn.execute(
             "INSERT INTO scan_runs "
@@ -102,13 +118,23 @@ class Repository:
                 scan_run.recommendations,
             ),
         )
-        await conn.commit()
+        if commit:
+            await conn.commit()
         row_id: int = cursor.lastrowid  # type: ignore[assignment]
         logger.debug("Saved scan run id=%d", row_id)
         return row_id
 
-    async def save_ticker_scores(self, scan_id: int, scores: list[TickerScore]) -> None:
-        """Batch-insert TickerScores for a scan run."""
+    async def save_ticker_scores(
+        self, scan_id: int, scores: list[TickerScore], *, commit: bool = True
+    ) -> None:
+        """Batch-insert TickerScores for a scan run.
+
+        Args:
+            scan_id: Database ID of the parent scan run.
+            scores: List of ticker scores to persist.
+            commit: Whether to commit immediately (default ``True``).
+                Pass ``False`` when batching multiple saves for atomic persistence.
+        """
         conn = self._db.conn
         await conn.executemany(
             "INSERT INTO ticker_scores "
@@ -129,7 +155,8 @@ class Repository:
                 for score in scores
             ],
         )
-        await conn.commit()
+        if commit:
+            await conn.commit()
         logger.debug("Saved %d ticker scores for scan %d", len(scores), scan_id)
 
     async def get_latest_scan(self) -> ScanRun | None:
@@ -595,6 +622,8 @@ class Repository:
         self,
         scan_id: int,
         contracts: list[RecommendedContract],
+        *,
+        commit: bool = True,
     ) -> None:
         """Batch-insert recommended contracts for a scan run.
 
@@ -604,6 +633,8 @@ class Repository:
         Args:
             scan_id: Database ID of the parent scan run.
             contracts: List of recommended contracts to persist.
+            commit: Whether to commit immediately (default ``True``).
+                Pass ``False`` when batching multiple saves for atomic persistence.
         """
         if not contracts:
             return
@@ -637,7 +668,7 @@ class Repository:
                     c.rho,
                     c.pricing_model.value if c.pricing_model is not None else None,
                     c.greeks_source.value if c.greeks_source is not None else None,
-                    str(c.entry_stock_price),
+                    str(c.entry_stock_price) if c.entry_stock_price is not None else None,
                     str(c.entry_mid),
                     c.direction.value,
                     c.composite_score,
@@ -647,7 +678,8 @@ class Repository:
                 for c in contracts
             ],
         )
-        await conn.commit()
+        if commit:
+            await conn.commit()
         logger.debug("Saved %d recommended contracts for scan %d", len(contracts), scan_id)
 
     async def get_contracts_for_scan(self, scan_id: int) -> list[RecommendedContract]:
@@ -698,6 +730,8 @@ class Repository:
         self,
         scan_id: int,
         stats: list[NormalizationStats],
+        *,
+        commit: bool = True,
     ) -> None:
         """Batch-insert normalization stats for a scan run.
 
@@ -706,6 +740,8 @@ class Repository:
         Args:
             scan_id: Database ID of the parent scan run.
             stats: List of normalization stats to persist.
+            commit: Whether to commit immediately (default ``True``).
+                Pass ``False`` when batching multiple saves for atomic persistence.
         """
         if not stats:
             return
@@ -733,7 +769,8 @@ class Repository:
                 for s in stats
             ],
         )
-        await conn.commit()
+        if commit:
+            await conn.commit()
         logger.debug("Saved %d normalization stats for scan %d", len(stats), scan_id)
 
     async def get_normalization_stats(self, scan_id: int) -> list[NormalizationStats]:
@@ -766,6 +803,7 @@ class Repository:
         raw_last: str | None = row["last"]
         raw_pricing_model: str | None = row["pricing_model"]
         raw_greeks_source: str | None = row["greeks_source"]
+        raw_entry_stock_price: str | None = row["entry_stock_price"]
         return RecommendedContract(
             id=int(row["id"]),
             scan_run_id=int(row["scan_run_id"]),
@@ -791,7 +829,9 @@ class Repository:
             greeks_source=(
                 GreeksSource(raw_greeks_source) if raw_greeks_source is not None else None
             ),
-            entry_stock_price=Decimal(row["entry_stock_price"]),
+            entry_stock_price=(
+                Decimal(raw_entry_stock_price) if raw_entry_stock_price is not None else None
+            ),
             entry_mid=Decimal(row["entry_mid"]),
             direction=SignalDirection(row["direction"]),
             composite_score=float(row["composite_score"]),

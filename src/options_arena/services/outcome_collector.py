@@ -253,15 +253,16 @@ class OutcomeCollector:
 
     def _compute_stock_return(
         self,
-        entry_price: Decimal,
+        entry_price: Decimal | None,
         exit_price: Decimal,
-    ) -> float:
+    ) -> float | None:
         """Compute stock return percentage: ``(exit - entry) / entry * 100``.
 
-        Guards against division by zero (returns 0.0 if entry_price is zero).
+        Returns ``None`` when *entry_price* is ``None`` (unavailable).
+        Guards against division by zero (returns ``None`` if entry_price is zero).
         """
-        if entry_price == Decimal("0"):
-            return 0.0
+        if entry_price is None or entry_price == Decimal("0"):
+            return None
         return float((exit_price - entry_price) / entry_price * Decimal("100"))
 
     def _compute_contract_return(

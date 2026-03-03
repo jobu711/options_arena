@@ -731,7 +731,9 @@ class ScanPipeline:
         )
 
         # Step 2: Save scan run → get DB-assigned ID
-        scan_id: int = await self._repository.save_scan_run(scan_run)
+        # All Phase 4 saves use commit=False for atomic persistence;
+        # a single commit() at the end ensures all-or-nothing semantics.
+        scan_id: int = await self._repository.save_scan_run(scan_run, commit=False)
         logger.info("Persisted scan run id=%d", scan_id)
 
         # Step 3: Update scan_run_id on each TickerScore
@@ -739,7 +741,7 @@ class ScanPipeline:
             ts.scan_run_id = scan_id
 
         # Step 4: Batch-insert ticker scores
-        await self._repository.save_ticker_scores(scan_id, scoring_result.scores)
+        await self._repository.save_ticker_scores(scan_id, scoring_result.scores, commit=False)
         logger.info(
             "Persisted %d ticker scores for scan %d",
             len(scoring_result.scores),
@@ -778,9 +780,7 @@ class ScanPipeline:
                             contract.greeks.pricing_model if contract.greeks is not None else None
                         ),
                         greeks_source=contract.greeks_source,
-                        entry_stock_price=(
-                            entry_price if entry_price is not None else Decimal("0")
-                        ),
+                        entry_stock_price=entry_price,
                         entry_mid=entry_mid,
                         direction=(
                             matched_score.direction
@@ -796,7 +796,9 @@ class ScanPipeline:
                 )
 
         if recommended_contracts:
-            await self._repository.save_recommended_contracts(scan_id, recommended_contracts)
+            await self._repository.save_recommended_contracts(
+                scan_id, recommended_contracts, commit=False
+            )
             logger.info(
                 "Persisted %d recommended contracts for scan %d",
                 len(recommended_contracts),
@@ -822,17 +824,20 @@ class ScanPipeline:
                 )
                 for s in scoring_result.normalization_stats
             ]
-            await self._repository.save_normalization_stats(scan_id, real_stats)
+            await self._repository.save_normalization_stats(scan_id, real_stats, commit=False)
             logger.info(
                 "Persisted %d normalization stats for scan %d",
                 len(real_stats),
                 scan_id,
             )
 
-        # Step 7: Report progress
+        # Step 7: Atomic commit — all Phase 4 writes succeed or fail together
+        await self._repository.commit()
+
+        # Step 8: Report progress
         progress(ScanPhase.PERSIST, 1, 1)
 
-        # Step 8: Return final ScanResult
+        # Step 9: Return final ScanResult
         # ScanRun is frozen — reconstruct with ID populated
         final_scan_run = ScanRun(
             id=scan_id,
