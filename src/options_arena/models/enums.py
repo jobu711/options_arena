@@ -192,6 +192,19 @@ class SentimentLabel(StrEnum):
     NEUTRAL = "neutral"
 
 
+class OutcomeCollectionMethod(StrEnum):
+    """Method used to collect contract outcome data.
+
+    MARKET          — outcome computed from live market prices (bid/ask mid).
+    INTRINSIC       — expired contract valued via intrinsic value (S-K or K-S).
+    EXPIRED_WORTHLESS — expired OTM contract, value is zero, return is -100%.
+    """
+
+    MARKET = "market"
+    INTRINSIC = "intrinsic"
+    EXPIRED_WORTHLESS = "expired_worthless"
+
+
 class GICSSector(StrEnum):
     """Global Industry Classification Standard (GICS) sectors.
 
@@ -210,6 +223,17 @@ class GICSSector(StrEnum):
     MATERIALS = "Materials"
     REAL_ESTATE = "Real Estate"
     UTILITIES = "Utilities"
+
+
+class LLMProvider(StrEnum):
+    """LLM provider for the AI debate agents.
+
+    GROQ     — Groq cloud API (free tier, Llama 3.3 70B).
+    ANTHROPIC — Anthropic API (Claude, paid).
+    """
+
+    GROQ = "groq"
+    ANTHROPIC = "anthropic"
 
 
 SECTOR_ALIASES: dict[str, GICSSector] = {

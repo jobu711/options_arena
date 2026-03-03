@@ -19,7 +19,7 @@ from typing import Self
 from pydantic import BaseModel, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from options_arena.models.enums import SECTOR_ALIASES, GICSSector
+from options_arena.models.enums import SECTOR_ALIASES, GICSSector, LLMProvider
 
 
 class ScanConfig(BaseModel):
@@ -140,6 +140,7 @@ class ServiceConfig(BaseModel):
     cboe_timeout: float = 10.0
     fred_api_key: SecretStr | None = None
     groq_api_key: SecretStr | None = None
+    anthropic_api_key: SecretStr | None = None
     rate_limit_rps: float = 2.0
     max_concurrent_requests: int = 5
     cache_ttl_market_hours: int = 300
@@ -167,17 +168,30 @@ class DataConfig(BaseModel):
 
 
 class DebateConfig(BaseModel):
-    """AI debate configuration — controls Groq LLM, timeouts, and fallback behavior.
+    """AI debate configuration — controls LLM provider, timeouts, and fallback behavior.
 
-    Uses Groq cloud API exclusively. Requires ``GROQ_API_KEY`` or
-    ``ARENA_DEBATE__API_KEY`` env var.
+    Supports Groq (free, default) and Anthropic (paid) providers.
+    Groq requires ``GROQ_API_KEY`` or ``ARENA_DEBATE__API_KEY`` env var.
+    Anthropic requires ``ANTHROPIC_API_KEY`` or ``ARENA_DEBATE__ANTHROPIC_API_KEY``.
 
     Default ``agent_timeout`` (60s) is for Groq cloud inference. Override via
     ``ARENA_DEBATE__AGENT_TIMEOUT=90``, ``ARENA_DEBATE__MAX_TOTAL_DURATION=300``.
     """
 
+    # Provider selection
+    provider: LLMProvider = LLMProvider.GROQ
+
+    # Groq settings
     model: str = "llama-3.3-70b-versatile"
     api_key: SecretStr | None = None
+
+    # Anthropic settings
+    anthropic_model: str = "claude-sonnet-4-5-20250929"
+    anthropic_api_key: SecretStr | None = None
+    enable_extended_thinking: bool = False
+    thinking_budget_tokens: int = 5000
+
+    # Shared settings
     agent_timeout: float = 60.0
     num_ctx: int = 8192
     retries: int = 2
@@ -254,6 +268,16 @@ class DebateConfig(BaseModel):
             raise ValueError(f"phase1_parallelism must be in [1, 8], got {v}")
         return v
 
+    @field_validator("thinking_budget_tokens")
+    @classmethod
+    def validate_thinking_budget_tokens(cls, v: int) -> int:
+        """Ensure thinking_budget_tokens is finite and within [1024, 128000]."""
+        if not math.isfinite(v):
+            raise ValueError(f"thinking_budget_tokens must be finite, got {v}")
+        if not 1024 <= v <= 128_000:
+            raise ValueError(f"thinking_budget_tokens must be in [1024, 128000], got {v}")
+        return v
+
     @model_validator(mode="after")
     def validate_all_finite(self) -> Self:
         """Reject NaN/Inf on all float config fields (defense-in-depth)."""
@@ -314,6 +338,38 @@ class OpenBBConfig(BaseModel):
     chain_validation_mode: bool = False
 
 
+class AnalyticsConfig(BaseModel):
+    """Analytics persistence configuration — controls outcome tracking parameters.
+
+    ``holding_periods`` defines which T+N windows to track (default: 1, 5, 10, 20 days).
+    ``auto_collect`` enables automatic outcome collection after scans.
+    ``batch_size`` controls how many contracts to process per collection run.
+    """
+
+    holding_periods: list[int] = [1, 5, 10, 20]
+    auto_collect: bool = False
+    batch_size: int = 50
+
+    @field_validator("batch_size")
+    @classmethod
+    def validate_batch_size(cls, v: int) -> int:
+        """Ensure batch_size is at least 1."""
+        if v < 1:
+            raise ValueError(f"batch_size must be >= 1, got {v}")
+        return v
+
+    @field_validator("holding_periods")
+    @classmethod
+    def validate_holding_periods(cls, v: list[int]) -> list[int]:
+        """Ensure holding_periods is non-empty with positive values."""
+        if not v:
+            raise ValueError("holding_periods must not be empty")
+        for period in v:
+            if period < 1:
+                raise ValueError(f"holding period must be >= 1, got {period}")
+        return v
+
+
 class AppSettings(BaseSettings):
     """Root application settings — the sole BaseSettings subclass.
 
@@ -337,3 +393,4 @@ class AppSettings(BaseSettings):
     log: LogConfig = LogConfig()
     openbb: OpenBBConfig = OpenBBConfig()
     intelligence: IntelligenceConfig = IntelligenceConfig()
+    analytics: AnalyticsConfig = AnalyticsConfig()
