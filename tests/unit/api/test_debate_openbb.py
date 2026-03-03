@@ -192,6 +192,7 @@ def _make_mock_request(openbb_svc: AsyncMock | None = None) -> MagicMock:
     """Create a mock Request with app.state populated."""
     request = MagicMock()
     request.app.state.openbb = openbb_svc
+    request.app.state.intelligence = None
     request.app.state.debate_queues = {}
     request.app.state.batch_queues = {}
     return request

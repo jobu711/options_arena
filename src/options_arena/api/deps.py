@@ -13,6 +13,7 @@ from fastapi import Request
 from options_arena.data import Repository
 from options_arena.models.config import AppSettings
 from options_arena.services.fred import FredService
+from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.market_data import MarketDataService
 from options_arena.services.openbb_service import OpenBBService
 from options_arena.services.options_data import OptionsDataService
@@ -52,6 +53,11 @@ def get_settings(request: Request) -> AppSettings:
 def get_openbb(request: Request) -> OpenBBService | None:
     """Inject the OpenBB enrichment service (``None`` when disabled)."""
     return request.app.state.openbb  # type: ignore[no-any-return]
+
+
+def get_intelligence(request: Request) -> IntelligenceService | None:
+    """Inject the intelligence service (``None`` when disabled)."""
+    return getattr(request.app.state, "intelligence", None)  # type: ignore[no-any-return]
 
 
 def get_operation_lock(request: Request) -> asyncio.Lock:

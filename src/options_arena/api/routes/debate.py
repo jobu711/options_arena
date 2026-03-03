@@ -34,6 +34,7 @@ from options_arena.models import (
     SentimentLabel,
     TradeThesis,
 )
+from options_arena.models.intelligence import IntelligencePackage
 from options_arena.models.openbb import (
     FundamentalSnapshot,
     NewsSentimentSnapshot,
@@ -41,6 +42,7 @@ from options_arena.models.openbb import (
 )
 from options_arena.scoring import compute_dimensional_scores
 from options_arena.services import MarketDataService, OptionsDataService
+from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.openbb_service import OpenBBService
 
 logger = logging.getLogger(__name__)
@@ -126,6 +128,16 @@ async def _run_debate_background(
                 openbb_svc.fetch_news_sentiment(ticker),
             )
 
+        # Fetch intelligence data (never raises — returns None on error)
+        intelligence_svc: IntelligenceService | None = getattr(
+            request.app.state, "intelligence", None
+        )
+        intel: IntelligencePackage | None = None
+        if intelligence_svc is not None:
+            intel = await intelligence_svc.fetch_intelligence(
+                ticker, float(quote.price)
+            )
+
         result: DebateResult = await run_debate_v2(
             ticker_score=score_match,
             contracts=contracts,
@@ -138,6 +150,7 @@ async def _run_debate_background(
             fundamentals=fundamentals,
             flow=flow,
             sentiment=sentiment,
+            intelligence=intel,
         )
 
         # Persist debate to DB
@@ -305,6 +318,16 @@ async def _run_batch_debate_background(
                         batch_openbb.fetch_news_sentiment(ticker),
                     )
 
+                # Fetch intelligence data (never raises — returns None on error)
+                batch_intel_svc: IntelligenceService | None = getattr(
+                    request.app.state, "intelligence", None
+                )
+                batch_intel: IntelligencePackage | None = None
+                if batch_intel_svc is not None:
+                    batch_intel = await batch_intel_svc.fetch_intelligence(
+                        ticker, float(ticker_info.current_price)
+                    )
+
                 # Create a per-ticker agent bridge that forwards to the batch bridge
                 agent_bridge = bridge.agent_bridge(ticker)
 
@@ -320,6 +343,7 @@ async def _run_batch_debate_background(
                     fundamentals=batch_fundamentals,
                     flow=batch_flow,
                     sentiment=batch_sentiment,
+                    intelligence=batch_intel,
                 )
 
                 total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens
