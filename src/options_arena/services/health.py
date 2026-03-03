@@ -255,6 +255,37 @@ class HealthService:
                 checked_at=datetime.now(UTC),
             )
 
+    async def check_intelligence(self) -> HealthStatus:
+        """Check intelligence data availability via yfinance analyst price targets.
+
+        Uses ``get_analyst_price_targets()`` for SPY as a lightweight smoke test.
+        """
+        start = time.monotonic()
+        try:
+            ticker = yf.Ticker("SPY")
+            await asyncio.wait_for(
+                asyncio.to_thread(ticker.get_analyst_price_targets),
+                timeout=self._config.yfinance_timeout,
+            )
+            latency_ms = (time.monotonic() - start) * 1000
+            logger.info("Intelligence health check OK (%.1fms)", latency_ms)
+            return HealthStatus(
+                service_name="intelligence",
+                available=True,
+                latency_ms=latency_ms,
+                checked_at=datetime.now(UTC),
+            )
+        except Exception as exc:
+            latency_ms = (time.monotonic() - start) * 1000
+            logger.warning("Intelligence health check failed: %s", exc)
+            return HealthStatus(
+                service_name="intelligence",
+                available=False,
+                latency_ms=latency_ms,
+                error=str(exc),
+                checked_at=datetime.now(UTC),
+            )
+
     async def check_cboe_chains(self) -> HealthStatus:
         """Test CBOE chain endpoint with a known ticker (AAPL).
 
@@ -329,8 +360,17 @@ class HealthService:
             self.check_cboe(),
             self.check_openbb(),
             self.check_cboe_chains(),
+            self.check_intelligence(),
         ]
-        service_names = ["yfinance", "fred", "groq", "cboe", "openbb", "cboe_chains"]
+        service_names = [
+            "yfinance",
+            "fred",
+            "groq",
+            "cboe",
+            "openbb",
+            "cboe_chains",
+            "intelligence",
+        ]
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         results: list[HealthStatus] = []

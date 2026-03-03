@@ -263,6 +263,35 @@ class DebateConfig(BaseModel):
         return self
 
 
+class IntelligenceConfig(BaseModel):
+    """Intelligence data configuration — controls yfinance intelligence fetching.
+
+    All features default to enabled. When ``enabled`` is ``False``, the entire
+    intelligence integration is skipped. Individual data sources can be toggled via
+    ``analyst_enabled``, ``insider_enabled``, ``institutional_enabled``, and
+    ``news_fallback_enabled``.
+    """
+
+    enabled: bool = True
+    analyst_enabled: bool = True
+    insider_enabled: bool = True
+    institutional_enabled: bool = True
+    news_fallback_enabled: bool = True
+    analyst_cache_ttl: int = 86400  # 24h
+    insider_cache_ttl: int = 21600  # 6h
+    institutional_cache_ttl: int = 86400  # 24h
+    news_cache_ttl: int = 900  # 15min
+    request_timeout: float = 15.0
+
+    @model_validator(mode="after")
+    def validate_all_finite(self) -> Self:
+        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
+        for name, value in self.__dict__.items():
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+        return self
+
+
 class OpenBBConfig(BaseModel):
     """OpenBB Platform SDK configuration — controls optional enrichment data.
 
@@ -307,3 +336,4 @@ class AppSettings(BaseSettings):
     data: DataConfig = DataConfig()
     log: LogConfig = LogConfig()
     openbb: OpenBBConfig = OpenBBConfig()
+    intelligence: IntelligenceConfig = IntelligenceConfig()

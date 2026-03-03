@@ -24,6 +24,7 @@ from options_arena.data import Database, Repository
 from options_arena.models.config import AppSettings
 from options_arena.services.cache import ServiceCache
 from options_arena.services.fred import FredService
+from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.market_data import MarketDataService
 from options_arena.services.openbb_service import OpenBBService
 from options_arena.services.options_data import OptionsDataService
@@ -78,6 +79,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     if settings.openbb.enabled:
         openbb_svc = OpenBBService(settings.openbb, cache, limiter)
 
+    # Intelligence service — created only when enabled in config
+    intelligence_svc: IntelligenceService | None = None
+    if settings.intelligence.enabled:
+        intelligence_svc = IntelligenceService(settings.intelligence, cache, limiter)
+
     # Store on app.state for Depends() access
     app.state.settings = settings
     app.state.db = db
@@ -89,6 +95,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.fred = fred
     app.state.universe = universe
     app.state.openbb = openbb_svc
+    app.state.intelligence = intelligence_svc
     app.state.operation_lock = asyncio.Lock()
 
     # Initialize counters and mutable state eagerly so route handlers
@@ -105,6 +112,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     yield
 
     # Shutdown — close all services
+    if intelligence_svc is not None:
+        await intelligence_svc.close()
     if openbb_svc is not None:
         await openbb_svc.close()
     await market_data.close()

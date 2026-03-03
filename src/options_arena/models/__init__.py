@@ -19,6 +19,7 @@ from options_arena.models.config import (
     AppSettings,
     DataConfig,
     DebateConfig,
+    IntelligenceConfig,
     LogConfig,
     OpenBBConfig,
     PricingConfig,
@@ -49,6 +50,15 @@ from options_arena.models.enums import (
 )
 from options_arena.models.health import HealthStatus
 from options_arena.models.history import HistoryPoint, TrendingTicker
+from options_arena.models.intelligence import (
+    AnalystActivitySnapshot,
+    AnalystSnapshot,
+    InsiderSnapshot,
+    InsiderTransaction,
+    InstitutionalSnapshot,
+    IntelligencePackage,
+    UpgradeDowngrade,
+)
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
 from options_arena.models.openbb import (
     FundamentalSnapshot,
@@ -123,6 +133,7 @@ __all__ = [
     "AppSettings",
     "DataConfig",
     "DebateConfig",
+    "IntelligenceConfig",
     "LogConfig",
     "OpenBBConfig",
     "PricingConfig",
@@ -139,6 +150,14 @@ __all__ = [
     "NewsSentimentSnapshot",
     "OpenBBHealthStatus",
     "UnusualFlowSnapshot",
+    # Intelligence
+    "AnalystActivitySnapshot",
+    "AnalystSnapshot",
+    "InsiderSnapshot",
+    "InsiderTransaction",
+    "InstitutionalSnapshot",
+    "IntelligencePackage",
+    "UpgradeDowngrade",
     # Watchlist
     "Watchlist",
     "WatchlistDetail",

@@ -68,6 +68,7 @@ from options_arena.models import (
     UnusualFlowSnapshot,
     VolatilityThesis,
 )
+from options_arena.models.intelligence import IntelligencePackage
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +107,7 @@ def build_market_context(
     fundamentals: FundamentalSnapshot | None = None,
     flow: UnusualFlowSnapshot | None = None,
     sentiment: NewsSentimentSnapshot | None = None,
+    intelligence: IntelligencePackage | None = None,
 ) -> MarketContext:
     """Map scan pipeline output to ``MarketContext`` for agent consumption.
 
@@ -217,6 +219,105 @@ def build_market_context(
             if sentiment and sentiment.headlines
             else None
         ),
+        # --- Arena Recon: Intelligence fields ---
+        analyst_target_mean=(
+            intelligence.analyst.target_mean
+            if intelligence and intelligence.analyst
+            else None
+        ),
+        analyst_target_upside_pct=(
+            intelligence.analyst.target_upside_pct
+            if intelligence and intelligence.analyst
+            else None
+        ),
+        analyst_consensus_score=(
+            intelligence.analyst.consensus_score
+            if intelligence and intelligence.analyst
+            else None
+        ),
+        analyst_upgrades_30d=(
+            intelligence.analyst_activity.upgrades_30d
+            if intelligence and intelligence.analyst_activity
+            else None
+        ),
+        analyst_downgrades_30d=(
+            intelligence.analyst_activity.downgrades_30d
+            if intelligence and intelligence.analyst_activity
+            else None
+        ),
+        insider_net_buys_90d=(
+            intelligence.insider.net_insider_buys_90d
+            if intelligence and intelligence.insider
+            else None
+        ),
+        insider_buy_ratio=(
+            intelligence.insider.insider_buy_ratio
+            if intelligence and intelligence.insider
+            else None
+        ),
+        institutional_pct=(
+            intelligence.institutional.institutional_pct
+            if intelligence and intelligence.institutional
+            else None
+        ),
+        # --- DSE: Dimensional scores (from TickerScore.dimensional_scores) ---
+        dim_trend=(
+            ticker_score.dimensional_scores.trend
+            if ticker_score.dimensional_scores
+            else None
+        ),
+        dim_iv_vol=(
+            ticker_score.dimensional_scores.iv_vol
+            if ticker_score.dimensional_scores
+            else None
+        ),
+        dim_hv_vol=(
+            ticker_score.dimensional_scores.hv_vol
+            if ticker_score.dimensional_scores
+            else None
+        ),
+        dim_flow=(
+            ticker_score.dimensional_scores.flow
+            if ticker_score.dimensional_scores
+            else None
+        ),
+        dim_microstructure=(
+            ticker_score.dimensional_scores.microstructure
+            if ticker_score.dimensional_scores
+            else None
+        ),
+        dim_fundamental=(
+            ticker_score.dimensional_scores.fundamental
+            if ticker_score.dimensional_scores
+            else None
+        ),
+        dim_regime=(
+            ticker_score.dimensional_scores.regime
+            if ticker_score.dimensional_scores
+            else None
+        ),
+        dim_risk=(
+            ticker_score.dimensional_scores.risk
+            if ticker_score.dimensional_scores
+            else None
+        ),
+        # --- DSE: High-signal individual indicators (from TickerScore.signals) ---
+        vol_regime=signals.vol_regime,
+        iv_hv_spread=signals.iv_hv_spread,
+        gex=signals.gex,
+        unusual_activity_score=signals.unusual_activity_score,
+        skew_ratio=signals.skew_ratio,
+        vix_term_structure=signals.vix_term_structure,
+        market_regime=signals.market_regime,
+        rsi_divergence=signals.rsi_divergence,
+        expected_move=signals.expected_move,
+        expected_move_ratio=signals.expected_move_ratio,
+        # --- DSE: Second-order Greeks (from TickerScore.signals) ---
+        target_vanna=signals.vanna,
+        target_charm=signals.charm,
+        target_vomma=signals.vomma,
+        # --- DSE: Direction confidence ---
+        direction_confidence=ticker_score.direction_confidence,
     )
 
 
@@ -283,6 +384,7 @@ async def run_debate(
     fundamentals: FundamentalSnapshot | None = None,
     flow: UnusualFlowSnapshot | None = None,
     sentiment: NewsSentimentSnapshot | None = None,
+    intelligence: IntelligencePackage | None = None,
 ) -> DebateResult:
     """Run AI debate on a ticker. On ANY failure, returns data-driven fallback -- never raises.
 
@@ -325,6 +427,7 @@ async def run_debate(
         fundamentals=fundamentals,
         flow=flow,
         sentiment=sentiment,
+        intelligence=intelligence,
     )
 
     completeness = context.completeness_ratio()
@@ -1269,6 +1372,7 @@ async def run_debate_v2(
     fundamentals: FundamentalSnapshot | None = None,
     flow: UnusualFlowSnapshot | None = None,
     sentiment: NewsSentimentSnapshot | None = None,
+    intelligence: IntelligencePackage | None = None,
 ) -> DebateResult:
     """Run 6-agent debate protocol. Falls back to data-driven on failure.
 
@@ -1320,6 +1424,7 @@ async def run_debate_v2(
         fundamentals=fundamentals,
         flow=flow,
         sentiment=sentiment,
+        intelligence=intelligence,
     )
 
     completeness = context.completeness_ratio()

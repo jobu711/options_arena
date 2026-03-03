@@ -118,6 +118,52 @@ class MarketContext(BaseModel):
     news_sentiment_label: str | None = None  # "bullish"/"bearish"/"neutral"
     recent_headlines: list[str] | None = None  # up to 5 headline strings
 
+    # --- Arena Recon: Analyst Intelligence ---
+    analyst_target_mean: float | None = None
+    analyst_target_upside_pct: float | None = None  # decimal fraction
+    analyst_consensus_score: float | None = None  # [-1.0, 1.0]
+
+    # --- Arena Recon: Analyst Activity ---
+    analyst_upgrades_30d: int | None = None
+    analyst_downgrades_30d: int | None = None
+
+    # --- Arena Recon: Insider Activity ---
+    insider_net_buys_90d: int | None = None
+
+    # --- Arena Recon: Institutional Ownership ---
+    insider_buy_ratio: float | None = None  # [0.0, 1.0]
+    institutional_pct: float | None = None  # [0.0, 1.0]
+
+    # --- DSE: Dimensional Scores (8 family sub-scores, 0-100) ---
+    dim_trend: float | None = None
+    dim_iv_vol: float | None = None
+    dim_hv_vol: float | None = None
+    dim_flow: float | None = None
+    dim_microstructure: float | None = None
+    dim_fundamental: float | None = None
+    dim_regime: float | None = None
+    dim_risk: float | None = None
+
+    # --- DSE: High-Signal Individual Indicators ---
+    vol_regime: float | None = None
+    iv_hv_spread: float | None = None
+    gex: float | None = None
+    unusual_activity_score: float | None = None
+    skew_ratio: float | None = None
+    vix_term_structure: float | None = None
+    market_regime: float | None = None
+    rsi_divergence: float | None = None
+    expected_move: float | None = None
+    expected_move_ratio: float | None = None
+
+    # --- DSE: Second-Order Greeks ---
+    target_vanna: float | None = None
+    target_charm: float | None = None
+    target_vomma: float | None = None
+
+    # --- DSE: Direction Confidence ---
+    direction_confidence: float | None = None  # [0.0, 1.0]
+
     def completeness_ratio(self) -> float:
         """Fraction of optional context fields that are populated (not None).
 
@@ -185,6 +231,58 @@ class MarketContext(BaseModel):
         populated = sum(1 for f in enrichment_fields if f is not None)
         return populated / len(enrichment_fields)
 
+    def intelligence_ratio(self) -> float:
+        """Fraction of 8 intelligence fields populated (0.0-1.0).
+
+        Separate from ``completeness_ratio()`` so that intelligence data
+        doesn't penalise debates when intelligence fetching is disabled.
+        """
+        intel_fields: list[object] = [
+            self.analyst_target_mean,
+            self.analyst_target_upside_pct,
+            self.analyst_consensus_score,
+            self.analyst_upgrades_30d,
+            self.analyst_downgrades_30d,
+            self.insider_net_buys_90d,
+            self.insider_buy_ratio,
+            self.institutional_pct,
+        ]
+        populated = sum(1 for f in intel_fields if f is not None)
+        return populated / len(intel_fields)
+
+    def dse_ratio(self) -> float:
+        """Fraction of 22 DSE fields populated (0.0-1.0).
+
+        Separate from ``completeness_ratio()`` so that DSE data doesn't
+        penalise debates for tickers not included in scan results.
+        """
+        dse_fields: list[float | None] = [
+            self.dim_trend,
+            self.dim_iv_vol,
+            self.dim_hv_vol,
+            self.dim_flow,
+            self.dim_microstructure,
+            self.dim_fundamental,
+            self.dim_regime,
+            self.dim_risk,
+            self.vol_regime,
+            self.iv_hv_spread,
+            self.gex,
+            self.unusual_activity_score,
+            self.skew_ratio,
+            self.vix_term_structure,
+            self.market_regime,
+            self.rsi_divergence,
+            self.expected_move,
+            self.expected_move_ratio,
+            self.target_vanna,
+            self.target_charm,
+            self.target_vomma,
+            self.direction_confidence,
+        ]
+        populated = sum(1 for f in dse_fields if f is not None)
+        return populated / len(dse_fields)
+
     @field_validator("rsi_14", "target_delta", "dividend_yield", "composite_score")
     @classmethod
     def validate_required_finite(cls, v: float) -> float:
@@ -221,6 +319,38 @@ class MarketContext(BaseModel):
         "net_put_premium",
         "options_put_call_ratio",
         "news_sentiment",
+        # Arena Recon intelligence float fields
+        "analyst_target_mean",
+        "analyst_target_upside_pct",
+        "analyst_consensus_score",
+        "insider_buy_ratio",
+        "institutional_pct",
+        # DSE dimensional scores
+        "dim_trend",
+        "dim_iv_vol",
+        "dim_hv_vol",
+        "dim_flow",
+        "dim_microstructure",
+        "dim_fundamental",
+        "dim_regime",
+        "dim_risk",
+        # DSE high-signal indicators
+        "vol_regime",
+        "iv_hv_spread",
+        "gex",
+        "unusual_activity_score",
+        "skew_ratio",
+        "vix_term_structure",
+        "market_regime",
+        "rsi_divergence",
+        "expected_move",
+        "expected_move_ratio",
+        # DSE second-order Greeks
+        "target_vanna",
+        "target_charm",
+        "target_vomma",
+        # DSE direction confidence
+        "direction_confidence",
     )
     @classmethod
     def validate_optional_finite(cls, v: float | None) -> float | None:
