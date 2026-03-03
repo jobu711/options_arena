@@ -33,6 +33,7 @@ from options_arena.agents.bear import bear_agent
 from options_arena.agents.bull import bull_agent
 from options_arena.agents.orchestrator import (
     DebatePhase,
+    _build_model_settings,
     _derive_macd_signal,
     _extract_top_signals,
     _format_contract_refs,
@@ -47,6 +48,7 @@ from options_arena.models import (
     AgentResponse,
     DebateConfig,
     IndicatorSignals,
+    LLMProvider,
     MacdSignal,
     OptionContract,
     Quote,
@@ -59,6 +61,70 @@ from options_arena.models import (
 
 # Prevent accidental real API calls
 models.ALLOW_MODEL_REQUESTS = False
+
+
+# ---------------------------------------------------------------------------
+# _build_model_settings
+# ---------------------------------------------------------------------------
+
+
+class TestBuildModelSettings:
+    """Tests for _build_model_settings conditional extended thinking."""
+
+    def test_groq_returns_standard_settings(self) -> None:
+        """Groq provider returns standard ModelSettings with configured temperature."""
+        config = DebateConfig(api_key="gsk_test", temperature=0.5)
+        settings = _build_model_settings(config)
+        assert settings["temperature"] == 0.5
+        assert "anthropic_thinking" not in settings
+
+    def test_anthropic_without_extended_thinking(self) -> None:
+        """Anthropic with extended thinking disabled uses standard settings."""
+        config = DebateConfig(
+            provider=LLMProvider.ANTHROPIC,
+            anthropic_api_key="sk-ant-test",
+            enable_extended_thinking=False,
+            temperature=0.7,
+        )
+        settings = _build_model_settings(config)
+        assert settings["temperature"] == 0.7
+        assert "anthropic_thinking" not in settings
+
+    def test_anthropic_with_extended_thinking(self) -> None:
+        """Anthropic with extended thinking enabled sets temperature=1.0 and thinking budget."""
+        config = DebateConfig(
+            provider=LLMProvider.ANTHROPIC,
+            anthropic_api_key="sk-ant-test",
+            enable_extended_thinking=True,
+            thinking_budget_tokens=8192,
+        )
+        settings = _build_model_settings(config)
+        assert settings["temperature"] == 1.0
+        thinking = settings["anthropic_thinking"]
+        assert thinking["type"] == "enabled"
+        assert thinking["budget_tokens"] == 8192
+
+    def test_extended_thinking_custom_budget(self) -> None:
+        """Custom thinking_budget_tokens value is passed through."""
+        config = DebateConfig(
+            provider=LLMProvider.ANTHROPIC,
+            anthropic_api_key="sk-ant-test",
+            enable_extended_thinking=True,
+            thinking_budget_tokens=16384,
+        )
+        settings = _build_model_settings(config)
+        assert settings["anthropic_thinking"]["budget_tokens"] == 16384
+
+    def test_groq_ignores_extended_thinking_flag(self) -> None:
+        """Groq provider ignores enable_extended_thinking even if set."""
+        config = DebateConfig(
+            api_key="gsk_test",
+            enable_extended_thinking=True,
+            temperature=0.3,
+        )
+        settings = _build_model_settings(config)
+        assert settings["temperature"] == 0.3
+        assert "anthropic_thinking" not in settings
 
 
 # ---------------------------------------------------------------------------

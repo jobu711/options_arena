@@ -148,7 +148,7 @@ class TestCheckAllIncludesIntelligence:
     async def test_check_all_includes_intelligence(
         self, health_service: HealthService
     ) -> None:
-        """check_all() results include an intelligence check (7 total)."""
+        """check_all() results include an intelligence check (8 total)."""
         ok_status = HealthStatus(
             service_name="mock", available=True, latency_ms=10.0, checked_at=_utc_now()
         )
@@ -156,6 +156,7 @@ class TestCheckAllIncludesIntelligence:
         health_service.check_yfinance = AsyncMock(return_value=ok_status)  # type: ignore[method-assign]
         health_service.check_fred = AsyncMock(return_value=ok_status)  # type: ignore[method-assign]
         health_service.check_groq = AsyncMock(return_value=ok_status)  # type: ignore[method-assign]
+        health_service.check_anthropic = AsyncMock(return_value=ok_status)  # type: ignore[method-assign]
         health_service.check_cboe = AsyncMock(return_value=ok_status)  # type: ignore[method-assign]
         health_service.check_openbb = AsyncMock(return_value=ok_status)  # type: ignore[method-assign]
         health_service.check_cboe_chains = AsyncMock(return_value=ok_status)  # type: ignore[method-assign]
@@ -163,14 +164,14 @@ class TestCheckAllIncludesIntelligence:
 
         results = await health_service.check_all()
 
-        assert len(results) == 7
+        assert len(results) == 8
         health_service.check_intelligence.assert_awaited_once()  # type: ignore[union-attr]
 
     @pytest.mark.asyncio
     async def test_intelligence_failure_doesnt_crash_check_all(
         self, health_service: HealthService
     ) -> None:
-        """If intelligence check raises, check_all still completes with 7 results."""
+        """If intelligence check raises, check_all still completes with 8 results."""
         ok_status = HealthStatus(
             service_name="mock", available=True, latency_ms=10.0, checked_at=_utc_now()
         )
@@ -178,6 +179,7 @@ class TestCheckAllIncludesIntelligence:
         health_service.check_yfinance = AsyncMock(return_value=ok_status)  # type: ignore[method-assign]
         health_service.check_fred = AsyncMock(return_value=ok_status)  # type: ignore[method-assign]
         health_service.check_groq = AsyncMock(return_value=ok_status)  # type: ignore[method-assign]
+        health_service.check_anthropic = AsyncMock(return_value=ok_status)  # type: ignore[method-assign]
         health_service.check_cboe = AsyncMock(return_value=ok_status)  # type: ignore[method-assign]
         health_service.check_openbb = AsyncMock(return_value=ok_status)  # type: ignore[method-assign]
         health_service.check_cboe_chains = AsyncMock(return_value=ok_status)  # type: ignore[method-assign]
@@ -185,7 +187,7 @@ class TestCheckAllIncludesIntelligence:
 
         results = await health_service.check_all()
 
-        assert len(results) == 7
+        assert len(results) == 8
         # The intelligence check exception should be converted to HealthStatus(available=False)
         intel_result = [r for r in results if r.service_name == "intelligence"]
         assert len(intel_result) == 1

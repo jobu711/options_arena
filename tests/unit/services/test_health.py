@@ -218,6 +218,99 @@ class TestCheckGroq:
 
 
 # ---------------------------------------------------------------------------
+# check_anthropic
+# ---------------------------------------------------------------------------
+
+
+class TestCheckAnthropic:
+    """Tests for Anthropic API health check."""
+
+    @pytest.mark.asyncio
+    async def test_no_api_key(self, service: HealthService) -> None:
+        """No Anthropic API key returns available=False with descriptive error."""
+        result = await service.check_anthropic()
+
+        assert result.service_name == "anthropic"
+        assert result.available is False
+        assert result.error == "no API key configured"
+        assert result.latency_ms is not None
+
+    @pytest.mark.asyncio
+    async def test_success(self, monkeypatch: pytest.MonkeyPatch, service: HealthService) -> None:
+        """Anthropic reachable with valid API key returns available=True."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-key")
+        mock_response = httpx.Response(
+            status_code=200,
+            json={"data": [{"id": "claude-sonnet-4-5-20250929"}]},
+            request=httpx.Request("GET", "test"),
+        )
+        service._client.get = AsyncMock(return_value=mock_response)  # type: ignore[method-assign]
+
+        result = await service.check_anthropic()
+
+        assert result.service_name == "anthropic"
+        assert result.available is True
+        assert result.latency_ms is not None
+        assert result.latency_ms > 0
+        assert result.error is None
+
+    @pytest.mark.asyncio
+    async def test_invalid_api_key_401(
+        self, monkeypatch: pytest.MonkeyPatch, service: HealthService
+    ) -> None:
+        """401 response returns available=False with 'invalid API key' error."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-bad-key")
+        mock_response = httpx.Response(
+            status_code=401,
+            json={"error": {"message": "Invalid API key"}},
+            request=httpx.Request("GET", "test"),
+        )
+        service._client.get = AsyncMock(return_value=mock_response)  # type: ignore[method-assign]
+
+        result = await service.check_anthropic()
+
+        assert result.service_name == "anthropic"
+        assert result.available is False
+        assert result.error == "invalid API key (401)"
+
+    @pytest.mark.asyncio
+    async def test_server_error_500(
+        self, monkeypatch: pytest.MonkeyPatch, service: HealthService
+    ) -> None:
+        """500+ response returns available=False."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-key")
+        mock_response = httpx.Response(
+            status_code=500,
+            request=httpx.Request("GET", "test"),
+        )
+        service._client.get = AsyncMock(return_value=mock_response)  # type: ignore[method-assign]
+
+        result = await service.check_anthropic()
+
+        assert result.service_name == "anthropic"
+        assert result.available is False
+        assert result.error == "HTTP 500"
+
+    @pytest.mark.asyncio
+    async def test_connection_failure(
+        self, monkeypatch: pytest.MonkeyPatch, service: HealthService
+    ) -> None:
+        """Network error returns available=False with error message."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-key")
+        service._client.get = AsyncMock(  # type: ignore[method-assign]
+            side_effect=httpx.ConnectError("connection refused"),
+        )
+
+        result = await service.check_anthropic()
+
+        assert result.service_name == "anthropic"
+        assert result.available is False
+        assert result.error is not None
+        assert result.latency_ms is not None
+        assert result.latency_ms > 0
+
+
+# ---------------------------------------------------------------------------
 # check_cboe
 # ---------------------------------------------------------------------------
 
@@ -265,7 +358,7 @@ class TestCheckAll:
 
     @pytest.mark.asyncio
     async def test_all_succeed(self, service: HealthService) -> None:
-        """All checks succeed: 7 HealthStatus objects, all available."""
+        """All checks succeed: 8 HealthStatus objects, all available."""
         yf_status = HealthStatus(
             service_name="yfinance",
             available=True,
@@ -282,6 +375,12 @@ class TestCheckAll:
             service_name="groq",
             available=True,
             latency_ms=20.0,
+            checked_at=_utc_now(),
+        )
+        anthropic_status = HealthStatus(
+            service_name="anthropic",
+            available=True,
+            latency_ms=25.0,
             checked_at=_utc_now(),
         )
         cboe_status = HealthStatus(
@@ -312,6 +411,7 @@ class TestCheckAll:
         service.check_yfinance = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
         service.check_fred = AsyncMock(return_value=fred_status)  # type: ignore[method-assign]
         service.check_groq = AsyncMock(return_value=groq_status)  # type: ignore[method-assign]
+        service.check_anthropic = AsyncMock(return_value=anthropic_status)  # type: ignore[method-assign]
         service.check_cboe = AsyncMock(return_value=cboe_status)  # type: ignore[method-assign]
         service.check_openbb = AsyncMock(return_value=openbb_status)  # type: ignore[method-assign]
         service.check_cboe_chains = AsyncMock(return_value=cboe_chains_status)  # type: ignore[method-assign]
@@ -319,12 +419,12 @@ class TestCheckAll:
 
         results = await service.check_all()
 
-        assert len(results) == 7
+        assert len(results) == 8
         assert all(isinstance(r, HealthStatus) for r in results)
 
     @pytest.mark.asyncio
     async def test_partial_failure(self, service: HealthService) -> None:
-        """Two succeed, five fail: all 7 HealthStatus objects returned with correct flags."""
+        """Two succeed, six fail: all 8 HealthStatus objects returned with correct flags."""
         yf_status = HealthStatus(
             service_name="yfinance",
             available=True,
@@ -342,6 +442,13 @@ class TestCheckAll:
             service_name="groq",
             available=True,
             latency_ms=20.0,
+            checked_at=_utc_now(),
+        )
+        anthropic_status = HealthStatus(
+            service_name="anthropic",
+            available=False,
+            latency_ms=15.0,
+            error="no API key configured",
             checked_at=_utc_now(),
         )
         cboe_status = HealthStatus(
@@ -375,6 +482,7 @@ class TestCheckAll:
         service.check_yfinance = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
         service.check_fred = AsyncMock(return_value=fred_status)  # type: ignore[method-assign]
         service.check_groq = AsyncMock(return_value=groq_status)  # type: ignore[method-assign]
+        service.check_anthropic = AsyncMock(return_value=anthropic_status)  # type: ignore[method-assign]
         service.check_cboe = AsyncMock(return_value=cboe_status)  # type: ignore[method-assign]
         service.check_openbb = AsyncMock(return_value=openbb_status)  # type: ignore[method-assign]
         service.check_cboe_chains = AsyncMock(return_value=cboe_chains_status)  # type: ignore[method-assign]
@@ -382,11 +490,12 @@ class TestCheckAll:
 
         results = await service.check_all()
 
-        assert len(results) == 7
+        assert len(results) == 8
         names_available = {r.service_name: r.available for r in results}
         assert names_available["yfinance"] is True
         assert names_available["fred"] is False
         assert names_available["groq"] is True
+        assert names_available["anthropic"] is False
         assert names_available["cboe"] is False
         assert names_available["openbb"] is False
         assert names_available["cboe_chains"] is False
@@ -399,6 +508,13 @@ class TestCheckAll:
             service_name="yfinance",
             available=True,
             latency_ms=50.0,
+            checked_at=_utc_now(),
+        )
+        anthropic_status = HealthStatus(
+            service_name="anthropic",
+            available=False,
+            latency_ms=10.0,
+            error="no API key configured",
             checked_at=_utc_now(),
         )
         openbb_status = HealthStatus(
@@ -424,6 +540,7 @@ class TestCheckAll:
         service.check_yfinance = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
         service.check_fred = AsyncMock(side_effect=RuntimeError("boom"))  # type: ignore[method-assign]
         service.check_groq = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
+        service.check_anthropic = AsyncMock(return_value=anthropic_status)  # type: ignore[method-assign]
         service.check_cboe = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
         service.check_openbb = AsyncMock(return_value=openbb_status)  # type: ignore[method-assign]
         service.check_cboe_chains = AsyncMock(return_value=cboe_chains_status)  # type: ignore[method-assign]
@@ -431,7 +548,7 @@ class TestCheckAll:
 
         results = await service.check_all()
 
-        assert len(results) == 7
+        assert len(results) == 8
         fred_result = results[1]  # second in the list (order preserved)
         assert fred_result.service_name == "fred"
         assert fred_result.available is False

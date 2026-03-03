@@ -55,6 +55,7 @@ from options_arena.models import (
     FlowThesis,
     FundamentalSnapshot,
     FundamentalThesis,
+    LLMProvider,
     MacdSignal,
     MarketContext,
     NewsSentimentSnapshot,
@@ -96,6 +97,25 @@ def should_debate(ticker_score: TickerScore, config: DebateConfig) -> bool:
     if ticker_score.direction == SignalDirection.NEUTRAL:
         return False
     return ticker_score.composite_score >= config.min_debate_score
+
+
+def _build_model_settings(config: DebateConfig) -> ModelSettings:
+    """Build ModelSettings with conditional extended thinking for Anthropic.
+
+    When ``config.provider`` is ``ANTHROPIC`` and ``config.enable_extended_thinking``
+    is True, returns settings with ``temperature=1.0`` (required by Anthropic for
+    extended thinking) and ``anthropic_thinking`` budget. Otherwise returns standard
+    settings with the configured temperature.
+    """
+    if config.provider == LLMProvider.ANTHROPIC and config.enable_extended_thinking:
+        return ModelSettings(
+            temperature=1.0,
+            anthropic_thinking={
+                "type": "enabled",
+                "budget_tokens": config.thinking_budget_tokens,
+            },
+        )
+    return ModelSettings(temperature=config.temperature)
 
 
 def build_market_context(
@@ -221,9 +241,7 @@ def build_market_context(
         ),
         # --- Arena Recon: Intelligence fields ---
         analyst_target_mean=(
-            intelligence.analyst.target_mean
-            if intelligence and intelligence.analyst
-            else None
+            intelligence.analyst.target_mean if intelligence and intelligence.analyst else None
         ),
         analyst_target_upside_pct=(
             intelligence.analyst.target_upside_pct
@@ -231,9 +249,7 @@ def build_market_context(
             else None
         ),
         analyst_consensus_score=(
-            intelligence.analyst.consensus_score
-            if intelligence and intelligence.analyst
-            else None
+            intelligence.analyst.consensus_score if intelligence and intelligence.analyst else None
         ),
         analyst_upgrades_30d=(
             intelligence.analyst_activity.upgrades_30d
@@ -262,24 +278,16 @@ def build_market_context(
         ),
         # --- DSE: Dimensional scores (from TickerScore.dimensional_scores) ---
         dim_trend=(
-            ticker_score.dimensional_scores.trend
-            if ticker_score.dimensional_scores
-            else None
+            ticker_score.dimensional_scores.trend if ticker_score.dimensional_scores else None
         ),
         dim_iv_vol=(
-            ticker_score.dimensional_scores.iv_vol
-            if ticker_score.dimensional_scores
-            else None
+            ticker_score.dimensional_scores.iv_vol if ticker_score.dimensional_scores else None
         ),
         dim_hv_vol=(
-            ticker_score.dimensional_scores.hv_vol
-            if ticker_score.dimensional_scores
-            else None
+            ticker_score.dimensional_scores.hv_vol if ticker_score.dimensional_scores else None
         ),
         dim_flow=(
-            ticker_score.dimensional_scores.flow
-            if ticker_score.dimensional_scores
-            else None
+            ticker_score.dimensional_scores.flow if ticker_score.dimensional_scores else None
         ),
         dim_microstructure=(
             ticker_score.dimensional_scores.microstructure
@@ -292,14 +300,10 @@ def build_market_context(
             else None
         ),
         dim_regime=(
-            ticker_score.dimensional_scores.regime
-            if ticker_score.dimensional_scores
-            else None
+            ticker_score.dimensional_scores.regime if ticker_score.dimensional_scores else None
         ),
         dim_risk=(
-            ticker_score.dimensional_scores.risk
-            if ticker_score.dimensional_scores
-            else None
+            ticker_score.dimensional_scores.risk if ticker_score.dimensional_scores else None
         ),
         # --- DSE: High-signal individual indicators (from TickerScore.signals) ---
         vol_regime=signals.vol_regime,
@@ -525,7 +529,7 @@ async def _run_agents(
     Raises on any agent failure — the caller (``run_debate``) catches and falls back.
     """
     model = build_debate_model(config)
-    settings = ModelSettings(temperature=config.temperature)
+    settings = _build_model_settings(config)
     per_agent_timeout = config.agent_timeout
     context_text = render_context_block(context)
 
@@ -1485,7 +1489,7 @@ async def _run_v2_agents(
 ) -> DebateResult:
     """Run the 6-agent pipeline. Raises on total failure."""
     model = build_debate_model(config)
-    settings = ModelSettings(temperature=config.temperature)
+    settings = _build_model_settings(config)
     per_agent_timeout = config.agent_timeout
     context_text = render_context_block(context)
 

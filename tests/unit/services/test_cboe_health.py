@@ -201,6 +201,9 @@ class TestCBOEHealthCheck:
         svc.check_groq = AsyncMock(  # type: ignore[method-assign]
             return_value=_make_status("groq")
         )
+        svc.check_anthropic = AsyncMock(  # type: ignore[method-assign]
+            return_value=_make_status("anthropic", available=False)
+        )
         svc.check_cboe = AsyncMock(  # type: ignore[method-assign]
             return_value=_make_status("cboe")
         )
@@ -214,7 +217,7 @@ class TestCBOEHealthCheck:
         results = await svc.check_all()
         service_names = [r.service_name for r in results]
         assert "cboe_chains" in service_names
-        assert len(results) == 7
+        assert len(results) == 8
 
         # The cboe_chains entry should show disabled
         cboe_chains_result = next(r for r in results if r.service_name == "cboe_chains")
