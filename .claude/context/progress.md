@@ -2,10 +2,10 @@
 
 ## Current State
 
-- **Version**: 2.2.0 — OpenBB chain migration complete
-- **All 9 phases + 15 epics**: Complete and merged to master
-- **Tests**: 2,917 Python + 38 E2E
-- **GitHub issues**: 7 open, 169 closed
+- **Version**: 2.3.0 — Market Recon (intelligence + DSE wiring) complete
+- **All 9 phases + 16 epics**: Complete and merged to master
+- **Tests**: 3,148 Python + 38 E2E
+- **GitHub issues**: 7 open, 176 closed
 - **CI**: GitHub Actions (3 gates: lint, typecheck, tests)
 - **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`), `serve`, `watchlist`
 - **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
@@ -34,25 +34,22 @@ None.
 
 ## Recently Completed
 
+### Epic 16: Market Recon (2026-03-03) — #201-#208
+IntelligenceService + DSE wiring to debate agents. +231 tests.
+- 7 frozen intelligence models (analyst, insider, institutional, news)
+- `IntelligenceService` with 6 yfinance fetch methods (never-raises)
+- 30 new MarketContext fields (intelligence + DSE)
+- 7 new context block sections for debate agents
+- CLI `--no-recon` flag, API DI wiring, health check, migration 010
+
 ### Epic 15: OpenBB Migration (2026-03-02) — #192-#199, PR #200
 ChainProvider protocol abstraction: CBOE via OpenBB primary, yfinance fallback. +127 tests.
-- `ChainProvider` protocol + `YFinanceChainProvider` + `CBOEChainProvider`
-- Three-tier Greeks: CBOE native → local BAW/BSM → exclude
-- Provider orchestration with timeout + broad exception fallback
-- DI wiring: 5 call sites (CLI + API), CBOE health check, validation mode
-- Cutover: `cboe_chains_enabled=True` by default
 
 ### Epic 14: OpenBB Integration (2026-03-02) — #179-#183
 Optional enrichment via OpenBB Platform SDK: fundamentals, unusual flow, news sentiment. +319 tests.
 
-### CCPM Planning Phase Enhancements (2026-03-01)
-4 enhancements: research phase, planning lock hook, session checkpoint/resume, TDD-first task output.
-
 ### Epic 13: Ticker Universe Improve (2026-03-01) — #161
 Composable sector filtering, working ETF preset, scan result enrichment. +124 tests.
-
-### Epic 12: Deep Signal Engine (2026-03-01) — #151, PR #160
-40 DSE indicators, 6-agent debate, regime-adjusted weights, CI workflow. +576 tests.
 
 ## Future Work
 
