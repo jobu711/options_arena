@@ -1,8 +1,8 @@
 {
-  "epic": "market-recon",
+  "epic": "analytics-persist",
   "phase": "synced",
-  "last_command": "/pm:epic-sync market-recon",
-  "last_updated": "2026-03-03T09:05:37Z",
+  "last_command": "/pm:epic-sync analytics-persist",
+  "last_updated": "2026-03-03T10:32:10Z",
   "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
   "current_task": null,
   "tasks_completed": [],

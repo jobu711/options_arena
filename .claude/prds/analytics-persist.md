@@ -1,3 +1,10 @@
+---
+name: analytics-persist
+description: Persist contract recommendations, track outcomes, and expose analytics queries
+status: planned
+created: 2026-03-03T10:17:04Z
+---
+
 # Analytics Persistence Layer — Plan
 
 ## Context

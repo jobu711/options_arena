@@ -1,0 +1,12 @@
+{
+  "epic": "anthropic-api",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync anthropic-api",
+  "last_updated": "2026-03-03T10:50:26Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "Research complete. Architecture already supports multi-provider via PydanticAI Model abstraction. Small scope (~10 files, ~200 LOC production + ~300 LOC tests). No breaking changes."
+}

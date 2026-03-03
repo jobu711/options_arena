@@ -1,3 +1,10 @@
+---
+name: anthropic-api
+description: Add Claude/Anthropic as alternative LLM debate provider alongside Groq
+status: planned
+created: 2026-03-03T10:21:16Z
+---
+
 # Plan: Add Claude/Anthropic as Debate Provider
 
 ## Context
