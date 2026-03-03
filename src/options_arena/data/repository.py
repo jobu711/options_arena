@@ -14,6 +14,7 @@ from sqlite3 import Row
 
 from options_arena.data.database import Database
 from options_arena.models import (
+    ContractOutcome,
     ExerciseStyle,
     GICSSector,
     GreeksSource,
@@ -22,6 +23,7 @@ from options_arena.models import (
     MarketContext,
     NormalizationStats,
     OptionType,
+    OutcomeCollectionMethod,
     PricingModel,
     RecommendedContract,
     ScanPreset,
@@ -807,4 +809,164 @@ class Repository:
             p25=float(row["p25"]) if row["p25"] is not None else None,
             p75=float(row["p75"]) if row["p75"] is not None else None,
             created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    # ------------------------------------------------------------------
+    # Analytics: Outcomes
+    # ------------------------------------------------------------------
+
+    async def save_contract_outcomes(self, outcomes: list[ContractOutcome]) -> None:
+        """Batch-insert contract outcome records.
+
+        Decimal fields are stored as TEXT to preserve precision.
+        Uses ``executemany()`` for efficient batch insertion.
+
+        Args:
+            outcomes: List of contract outcomes to persist.
+        """
+        if not outcomes:
+            return
+        conn = self._db.conn
+        await conn.executemany(
+            "INSERT INTO contract_outcomes "
+            "(recommended_contract_id, exit_stock_price, exit_contract_mid, "
+            "exit_contract_bid, exit_contract_ask, exit_date, "
+            "stock_return_pct, contract_return_pct, is_winner, "
+            "holding_days, dte_at_exit, collection_method, collected_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    o.recommended_contract_id,
+                    str(o.exit_stock_price) if o.exit_stock_price is not None else None,
+                    str(o.exit_contract_mid) if o.exit_contract_mid is not None else None,
+                    str(o.exit_contract_bid) if o.exit_contract_bid is not None else None,
+                    str(o.exit_contract_ask) if o.exit_contract_ask is not None else None,
+                    o.exit_date.isoformat() if o.exit_date is not None else None,
+                    o.stock_return_pct,
+                    o.contract_return_pct,
+                    int(o.is_winner) if o.is_winner is not None else None,
+                    o.holding_days,
+                    o.dte_at_exit,
+                    o.collection_method.value,
+                    o.collected_at.isoformat(),
+                )
+                for o in outcomes
+            ],
+        )
+        await conn.commit()
+        logger.debug("Saved %d contract outcomes", len(outcomes))
+
+    async def get_outcomes_for_contract(self, contract_id: int) -> list[ContractOutcome]:
+        """Get all outcomes for a recommended contract, ordered by holding_days.
+
+        Args:
+            contract_id: Database ID of the recommended contract.
+
+        Returns:
+            List of ``ContractOutcome`` models (empty if none found).
+        """
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT * FROM contract_outcomes "
+            "WHERE recommended_contract_id = ? ORDER BY holding_days ASC",
+            (contract_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        outcomes = [self._row_to_contract_outcome(row) for row in rows]
+        logger.debug("Retrieved %d outcomes for contract %d", len(outcomes), contract_id)
+        return outcomes
+
+    async def get_contracts_needing_outcomes(
+        self, holding_days: int, lookback_date: date
+    ) -> list[RecommendedContract]:
+        """Get recommended contracts that need outcomes for a given period.
+
+        Returns contracts created on *lookback_date* that do not yet have
+        an outcome record for *holding_days*.
+
+        Args:
+            holding_days: The holding period to check.
+            lookback_date: Date when the contracts were created.
+
+        Returns:
+            List of ``RecommendedContract`` models that need outcomes.
+        """
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT * FROM recommended_contracts rc "
+            "WHERE date(rc.created_at) = ? "
+            "AND NOT EXISTS ("
+            "  SELECT 1 FROM contract_outcomes co "
+            "  WHERE co.recommended_contract_id = rc.id "
+            "  AND co.holding_days = ?"
+            ")",
+            (lookback_date.isoformat(), holding_days),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        contracts = [self._row_to_recommended_contract(row) for row in rows]
+        logger.debug(
+            "Found %d contracts needing outcomes (period=%d, date=%s)",
+            len(contracts),
+            holding_days,
+            lookback_date,
+        )
+        return contracts
+
+    async def has_outcome(self, contract_id: int, exit_date: date) -> bool:
+        """Check if an outcome already exists for a contract and exit date.
+
+        Used for duplicate prevention before inserting new outcomes.
+
+        Args:
+            contract_id: Database ID of the recommended contract.
+            exit_date: The exit observation date.
+
+        Returns:
+            ``True`` if an outcome exists, ``False`` otherwise.
+        """
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT EXISTS("
+            "  SELECT 1 FROM contract_outcomes "
+            "  WHERE recommended_contract_id = ? AND exit_date = ?"
+            ")",
+            (contract_id, exit_date.isoformat()),
+        ) as cursor:
+            row = await cursor.fetchone()
+        return bool(row[0]) if row else False
+
+    @staticmethod
+    def _row_to_contract_outcome(row: Row) -> ContractOutcome:
+        """Reconstruct a ContractOutcome from an aiosqlite.Row.
+
+        Decimal fields are stored as TEXT and reconstructed via ``Decimal()``.
+        Optional fields handle NULL values from the database.
+        """
+        raw_exit_stock: str | None = row["exit_stock_price"]
+        raw_exit_mid: str | None = row["exit_contract_mid"]
+        raw_exit_bid: str | None = row["exit_contract_bid"]
+        raw_exit_ask: str | None = row["exit_contract_ask"]
+        raw_exit_date: str | None = row["exit_date"]
+        raw_is_winner = row["is_winner"]
+        return ContractOutcome(
+            id=int(row["id"]),
+            recommended_contract_id=int(row["recommended_contract_id"]),
+            exit_stock_price=Decimal(raw_exit_stock) if raw_exit_stock is not None else None,
+            exit_contract_mid=Decimal(raw_exit_mid) if raw_exit_mid is not None else None,
+            exit_contract_bid=Decimal(raw_exit_bid) if raw_exit_bid is not None else None,
+            exit_contract_ask=Decimal(raw_exit_ask) if raw_exit_ask is not None else None,
+            exit_date=date.fromisoformat(raw_exit_date) if raw_exit_date is not None else None,
+            stock_return_pct=(
+                float(row["stock_return_pct"]) if row["stock_return_pct"] is not None else None
+            ),
+            contract_return_pct=(
+                float(row["contract_return_pct"])
+                if row["contract_return_pct"] is not None
+                else None
+            ),
+            is_winner=bool(raw_is_winner) if raw_is_winner is not None else None,
+            holding_days=(int(row["holding_days"]) if row["holding_days"] is not None else None),
+            dte_at_exit=(int(row["dte_at_exit"]) if row["dte_at_exit"] is not None else None),
+            collection_method=OutcomeCollectionMethod(row["collection_method"]),
+            collected_at=datetime.fromisoformat(row["collected_at"]),
         )
