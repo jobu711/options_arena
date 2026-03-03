@@ -13,6 +13,7 @@ They are NOT frozen -- the pipeline updates them during execution.
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -20,6 +21,7 @@ from options_arena.models import (
     OHLCV,
     GICSSector,
     IndicatorSignals,
+    NormalizationStats,
     OptionContract,
     ScanRun,
     TickerScore,
@@ -59,12 +61,14 @@ class ScoringResult(BaseModel):
     Attributes:
         scores: TickerScore list sorted descending by composite_score, direction set.
         raw_signals: Ticker to raw (NOT normalized) IndicatorSignals mapping.
+        normalization_stats: Per-indicator distribution metadata (computed in Phase 2).
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     scores: list[TickerScore]
     raw_signals: dict[str, IndicatorSignals]
+    normalization_stats: list[NormalizationStats] = Field(default_factory=list)
 
 
 class OptionsResult(BaseModel):
@@ -74,6 +78,7 @@ class OptionsResult(BaseModel):
         recommendations: Ticker to recommended contracts mapping (0 or 1 contracts per ticker).
         risk_free_rate: Risk-free rate used for the entire scan (from FRED or fallback).
         earnings_dates: Ticker to next earnings date mapping (None if unknown).
+        entry_prices: Ticker to spot price at scan time (captured from TickerInfo.current_price).
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -81,6 +86,7 @@ class OptionsResult(BaseModel):
     recommendations: dict[str, list[OptionContract]]
     risk_free_rate: float
     earnings_dates: dict[str, date] = Field(default_factory=dict)
+    entry_prices: dict[str, Decimal] = Field(default_factory=dict)
 
 
 class ScanResult(BaseModel):

@@ -9,14 +9,21 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from sqlite3 import Row
 
 from options_arena.data.database import Database
 from options_arena.models import (
+    ExerciseStyle,
     GICSSector,
+    GreeksSource,
     HistoryPoint,
     IndicatorSignals,
     MarketContext,
+    NormalizationStats,
+    OptionType,
+    PricingModel,
+    RecommendedContract,
     ScanPreset,
     ScanRun,
     SignalDirection,
@@ -567,4 +574,237 @@ class Repository:
             watchlist_id=int(row["watchlist_id"]),
             ticker=str(row["ticker"]),
             added_at=datetime.fromisoformat(row["added_at"]),
+        )
+
+    # ------------------------------------------------------------------
+    # Analytics: Contracts & Normalization
+    # ------------------------------------------------------------------
+
+    async def save_recommended_contracts(
+        self,
+        scan_id: int,
+        contracts: list[RecommendedContract],
+    ) -> None:
+        """Batch-insert recommended contracts for a scan run.
+
+        Decimal fields are stored as TEXT to preserve precision.
+        Uses ``executemany()`` for efficient batch insertion.
+
+        Args:
+            scan_id: Database ID of the parent scan run.
+            contracts: List of recommended contracts to persist.
+        """
+        if not contracts:
+            return
+        conn = self._db.conn
+        await conn.executemany(
+            "INSERT INTO recommended_contracts "
+            "(scan_run_id, ticker, option_type, strike, expiration, bid, ask, last, "
+            "volume, open_interest, market_iv, exercise_style, "
+            "delta, gamma, theta, vega, rho, pricing_model, greeks_source, "
+            "entry_stock_price, entry_mid, direction, composite_score, "
+            "risk_free_rate, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    scan_id,
+                    c.ticker,
+                    c.option_type.value,
+                    str(c.strike),
+                    c.expiration.isoformat(),
+                    str(c.bid),
+                    str(c.ask),
+                    str(c.last) if c.last is not None else None,
+                    c.volume,
+                    c.open_interest,
+                    c.market_iv,
+                    c.exercise_style.value,
+                    c.delta,
+                    c.gamma,
+                    c.theta,
+                    c.vega,
+                    c.rho,
+                    c.pricing_model.value if c.pricing_model is not None else None,
+                    c.greeks_source.value if c.greeks_source is not None else None,
+                    str(c.entry_stock_price),
+                    str(c.entry_mid),
+                    c.direction.value,
+                    c.composite_score,
+                    c.risk_free_rate,
+                    c.created_at.isoformat(),
+                )
+                for c in contracts
+            ],
+        )
+        await conn.commit()
+        logger.debug("Saved %d recommended contracts for scan %d", len(contracts), scan_id)
+
+    async def get_contracts_for_scan(self, scan_id: int) -> list[RecommendedContract]:
+        """Get all recommended contracts for a scan run.
+
+        Args:
+            scan_id: Database ID of the scan run.
+
+        Returns:
+            List of ``RecommendedContract`` models (empty if none found).
+        """
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT * FROM recommended_contracts WHERE scan_run_id = ? ORDER BY id ASC",
+            (scan_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        contracts = [self._row_to_recommended_contract(row) for row in rows]
+        logger.debug("Retrieved %d contracts for scan %d", len(contracts), scan_id)
+        return contracts
+
+    async def get_contracts_for_ticker(
+        self, ticker: str, limit: int = 50
+    ) -> list[RecommendedContract]:
+        """Get recent recommended contracts for a ticker.
+
+        Returns most recent contracts first, limited to *limit* entries.
+
+        Args:
+            ticker: Ticker symbol (case-sensitive as stored).
+            limit: Maximum number of contracts to return.
+
+        Returns:
+            List of ``RecommendedContract`` models (empty if none found).
+        """
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT * FROM recommended_contracts WHERE ticker = ? "
+            "ORDER BY created_at DESC LIMIT ?",
+            (ticker, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        contracts = [self._row_to_recommended_contract(row) for row in rows]
+        logger.debug("Retrieved %d contracts for ticker=%s", len(contracts), ticker)
+        return contracts
+
+    async def save_normalization_stats(
+        self,
+        scan_id: int,
+        stats: list[NormalizationStats],
+    ) -> None:
+        """Batch-insert normalization stats for a scan run.
+
+        Uses ``executemany()`` for efficient batch insertion.
+
+        Args:
+            scan_id: Database ID of the parent scan run.
+            stats: List of normalization stats to persist.
+        """
+        if not stats:
+            return
+        conn = self._db.conn
+        await conn.executemany(
+            "INSERT INTO normalization_metadata "
+            "(scan_run_id, indicator_name, ticker_count, "
+            "min_value, max_value, median_value, mean_value, std_dev, "
+            "p25, p75, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    scan_id,
+                    s.indicator_name,
+                    s.ticker_count,
+                    s.min_value,
+                    s.max_value,
+                    s.median_value,
+                    s.mean_value,
+                    s.std_dev,
+                    s.p25,
+                    s.p75,
+                    s.created_at.isoformat(),
+                )
+                for s in stats
+            ],
+        )
+        await conn.commit()
+        logger.debug("Saved %d normalization stats for scan %d", len(stats), scan_id)
+
+    async def get_normalization_stats(self, scan_id: int) -> list[NormalizationStats]:
+        """Get normalization stats for a scan run.
+
+        Args:
+            scan_id: Database ID of the scan run.
+
+        Returns:
+            List of ``NormalizationStats`` models (empty if none found).
+        """
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT * FROM normalization_metadata WHERE scan_run_id = ? ORDER BY id ASC",
+            (scan_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        stats = [self._row_to_normalization_stats(row) for row in rows]
+        logger.debug("Retrieved %d normalization stats for scan %d", len(stats), scan_id)
+        return stats
+
+    @staticmethod
+    def _row_to_recommended_contract(row: Row) -> RecommendedContract:
+        """Reconstruct a RecommendedContract from an aiosqlite.Row.
+
+        Decimal fields are stored as TEXT and reconstructed via ``Decimal()``.
+        Enum fields are reconstructed via their constructor.
+        Optional fields (Greeks, pricing_model, greeks_source, last) handle NULL.
+        """
+        raw_last: str | None = row["last"]
+        raw_pricing_model: str | None = row["pricing_model"]
+        raw_greeks_source: str | None = row["greeks_source"]
+        return RecommendedContract(
+            id=int(row["id"]),
+            scan_run_id=int(row["scan_run_id"]),
+            ticker=str(row["ticker"]),
+            option_type=OptionType(row["option_type"]),
+            strike=Decimal(row["strike"]),
+            expiration=date.fromisoformat(row["expiration"]),
+            bid=Decimal(row["bid"]),
+            ask=Decimal(row["ask"]),
+            last=Decimal(raw_last) if raw_last is not None else None,
+            volume=int(row["volume"]),
+            open_interest=int(row["open_interest"]),
+            market_iv=float(row["market_iv"]),
+            exercise_style=ExerciseStyle(row["exercise_style"]),
+            delta=float(row["delta"]) if row["delta"] is not None else None,
+            gamma=float(row["gamma"]) if row["gamma"] is not None else None,
+            theta=float(row["theta"]) if row["theta"] is not None else None,
+            vega=float(row["vega"]) if row["vega"] is not None else None,
+            rho=float(row["rho"]) if row["rho"] is not None else None,
+            pricing_model=(
+                PricingModel(raw_pricing_model) if raw_pricing_model is not None else None
+            ),
+            greeks_source=(
+                GreeksSource(raw_greeks_source) if raw_greeks_source is not None else None
+            ),
+            entry_stock_price=Decimal(row["entry_stock_price"]),
+            entry_mid=Decimal(row["entry_mid"]),
+            direction=SignalDirection(row["direction"]),
+            composite_score=float(row["composite_score"]),
+            risk_free_rate=float(row["risk_free_rate"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    @staticmethod
+    def _row_to_normalization_stats(row: Row) -> NormalizationStats:
+        """Reconstruct a NormalizationStats from an aiosqlite.Row.
+
+        Optional float stats handle NULL values from the database.
+        """
+        return NormalizationStats(
+            id=int(row["id"]),
+            scan_run_id=int(row["scan_run_id"]),
+            indicator_name=str(row["indicator_name"]),
+            ticker_count=int(row["ticker_count"]),
+            min_value=(float(row["min_value"]) if row["min_value"] is not None else None),
+            max_value=(float(row["max_value"]) if row["max_value"] is not None else None),
+            median_value=(float(row["median_value"]) if row["median_value"] is not None else None),
+            mean_value=(float(row["mean_value"]) if row["mean_value"] is not None else None),
+            std_dev=(float(row["std_dev"]) if row["std_dev"] is not None else None),
+            p25=float(row["p25"]) if row["p25"] is not None else None,
+            p75=float(row["p75"]) if row["p75"] is not None else None,
+            created_at=datetime.fromisoformat(row["created_at"]),
         )

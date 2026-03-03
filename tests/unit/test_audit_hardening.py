@@ -462,7 +462,7 @@ class TestPhase3Concurrency:
         settings.scan.options_concurrency = 2
 
         # Create mock services
-        market_data = MagicMock()
+        market_data = AsyncMock()
         options_data = MagicMock()
         fred = MagicMock()
         fred.fetch_risk_free_rate = AsyncMock(return_value=0.05)
@@ -496,10 +496,10 @@ class TestPhase3Concurrency:
             rfr: float,
             ohlcv_map: dict[str, list[OHLCV]],
             spx_close: object,
-        ) -> tuple[str, list[object], date | None]:
+        ) -> tuple[str, list[object], date | None, Decimal | None]:
             if ts.ticker == "BAD_TICKER":
                 raise RuntimeError("Simulated failure")
-            return (ts.ticker, [], None)
+            return (ts.ticker, [], None, Decimal("100"))
 
         pipeline._process_ticker_options = mock_process  # type: ignore[assignment]
 
