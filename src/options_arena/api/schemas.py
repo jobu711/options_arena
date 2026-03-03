@@ -38,6 +38,8 @@ class ScanRequest(BaseModel):
     sectors: list[GICSSector] = []
     market_cap_tiers: list[MarketCapTier] = []
     exclude_near_earnings_days: int | None = None
+    direction_filter: SignalDirection | None = None
+    min_iv_rank: float | None = None
 
     @field_validator("market_cap_tiers", mode="before")
     @classmethod

@@ -36,7 +36,13 @@ from options_arena.cli.rendering import (
 from options_arena.data import Database, Repository
 from options_arena.models import IndicatorSignals, TickerScore
 from options_arena.models.config import AppSettings
-from options_arena.models.enums import SECTOR_ALIASES, GICSSector, ScanPreset
+from options_arena.models.enums import (
+    SECTOR_ALIASES,
+    GICSSector,
+    MarketCapTier,
+    ScanPreset,
+    SignalDirection,
+)
 from options_arena.scan import CancellationToken, ScanPipeline, ScanResult
 from options_arena.scan.indicators import (
     INDICATOR_REGISTRY,
@@ -96,6 +102,24 @@ def _parse_sectors(raw: list[str]) -> list[GICSSector]:
     return result
 
 
+def _parse_market_caps(raw: list[str]) -> list[MarketCapTier]:
+    """Resolve raw market cap strings to MarketCapTier enums.
+
+    Raises ``typer.BadParameter`` with valid options on unrecognised input.
+    """
+    result: list[MarketCapTier] = []
+    for item in raw:
+        key = item.strip().lower()
+        try:
+            result.append(MarketCapTier(key))
+        except ValueError:
+            valid = sorted(t.value for t in MarketCapTier)
+            raise typer.BadParameter(
+                f"Unknown market cap tier {item!r}. Valid tiers: {', '.join(valid)}"
+            ) from None
+    return list(dict.fromkeys(result))
+
+
 @app.command()
 def scan(
     preset: ScanPreset = typer.Option(  # noqa: B008
@@ -106,10 +130,34 @@ def scan(
     sector: list[str] = typer.Option(  # noqa: B008
         [], "--sector", "-s", help="Filter by GICS sector (repeatable)"
     ),
+    market_cap: list[str] = typer.Option(  # noqa: B008
+        [], "--market-cap", help="Market cap tier (repeatable): mega, large, mid, small, micro"
+    ),
+    exclude_earnings: int | None = typer.Option(
+        None, "--exclude-earnings", help="Exclude tickers with earnings within N days"
+    ),
+    direction: SignalDirection | None = typer.Option(  # noqa: B008
+        None, "--direction", help="Filter by signal direction: bullish, bearish, neutral"
+    ),
+    min_iv_rank: float | None = typer.Option(
+        None, "--min-iv-rank", help="Minimum IV rank (0-100)"
+    ),
 ) -> None:
     """Run the full scan pipeline: universe -> scoring -> options -> persist."""
     sectors = _parse_sectors(sector)
-    asyncio.run(_scan_async(preset, top_n, min_score, sectors))
+    cap_tiers = _parse_market_caps(market_cap)
+    asyncio.run(
+        _scan_async(
+            preset,
+            top_n,
+            min_score,
+            sectors,
+            cap_tiers,
+            exclude_earnings,
+            direction,
+            min_iv_rank,
+        )
+    )
 
 
 async def _scan_async(
@@ -117,6 +165,10 @@ async def _scan_async(
     top_n: int,
     min_score: float,
     sectors: list[GICSSector],
+    market_cap_tiers: list[MarketCapTier] | None = None,
+    exclude_near_earnings_days: int | None = None,
+    direction_filter: SignalDirection | None = None,
+    min_iv_rank: float | None = None,
 ) -> None:
     """Run the scan pipeline with full service lifecycle management."""
     start_time = time.monotonic()
@@ -126,6 +178,14 @@ async def _scan_async(
     settings.scan.top_n = top_n
     settings.scan.min_score = min_score
     settings.scan.sectors = sectors
+    if market_cap_tiers:
+        settings.scan.market_cap_tiers = market_cap_tiers
+    if exclude_near_earnings_days is not None:
+        settings.scan.exclude_near_earnings_days = exclude_near_earnings_days
+    if direction_filter is not None:
+        settings.scan.direction_filter = direction_filter
+    if min_iv_rank is not None:
+        settings.scan.min_iv_rank = min_iv_rank
 
     # Infrastructure (lightweight constructors — no I/O)
     _DATA_DIR.mkdir(parents=True, exist_ok=True)

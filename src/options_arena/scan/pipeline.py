@@ -145,6 +145,20 @@ class ScanPipeline:
                 scoring_result=scoring_result,
             )
 
+        # Post-Phase 2: Apply direction filter if configured
+        direction_filter = self._settings.scan.direction_filter
+        if direction_filter is not None:
+            before_count = len(scoring_result.scores)
+            scoring_result.scores = [
+                ts for ts in scoring_result.scores if ts.direction == direction_filter
+            ]
+            logger.info(
+                "Direction filter (%s): %d -> %d tickers",
+                direction_filter.value,
+                before_count,
+                len(scoring_result.scores),
+            )
+
         # Phase 3: Liquidity Pre-filter + Options + Contracts
         options_result = await self._phase_options(scoring_result, universe_result, progress)
 
@@ -639,6 +653,32 @@ class ScanPipeline:
             earnings_date = None
         else:
             earnings_date = earnings_result
+
+        # Pre-scan narrowing: check market cap tier + earnings proximity
+        scan_config = self._settings.scan
+        if (
+            scan_config.market_cap_tiers
+            and ticker_info.market_cap_tier is not None
+            and ticker_info.market_cap_tier not in scan_config.market_cap_tiers
+        ):
+            logger.info(
+                "Filtered %s: market_cap_tier %s not in %s",
+                ticker,
+                ticker_info.market_cap_tier.value,
+                [t.value for t in scan_config.market_cap_tiers],
+            )
+            return (ticker, [], earnings_date, ticker_info.current_price)
+
+        if scan_config.exclude_near_earnings_days is not None and earnings_date is not None:
+            days_to_earnings = (earnings_date - date.today()).days
+            if days_to_earnings <= scan_config.exclude_near_earnings_days:
+                logger.info(
+                    "Filtered %s: earnings in %d days (<= %d)",
+                    ticker,
+                    days_to_earnings,
+                    scan_config.exclude_near_earnings_days,
+                )
+                return (ticker, [], earnings_date, ticker_info.current_price)
 
         # Enrich ticker_score with company_name from ticker info
         ticker_score.company_name = ticker_info.company_name

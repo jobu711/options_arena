@@ -12,6 +12,10 @@ import Tag from 'primevue/tag'
 import Panel from 'primevue/panel'
 import DirectionBadge from '@/components/DirectionBadge.vue'
 import SparklineChart from '@/components/SparklineChart.vue'
+import RegimeBanner from '@/components/RegimeBanner.vue'
+import DimensionalScoreBars from '@/components/DimensionalScoreBars.vue'
+import ScanFilterPanel from '@/components/ScanFilterPanel.vue'
+import FilterPresets from '@/components/FilterPresets.vue'
 import TickerDrawer from '@/components/TickerDrawer.vue'
 import DebateProgressModal from '@/components/DebateProgressModal.vue'
 import { useScanStore } from '@/stores/scan'
@@ -20,7 +24,7 @@ import { useOperationStore } from '@/stores/operation'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { api, ApiError } from '@/composables/useApi'
-import type { TickerScore, ScanRun, ScanDiff, TickerDelta, HistoryPoint, SectorOption } from '@/types'
+import type { TickerScore, ScanRun, ScanDiff, TickerDelta, HistoryPoint, SectorOption, FilterParams } from '@/types'
 import type { DebateEvent, BatchEvent } from '@/types/ws'
 
 /** Map GICS sector names to PrimeVue Tag severity values for color-coding. */
@@ -277,12 +281,39 @@ function onSectorFilterChange(): void {
   void loadScores()
 }
 
+// Dimensional filters state (ScanFilterPanel + FilterPresets)
+const dimensionalFilters = ref<FilterParams>({})
+
+function onDimensionalFilterChange(filters: FilterParams): void {
+  dimensionalFilters.value = filters
+  page.value = 1
+  syncUrl()
+  void loadScores()
+}
+
+function onPresetApplied(filters: FilterParams): void {
+  dimensionalFilters.value = filters
+  page.value = 1
+  syncUrl()
+  void loadScores()
+}
+
+function onClearAllFilters(): void {
+  dimensionalFilters.value = {}
+  page.value = 1
+  syncUrl()
+  void loadScores()
+}
+
 // Drawer state
 const drawerVisible = ref(false)
 const selectedScore = ref<TickerScore | null>(null)
 
 // Batch selection
 const selectedTickers = ref<TickerScore[]>([])
+
+// Row expansion state
+const expandedRows = ref<Record<string, boolean>>({})
 
 // Sparkline history data (ticker -> last 10 scores)
 const sparklineData = ref<Map<string, number[]>>(new Map())
@@ -325,6 +356,17 @@ function buildParams(): Record<string, string | number | undefined> {
   if (selectedSectorFilters.value.length > 0) {
     params.sectors = selectedSectorFilters.value.join(',')
   }
+  // Dimensional filters
+  const df = dimensionalFilters.value
+  if (df.min_score) params.min_score = df.min_score
+  if (df.min_confidence) params.min_confidence = df.min_confidence / 100 // slider is 0-100, API expects 0-1
+  if (df.min_trend) params.min_trend = df.min_trend
+  if (df.min_iv_vol) params.min_iv_vol = df.min_iv_vol
+  if (df.min_flow) params.min_flow = df.min_flow
+  if (df.min_risk) params.min_risk = df.min_risk
+  if (df.market_regime) params.market_regime = df.market_regime
+  if (df.max_earnings_days !== undefined) params.max_earnings_days = df.max_earnings_days
+  if (df.min_earnings_days !== undefined) params.min_earnings_days = df.min_earnings_days
   return params
 }
 
@@ -337,6 +379,17 @@ function syncUrl(): void {
   if (page.value > 1) query.page = String(page.value)
   if (compareScanId.value !== null) query.compare = String(compareScanId.value)
   if (selectedSectorFilters.value.length > 0) query.sectors = selectedSectorFilters.value.join(',')
+  // Dimensional filter URL params
+  const df = dimensionalFilters.value
+  if (df.min_score) query.min_score = String(df.min_score)
+  if (df.min_confidence) query.min_confidence = String(df.min_confidence)
+  if (df.min_trend) query.min_trend = String(df.min_trend)
+  if (df.min_iv_vol) query.min_iv_vol = String(df.min_iv_vol)
+  if (df.min_flow) query.min_flow = String(df.min_flow)
+  if (df.min_risk) query.min_risk = String(df.min_risk)
+  if (df.market_regime) query.market_regime = df.market_regime
+  if (df.max_earnings_days !== undefined) query.max_earnings_days = String(df.max_earnings_days)
+  if (df.min_earnings_days !== undefined) query.min_earnings_days = String(df.min_earnings_days)
   router.replace({ query })
 }
 
@@ -394,6 +447,12 @@ function earningsDte(isoDate: string): string {
   return `${days}d`
 }
 
+/** Format direction_confidence as percentage string. */
+function formatConfidence(val: number | null | undefined): string {
+  if (val === null || val === undefined) return '--'
+  return `${(val * 100).toFixed(0)}%`
+}
+
 /** CSS class for earnings DTE: red if < 7 days, gray otherwise. */
 function earningsClass(isoDate: string): string {
   const today = new Date()
@@ -438,6 +497,21 @@ onMounted(async () => {
   const sectorsParam = route.query.sectors as string | undefined
   if (sectorsParam) {
     selectedSectorFilters.value = sectorsParam.split(',')
+  }
+  // Restore dimensional filters from URL
+  const restoredFilters: FilterParams = {}
+  const q = route.query
+  if (q.min_score) restoredFilters.min_score = Number(q.min_score)
+  if (q.min_confidence) restoredFilters.min_confidence = Number(q.min_confidence)
+  if (q.min_trend) restoredFilters.min_trend = Number(q.min_trend)
+  if (q.min_iv_vol) restoredFilters.min_iv_vol = Number(q.min_iv_vol)
+  if (q.min_flow) restoredFilters.min_flow = Number(q.min_flow)
+  if (q.min_risk) restoredFilters.min_risk = Number(q.min_risk)
+  if (q.market_regime) restoredFilters.market_regime = q.market_regime as FilterParams['market_regime']
+  if (q.max_earnings_days) restoredFilters.max_earnings_days = Number(q.max_earnings_days)
+  if (q.min_earnings_days) restoredFilters.min_earnings_days = Number(q.min_earnings_days)
+  if (Object.keys(restoredFilters).length > 0) {
+    dimensionalFilters.value = restoredFilters
   }
   await loadScores()
   void fetchSparklineData()
@@ -577,11 +651,26 @@ onUnmounted(() => {
       </div>
     </Panel>
 
+    <!-- Filter Presets + Advanced Panel -->
+    <FilterPresets
+      :current-filters="dimensionalFilters"
+      @preset-applied="onPresetApplied"
+      @clear-all="onClearAllFilters"
+    />
+    <ScanFilterPanel
+      v-model="dimensionalFilters"
+      @update:model-value="onDimensionalFilterChange"
+    />
+
+    <!-- Regime Banner -->
+    <RegimeBanner :scores="scanStore.scores" />
+
     <!-- Data Table -->
     <DataTable
       :value="scanStore.scores"
       :loading="scanStore.loading"
       dataKey="ticker"
+      v-model:expandedRows="expandedRows"
       :paginator="true"
       :rows="50"
       :rowsPerPageOptions="[25, 50, 100]"
@@ -600,6 +689,7 @@ onUnmounted(() => {
       data-testid="scan-results-table"
     >
       <Column selectionMode="multiple" :style="{ width: '3rem' }" />
+      <Column expander :style="{ width: '3rem' }" />
       <Column field="ticker" header="Ticker" :sortable="true" :style="{ width: '120px' }">
         <template #body="{ data }">
           <span class="ticker-cell-wrapper">
@@ -642,6 +732,18 @@ onUnmounted(() => {
       <Column field="direction" header="Direction" :sortable="true" :style="{ width: '110px' }">
         <template #body="{ data }">
           <DirectionBadge :direction="data.direction" />
+        </template>
+      </Column>
+      <Column
+        field="direction_confidence"
+        header="Confidence"
+        :sortable="true"
+        :style="{ width: '100px' }"
+      >
+        <template #body="{ data }">
+          <span class="mono" data-testid="direction-confidence">
+            {{ formatConfidence(data.direction_confidence) }}
+          </span>
         </template>
       </Column>
       <Column header="Trend" :style="{ width: '100px' }">
@@ -689,6 +791,11 @@ onUnmounted(() => {
           </div>
         </template>
       </Column>
+      <template #expansion="{ data }">
+        <div class="expansion-content" data-testid="row-expansion">
+          <DimensionalScoreBars :scores="data.dimensional_scores" />
+        </div>
+      </template>
       <template #empty>
         <div class="empty-msg" data-testid="empty-state">No results found matching your filters.</div>
       </template>
@@ -911,5 +1018,10 @@ onUnmounted(() => {
 .sparkline-empty {
   color: var(--p-surface-500, #666);
   font-size: 0.8rem;
+}
+
+.expansion-content {
+  padding: 0.75rem 1.5rem;
+  max-width: 400px;
 }
 </style>

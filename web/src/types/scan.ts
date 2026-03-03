@@ -69,3 +69,19 @@ export interface ScanDiff {
   removed: string[]
   movers: TickerDelta[]
 }
+
+/** Market regime type alias. */
+export type MarketRegime = 'trending' | 'mean_reverting' | 'volatile' | 'crisis'
+
+/** Post-scan dimensional filter parameters for ScanResultsPage. */
+export interface FilterParams {
+  min_score?: number
+  min_confidence?: number
+  min_trend?: number
+  min_iv_vol?: number
+  min_flow?: number
+  min_risk?: number
+  market_regime?: MarketRegime | null
+  max_earnings_days?: number
+  min_earnings_days?: number
+}

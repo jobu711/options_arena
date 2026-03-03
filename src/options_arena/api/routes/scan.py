@@ -116,10 +116,21 @@ async def start_scan(
     token = CancellationToken()
     bridge = WebSocketProgressBridge()
 
-    # Apply per-request sector filter to settings (immutable copy pattern)
+    # Apply per-request filters to settings (immutable copy pattern)
     effective_settings = settings
+    scan_overrides: dict[str, object] = {}
     if body.sectors:
-        scan_override = settings.scan.model_copy(update={"sectors": body.sectors})
+        scan_overrides["sectors"] = body.sectors
+    if body.market_cap_tiers:
+        scan_overrides["market_cap_tiers"] = body.market_cap_tiers
+    if body.exclude_near_earnings_days is not None:
+        scan_overrides["exclude_near_earnings_days"] = body.exclude_near_earnings_days
+    if body.direction_filter is not None:
+        scan_overrides["direction_filter"] = body.direction_filter
+    if body.min_iv_rank is not None:
+        scan_overrides["min_iv_rank"] = body.min_iv_rank
+    if scan_overrides:
+        scan_override = settings.scan.model_copy(update=scan_overrides)
         effective_settings = settings.model_copy(update={"scan": scan_override})
 
     pipeline = ScanPipeline(
