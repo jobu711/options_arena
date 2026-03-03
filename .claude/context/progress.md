@@ -2,12 +2,12 @@
 
 ## Current State
 
-- **Version**: 2.3.0 — Market Recon (intelligence + DSE wiring) complete
-- **All 9 phases + 16 epics**: Complete and merged to master
-- **Tests**: 3,148 Python + 38 E2E
-- **GitHub issues**: 7 open, 176 closed
+- **Version**: 2.4.0 — Analytics Persistence (contract tracking + outcome analytics) complete
+- **All 9 phases + 17 epics**: Complete and merged to master
+- **Tests**: 3,376 Python + 38 E2E
+- **GitHub issues**: 0 open, 176 closed
 - **CI**: GitHub Actions (3 gates: lint, typecheck, tests)
-- **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`), `serve`, `watchlist`
+- **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`), `serve`, `watchlist`, `outcomes` (collect, summary)
 - **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
 - **AI provider**: Groq (cloud, `GROQ_API_KEY` env var or `ARENA_DEBATE__API_KEY`)
 
@@ -34,22 +34,23 @@ None.
 
 ## Recently Completed
 
+### Epic 17: Analytics Persistence (2026-03-03) — #209-#213
+Contract persistence, outcome tracking, analytics API. +138 tests.
+- 9 frozen analytics models, `OutcomeCollectionMethod` enum, `AnalyticsConfig`
+- 3 SQL migrations (recommended_contracts, contract_outcomes, normalization_metadata)
+- Pipeline Phase 3 entry price capture + Phase 4 contract/normalization persistence
+- `OutcomeCollector` service with P&L computation, intrinsic value for expired contracts
+- CLI `outcomes` subcommand group (collect, summary)
+- 6 analytics repository queries + 9 API endpoints on `/api/analytics`
+
 ### Epic 16: Market Recon (2026-03-03) — #201-#208
 IntelligenceService + DSE wiring to debate agents. +231 tests.
-- 7 frozen intelligence models (analyst, insider, institutional, news)
-- `IntelligenceService` with 6 yfinance fetch methods (never-raises)
-- 30 new MarketContext fields (intelligence + DSE)
-- 7 new context block sections for debate agents
-- CLI `--no-recon` flag, API DI wiring, health check, migration 010
 
 ### Epic 15: OpenBB Migration (2026-03-02) — #192-#199, PR #200
 ChainProvider protocol abstraction: CBOE via OpenBB primary, yfinance fallback. +127 tests.
 
 ### Epic 14: OpenBB Integration (2026-03-02) — #179-#183
 Optional enrichment via OpenBB Platform SDK: fundamentals, unusual flow, news sentiment. +319 tests.
-
-### Epic 13: Ticker Universe Improve (2026-03-01) — #161
-Composable sector filtering, working ETF preset, scan result enrichment. +124 tests.
 
 ## Future Work
 
