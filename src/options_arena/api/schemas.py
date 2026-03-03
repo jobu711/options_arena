@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from options_arena.models import (
     AgentResponse,
     GICSSector,
+    MarketCapTier,
     ScanPreset,
     SentimentLabel,
     SignalDirection,
@@ -35,6 +36,23 @@ class ScanRequest(BaseModel):
 
     preset: ScanPreset = ScanPreset.SP500
     sectors: list[GICSSector] = []
+    market_cap_tiers: list[MarketCapTier] = []
+    exclude_near_earnings_days: int | None = None
+
+    @field_validator("market_cap_tiers", mode="before")
+    @classmethod
+    def deduplicate_market_cap_tiers(
+        cls,
+        v: list[str | MarketCapTier],
+    ) -> list[MarketCapTier]:
+        """Deduplicate market cap tier inputs."""
+        result: list[MarketCapTier] = []
+        for item in v:
+            if isinstance(item, MarketCapTier):
+                result.append(item)
+            else:
+                result.append(MarketCapTier(str(item).strip().lower()))
+        return list(dict.fromkeys(result))
 
     @field_validator("sectors", mode="before")
     @classmethod
