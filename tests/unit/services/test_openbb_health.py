@@ -7,7 +7,7 @@ Tests cover:
   - check_openbb() measures latency
   - check_openbb() never raises
   - check_all() includes openbb status
-  - check_all() returns 5 statuses (was 4 before OpenBB)
+  - check_all() returns 7 statuses (includes intelligence)
 """
 
 from __future__ import annotations
@@ -118,6 +118,9 @@ class TestCheckAllIncludesOpenBB:
         health_service.check_cboe = AsyncMock(  # type: ignore[method-assign]
             return_value=_make_status("cboe")
         )
+        health_service.check_intelligence = AsyncMock(  # type: ignore[method-assign]
+            return_value=_make_status("intelligence")
+        )
         # check_openbb will run naturally (no SDK installed → unavailable)
 
         results = await health_service.check_all()
@@ -125,8 +128,8 @@ class TestCheckAllIncludesOpenBB:
         assert "openbb" in service_names
 
     @pytest.mark.asyncio
-    async def test_check_all_count_is_six(self, health_service: HealthService) -> None:
-        """check_all() returns 6 statuses (yfinance, fred, groq, cboe, openbb, cboe_chains)."""
+    async def test_check_all_count_is_seven(self, health_service: HealthService) -> None:
+        """check_all() returns 7 statuses including intelligence."""
         health_service.check_yfinance = AsyncMock(  # type: ignore[method-assign]
             return_value=_make_status("yfinance")
         )
@@ -141,7 +144,7 @@ class TestCheckAllIncludesOpenBB:
         )
 
         results = await health_service.check_all()
-        assert len(results) == 6
+        assert len(results) == 7
 
 
 def _make_status(name: str, available: bool = True) -> object:
