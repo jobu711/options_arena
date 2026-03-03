@@ -41,6 +41,16 @@ export const useScanStore = defineStore('scan', () => {
       direction?: string
       min_score?: number
       search?: string
+      sectors?: string
+      // Dimensional filters
+      min_confidence?: number
+      market_regime?: string
+      min_trend?: number
+      min_iv_vol?: number
+      min_flow?: number
+      min_risk?: number
+      max_earnings_days?: number
+      min_earnings_days?: number
     } = {},
   ): Promise<void> {
     loading.value = true

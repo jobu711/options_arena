@@ -356,14 +356,15 @@ function buildParams(): Record<string, string | number | undefined> {
   if (selectedSectorFilters.value.length > 0) {
     params.sectors = selectedSectorFilters.value.join(',')
   }
-  // Dimensional filters
+  // Dimensional filters (use > 0 to avoid falsy 0 suppression)
   const df = dimensionalFilters.value
-  if (df.min_score) params.min_score = df.min_score
-  if (df.min_confidence) params.min_confidence = df.min_confidence / 100 // slider is 0-100, API expects 0-1
-  if (df.min_trend) params.min_trend = df.min_trend
-  if (df.min_iv_vol) params.min_iv_vol = df.min_iv_vol
-  if (df.min_flow) params.min_flow = df.min_flow
-  if (df.min_risk) params.min_risk = df.min_risk
+  if (df.min_score != null && df.min_score > 0) params.min_score = df.min_score
+  if (df.min_confidence != null && df.min_confidence > 0)
+    params.min_confidence = df.min_confidence / 100 // slider is 0-100, API expects 0-1
+  if (df.min_trend != null && df.min_trend > 0) params.min_trend = df.min_trend
+  if (df.min_iv_vol != null && df.min_iv_vol > 0) params.min_iv_vol = df.min_iv_vol
+  if (df.min_flow != null && df.min_flow > 0) params.min_flow = df.min_flow
+  if (df.min_risk != null && df.min_risk > 0) params.min_risk = df.min_risk
   if (df.market_regime) params.market_regime = df.market_regime
   if (df.max_earnings_days !== undefined) params.max_earnings_days = df.max_earnings_days
   if (df.min_earnings_days !== undefined) params.min_earnings_days = df.min_earnings_days
@@ -379,14 +380,14 @@ function syncUrl(): void {
   if (page.value > 1) query.page = String(page.value)
   if (compareScanId.value !== null) query.compare = String(compareScanId.value)
   if (selectedSectorFilters.value.length > 0) query.sectors = selectedSectorFilters.value.join(',')
-  // Dimensional filter URL params
+  // Dimensional filter URL params (use > 0 to avoid falsy 0 suppression)
   const df = dimensionalFilters.value
-  if (df.min_score) query.min_score = String(df.min_score)
-  if (df.min_confidence) query.min_confidence = String(df.min_confidence)
-  if (df.min_trend) query.min_trend = String(df.min_trend)
-  if (df.min_iv_vol) query.min_iv_vol = String(df.min_iv_vol)
-  if (df.min_flow) query.min_flow = String(df.min_flow)
-  if (df.min_risk) query.min_risk = String(df.min_risk)
+  if (df.min_score != null && df.min_score > 0) query.min_score = String(df.min_score)
+  if (df.min_confidence != null && df.min_confidence > 0) query.min_confidence = String(df.min_confidence)
+  if (df.min_trend != null && df.min_trend > 0) query.min_trend = String(df.min_trend)
+  if (df.min_iv_vol != null && df.min_iv_vol > 0) query.min_iv_vol = String(df.min_iv_vol)
+  if (df.min_flow != null && df.min_flow > 0) query.min_flow = String(df.min_flow)
+  if (df.min_risk != null && df.min_risk > 0) query.min_risk = String(df.min_risk)
   if (df.market_regime) query.market_regime = df.market_regime
   if (df.max_earnings_days !== undefined) query.max_earnings_days = String(df.max_earnings_days)
   if (df.min_earnings_days !== undefined) query.min_earnings_days = String(df.min_earnings_days)
