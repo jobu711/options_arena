@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -102,8 +102,7 @@ def make_collector(
     repo = AsyncMock()
     repo.get_contracts_needing_outcomes = AsyncMock(return_value=contracts_needing or [])
     repo.save_contract_outcomes = AsyncMock()
-    # Need to provide _db.conn for get_summary
-    repo._db = MagicMock()
+    repo.get_performance_summary = AsyncMock()
 
     market_data = AsyncMock()
     if quote_side_effect is not None:
@@ -452,54 +451,28 @@ class TestDTEAtExit:
 
 
 class TestGetSummary:
-    """Tests for get_summary aggregation."""
+    """Tests for get_summary delegation to repository."""
 
     @pytest.mark.asyncio
-    async def test_get_summary_empty(self) -> None:
-        """Verify PerformanceSummary with no data returns zeros and None."""
-        from collections.abc import AsyncIterator  # noqa: PLC0415
-        from contextlib import asynccontextmanager  # noqa: PLC0415
-
+    async def test_get_summary_delegates_to_repo(self) -> None:
+        """Verify get_summary delegates to Repository.get_performance_summary."""
         config = AnalyticsConfig()
         repo = AsyncMock()
 
-        # Build async context manager cursors that mimic aiosqlite behavior
-        @asynccontextmanager
-        async def mock_count_cursor(*_a: object, **_kw: object) -> AsyncIterator[MagicMock]:
-            cursor = MagicMock()
-            cursor.fetchone = AsyncMock(return_value=(0,))
-            yield cursor
-
-        @asynccontextmanager
-        async def mock_outcome_cursor(*_a: object, **_kw: object) -> AsyncIterator[MagicMock]:
-            cursor = MagicMock()
-            cursor.fetchall = AsyncMock(return_value=[])
-            yield cursor
-
-        call_count = 0
-
-        def mock_execute(*args: object, **kwargs: object) -> object:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return mock_count_cursor(*args, **kwargs)
-            return mock_outcome_cursor(*args, **kwargs)
-
-        mock_conn = MagicMock()
-        mock_conn.execute = mock_execute
-        repo._db = MagicMock()
-        repo._db.conn = mock_conn
+        empty_summary = PerformanceSummary(
+            lookback_days=30,
+            total_contracts=0,
+            total_with_outcomes=0,
+        )
+        repo.get_performance_summary = AsyncMock(return_value=empty_summary)
 
         market_data = AsyncMock()
         collector = OutcomeCollector(config, repo, market_data)
 
         summary = await collector.get_summary(lookback_days=30)
 
+        repo.get_performance_summary.assert_called_once_with(30)
         assert isinstance(summary, PerformanceSummary)
         assert summary.total_contracts == 0
         assert summary.total_with_outcomes == 0
         assert summary.overall_win_rate is None
-        assert summary.avg_stock_return_pct is None
-        assert summary.avg_contract_return_pct is None
-        assert summary.best_direction is None
-        assert summary.best_holding_days is None

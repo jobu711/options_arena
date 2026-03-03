@@ -16,7 +16,7 @@ from decimal import Decimal
 from options_arena.data.repository import Repository
 from options_arena.models.analytics import ContractOutcome, PerformanceSummary, RecommendedContract
 from options_arena.models.config import AnalyticsConfig
-from options_arena.models.enums import OptionType, OutcomeCollectionMethod, SignalDirection
+from options_arena.models.enums import OptionType, OutcomeCollectionMethod
 from options_arena.services.market_data import MarketDataService
 
 logger = logging.getLogger(__name__)
@@ -302,104 +302,7 @@ class OutcomeCollector:
     ) -> PerformanceSummary:
         """Get aggregate performance summary over the lookback period.
 
-        Queries all outcomes within the lookback window and computes
-        aggregate statistics. Returns a summary with ``None`` optional
-        fields when no outcome data exists.
+        Delegates to ``Repository.get_performance_summary()`` — the single
+        source of truth for analytics aggregation queries.
         """
-        from datetime import timedelta  # noqa: PLC0415
-
-        today = date.today()
-        cutoff = today - timedelta(days=lookback_days)
-
-        # Count total contracts in the window
-        conn = self._repo._db.conn  # noqa: SLF001
-        async with conn.execute(
-            "SELECT COUNT(*) FROM recommended_contracts WHERE date(created_at) >= ?",
-            (cutoff.isoformat(),),
-        ) as cursor:
-            row = await cursor.fetchone()
-        total_contracts = int(row[0]) if row else 0
-
-        # Get outcomes in the window
-        async with conn.execute(
-            "SELECT co.stock_return_pct, co.contract_return_pct, co.is_winner, "
-            "co.holding_days, rc.direction "
-            "FROM contract_outcomes co "
-            "JOIN recommended_contracts rc ON co.recommended_contract_id = rc.id "
-            "WHERE date(rc.created_at) >= ?",
-            (cutoff.isoformat(),),
-        ) as cursor:
-            outcome_rows = list(await cursor.fetchall())
-
-        total_with_outcomes = len(outcome_rows)
-
-        if total_with_outcomes == 0:
-            return PerformanceSummary(
-                lookback_days=lookback_days,
-                total_contracts=total_contracts,
-                total_with_outcomes=0,
-            )
-
-        # Compute aggregate stats
-        winners = 0
-        stock_returns: list[float] = []
-        contract_returns: list[float] = []
-        direction_wins: dict[str, tuple[int, int]] = {}  # direction -> (wins, total)
-        holding_returns: dict[int, list[float]] = {}  # holding_days -> returns
-
-        for orow in outcome_rows:
-            if orow["is_winner"] is not None and bool(orow["is_winner"]):
-                winners += 1
-            if orow["stock_return_pct"] is not None:
-                stock_returns.append(float(orow["stock_return_pct"]))
-            if orow["contract_return_pct"] is not None:
-                contract_returns.append(float(orow["contract_return_pct"]))
-
-            direction = str(orow["direction"])
-            if direction not in direction_wins:
-                direction_wins[direction] = (0, 0)
-            d_wins, d_total = direction_wins[direction]
-            d_total += 1
-            if orow["is_winner"] is not None and bool(orow["is_winner"]):
-                d_wins += 1
-            direction_wins[direction] = (d_wins, d_total)
-
-            if orow["holding_days"] is not None and orow["contract_return_pct"] is not None:
-                hd = int(orow["holding_days"])
-                if hd not in holding_returns:
-                    holding_returns[hd] = []
-                holding_returns[hd].append(float(orow["contract_return_pct"]))
-
-        overall_win_rate = winners / total_with_outcomes if total_with_outcomes > 0 else None
-        avg_stock = sum(stock_returns) / len(stock_returns) if stock_returns else None
-        avg_contract = sum(contract_returns) / len(contract_returns) if contract_returns else None
-
-        # Best direction by win rate
-        best_direction: SignalDirection | None = None
-        best_dir_rate = -1.0
-        for direction_str, (wins, total) in direction_wins.items():
-            if total > 0:
-                rate = wins / total
-                if rate > best_dir_rate:
-                    best_dir_rate = rate
-                    best_direction = SignalDirection(direction_str)
-
-        # Best holding period by average return
-        best_holding: int | None = None
-        best_holding_return = float("-inf")
-        for hd, returns in holding_returns.items():
-            avg = sum(returns) / len(returns) if returns else 0.0
-            if avg > best_holding_return:
-                best_holding_return = avg
-                best_holding = hd
-
-        return PerformanceSummary(
-            lookback_days=lookback_days,
-            total_contracts=total_contracts,
-            total_with_outcomes=total_with_outcomes,
-            overall_win_rate=overall_win_rate,
-            avg_stock_return_pct=avg_stock,
-            avg_contract_return_pct=avg_contract,
-            best_direction=best_direction,
-            best_holding_days=best_holding,
-        )
+        return await self._repo.get_performance_summary(lookback_days)

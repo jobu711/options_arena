@@ -70,6 +70,6 @@ def get_outcome_collector(request: Request) -> OutcomeCollector:
     """Inject the outcome collector service (created on-demand via DI)."""
     return OutcomeCollector(
         config=request.app.state.settings.analytics,
-        repository=Repository(request.app.state.db),
+        repository=request.app.state.repo,
         market_data=request.app.state.market_data,
     )

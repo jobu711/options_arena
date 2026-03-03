@@ -13,6 +13,6 @@ CREATE TABLE IF NOT EXISTS contract_outcomes (
     dte_at_exit INTEGER,
     collection_method TEXT NOT NULL,
     collected_at TEXT NOT NULL,
-    UNIQUE(recommended_contract_id, exit_date)
+    UNIQUE(recommended_contract_id, holding_days)
 );
 CREATE INDEX IF NOT EXISTS idx_co_rec_id ON contract_outcomes(recommended_contract_id);

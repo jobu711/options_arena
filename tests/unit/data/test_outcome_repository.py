@@ -299,15 +299,15 @@ class TestMultipleOutcomes:
 
 
 class TestUniqueConstraint:
-    """Tests for UNIQUE(recommended_contract_id, exit_date) enforcement."""
+    """Tests for UNIQUE(recommended_contract_id, holding_days) enforcement."""
 
     @pytest.mark.asyncio
     async def test_unique_constraint(self, repo: Repository, contract_id: int) -> None:
-        """Verify UNIQUE(recommended_contract_id, exit_date) enforced."""
+        """Verify UNIQUE(recommended_contract_id, holding_days) enforced."""
         outcome = make_outcome(contract_id, exit_date=date(2026, 3, 11))
         await repo.save_contract_outcomes([outcome])
 
-        # Attempting to save again with same contract_id + exit_date should fail
-        duplicate = make_outcome(contract_id, exit_date=date(2026, 3, 11))
+        # Attempting to save again with same contract_id + holding_days should fail
+        duplicate = make_outcome(contract_id, exit_date=date(2026, 3, 12))
         with pytest.raises(sqlite3.IntegrityError):
             await repo.save_contract_outcomes([duplicate])

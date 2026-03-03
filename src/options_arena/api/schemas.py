@@ -306,3 +306,14 @@ class UniverseStats(BaseModel):
     optionable_count: int
     sp500_count: int
     etf_count: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Analytics schemas (#210-#213)
+# ---------------------------------------------------------------------------
+
+
+class OutcomeCollectionResult(BaseModel):
+    """Response for ``POST /api/analytics/collect-outcomes`` (202)."""
+
+    outcomes_collected: int

@@ -9,11 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from options_arena.api.app import limiter
 from options_arena.api.deps import get_operation_lock, get_outcome_collector, get_repo
+from options_arena.api.schemas import OutcomeCollectionResult
 from options_arena.data import Repository
 from options_arena.models import (
     DeltaPerformanceResult,
     HoldingPeriodResult,
     IndicatorAttributionResult,
+    IndicatorSignals,
     PerformanceSummary,
     RecommendedContract,
     ScoreCalibrationBucket,
@@ -57,6 +59,8 @@ async def get_indicator_attribution(
     repo: Repository = Depends(get_repo),
 ) -> list[IndicatorAttributionResult]:
     """Get indicator attribution — correlation between indicator values and returns."""
+    if indicator not in IndicatorSignals.model_fields:
+        raise HTTPException(400, f"Unknown indicator: {indicator!r}")
     return await repo.get_indicator_attribution(indicator=indicator, holding_days=holding_days)
 
 
@@ -101,7 +105,7 @@ async def collect_outcomes(
     holding_days: int | None = Query(default=None, ge=1),
     collector: OutcomeCollector = Depends(get_outcome_collector),
     lock: asyncio.Lock = Depends(get_operation_lock),
-) -> dict[str, int]:
+) -> OutcomeCollectionResult:
     """Trigger outcome collection.
 
     Uses the operation mutex to prevent concurrent runs. Returns count
@@ -114,7 +118,7 @@ async def collect_outcomes(
 
     try:
         outcomes = await collector.collect_outcomes(holding_days=holding_days)
-        return {"outcomes_collected": len(outcomes)}
+        return OutcomeCollectionResult(outcomes_collected=len(outcomes))
     finally:
         lock.release()
 
