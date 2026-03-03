@@ -37,6 +37,15 @@ logger = logging.getLogger(__name__)
 _THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 _THINK_TAG_RE = re.compile(r"</?think>")
 
+# Regime label lookup tables for human-readable rendering
+_VOL_REGIME_LABELS: dict[float, str] = {0.0: "NORMAL", 1.0: "ELEVATED", 2.0: "CRISIS"}
+_MARKET_REGIME_LABELS: dict[float, str] = {
+    0.0: "CRISIS",
+    1.0: "VOLATILE",
+    2.0: "TRENDING",
+    3.0: "MEAN_REVERTING",
+}
+
 
 def strip_think_tags(text: str) -> str:
     """Remove ``<think>...</think>`` blocks and any stray open/close tags.
@@ -351,6 +360,14 @@ def _render_optional(label: str, value: float | None, fmt: str = ".1f") -> str |
     return None
 
 
+def _render_regime_label(label: str, value: float | None, labels: dict[float, str]) -> str | None:
+    """Render a regime field as a human-readable label, with numeric fallback."""
+    if value is None or not math.isfinite(value):
+        return None
+    name = labels.get(value, f"{value:.0f}")
+    return f"{label}: {name}"
+
+
 def render_context_block(ctx: MarketContext) -> str:
     """Render MarketContext as flat key-value text for agent consumption.
 
@@ -454,6 +471,101 @@ def render_context_block(ctx: MarketContext) -> str:
         if ctx.recent_headlines:
             for headline in ctx.recent_headlines[:5]:
                 lines.append(f'- "{headline}"')
+
+    # --- Arena Recon: Analyst Intelligence ---
+    analyst_lines: list[str | None] = [
+        _render_optional("ANALYST TARGET MEAN", ctx.analyst_target_mean, ",.2f"),
+        # target_upside_pct inserted below if non-None
+        _render_optional("ANALYST CONSENSUS", ctx.analyst_consensus_score, "+.2f"),
+    ]
+    # Add target upside specially formatted as percentage
+    if ctx.analyst_target_upside_pct is not None and math.isfinite(ctx.analyst_target_upside_pct):
+        analyst_lines.insert(1, f"ANALYST TARGET UPSIDE: {ctx.analyst_target_upside_pct:+.1%}")
+    # Add upgrades/downgrades (int fields, not using _render_optional)
+    if ctx.analyst_upgrades_30d is not None or ctx.analyst_downgrades_30d is not None:
+        up = ctx.analyst_upgrades_30d if ctx.analyst_upgrades_30d is not None else 0
+        down = ctx.analyst_downgrades_30d if ctx.analyst_downgrades_30d is not None else 0
+        analyst_lines.append(f"UPGRADES/DOWNGRADES (30D): {up}/{down}")
+    filtered_analyst = [ln for ln in analyst_lines if ln is not None]
+    if filtered_analyst:
+        lines.append("")
+        lines.append("## Analyst Intelligence")
+        lines.extend(filtered_analyst)
+
+    # --- Arena Recon: Insider Activity ---
+    insider_lines: list[str | None] = []
+    if ctx.insider_net_buys_90d is not None:
+        insider_lines.append(f"INSIDER NET BUYS (90D): {ctx.insider_net_buys_90d:+d}")
+    insider_lines.append(_render_optional("INSIDER BUY RATIO", ctx.insider_buy_ratio, ".2f"))
+    filtered_insider = [ln for ln in insider_lines if ln is not None]
+    if filtered_insider:
+        lines.append("")
+        lines.append("## Insider Activity")
+        lines.extend(filtered_insider)
+
+    # --- Arena Recon: Institutional Ownership ---
+    if ctx.institutional_pct is not None and math.isfinite(ctx.institutional_pct):
+        lines.append("")
+        lines.append("## Institutional Ownership")
+        lines.append(f"INSTITUTIONAL OWNERSHIP: {ctx.institutional_pct:.1%}")
+
+    # --- DSE: Signal Dimensions ---
+    dim_lines = [
+        _render_optional("TREND", ctx.dim_trend, ".1f"),
+        _render_optional("IV VOLATILITY", ctx.dim_iv_vol, ".1f"),
+        _render_optional("HV VOLATILITY", ctx.dim_hv_vol, ".1f"),
+        _render_optional("FLOW", ctx.dim_flow, ".1f"),
+        _render_optional("MICROSTRUCTURE", ctx.dim_microstructure, ".1f"),
+        _render_optional("FUNDAMENTAL", ctx.dim_fundamental, ".1f"),
+        _render_optional("REGIME", ctx.dim_regime, ".1f"),
+        _render_optional("RISK", ctx.dim_risk, ".1f"),
+        _render_optional("DIRECTION CONFIDENCE", ctx.direction_confidence, ".2f"),
+    ]
+    filtered_dim = [ln for ln in dim_lines if ln is not None]
+    if filtered_dim:
+        lines.append("")
+        lines.append("## Signal Dimensions (0-100)")
+        lines.extend(filtered_dim)
+
+    # --- DSE: Volatility Regime ---
+    vol_regime_lines = [
+        _render_regime_label("VOL REGIME", ctx.vol_regime, _VOL_REGIME_LABELS),
+        _render_optional("IV-HV SPREAD", ctx.iv_hv_spread, ".2f"),
+        _render_optional("SKEW RATIO", ctx.skew_ratio, ".2f"),
+        _render_optional("VIX TERM STRUCTURE", ctx.vix_term_structure, ".2f"),
+        _render_optional("EXPECTED MOVE ($)", ctx.expected_move, ",.2f"),
+        _render_optional("EXPECTED MOVE RATIO", ctx.expected_move_ratio, ".2f"),
+    ]
+    filtered_vol = [ln for ln in vol_regime_lines if ln is not None]
+    if filtered_vol:
+        lines.append("")
+        lines.append("## Volatility Regime")
+        lines.extend(filtered_vol)
+
+    # --- DSE: Market & Flow Signals ---
+    market_lines = [
+        _render_regime_label("MARKET REGIME", ctx.market_regime, _MARKET_REGIME_LABELS),
+        _render_optional("GEX", ctx.gex, ",.0f"),
+        _render_optional("UNUSUAL ACTIVITY SCORE", ctx.unusual_activity_score, ".1f"),
+        _render_optional("RSI DIVERGENCE", ctx.rsi_divergence, ".2f"),
+    ]
+    filtered_market = [ln for ln in market_lines if ln is not None]
+    if filtered_market:
+        lines.append("")
+        lines.append("## Market & Flow Signals")
+        lines.extend(filtered_market)
+
+    # --- DSE: Second-Order Greeks ---
+    greeks2_lines = [
+        _render_optional("VANNA", ctx.target_vanna, ".6f"),
+        _render_optional("CHARM", ctx.target_charm, ".6f"),
+        _render_optional("VOMMA", ctx.target_vomma, ".6f"),
+    ]
+    filtered_greeks2 = [ln for ln in greeks2_lines if ln is not None]
+    if filtered_greeks2:
+        lines.append("")
+        lines.append("## Second-Order Greeks")
+        lines.extend(filtered_greeks2)
 
     # Earnings warning — appended when next earnings is within 7 days
     if ctx.next_earnings is not None:
