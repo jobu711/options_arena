@@ -1,0 +1,18 @@
+{
+  "epic": "scan-filtering",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync scan-filtering",
+  "last_updated": "2026-03-03T21:51:41Z",
+  "completed_phases": [
+    "prd-created",
+    "research",
+    "planning",
+    "decomposition",
+    "synced"
+  ],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}
