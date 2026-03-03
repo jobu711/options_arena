@@ -24,7 +24,7 @@ from options_arena.models.intelligence import (
     InstitutionalSnapshot,
     IntelligencePackage,
     UpgradeDowngrade,
-    _parse_transaction_type,
+    parse_transaction_type,
 )
 from options_arena.services.cache import ServiceCache
 from options_arena.services.helpers import safe_float, safe_int
@@ -304,7 +304,7 @@ class IntelligenceService:
                 shares = shares_raw if shares_raw is not None else 0
                 value = safe_float(row.get("Value"))
                 text = str(row.get("Text", ""))
-                transaction_type = _parse_transaction_type(text)
+                transaction_type = parse_transaction_type(text)
 
                 # Parse date — Start Date may be Timestamp
                 start_date_raw = row.get("Start Date")
@@ -440,8 +440,7 @@ class IntelligenceService:
                     holder = str(row.get("Holder", "Unknown"))
                     pct = safe_float(row.get("pctHeld")) or safe_float(row.get("% Out"))
                     top_holders.append(holder)
-                    if pct is not None:
-                        top_holder_pcts.append(pct)
+                    top_holder_pcts.append(pct if pct is not None else 0.0)
 
             snapshot = InstitutionalSnapshot(
                 ticker=ticker,

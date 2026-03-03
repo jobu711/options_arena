@@ -4,9 +4,9 @@ Tests cover:
 - AnalystSnapshot: construction, frozen, computed fields, validators, JSON roundtrip
 - UpgradeDowngrade: construction, ACTION_MAP, from_grade empty->None, price_target 0->None
 - AnalystActivitySnapshot: construction, recent_changes cap, validators
-- InsiderTransaction: construction, _parse_transaction_type, value NaN->None
+- InsiderTransaction: construction, parse_transaction_type, value NaN->None
 - InsiderSnapshot: construction, buy_ratio bounds, transactions cap
-- InstitutionalSnapshot: construction, pct fields bounded [0,1], top_holders cap
+- InstitutionalSnapshot: construction, pct fields bounded [0,1.5], top_holders cap
 - IntelligencePackage: construction, intelligence_completeness method
 """
 
@@ -24,7 +24,7 @@ from options_arena.models.intelligence import (
     InstitutionalSnapshot,
     IntelligencePackage,
     UpgradeDowngrade,
-    _parse_transaction_type,
+    parse_transaction_type,
 )
 
 # ---------------------------------------------------------------------------
@@ -458,27 +458,27 @@ class TestInsiderTransaction:
         with pytest.raises(ValidationError):
             tx.shares = 200_000  # type: ignore[misc]
 
-    def test_parse_transaction_type_sale(self) -> None:
-        """_parse_transaction_type extracts 'Sale' from text containing 'Sale'."""
-        assert _parse_transaction_type("Sale of shares") == "Sale"
+    def testparse_transaction_type_sale(self) -> None:
+        """parse_transaction_type extracts 'Sale' from text containing 'Sale'."""
+        assert parse_transaction_type("Sale of shares") == "Sale"
 
-    def test_parse_transaction_type_purchase(self) -> None:
-        """_parse_transaction_type extracts 'Purchase' from text containing 'Purchase'."""
-        assert _parse_transaction_type("Purchase of common stock") == "Purchase"
+    def testparse_transaction_type_purchase(self) -> None:
+        """parse_transaction_type extracts 'Purchase' from text containing 'Purchase'."""
+        assert parse_transaction_type("Purchase of common stock") == "Purchase"
 
-    def test_parse_transaction_type_gift(self) -> None:
-        """_parse_transaction_type extracts 'Gift' from text containing 'Gift'."""
-        assert _parse_transaction_type("Gift to charity") == "Gift"
+    def testparse_transaction_type_gift(self) -> None:
+        """parse_transaction_type extracts 'Gift' from text containing 'Gift'."""
+        assert parse_transaction_type("Gift to charity") == "Gift"
 
-    def test_parse_transaction_type_exercise(self) -> None:
-        """_parse_transaction_type extracts 'Exercise' from text."""
-        assert _parse_transaction_type("Option Exercise and Sale") == "Exercise"
-        assert _parse_transaction_type("Exercise of options") == "Exercise"
+    def testparse_transaction_type_exercise(self) -> None:
+        """parse_transaction_type extracts 'Exercise' from text."""
+        assert parse_transaction_type("Option Exercise and Sale") == "Exercise"
+        assert parse_transaction_type("Exercise of options") == "Exercise"
 
-    def test_parse_transaction_type_other(self) -> None:
-        """_parse_transaction_type returns 'Other' for unrecognized text."""
-        assert _parse_transaction_type("Automatic conversion") == "Other"
-        assert _parse_transaction_type("") == "Other"
+    def testparse_transaction_type_other(self) -> None:
+        """parse_transaction_type returns 'Other' for unrecognized text."""
+        assert parse_transaction_type("Automatic conversion") == "Other"
+        assert parse_transaction_type("") == "Other"
 
     def test_value_nan_to_none(self) -> None:
         """NaN value is converted to None."""
@@ -490,10 +490,10 @@ class TestInsiderTransaction:
         tx = _make_insider_transaction(value=float("inf"))
         assert tx.value is None
 
-    def test_negative_shares_rejected(self) -> None:
-        """Negative shares is rejected."""
-        with pytest.raises(ValidationError, match="non-negative"):
-            _make_insider_transaction(shares=-100)
+    def test_negative_shares_normalized_to_abs(self) -> None:
+        """Negative shares (yfinance sale convention) is abs-normalized."""
+        tx = _make_insider_transaction(shares=-100)
+        assert tx.shares == 100
 
     def test_json_roundtrip(self) -> None:
         """InsiderTransaction survives JSON roundtrip."""
@@ -669,32 +669,41 @@ class TestInstitutionalSnapshot:
         assert snap.institutional_pct == pytest.approx(0.0)
         assert snap.institutional_float_pct == pytest.approx(1.0)
 
-    def test_institutional_pct_above_1_rejected(self) -> None:
-        """institutional_pct > 1.0 is rejected."""
-        with pytest.raises(ValidationError, match=r"\[0\.0, 1\.0\]"):
-            InstitutionalSnapshot(
-                ticker="AAPL",
-                institutional_pct=1.1,
-                fetched_at=NOW_UTC,
-            )
+    def test_institutional_pct_above_1_accepted(self) -> None:
+        """institutional_pct > 1.0 is accepted (yfinance can report >100% due to lending)."""
+        snap = InstitutionalSnapshot(
+            ticker="AAPL",
+            institutional_pct=1.1,
+            fetched_at=NOW_UTC,
+        )
+        assert snap.institutional_pct == pytest.approx(1.1)
+
+    def test_institutional_pct_above_1_5_clamped(self) -> None:
+        """institutional_pct > 1.5 is clamped to 1.5."""
+        snap = InstitutionalSnapshot(
+            ticker="AAPL",
+            institutional_pct=2.0,
+            fetched_at=NOW_UTC,
+        )
+        assert snap.institutional_pct == pytest.approx(1.5)
 
     def test_institutional_pct_below_0_rejected(self) -> None:
         """institutional_pct < 0.0 is rejected."""
-        with pytest.raises(ValidationError, match=r"\[0\.0, 1\.0\]"):
+        with pytest.raises(ValidationError, match="non-negative"):
             InstitutionalSnapshot(
                 ticker="AAPL",
                 institutional_pct=-0.1,
                 fetched_at=NOW_UTC,
             )
 
-    def test_insider_pct_above_1_rejected(self) -> None:
-        """insider_pct > 1.0 is rejected."""
-        with pytest.raises(ValidationError, match=r"\[0\.0, 1\.0\]"):
-            InstitutionalSnapshot(
-                ticker="AAPL",
-                insider_pct=1.5,
-                fetched_at=NOW_UTC,
-            )
+    def test_insider_pct_above_1_5_clamped(self) -> None:
+        """insider_pct > 1.5 is clamped to 1.5."""
+        snap = InstitutionalSnapshot(
+            ticker="AAPL",
+            insider_pct=1.8,
+            fetched_at=NOW_UTC,
+        )
+        assert snap.insider_pct == pytest.approx(1.5)
 
     def test_institutional_float_pct_nan_rejected(self) -> None:
         """NaN institutional_float_pct is rejected."""

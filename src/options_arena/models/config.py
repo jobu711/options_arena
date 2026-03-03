@@ -283,6 +283,14 @@ class IntelligenceConfig(BaseModel):
     news_cache_ttl: int = 900  # 15min
     request_timeout: float = 15.0
 
+    @model_validator(mode="after")
+    def validate_all_finite(self) -> Self:
+        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
+        for name, value in self.__dict__.items():
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+        return self
+
 
 class OpenBBConfig(BaseModel):
     """OpenBB Platform SDK configuration — controls optional enrichment data.

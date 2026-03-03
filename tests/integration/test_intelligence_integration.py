@@ -98,7 +98,7 @@ class TestIntelligenceIntegration:
             assert isinstance(result, InstitutionalSnapshot)
             assert result.ticker == "AAPL"
             if result.institutional_pct is not None:
-                assert 0.0 <= result.institutional_pct <= 1.0
+                assert 0.0 <= result.institutional_pct <= 1.5
 
     @pytest.mark.asyncio
     async def test_fetch_news_headlines_real(self, service: IntelligenceService) -> None:

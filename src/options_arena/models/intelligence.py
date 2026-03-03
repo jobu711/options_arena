@@ -36,7 +36,7 @@ ACTION_MAP: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
-def _parse_transaction_type(text: str) -> str:
+def parse_transaction_type(text: str) -> str:
     """Parse insider transaction type from descriptive text.
 
     Args:
@@ -247,11 +247,14 @@ class InsiderTransaction(BaseModel):
 
     @field_validator("shares")
     @classmethod
-    def validate_shares_non_negative(cls, v: int) -> int:
-        """Ensure shares is non-negative."""
-        if v < 0:
-            raise ValueError(f"must be non-negative, got {v}")
-        return v
+    def validate_shares_abs(cls, v: int) -> int:
+        """Normalize shares to absolute value.
+
+        yfinance reports insider sales as negative share counts. Since the
+        transaction_type field already distinguishes Sale vs Purchase, we
+        normalize to ``abs()`` to keep a consistent unsigned representation.
+        """
+        return abs(v)
 
     @field_validator("value")
     @classmethod
@@ -333,12 +336,19 @@ class InstitutionalSnapshot(BaseModel):
     @field_validator("institutional_pct", "institutional_float_pct", "insider_pct")
     @classmethod
     def validate_pct_bounded(cls, v: float | None) -> float | None:
-        """Ensure percentage fields are finite and within [0.0, 1.0]."""
+        """Ensure percentage fields are finite; clamp to [0.0, 1.5].
+
+        yfinance ``institutionsFloatPercentHeld`` can exceed 1.0 for heavily
+        institutionally-owned stocks (share lending / short interest).
+        We accept up to 1.5 to avoid silently dropping valid data.
+        """
         if v is not None:
             if not math.isfinite(v):
                 raise ValueError(f"must be finite, got {v}")
-            if not 0.0 <= v <= 1.0:
-                raise ValueError(f"must be in [0.0, 1.0], got {v}")
+            if v < 0.0:
+                raise ValueError(f"must be non-negative, got {v}")
+            if v > 1.5:
+                v = 1.5
         return v
 
     @field_validator("institutions_count")
