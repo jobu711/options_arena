@@ -1,123 +1,100 @@
 <role>
-You are a quantitative finance researcher specializing in
-signal attribution, factor analysis, and alpha decomposition.
-You've built scoring systems for hedge funds and know that
-most indicators are noise — only 5-10 signals carry real
-predictive power. You're ruthless about separating signal
-from noise using statistical rigor.
+You are a quantitative finance researcher specializing in signal attribution
+and factor analysis. You separate predictive signals from noise using
+statistical rigor — most indicators carry no real alpha.
 </role>
 
 <context>
-{{CLAUDE.md from project root}}
-{{src/options_arena/scoring/normalize.py}}
-{{src/options_arena/scoring/composite.py — INDICATOR_WEIGHTS dict}}
-{{src/options_arena/scoring/direction.py}}
-{{src/options_arena/models/scan.py — IndicatorSignals (58 fields)}}
-{{data from: recommended_contracts + contract_outcomes tables}}
-{{data from: normalization_metadata table}}
+## Indicator Tiers
 
-### Current Scoring Architecture
-- **58 indicators** across 9 families (momentum, volatility, flow, Greeks, etc.)
-- **Static weights** in `INDICATOR_WEIGHTS` dict — never change
-- **Percentile rank normalization** — each raw signal → 0-100 rank within scan universe
-- **Composite score** = weighted sum of normalized indicators
-- **Direction** = threshold-based classification from composite + momentum signals
+Options Arena has **58 indicators** on `IndicatorSignals`. Only 18 are weighted
+in `INDICATOR_WEIGHTS` (composite scoring). The other 40 are DSE extensions — stored but not scored.
 
-### Available Outcome Data
-For each scan, we have:
-- 58 normalized indicator values per ticker (0-100 percentile)
-- Recommended contract entry price (strike, mid, delta, IV)
-- Stock return at T+1, T+5, T+10, T+20
-- Contract return at T+1, T+5, T+10, T+20
-- Win/loss classification per holding period
-- Normalization distribution metadata (min, max, median, std per indicator per scan)
+### Tier 1: 18 Weighted Indicators (sum = 1.0)
+
+| Field Name | Weight | Category | Field Name | Weight | Category |
+|---|---|---|---|---|---|
+| rsi | 0.08 | oscillators | obv | 0.05 | volume |
+| stochastic_rsi | 0.05 | oscillators | ad | 0.05 | volume |
+| williams_r | 0.05 | oscillators | relative_volume | 0.05 | volume |
+| adx | 0.08 | trend | sma_alignment | 0.08 | moving_averages |
+| roc | 0.05 | trend | vwap_deviation | 0.05 | moving_averages |
+| supertrend | 0.05 | trend | iv_rank | 0.06 | options |
+| atr_pct | 0.05 | volatility | iv_percentile | 0.06 | options |
+| bb_width | 0.05 | volatility | put_call_ratio | 0.05 | options |
+| keltner_width | 0.04 | volatility | max_pain_distance | 0.05 | options |
+
+### Tier 2: 40 DSE Indicators (evaluate for promotion)
+
+**IV Volatility (13):** iv_hv_spread, hv_20d, iv_term_slope, iv_term_shape,
+put_skew_index, call_skew_index, skew_ratio, vol_regime, ewma_vol_forecast,
+vol_cone_percentile, vix_correlation, expected_move, expected_move_ratio
+**Flow & OI (5):** gex, oi_concentration, unusual_activity_score, max_pain_magnet, dollar_volume_trend
+**Greeks (3):** vanna, charm, vomma | **Risk (4):** pop, optimal_dte_score, spread_quality, max_loss_ratio
+**Trend Ext (3):** multi_tf_alignment, rsi_divergence, adx_exhaustion | **RS (1):** rs_vs_spx
+**Fundamental (5):** earnings_em_ratio, days_to_earnings_impact, short_interest_ratio, div_ex_date_impact, iv_crush_history
+**Regime (5):** market_regime, vix_term_structure, risk_on_off_score, sector_relative_momentum, correlation_regime_shift
+**Microstructure (1):** volume_profile_skew
+
+## Data Schema
+
+Join: `recommended_contracts` rc + `contract_outcomes` co (ON co.recommended_contract_id = rc.id)
++ `ticker_scores` ts (ON ts.scan_run_id = rc.scan_run_id AND ts.ticker = rc.ticker).
+Key fields: rc.direction, rc.composite_score | co.contract_return_pct, co.is_winner, co.holding_days
+| ts.[all 58 indicator fields as normalized 0-100] | `normalization_metadata` for distribution stats.
+
+Use `<scratchpad>` tags for chain-of-thought reasoning before presenting final results.
 </context>
 
+<data>
+<!-- Before running this prompt, query the outcome dataset (all contracts with
+outcomes joined to their indicator values) and paste results here.
+Also run: SELECT COUNT(*) as N, COUNT(DISTINCT scan_run_id) as scans,
+MIN(created_at), MAX(created_at) FROM recommended_contracts rc
+JOIN contract_outcomes co ON co.recommended_contract_id = rc.id; -->
+
+{{PASTE QUERY RESULTS HERE}}
+</data>
+
 <task>
-Determine which of the 58 indicators in IndicatorSignals
-actually predict profitable options signals — and which are noise
-that dilutes the composite score.
+Rank all 58 indicators by predictive power and identify redundant clusters.
 
-The current static weights were chosen by domain intuition,
-not by empirical performance. Now that we have outcome data,
-we can measure what actually works.
+### Step 1 — Univariate Signal Power
+For each indicator with sufficient non-null observations:
+- **IC**: Spearman rank correlation vs forward contract return at T+5 (primary), T+1, T+10, T+20.
+- **IC Stability**: std dev of IC computed per scan date. Low = reliable.
+- **IC*Stability**: primary ranking metric (Sharpe-like for signals).
+- **Rank-Biserial**: correlation between indicator percentile and binary win/loss.
+- **p-value**: statistical significance of each correlation.
 
-This analysis directly drives the next version of
-INDICATOR_WEIGHTS in scoring/composite.py.
+### Step 2 — Redundancy Clustering
+- Pairwise Spearman correlation matrix across all 58 indicators.
+- Cluster indicators with |correlation| > 0.7 (same underlying information).
+- Within each cluster, keep only the highest-IC member.
+- Report: how many of the 58 are truly independent signals?
 </task>
 
-<instructions>
-Take your time. This is the most impactful analysis possible
-for the scoring engine — getting weights right is pure alpha.
+<output_format>
+Use `<scratchpad>` first, then present:
 
-### Framework 1 — Univariate Signal Power
-For each of the 58 indicators independently:
-- Compute rank-biserial correlation between indicator percentile
-  and binary win/loss outcome
-- Compute information coefficient (IC): Spearman correlation
-  between indicator value and forward return
-- Test at multiple horizons (T+1, T+5, T+10, T+20) —
-  some indicators are fast (momentum), some slow (fundamentals)
-- Compute IC stability: standard deviation of IC across scan dates
-  (unstable IC = unreliable signal)
-- Rank all 58 by IC * IC_stability (Sharpe-like metric for signals)
+| Indicator | Tier | IC (T+5) | IC Stab | IC*Stab | Rank-Bis | p-value | Cluster | Keep? |
+|---|---|---|---|---|---|---|---|---|
+| rsi | W | 0.08 | 0.03 | 0.0024 | 0.12 | 0.04 | Mom-Osc | Yes |
+| stochastic_rsi | W | 0.06 | 0.04 | 0.0024 | 0.09 | 0.08 | Mom-Osc | No |
+| iv_hv_spread | D | 0.11 | 0.02 | 0.0022 | 0.15 | 0.01 | IV-Vol | Yes |
 
-### Framework 2 — Multivariate Redundancy
-Many indicators measure the same thing differently:
-- RSI, Stochastic RSI, Williams %R — all momentum oscillators
-- BB Width, ATR %, Keltner Width — all volatility range measures
-- OBV, A/D, Relative Volume — all volume-based
+(Tier: W=Weighted, D=DSE. Sort by IC*Stab desc. All 58 rows.)
 
-For each correlated cluster:
-- Compute pairwise correlation matrix
-- Identify redundant indicators (correlation > 0.7)
-- Keep only the highest-IC member of each cluster
-- How many of the 58 are truly independent signals?
-
-### Framework 3 — Conditional Attribution
-Signal power likely varies by regime:
-- In trending markets (ADX > 25): which indicators predict returns?
-- In range-bound markets (ADX < 15): which indicators predict returns?
-- In high-IV environments (IV Rank > 70): which indicators matter?
-- In low-IV environments (IV Rank < 30): which indicators matter?
-- Near earnings (DTE to earnings < 7): which fundamentals dominate?
-
-For each regime:
-- Recompute IC for all indicators
-- Identify regime-dependent signals (strong in one, weak in another)
-- Quantify the alpha from regime-adaptive weighting vs static weights
-
-### Framework 4 — Direction-Specific Attribution
-- Do the same indicators predict BULLISH wins vs BEARISH wins?
-- Are some indicators only useful for one direction?
-  (e.g., high RSI predicts bullish continuation but not bearish reversal)
-- Should INDICATOR_WEIGHTS differ by direction?
-
-### Framework 5 — Weight Optimization
-Given Frameworks 1-4:
-- Propose a new INDICATOR_WEIGHTS dict
-- Compare static (current) vs optimized (proposed) weights
-  using historical outcome data (backtest)
-- Estimate the improvement in win rate and average return
-- Consider regularization: don't overfit to small sample sizes
-- Propose a minimum sample size before weights should be updated
-</instructions>
+Then: **Redundancy Clusters** (members, correlations, keeper per cluster),
+**Independent Signal Count** (how many survive; DSE promotion candidates),
+**Sample Size Warnings** (indicators or horizons with < 50 obs).
+</output_format>
 
 <constraints>
-- Minimum 50 outcome observations per indicator before claiming significance
-- Report p-values for all correlation claims
-- Distinguish between "statistically significant" and "economically meaningful"
-- Flag any indicator with IC < 0.02 as "likely noise"
-- If sample size is too small for regime-conditional analysis, say so
-- Do not recommend removing indicators without strong evidence —
-  a weakly predictive signal is still better than no signal
+- Min 50 non-null observations per indicator before computing IC.
+- Report exact p-values — do not just say "significant."
+- IC < 0.02 absolute = "likely noise" — flag but include in table.
+- Do not recommend removing an indicator without IC + cluster evidence.
+- If total sample size < 200, warn that all results are preliminary.
+- Distinguish "statistically significant" (p < 0.05) from "economically meaningful" (IC > 0.05).
 </constraints>
-
-<output_format>
-1. **Signal Power Rankings** — All 58 indicators ranked by IC * stability
-2. **Recommended Weight Changes** — New INDICATOR_WEIGHTS dict with rationale
-3. **Redundant Indicators** — Clusters where you'd drop members
-4. **Regime-Dependent Findings** — Signals that only work in specific conditions
-5. **Sample Size Warnings** — Where data is insufficient for conclusions
-6. **Backtest Results** — Current vs proposed weights performance comparison
-</output_format>

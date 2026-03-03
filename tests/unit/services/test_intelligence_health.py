@@ -50,9 +50,7 @@ class TestCheckIntelligence:
     async def test_timeout_returns_unavailable(self, health_service: HealthService) -> None:
         """Timeout during yfinance call returns available=False."""
         mock_ticker = MagicMock()
-        mock_ticker.get_analyst_price_targets = MagicMock(
-            side_effect=TimeoutError("timeout")
-        )
+        mock_ticker.get_analyst_price_targets = MagicMock(side_effect=TimeoutError("timeout"))
 
         with patch("options_arena.services.health.yf") as mock_yf:
             mock_yf.Ticker.return_value = mock_ticker
@@ -94,9 +92,7 @@ class TestCheckIntelligence:
     async def test_latency_measured_on_failure(self, health_service: HealthService) -> None:
         """Latency is always measured, even on failure."""
         mock_ticker = MagicMock()
-        mock_ticker.get_analyst_price_targets = MagicMock(
-            side_effect=RuntimeError("fail")
-        )
+        mock_ticker.get_analyst_price_targets = MagicMock(side_effect=RuntimeError("fail"))
 
         with patch("options_arena.services.health.yf") as mock_yf:
             mock_yf.Ticker.return_value = mock_ticker
@@ -145,9 +141,7 @@ class TestCheckAllIncludesIntelligence:
     """Tests that check_all() includes the intelligence health check."""
 
     @pytest.mark.asyncio
-    async def test_check_all_includes_intelligence(
-        self, health_service: HealthService
-    ) -> None:
+    async def test_check_all_includes_intelligence(self, health_service: HealthService) -> None:
         """check_all() results include an intelligence check (7 total)."""
         ok_status = HealthStatus(
             service_name="mock", available=True, latency_ms=10.0, checked_at=_utc_now()

@@ -221,9 +221,7 @@ def build_market_context(
         ),
         # --- Arena Recon: Intelligence fields ---
         analyst_target_mean=(
-            intelligence.analyst.target_mean
-            if intelligence and intelligence.analyst
-            else None
+            intelligence.analyst.target_mean if intelligence and intelligence.analyst else None
         ),
         analyst_target_upside_pct=(
             intelligence.analyst.target_upside_pct
@@ -231,9 +229,7 @@ def build_market_context(
             else None
         ),
         analyst_consensus_score=(
-            intelligence.analyst.consensus_score
-            if intelligence and intelligence.analyst
-            else None
+            intelligence.analyst.consensus_score if intelligence and intelligence.analyst else None
         ),
         analyst_upgrades_30d=(
             intelligence.analyst_activity.upgrades_30d
@@ -262,24 +258,16 @@ def build_market_context(
         ),
         # --- DSE: Dimensional scores (from TickerScore.dimensional_scores) ---
         dim_trend=(
-            ticker_score.dimensional_scores.trend
-            if ticker_score.dimensional_scores
-            else None
+            ticker_score.dimensional_scores.trend if ticker_score.dimensional_scores else None
         ),
         dim_iv_vol=(
-            ticker_score.dimensional_scores.iv_vol
-            if ticker_score.dimensional_scores
-            else None
+            ticker_score.dimensional_scores.iv_vol if ticker_score.dimensional_scores else None
         ),
         dim_hv_vol=(
-            ticker_score.dimensional_scores.hv_vol
-            if ticker_score.dimensional_scores
-            else None
+            ticker_score.dimensional_scores.hv_vol if ticker_score.dimensional_scores else None
         ),
         dim_flow=(
-            ticker_score.dimensional_scores.flow
-            if ticker_score.dimensional_scores
-            else None
+            ticker_score.dimensional_scores.flow if ticker_score.dimensional_scores else None
         ),
         dim_microstructure=(
             ticker_score.dimensional_scores.microstructure
@@ -292,14 +280,10 @@ def build_market_context(
             else None
         ),
         dim_regime=(
-            ticker_score.dimensional_scores.regime
-            if ticker_score.dimensional_scores
-            else None
+            ticker_score.dimensional_scores.regime if ticker_score.dimensional_scores else None
         ),
         dim_risk=(
-            ticker_score.dimensional_scores.risk
-            if ticker_score.dimensional_scores
-            else None
+            ticker_score.dimensional_scores.risk if ticker_score.dimensional_scores else None
         ),
         # --- DSE: High-signal individual indicators (from TickerScore.signals) ---
         vol_regime=signals.vol_regime,

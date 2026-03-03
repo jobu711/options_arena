@@ -2,6 +2,34 @@
 
 Historical completion logs for Options Arena. Current state is in `progress.md`.
 
+## Epic 17: Analytics Persistence (2026-03-03) — #209-#213
+Contract persistence, outcome tracking, analytics API. +138 tests.
+9 frozen analytics models, 3 SQL migrations (011-013), OutcomeCollector service,
+6 analytics repository queries, 9 API endpoints on `/api/analytics`, CLI `outcomes` subcommand.
+
+## Epic 16: Market Recon (2026-03-03) — #201-#208
+IntelligenceService + DSE wiring to debate agents. +231 tests.
+Multi-source intelligence aggregation (OpenBB fundamentals, flow, sentiment),
+config-gated per source, enrichment injected into debate prompts.
+
+## Epic 15: OpenBB Migration (2026-03-02) — #192-#199, PR #200
+ChainProvider protocol abstraction: CBOE via OpenBB primary, yfinance fallback. +127 tests.
+Three-tier Greeks (CBOE native → local BAW/BSM → exclude), provider orchestration with
+timeout + broad exception fallback, DI wiring at 5 call sites.
+
+## Epic 14: OpenBB Integration (2026-03-02) — #179-#183
+Optional enrichment via OpenBB Platform SDK. +319 tests.
+Fundamentals, unusual flow, news sentiment (guarded imports, config-gated).
+5 frozen models, OpenBBConfig, health check integration.
+
+## Epic 13: Production Audit (2026-03-01) — #170-#178
+Security hardening, Windows hook compatibility, CI/CD setup. +148 tests.
+Python hooks replacing bash scripts, GitHub Actions 3-gate workflow.
+
+## Epic 12: Deep Signal Engine v2.1.0 (2026-03-01) — #131-#141, PR #158
+40 DSE indicators across 8 dimensions, 6-agent parallel debate protocol. +576 tests.
+Regime-adjusted weights, extended Greeks (charm, vanna, vomma, speed), IV surface.
+
 ## Epic 11: v2.1.0 Close the Loop (2026-02-28) — #142, PR #150
 
 7 features: quick debate from dashboard (#143), watchlist backend (#144) + frontend

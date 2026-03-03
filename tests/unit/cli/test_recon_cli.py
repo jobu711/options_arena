@@ -147,9 +147,7 @@ class TestDebateCommandReconFlag:
     """Tests for the --no-recon CLI flag routing."""
 
     @patch("options_arena.cli.commands._debate_async", new_callable=AsyncMock)
-    def test_no_recon_flag_passes_to_debate_async(
-        self, mock_debate_async: AsyncMock
-    ) -> None:
+    def test_no_recon_flag_passes_to_debate_async(self, mock_debate_async: AsyncMock) -> None:
         """--no-recon flag passes no_recon=True to _debate_async."""
         mock_debate_async.return_value = None
         result = runner.invoke(app, ["debate", "AAPL", "--no-recon"])
@@ -168,9 +166,7 @@ class TestDebateCommandReconFlag:
         assert call_kwargs["no_recon"] is False
 
     @patch("options_arena.cli.commands._batch_async", new_callable=AsyncMock)
-    def test_no_recon_flag_passes_to_batch_async(
-        self, mock_batch_async: AsyncMock
-    ) -> None:
+    def test_no_recon_flag_passes_to_batch_async(self, mock_batch_async: AsyncMock) -> None:
         """--no-recon flag passes no_recon=True to _batch_async."""
         mock_batch_async.return_value = None
         result = runner.invoke(app, ["debate", "--batch", "--no-recon"])
@@ -486,9 +482,7 @@ class TestDebateSingleIntelligence:
         mock_market_data = AsyncMock()
         mock_market_data.fetch_quote = AsyncMock(return_value=MagicMock())
         mock_market_data.fetch_ticker_info = AsyncMock(
-            return_value=MagicMock(
-                current_price=Decimal("185.00"), dividend_yield=0.005
-            )
+            return_value=MagicMock(current_price=Decimal("185.00"), dividend_yield=0.005)
         )
         mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
 
@@ -544,9 +538,7 @@ class TestDebateSingleIntelligence:
         mock_market_data = AsyncMock()
         mock_market_data.fetch_quote = AsyncMock(return_value=MagicMock())
         mock_market_data.fetch_ticker_info = AsyncMock(
-            return_value=MagicMock(
-                current_price=Decimal("185.00"), dividend_yield=0.005
-            )
+            return_value=MagicMock(current_price=Decimal("185.00"), dividend_yield=0.005)
         )
         mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
 
@@ -603,9 +595,7 @@ class TestDebateSingleIntelligence:
         mock_market_data = AsyncMock()
         mock_market_data.fetch_quote = AsyncMock(return_value=MagicMock())
         mock_market_data.fetch_ticker_info = AsyncMock(
-            return_value=MagicMock(
-                current_price=Decimal("185.00"), dividend_yield=0.005
-            )
+            return_value=MagicMock(current_price=Decimal("185.00"), dividend_yield=0.005)
         )
         mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
 
@@ -686,9 +676,7 @@ class TestBatchAsyncIntelligence:
 
         mock_debate_single.return_value = _make_debate_result()
 
-        await _batch_async(
-            batch_limit=1, fallback_only=False, no_openbb=True, no_recon=False
-        )
+        await _batch_async(batch_limit=1, fallback_only=False, no_openbb=True, no_recon=False)
 
         mock_intel_cls.assert_called_once()
         mock_intel_svc.close.assert_awaited_once()
@@ -736,8 +724,6 @@ class TestBatchAsyncIntelligence:
 
         mock_debate_single.return_value = _make_debate_result()
 
-        await _batch_async(
-            batch_limit=1, fallback_only=False, no_openbb=True, no_recon=True
-        )
+        await _batch_async(batch_limit=1, fallback_only=False, no_openbb=True, no_recon=True)
 
         mock_intel_cls.assert_not_called()

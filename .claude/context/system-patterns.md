@@ -87,37 +87,18 @@ Phase 4: Persist to SQLite
   separately via `StaticFiles`. Configurable DB path via `DataConfig.db_path` for test isolation.
 
 ### Watchlist Pattern
-- SQLite-backed watchlist with `WatchlistItem` model (ticker, added_at, notes)
-- Repository CRUD: `add_to_watchlist()`, `remove_from_watchlist()`, `get_watchlist()`
-- API routes: `/api/watchlist` (GET/POST/DELETE)
-- CLI subcommand: `options-arena watchlist add/remove/list`
-- Frontend: WatchlistPage with add/remove, TickerDrawer integration
+- SQLite-backed `WatchlistItem` model, Repository CRUD, API `/api/watchlist`, CLI `watchlist`
 
-### Score History & Trending Pattern
-- `HistoryPoint` (ticker, composite_score, direction, scanned_at) from scan_runs join ticker_scores
-- `TrendingTicker` (ticker, consecutive_scans, latest_score, score_change, direction)
-- Repository: `get_score_history(ticker, limit)`, `get_trending_tickers(direction, min_scans)`
-- Frontend: ScoreHistoryChart (Chart.js line), SparklineChart (inline mini-chart)
-
-### Scan Delta Pattern
-- `TickerDelta` and `ScanDiff` models compare current vs previous scan
-- API: `/api/scans/{id}/diff` returns movers (new, dropped, score changes)
-- Frontend: delta badges on ScanResultsPage
+### Score History, Trending & Scan Delta
+- `HistoryPoint`/`TrendingTicker` from scan_runs join ticker_scores; `ScoreHistoryChart`/`SparklineChart`
+- `TickerDelta`/`ScanDiff`: `/api/scans/{id}/diff` returns movers; delta badges on frontend
 
 ### Sector Filtering Pattern
-- `GICSSector` StrEnum (11 GICS sectors) + `SECTOR_ALIASES` dict (30+ case-insensitive aliases)
-- `field_validator("sectors", mode="before")` normalizes aliases → enum, deduplicates via `dict.fromkeys()`
-- `UniverseService.build_sector_map()` maps S&P 500 tickers → GICSSector from Wikipedia data
-- `UniverseService.filter_by_sectors()` pure helper with OR logic across selected sectors
-- Pipeline Phase 1 applies sector filter; Phase 2-3 enriches TickerScore with sector + company_name
-- Migration 008 adds nullable `sector`/`company_name` columns to `ticker_scores`
-- ETF preset: 60+ curated seed tickers verified via yfinance, 24h cache
+- `GICSSector` StrEnum + `SECTOR_ALIASES` dict, `field_validator` normalizes aliases, deduplicates via `dict.fromkeys()`
+- Pipeline Phase 1 applies sector filter; Phase 2-3 enriches with sector + company_name
 
 ### Earnings Calendar Pattern
-- `market_data.fetch_earnings_date()` via yfinance calendar, cached
-- `next_earnings` field on `TickerScore` (persisted in migration 007)
-- Earnings warning injected into debate prompts when within 7 days
-- Frontend: earnings date column + overlay on scan results
+- `market_data.fetch_earnings_date()` via yfinance; warning in debate prompts when within 7 days
 
 ### ChainProvider Pattern (Option Chain Abstraction)
 - **Protocol**: `ChainProvider` with `fetch_chain()` method — `CBOEChainProvider` (primary) + `YFinanceChainProvider` (fallback)
@@ -130,5 +111,18 @@ Phase 4: Persist to SQLite
 - **Config-gated**: `OpenBBConfig.enabled` master toggle + per-source toggles (fundamentals, flow, sentiment)
 - **MarketContext**: 11 enrichment fields + `enrichment_ratio()` (separate from `completeness_ratio()`)
 - **Models**: 5 frozen (`FundamentalSnapshot`, `UnusualFlowSnapshot`, `NewsHeadline`, `NewsSentimentSnapshot`, `OpenBBHealthStatus`)
+
+### Intelligence Service Pattern (Market Recon)
+- `IntelligenceService`: multi-source aggregation (OpenBB fundamentals, flow, sentiment)
+- Config-gated per source; never-raises contract; enrichment injected into debate agent prompts
+- `IntelligenceSnapshot` frozen model with `enrichment_ratio()` metric
+
+### Analytics Persistence Pattern (Outcome Tracking)
+- **Contract persistence**: Phase 3 captures `entry_stock_price`; Phase 4 persists `RecommendedContract` + `NormalizationStats`
+- **Outcome collection**: `OutcomeCollector` fetches quotes at T+1/T+5/T+10/T+20, computes P&L
+- **Expired handling**: ITM → intrinsic value (`max(0, S-K)` call / `max(0, K-S)` put); OTM → expired worthless (-100%)
+- **Analytics queries**: 6 typed results (win rate, score calibration, indicator attribution, holding period, delta performance, summary)
+- **API**: 9 endpoints on `/api/analytics` (6 GET queries, 1 POST collect, 2 GET contracts)
+- **CLI**: `outcomes collect [--holding-days N]`, `outcomes summary [--lookback-days N]`
 
 For detailed algorithm specs, see `system-patterns-reference.md`.

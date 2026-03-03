@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-03-02T10:59:50Z
-version: 6.1
+last_updated: 2026-03-03T14:34:21Z
+version: 6.2
 author: Claude Code PM System
 ---
 
@@ -60,10 +60,12 @@ author: Claude Code PM System
 - Contract filtering: DTE 30-60d, delta 0.20-0.50, OI >= 100, spread <= 10%
 
 ### 5. Persistence & History
-- SQLite (WAL mode) with sequential migrations
-- Scan runs, ticker scores, option contracts, AI debate theses, watchlist
+- SQLite (WAL mode) with sequential migrations (13 migrations)
+- Scan runs, ticker scores, recommended contracts (with entry prices), AI debate theses, watchlist
+- Contract outcome tracking: P&L at T+1/T+5/T+10/T+20 holding periods
 - Score history + trending tickers (consecutive scans, score changes)
 - Scan deltas: movers up/down, new entries, dropped tickers
+- Normalization metadata: per-indicator distribution stats per scan
 
 ### 6. Reporting & Export
 - Rich terminal: colored tables, progress bars, styled agent panels
@@ -81,6 +83,7 @@ author: Claude Code PM System
 | `health` | — | Check all external service connectivity + latency |
 | `universe refresh\|list\|stats\|sectors` | `--sector`, `--preset` | Manage ticker universe |
 | `watchlist add\|remove\|list` | `--notes` | Personal ticker watchlist |
+| `outcomes collect\|summary` | `--holding-days`, `--lookback-days` | Contract outcome tracking + analytics |
 | `serve` | `--host`, `--port`, `--verbose` | Launch FastAPI + Vue 3 SPA (loopback-only) |
 
 ## Web UI Pages
@@ -102,6 +105,7 @@ author: Claude Code PM System
 - **Universe**: `GET /api/universe/stats`, `GET /api/universe/tickers`, `POST /api/universe/refresh`
 - **Health**: `GET /api/health`
 - **Watchlist**: `GET/POST/DELETE /api/watchlist`
+- **Analytics**: `GET /api/analytics/{win-rate,score-calibration,holding-period,delta-performance,summary,indicator-attribution/{name}}`, `POST /api/analytics/collect-outcomes`, `GET /api/analytics/{scan,ticker}/*/contracts`
 - **WebSocket**: `WS /ws/scan/{id}` (4-phase progress), `WS /ws/debate/{id}` (agent steps)
 - **Operation mutex**: one scan or batch debate at a time (409 if busy)
 

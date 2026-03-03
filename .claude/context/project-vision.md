@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-03-02T10:59:50Z
-version: 4.0
+last_updated: 2026-03-03T14:34:21Z
+version: 4.1
 author: Claude Code PM System
 ---
 
@@ -9,7 +9,7 @@ author: Claude Code PM System
 
 ## Long-Term Direction
 
-Options Arena is a comprehensive options analysis platform that combines quantitative analysis with AI-driven qualitative reasoning via multi-agent debate. The system was built in phases and is now feature-complete at v2.2.0.
+Options Arena is a comprehensive options analysis platform that combines quantitative analysis with AI-driven qualitative reasoning via multi-agent debate. The system was built in phases and is now feature-complete at v2.4.0.
 
 ## Completed Phases
 
@@ -44,6 +44,18 @@ Options Arena is a comprehensive options analysis platform that combines quantit
 - Provider orchestration with timeout + broad exception fallback
 - DI wiring at 5 call sites, CBOE health check, validation mode
 - **Total**: 2,917 tests, 169 GitHub issues closed, 15 epics complete
+
+### v2.3.0: Market Recon (Complete — 2026-03-03)
+- IntelligenceService: multi-source market intelligence aggregation
+- DSE wiring: intelligence data injected into debate agent prompts
+- **Total**: 3,238 tests, 173 GitHub issues closed, 16 epics complete
+
+### v2.4.0: Analytics Persistence (Complete — 2026-03-03)
+- Contract persistence: scan recommendations saved with entry prices and Greeks
+- Outcome tracking: P&L computation at T+1/T+5/T+10/T+20 holding periods
+- 6 analytics queries: win rate, score calibration, indicator attribution, holding period, delta performance, summary
+- 9 API endpoints on `/api/analytics`, CLI `outcomes collect|summary`
+- **Total**: 3,376 tests, 176 GitHub issues closed, 17 epics complete
 
 ### Future
 - Additional LLM providers (Anthropic Claude, OpenAI)

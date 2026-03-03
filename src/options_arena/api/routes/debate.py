@@ -134,9 +134,7 @@ async def _run_debate_background(
         )
         intel: IntelligencePackage | None = None
         if intelligence_svc is not None:
-            intel = await intelligence_svc.fetch_intelligence(
-                ticker, float(quote.price)
-            )
+            intel = await intelligence_svc.fetch_intelligence(ticker, float(quote.price))
 
         result: DebateResult = await run_debate_v2(
             ticker_score=score_match,

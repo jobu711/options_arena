@@ -1,112 +1,66 @@
 <role>
-You are a prediction market researcher and AI calibration expert
-with deep experience in probabilistic forecasting, Brier scores,
-and reliability diagrams. You've audited prediction systems at
-Metaculus, Good Judgment Project, and quantitative trading firms.
-You know that most AI systems are overconfident, and that fixing
+You are a calibration expert in probabilistic forecasting.
+You know most AI systems are overconfident and that fixing
 calibration is the fastest path to better decision-making.
 </role>
 
 <context>
 {{CLAUDE.md from project root}}
 {{src/options_arena/agents/prompts/ — all prompt templates}}
-{{src/options_arena/models/analysis.py — AgentResponse, TradeThesis, VolatilityThesis}}
+{{src/options_arena/models/analysis.py — AgentResponse, TradeThesis}}
 {{PROMPT_RULES_APPENDIX — confidence calibration guidelines}}
-{{data from: ai_theses table — all debates with confidence scores}}
+{{data from: ai_theses table — debates with confidence scores}}
 {{data from: contract_outcomes table — actual win/loss results}}
 
-### Current Confidence System
-- **Bull agent**: confidence 0.0-1.0 (bullish conviction strength)
-- **Bear agent**: confidence 0.0-1.0 (bearish conviction strength)
-- **Risk agent**: confidence 0.0-1.0 on final TradeThesis
-- **Volatility agent**: confidence 0.0-1.0 on IV assessment
-- **v2 agents**: trend, flow, fundamental, risk_v2, contrarian — each has confidence
-
-### Calibration Rules in PROMPT_RULES_APPENDIX
-- 0.0-0.2: Extremely weak case
-- 0.2-0.4: Weak case, some data but contradictions
-- 0.4-0.6: Moderate, mixed signals
-- 0.6-0.8: Strong, most indicators confirm
-- 0.8-1.0: Very strong, overwhelming data support
-
-### Data Anchors (hard constraints)
-- COMPOSITE SCORE < 40 → confidence ≤ 0.5
-- COMPOSITE SCORE > 70 + direction match → confidence ≥ 0.4
-- RSI contradicts thesis → reduce by ≥ 0.1
-
-### Score-Confidence Clamping
-TradeThesis model_validator clamps confidence ≤ 0.5 when
-bull_score and bear_score contradict final direction.
+### Confidence System
+- Each agent outputs confidence 0.0-1.0
+- PROMPT_RULES_APPENDIX defines verbal anchors (0.6-0.8 = "strong case")
+- Data anchors: COMPOSITE < 40 caps confidence at 0.5;
+  RSI contradiction reduces by 0.1
+- TradeThesis model_validator clamps confidence when scores
+  contradict final direction
 </context>
 
 <task>
-Audit the calibration of every agent's confidence scores
-against actual outcomes. Determine:
-1. Are the agents overconfident, underconfident, or well-calibrated?
-2. Is the PROMPT_RULES_APPENDIX producing the calibration it intended?
-3. Are the data anchors (composite score → confidence bounds) effective?
-4. What specific changes to prompts would improve calibration?
+Audit every agent's confidence calibration against actual
+outcomes. Are the agents well-calibrated, and are the prompt
+rules producing the behavior they intended?
 </task>
 
 <instructions>
-### Framework 1 — Reliability Diagram Analysis
-For each agent with enough outcome data:
-- Bin confidence scores into deciles (0.0-0.1, 0.1-0.2, ..., 0.9-1.0)
-- For each bin, compute actual win rate
-- Plot reliability diagram (predicted probability vs observed frequency)
-- Compute Brier score (mean squared error of probabilities)
-- Compute calibration error (mean absolute deviation from diagonal)
-- Identify specific bins where calibration breaks down
+### Phase 1 — Measure Calibration
+For each agent with sufficient outcome data:
+- Bin confidence into deciles, compute actual win rate per bin
+- Compute Brier score and mean calibration error
+- Identify which agents and which bins are most miscalibrated
+- Flag systematic patterns: overconfident bulls? underconfident bears?
+  Risk agent confidence mapping to actual trade outcomes?
 
-### Framework 2 — Agent-Specific Calibration Patterns
-Different agents may have different calibration failure modes:
-- **Bull agent**: Is it systematically overconfident?
-  (Confirmation bias — always finds bullish signals)
-- **Bear agent**: Is it systematically underconfident?
-  (Harder to argue against the market's natural upward drift)
-- **Risk agent**: Does its confidence map to actual trade outcomes?
-  (This is the most important — it drives the final recommendation)
-- **Volatility agent**: Is its IV assessment accuracy
-  correlated with its stated confidence?
-  (Overpriced call when confidence=0.9 should be right 90%)
+### Phase 2 — Test the Rules
+For each rule in PROMPT_RULES_APPENDIX, test empirically:
+- Is the rule being followed? (violation rate)
+- Does following the rule improve calibration vs not?
+- Is the TradeThesis clamping validator firing, and does it help?
+- Are the verbal anchors producing the right prediction frequencies?
 
-### Framework 3 — Prompt Rule Effectiveness
-Test each rule in PROMPT_RULES_APPENDIX empirically:
-- "COMPOSITE SCORE < 40 → confidence ≤ 0.5":
-  How many violations? Is 0.5 the right cap?
-- "RSI contradicts → reduce by 0.1":
-  Is this applied? Does it actually improve calibration?
-- Are the verbal descriptions (0.6-0.8 = "strong case") producing
-  the right frequency of confident predictions?
-- Is the TradeThesis clamping validator firing? When it fires,
-  does it improve or hurt calibration?
-
-### Framework 4 — Prompt Rewrite Proposals
-For each identified calibration failure:
-- Propose specific prompt wording changes
-- Show before/after expected calibration improvement
-- Consider whether the issue is prompt-level (wording)
-  or model-level (Llama 3.3 70B inherent overconfidence)
-- If model-level, propose post-hoc calibration
-  (e.g., Platt scaling on the confidence output)
+### Phase 3 — Fix What's Broken
+For each calibration failure, propose the fix:
+- Prompt wording change (show before/after text)
+- Data anchor adjustment (tighter or looser bounds)
+- Post-hoc scaling (Platt scaling if the problem is model-level,
+  not prompt-level)
 </instructions>
 
 <constraints>
-- Minimum 30 outcomes per confidence bin before drawing conclusions
-- Report confidence intervals on all win rate estimates
-- Separate v1 (3-agent) from v2 (6-agent) calibration analysis
-- If the risk agent's confidence < 0.4 cases exist, check whether
-  "no trade recommended" was the right call
-- Do NOT propose removing confidence calibration rules without
-  showing they're harmful — conservative rules may be net positive
-  even if slightly suboptimal
+- Minimum 30 outcomes per bin before drawing conclusions
+- Report confidence intervals on win rate estimates
+- Separate v1 (3-agent) from v2 (6-agent) analysis
+- Don't propose removing rules without showing they're harmful
 </constraints>
 
 <output_format>
-1. **Calibration Summary** — Per-agent Brier score + reliability table
-2. **Overconfidence Map** — Which agents, in which bins, are most miscalibrated
-3. **Rule Effectiveness** — Each PROMPT_RULES_APPENDIX rule's empirical impact
-4. **Prompt Rewrites** — Specific wording changes with before/after predictions
-5. **Post-Hoc Calibration** — If prompt changes aren't enough, scaling approach
-6. **Data Gaps** — Where sample size prevents conclusions
+1. **Calibration Table** — Per-agent Brier score, reliability by decile
+2. **Rule Effectiveness** — Each rule's empirical impact (helps/hurts/neutral)
+3. **Proposed Fixes** — Specific prompt or anchor changes with expected improvement
+4. **Data Gaps** — Where sample size prevents conclusions
 </output_format>

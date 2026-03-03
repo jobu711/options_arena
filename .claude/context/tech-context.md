@@ -114,7 +114,7 @@ All three must pass before any commit.
 
 - **Command**: `options-arena` (installed via `pyproject.toml` `[project.scripts]`)
 - **Entry point**: `options_arena.cli:app` (Typer app)
-- **Commands**: `scan` (`--sector`), `health`, `universe` (refresh/list/stats/sectors), `debate` (`--batch`, `--export md|pdf`), `serve`, `watchlist` (add/remove/list)
+- **Commands**: `scan` (`--sector`), `health`, `universe` (refresh/list/stats/sectors), `debate` (`--batch`, `--export md|pdf`), `serve`, `watchlist` (add/remove/list), `outcomes` (collect/summary)
 - **Logging**: Dual-handler (RichHandler stderr + RotatingFileHandler `logs/options_arena.log`)
 - **SIGINT**: `signal.signal()` double-press pattern (graceful then force)
 

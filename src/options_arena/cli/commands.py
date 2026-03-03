@@ -265,9 +265,7 @@ def debate(
 
     if batch:
         asyncio.run(
-            _batch_async(
-                batch_limit, fallback_only, no_openbb=no_openbb, no_recon=no_recon
-            )
+            _batch_async(batch_limit, fallback_only, no_openbb=no_openbb, no_recon=no_recon)
         )
     else:
         assert ticker is not None  # validated above
