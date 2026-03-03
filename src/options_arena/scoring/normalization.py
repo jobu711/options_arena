@@ -10,7 +10,11 @@ typed model -- never ``dict[str, float]``.
 
 import logging
 import math
+from datetime import UTC, datetime
 
+import numpy as np
+
+from options_arena.models.analytics import NormalizationStats
 from options_arena.models.scan import IndicatorSignals
 
 logger = logging.getLogger(__name__)
@@ -159,3 +163,68 @@ def invert_indicators(
                 kwargs[field] = value
         result[ticker] = IndicatorSignals(**kwargs)
     return result
+
+
+def compute_normalization_stats(
+    raw_signals: dict[str, IndicatorSignals],
+) -> list[NormalizationStats]:
+    """Compute per-indicator distribution metadata from raw signals.
+
+    For each indicator field on ``IndicatorSignals``, collects all non-None,
+    finite values across all tickers and computes min, max, median, mean,
+    std_dev, p25, p75.  Indicators with zero valid values are skipped.
+
+    Returns ``NormalizationStats`` with ``scan_run_id=0`` (placeholder) and
+    ``created_at=now(UTC)``.  The pipeline sets the real ``scan_run_id`` at
+    persist time by reconstructing instances with the correct ID.
+
+    Args:
+        raw_signals: Mapping of ticker symbol to raw ``IndicatorSignals``.
+
+    Returns:
+        List of ``NormalizationStats``, one per active indicator.
+    """
+    if not raw_signals:
+        return []
+
+    active = get_active_indicators(raw_signals)
+    if not active:
+        return []
+
+    now = datetime.now(UTC)
+    stats_list: list[NormalizationStats] = []
+
+    for field_name in sorted(active):
+        # Collect all finite, non-None values for this indicator
+        values: list[float] = []
+        for signals in raw_signals.values():
+            v: float | None = getattr(signals, field_name)
+            if v is not None and math.isfinite(v):
+                values.append(v)
+
+        if not values:
+            continue
+
+        arr = np.array(values, dtype=np.float64)
+        stats_list.append(
+            NormalizationStats(
+                scan_run_id=0,
+                indicator_name=field_name,
+                ticker_count=len(values),
+                min_value=float(np.min(arr)),
+                max_value=float(np.max(arr)),
+                median_value=float(np.median(arr)),
+                mean_value=float(np.mean(arr)),
+                std_dev=float(np.std(arr, ddof=1)) if len(values) >= 2 else None,
+                p25=float(np.percentile(arr, 25)),
+                p75=float(np.percentile(arr, 75)),
+                created_at=now,
+            )
+        )
+
+    logger.info(
+        "Computed normalization stats for %d active indicators across %d tickers",
+        len(stats_list),
+        len(raw_signals),
+    )
+    return stats_list

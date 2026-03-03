@@ -21,6 +21,7 @@ from options_arena.services.options_data import (
     OptionsDataService,
     YFinanceChainProvider,
 )
+from options_arena.services.outcome_collector import OutcomeCollector
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.services.universe import (
     SP500Constituent,
@@ -40,6 +41,7 @@ __all__ = [
     "MarketDataService",
     "OpenBBService",
     "OptionsDataService",
+    "OutcomeCollector",
     "RateLimiter",
     "SP500Constituent",
     "ServiceCache",

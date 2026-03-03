@@ -292,6 +292,36 @@ class IntelligenceConfig(BaseModel):
         return self
 
 
+class AnalyticsConfig(BaseModel):
+    """Analytics persistence configuration — controls outcome collection and batch sizing.
+
+    ``holding_periods`` defines which holding periods (in trading days) to evaluate
+    contract outcomes for. ``auto_collect`` enables automatic outcome collection after
+    each scan. ``batch_size`` controls how many contracts are processed per batch.
+    """
+
+    holding_periods: list[int] = [1, 5, 10, 20]
+    auto_collect: bool = False
+    batch_size: int = 50
+
+    @field_validator("batch_size")
+    @classmethod
+    def validate_batch_size(cls, v: int) -> int:
+        """Ensure batch_size is at least 1."""
+        if v < 1:
+            raise ValueError(f"batch_size must be >= 1, got {v}")
+        return v
+
+    @field_validator("holding_periods")
+    @classmethod
+    def validate_holding_periods(cls, v: list[int]) -> list[int]:
+        """Ensure all holding periods are positive integers."""
+        for period in v:
+            if period < 1:
+                raise ValueError(f"holding_period must be >= 1, got {period}")
+        return v
+
+
 class OpenBBConfig(BaseModel):
     """OpenBB Platform SDK configuration — controls optional enrichment data.
 
@@ -337,3 +367,4 @@ class AppSettings(BaseSettings):
     log: LogConfig = LogConfig()
     openbb: OpenBBConfig = OpenBBConfig()
     intelligence: IntelligenceConfig = IntelligenceConfig()
+    analytics: AnalyticsConfig = AnalyticsConfig()

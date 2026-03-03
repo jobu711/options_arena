@@ -192,6 +192,19 @@ class SentimentLabel(StrEnum):
     NEUTRAL = "neutral"
 
 
+class OutcomeCollectionMethod(StrEnum):
+    """Method used to collect contract outcome data.
+
+    MARKET          — market prices observed at exit date.
+    INTRINSIC       — intrinsic value at expiration (max(S-K, 0) for calls).
+    EXPIRED_WORTHLESS — contract expired out of the money (zero value).
+    """
+
+    MARKET = "market"
+    INTRINSIC = "intrinsic"
+    EXPIRED_WORTHLESS = "expired_worthless"
+
+
 class GICSSector(StrEnum):
     """Global Industry Classification Standard (GICS) sectors.
 

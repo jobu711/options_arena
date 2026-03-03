@@ -11,6 +11,7 @@ import asyncio
 import logging
 import math
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 import numpy as np
 import pandas as pd
@@ -22,10 +23,13 @@ from options_arena.models import (
     AppSettings,
     GICSSector,
     IndicatorSignals,
+    NormalizationStats,
     OptionContract,
     OptionType,
+    RecommendedContract,
     ScanPreset,
     ScanRun,
+    SignalDirection,
     TickerScore,
 )
 from options_arena.models.market_data import OHLCV
@@ -50,6 +54,7 @@ from options_arena.scan.progress import (
 from options_arena.scoring import (
     compute_dimensional_scores,
     compute_direction_signal,
+    compute_normalization_stats,
     determine_direction,
     percentile_rank_normalize,
     recommend_contracts,
@@ -389,12 +394,17 @@ class ScanPipeline:
             len(scored),
         )
 
+        # Step 3c: Compute normalization distribution metadata from raw signals
+        norm_stats = compute_normalization_stats(raw_signals)
+        logger.info("Computed normalization stats for %d indicators", len(norm_stats))
+
         # Step 4: Report progress
         progress(ScanPhase.SCORING, len(universe_result.ohlcv_map), len(universe_result.ohlcv_map))
 
         return ScoringResult(
             scores=scored,
             raw_signals=raw_signals,
+            normalization_stats=norm_stats,
         )
 
     async def _phase_options(
@@ -500,11 +510,12 @@ class ScanPipeline:
         sem = asyncio.Semaphore(concurrency)
         recommendations: dict[str, list[OptionContract]] = {}
         earnings_dates: dict[str, date] = {}
+        entry_prices: dict[str, Decimal] = {}
         completed = 0
 
         async def _fetch_with_sem(
             ts: TickerScore,
-        ) -> tuple[str, list[OptionContract], date | None]:
+        ) -> tuple[str, list[OptionContract], date | None, Decimal | None]:
             nonlocal completed
             async with sem:
                 try:
@@ -518,7 +529,7 @@ class ScanPipeline:
                     progress(ScanPhase.OPTIONS, completed, len(top_scores))
 
         all_results: list[
-            tuple[str, list[OptionContract], date | None] | BaseException
+            tuple[str, list[OptionContract], date | None, Decimal | None] | BaseException
         ] = await asyncio.gather(
             *[_fetch_with_sem(ts) for ts in top_scores],
             return_exceptions=True,
@@ -533,11 +544,13 @@ class ScanPipeline:
                     result,
                 )
             else:
-                ticker, contracts, next_earnings = result
+                ticker, contracts, next_earnings, entry_price = result
                 if contracts:
                     recommendations[ticker] = contracts
                 if next_earnings is not None:
                     earnings_dates[ticker] = next_earnings
+                if entry_price is not None:
+                    entry_prices[ticker] = entry_price
 
         logger.info(
             "Options phase complete: %d recommendations from %d tickers",
@@ -559,6 +572,7 @@ class ScanPipeline:
             recommendations=recommendations,
             risk_free_rate=risk_free_rate,
             earnings_dates=earnings_dates,
+            entry_prices=entry_prices,
         )
 
     async def _process_ticker_options(
@@ -567,7 +581,7 @@ class ScanPipeline:
         risk_free_rate: float,
         ohlcv_map: dict[str, list[OHLCV]],
         spx_close: pd.Series | None,
-    ) -> tuple[str, list[OptionContract], date | None]:
+    ) -> tuple[str, list[OptionContract], date | None, Decimal | None]:
         """Fetch chains + ticker info + earnings date for a single ticker.
 
         Also computes Phase 3 DSE indicators (IV analytics, flow, fundamental,
@@ -584,7 +598,8 @@ class ScanPipeline:
             spx_close: SPX daily close prices for relative strength (None if unavailable).
 
         Returns:
-            Tuple of (ticker, recommended contracts, next_earnings_date | None).
+            Tuple of (ticker, recommended contracts, next_earnings_date | None,
+            entry_stock_price | None).
         """
         ticker = ticker_score.ticker
 
@@ -619,9 +634,11 @@ class ScanPipeline:
         for chain in chain_results:
             all_contracts.extend(chain.contracts)
 
+        entry_stock_price = ticker_info.current_price
+
         if not all_contracts:
             logger.info("No contracts found for %s", ticker)
-            return (ticker, [], earnings_date)
+            return (ticker, [], earnings_date, entry_stock_price)
 
         spot = float(ticker_info.current_price)
 
@@ -675,7 +692,7 @@ class ScanPipeline:
             config=self._settings.pricing,
         )
 
-        return (ticker, recommended, earnings_date)
+        return (ticker, recommended, earnings_date, entry_stock_price)
 
     async def _phase_persist(
         self,
@@ -729,10 +746,93 @@ class ScanPipeline:
             scan_id,
         )
 
-        # Step 5: Report progress
+        # Step 5: Build and persist RecommendedContract list
+        now_utc = datetime.now(UTC)
+        score_map: dict[str, TickerScore] = {ts.ticker: ts for ts in scoring_result.scores}
+        recommended_contracts: list[RecommendedContract] = []
+        for ticker, contracts in options_result.recommendations.items():
+            entry_price = options_result.entry_prices.get(ticker)
+            matched_score: TickerScore | None = score_map.get(ticker)
+            for contract in contracts:
+                entry_mid = contract.mid
+                recommended_contracts.append(
+                    RecommendedContract(
+                        scan_run_id=scan_id,
+                        ticker=contract.ticker,
+                        option_type=contract.option_type,
+                        strike=contract.strike,
+                        expiration=contract.expiration,
+                        bid=contract.bid,
+                        ask=contract.ask,
+                        last=contract.last,
+                        volume=contract.volume,
+                        open_interest=contract.open_interest,
+                        market_iv=contract.market_iv,
+                        exercise_style=contract.exercise_style,
+                        delta=(contract.greeks.delta if contract.greeks is not None else None),
+                        gamma=(contract.greeks.gamma if contract.greeks is not None else None),
+                        theta=(contract.greeks.theta if contract.greeks is not None else None),
+                        vega=(contract.greeks.vega if contract.greeks is not None else None),
+                        rho=(contract.greeks.rho if contract.greeks is not None else None),
+                        pricing_model=(
+                            contract.greeks.pricing_model if contract.greeks is not None else None
+                        ),
+                        greeks_source=contract.greeks_source,
+                        entry_stock_price=(
+                            entry_price if entry_price is not None else Decimal("0")
+                        ),
+                        entry_mid=entry_mid,
+                        direction=(
+                            matched_score.direction
+                            if matched_score is not None
+                            else SignalDirection.NEUTRAL
+                        ),
+                        composite_score=(
+                            matched_score.composite_score if matched_score is not None else 0.0
+                        ),
+                        risk_free_rate=options_result.risk_free_rate,
+                        created_at=now_utc,
+                    )
+                )
+
+        if recommended_contracts:
+            await self._repository.save_recommended_contracts(scan_id, recommended_contracts)
+            logger.info(
+                "Persisted %d recommended contracts for scan %d",
+                len(recommended_contracts),
+                scan_id,
+            )
+
+        # Step 6: Persist normalization stats with real scan_run_id
+        # NormalizationStats is frozen, so rebuild with the correct scan_run_id.
+        if scoring_result.normalization_stats:
+            real_stats = [
+                NormalizationStats(
+                    scan_run_id=scan_id,
+                    indicator_name=s.indicator_name,
+                    ticker_count=s.ticker_count,
+                    min_value=s.min_value,
+                    max_value=s.max_value,
+                    median_value=s.median_value,
+                    mean_value=s.mean_value,
+                    std_dev=s.std_dev,
+                    p25=s.p25,
+                    p75=s.p75,
+                    created_at=s.created_at,
+                )
+                for s in scoring_result.normalization_stats
+            ]
+            await self._repository.save_normalization_stats(scan_id, real_stats)
+            logger.info(
+                "Persisted %d normalization stats for scan %d",
+                len(real_stats),
+                scan_id,
+            )
+
+        # Step 7: Report progress
         progress(ScanPhase.PERSIST, 1, 1)
 
-        # Step 6: Return final ScanResult
+        # Step 8: Return final ScanResult
         # ScanRun is frozen — reconstruct with ID populated
         final_scan_run = ScanRun(
             id=scan_id,
