@@ -34,7 +34,7 @@ from options_arena.cli.rendering import (
     render_scan_table,
 )
 from options_arena.data import Database, Repository
-from options_arena.models import IndicatorSignals, TickerScore
+from options_arena.models import IndicatorSignals, LLMProvider, TickerScore
 from options_arena.models.config import AppSettings
 from options_arena.models.enums import SECTOR_ALIASES, GICSSector, ScanPreset
 from options_arena.scan import CancellationToken, ScanPipeline, ScanResult
@@ -248,6 +248,9 @@ def debate(
     export_dir: str = typer.Option("./reports", "--export-dir", help="Export output directory"),
     no_openbb: bool = typer.Option(False, "--no-openbb", help="Skip OpenBB enrichment"),
     no_recon: bool = typer.Option(False, "--no-recon", help="Skip intelligence fetching"),
+    provider: LLMProvider = typer.Option(  # noqa: B008
+        LLMProvider.GROQ, "--provider", help="LLM provider: groq or anthropic"
+    ),
 ) -> None:
     """Run AI debate on a scored ticker."""
     if batch and ticker is not None:
@@ -266,7 +269,11 @@ def debate(
     if batch:
         asyncio.run(
             _batch_async(
-                batch_limit, fallback_only, no_openbb=no_openbb, no_recon=no_recon
+                batch_limit,
+                fallback_only,
+                no_openbb=no_openbb,
+                no_recon=no_recon,
+                provider=provider,
             )
         )
     else:
@@ -280,6 +287,7 @@ def debate(
                 export_dir,
                 no_openbb=no_openbb,
                 no_recon=no_recon,
+                provider=provider,
             )
         )
 
@@ -290,6 +298,7 @@ async def _batch_async(
     *,
     no_openbb: bool = False,
     no_recon: bool = False,
+    provider: LLMProvider = LLMProvider.GROQ,
 ) -> None:
     """Batch debate: run debates for top-scored tickers from the latest scan."""
     settings = AppSettings()
@@ -361,6 +370,7 @@ async def _batch_async(
                     fallback_only=fallback_only,
                     openbb_svc=openbb_svc,
                     intelligence_svc=intelligence_svc,
+                    provider=provider,
                 )
                 results.append((ticker, result, None))
                 # Brief per-ticker result
@@ -442,6 +452,7 @@ async def _debate_single(
     fallback_only: bool = False,
     openbb_svc: OpenBBService | None = None,
     intelligence_svc: IntelligenceService | None = None,
+    provider: LLMProvider = LLMProvider.GROQ,
 ) -> DebateResult:
     """Run a single AI debate for one ticker. Returns result without rendering.
 
@@ -552,10 +563,14 @@ async def _debate_single(
     from options_arena.agents import run_debate_v2  # noqa: PLC0415
     from options_arena.scoring import compute_dimensional_scores  # noqa: PLC0415
 
-    # Force fallback mode if requested (near-zero timeout triggers data-driven path)
+    # Override provider if different from default config
     config = settings.debate
+    if provider != config.provider:
+        config = config.model_copy(update={"provider": provider})
+
+    # Force fallback mode if requested (near-zero timeout triggers data-driven path)
     if fallback_only:
-        config = settings.debate.model_copy(
+        config = config.model_copy(
             update={
                 "agent_timeout": _FALLBACK_ONLY_TIMEOUT_SEC,
                 "max_total_duration": _FALLBACK_ONLY_TIMEOUT_SEC,
@@ -594,6 +609,7 @@ async def _debate_async(
     *,
     no_openbb: bool = False,
     no_recon: bool = False,
+    provider: LLMProvider = LLMProvider.GROQ,
 ) -> None:
     """Run AI debate with full service lifecycle management."""
     settings = AppSettings()
@@ -670,6 +686,7 @@ async def _debate_async(
             fallback_only=fallback_only,
             openbb_svc=openbb_svc,
             intelligence_svc=intelligence_svc,
+            provider=provider,
         )
 
         # Render debate output

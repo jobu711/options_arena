@@ -2070,6 +2070,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
+    { name = "anthropic" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "lxml" },
@@ -2107,6 +2108,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiosqlite", specifier = ">=0.22" },
+    { name = "anthropic", specifier = ">=0.83.0" },
     { name = "fastapi", specifier = ">=0.133.1" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "lxml", specifier = ">=6.0.2" },

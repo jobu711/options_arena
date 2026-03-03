@@ -100,6 +100,7 @@ class TestBuildModelSettings:
         )
         settings = _build_model_settings(config)
         assert settings["temperature"] == 1.0
+        assert "anthropic_thinking" in settings
         thinking = settings["anthropic_thinking"]
         assert thinking["type"] == "enabled"
         assert thinking["budget_tokens"] == 8192
@@ -113,6 +114,7 @@ class TestBuildModelSettings:
             thinking_budget_tokens=16384,
         )
         settings = _build_model_settings(config)
+        assert "anthropic_thinking" in settings
         assert settings["anthropic_thinking"]["budget_tokens"] == 16384
 
     def test_groq_ignores_extended_thinking_flag(self) -> None:

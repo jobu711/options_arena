@@ -9,6 +9,7 @@ description = "AI-powered options analysis tool for American-style U.S. equity o
 requires-python = ">=3.13"
 dependencies = [
     "aiosqlite>=0.22",
+    "anthropic>=0.83.0",
     "fastapi>=0.133.1",
     "httpx>=0.28",
     "lxml>=6.0.2",

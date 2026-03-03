@@ -26,6 +26,7 @@ import httpx
 from pydantic_ai import AgentRunResult
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.models import Model
+from pydantic_ai.models.anthropic import AnthropicModelSettings
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RunUsage
 
@@ -103,12 +104,12 @@ def _build_model_settings(config: DebateConfig) -> ModelSettings:
     """Build ModelSettings with conditional extended thinking for Anthropic.
 
     When ``config.provider`` is ``ANTHROPIC`` and ``config.enable_extended_thinking``
-    is True, returns settings with ``temperature=1.0`` (required by Anthropic for
-    extended thinking) and ``anthropic_thinking`` budget. Otherwise returns standard
-    settings with the configured temperature.
+    is True, returns ``AnthropicModelSettings`` with ``temperature=1.0`` (required by
+    Anthropic for extended thinking) and ``anthropic_thinking`` budget. Otherwise
+    returns standard settings with the configured temperature.
     """
     if config.provider == LLMProvider.ANTHROPIC and config.enable_extended_thinking:
-        return ModelSettings(
+        return AnthropicModelSettings(
             temperature=1.0,
             anthropic_thinking={
                 "type": "enabled",
