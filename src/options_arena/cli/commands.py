@@ -751,8 +751,9 @@ async def _health_async() -> None:
         statuses = await svc.check_all()
         table = render_health_table(statuses)
         console.print(table)
-        all_up = all(s.available for s in statuses)
-        if not all_up:
+        optional_services = {"anthropic", "openbb", "cboe_chains", "intelligence"}
+        required = [s for s in statuses if s.service_name not in optional_services]
+        if not all(s.available for s in required):
             raise typer.Exit(code=1)
     finally:
         await svc.close()

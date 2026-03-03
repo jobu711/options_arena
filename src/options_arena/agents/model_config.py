@@ -45,6 +45,8 @@ def build_debate_model(config: DebateConfig) -> Model:
             return _build_groq_model(config)
         case LLMProvider.ANTHROPIC:
             return _build_anthropic_model(config)
+        case _:
+            raise ValueError(f"Unsupported LLM provider: {config.provider}")
 
 
 def _build_groq_model(config: DebateConfig) -> GroqModel:
