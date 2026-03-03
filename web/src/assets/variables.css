@@ -5,6 +5,9 @@
   --accent-yellow: #eab308;       /* yellow-500 (neutral) */
   --accent-blue: #3b82f6;         /* blue-500 (risk agent) */
   --accent-purple: #a855f7;       /* purple-500 (volatility agent) */
+  --accent-emerald: #10b981;      /* emerald-500 (trending regime) */
+  --accent-amber: #f59e0b;        /* amber-500 (volatile regime) */
+  --accent-gray: #6b7280;         /* gray-500 (null/unknown) */
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 

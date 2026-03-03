@@ -8,6 +8,7 @@ import Select from 'primevue/select'
 import Message from 'primevue/message'
 import DirectionBadge from './DirectionBadge.vue'
 import ScoreHistoryChart from './ScoreHistoryChart.vue'
+import DimensionalScoreBars from './DimensionalScoreBars.vue'
 import { api } from '@/composables/useApi'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { useToast } from 'primevue/usetoast'
@@ -125,6 +126,28 @@ function formatSignalValue(val: number | null): string {
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString()
 }
+
+function formatConfidence(val: number | null | undefined): string {
+  if (val === null || val === undefined) return '--'
+  return `${(val * 100).toFixed(0)}%`
+}
+
+const REGIME_LABELS: Record<string, string> = {
+  trending: 'Trending',
+  mean_reverting: 'Mean Reverting',
+  volatile: 'Volatile',
+  crisis: 'Crisis',
+}
+
+function regimeLabel(regime: string | null | undefined): string {
+  if (!regime) return '--'
+  return REGIME_LABELS[regime] ?? regime
+}
+
+function regimeClass(regime: string | null | undefined): string {
+  if (!regime) return 'regime-badge--null'
+  return `regime-badge--${regime.replace('_', '-')}`
+}
 </script>
 
 <template>
@@ -165,6 +188,20 @@ function formatDate(iso: string): string {
         <h3>Score History</h3>
         <div v-if="loadingHistory" class="muted">Loading history...</div>
         <ScoreHistoryChart v-else :history="history" />
+      </div>
+
+      <div class="drawer-section" data-testid="drawer-dimensional-scores">
+        <h3>Dimensional Scores</h3>
+        <div class="dim-meta-row">
+          <span class="dim-meta-label">Confidence:</span>
+          <span class="mono">{{ formatConfidence(score.direction_confidence) }}</span>
+          <span class="dim-meta-label regime-meta-label">Regime:</span>
+          <span
+            class="regime-badge"
+            :class="regimeClass(score.market_regime)"
+          >{{ regimeLabel(score.market_regime) }}</span>
+        </div>
+        <DimensionalScoreBars :scores="score.dimensional_scores" />
       </div>
 
       <div class="drawer-section">
@@ -356,5 +393,54 @@ function formatDate(iso: string): string {
 
 .watchlist-add-select {
   flex: 1;
+}
+
+.dim-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.dim-meta-label {
+  color: var(--p-surface-400, #888);
+}
+
+.regime-meta-label {
+  margin-left: 0.5rem;
+}
+
+.regime-badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.regime-badge--trending {
+  background: var(--accent-emerald, #10b981);
+  color: #fff;
+}
+
+.regime-badge--mean-reverting {
+  background: var(--accent-blue, #3b82f6);
+  color: #fff;
+}
+
+.regime-badge--volatile {
+  background: var(--accent-amber, #f59e0b);
+  color: #111;
+}
+
+.regime-badge--crisis {
+  background: var(--accent-red, #ef4444);
+  color: #fff;
+}
+
+.regime-badge--null {
+  background: var(--p-surface-700, #333);
+  color: var(--p-surface-400, #888);
 }
 </style>

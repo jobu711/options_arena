@@ -5,6 +5,7 @@ import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Select from 'primevue/select'
 import MultiSelect from 'primevue/multiselect'
+import InputNumber from 'primevue/inputnumber'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import ProgressTracker from '@/components/ProgressTracker.vue'
@@ -33,6 +34,25 @@ const selectedPreset = ref('sp500')
 const sectorOptions = ref<Array<{ name: string; value: string }>>([])
 const selectedSectors = ref<string[]>([])
 
+// Pre-scan filter state
+const marketCapOptions = [
+  { label: 'Mega', value: 'mega' },
+  { label: 'Large', value: 'large' },
+  { label: 'Mid', value: 'mid' },
+  { label: 'Small', value: 'small' },
+  { label: 'Micro', value: 'micro' },
+]
+const selectedMarketCaps = ref<string[]>([])
+const excludeEarningsDays = ref<number | null>(null)
+const directionOptions = [
+  { label: 'Any Direction', value: null },
+  { label: 'Bullish Only', value: 'bullish' },
+  { label: 'Bearish Only', value: 'bearish' },
+  { label: 'Neutral Only', value: 'neutral' },
+]
+const selectedDirection = ref<string | null>(null)
+const minIvRank = ref<number | null>(null)
+
 async function fetchSectors(): Promise<void> {
   try {
     const data = await api<SectorOption[]>('/api/universe/sectors')
@@ -54,6 +74,12 @@ async function runScan(): Promise<void> {
     const scanId = await scanStore.startScan(
       selectedPreset.value,
       selectedSectors.value.length > 0 ? selectedSectors.value : undefined,
+      {
+        market_cap_tiers: selectedMarketCaps.value,
+        exclude_near_earnings_days: excludeEarningsDays.value,
+        direction_filter: selectedDirection.value,
+        min_iv_rank: minIvRank.value,
+      },
     )
 
     // Connect to WebSocket for progress updates
@@ -152,6 +178,50 @@ onUnmounted(() => wsClose?.())
         @click="runScan()"
       />
     </div>
+    <!-- Pre-scan Filters -->
+    <div class="filter-row">
+      <MultiSelect
+        v-model="selectedMarketCaps"
+        :options="marketCapOptions"
+        optionLabel="label"
+        optionValue="value"
+        display="chip"
+        placeholder="Market cap tiers"
+        :disabled="scanStore.isScanning || opStore.inProgress"
+        class="cap-filter"
+        data-testid="market-cap-filter"
+      />
+      <Select
+        v-model="selectedDirection"
+        :options="directionOptions"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Direction"
+        :disabled="scanStore.isScanning || opStore.inProgress"
+        data-testid="direction-filter"
+      />
+      <InputNumber
+        v-model="excludeEarningsDays"
+        placeholder="Exclude earnings (days)"
+        :min="0"
+        :max="90"
+        :disabled="scanStore.isScanning || opStore.inProgress"
+        showButtons
+        suffix=" days"
+        data-testid="earnings-filter"
+      />
+      <InputNumber
+        v-model="minIvRank"
+        placeholder="Min IV Rank"
+        :min="0"
+        :max="100"
+        :disabled="scanStore.isScanning || opStore.inProgress"
+        showButtons
+        suffix="%"
+        data-testid="iv-rank-filter"
+      />
+    </div>
+
     <div v-if="selectedSectors.length > 0" class="active-filter-info" data-testid="active-sector-filter">
       Filtering by {{ selectedSectors.length }} sector{{ selectedSectors.length > 1 ? 's' : '' }}:
       {{ selectedSectors.join(', ') }}
@@ -229,6 +299,19 @@ onUnmounted(() => wsClose?.())
 .sector-filter {
   min-width: 250px;
   max-width: 500px;
+}
+
+.filter-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.cap-filter {
+  min-width: 200px;
+  max-width: 400px;
 }
 
 .active-filter-info {

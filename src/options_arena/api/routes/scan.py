@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 
@@ -28,6 +29,7 @@ from options_arena.api.ws import WebSocketProgressBridge
 from options_arena.data import Repository
 from options_arena.models import (
     AppSettings,
+    MarketRegime,
     ScanDiff,
     ScanPreset,
     ScanRun,
@@ -114,10 +116,21 @@ async def start_scan(
     token = CancellationToken()
     bridge = WebSocketProgressBridge()
 
-    # Apply per-request sector filter to settings (immutable copy pattern)
+    # Apply per-request filters to settings (immutable copy pattern)
     effective_settings = settings
+    scan_overrides: dict[str, object] = {}
     if body.sectors:
-        scan_override = settings.scan.model_copy(update={"sectors": body.sectors})
+        scan_overrides["sectors"] = body.sectors
+    if body.market_cap_tiers:
+        scan_overrides["market_cap_tiers"] = body.market_cap_tiers
+    if body.exclude_near_earnings_days is not None:
+        scan_overrides["exclude_near_earnings_days"] = body.exclude_near_earnings_days
+    if body.direction_filter is not None:
+        scan_overrides["direction_filter"] = body.direction_filter
+    if body.min_iv_rank is not None:
+        scan_overrides["min_iv_rank"] = body.min_iv_rank
+    if scan_overrides:
+        scan_override = settings.scan.model_copy(update=scan_overrides)
         effective_settings = settings.model_copy(update={"scan": scan_override})
 
     pipeline = ScanPipeline(
@@ -171,7 +184,7 @@ async def get_scan(
 
 @router.get("/scan/{scan_id}/scores")
 @limiter.limit("60/minute")
-async def get_scores(
+async def get_scores(  # noqa: ANN201
     request: Request,
     scan_id: int,
     repo: Repository = Depends(get_repo),
@@ -182,6 +195,15 @@ async def get_scores(
     direction: str | None = Query(None),
     min_score: float = Query(0.0, ge=0.0),
     search: str | None = Query(None),
+    # Dimensional filters (#224)
+    min_confidence: float | None = Query(None, ge=0.0, le=1.0),
+    market_regime: str | None = Query(None),
+    min_trend: float | None = Query(None, ge=0.0, le=100.0),
+    min_iv_vol: float | None = Query(None, ge=0.0, le=100.0),
+    min_flow: float | None = Query(None, ge=0.0, le=100.0),
+    min_risk: float | None = Query(None, ge=0.0, le=100.0),
+    max_earnings_days: int | None = Query(None, ge=0),
+    min_earnings_days: int | None = Query(None, ge=0),
 ) -> PaginatedResponse[TickerScore]:
     """Get paginated scores for a scan run with filtering/sorting."""
     all_scores = await repo.get_scores_for_scan(scan_id)
@@ -205,10 +227,75 @@ async def get_scores(
         search_upper = search.upper()
         filtered = [s for s in filtered if search_upper in s.ticker.upper()]
 
+    # Dimensional filters (#224)
+    if min_confidence is not None:
+        filtered = [
+            s
+            for s in filtered
+            if s.direction_confidence is not None and s.direction_confidence >= min_confidence
+        ]
+    if market_regime is not None:
+        try:
+            regime_enum = MarketRegime(market_regime)
+            filtered = [s for s in filtered if s.market_regime == regime_enum]
+        except ValueError:
+            pass
+    if min_trend is not None:
+        filtered = [
+            s
+            for s in filtered
+            if s.dimensional_scores is not None
+            and s.dimensional_scores.trend is not None
+            and s.dimensional_scores.trend >= min_trend
+        ]
+    if min_iv_vol is not None:
+        filtered = [
+            s
+            for s in filtered
+            if s.dimensional_scores is not None
+            and s.dimensional_scores.iv_vol is not None
+            and s.dimensional_scores.iv_vol >= min_iv_vol
+        ]
+    if min_flow is not None:
+        filtered = [
+            s
+            for s in filtered
+            if s.dimensional_scores is not None
+            and s.dimensional_scores.flow is not None
+            and s.dimensional_scores.flow >= min_flow
+        ]
+    if min_risk is not None:
+        filtered = [
+            s
+            for s in filtered
+            if s.dimensional_scores is not None
+            and s.dimensional_scores.risk is not None
+            and s.dimensional_scores.risk >= min_risk
+        ]
+    if max_earnings_days is not None:
+        today = date.today()
+        filtered = [
+            s
+            for s in filtered
+            if s.next_earnings is not None and (s.next_earnings - today).days <= max_earnings_days
+        ]
+    if min_earnings_days is not None:
+        today = date.today()
+        filtered = [
+            s
+            for s in filtered
+            if s.next_earnings is not None and (s.next_earnings - today).days >= min_earnings_days
+        ]
+
     # Sort
     reverse = order.lower() == "desc"
     if sort == "ticker":
         filtered.sort(key=lambda s: s.ticker, reverse=reverse)
+    elif sort == "direction_confidence":
+        filtered.sort(
+            key=lambda s: s.direction_confidence if s.direction_confidence is not None else -1.0,
+            reverse=reverse,
+        )
     else:
         filtered.sort(key=lambda s: s.composite_score, reverse=reverse)
 

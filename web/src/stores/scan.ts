@@ -57,10 +57,31 @@ export const useScanStore = defineStore('scan', () => {
     }
   }
 
-  async function startScan(preset: string, sectors?: string[]): Promise<number> {
-    const body: { preset: string; sectors?: string[] } = { preset }
+  async function startScan(
+    preset: string,
+    sectors?: string[],
+    filters?: {
+      market_cap_tiers?: string[]
+      exclude_near_earnings_days?: number | null
+      direction_filter?: string | null
+      min_iv_rank?: number | null
+    },
+  ): Promise<number> {
+    const body: Record<string, unknown> = { preset }
     if (sectors && sectors.length > 0) {
       body.sectors = sectors
+    }
+    if (filters?.market_cap_tiers && filters.market_cap_tiers.length > 0) {
+      body.market_cap_tiers = filters.market_cap_tiers
+    }
+    if (filters?.exclude_near_earnings_days != null) {
+      body.exclude_near_earnings_days = filters.exclude_near_earnings_days
+    }
+    if (filters?.direction_filter != null) {
+      body.direction_filter = filters.direction_filter
+    }
+    if (filters?.min_iv_rank != null) {
+      body.min_iv_rank = filters.min_iv_rank
     }
     const res = await api<{ scan_id: number }>('/api/scan', {
       method: 'POST',

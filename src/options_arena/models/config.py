@@ -19,7 +19,7 @@ from typing import Self
 from pydantic import BaseModel, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from options_arena.models.enums import SECTOR_ALIASES, GICSSector
+from options_arena.models.enums import SECTOR_ALIASES, GICSSector, MarketCapTier, SignalDirection
 
 
 class ScanConfig(BaseModel):
@@ -44,6 +44,36 @@ class ScanConfig(BaseModel):
     enable_fundamental: bool = True
     enable_regime: bool = True
     sectors: list[GICSSector] = []
+    market_cap_tiers: list[MarketCapTier] = []
+    exclude_near_earnings_days: int | None = None
+    direction_filter: SignalDirection | None = None
+    min_iv_rank: float | None = None
+
+    @field_validator("market_cap_tiers", mode="before")
+    @classmethod
+    def deduplicate_market_cap_tiers(
+        cls,
+        v: list[str | MarketCapTier],
+    ) -> list[MarketCapTier]:
+        """Deduplicate market cap tier inputs."""
+        result: list[MarketCapTier] = []
+        for item in v:
+            if isinstance(item, MarketCapTier):
+                result.append(item)
+            else:
+                result.append(MarketCapTier(str(item).strip().lower()))
+        return list(dict.fromkeys(result))
+
+    @field_validator("min_iv_rank")
+    @classmethod
+    def validate_min_iv_rank(cls, v: float | None) -> float | None:
+        """Ensure min_iv_rank is within [0, 100] if set."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"min_iv_rank must be finite, got {v}")
+            if not 0.0 <= v <= 100.0:
+                raise ValueError(f"min_iv_rank must be in [0, 100], got {v}")
+        return v
 
     @field_validator("top_n")
     @classmethod
