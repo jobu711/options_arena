@@ -69,39 +69,47 @@ export const useScanStore = defineStore('scan', () => {
     }
   }
 
-  async function startScan(
-    preset: string,
-    sectors?: string[],
-    industryGroups?: string[],
-    filters?: {
-      market_cap_tiers?: string[]
-      exclude_near_earnings_days?: number | null
-      direction_filter?: string | null
-      min_iv_rank?: number | null
-    },
-    themes?: string[],
-  ): Promise<number> {
-    const body: Record<string, unknown> = { preset }
-    if (sectors && sectors.length > 0) {
-      body.sectors = sectors
+  interface StartScanOptions {
+    preset: string
+    sectors?: string[]
+    industryGroups?: string[]
+    themes?: string[]
+    customTickers?: string[]
+    source?: 'manual' | 'watchlist'
+    market_cap_tiers?: string[]
+    exclude_near_earnings_days?: number | null
+    direction_filter?: string | null
+    min_iv_rank?: number | null
+  }
+
+  async function startScan(options: StartScanOptions): Promise<number> {
+    const body: Record<string, unknown> = { preset: options.preset }
+    if (options.sectors && options.sectors.length > 0) {
+      body.sectors = options.sectors
     }
-    if (industryGroups && industryGroups.length > 0) {
-      body.industry_groups = industryGroups
+    if (options.industryGroups && options.industryGroups.length > 0) {
+      body.industry_groups = options.industryGroups
     }
-    if (themes && themes.length > 0) {
-      body.themes = themes
+    if (options.themes && options.themes.length > 0) {
+      body.themes = options.themes
     }
-    if (filters?.market_cap_tiers && filters.market_cap_tiers.length > 0) {
-      body.market_cap_tiers = filters.market_cap_tiers
+    if (options.customTickers && options.customTickers.length > 0) {
+      body.custom_tickers = options.customTickers
     }
-    if (filters?.exclude_near_earnings_days != null) {
-      body.exclude_near_earnings_days = filters.exclude_near_earnings_days
+    if (options.source) {
+      body.source = options.source
     }
-    if (filters?.direction_filter != null) {
-      body.direction_filter = filters.direction_filter
+    if (options.market_cap_tiers && options.market_cap_tiers.length > 0) {
+      body.market_cap_tiers = options.market_cap_tiers
     }
-    if (filters?.min_iv_rank != null) {
-      body.min_iv_rank = filters.min_iv_rank
+    if (options.exclude_near_earnings_days != null) {
+      body.exclude_near_earnings_days = options.exclude_near_earnings_days
+    }
+    if (options.direction_filter != null) {
+      body.direction_filter = options.direction_filter
+    }
+    if (options.min_iv_rank != null) {
+      body.min_iv_rank = options.min_iv_rank
     }
     const res = await api<{ scan_id: number }>('/api/scan', {
       method: 'POST',

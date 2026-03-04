@@ -19,7 +19,7 @@ from options_arena.services.theme_service import ThemeService
 
 
 @pytest.fixture(autouse=True)
-def _restore_limiter_state() -> Generator[None, None, None]:
+def _restore_limiter_state() -> Generator[None]:
     """Restore limiter state after each test to prevent cross-test leakage."""
     previous = limiter.enabled
     yield

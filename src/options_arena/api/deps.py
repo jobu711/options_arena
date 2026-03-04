@@ -59,7 +59,7 @@ def get_openbb(request: Request) -> OpenBBService | None:
 
 def get_intelligence(request: Request) -> IntelligenceService | None:
     """Inject the intelligence service (``None`` when disabled)."""
-    return getattr(request.app.state, "intelligence", None)  # type: ignore[no-any-return]
+    return getattr(request.app.state, "intelligence", None)
 
 
 def get_operation_lock(request: Request) -> asyncio.Lock:

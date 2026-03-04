@@ -27,6 +27,7 @@ from options_arena.models.analytics import (
     WinRateResult,
 )
 from options_arena.models.config import (
+    TICKER_RE,
     AnalyticsConfig,
     AppSettings,
     DataConfig,
@@ -59,6 +60,7 @@ from options_arena.models.enums import (
     PricingModel,
     RiskLevel,
     ScanPreset,
+    ScanSource,
     SentimentLabel,
     SignalDirection,
     SpreadType,
@@ -117,6 +119,7 @@ __all__ = [
     "SECTOR_ALIASES",
     "SECTOR_TO_INDUSTRY_GROUPS",
     "ScanPreset",
+    "ScanSource",
     "SentimentLabel",
     "SignalDirection",
     "SpreadType",
@@ -172,6 +175,7 @@ __all__ = [
     "PricingConfig",
     "ScanConfig",
     "ServiceConfig",
+    "TICKER_RE",
     "ThemeConfig",
     # History
     "HistoryPoint",

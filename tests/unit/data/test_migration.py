@@ -42,6 +42,7 @@ async def test_scan_runs_columns(db: Database) -> None:
         "started_at": "TEXT",
         "completed_at": "TEXT",
         "preset": "TEXT",
+        "source": "TEXT",
         "tickers_scanned": "INTEGER",
         "tickers_scored": "INTEGER",
         "recommendations": "INTEGER",

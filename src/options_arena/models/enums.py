@@ -114,6 +114,17 @@ class ScanPreset(StrEnum):
     ETFS = "etfs"
 
 
+class ScanSource(StrEnum):
+    """Origin of a scan request.
+
+    MANUAL    — started from the scan page or CLI.
+    WATCHLIST — started from a watchlist with custom tickers.
+    """
+
+    MANUAL = "manual"
+    WATCHLIST = "watchlist"
+
+
 class GreeksSource(StrEnum):
     """Source of Greeks values on an option contract.
 

@@ -57,11 +57,7 @@ def is_blocked(file_path: str) -> bool:
             return False
 
     # Check blocked prefixes
-    for prefix in BLOCKED_PREFIXES:
-        if normalized.startswith(prefix):
-            return True
-
-    return False
+    return any(normalized.startswith(prefix) for prefix in BLOCKED_PREFIXES)
 
 
 def get_relative_path(file_path: str, cwd: str) -> str:

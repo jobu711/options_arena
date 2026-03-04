@@ -6,26 +6,23 @@ Most responses use existing Pydantic models from ``models/`` directly.
 
 from __future__ import annotations
 
-import re
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from options_arena.models import (
+    TICKER_RE,
     AgentResponse,
     GICSIndustryGroup,
     GICSSector,
     MarketCapTier,
     ScanPreset,
+    ScanSource,
     SentimentLabel,
     SignalDirection,
     TradeThesis,
 )
 from options_arena.models.enums import INDUSTRY_GROUP_ALIASES, SECTOR_ALIASES
-
-# Ticker: at least one alphanumeric required; allows caret prefix for indices
-_TICKER_PATTERN = r"^(?=.*[A-Z0-9])[A-Z0-9^][A-Z0-9.\-^]{0,9}$"
-_TICKER_RE = re.compile(_TICKER_PATTERN)
 
 # ---------------------------------------------------------------------------
 # Scan schemas (#126, #162)
@@ -43,6 +40,8 @@ class ScanRequest(BaseModel):
     exclude_near_earnings_days: int | None = None
     direction_filter: SignalDirection | None = None
     min_iv_rank: float | None = None
+    custom_tickers: list[str] = []
+    source: ScanSource = ScanSource.MANUAL
 
     @field_validator("market_cap_tiers", mode="before")
     @classmethod
@@ -135,6 +134,26 @@ class ScanRequest(BaseModel):
                     ) from None
         return list(dict.fromkeys(result))
 
+    @field_validator("custom_tickers", mode="before")
+    @classmethod
+    def validate_custom_tickers(cls, v: list[str]) -> list[str]:
+        """Uppercase, strip, validate format, deduplicate, and cap at 200."""
+        result: list[str] = []
+        for item in v:
+            if not isinstance(item, str):
+                raise ValueError(f"each custom ticker must be a string, got {type(item).__name__}")
+            normalized = item.upper().strip()
+            if not TICKER_RE.match(normalized):
+                raise ValueError(
+                    f"Invalid ticker format: {normalized!r}. "
+                    "Must be 1-10 characters: A-Z, 0-9, dots, hyphens, or caret."
+                )
+            result.append(normalized)
+        result = list(dict.fromkeys(result))
+        if len(result) > 200:
+            raise ValueError(f"custom_tickers exceeds 200 tickers ({len(result)})")
+        return result
+
 
 class ScanStarted(BaseModel):
     """Response for ``POST /api/scan`` (202)."""
@@ -178,7 +197,7 @@ class DebateRequest(BaseModel):
         if not isinstance(v, str):
             raise ValueError("ticker must be a string")
         v = v.upper().strip()
-        if not _TICKER_RE.match(v):
+        if not TICKER_RE.match(v):
             raise ValueError(
                 f"Invalid ticker format: {v!r}. "
                 "Must be 1-10 characters: A-Z, 0-9, dots, hyphens, or caret."
@@ -271,7 +290,7 @@ class BatchDebateRequest(BaseModel):
             if not isinstance(item, str):
                 raise ValueError("each ticker must be a string")
             normalized = item.upper().strip()
-            if not _TICKER_RE.match(normalized):
+            if not TICKER_RE.match(normalized):
                 raise ValueError(
                     f"Invalid ticker format: {normalized!r}. "
                     "Must be 1-10 characters: A-Z, 0-9, dots, hyphens, or caret."
@@ -332,7 +351,7 @@ class WatchlistTickerRequest(BaseModel):
         if not isinstance(v, str):
             raise ValueError("ticker must be a string")
         v = v.upper().strip()
-        if not _TICKER_RE.match(v):
+        if not TICKER_RE.match(v):
             raise ValueError(
                 f"Invalid ticker format: {v!r}. "
                 "Must be 1-10 characters: A-Z, 0-9, dots, hyphens, or caret."
