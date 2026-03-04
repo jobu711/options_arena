@@ -12,7 +12,7 @@ import DimensionalScoreBars from './DimensionalScoreBars.vue'
 import { api } from '@/composables/useApi'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { useToast } from 'primevue/usetoast'
-import type { TickerScore, DebateResultSummary, HistoryPoint } from '@/types'
+import type { TickerScore, DebateResultSummary, HistoryPoint, TickerInfoResponse } from '@/types'
 
 interface Props {
   visible: boolean
@@ -28,6 +28,7 @@ const debates = ref<DebateResultSummary[]>([])
 const loadingDebates = ref(false)
 const history = ref<HistoryPoint[]>([])
 const loadingHistory = ref(false)
+const fetchedCompanyName = ref<string | null>(null)
 const watchlistStore = useWatchlistStore()
 const toastService = useToast()
 const selectedWatchlistId = ref<number | null>(null)
@@ -69,6 +70,7 @@ onMounted(() => {
 watch(
   () => props.score?.ticker,
   async (ticker) => {
+    fetchedCompanyName.value = null
     if (!ticker) {
       debates.value = []
       history.value = []
@@ -76,15 +78,31 @@ watch(
     }
     loadingDebates.value = true
     loadingHistory.value = true
+
+    const fetches: Promise<unknown>[] = [
+      api<DebateResultSummary[]>('/api/debate', {
+        params: { ticker, limit: 5 },
+      }),
+      api<HistoryPoint[]>(`/api/ticker/${ticker}/history`, {
+        params: { limit: 20 },
+      }).catch(() => [] as HistoryPoint[]),
+    ]
+
+    // Fetch company name on-demand if not already populated
+    const needsCompanyName = !props.score?.company_name
+    if (needsCompanyName) {
+      fetches.push(
+        api<TickerInfoResponse>(`/api/ticker/${ticker}/info`)
+          .then((info) => { fetchedCompanyName.value = info.company_name })
+          .catch(() => { /* leave as null — graceful fallback */ }),
+      )
+    }
+
     try {
-      const [debateData, historyData] = await Promise.all([
-        api<DebateResultSummary[]>('/api/debate', {
-          params: { ticker, limit: 5 },
-        }),
-        api<HistoryPoint[]>(`/api/ticker/${ticker}/history`, {
-          params: { limit: 20 },
-        }).catch(() => [] as HistoryPoint[]),
-      ])
+      const [debateData, historyData] = await Promise.all(fetches) as [
+        DebateResultSummary[],
+        HistoryPoint[],
+      ]
       debates.value = debateData
       history.value = historyData
     } catch {
@@ -162,7 +180,7 @@ function regimeClass(regime: string | null | undefined): string {
       <div class="drawer-header">
         <span class="drawer-ticker">{{ score?.ticker ?? 'Ticker Detail' }}</span>
         <span class="drawer-company-name" data-testid="drawer-company-name">
-          {{ score?.company_name ?? '\u2014' }}
+          {{ score?.company_name ?? fetchedCompanyName ?? '\u2014' }}
         </span>
       </div>
     </template>

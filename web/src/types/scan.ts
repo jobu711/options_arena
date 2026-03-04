@@ -95,6 +95,15 @@ export interface ScanDiff {
 /** Market regime type alias. */
 export type MarketRegime = 'trending' | 'mean_reverting' | 'volatile' | 'crisis'
 
+/** Ticker info from GET /api/ticker/{ticker}/info. */
+export interface TickerInfoResponse {
+  ticker: string
+  company_name: string
+  sector: string
+  market_cap: number | null
+  current_price: string // Decimal serialized as string
+}
+
 /** Post-scan dimensional filter parameters for ScanResultsPage. */
 export interface FilterParams {
   min_score?: number
