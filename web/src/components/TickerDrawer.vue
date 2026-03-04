@@ -79,6 +79,18 @@ watch(
     loadingDebates.value = true
     loadingHistory.value = true
 
+    // Fire company name fetch separately to preserve type safety on the main Promise.all
+    if (!props.score?.company_name) {
+      api<TickerInfoResponse>(`/api/ticker/${ticker}/info`)
+        .then((info) => {
+          // Guard against stale response from a previous ticker
+          if (props.score?.ticker === ticker) {
+            fetchedCompanyName.value = info.company_name
+          }
+        })
+        .catch(() => { /* leave as null — graceful fallback */ })
+    }
+
     const fetches: Promise<unknown>[] = [
       api<DebateResultSummary[]>('/api/debate', {
         params: { ticker, limit: 5 },
@@ -87,16 +99,6 @@ watch(
         params: { limit: 20 },
       }).catch(() => [] as HistoryPoint[]),
     ]
-
-    // Fetch company name on-demand if not already populated
-    const needsCompanyName = !props.score?.company_name
-    if (needsCompanyName) {
-      fetches.push(
-        api<TickerInfoResponse>(`/api/ticker/${ticker}/info`)
-          .then((info) => { fetchedCompanyName.value = info.company_name })
-          .catch(() => { /* leave as null — graceful fallback */ }),
-      )
-    }
 
     try {
       const [debateData, historyData] = await Promise.all(fetches) as [

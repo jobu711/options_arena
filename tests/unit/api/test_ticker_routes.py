@@ -9,7 +9,7 @@ from httpx import AsyncClient
 
 from options_arena.models import TickerInfo
 from options_arena.models.enums import DividendSource, MarketCapTier
-from options_arena.utils import TickerNotFoundError
+from options_arena.utils import DataSourceUnavailableError, TickerNotFoundError
 
 
 def _make_ticker_info(ticker: str = "AAPL") -> TickerInfo:
@@ -51,6 +51,20 @@ async def test_ticker_info_not_found(client: AsyncClient, mock_market_data: Magi
 
     assert response.status_code == 404
     assert "BADTK" in response.json()["detail"]
+
+
+async def test_ticker_info_data_source_unavailable(
+    client: AsyncClient, mock_market_data: MagicMock
+) -> None:
+    """GET /api/ticker/{ticker}/info returns 503 when data source is down."""
+    mock_market_data.fetch_ticker_info = AsyncMock(
+        side_effect=DataSourceUnavailableError("Yahoo Finance unavailable")
+    )
+
+    response = await client.get("/api/ticker/AAPL/info")
+
+    assert response.status_code == 503
+
 
 
 async def test_ticker_info_invalid_ticker_pattern(client: AsyncClient) -> None:

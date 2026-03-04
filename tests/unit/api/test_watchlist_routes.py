@@ -229,6 +229,19 @@ async def test_add_ticker_duplicate_409(
 
 
 @pytest.mark.asyncio
+async def test_add_ticker_not_in_universe_422(
+    client: AsyncClient, mock_repo_watchlist: MagicMock
+) -> None:
+    """POST /api/watchlist/{id}/tickers returns 422 if ticker not in optionable universe."""
+    mock_repo_watchlist.get_watchlist_by_id.return_value = Watchlist(
+        id=1, name="Test", created_at=datetime(2026, 2, 27, 12, 0, 0, tzinfo=UTC)
+    )
+    response = await client.post("/api/watchlist/1/tickers", json={"ticker": "XYZBAD"})
+    assert response.status_code == 422
+    assert "not found in optionable universe" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_add_ticker_missing_body(
     client: AsyncClient, mock_repo_watchlist: MagicMock
 ) -> None:

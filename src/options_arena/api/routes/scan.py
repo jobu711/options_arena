@@ -65,20 +65,18 @@ async def _run_scan_background(
     token: CancellationToken,
     bridge: WebSocketProgressBridge,
     pipeline: ScanPipeline,
-    repo: Repository,
     lock: asyncio.Lock,
 ) -> None:
     """Run the scan pipeline as a background task.
 
     The lock is already acquired by the caller — this task releases it on completion.
+    Pipeline Phase 4 handles all persistence internally.
     """
     try:
         result: ScanResult = await pipeline.run(preset, token, bridge)
 
-        # Persist
-        actual_id = await repo.save_scan_run(result.scan_run)
-        await repo.save_ticker_scores(actual_id, result.scores)
-
+        # Phase 4 assigns the DB ID; fall back to counter-based scan_id on None
+        actual_id = result.scan_run.id if result.scan_run.id is not None else scan_id
         bridge.complete(actual_id, cancelled=result.cancelled)
     except Exception:
         logger.exception("Scan %d failed", scan_id)
@@ -161,7 +159,7 @@ async def start_scan(
 
     # Background task owns the lock and releases it on completion
     asyncio.create_task(
-        _run_scan_background(request, scan_id, body.preset, token, bridge, pipeline, repo, lock)
+        _run_scan_background(request, scan_id, body.preset, token, bridge, pipeline, lock)
     )
     return ScanStarted(scan_id=scan_id)
 
