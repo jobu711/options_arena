@@ -1,11 +1,12 @@
 """Signal direction classification based on technical indicators.
 
 Determines BULLISH, BEARISH, or NEUTRAL direction by scoring ADX trend
-strength, RSI momentum, and SMA alignment signals.
+strength, RSI momentum, SMA alignment, supertrend, and rate-of-change signals.
 
 Scoring uses a momentum interpretation: high RSI (overbought) adds to the
 bullish score, low RSI (oversold) adds to the bearish score.  SMA alignment
-acts as a secondary signal and tiebreaker.
+acts as a secondary signal and tiebreaker.  Supertrend and ROC provide
+confirming or contradicting trend evidence.
 """
 
 import logging
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 RSI_MIDPOINT: float = 50.0
 SMA_BULLISH_THRESHOLD: float = 0.5
 SMA_BEARISH_THRESHOLD: float = -0.5
+ROC_THRESHOLD: float = 5.0
 
 # --- Internal scoring weights ---
 _STRONG_SIGNAL_WEIGHT: int = 2
@@ -31,6 +33,9 @@ def determine_direction(
     rsi: float,
     sma_alignment: float,
     config: ScanConfig | None = None,
+    *,
+    supertrend: float | None = None,
+    roc: float | None = None,
 ) -> SignalDirection:
     """Classify market direction from technical indicator values.
 
@@ -42,10 +47,15 @@ def determine_direction(
             alignment, negative values bearish.
         config: Optional scan configuration for threshold overrides. Uses
             production defaults when ``None``.
+        supertrend: Supertrend signal (+1.0 = uptrend, -1.0 = downtrend).
+            ``None`` means unavailable (contributes nothing).
+        roc: Rate of change (percent). Above ``ROC_THRESHOLD`` is bullish
+            confirmation, below ``-ROC_THRESHOLD`` is bearish.  ``None``
+            means unavailable (contributes nothing).
 
     Returns:
         ``SignalDirection.BULLISH``, ``BEARISH``, or ``NEUTRAL`` based on
-        weighted scoring of RSI momentum and SMA alignment.
+        weighted scoring of RSI momentum, SMA alignment, supertrend, and ROC.
     """
     cfg = config if config is not None else ScanConfig()
 
@@ -87,16 +97,33 @@ def determine_direction(
     elif sma_alignment < SMA_BEARISH_THRESHOLD:
         bearish_score += _MILD_SIGNAL_WEIGHT
 
+    # Step 4: Supertrend confirmation (±1 signal)
+    if supertrend is not None and math.isfinite(supertrend):
+        if supertrend > 0:
+            bullish_score += _MILD_SIGNAL_WEIGHT
+        elif supertrend < 0:
+            bearish_score += _MILD_SIGNAL_WEIGHT
+
+    # Step 5: ROC confirmation (strong momentum)
+    if roc is not None and math.isfinite(roc):
+        if roc > ROC_THRESHOLD:
+            bullish_score += _MILD_SIGNAL_WEIGHT
+        elif roc < -ROC_THRESHOLD:
+            bearish_score += _MILD_SIGNAL_WEIGHT
+
     logger.debug(
-        "Direction scoring -- bullish=%d, bearish=%d (ADX=%.2f, RSI=%.2f, SMA=%.4f)",
+        "Direction scoring -- bullish=%d, bearish=%d "
+        "(ADX=%.2f, RSI=%.2f, SMA=%.4f, ST=%r, ROC=%r)",
         bullish_score,
         bearish_score,
         adx,
         rsi,
         sma_alignment,
+        supertrend,
+        roc,
     )
 
-    # Step 4: Compare scores
+    # Step 6: Compare scores
     if bullish_score > bearish_score:
         return SignalDirection.BULLISH
     if bearish_score > bullish_score:

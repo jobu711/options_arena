@@ -56,6 +56,7 @@ from options_arena.scan.progress import (
     ScanPhase,
 )
 from options_arena.scoring import (
+    composite_score,
     compute_dimensional_scores,
     compute_direction_signal,
     compute_normalization_stats,
@@ -332,10 +333,11 @@ class ScanPipeline:
                         ", ".join(configured_themes),
                     )
                 else:
-                    logger.warning(
-                        "Theme filter: no tickers found for themes=%s; skipping filter",
+                    logger.info(
+                        "Theme filter resolved 0 tickers for themes=%s; returning empty universe",
                         ", ".join(configured_themes),
                     )
+                    tickers = []
             except Exception:
                 logger.warning(
                     "Theme pre-filtering failed; continuing without filter",
@@ -453,6 +455,8 @@ class ScanPipeline:
                 rsi=raw.rsi or 50.0,
                 sma_alignment=raw.sma_alignment or 0.0,
                 config=scan_config,
+                supertrend=raw.supertrend,
+                roc=raw.roc,
             )
             sector = universe_result.sector_map.get(ts.ticker)
             if sector is not None:
@@ -667,14 +671,14 @@ class ScanPipeline:
         if self._theme_service is not None:
             try:
                 theme_sets = await self._theme_service.get_all_theme_sets()
-                for ts in top_scores:
+                for ts in scoring_result.scores:
                     ts.thematic_tags = [
                         name for name, tset in theme_sets.items() if ts.ticker in tset
                     ]
                 logger.info(
                     "Theme annotation: %d themes applied to %d tickers",
                     len(theme_sets),
-                    len(top_scores),
+                    len(scoring_result.scores),
                 )
             except Exception:
                 logger.warning("Theme annotation failed; continuing without tags", exc_info=True)
@@ -683,6 +687,7 @@ class ScanPipeline:
         # so they are on the same scale as Phase 2 normalized fields.
         if len(top_scores) >= 2:
             _normalize_phase3_signals(top_scores)
+            _recompute_composite_scores(top_scores)
             _recompute_dimensional_scores(top_scores)
         else:
             logger.info("Skipping Phase 3 re-score: need >=2 tickers for percentile normalization")
@@ -1237,6 +1242,39 @@ def _normalize_phase3_signals(
         len(_PHASE3_FIELDS),
         len(top_scores),
     )
+
+
+def _recompute_composite_scores(
+    top_scores: list[TickerScore],
+) -> None:
+    """Recompute composite scores after Phase 3 normalization.
+
+    Phase 2 composite scores are computed with only 14 of 18 indicators
+    (options-specific fields are ``None``).  After Phase 3 populates and
+    normalizes ``put_call_ratio``, ``max_pain_distance``, ``iv_rank``, and
+    ``iv_percentile``, the composite score should be recomputed so it
+    reflects all 18 weighted indicators.
+
+    Mutates ``top_scores`` in place.
+
+    Note: Phase 3 fields are percentile-ranked but NOT inverted because none of
+    them appear in ``INVERTED_INDICATORS`` (which only contains volatility-width
+    Phase 2 fields).  The already-inverted Phase 2 fields on ``ts.signals`` are
+    preserved as-is, so ``composite_score()`` receives correct values for all 18.
+    """
+    for ts in top_scores:
+        try:
+            ts.composite_score = composite_score(ts.signals)
+        except Exception:
+            logger.warning(
+                "Composite recompute failed for %s; keeping Phase 2 score",
+                ts.ticker,
+                exc_info=True,
+            )
+
+    # Re-sort by updated composite score (descending)
+    top_scores.sort(key=lambda ts: ts.composite_score, reverse=True)
+    logger.info("Phase 3 composite recompute complete for %d tickers", len(top_scores))
 
 
 def _recompute_dimensional_scores(

@@ -274,8 +274,11 @@ def compute_direction_signal(
     - The spread between bullish and bearish indicator counts.
 
     Args:
-        signals: Raw or percentile-ranked indicator signals.
+        signals: Percentile-ranked indicator signals (0--100 scale).
+            Both call sites pass normalized signals; thresholds (60/40) are
+            calibrated for percentile-ranked data.
         composite_score: The composite score (0--100) for this ticker.
+            Direction-agnostic measure of overall options interest level.
         direction: The discrete direction classification.
 
     Returns:
