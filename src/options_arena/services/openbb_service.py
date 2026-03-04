@@ -122,6 +122,12 @@ class OpenBBService:
             if data is None:
                 return None
 
+            # Extract sector/industry strings (never-raises — None on error)
+            raw_sector = getattr(data, "sector", None)
+            raw_industry = getattr(data, "industry", None)
+            sector_str: str | None = str(raw_sector) if raw_sector is not None else None
+            industry_str: str | None = str(raw_industry) if raw_industry is not None else None
+
             snapshot = FundamentalSnapshot(
                 ticker=ticker,
                 pe_ratio=_safe_float(getattr(data, "pe_ratio", None)),
@@ -132,6 +138,8 @@ class OpenBBService:
                 revenue_growth=_safe_float(getattr(data, "revenue_growth", None)),
                 profit_margin=_safe_float(getattr(data, "profit_margin", None)),
                 market_cap=_safe_int(getattr(data, "market_cap", None)),
+                sector=sector_str,
+                industry=industry_str,
                 fetched_at=datetime.now(UTC),
             )
 

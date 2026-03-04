@@ -20,7 +20,13 @@ import yfinance as yf  # type: ignore[import-untyped]
 from pydantic import BaseModel
 
 from options_arena.models.config import ServiceConfig
-from options_arena.models.enums import SECTOR_ALIASES, GICSSector, MarketCapTier
+from options_arena.models.enums import (
+    INDUSTRY_GROUP_ALIASES,
+    SECTOR_ALIASES,
+    GICSIndustryGroup,
+    GICSSector,
+    MarketCapTier,
+)
 from options_arena.services.cache import TTL_REFERENCE, ServiceCache
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.utils.exceptions import DataSourceUnavailableError, InsufficientDataError
@@ -572,6 +578,63 @@ def filter_by_sectors(
 
     sector_set = frozenset(sectors)
     return [t for t in tickers if sp500_map.get(t) in sector_set]
+
+
+def build_industry_group_map(
+    industry_data: dict[str, str],
+) -> dict[str, GICSIndustryGroup]:
+    """Build a ticker-to-GICS-industry-group mapping from raw industry strings.
+
+    Maps yfinance free-text industry strings (e.g., ``"Semiconductors"``,
+    ``"Software\u2014Application"``) through ``INDUSTRY_GROUP_ALIASES``.
+    Unmapped industries are excluded from the result and logged at DEBUG.
+
+    Args:
+        industry_data: Mapping from ticker symbol to raw industry string
+            (typically from yfinance ``Ticker.info["industry"]``).
+
+    Returns:
+        Mapping from ticker symbol to ``GICSIndustryGroup`` enum. Tickers
+        whose industry string cannot be resolved are silently excluded.
+    """
+    result: dict[str, GICSIndustryGroup] = {}
+    for ticker, raw_industry in industry_data.items():
+        key = raw_industry.strip().lower()
+        ig = INDUSTRY_GROUP_ALIASES.get(key)
+        if ig is not None:
+            result[ticker] = ig
+        else:
+            logger.debug("Unknown industry for %s: %s", ticker, raw_industry)
+    return result
+
+
+def filter_by_industry_groups(
+    tickers: list[str],
+    industry_groups: list[GICSIndustryGroup],
+    ig_map: dict[str, GICSIndustryGroup],
+) -> list[str]:
+    """Filter tickers by GICS industry group membership (OR logic).
+
+    Pure function. If ``industry_groups`` is empty, returns all tickers
+    unchanged. Only tickers present in ``ig_map`` can match; tickers not
+    in the map are excluded when industry group filtering is active.
+
+    Args:
+        tickers: List of ticker symbols to filter.
+        industry_groups: Industry groups to include (OR logic).
+        ig_map: Mapping from ticker to ``GICSIndustryGroup`` (from
+            ``build_industry_group_map``).
+
+    Returns:
+        Filtered list of tickers belonging to at least one of the specified
+        industry groups. Preserves input order. If ``industry_groups`` is
+        empty, returns ``tickers`` unchanged.
+    """
+    if not industry_groups:
+        return tickers
+
+    ig_set = frozenset(industry_groups)
+    return [t for t in tickers if ig_map.get(t) in ig_set]
 
 
 def _resolve_sector(sector_str: str) -> GICSSector | None:

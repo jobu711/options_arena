@@ -37,6 +37,8 @@ class FundamentalSnapshot(BaseModel):
     revenue_growth: float | None = None
     profit_margin: float | None = None
     market_cap: int | None = None
+    sector: str | None = None
+    industry: str | None = None
     fetched_at: datetime
 
     @field_validator(

@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from options_arena.models import (
     OHLCV,
+    GICSIndustryGroup,
     GICSSector,
     IndicatorSignals,
     NormalizationStats,
@@ -36,6 +37,8 @@ class UniverseResult(BaseModel):
         ohlcv_map: Ticker to OHLCV bars mapping (successful fetches only).
         sp500_sectors: Ticker to raw GICS sector string mapping (from Wikipedia).
         sector_map: Ticker to typed GICSSector enum mapping (normalized from sp500_sectors).
+        industry_group_map: Ticker to typed GICSIndustryGroup enum mapping
+            (from SECTOR_TO_INDUSTRY_GROUPS inference or yfinance industry data).
         failed_count: Number of tickers that failed OHLCV fetch.
         filtered_count: Number of tickers filtered for insufficient bars.
     """
@@ -46,6 +49,7 @@ class UniverseResult(BaseModel):
     ohlcv_map: dict[str, list[OHLCV]]
     sp500_sectors: dict[str, str]
     sector_map: dict[str, GICSSector] = Field(default_factory=dict)
+    industry_group_map: dict[str, GICSIndustryGroup] = Field(default_factory=dict)
     failed_count: int
     filtered_count: int
 

@@ -21,7 +21,9 @@ from options_arena.data import Repository
 from options_arena.indicators.options_specific import max_pain
 from options_arena.models import (
     SECTOR_ALIASES,
+    SECTOR_TO_INDUSTRY_GROUPS,
     AppSettings,
+    GICSIndustryGroup,
     GICSSector,
     IndicatorSignals,
     MarketRegime,
@@ -271,6 +273,31 @@ class ScanPipeline:
                 ", ".join(s.value for s in configured_sectors),
             )
 
+        # Step 3c: Build industry group map from sector_map via SECTOR_TO_INDUSTRY_GROUPS.
+        # For sectors with a single industry group, we can infer the mapping directly.
+        # Multi-group sectors are left unmapped (require yfinance industry data per ticker).
+        industry_group_map: dict[str, GICSIndustryGroup] = {}
+        for ticker, sector in sector_map.items():
+            groups = SECTOR_TO_INDUSTRY_GROUPS.get(sector, [])
+            if len(groups) == 1:
+                industry_group_map[ticker] = groups[0]
+        logger.info(
+            "Industry group map: %d tickers inferred from sectors", len(industry_group_map)
+        )
+
+        # Step 3d: Apply industry group filter (OR logic) when configured
+        configured_industry_groups = self._settings.scan.industry_groups
+        if configured_industry_groups:
+            ig_set = frozenset(configured_industry_groups)
+            before_count = len(tickers)
+            tickers = [t for t in tickers if industry_group_map.get(t) in ig_set]
+            logger.info(
+                "Industry group filter: %d -> %d tickers (groups=%s)",
+                before_count,
+                len(tickers),
+                ", ".join(ig.value for ig in configured_industry_groups),
+            )
+
         # Step 4: Batch-fetch OHLCV
         progress(ScanPhase.UNIVERSE, 0, len(tickers))
         batch_result = await self._market_data.fetch_batch_ohlcv(tickers, period="1y")
@@ -313,6 +340,7 @@ class ScanPipeline:
             ohlcv_map=ohlcv_map,
             sp500_sectors=sp500_sectors,
             sector_map=sector_map,
+            industry_group_map=industry_group_map,
             failed_count=failed_count,
             filtered_count=filtered_count,
         )
@@ -385,6 +413,9 @@ class ScanPipeline:
             sector = universe_result.sector_map.get(ts.ticker)
             if sector is not None:
                 ts.sector = sector
+            ig = universe_result.industry_group_map.get(ts.ticker)
+            if ig is not None:
+                ts.industry_group = ig.value
 
         # Step 3b: Compute dimensional scores, direction confidence, and market regime
         for ts in scored:
