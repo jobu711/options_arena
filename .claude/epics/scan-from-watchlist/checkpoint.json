@@ -1,0 +1,12 @@
+{
+  "epic": "scan-from-watchlist",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync scan-from-watchlist",
+  "last_updated": "2026-03-04T09:17:34Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}
