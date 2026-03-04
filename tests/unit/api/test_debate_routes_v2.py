@@ -572,26 +572,31 @@ async def test_get_debate_v2_null_fields_when_v1(
 
 
 # ---------------------------------------------------------------------------
-# Test 9: Malformed V2 JSON raises validation error (#258)
+# Test 9: Malformed V2 JSON degrades gracefully (#259)
 # ---------------------------------------------------------------------------
 
 
-async def test_malformed_v2_json_raises_error(
+async def test_malformed_v2_json_degrades_gracefully(
     client: AsyncClient,
     mock_repo: MagicMock,
 ) -> None:
-    """Malformed V2 JSON in DB produces a ValidationError (not silent garbage)."""
-    from pydantic import ValidationError as PydanticValidationError  # noqa: PLC0415
-
+    """Malformed V2 JSON in DB degrades to None (not 500 error)."""
     row = _make_debate_row_v1()
     # Inject malformed JSON that won't parse into FlowThesis
     row.flow_json = '{"invalid_field": "not a FlowThesis"}'
 
     mock_repo.get_debate_by_id = AsyncMock(return_value=row)
 
-    # model_validate_json raises ValidationError -- not silently swallowed
-    with pytest.raises(PydanticValidationError, match="FlowThesis"):
-        await client.get("/api/debate/2")
+    response = await client.get("/api/debate/2")
+    assert response.status_code == 200
+
+    data = response.json()
+    # Malformed flow_json degrades to null instead of crashing
+    assert data["flow_response"] is None
+    # Other V2 fields still null (no V2 data on V1 row)
+    assert data["fundamental_response"] is None
+    assert data["risk_v2_response"] is None
+    assert data["contrarian_response"] is None
 
 
 # ---------------------------------------------------------------------------

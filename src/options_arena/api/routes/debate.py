@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 
 from options_arena.agents import DebateResult, run_debate_v2
 from options_arena.api.app import limiter
@@ -520,6 +522,25 @@ async def list_debates(
     return summaries
 
 
+def _parse_v2_json[T: BaseModel](
+    model_cls: type[T],
+    raw_json: str | None,
+    field_name: str,
+    debate_id: int,
+) -> T | None:
+    """Parse V2 agent JSON with graceful degradation.
+
+    Returns ``None`` and logs a warning if the stored JSON is malformed,
+    matching the export route's ``contextlib.suppress`` pattern.
+    """
+    if not raw_json:
+        return None
+    with contextlib.suppress(Exception):
+        return model_cls.model_validate_json(raw_json)
+    logger.warning("Malformed %s for debate %d", field_name, debate_id, exc_info=True)
+    return None
+
+
 @router.get("/debate/{debate_id}")
 @limiter.limit("60/minute")
 async def get_debate(
@@ -584,20 +605,16 @@ async def get_debate(
         agent_agreement_score=agent_agreement_score,
         dissenting_agents=dissenting_agents,
         agents_completed=agents_completed,
-        # v2 agent structured outputs
-        flow_response=FlowThesis.model_validate_json(row.flow_json) if row.flow_json else None,
-        fundamental_response=(
-            FundamentalThesis.model_validate_json(row.fundamental_json)
-            if row.fundamental_json
-            else None
+        # v2 agent structured outputs — graceful degradation for malformed JSON
+        flow_response=_parse_v2_json(FlowThesis, row.flow_json, "flow_json", debate_id),
+        fundamental_response=_parse_v2_json(
+            FundamentalThesis, row.fundamental_json, "fundamental_json", debate_id
         ),
-        risk_v2_response=(
-            RiskAssessment.model_validate_json(row.risk_v2_json) if row.risk_v2_json else None
+        risk_v2_response=_parse_v2_json(
+            RiskAssessment, row.risk_v2_json, "risk_v2_json", debate_id
         ),
-        contrarian_response=(
-            ContrarianThesis.model_validate_json(row.contrarian_json)
-            if row.contrarian_json
-            else None
+        contrarian_response=_parse_v2_json(
+            ContrarianThesis, row.contrarian_json, "contrarian_json", debate_id
         ),
         debate_protocol=row.debate_protocol,
         # OpenBB enrichment fields

@@ -1,4 +1,10 @@
 -- Migration 020: Recreate contract_outcomes with correct UNIQUE constraint.
+--
+-- Context: Migration 012 defines UNIQUE(recommended_contract_id, holding_days)
+-- but databases created before the constraint was added (or where 012 was applied
+-- without it due to a schema mismatch) may lack it. This migration is idempotent —
+-- for databases that already have the constraint, it is a safe no-op rebuild.
+--
 -- SQLite does not support ALTER TABLE DROP/ADD CONSTRAINT, so we use
 -- the standard table-recreation pattern:
 --   1. Create new table with correct schema

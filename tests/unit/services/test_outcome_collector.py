@@ -537,34 +537,20 @@ class TestMarketToday:
 
     @pytest.mark.asyncio
     async def test_expired_check_uses_market_date(self) -> None:
-        """Verify contract expiry checking uses Eastern date, not system date.
+        """Verify contract expiry checking uses the passed-in market date.
 
-        Contract expires 2026-03-10. At UTC 2026-03-11 03:00 (ET 2026-03-10 23:00),
-        the contract should NOT be considered expired because the market date
-        is still March 10 (same as expiration).
+        Contract expires 2026-03-10. When today is March 10 (same day),
+        the contract should NOT be expired. When today is March 11, it should.
         """
         contract = make_contract(
             expiration=date(2026, 3, 10),
         )
         collector = make_collector()
 
-        # Mock _market_today to return March 10 (same as expiration)
-        # At UTC midnight on March 11, Eastern is still March 10
-        with patch(
-            "options_arena.services.outcome_collector._market_today",
-            return_value=date(2026, 3, 10),
-        ):
-            is_expired = collector._is_expired(contract.expiration)
-
         # Expiration == today -> NOT expired (< not <=)
+        is_expired = collector._is_expired(contract.expiration, date(2026, 3, 10))
         assert is_expired is False
 
-        # Now mock _market_today to return March 11 (day after expiration)
-        with patch(
-            "options_arena.services.outcome_collector._market_today",
-            return_value=date(2026, 3, 11),
-        ):
-            is_expired = collector._is_expired(contract.expiration)
-
         # Expiration < today -> expired
+        is_expired = collector._is_expired(contract.expiration, date(2026, 3, 11))
         assert is_expired is True

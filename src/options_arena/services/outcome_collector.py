@@ -143,7 +143,7 @@ class OutcomeCollector:
         collected_at: datetime,
     ) -> ContractOutcome | None:
         """Process a single contract and return its outcome, or None on error."""
-        expired = self._is_expired(contract.expiration)
+        expired = self._is_expired(contract.expiration, exit_date)
 
         if expired:
             return await self._process_expired_contract(
@@ -301,9 +301,9 @@ class OutcomeCollector:
             return max(Decimal("0"), stock_price - strike)
         return max(Decimal("0"), strike - stock_price)
 
-    def _is_expired(self, expiration: date) -> bool:
-        """Check if a contract has expired (expiration date is before today in market tz)."""
-        return expiration < _market_today()
+    def _is_expired(self, expiration: date, today: date) -> bool:
+        """Check if a contract has expired (expiration date is before *today*)."""
+        return expiration < today
 
     async def get_summary(
         self,
