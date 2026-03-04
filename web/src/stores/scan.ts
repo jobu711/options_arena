@@ -80,6 +80,7 @@ export const useScanStore = defineStore('scan', () => {
       min_iv_rank?: number | null
     },
     themes?: string[],
+    customTickers?: string[],
   ): Promise<number> {
     const body: Record<string, unknown> = { preset }
     if (sectors && sectors.length > 0) {
@@ -90,6 +91,9 @@ export const useScanStore = defineStore('scan', () => {
     }
     if (themes && themes.length > 0) {
       body.themes = themes
+    }
+    if (customTickers && customTickers.length > 0) {
+      body.custom_tickers = customTickers
     }
     if (filters?.market_cap_tiers && filters.market_cap_tiers.length > 0) {
       body.market_cap_tiers = filters.market_cap_tiers
