@@ -4,6 +4,10 @@ import { useRoute } from 'vue-router'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import AgentCard from '@/components/AgentCard.vue'
+import FlowAgentCard from '@/components/FlowAgentCard.vue'
+import FundamentalAgentCard from '@/components/FundamentalAgentCard.vue'
+import RiskAgentCard from '@/components/RiskAgentCard.vue'
+import ContrarianAgentCard from '@/components/ContrarianAgentCard.vue'
 import DirectionBadge from '@/components/DirectionBadge.vue'
 import ConfidenceBadge from '@/components/ConfidenceBadge.vue'
 import { useDebateStore } from '@/stores/debate'
@@ -15,6 +19,12 @@ const debateId = Number(route.params.id)
 
 /** Shorthand for the current debate result. */
 const debate = computed(() => debateStore.currentDebate)
+
+/** True when this debate used the v2 protocol. */
+const isV2 = computed(() => debate.value?.debate_protocol === 'v2')
+
+/** Parsed volatility agent response (used in both v1 and v2 layouts). */
+const parsedVolResponse = computed(() => tryParseAgent(debate.value?.vol_response))
 
 function tryParseAgent(json: string | undefined): AgentResponse | null {
   if (!json) return null
@@ -163,8 +173,53 @@ onMounted(() => void debateStore.fetchDebate(debateId))
         <p class="thesis-risk">{{ debateStore.currentDebate.thesis.risk_assessment }}</p>
       </div>
 
-      <!-- Agent Cards Grid -->
-      <div class="agents-grid">
+      <!-- V2 Agent Cards Grid (6-card layout) -->
+      <div v-if="isV2" class="agents-grid" data-testid="v2-agents-grid">
+        <!-- Trend (bull agent re-labeled) -->
+        <AgentCard
+          v-if="debateStore.currentDebate.bull_response"
+          agent-name="Trend Analysis"
+          :response="debateStore.currentDebate.bull_response"
+          color="#22c55e"
+          data-testid="agent-card-trend"
+        />
+
+        <!-- Flow -->
+        <FlowAgentCard
+          v-if="debateStore.currentDebate.flow_response"
+          :response="debateStore.currentDebate.flow_response"
+        />
+
+        <!-- Fundamental -->
+        <FundamentalAgentCard
+          v-if="debateStore.currentDebate.fundamental_response"
+          :response="debateStore.currentDebate.fundamental_response"
+        />
+
+        <!-- Volatility (existing agent, parsed from JSON string) -->
+        <AgentCard
+          v-if="parsedVolResponse"
+          agent-name="Volatility Agent"
+          :response="parsedVolResponse"
+          color="#a855f7"
+          data-testid="agent-card-volatility"
+        />
+
+        <!-- Risk V2 -->
+        <RiskAgentCard
+          v-if="debateStore.currentDebate.risk_v2_response"
+          :response="debateStore.currentDebate.risk_v2_response"
+        />
+
+        <!-- Contrarian -->
+        <ContrarianAgentCard
+          v-if="debateStore.currentDebate.contrarian_response"
+          :response="debateStore.currentDebate.contrarian_response"
+        />
+      </div>
+
+      <!-- V1 Agent Cards Grid (original layout) -->
+      <div v-else class="agents-grid" data-testid="v1-agents-grid">
         <AgentCard
           v-if="debateStore.currentDebate.bull_response"
           agent-name="Bull Agent"
@@ -187,9 +242,9 @@ onMounted(() => void debateStore.fetchDebate(debateId))
           data-testid="agent-card-rebuttal"
         />
         <AgentCard
-          v-if="tryParseAgent(debateStore.currentDebate.vol_response)"
+          v-if="parsedVolResponse"
           agent-name="Volatility Agent"
-          :response="tryParseAgent(debateStore.currentDebate.vol_response)!"
+          :response="parsedVolResponse"
           color="#a855f7"
           data-testid="agent-card-volatility"
         />
@@ -291,6 +346,10 @@ onMounted(() => void debateStore.fetchDebate(debateId))
         <div v-if="debateStore.currentDebate.debate_mode" class="meta-item">
           <span class="meta-label">Mode</span>
           <span class="meta-value">{{ debateStore.currentDebate.debate_mode }}</span>
+        </div>
+        <div v-if="debateStore.currentDebate.debate_protocol" class="meta-item">
+          <span class="meta-label">Protocol</span>
+          <span class="meta-value">{{ debateStore.currentDebate.debate_protocol }}</span>
         </div>
         <div class="meta-item">
           <span class="meta-label">Date</span>

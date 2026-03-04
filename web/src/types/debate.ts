@@ -52,6 +52,13 @@ export interface DebateResult {
   vol_response?: string // Raw JSON string (parsed on demand)
   bull_rebuttal?: string // Raw JSON string (parsed on demand)
 
+  // V2 agent outputs (optional, present when debate_protocol === 'v2')
+  flow_response?: FlowThesis | null
+  fundamental_response?: FundamentalThesis | null
+  risk_v2_response?: RiskAssessmentThesis | null
+  contrarian_response?: ContrarianThesis | null
+  debate_protocol?: string | null
+
   // OpenBB enrichment (optional, from MarketContext)
   pe_ratio?: number | null
   forward_pe?: number | null
@@ -65,6 +72,56 @@ export interface DebateResult {
   news_sentiment_score?: number | null
   news_sentiment_label?: string | null
   enrichment_ratio?: number | null
+}
+
+/** V2 flow agent structured response. */
+export interface FlowThesis {
+  direction: string
+  confidence: number
+  gex_interpretation: string
+  smart_money_signal: string
+  oi_analysis: string
+  volume_confirmation: string
+  key_flow_factors: string[]
+  model_used: string
+}
+
+/** V2 fundamental agent structured response. */
+export interface FundamentalThesis {
+  direction: string
+  confidence: number
+  catalyst_impact: string
+  earnings_assessment: string
+  iv_crush_risk: string
+  short_interest_analysis: string | null
+  dividend_impact: string | null
+  key_fundamental_factors: string[]
+  model_used: string
+}
+
+/** V2 risk assessment agent structured response. */
+export interface RiskAssessmentThesis {
+  risk_level: string
+  confidence: number
+  pop_estimate: number | null
+  max_loss_estimate: string
+  charm_decay_warning: string | null
+  spread_quality_assessment: string | null
+  key_risks: string[]
+  risk_mitigants: string[]
+  recommended_position_size: string | null
+  model_used: string
+}
+
+/** V2 contrarian agent structured response. */
+export interface ContrarianThesis {
+  dissent_direction: string
+  dissent_confidence: number
+  primary_challenge: string
+  overlooked_risks: string[]
+  consensus_weakness: string
+  alternative_scenario: string
+  model_used: string
 }
 
 /** Agent progress entry for the debate progress modal. */
