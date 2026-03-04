@@ -70,9 +70,7 @@ class TestDirectionFilter:
             _make_ticker_score("MSFT", direction=SignalDirection.BEARISH),
             _make_ticker_score("GOOGL", direction=SignalDirection.NEUTRAL),
         ]
-        filtered = [
-            ts for ts in scores if ts.direction == SignalDirection.BULLISH
-        ]
+        filtered = [ts for ts in scores if ts.direction == SignalDirection.BULLISH]
         assert len(filtered) == 1
         assert filtered[0].ticker == "AAPL"
 
@@ -82,9 +80,7 @@ class TestDirectionFilter:
             _make_ticker_score("AAPL", direction=SignalDirection.BULLISH),
             _make_ticker_score("MSFT", direction=SignalDirection.BEARISH),
         ]
-        filtered = [
-            ts for ts in scores if ts.direction == SignalDirection.BEARISH
-        ]
+        filtered = [ts for ts in scores if ts.direction == SignalDirection.BEARISH]
         assert len(filtered) == 1
         assert filtered[0].ticker == "MSFT"
 
@@ -104,9 +100,7 @@ class TestDirectionFilter:
         scores = [
             _make_ticker_score("AAPL", direction=SignalDirection.BULLISH),
         ]
-        filtered = [
-            ts for ts in scores if ts.direction == SignalDirection.BEARISH
-        ]
+        filtered = [ts for ts in scores if ts.direction == SignalDirection.BEARISH]
         assert len(filtered) == 0
 
 
