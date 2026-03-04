@@ -96,14 +96,12 @@ class IntelligenceService:
                 )
 
             # Both empty → nothing to report
-            targets_empty = targets_df is None or (
-                hasattr(targets_df, "empty") and targets_df.empty
-            )
+            targets_empty = targets_df is None or not targets_df
             recs_empty = recs_df is None or (hasattr(recs_df, "empty") and recs_df.empty)
             if targets_empty and recs_empty:
                 return None
 
-            # Parse targets
+            # Parse targets — yfinance returns a dict, not a DataFrame
             target_low: float | None = None
             target_high: float | None = None
             target_mean: float | None = None
@@ -111,13 +109,11 @@ class IntelligenceService:
             target_current: float | None = None
 
             if not targets_empty:
-                row = targets_df.iloc[0] if len(targets_df) > 0 else None
-                if row is not None:
-                    target_low = safe_float(row.get("low"))
-                    target_high = safe_float(row.get("high"))
-                    target_mean = safe_float(row.get("mean"))
-                    target_median = safe_float(row.get("median"))
-                    target_current = safe_float(row.get("current"))
+                target_low = safe_float(targets_df.get("low"))
+                target_high = safe_float(targets_df.get("high"))
+                target_mean = safe_float(targets_df.get("mean"))
+                target_median = safe_float(targets_df.get("median"))
+                target_current = safe_float(targets_df.get("current"))
 
             # Parse recommendations — filter to period == "0m"
             strong_buy = 0
@@ -495,7 +491,7 @@ class IntelligenceService:
             async with self._limiter:
                 ticker_obj = yf.Ticker(ticker)
                 news_items = await asyncio.wait_for(
-                    asyncio.to_thread(ticker_obj.get_news, _count=10),
+                    asyncio.to_thread(ticker_obj.get_news, count=10),
                     timeout=self._config.request_timeout,
                 )
 
