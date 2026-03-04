@@ -29,6 +29,7 @@ from options_arena.services.market_data import MarketDataService
 from options_arena.services.openbb_service import OpenBBService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.rate_limiter import RateLimiter
+from options_arena.services.theme_service import ThemeService
 from options_arena.services.universe import UniverseService
 
 # Module-level limiter instance used by route decorators
@@ -84,6 +85,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     if settings.intelligence.enabled:
         intelligence_svc = IntelligenceService(settings.intelligence, cache, limiter)
 
+    # Theme service — ETF-based thematic filtering
+    theme_service = ThemeService(settings.themes, repo)
+
     # Store on app.state for Depends() access
     app.state.settings = settings
     app.state.db = db
@@ -96,6 +100,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.universe = universe
     app.state.openbb = openbb_svc
     app.state.intelligence = intelligence_svc
+    app.state.theme_service = theme_service
     app.state.operation_lock = asyncio.Lock()
 
     # Initialize counters and mutable state eagerly so route handlers
@@ -107,6 +112,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.debate_queues = {}
     app.state.batch_counter = 0
     app.state.batch_queues = {}
+
+    # Background refresh for theme ETF holdings — non-blocking
+    if settings.themes.etf_refresh_enabled:
+        asyncio.create_task(_refresh_themes_background(theme_service))
 
     logger.info("API services started")
     yield
@@ -123,6 +132,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     await cache.close()
     await db.close()
     logger.info("API services stopped")
+
+
+async def _refresh_themes_background(theme_service: ThemeService) -> None:
+    """Background task to refresh theme ETF holdings on startup.
+
+    Never raises — errors are logged and swallowed so the background task
+    does not crash the application.
+    """
+    try:
+        await theme_service.refresh_themes()
+    except Exception:
+        logger.warning("Background theme refresh failed", exc_info=True)
 
 
 def create_app() -> FastAPI:

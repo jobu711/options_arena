@@ -18,6 +18,7 @@ from options_arena.services.market_data import MarketDataService
 from options_arena.services.openbb_service import OpenBBService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.outcome_collector import OutcomeCollector
+from options_arena.services.theme_service import ThemeService
 from options_arena.services.universe import UniverseService
 
 
@@ -64,6 +65,11 @@ def get_intelligence(request: Request) -> IntelligenceService | None:
 def get_operation_lock(request: Request) -> asyncio.Lock:
     """Inject the global operation mutex."""
     return request.app.state.operation_lock  # type: ignore[no-any-return]
+
+
+def get_theme_service(request: Request) -> ThemeService:
+    """Inject the theme service."""
+    return request.app.state.theme_service  # type: ignore[no-any-return]
 
 
 def get_outcome_collector(request: Request) -> OutcomeCollector:
