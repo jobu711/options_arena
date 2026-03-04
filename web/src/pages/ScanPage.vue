@@ -9,12 +9,14 @@ import InputNumber from 'primevue/inputnumber'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import ProgressTracker from '@/components/ProgressTracker.vue'
+import SectorTree from '@/components/SectorTree.vue'
 import { useScanStore } from '@/stores/scan'
 import { useOperationStore } from '@/stores/operation'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { api, ApiError } from '@/composables/useApi'
+import ThemeChips from '@/components/scan/ThemeChips.vue'
 import type { ScanEvent } from '@/types/ws'
-import type { SectorOption } from '@/types'
+import type { SectorHierarchy, ThemeInfo } from '@/types'
 
 const router = useRouter()
 const toast = useToast()
@@ -30,9 +32,10 @@ const presetOptions = [
 ]
 const selectedPreset = ref('sp500')
 
-// Sector filter state
-const sectorOptions = ref<Array<{ name: string; value: string }>>([])
+// Sector + industry group filter state (hierarchical tree)
+const sectorHierarchy = ref<SectorHierarchy[]>([])
 const selectedSectors = ref<string[]>([])
+const selectedIndustryGroups = ref<string[]>([])
 
 // Pre-scan filter state
 const marketCapOptions = [
@@ -55,13 +58,21 @@ const minIvRank = ref<number | null>(null)
 
 async function fetchSectors(): Promise<void> {
   try {
-    const data = await api<SectorOption[]>('/api/universe/sectors')
-    sectorOptions.value = data.map((s) => ({
-      name: `${s.name} (${s.ticker_count})`,
-      value: s.name,
-    }))
+    sectorHierarchy.value = await api<SectorHierarchy[]>('/api/universe/sectors')
   } catch {
-    sectorOptions.value = []
+    sectorHierarchy.value = []
+  }
+}
+
+// Theme filter state
+const availableThemes = ref<ThemeInfo[]>([])
+const selectedThemes = ref<string[]>([])
+
+async function fetchThemes(): Promise<void> {
+  try {
+    availableThemes.value = await api<ThemeInfo[]>('/api/universe/themes')
+  } catch {
+    availableThemes.value = []
   }
 }
 
@@ -74,12 +85,14 @@ async function runScan(): Promise<void> {
     const scanId = await scanStore.startScan(
       selectedPreset.value,
       selectedSectors.value.length > 0 ? selectedSectors.value : undefined,
+      selectedIndustryGroups.value.length > 0 ? selectedIndustryGroups.value : undefined,
       {
         market_cap_tiers: selectedMarketCaps.value,
         exclude_near_earnings_days: excludeEarningsDays.value,
         direction_filter: selectedDirection.value,
         min_iv_rank: minIvRank.value,
       },
+      selectedThemes.value.length > 0 ? selectedThemes.value : undefined,
     )
 
     // Connect to WebSocket for progress updates
@@ -137,6 +150,7 @@ function formatDate(iso: string): string {
 onMounted(() => {
   void scanStore.fetchScans()
   void fetchSectors()
+  void fetchThemes()
 })
 onUnmounted(() => wsClose?.())
 </script>
@@ -156,17 +170,14 @@ onUnmounted(() => wsClose?.())
         :disabled="scanStore.isScanning || opStore.inProgress"
         data-testid="preset-selector"
       />
-      <MultiSelect
-        v-model="selectedSectors"
-        :options="sectorOptions"
-        optionLabel="name"
-        optionValue="value"
-        display="chip"
-        filter
-        placeholder="Filter by sector"
+      <SectorTree
+        :sectors="sectorHierarchy"
+        :selectedSectors="selectedSectors"
+        :selectedIndustryGroups="selectedIndustryGroups"
         :disabled="scanStore.isScanning || opStore.inProgress"
-        class="sector-filter"
-        data-testid="sector-filter"
+        data-testid="sector-tree"
+        @update:selectedSectors="(v: string[]) => selectedSectors = v"
+        @update:selectedIndustryGroups="(v: string[]) => selectedIndustryGroups = v"
       />
       <Button
         label="Run Scan"
@@ -222,10 +233,22 @@ onUnmounted(() => wsClose?.())
       />
     </div>
 
-    <div v-if="selectedSectors.length > 0" class="active-filter-info" data-testid="active-sector-filter">
-      Filtering by {{ selectedSectors.length }} sector{{ selectedSectors.length > 1 ? 's' : '' }}:
-      {{ selectedSectors.join(', ') }}
+    <div v-if="selectedSectors.length > 0 || selectedIndustryGroups.length > 0" class="active-filter-info" data-testid="active-sector-filter">
+      <span v-if="selectedSectors.length > 0">
+        Filtering by {{ selectedSectors.length }} sector{{ selectedSectors.length > 1 ? 's' : '' }}:
+        {{ selectedSectors.join(', ') }}
+      </span>
+      <span v-if="selectedIndustryGroups.length > 0">
+        {{ selectedSectors.length > 0 ? ' | ' : '' }}{{ selectedIndustryGroups.length }} industry group{{ selectedIndustryGroups.length > 1 ? 's' : '' }}:
+        {{ selectedIndustryGroups.join(', ') }}
+      </span>
     </div>
+
+    <!-- Theme Chips (pre-scan filter) -->
+    <ThemeChips
+      :themes="availableThemes"
+      v-model:selectedThemes="selectedThemes"
+    />
 
     <!-- Progress Panel -->
     <ProgressTracker

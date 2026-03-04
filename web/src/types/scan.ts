@@ -31,15 +31,37 @@ export interface TickerScore {
   scan_run_id: number
   sector: string | null
   company_name: string | null
+  industry_group: string | null
+  thematic_tags: string[]
   dimensional_scores?: DimensionalScores | null
   direction_confidence?: number | null
   market_regime?: 'trending' | 'mean_reverting' | 'volatile' | 'crisis' | null
 }
 
-/** Sector option from GET /api/universe/sectors. */
+/** Sector option from GET /api/universe/sectors (flat, backward compat). */
 export interface SectorOption {
   name: string
   ticker_count: number
+}
+
+/** Industry group info within a sector hierarchy. */
+export interface IndustryGroupInfo {
+  name: string
+  ticker_count: number
+}
+
+/** Hierarchical sector with nested industry groups from GET /api/universe/sectors. */
+export interface SectorHierarchy {
+  name: string
+  ticker_count: number
+  industry_groups: IndustryGroupInfo[]
+}
+
+/** Investment theme from GET /api/universe/themes. */
+export interface ThemeInfo {
+  name: string
+  ticker_count: number
+  source_etfs: string[]
 }
 
 /** Paginated response wrapper. */

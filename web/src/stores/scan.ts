@@ -42,6 +42,8 @@ export const useScanStore = defineStore('scan', () => {
       min_score?: number
       search?: string
       sectors?: string
+      industry_groups?: string
+      themes?: string
       // Dimensional filters
       min_confidence?: number
       market_regime?: string
@@ -70,16 +72,24 @@ export const useScanStore = defineStore('scan', () => {
   async function startScan(
     preset: string,
     sectors?: string[],
+    industryGroups?: string[],
     filters?: {
       market_cap_tiers?: string[]
       exclude_near_earnings_days?: number | null
       direction_filter?: string | null
       min_iv_rank?: number | null
     },
+    themes?: string[],
   ): Promise<number> {
     const body: Record<string, unknown> = { preset }
     if (sectors && sectors.length > 0) {
       body.sectors = sectors
+    }
+    if (industryGroups && industryGroups.length > 0) {
+      body.industry_groups = industryGroups
+    }
+    if (themes && themes.length > 0) {
+      body.themes = themes
     }
     if (filters?.market_cap_tiers && filters.market_cap_tiers.length > 0) {
       body.market_cap_tiers = filters.market_cap_tiers

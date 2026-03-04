@@ -6,10 +6,11 @@ import DataTable, { type DataTableSortEvent, type DataTablePageEvent } from 'pri
 import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
-import MultiSelect from 'primevue/multiselect'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import Panel from 'primevue/panel'
+import ThemeChips from '@/components/scan/ThemeChips.vue'
+import SectorTree from '@/components/SectorTree.vue'
 import DirectionBadge from '@/components/DirectionBadge.vue'
 import SparklineChart from '@/components/SparklineChart.vue'
 import RegimeBanner from '@/components/RegimeBanner.vue'
@@ -24,7 +25,7 @@ import { useOperationStore } from '@/stores/operation'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { api, ApiError } from '@/composables/useApi'
-import type { TickerScore, ScanRun, ScanDiff, TickerDelta, HistoryPoint, SectorOption, FilterParams } from '@/types'
+import type { TickerScore, ScanRun, ScanDiff, TickerDelta, HistoryPoint, SectorHierarchy, ThemeInfo, FilterParams } from '@/types'
 import type { DebateEvent, BatchEvent } from '@/types/ws'
 
 /** Map GICS sector names to PrimeVue Tag severity values for color-coding. */
@@ -259,23 +260,39 @@ const directionOptions = [
   { label: 'Neutral', value: 'neutral' },
 ]
 
-// Sector filter state
-const sectorFilterOptions = ref<Array<{ name: string; value: string }>>([])
+// Sector + industry group filter state (hierarchical tree)
+const sectorHierarchy = ref<SectorHierarchy[]>([])
 const selectedSectorFilters = ref<string[]>([])
+const selectedIndustryGroupFilters = ref<string[]>([])
 
 async function fetchSectorOptions(): Promise<void> {
   try {
-    const data = await api<SectorOption[]>('/api/universe/sectors')
-    sectorFilterOptions.value = data.map((s) => ({
-      name: s.name,
-      value: s.name,
-    }))
+    sectorHierarchy.value = await api<SectorHierarchy[]>('/api/universe/sectors')
   } catch {
-    sectorFilterOptions.value = []
+    sectorHierarchy.value = []
   }
 }
 
 function onSectorFilterChange(): void {
+  page.value = 1
+  syncUrl()
+  void loadScores()
+}
+
+// Theme filter state
+const availableThemes = ref<ThemeInfo[]>([])
+const selectedThemeFilters = ref<string[]>([])
+
+async function fetchThemeOptions(): Promise<void> {
+  try {
+    availableThemes.value = await api<ThemeInfo[]>('/api/universe/themes')
+  } catch {
+    availableThemes.value = []
+  }
+}
+
+function onThemeFilterChange(themes: string[]): void {
+  selectedThemeFilters.value = themes
   page.value = 1
   syncUrl()
   void loadScores()
@@ -356,6 +373,12 @@ function buildParams(): Record<string, string | number | undefined> {
   if (selectedSectorFilters.value.length > 0) {
     params.sectors = selectedSectorFilters.value.join(',')
   }
+  if (selectedIndustryGroupFilters.value.length > 0) {
+    params.industry_groups = selectedIndustryGroupFilters.value.join(',')
+  }
+  if (selectedThemeFilters.value.length > 0) {
+    params.themes = selectedThemeFilters.value.join(',')
+  }
   // Dimensional filters (use > 0 to avoid falsy 0 suppression)
   const df = dimensionalFilters.value
   if (df.min_score != null && df.min_score > 0) params.min_score = df.min_score
@@ -380,6 +403,8 @@ function syncUrl(): void {
   if (page.value > 1) query.page = String(page.value)
   if (compareScanId.value !== null) query.compare = String(compareScanId.value)
   if (selectedSectorFilters.value.length > 0) query.sectors = selectedSectorFilters.value.join(',')
+  if (selectedIndustryGroupFilters.value.length > 0) query.industry_groups = selectedIndustryGroupFilters.value.join(',')
+  if (selectedThemeFilters.value.length > 0) query.themes = selectedThemeFilters.value.join(',')
   // Dimensional filter URL params (use > 0 to avoid falsy 0 suppression)
   const df = dimensionalFilters.value
   if (df.min_score != null && df.min_score > 0) query.min_score = String(df.min_score)
@@ -499,6 +524,16 @@ onMounted(async () => {
   if (sectorsParam) {
     selectedSectorFilters.value = sectorsParam.split(',')
   }
+  // Restore industry group filters from URL
+  const igParam = route.query.industry_groups as string | undefined
+  if (igParam) {
+    selectedIndustryGroupFilters.value = igParam.split(',')
+  }
+  // Restore theme filters from URL
+  const themesParam = route.query.themes as string | undefined
+  if (themesParam) {
+    selectedThemeFilters.value = themesParam.split(',')
+  }
   // Restore dimensional filters from URL
   const restoredFilters: FilterParams = {}
   const q = route.query
@@ -518,6 +553,7 @@ onMounted(async () => {
   void fetchSparklineData()
   void watchlistStore.fetchWatchlists()
   void fetchSectorOptions()
+  void fetchThemeOptions()
   // Load scan list for compare dropdown
   await scanStore.fetchScans(20)
   // If compare param is in URL, fetch the diff
@@ -539,11 +575,23 @@ onUnmounted(() => {
         {{ scanStore.totalScores }} tickers
       </span>
       <span
-        v-if="selectedSectorFilters.length > 0"
+        v-if="selectedSectorFilters.length > 0 || selectedIndustryGroupFilters.length > 0"
         class="active-sector-info"
         data-testid="active-sector-filter"
       >
-        Sectors: {{ selectedSectorFilters.join(', ') }}
+        <template v-if="selectedSectorFilters.length > 0">
+          Sectors: {{ selectedSectorFilters.join(', ') }}
+        </template>
+        <template v-if="selectedIndustryGroupFilters.length > 0">
+          {{ selectedSectorFilters.length > 0 ? ' | ' : '' }}Groups: {{ selectedIndustryGroupFilters.join(', ') }}
+        </template>
+      </span>
+      <span
+        v-if="selectedThemeFilters.length > 0"
+        class="active-theme-info"
+        data-testid="active-theme-filter"
+      >
+        Themes: {{ selectedThemeFilters.join(', ') }}
       </span>
     </div>
 
@@ -566,18 +614,13 @@ onUnmounted(() => {
         data-testid="direction-filter"
         @change="onDirectionChange()"
       />
-      <MultiSelect
-        v-model="selectedSectorFilters"
-        :options="sectorFilterOptions"
-        optionLabel="name"
-        optionValue="value"
-        display="chip"
-        filter
-        placeholder="Filter by sector"
-        size="small"
-        class="sector-filter"
-        data-testid="sector-filter"
-        @change="onSectorFilterChange()"
+      <SectorTree
+        :sectors="sectorHierarchy"
+        :selectedSectors="selectedSectorFilters"
+        :selectedIndustryGroups="selectedIndustryGroupFilters"
+        data-testid="sector-tree"
+        @update:selectedSectors="(v: string[]) => { selectedSectorFilters = v; onSectorFilterChange() }"
+        @update:selectedIndustryGroups="(v: string[]) => { selectedIndustryGroupFilters = v; onSectorFilterChange() }"
       />
       <Select
         v-model="compareScanId"
@@ -613,6 +656,13 @@ onUnmounted(() => {
         />
       </div>
     </div>
+
+    <!-- Theme Filter Chips -->
+    <ThemeChips
+      :themes="availableThemes"
+      :selectedThemes="selectedThemeFilters"
+      @update:selectedThemes="onThemeFilterChange"
+    />
 
     <!-- Top Movers Summary (shown when comparison is active) -->
     <Panel
@@ -872,6 +922,11 @@ onUnmounted(() => {
   font-size: 0.8rem;
   color: var(--accent-blue, #3b82f6);
   margin-left: auto;
+}
+
+.active-theme-info {
+  font-size: 0.8rem;
+  color: var(--accent-purple, #a855f7);
 }
 
 .sector-tag {
