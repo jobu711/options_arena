@@ -2,6 +2,21 @@
 
 Historical completion logs for Options Arena. Current state is in `progress.md`.
 
+## Epic 19: Scan from Watchlist (2026-03-04) — #242-#246, PR #247
+Custom tickers through full stack. +130 tests.
+ScanSource enum, custom_tickers on ScanConfig/ScanRequest, TICKER_RE validation,
+Pipeline Phase 1 custom tickers branch, WatchlistPage scan button, scan store threading.
+- Migration 018: `source` column on scan_runs
+- `TICKER_RE` regex validation, 200-ticker cap, dedup, normalization
+- API route: `model_copy(update={custom_tickers: [...]})` pattern
+- CodeRabbit review: input validation hardening, null guards, operation cleanup fixes
+
+## Epic 18: Scan Filtering (2026-03-03) — #222-#226, PR #227
+Dimensional scores persistence, API filtering, pre-scan narrowing, web UI. +110 tests.
+Migration 015 (dimensional_scores), RegimeBanner, ScanFilterPanel, FilterPresets.
+- Pre-scan narrowing: market_cap_tiers, exclude_near_earnings_days, direction_filter, min_iv_rank
+- Web: RegimeBanner, DimensionalScoreBars, ScanFilterPanel, FilterPresets
+
 ## Epic 17: Analytics Persistence (2026-03-03) — #209-#213
 Contract persistence, outcome tracking, analytics API. +138 tests.
 9 frozen analytics models, 3 SQL migrations (011-013), OutcomeCollector service,

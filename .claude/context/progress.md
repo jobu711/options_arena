@@ -2,70 +2,33 @@
 
 ## Current State
 
-- **Version**: 2.5.0 — Scan Filtering (dimensional scores, pre-scan narrowing, filter UI) complete
-- **All 9 phases + 18 epics**: Complete and merged to master
-- **Tests**: 3,486 Python + 38 E2E
-- **GitHub issues**: 0 open, 177 closed
-- **CI**: GitHub Actions (3 gates: lint, typecheck, tests)
+- **Version**: 2.6.0 — Scan from Watchlist (custom tickers through full stack) complete
+- **All 9 phases + 19 epics**: Complete and merged to master
+- **Tests**: 3,754 Python + 38 E2E
+- **GitHub issues**: 13 open, 243+ closed
+- **CI**: GitHub Actions (4 gates: lint, typecheck, tests, frontend)
 - **CLI**: `options-arena scan`, `health`, `universe`, `debate` (+ `--batch`, `--export`), `serve`, `watchlist`, `outcomes` (collect, summary)
 - **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
 - **AI provider**: Groq (cloud, `GROQ_API_KEY` env var or `ARENA_DEBATE__API_KEY`)
 
-## Phase Summary
-
-| Phase | Module | Tests | Status |
-|-------|--------|-------|--------|
-| 1 | Models, enums, config | 293 | Complete |
-| 2 | Pricing (BSM + BAW) | 214 | Complete |
-| 3 | Technical indicators (18 functions) | 172 | Complete |
-| 4 | Scoring (normalize, composite, direction, contracts) | 110 | Complete |
-| 5 | Services (market data, options, FRED, universe, health) | 181 | Complete |
-| 6 | Data layer (SQLite, migrations, repository) | 42 | Complete |
-| 7 | Scan pipeline (4-phase async orchestration) | 131 | Complete |
-| 8 | CLI (Typer + Rich, logging, SIGINT) | 40 | Complete |
-| 9 | AI debate (PydanticAI agents, Groq) | 241 | Complete |
-| 10 | Web UI (FastAPI + Vue 3 SPA) | 82 | Complete |
-
-For detailed phase/epic completion logs, see `progress-archive.md`.
-
 ## In Progress
 
-None.
+### Epic 20: Surface V2 Agent Outputs — #248-#256
+Extend DebateResult to surface structured v2 agent fields (4 agent theses, risk assessment).
+- #249: DebateResult model extension + migration
+- #250: Repository layer — persist and load v2 agent outputs
+- #251: Orchestrator wiring — populate and persist v2 fields
+- #252-#254: API + CLI + frontend rendering
+- #255-#256: Frontend cards + export renderers
 
 ## Recently Completed
 
-### Epic 18: Scan Filtering (2026-03-03) — #222-#226, PR #227
-Dimensional scores persistence, API filtering, pre-scan narrowing, web UI. +110 tests.
-- Migration 015: dimensional_scores JSON, direction_confidence, market_regime columns
-- Repository: persist + query dimensional fields with 6 filter params
-- Pre-scan narrowing: market_cap_tiers, exclude_near_earnings_days, direction_filter, min_iv_rank
-- CLI: 4 new scan options (--market-cap, --exclude-earnings-days, --direction, --min-iv-rank)
-- API: ScanRequest extended, 6 dimensional query params + sectors filter on GET scores
-- Web: RegimeBanner, DimensionalScoreBars, ScanFilterPanel (9 filters), FilterPresets (6 presets)
-- ScanPage pre-scan filter controls, ScanResultsPage URL-synced post-scan filters
-- Post-merge fixes: iv_rank pipeline filter, sectors API param, market timezone, regime config thresholds
-
-### Epic 17: Analytics Persistence (2026-03-03) — #209-#213
-Contract persistence, outcome tracking, analytics API. +138 tests.
-- 9 frozen analytics models, `OutcomeCollectionMethod` enum, `AnalyticsConfig`
-- 3 SQL migrations (recommended_contracts, contract_outcomes, normalization_metadata)
-- Pipeline Phase 3 entry price capture + Phase 4 contract/normalization persistence
-- `OutcomeCollector` service with P&L computation, intrinsic value for expired contracts
-- CLI `outcomes` subcommand group (collect, summary)
-- 6 analytics repository queries + 9 API endpoints on `/api/analytics`
-
-### Epic 16: Market Recon (2026-03-03) — #201-#208
-IntelligenceService + DSE wiring to debate agents. +231 tests.
-
-### Epic 15: OpenBB Migration (2026-03-02) — #192-#199, PR #200
-ChainProvider protocol abstraction: CBOE via OpenBB primary, yfinance fallback. +127 tests.
-
-### Epic 14: OpenBB Integration (2026-03-02) — #179-#183
-Optional enrichment via OpenBB Platform SDK: fundamentals, unusual flow, news sentiment. +319 tests.
+- **Epic 19** (2026-03-04): Scan from Watchlist — custom tickers through full stack, +130 tests. PR #247.
+- **Epic 18** (2026-03-03): Scan Filtering — dimensional scores, API filtering, pre-scan narrowing, +110 tests. PR #227.
 
 ## Future Work
 
-- OpenBB integration: web UI enrichment display, pipeline enrichment wiring
+- Surface v2 agent outputs (in progress — epic 20)
 - Additional LLM providers (Anthropic Claude, OpenAI)
 - Options liquidity weighting in composite scoring
 - Real-time market data streaming

@@ -261,6 +261,9 @@ Reference guides in `.claude/guides/` — NOT auto-loaded, read when relevant:
 | `frontmatter-operations.md` | Creating/editing YAML frontmatter |
 | `test-execution.md` | Running tests with test-runner agent |
 | `use-ast-grep.md` | Structural code search/refactoring |
+| `datetime.md` | Writing frontmatter timestamps (PRDs, epics, tasks) |
+| `github-operations.md` | Creating/editing GitHub issues or PRs |
+| `dependency-reference.md` | Checking web/optional/dev dependency versions |
 
 ## Context Budget Policy
 
@@ -268,10 +271,10 @@ Auto-loaded context has a strict budget. Every line costs attention on all tasks
 
 | Category | Current | Max |
 |----------|---------|-----|
-| CLAUDE.md | 281 lines | 350 lines |
-| @-referenced context files | 334 lines | 300 lines |
-| .claude/rules/ files | 379 lines | 400 lines |
-| **Grand total** | **994** | **1,050** |
+| CLAUDE.md | 284 lines | 350 lines |
+| @-referenced context files | 203 lines | 300 lines |
+| .claude/rules/ files | 33 lines | 400 lines |
+| **Grand total** | **520** | **1,050** |
 
 Rules:
 - `progress.md`: Current state only. Move completed work to `progress-archive.md`.
