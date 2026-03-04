@@ -70,6 +70,7 @@ from options_arena.services import (
     OptionsDataService,
     UniverseService,
 )
+from options_arena.services.theme_service import ThemeService
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,7 @@ class ScanPipeline:
         fred: FredService,
         universe: UniverseService,
         repository: Repository,
+        theme_service: ThemeService | None = None,
     ) -> None:
         self._settings = settings
         self._market_data = market_data
@@ -105,6 +107,7 @@ class ScanPipeline:
         self._fred = fred
         self._universe = universe
         self._repository = repository
+        self._theme_service = theme_service
 
     async def run(
         self,
@@ -618,6 +621,22 @@ class ScanPipeline:
             len(recommendations),
             len(top_scores),
         )
+
+        # Annotate thematic tags from ThemeService (#230)
+        if self._theme_service is not None:
+            try:
+                theme_sets = await self._theme_service.get_all_theme_sets()
+                for ts in top_scores:
+                    ts.thematic_tags = [
+                        name for name, tset in theme_sets.items() if ts.ticker in tset
+                    ]
+                logger.info(
+                    "Theme annotation: %d themes applied to %d tickers",
+                    len(theme_sets),
+                    len(top_scores),
+                )
+            except Exception:
+                logger.warning("Theme annotation failed; continuing without tags", exc_info=True)
 
         # Normalize Phase 3 fields (raw domain values → 0-100 percentile ranks)
         # so they are on the same scale as Phase 2 normalized fields.

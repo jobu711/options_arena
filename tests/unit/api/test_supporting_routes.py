@@ -79,7 +79,7 @@ async def test_universe_refresh(client: AsyncClient, mock_universe: MagicMock) -
 
 
 async def test_universe_sectors(client: AsyncClient, mock_universe: MagicMock) -> None:
-    """GET /api/universe/sectors returns GICS sectors with ticker counts."""
+    """GET /api/universe/sectors returns hierarchical GICS sectors with ticker counts."""
     mock_universe.fetch_sp500_constituents = AsyncMock(
         return_value=[
             SP500Constituent(ticker="AAPL", sector="Information Technology"),
@@ -92,27 +92,40 @@ async def test_universe_sectors(client: AsyncClient, mock_universe: MagicMock) -
     assert response.status_code == 200
     data = response.json()
 
-    # Should have 3 sectors represented
-    assert len(data) == 3
+    # Should return all 11 GICS sectors (hierarchical response)
+    assert len(data) == 11
 
     # Verify sorted alphabetically
     names = [s["name"] for s in data]
     assert names == sorted(names)
 
-    # Verify counts
+    # Each sector has industry_groups array
+    for item in data:
+        assert "industry_groups" in item
+        assert isinstance(item["industry_groups"], list)
+
+    # Verify counts for sectors with data
     sector_map = {s["name"]: s["ticker_count"] for s in data}
     assert sector_map["Information Technology"] == 2
     assert sector_map["Communication Services"] == 1
     assert sector_map["Energy"] == 1
 
+    # Sectors without data have zero count
+    assert sector_map["Health Care"] == 0
+
 
 async def test_universe_sectors_empty(client: AsyncClient, mock_universe: MagicMock) -> None:
-    """GET /api/universe/sectors returns empty list when no S&P 500 data."""
+    """GET /api/universe/sectors returns all 11 sectors with zero counts when no S&P 500 data."""
     mock_universe.fetch_sp500_constituents = AsyncMock(return_value=[])
     response = await client.get("/api/universe/sectors")
     assert response.status_code == 200
     data = response.json()
-    assert data == []
+    # Hierarchical response always returns all 11 GICS sectors
+    assert len(data) == 11
+    # All ticker counts should be zero
+    for item in data:
+        assert item["ticker_count"] == 0
+        assert isinstance(item["industry_groups"], list)
 
 
 async def test_universe_sectors_all_eleven(client: AsyncClient, mock_universe: MagicMock) -> None:

@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from options_arena.models import (
     AgentResponse,
+    GICSIndustryGroup,
     GICSSector,
     MarketCapTier,
     ScanPreset,
@@ -20,7 +21,7 @@ from options_arena.models import (
     SignalDirection,
     TradeThesis,
 )
-from options_arena.models.enums import SECTOR_ALIASES
+from options_arena.models.enums import INDUSTRY_GROUP_ALIASES, SECTOR_ALIASES
 
 # Ticker: at least one alphanumeric required; allows caret prefix for indices
 _TICKER_PATTERN = r"^(?=.*[A-Z0-9])[A-Z0-9^][A-Z0-9.\-^]{0,9}$"
@@ -36,6 +37,8 @@ class ScanRequest(BaseModel):
 
     preset: ScanPreset = ScanPreset.SP500
     sectors: list[GICSSector] = []
+    industry_groups: list[GICSIndustryGroup] = []
+    themes: list[str] = []
     market_cap_tiers: list[MarketCapTier] = []
     exclude_near_earnings_days: int | None = None
     direction_filter: SignalDirection | None = None
@@ -82,6 +85,36 @@ class ScanRequest(BaseModel):
                     valid = sorted({s.value for s in GICSSector})
                     raise ValueError(
                         f"Unknown sector {item!r}. Valid sectors: {', '.join(valid)}"
+                    ) from None
+        return list(dict.fromkeys(result))
+
+    @field_validator("industry_groups", mode="before")
+    @classmethod
+    def normalize_industry_groups(
+        cls,
+        v: list[str | GICSIndustryGroup],
+    ) -> list[GICSIndustryGroup]:
+        """Normalize industry group input strings via INDUSTRY_GROUP_ALIASES.
+
+        Same alias resolution as ``ScanConfig.normalize_industry_groups`` — accepts
+        canonical enum values, lowercase names, and short-name variants.
+        Raises ValueError for unrecognised inputs.
+        """
+        result: list[GICSIndustryGroup] = []
+        for item in v:
+            if isinstance(item, GICSIndustryGroup):
+                result.append(item)
+                continue
+            key = str(item).strip().lower()
+            if key in INDUSTRY_GROUP_ALIASES:
+                result.append(INDUSTRY_GROUP_ALIASES[key])
+            else:
+                try:
+                    result.append(GICSIndustryGroup(str(item).strip()))
+                except ValueError:
+                    valid = sorted({ig.value for ig in GICSIndustryGroup})
+                    raise ValueError(
+                        f"Unknown industry group {item!r}. Valid groups: {', '.join(valid)}"
                     ) from None
         return list(dict.fromkeys(result))
 
@@ -318,6 +351,29 @@ class SectorInfo(BaseModel):
 
     name: str
     ticker_count: int
+
+
+class IndustryGroupInfo(BaseModel):
+    """Industry group with ticker count."""
+
+    name: str
+    ticker_count: int
+
+
+class SectorHierarchy(BaseModel):
+    """Sector with nested industry groups."""
+
+    name: str
+    ticker_count: int
+    industry_groups: list[IndustryGroupInfo]
+
+
+class ThemeInfo(BaseModel):
+    """Theme with ticker count and source ETFs."""
+
+    name: str
+    ticker_count: int
+    source_etfs: list[str]
 
 
 class UniverseStats(BaseModel):

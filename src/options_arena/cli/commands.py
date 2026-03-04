@@ -37,7 +37,9 @@ from options_arena.data import Database, Repository
 from options_arena.models import IndicatorSignals, TickerScore
 from options_arena.models.config import AppSettings
 from options_arena.models.enums import (
+    INDUSTRY_GROUP_ALIASES,
     SECTOR_ALIASES,
+    GICSIndustryGroup,
     GICSSector,
     MarketCapTier,
     ScanPreset,
@@ -58,6 +60,7 @@ from options_arena.services.market_data import MarketDataService
 from options_arena.services.openbb_service import OpenBBService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.rate_limiter import RateLimiter
+from options_arena.services.theme_service import ThemeService
 from options_arena.services.universe import UniverseService
 
 if TYPE_CHECKING:
@@ -120,6 +123,29 @@ def _parse_market_caps(raw: list[str]) -> list[MarketCapTier]:
     return list(dict.fromkeys(result))
 
 
+def _parse_industry_groups(raw: list[str]) -> list[GICSIndustryGroup]:
+    """Resolve raw industry group strings to GICSIndustryGroup enums via INDUSTRY_GROUP_ALIASES.
+
+    Raises ``typer.BadParameter`` with valid options on unrecognised input.
+    """
+    result: list[GICSIndustryGroup] = []
+    for item in raw:
+        key = item.strip().lower()
+        if key in INDUSTRY_GROUP_ALIASES:
+            result.append(INDUSTRY_GROUP_ALIASES[key])
+        else:
+            try:
+                result.append(GICSIndustryGroup(item.strip()))
+            except ValueError:
+                valid = sorted(
+                    {a for a in INDUSTRY_GROUP_ALIASES if " " not in a and "&" not in a}
+                )
+                raise typer.BadParameter(
+                    f"Unknown industry group {item!r}. Valid names: {', '.join(valid)}"
+                ) from None
+    return list(dict.fromkeys(result))
+
+
 @app.command()
 def scan(
     preset: ScanPreset = typer.Option(  # noqa: B008
@@ -142,10 +168,17 @@ def scan(
     min_iv_rank: float | None = typer.Option(
         None, "--min-iv-rank", help="Minimum IV rank (0-100)"
     ),
+    industry_group: list[str] = typer.Option(  # noqa: B008
+        [], "--industry-group", help="Filter by GICS industry group (repeatable)"
+    ),
+    theme: list[str] = typer.Option(  # noqa: B008
+        [], "--theme", help="Filter by investment theme (repeatable)"
+    ),
 ) -> None:
     """Run the full scan pipeline: universe -> scoring -> options -> persist."""
     sectors = _parse_sectors(sector)
     cap_tiers = _parse_market_caps(market_cap)
+    industry_groups = _parse_industry_groups(industry_group)
     asyncio.run(
         _scan_async(
             preset,
@@ -156,6 +189,8 @@ def scan(
             exclude_earnings,
             direction,
             min_iv_rank,
+            industry_groups=industry_groups,
+            themes=theme,
         )
     )
 
@@ -169,6 +204,8 @@ async def _scan_async(
     exclude_near_earnings_days: int | None = None,
     direction_filter: SignalDirection | None = None,
     min_iv_rank: float | None = None,
+    industry_groups: list[GICSIndustryGroup] | None = None,
+    themes: list[str] | None = None,
 ) -> None:
     """Run the scan pipeline with full service lifecycle management."""
     start_time = time.monotonic()
@@ -186,6 +223,8 @@ async def _scan_async(
         settings.scan.direction_filter = direction_filter
     if min_iv_rank is not None:
         settings.scan.min_iv_rank = min_iv_rank
+    if industry_groups:
+        settings.scan.industry_groups = industry_groups
 
     # Infrastructure (lightweight constructors — no I/O)
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -217,8 +256,21 @@ async def _scan_async(
         fred = FredService(settings.service, settings.pricing, cache)
         universe_svc = UniverseService(settings.service, cache, limiter)
 
+        # Theme service — created when themes are configured or for tagging
+        theme_svc: ThemeService | None = None
+        if themes or settings.themes.etf_refresh_enabled:
+            theme_svc = ThemeService(settings.themes, repo)
+
         # Pipeline
-        pipeline = ScanPipeline(settings, market_data, options_data, fred, universe_svc, repo)
+        pipeline = ScanPipeline(
+            settings,
+            market_data,
+            options_data,
+            fred,
+            universe_svc,
+            repo,
+            theme_service=theme_svc,
+        )
 
         # Cancellation token + SIGINT handler
         token = CancellationToken()
