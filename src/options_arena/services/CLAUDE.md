@@ -43,7 +43,7 @@ and use class-based DI with explicit `close()` lifecycle.
 | `utils/exceptions.py` (domain exceptions) | `pricing/` (services don't price) |
 | `helpers.py`, `rate_limiter.py`, `cache.py` (internal infra) | `scoring/` (services don't score) |
 | stdlib: `asyncio`, `logging`, `math`, `time`, `zoneinfo`, `decimal` | `agents/`, `reporting/`, `cli` |
-| External: `yfinance`, `httpx`, `aiosqlite`, `pandas` (read_html only) | |
+| External: `yfinance`, `httpx`, `aiosqlite`, `pandas` (read_csv for CSV sources) | |
 
 ---
 
@@ -356,7 +356,7 @@ Dual-layer: token bucket (requests-per-second) + semaphore (max concurrent).
 | yfinance timeout / network | `DataSourceUnavailableError("yfinance", detail)` | Raise (retry in batch) |
 | FRED / CBOE unreachable | `DataSourceUnavailableError(source, detail)` | Fallback + WARNING log |
 | Rate limit after max retries | `RateLimitExceededError(source, detail)` | Raise |
-| Wikipedia schema drift | `InsufficientDataError(detail)` | Raise with column mismatch |
+| GitHub CSV schema drift | `InsufficientDataError(detail)` | Raise with column mismatch |
 | FRED any error | — | **Never raises** — returns `PricingConfig.risk_free_rate_fallback` |
 
 All exceptions from `utils/exceptions.py`. Never bare `except:`. Always catch specific types.

@@ -23,7 +23,6 @@ from options_arena.models import (
     SECTOR_ALIASES,
     SECTOR_TO_INDUSTRY_GROUPS,
     AppSettings,
-    GICSIndustryGroup,
     GICSSector,
     IndicatorSignals,
     MarketRegime,
@@ -71,6 +70,7 @@ from options_arena.services import (
     MarketDataService,
     OptionsDataService,
     UniverseService,
+    build_industry_group_map,
 )
 from options_arena.services.theme_service import ThemeService
 
@@ -249,14 +249,24 @@ class ScanPipeline:
                     )
         logger.info("Sector map: %d tickers mapped to GICS sectors", len(sector_map))
 
-        # Step 3: Build industry group map (needed regardless of custom_tickers path)
-        industry_group_map: dict[str, GICSIndustryGroup] = {}
+        # Step 3: Build industry group map from GICS Sub-Industry (CSV data)
+        sub_industry_data: dict[str, str] = {
+            c.ticker: c.sub_industry for c in sp500_constituents if c.sub_industry
+        }
+        industry_group_map = build_industry_group_map(sub_industry_data)
+        from_sub = len(industry_group_map)
+
+        # Fallback: infer from sector for tickers without sub-industry data
         for ticker, sector in sector_map.items():
-            groups = SECTOR_TO_INDUSTRY_GROUPS.get(sector, [])
-            if len(groups) == 1:
-                industry_group_map[ticker] = groups[0]
+            if ticker not in industry_group_map:
+                groups = SECTOR_TO_INDUSTRY_GROUPS.get(sector, [])
+                if len(groups) == 1:
+                    industry_group_map[ticker] = groups[0]
         logger.info(
-            "Industry group map: %d tickers inferred from sectors", len(industry_group_map)
+            "Industry group map: %d tickers (%d from sub-industry, %d inferred)",
+            len(industry_group_map),
+            from_sub,
+            len(industry_group_map) - from_sub,
         )
 
         # Step 3a: Custom tickers branch — bypass preset/sector/industry/theme filters

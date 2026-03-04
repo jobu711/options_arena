@@ -140,6 +140,56 @@ class TestIndustryGroupAliases:
         assert INDUSTRY_GROUP_ALIASES["pharma_biotech"] is GICSIndustryGroup.PHARMA_BIOTECH
         assert INDUSTRY_GROUP_ALIASES["capital_goods"] is GICSIndustryGroup.CAPITAL_GOODS
 
+    def test_gics_sub_industry_csv_mappings(self) -> None:
+        """Verify key GICS Sub-Industry strings from S&P 500 CSV are in aliases."""
+        # Representative sample from each sector
+        gics_sub_industries = [
+            # Communication Services
+            "interactive media & services",
+            "wireless telecommunication services",
+            # Consumer Discretionary
+            "broadline retail",
+            "automotive parts & equipment",
+            "homebuilding",
+            # Consumer Staples
+            "packaged foods & meats",
+            "household products",
+            "consumer staples merchandise retail",
+            # Energy
+            "oil & gas exploration & production",
+            "integrated oil & gas",
+            # Financials
+            "diversified banks",
+            "regional banks",
+            "transaction & payment processing services",
+            # Health Care
+            "managed health care",
+            "life sciences tools & services",
+            "health care technology",
+            # Industrials
+            "passenger airlines",
+            "industrial machinery & supplies & components",
+            "research & consulting services",
+            # Information Technology
+            "application software",
+            "systems software",
+            "technology hardware storage & peripherals",
+            "semiconductor materials & equipment",
+            # Materials
+            "construction materials",
+            "commodity chemicals",
+            # Real Estate
+            "data center reits",
+            "office reits",
+            # Utilities
+            "electric utilities",
+            "multi-utilities",
+        ]
+        for sub_industry in gics_sub_industries:
+            assert sub_industry in INDUSTRY_GROUP_ALIASES, (
+                f"Missing GICS Sub-Industry alias: {sub_industry!r}"
+            )
+
     def test_yfinance_industry_mappings(self) -> None:
         """Verify yfinance industry field values resolve correctly."""
         # Software

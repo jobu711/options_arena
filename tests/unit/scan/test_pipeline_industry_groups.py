@@ -147,9 +147,29 @@ class TestIndustryGroupMapConstruction:
         assert result.industry_group_map["FCX"] == GICSIndustryGroup.MATERIALS
         assert result.industry_group_map["NEE"] == GICSIndustryGroup.UTILITIES
 
-    async def test_multi_group_sector_not_inferred(self) -> None:
-        """Sectors with multiple industry groups are NOT inferred (left unmapped)."""
-        # Information Technology has 3 groups: SEMICONDUCTORS, SOFTWARE, HARDWARE
+    async def test_multi_group_sector_with_sub_industry_inferred(self) -> None:
+        """Sectors with multiple groups ARE inferred when sub_industry is present."""
+        # IT has 3 groups, but sub_industry disambiguates
+        sp500 = [
+            SP500Constituent(
+                ticker="AAPL",
+                sector="Information Technology",
+                sub_industry="Technology Hardware Storage & Peripherals",
+            ),
+        ]
+        tickers = ["AAPL"]
+
+        pipeline, _ = _make_pipeline(
+            optionable_tickers=tickers,
+            sp500_constituents=sp500,
+        )
+
+        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+
+        assert result.industry_group_map["AAPL"] == GICSIndustryGroup.TECHNOLOGY_HARDWARE_EQUIPMENT
+
+    async def test_multi_group_sector_without_sub_industry_not_inferred(self) -> None:
+        """Sectors with multiple groups are NOT inferred without sub_industry."""
         sp500 = [
             SP500Constituent(ticker="AAPL", sector="Information Technology"),
         ]
@@ -163,6 +183,7 @@ class TestIndustryGroupMapConstruction:
         result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
 
         # AAPL should NOT be in industry_group_map because IT has multiple groups
+        # and no sub_industry is available
         assert "AAPL" not in result.industry_group_map
 
     async def test_empty_sp500_yields_empty_map(self) -> None:
@@ -342,9 +363,31 @@ class TestPhase2IndustryGroupEnrichment:
         for ts in scoring_result.scores:
             assert ts.industry_group == GICSIndustryGroup.UTILITIES.value
 
+    async def test_ticker_score_industry_group_from_sub_industry(self) -> None:
+        """TickerScore.industry_group is set from sub_industry data."""
+        sp500 = [
+            SP500Constituent(
+                ticker="AAPL",
+                sector="Information Technology",
+                sub_industry="Technology Hardware Storage & Peripherals",
+            ),
+        ]
+        tickers = ["AAPL"]
+
+        pipeline, _ = _make_pipeline(
+            optionable_tickers=tickers,
+            sp500_constituents=sp500,
+        )
+
+        universe_result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        scoring_result = await pipeline._phase_scoring(universe_result, _noop_progress)
+
+        for ts in scoring_result.scores:
+            assert ts.industry_group == GICSIndustryGroup.TECHNOLOGY_HARDWARE_EQUIPMENT.value
+
     async def test_ticker_score_industry_group_none_when_not_in_map(self) -> None:
         """TickerScore.industry_group remains None when not in industry_group_map."""
-        # IT has multiple groups -> not inferred
+        # IT has multiple groups -> not inferred, no sub_industry
         sp500 = [
             SP500Constituent(ticker="AAPL", sector="Information Technology"),
         ]
