@@ -348,10 +348,10 @@ class OpenBBService:
     # Private helpers
     # ------------------------------------------------------------------
 
-    async def _obb_call(  # noqa: ANN401
+    async def _obb_call(
         self,
-        fn: Any,
-        *args: Any,
+        fn: Any,  # noqa: ANN401
+        *args: Any,  # noqa: ANN401
         **kwargs: Any,  # noqa: ANN401
     ) -> Any:  # noqa: ANN401
         """Wrap sync OpenBB call: ``to_thread`` + ``wait_for``."""

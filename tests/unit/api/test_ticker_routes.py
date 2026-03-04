@@ -66,7 +66,6 @@ async def test_ticker_info_data_source_unavailable(
     assert response.status_code == 503
 
 
-
 async def test_ticker_info_invalid_ticker_pattern(client: AsyncClient) -> None:
     """GET /api/ticker/{ticker}/info rejects invalid ticker patterns."""
     response = await client.get("/api/ticker/aapl/info")

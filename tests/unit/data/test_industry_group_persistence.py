@@ -101,9 +101,7 @@ class TestIndustryGroupPersistence:
         assert result[0].industry_group is None
 
     @pytest.mark.asyncio
-    async def test_industry_group_roundtrip_special_characters(
-        self, repo: Repository
-    ) -> None:
+    async def test_industry_group_roundtrip_special_characters(self, repo: Repository) -> None:
         """Verify industry_group with ampersand and spaces roundtrips correctly."""
         scan_id = await repo.save_scan_run(_make_scan_run())
         ig = GICSIndustryGroup.PHARMA_BIOTECH
@@ -120,7 +118,8 @@ class TestIndustryGroupPersistence:
         scan_id = await repo.save_scan_run(_make_scan_run())
         scores = [
             _make_ticker_score(
-                ticker="AAPL", industry_group=GICSIndustryGroup.TECHNOLOGY_HARDWARE_EQUIPMENT,
+                ticker="AAPL",
+                industry_group=GICSIndustryGroup.TECHNOLOGY_HARDWARE_EQUIPMENT,
             ),
             _make_ticker_score(ticker="MSFT"),  # None
             _make_ticker_score(ticker="JPM", industry_group=GICSIndustryGroup.BANKS),

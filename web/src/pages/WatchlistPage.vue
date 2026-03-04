@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
@@ -10,14 +10,25 @@ import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import ConfirmDialog from 'primevue/confirmdialog'
+import ProgressTracker from '@/components/ProgressTracker.vue'
 import DirectionBadge from '@/components/DirectionBadge.vue'
 import { useWatchlistStore } from '@/stores/watchlist'
+import { useScanStore } from '@/stores/scan'
+import { useOperationStore } from '@/stores/operation'
+import { useWebSocket } from '@/composables/useWebSocket'
+import { ApiError } from '@/composables/useApi'
 import type { WatchlistTicker } from '@/types'
+import type { ScanEvent } from '@/types/ws'
 
 const router = useRouter()
 const toast = useToast()
 const confirm = useConfirm()
 const watchlistStore = useWatchlistStore()
+const scanStore = useScanStore()
+const opStore = useOperationStore()
+
+const SCAN_PHASES = ['universe', 'scoring', 'options', 'persist']
+let wsClose: (() => void) | null = null
 
 const selectedWatchlistId = ref<number | null>(null)
 const showCreateDialog = ref(false)
@@ -152,6 +163,81 @@ async function onRemoveTicker(ticker: string): Promise<void> {
   }
 }
 
+async function runWatchlistScan(): Promise<void> {
+  const tickers = watchlistStore.activeWatchlist?.tickers.map((t) => t.ticker) ?? []
+  if (tickers.length === 0) return
+
+  try {
+    opStore.start('scan')
+    const scanId = await scanStore.startScan({
+      preset: 'full',
+      customTickers: tickers,
+      source: 'watchlist',
+    })
+
+    const { close } = useWebSocket<ScanEvent>({
+      url: `/ws/scan/${scanId}`,
+      onMessage(event) {
+        switch (event.type) {
+          case 'progress':
+            scanStore.updateProgress(event)
+            break
+          case 'error':
+            scanStore.addError(event)
+            toast.add({
+              severity: 'warn',
+              summary: 'Scan Warning',
+              detail: event.message,
+              life: 5000,
+            })
+            break
+          case 'complete':
+            scanStore.setComplete(event)
+            opStore.finish()
+            close()
+            if (event.cancelled) {
+              toast.add({ severity: 'info', summary: 'Scan Cancelled', life: 3000 })
+            } else {
+              toast.add({
+                severity: 'success',
+                summary: 'Scan Complete',
+                detail: `Scan #${event.scan_id} finished`,
+                life: 5000,
+              })
+              void router.push(`/scan/${event.scan_id}`)
+            }
+            break
+        }
+      },
+    })
+    wsClose = close
+  } catch (e) {
+    opStore.finish()
+    scanStore.reset()
+    const msg = e instanceof ApiError ? e.message : 'Failed to start scan'
+    toast.add({ severity: 'error', summary: 'Error', detail: msg, life: 5000 })
+  }
+}
+
+async function handleCancelScan(): Promise<void> {
+  try {
+    await scanStore.cancelScan()
+    toast.add({
+      severity: 'info',
+      summary: 'Cancelling...',
+      detail: 'Scan cancellation requested',
+      life: 3000,
+    })
+  } catch {
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: 'Failed to cancel scan',
+      life: 5000,
+    })
+  }
+}
+
 function onRowClick(event: { data: WatchlistTicker }): void {
   void router.push(`/ticker/${event.data.ticker}`)
 }
@@ -175,6 +261,11 @@ function scoreClass(score: number | null): string {
   if (score >= 4) return 'score-mid'
   return 'score-low'
 }
+
+onUnmounted(() => {
+  wsClose?.()
+  if (opStore.inProgress) opStore.finish()
+})
 </script>
 
 <template>
@@ -230,6 +321,16 @@ function scoreClass(score: number | null): string {
         data-testid="delete-watchlist-btn"
         @click="onDeleteWatchlist()"
       />
+      <Button
+        label="Scan Watchlist"
+        icon="pi pi-search"
+        severity="info"
+        size="small"
+        :disabled="!watchlistStore.activeWatchlist?.tickers.length || scanStore.isScanning || opStore.inProgress"
+        :loading="scanStore.isScanning"
+        data-testid="scan-watchlist-btn"
+        @click="runWatchlistScan()"
+      />
     </div>
 
     <!-- Add ticker input -->
@@ -251,6 +352,18 @@ function scoreClass(score: number | null): string {
         @click="onAddTicker"
       />
     </div>
+
+    <!-- Scan Progress -->
+    <ProgressTracker
+      v-if="scanStore.isScanning && scanStore.progress"
+      :phases="SCAN_PHASES"
+      :current-phase="scanStore.progress.phase"
+      :current="scanStore.progress.current"
+      :total="scanStore.progress.total"
+      class="progress-panel"
+      data-testid="watchlist-scan-progress"
+      @cancel="handleCancelScan()"
+    />
 
     <!-- Watchlist tickers table -->
     <div v-if="watchlistStore.activeWatchlist" class="watchlist-detail">
@@ -419,6 +532,10 @@ function scoreClass(score: number | null): string {
 .ticker-input {
   width: 160px;
   text-transform: uppercase;
+}
+
+.progress-panel {
+  margin-bottom: 1rem;
 }
 
 .watchlist-detail {

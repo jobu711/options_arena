@@ -35,6 +35,7 @@ from options_arena.models import (
     ScanDiff,
     ScanPreset,
     ScanRun,
+    ScanSource,
     SignalDirection,
     TickerDelta,
     TickerScore,
@@ -62,6 +63,7 @@ async def _run_scan_background(
     request: Request,
     scan_id: int,
     preset: ScanPreset,
+    source: ScanSource,
     token: CancellationToken,
     bridge: WebSocketProgressBridge,
     pipeline: ScanPipeline,
@@ -73,7 +75,7 @@ async def _run_scan_background(
     Pipeline Phase 4 handles all persistence internally.
     """
     try:
-        result: ScanResult = await pipeline.run(preset, token, bridge)
+        result: ScanResult = await pipeline.run(preset, token, bridge, source=source)
 
         # Phase 4 assigns the DB ID; fall back to counter-based scan_id on None
         actual_id = result.scan_run.id if result.scan_run.id is not None else scan_id
@@ -135,6 +137,8 @@ async def start_scan(
         scan_overrides["industry_groups"] = body.industry_groups
     if body.themes:
         scan_overrides["theme_filters"] = body.themes
+    if body.custom_tickers:
+        scan_overrides["custom_tickers"] = body.custom_tickers
     if scan_overrides:
         scan_override = settings.scan.model_copy(update=scan_overrides)
         effective_settings = settings.model_copy(update={"scan": scan_override})
@@ -159,7 +163,9 @@ async def start_scan(
 
     # Background task owns the lock and releases it on completion
     asyncio.create_task(
-        _run_scan_background(request, scan_id, body.preset, token, bridge, pipeline, lock)
+        _run_scan_background(
+            request, scan_id, body.preset, body.source, token, bridge, pipeline, lock
+        )
     )
     return ScanStarted(scan_id=scan_id)
 

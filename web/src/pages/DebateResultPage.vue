@@ -199,31 +199,31 @@ onMounted(() => void debateStore.fetchDebate(debateId))
       <div v-if="hasFundamentalEnrichment" class="enrichment-section" data-testid="fundamental-profile">
         <h3 class="enrichment-header">Fundamental Profile</h3>
         <div class="enrichment-grid">
-          <div v-if="debate.pe_ratio != null" class="meta-item">
+          <div v-if="debate?.pe_ratio != null" class="meta-item">
             <span class="meta-label">P/E Ratio</span>
             <span class="meta-value mono">{{ formatRatio(debate.pe_ratio) }}</span>
           </div>
-          <div v-if="debate.forward_pe != null" class="meta-item">
+          <div v-if="debate?.forward_pe != null" class="meta-item">
             <span class="meta-label">Forward P/E</span>
             <span class="meta-value mono">{{ formatRatio(debate.forward_pe) }}</span>
           </div>
-          <div v-if="debate.peg_ratio != null" class="meta-item">
+          <div v-if="debate?.peg_ratio != null" class="meta-item">
             <span class="meta-label">PEG Ratio</span>
             <span class="meta-value mono">{{ formatRatio(debate.peg_ratio) }}</span>
           </div>
-          <div v-if="debate.price_to_book != null" class="meta-item">
+          <div v-if="debate?.price_to_book != null" class="meta-item">
             <span class="meta-label">Price/Book</span>
             <span class="meta-value mono">{{ formatRatio(debate.price_to_book) }}</span>
           </div>
-          <div v-if="debate.debt_to_equity != null" class="meta-item">
+          <div v-if="debate?.debt_to_equity != null" class="meta-item">
             <span class="meta-label">Debt/Equity</span>
             <span class="meta-value mono">{{ formatRatio(debate.debt_to_equity) }}</span>
           </div>
-          <div v-if="debate.revenue_growth != null" class="meta-item">
+          <div v-if="debate?.revenue_growth != null" class="meta-item">
             <span class="meta-label">Revenue Growth</span>
             <span class="meta-value mono">{{ formatPercent(debate.revenue_growth) }}</span>
           </div>
-          <div v-if="debate.profit_margin != null" class="meta-item">
+          <div v-if="debate?.profit_margin != null" class="meta-item">
             <span class="meta-label">Profit Margin</span>
             <span class="meta-value mono">{{ formatPercent(debate.profit_margin) }}</span>
           </div>
@@ -234,13 +234,13 @@ onMounted(() => void debateStore.fetchDebate(debateId))
       <div v-if="hasFlowEnrichment" class="enrichment-section" data-testid="unusual-flow">
         <h3 class="enrichment-header">Unusual Flow</h3>
         <div class="enrichment-grid">
-          <div class="meta-item">
+          <div v-if="debate?.net_call_premium != null" class="meta-item">
             <span class="meta-label">Net Call Premium</span>
-            <span class="meta-value mono">{{ formatCurrency(debate.net_call_premium!) }}</span>
+            <span class="meta-value mono">{{ formatCurrency(debate!.net_call_premium!) }}</span>
           </div>
-          <div v-if="debate.net_put_premium != null" class="meta-item">
+          <div v-if="debate?.net_put_premium != null" class="meta-item">
             <span class="meta-label">Net Put Premium</span>
-            <span class="meta-value mono">{{ formatCurrency(debate.net_put_premium) }}</span>
+            <span class="meta-value mono">{{ formatCurrency(debate!.net_put_premium!) }}</span>
           </div>
         </div>
       </div>
@@ -253,15 +253,15 @@ onMounted(() => void debateStore.fetchDebate(debateId))
             <span class="meta-label">Sentiment Score</span>
             <span
               class="meta-value mono"
-              :class="sentimentColorClass(debate.news_sentiment_label ?? null)"
-            >{{ debate.news_sentiment_score.toFixed(2) }}</span>
+              :class="sentimentColorClass(debate?.news_sentiment_label ?? null)"
+            >{{ debate!.news_sentiment_score!.toFixed(2) }}</span>
           </div>
-          <div v-if="debate.news_sentiment_label != null" class="meta-item">
+          <div v-if="debate?.news_sentiment_label != null" class="meta-item">
             <span class="meta-label">Sentiment Label</span>
             <span
               class="meta-value"
-              :class="sentimentColorClass(debate.news_sentiment_label)"
-            >{{ debate.news_sentiment_label }}</span>
+              :class="sentimentColorClass(debate!.news_sentiment_label!)"
+            >{{ debate!.news_sentiment_label }}</span>
           </div>
         </div>
       </div>

@@ -117,9 +117,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # Store task reference on app.state to prevent garbage collection (Python < 3.12)
     theme_refresh_task: asyncio.Task[None] | None = None
     if settings.themes.etf_refresh_enabled:
-        theme_refresh_task = asyncio.create_task(
-            _refresh_themes_background(theme_service)
-        )
+        theme_refresh_task = asyncio.create_task(_refresh_themes_background(theme_service))
         app.state._theme_refresh_task = theme_refresh_task
 
     logger.info("API services started")

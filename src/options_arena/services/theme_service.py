@@ -203,7 +203,7 @@ class ThemeService:
             funds = ticker_obj.funds_data
             if funds is None:
                 return None
-            return funds.top_holdings
+            return funds.top_holdings  # type: ignore[no-any-return]
         except Exception:
             return None
 
