@@ -30,7 +30,7 @@ from options_arena.models.enums import (
 )
 
 # Ticker: at least one alphanumeric required; allows caret prefix for indices
-_TICKER_RE = re.compile(r"^(?=.*[A-Z0-9])[A-Z0-9^][A-Z0-9.\-^]{0,9}$")
+TICKER_RE = re.compile(r"^(?=.*[A-Z0-9])[A-Z0-9^][A-Z0-9.\-^]{0,9}$")
 
 
 class ScanConfig(BaseModel):
@@ -190,7 +190,7 @@ class ScanConfig(BaseModel):
         result: list[str] = []
         for item in v:
             normalized = str(item).upper().strip()
-            if not _TICKER_RE.match(normalized):
+            if not TICKER_RE.match(normalized):
                 raise ValueError(
                     f"Invalid ticker format: {normalized!r}. "
                     "Must be 1-10 characters: A-Z, 0-9, dots, hyphens, or caret."

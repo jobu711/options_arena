@@ -33,6 +33,7 @@ from options_arena.models import (
     RecommendedContract,
     ScanPreset,
     ScanRun,
+    ScanSource,
     SignalDirection,
     TickerScore,
 )
@@ -115,6 +116,7 @@ class ScanPipeline:
         preset: ScanPreset,
         token: CancellationToken,
         progress: ProgressCallback,
+        source: ScanSource = ScanSource.MANUAL,
     ) -> ScanResult:
         """Orchestrate all pipeline phases with cancellation checks between phases.
 
@@ -122,6 +124,7 @@ class ScanPipeline:
             preset: Universe preset (FULL, SP500, ETFS).
             token: Instance-scoped cancellation token checked between phases.
             progress: Callback for reporting per-phase progress.
+            source: Origin of the scan (manual, watchlist).
 
         Returns:
             A ``ScanResult`` with all phases completed (or partial if cancelled).
@@ -136,6 +139,7 @@ class ScanPipeline:
             return self._make_cancelled_result(
                 started_at=started_at,
                 preset=preset,
+                source=source,
                 universe_result=universe_result,
                 phases_completed=phases_completed,
             )
@@ -147,6 +151,7 @@ class ScanPipeline:
             return self._make_cancelled_result(
                 started_at=started_at,
                 preset=preset,
+                source=source,
                 universe_result=universe_result,
                 phases_completed=phases_completed,
                 scoring_result=scoring_result,
@@ -180,6 +185,7 @@ class ScanPipeline:
             return self._make_cancelled_result(
                 started_at=started_at,
                 preset=preset,
+                source=source,
                 universe_result=universe_result,
                 phases_completed=phases_completed,
                 scoring_result=scoring_result,
@@ -190,6 +196,7 @@ class ScanPipeline:
         return await self._phase_persist(
             started_at=started_at,
             preset=preset,
+            source=source,
             universe_result=universe_result,
             scoring_result=scoring_result,
             options_result=options_result,
@@ -874,6 +881,7 @@ class ScanPipeline:
         *,
         started_at: datetime,
         preset: ScanPreset,
+        source: ScanSource,
         universe_result: UniverseResult,
         scoring_result: ScoringResult,
         options_result: OptionsResult,
@@ -900,6 +908,7 @@ class ScanPipeline:
             started_at=started_at,
             completed_at=datetime.now(UTC),
             preset=preset,
+            source=source,
             tickers_scanned=len(universe_result.tickers),
             tickers_scored=len(scoring_result.scores),
             recommendations=recommendation_count,
@@ -1019,6 +1028,7 @@ class ScanPipeline:
             started_at=scan_run.started_at,
             completed_at=scan_run.completed_at,
             preset=scan_run.preset,
+            source=scan_run.source,
             tickers_scanned=scan_run.tickers_scanned,
             tickers_scored=scan_run.tickers_scored,
             recommendations=scan_run.recommendations,
@@ -1038,6 +1048,7 @@ class ScanPipeline:
         *,
         started_at: datetime,
         preset: ScanPreset,
+        source: ScanSource,
         universe_result: UniverseResult,
         phases_completed: int,
         scoring_result: ScoringResult | None = None,
@@ -1079,6 +1090,7 @@ class ScanPipeline:
                 started_at=started_at,
                 completed_at=datetime.now(UTC),
                 preset=preset,
+                source=source,
                 tickers_scanned=len(universe_result.tickers),
                 tickers_scored=tickers_scored,
                 recommendations=recommendation_count,

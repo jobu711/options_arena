@@ -82,18 +82,16 @@ let wsClose: (() => void) | null = null
 async function runScan(): Promise<void> {
   try {
     opStore.start('scan')
-    const scanId = await scanStore.startScan(
-      selectedPreset.value,
-      selectedSectors.value.length > 0 ? selectedSectors.value : undefined,
-      selectedIndustryGroups.value.length > 0 ? selectedIndustryGroups.value : undefined,
-      {
-        market_cap_tiers: selectedMarketCaps.value,
-        exclude_near_earnings_days: excludeEarningsDays.value,
-        direction_filter: selectedDirection.value,
-        min_iv_rank: minIvRank.value,
-      },
-      selectedThemes.value.length > 0 ? selectedThemes.value : undefined,
-    )
+    const scanId = await scanStore.startScan({
+      preset: selectedPreset.value,
+      sectors: selectedSectors.value.length > 0 ? selectedSectors.value : undefined,
+      industryGroups: selectedIndustryGroups.value.length > 0 ? selectedIndustryGroups.value : undefined,
+      themes: selectedThemes.value.length > 0 ? selectedThemes.value : undefined,
+      market_cap_tiers: selectedMarketCaps.value,
+      exclude_near_earnings_days: excludeEarningsDays.value,
+      direction_filter: selectedDirection.value,
+      min_iv_rank: minIvRank.value,
+    })
 
     // Connect to WebSocket for progress updates
     const { close } = useWebSocket<ScanEvent>({
@@ -282,6 +280,7 @@ onUnmounted(() => wsClose?.())
         <Column header="Preset" field="preset">
           <template #body="{ data }">
             <span class="preset-tag">{{ (data.preset as string).toUpperCase() }}</span>
+            <span v-if="data.source === 'watchlist'" class="source-tag">WL</span>
           </template>
         </Column>
         <Column header="Scanned" field="tickers_scanned">
@@ -369,6 +368,17 @@ onUnmounted(() => wsClose?.())
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--accent-green);
+}
+
+.source-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--accent-blue);
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--accent-blue);
+  border-radius: 0.25rem;
+  vertical-align: middle;
 }
 
 .empty-msg {

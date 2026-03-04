@@ -25,6 +25,7 @@ from options_arena.models import (
     IndicatorSignals,
     OptionContract,
     ScanPreset,
+    ScanSource,
     SignalDirection,
     TickerScore,
 )
@@ -231,6 +232,7 @@ class TestPhasePersist:
         result = await pipeline._phase_persist(
             started_at=started_at,
             preset=ScanPreset.FULL,
+            source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
             options_result=options_result,
@@ -256,6 +258,7 @@ class TestPhasePersist:
         await pipeline._phase_persist(
             started_at=started_at,
             preset=ScanPreset.SP500,
+            source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
             options_result=options_result,
@@ -281,6 +284,7 @@ class TestPhasePersist:
         await pipeline._phase_persist(
             started_at=started_at,
             preset=ScanPreset.FULL,
+            source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
             options_result=options_result,
@@ -303,6 +307,7 @@ class TestPhasePersist:
         result = await pipeline._phase_persist(
             started_at=started_at,
             preset=ScanPreset.FULL,
+            source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
             options_result=options_result,
@@ -328,6 +333,7 @@ class TestPhasePersist:
         result = await pipeline._phase_persist(
             started_at=started_at,
             preset=ScanPreset.FULL,
+            source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
             options_result=options_result,
@@ -348,6 +354,7 @@ class TestPhasePersist:
         result = await pipeline._phase_persist(
             started_at=started_at,
             preset=ScanPreset.FULL,
+            source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
             options_result=options_result,
@@ -374,6 +381,7 @@ class TestPhasePersist:
         await pipeline._phase_persist(
             started_at=started_at,
             preset=ScanPreset.FULL,
+            source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
             options_result=options_result,
@@ -402,6 +410,7 @@ class TestPhase4AtomicPersistence:
         await pipeline._phase_persist(
             started_at=started_at,
             preset=ScanPreset.FULL,
+            source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
             options_result=options_result,
@@ -432,6 +441,7 @@ class TestPhase4AtomicPersistence:
         await pipeline._phase_persist(
             started_at=started_at,
             preset=ScanPreset.FULL,
+            source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
             options_result=options_result,
@@ -462,6 +472,7 @@ class TestPhase4AtomicPersistence:
         await pipeline._phase_persist(
             started_at=started_at,
             preset=ScanPreset.FULL,
+            source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
             options_result=options_result,

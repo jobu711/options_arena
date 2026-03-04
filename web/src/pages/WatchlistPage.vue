@@ -169,14 +169,11 @@ async function runWatchlistScan(): Promise<void> {
 
   try {
     opStore.start('scan')
-    const scanId = await scanStore.startScan(
-      'full',
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      tickers,
-    )
+    const scanId = await scanStore.startScan({
+      preset: 'full',
+      customTickers: tickers,
+      source: 'watchlist',
+    })
 
     const { close } = useWebSocket<ScanEvent>({
       url: `/ws/scan/${scanId}`,

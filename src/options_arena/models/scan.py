@@ -22,6 +22,7 @@ from options_arena.models.enums import (
     GICSSector,
     MarketRegime,
     ScanPreset,
+    ScanSource,
     SignalDirection,
 )
 from options_arena.models.scoring import DimensionalScores
@@ -156,6 +157,7 @@ class ScanRun(BaseModel):
     started_at: datetime  # UTC
     completed_at: datetime | None = None
     preset: ScanPreset
+    source: ScanSource = ScanSource.MANUAL
     tickers_scanned: int
     tickers_scored: int
     recommendations: int

@@ -39,6 +39,7 @@ from options_arena.models import (
     RecommendedContract,
     ScanPreset,
     ScanRun,
+    ScanSource,
     ScoreCalibrationBucket,
     SignalDirection,
     ThemeSnapshot,
@@ -112,12 +113,14 @@ class Repository:
         conn = self._db.conn
         cursor = await conn.execute(
             "INSERT INTO scan_runs "
-            "(started_at, completed_at, preset, tickers_scanned, tickers_scored, recommendations) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "(started_at, completed_at, preset, source, "
+            "tickers_scanned, tickers_scored, recommendations) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 scan_run.started_at.isoformat(),
                 scan_run.completed_at.isoformat() if scan_run.completed_at is not None else None,
                 scan_run.preset.value,
+                scan_run.source.value,
                 scan_run.tickers_scanned,
                 scan_run.tickers_scored,
                 scan_run.recommendations,
@@ -216,6 +219,7 @@ class Repository:
     def _row_to_scan_run(row: Row) -> ScanRun:
         """Reconstruct a ScanRun from an aiosqlite.Row."""
         completed_at_raw: str | None = row["completed_at"]
+        source_raw: str | None = row["source"] if "source" in row else None
         return ScanRun(
             id=int(row["id"]),
             started_at=datetime.fromisoformat(row["started_at"]),
@@ -223,6 +227,7 @@ class Repository:
                 datetime.fromisoformat(completed_at_raw) if completed_at_raw is not None else None
             ),
             preset=ScanPreset(row["preset"]),
+            source=ScanSource(source_raw) if source_raw else ScanSource.MANUAL,
             tickers_scanned=int(row["tickers_scanned"]),
             tickers_scored=int(row["tickers_scored"]),
             recommendations=int(row["recommendations"]),
