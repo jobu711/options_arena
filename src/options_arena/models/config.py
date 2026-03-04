@@ -14,6 +14,7 @@ AppSettings() with no args is a valid production config.
 """
 
 import math
+import re
 from typing import Self
 
 from pydantic import BaseModel, SecretStr, field_validator, model_validator
@@ -27,6 +28,9 @@ from options_arena.models.enums import (
     MarketCapTier,
     SignalDirection,
 )
+
+# Ticker: at least one alphanumeric required; allows caret prefix for indices
+_TICKER_RE = re.compile(r"^(?=.*[A-Z0-9])[A-Z0-9^][A-Z0-9.\-^]{0,9}$")
 
 
 class ScanConfig(BaseModel):
@@ -57,6 +61,7 @@ class ScanConfig(BaseModel):
     min_iv_rank: float | None = None
     industry_groups: list[GICSIndustryGroup] = []
     theme_filters: list[str] = []
+    custom_tickers: list[str] = []
     # Regime classification thresholds (applied to raw market_regime signal, 0-100 scale)
     regime_crisis_threshold: float = 80.0
     regime_volatile_threshold: float = 60.0
@@ -177,6 +182,24 @@ class ScanConfig(BaseModel):
         """Strip whitespace, filter empties, and deduplicate theme filter inputs."""
         normalized = [str(item).strip() for item in v if str(item).strip()]
         return list(dict.fromkeys(normalized))
+
+    @field_validator("custom_tickers", mode="before")
+    @classmethod
+    def validate_custom_tickers(cls, v: list[str]) -> list[str]:
+        """Uppercase, strip, validate format, deduplicate, and cap at 200."""
+        result: list[str] = []
+        for item in v:
+            normalized = str(item).upper().strip()
+            if not _TICKER_RE.match(normalized):
+                raise ValueError(
+                    f"Invalid ticker format: {normalized!r}. "
+                    "Must be 1-10 characters: A-Z, 0-9, dots, hyphens, or caret."
+                )
+            result.append(normalized)
+        result = list(dict.fromkeys(result))
+        if len(result) > 200:
+            raise ValueError(f"custom_tickers exceeds 200 tickers ({len(result)})")
+        return result
 
     @model_validator(mode="after")
     def validate_all_finite(self) -> Self:

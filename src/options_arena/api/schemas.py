@@ -43,6 +43,7 @@ class ScanRequest(BaseModel):
     exclude_near_earnings_days: int | None = None
     direction_filter: SignalDirection | None = None
     min_iv_rank: float | None = None
+    custom_tickers: list[str] = []
 
     @field_validator("market_cap_tiers", mode="before")
     @classmethod
@@ -134,6 +135,24 @@ class ScanRequest(BaseModel):
                         f"Unknown industry group {item!r}. Valid groups: {', '.join(valid)}"
                     ) from None
         return list(dict.fromkeys(result))
+
+    @field_validator("custom_tickers", mode="before")
+    @classmethod
+    def validate_custom_tickers(cls, v: list[str]) -> list[str]:
+        """Uppercase, strip, validate format, deduplicate, and cap at 200."""
+        result: list[str] = []
+        for item in v:
+            normalized = str(item).upper().strip()
+            if not _TICKER_RE.match(normalized):
+                raise ValueError(
+                    f"Invalid ticker format: {normalized!r}. "
+                    "Must be 1-10 characters: A-Z, 0-9, dots, hyphens, or caret."
+                )
+            result.append(normalized)
+        result = list(dict.fromkeys(result))
+        if len(result) > 200:
+            raise ValueError(f"custom_tickers exceeds 200 tickers ({len(result)})")
+        return result
 
 
 class ScanStarted(BaseModel):
