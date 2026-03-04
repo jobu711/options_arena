@@ -42,3 +42,14 @@ class TestScanRequestCustomTickers:
         assert req.custom_tickers == []
         assert req.sectors == []
         assert req.market_cap_tiers == []
+
+    def test_exactly_200_passes(self) -> None:
+        """Exactly 200 tickers passes validation."""
+        tickers = [f"T{i:04d}" for i in range(200)]
+        req = ScanRequest(custom_tickers=tickers)
+        assert len(req.custom_tickers) == 200
+
+    def test_non_string_item_rejected(self) -> None:
+        """Non-string entries are rejected."""
+        with pytest.raises(ValueError, match="must be a string"):
+            ScanRequest(custom_tickers=["AAPL", None])  # type: ignore[list-item]

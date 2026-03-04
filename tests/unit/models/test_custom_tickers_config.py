@@ -67,3 +67,8 @@ class TestScanConfigCustomTickers:
         config = ScanConfig(top_n=25, custom_tickers=[])
         assert config.top_n == 25
         assert config.custom_tickers == []
+
+    def test_non_string_item_rejected(self) -> None:
+        """Non-string entries are rejected."""
+        with pytest.raises(ValueError, match="must be a string"):
+            ScanConfig(custom_tickers=["AAPL", None])  # type: ignore[list-item]

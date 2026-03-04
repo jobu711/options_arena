@@ -189,7 +189,9 @@ class ScanConfig(BaseModel):
         """Uppercase, strip, validate format, deduplicate, and cap at 200."""
         result: list[str] = []
         for item in v:
-            normalized = str(item).upper().strip()
+            if not isinstance(item, str):
+                raise ValueError(f"each custom ticker must be a string, got {type(item).__name__}")
+            normalized = item.upper().strip()
             if not TICKER_RE.match(normalized):
                 raise ValueError(
                     f"Invalid ticker format: {normalized!r}. "

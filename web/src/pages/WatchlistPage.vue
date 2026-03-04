@@ -262,7 +262,10 @@ function scoreClass(score: number | null): string {
   return 'score-low'
 }
 
-onUnmounted(() => wsClose?.())
+onUnmounted(() => {
+  wsClose?.()
+  if (opStore.inProgress) opStore.finish()
+})
 </script>
 
 <template>

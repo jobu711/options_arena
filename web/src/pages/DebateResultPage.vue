@@ -234,7 +234,7 @@ onMounted(() => void debateStore.fetchDebate(debateId))
       <div v-if="hasFlowEnrichment" class="enrichment-section" data-testid="unusual-flow">
         <h3 class="enrichment-header">Unusual Flow</h3>
         <div class="enrichment-grid">
-          <div class="meta-item">
+          <div v-if="debate?.net_call_premium != null" class="meta-item">
             <span class="meta-label">Net Call Premium</span>
             <span class="meta-value mono">{{ formatCurrency(debate!.net_call_premium!) }}</span>
           </div>

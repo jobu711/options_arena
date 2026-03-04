@@ -150,7 +150,10 @@ onMounted(() => {
   void fetchSectors()
   void fetchThemes()
 })
-onUnmounted(() => wsClose?.())
+onUnmounted(() => {
+  wsClose?.()
+  if (opStore.inProgress) opStore.finish()
+})
 </script>
 
 <template>
