@@ -312,8 +312,8 @@ def bsm_iv(
     tol = config.iv_solver_tol
     max_iter = config.iv_solver_max_iter
 
-    if market_price <= 0.0:
-        raise ValueError(f"market_price must be > 0 for IV computation, got {market_price}")
+    if not math.isfinite(market_price) or market_price <= 0.0:
+        raise ValueError(f"market_price must be a finite number > 0, got {market_price}")
 
     if T <= 0.0:
         raise ValueError(f"T must be > 0 for IV computation, got {T}")

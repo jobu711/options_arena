@@ -335,12 +335,12 @@ class TestAmericanIvSolver:
 
     def test_iv_raises_on_zero_market_price(self) -> None:
         """ValueError raised when market_price = 0."""
-        with pytest.raises(ValueError, match="market_price must be > 0"):
+        with pytest.raises(ValueError, match="market_price must be a finite number"):
             american_iv(0.0, 100.0, 100.0, 1.0, 0.05, 0.0, OptionType.CALL)
 
     def test_iv_raises_on_negative_market_price(self) -> None:
         """ValueError raised when market_price < 0."""
-        with pytest.raises(ValueError, match="market_price must be > 0"):
+        with pytest.raises(ValueError, match="market_price must be a finite number"):
             american_iv(-5.0, 100.0, 100.0, 1.0, 0.05, 0.0, OptionType.CALL)
 
     def test_iv_raises_on_zero_t(self) -> None:
@@ -486,3 +486,13 @@ class TestAmericanNanDefense:
         """american_iv raises ValueError when T is NaN."""
         with pytest.raises(ValueError, match="T must be a finite number"):
             american_iv(10.0, 100.0, 100.0, float("nan"), 0.05, 0.0, OptionType.CALL)
+
+    def test_iv_nan_market_price_raises(self) -> None:
+        """american_iv raises ValueError when market_price is NaN."""
+        with pytest.raises(ValueError, match="market_price must be a finite number"):
+            american_iv(float("nan"), 100.0, 100.0, 1.0, 0.05, 0.0, OptionType.CALL)
+
+    def test_iv_inf_market_price_raises(self) -> None:
+        """american_iv raises ValueError when market_price is Inf."""
+        with pytest.raises(ValueError, match="market_price must be a finite number"):
+            american_iv(float("inf"), 100.0, 100.0, 1.0, 0.05, 0.0, OptionType.CALL)
