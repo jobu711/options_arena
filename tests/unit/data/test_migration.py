@@ -69,6 +69,8 @@ async def test_ticker_scores_columns(db: Database) -> None:
         "dimensional_scores_json": "TEXT",
         "direction_confidence": "REAL",
         "market_regime": "TEXT",
+        "industry_group": "TEXT",
+        "thematic_tags_json": "TEXT",
     }
     async with db.conn.execute("PRAGMA table_info(ticker_scores)") as cursor:
         rows = await cursor.fetchall()

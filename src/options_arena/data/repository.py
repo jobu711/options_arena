@@ -6,6 +6,7 @@ tuples, or Row objects.  Uses parameterized queries exclusively.
 
 from __future__ import annotations
 
+import json
 import logging
 import statistics
 from dataclasses import dataclass
@@ -39,6 +40,7 @@ from options_arena.models import (
     ScanRun,
     ScoreCalibrationBucket,
     SignalDirection,
+    ThemeSnapshot,
     TickerScore,
     TrendingTicker,
     Watchlist,
@@ -142,8 +144,9 @@ class Repository:
             "INSERT INTO ticker_scores "
             "(scan_run_id, ticker, composite_score, direction, signals_json, "
             "next_earnings, sector, company_name, "
-            "dimensional_scores_json, direction_confidence, market_regime) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "dimensional_scores_json, direction_confidence, market_regime, "
+            "industry_group, thematic_tags_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 (
                     scan_id,
@@ -159,6 +162,8 @@ class Repository:
                     else None,
                     score.direction_confidence,
                     score.market_regime.value if score.market_regime is not None else None,
+                    score.industry_group,
+                    json.dumps(score.thematic_tags) if score.thematic_tags else None,
                 )
                 for score in scores
             ],
@@ -230,6 +235,8 @@ class Repository:
         raw_dim_json: str | None = row["dimensional_scores_json"]
         raw_confidence: float | None = row["direction_confidence"]
         raw_regime: str | None = row["market_regime"]
+        raw_industry_group: str | None = row["industry_group"]
+        raw_tags_json: str | None = row["thematic_tags_json"]
         return TickerScore(
             ticker=str(row["ticker"]),
             composite_score=float(row["composite_score"]),
@@ -249,6 +256,10 @@ class Repository:
             ),
             market_regime=(
                 MarketRegime(raw_regime) if raw_regime is not None else None
+            ),
+            industry_group=raw_industry_group,
+            thematic_tags=(
+                json.loads(raw_tags_json) if raw_tags_json is not None else []
             ),
         )
 
@@ -634,6 +645,64 @@ class Repository:
             watchlist_id=int(row["watchlist_id"]),
             ticker=str(row["ticker"]),
             added_at=datetime.fromisoformat(row["added_at"]),
+        )
+
+    # ------------------------------------------------------------------
+    # Themes persistence
+    # ------------------------------------------------------------------
+
+    async def save_themes(self, themes: list[ThemeSnapshot]) -> None:
+        """Upsert themes into the themes table.
+
+        Uses ``INSERT OR REPLACE`` for upsert semantics on the ``name`` primary key.
+        JSON serialization for ``source_etfs`` and ``tickers`` list fields.
+
+        Args:
+            themes: List of theme snapshots to persist.
+        """
+        if not themes:
+            return
+        conn = self._db.conn
+        for theme in themes:
+            await conn.execute(
+                "INSERT OR REPLACE INTO themes "
+                "(name, description, etf_source_json, tickers_json, ticker_count, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    theme.name,
+                    theme.description,
+                    json.dumps(theme.source_etfs),
+                    json.dumps(theme.tickers),
+                    theme.ticker_count,
+                    theme.updated_at.isoformat(),
+                ),
+            )
+        await conn.commit()
+        logger.debug("Saved %d themes", len(themes))
+
+    async def get_themes(self) -> list[ThemeSnapshot]:
+        """Retrieve all themes from the themes table, ordered by name.
+
+        Returns:
+            List of ``ThemeSnapshot`` models (empty if none found).
+        """
+        conn = self._db.conn
+        async with conn.execute("SELECT * FROM themes ORDER BY name") as cursor:
+            rows = await cursor.fetchall()
+        themes = [self._row_to_theme_snapshot(row) for row in rows]
+        logger.debug("Retrieved %d themes", len(themes))
+        return themes
+
+    @staticmethod
+    def _row_to_theme_snapshot(row: Row) -> ThemeSnapshot:
+        """Reconstruct a ThemeSnapshot from an aiosqlite.Row."""
+        return ThemeSnapshot(
+            name=str(row["name"]),
+            description=str(row["description"]),
+            source_etfs=json.loads(row["etf_source_json"]),
+            tickers=json.loads(row["tickers_json"]),
+            ticker_count=int(row["ticker_count"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
         )
 
     # ------------------------------------------------------------------
