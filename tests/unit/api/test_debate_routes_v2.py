@@ -414,10 +414,10 @@ def test_schema_serialization() -> None:
         total_tokens=2000,
         created_at=datetime(2026, 3, 4, 12, 0, 0, tzinfo=UTC),
         debate_protocol="v2",
-        flow_response=flow.model_dump(),
-        fundamental_response=fundamental.model_dump(),
-        risk_v2_response=risk_v2.model_dump(),
-        contrarian_response=contrarian.model_dump(),
+        flow_response=flow,
+        fundamental_response=fundamental,
+        risk_v2_response=risk_v2,
+        contrarian_response=contrarian,
     )
 
     # Should not raise
@@ -459,3 +459,198 @@ async def test_debate_protocol_in_response(
 
     data = response.json()
     assert "debate_protocol" in data
+
+
+# ---------------------------------------------------------------------------
+# Test 6: V2 fields are typed Pydantic models, not raw dicts (#258)
+# ---------------------------------------------------------------------------
+
+
+def test_v2_fields_are_typed_models_not_dicts() -> None:
+    """Verify V2 fields on DebateResultDetail are typed Pydantic models, not dicts."""
+    flow = _make_flow_thesis()
+    fundamental = _make_fundamental_thesis()
+    risk_v2 = _make_risk_assessment()
+    contrarian = _make_contrarian_thesis()
+
+    detail = DebateResultDetail(
+        id=1,
+        ticker="AAPL",
+        is_fallback=False,
+        model_name="llama-3.3-70b",
+        duration_ms=5000,
+        total_tokens=2000,
+        created_at=datetime(2026, 3, 4, 12, 0, 0, tzinfo=UTC),
+        debate_protocol="v2",
+        flow_response=flow,
+        fundamental_response=fundamental,
+        risk_v2_response=risk_v2,
+        contrarian_response=contrarian,
+    )
+
+    # Fields should be actual model instances, not plain dicts
+    assert isinstance(detail.flow_response, FlowThesis)
+    assert isinstance(detail.fundamental_response, FundamentalThesis)
+    assert isinstance(detail.risk_v2_response, RiskAssessment)
+    assert isinstance(detail.contrarian_response, ContrarianThesis)
+
+    # Verify model fields are accessible as attributes (not dict keys)
+    assert detail.flow_response.direction == SignalDirection.BULLISH
+    assert detail.fundamental_response.catalyst_impact == CatalystImpact.HIGH
+    assert detail.risk_v2_response.risk_level == RiskLevel.MODERATE
+    assert detail.contrarian_response.dissent_direction == SignalDirection.BEARISH
+
+
+# ---------------------------------------------------------------------------
+# Test 7: GET /api/debate/{id} returns typed V2 model JSON (#258)
+# ---------------------------------------------------------------------------
+
+
+async def test_get_debate_returns_typed_v2_model_json(
+    client: AsyncClient,
+    mock_repo: MagicMock,
+) -> None:
+    """GET /api/debate/{id} returns V2 fields with full model structure."""
+    mock_repo.get_debate_by_id = AsyncMock(return_value=_make_debate_row_v2())
+    response = await client.get("/api/debate/1")
+    assert response.status_code == 200
+
+    data = response.json()
+
+    # FlowThesis fields
+    flow = data["flow_response"]
+    assert "gex_interpretation" in flow
+    assert "smart_money_signal" in flow
+    assert "oi_analysis" in flow
+    assert "volume_confirmation" in flow
+    assert "key_flow_factors" in flow
+    assert isinstance(flow["key_flow_factors"], list)
+
+    # FundamentalThesis fields
+    fundamental = data["fundamental_response"]
+    assert "catalyst_impact" in fundamental
+    assert "earnings_assessment" in fundamental
+    assert "iv_crush_risk" in fundamental
+    assert "key_fundamental_factors" in fundamental
+
+    # RiskAssessment fields
+    risk_v2 = data["risk_v2_response"]
+    assert "risk_level" in risk_v2
+    assert "pop_estimate" in risk_v2
+    assert "max_loss_estimate" in risk_v2
+    assert "key_risks" in risk_v2
+
+    # ContrarianThesis fields
+    contrarian = data["contrarian_response"]
+    assert "dissent_direction" in contrarian
+    assert "dissent_confidence" in contrarian
+    assert "primary_challenge" in contrarian
+    assert "overlooked_risks" in contrarian
+
+
+# ---------------------------------------------------------------------------
+# Test 8: V1 debates return null for all V2 fields (typed version) (#258)
+# ---------------------------------------------------------------------------
+
+
+async def test_get_debate_v2_null_fields_when_v1(
+    client: AsyncClient,
+    mock_repo: MagicMock,
+) -> None:
+    """Verify V1 debates return null for all V2 typed model fields."""
+    mock_repo.get_debate_by_id = AsyncMock(return_value=_make_debate_row_v1())
+    response = await client.get("/api/debate/2")
+    assert response.status_code == 200
+
+    data = response.json()
+
+    # All V2 typed model fields should be null
+    assert data["flow_response"] is None
+    assert data["fundamental_response"] is None
+    assert data["risk_v2_response"] is None
+    assert data["contrarian_response"] is None
+
+
+# ---------------------------------------------------------------------------
+# Test 9: Malformed V2 JSON raises validation error (#258)
+# ---------------------------------------------------------------------------
+
+
+async def test_malformed_v2_json_raises_error(
+    client: AsyncClient,
+    mock_repo: MagicMock,
+) -> None:
+    """Malformed V2 JSON in DB produces a ValidationError (not silent garbage)."""
+    from pydantic import ValidationError as PydanticValidationError  # noqa: PLC0415
+
+    row = _make_debate_row_v1()
+    # Inject malformed JSON that won't parse into FlowThesis
+    row.flow_json = '{"invalid_field": "not a FlowThesis"}'
+
+    mock_repo.get_debate_by_id = AsyncMock(return_value=row)
+
+    # model_validate_json raises ValidationError -- not silently swallowed
+    with pytest.raises(PydanticValidationError, match="FlowThesis"):
+        await client.get("/api/debate/2")
+
+
+# ---------------------------------------------------------------------------
+# Test 10: Empty string V2 JSON treated as absent (#258)
+# ---------------------------------------------------------------------------
+
+
+async def test_empty_string_v2_json_treated_as_none(
+    client: AsyncClient,
+    mock_repo: MagicMock,
+) -> None:
+    """Empty string V2 JSON is falsy, treated same as None (returns null)."""
+    row = _make_debate_row_v1()
+    # Empty string is falsy -- should be treated like None
+    object.__setattr__(row, "flow_json", "")
+    object.__setattr__(row, "fundamental_json", "")
+    object.__setattr__(row, "risk_v2_json", "")
+    object.__setattr__(row, "contrarian_json", "")
+
+    mock_repo.get_debate_by_id = AsyncMock(return_value=row)
+    response = await client.get("/api/debate/2")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["flow_response"] is None
+    assert data["fundamental_response"] is None
+    assert data["risk_v2_response"] is None
+    assert data["contrarian_response"] is None
+
+
+# ---------------------------------------------------------------------------
+# Test 11: DebateResultDetail V2 JSON round-trip (#258)
+# ---------------------------------------------------------------------------
+
+
+def test_debate_result_detail_v2_json_roundtrip() -> None:
+    """DebateResultDetail with typed V2 models survives JSON round-trip."""
+    detail = DebateResultDetail(
+        id=1,
+        ticker="AAPL",
+        is_fallback=False,
+        model_name="llama-3.3-70b",
+        duration_ms=5000,
+        total_tokens=2000,
+        created_at=datetime(2026, 3, 4, 12, 0, 0, tzinfo=UTC),
+        debate_protocol="v2",
+        flow_response=_make_flow_thesis(),
+        fundamental_response=_make_fundamental_thesis(),
+        risk_v2_response=_make_risk_assessment(),
+        contrarian_response=_make_contrarian_thesis(),
+    )
+
+    json_str = detail.model_dump_json()
+    rebuilt = DebateResultDetail.model_validate_json(json_str)
+
+    # Typed model fields survive round-trip
+    assert isinstance(rebuilt.flow_response, FlowThesis)
+    assert isinstance(rebuilt.fundamental_response, FundamentalThesis)
+    assert isinstance(rebuilt.risk_v2_response, RiskAssessment)
+    assert isinstance(rebuilt.contrarian_response, ContrarianThesis)
+    assert rebuilt.flow_response.confidence == pytest.approx(0.72, abs=0.01)
+    assert rebuilt.risk_v2_response.risk_level == RiskLevel.MODERATE

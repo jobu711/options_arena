@@ -231,3 +231,97 @@ def test_sector_info_json_roundtrip() -> None:
     json_str = info.model_dump_json()
     rebuilt = SectorInfo.model_validate_json(json_str)
     assert rebuilt == info
+
+
+# ---------------------------------------------------------------------------
+# DebateResultDetail V2 typed fields (#258)
+# ---------------------------------------------------------------------------
+
+
+def test_debate_result_detail_v2_fields_accept_typed_models() -> None:
+    """DebateResultDetail V2 fields accept typed Pydantic models directly."""
+    from options_arena.api.schemas import DebateResultDetail
+    from options_arena.models import (
+        ContrarianThesis,
+        FlowThesis,
+        FundamentalThesis,
+        RiskAssessment,
+    )
+    from options_arena.models.enums import CatalystImpact, RiskLevel
+
+    flow = FlowThesis(
+        direction=SignalDirection.BULLISH,
+        confidence=0.72,
+        gex_interpretation="Positive GEX.",
+        smart_money_signal="Net call buying.",
+        oi_analysis="Call OI concentrated.",
+        volume_confirmation="Call volume elevated.",
+        key_flow_factors=["GEX positive"],
+        model_used="test",
+    )
+    fundamental = FundamentalThesis(
+        direction=SignalDirection.BULLISH,
+        confidence=0.68,
+        catalyst_impact=CatalystImpact.HIGH,
+        earnings_assessment="Beat expectations.",
+        iv_crush_risk="Moderate.",
+        key_fundamental_factors=["Strong earnings"],
+        model_used="test",
+    )
+    risk_v2 = RiskAssessment(
+        risk_level=RiskLevel.MODERATE,
+        confidence=0.65,
+        max_loss_estimate="$190 per contract.",
+        key_risks=["Earnings volatility"],
+        risk_mitigants=["Stop-loss"],
+        model_used="test",
+    )
+    contrarian = ContrarianThesis(
+        dissent_direction=SignalDirection.BEARISH,
+        dissent_confidence=0.55,
+        primary_challenge="Rising bond yields.",
+        overlooked_risks=["Credit tightening"],
+        consensus_weakness="Over-weights momentum.",
+        alternative_scenario="Growth names re-rate lower.",
+        model_used="test",
+    )
+
+    detail = DebateResultDetail(
+        id=1,
+        ticker="AAPL",
+        is_fallback=False,
+        model_name="llama-3.3-70b",
+        duration_ms=5000,
+        total_tokens=2000,
+        created_at=datetime(2026, 2, 26, tzinfo=UTC),
+        flow_response=flow,
+        fundamental_response=fundamental,
+        risk_v2_response=risk_v2,
+        contrarian_response=contrarian,
+    )
+
+    # Typed model instances are preserved
+    assert isinstance(detail.flow_response, FlowThesis)
+    assert isinstance(detail.fundamental_response, FundamentalThesis)
+    assert isinstance(detail.risk_v2_response, RiskAssessment)
+    assert isinstance(detail.contrarian_response, ContrarianThesis)
+
+
+def test_debate_result_detail_v2_fields_default_none() -> None:
+    """DebateResultDetail V2 fields default to None when not provided."""
+    from options_arena.api.schemas import DebateResultDetail
+
+    detail = DebateResultDetail(
+        id=1,
+        ticker="AAPL",
+        is_fallback=False,
+        model_name="llama-3.3-70b",
+        duration_ms=5000,
+        total_tokens=2000,
+        created_at=datetime(2026, 2, 26, tzinfo=UTC),
+    )
+
+    assert detail.flow_response is None
+    assert detail.fundamental_response is None
+    assert detail.risk_v2_response is None
+    assert detail.contrarian_response is None

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -31,7 +30,11 @@ from options_arena.data import Repository
 from options_arena.models import (
     AgentResponse,
     AppSettings,
+    ContrarianThesis,
     ExtendedTradeThesis,
+    FlowThesis,
+    FundamentalThesis,
+    RiskAssessment,
     SentimentLabel,
     TradeThesis,
 )
@@ -582,10 +585,20 @@ async def get_debate(
         dissenting_agents=dissenting_agents,
         agents_completed=agents_completed,
         # v2 agent structured outputs
-        flow_response=json.loads(row.flow_json) if row.flow_json else None,
-        fundamental_response=json.loads(row.fundamental_json) if row.fundamental_json else None,
-        risk_v2_response=json.loads(row.risk_v2_json) if row.risk_v2_json else None,
-        contrarian_response=json.loads(row.contrarian_json) if row.contrarian_json else None,
+        flow_response=FlowThesis.model_validate_json(row.flow_json) if row.flow_json else None,
+        fundamental_response=(
+            FundamentalThesis.model_validate_json(row.fundamental_json)
+            if row.fundamental_json
+            else None
+        ),
+        risk_v2_response=(
+            RiskAssessment.model_validate_json(row.risk_v2_json) if row.risk_v2_json else None
+        ),
+        contrarian_response=(
+            ContrarianThesis.model_validate_json(row.contrarian_json)
+            if row.contrarian_json
+            else None
+        ),
         debate_protocol=row.debate_protocol,
         # OpenBB enrichment fields
         pe_ratio=mc.pe_ratio if mc else None,
