@@ -17,7 +17,13 @@ from datetime import date, datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from options_arena.models.enums import GICSSector, MarketRegime, ScanPreset, SignalDirection
+from options_arena.models.enums import (
+    GICSIndustryGroup,
+    GICSSector,
+    MarketRegime,
+    ScanPreset,
+    SignalDirection,
+)
 from options_arena.models.scoring import DimensionalScores
 
 
@@ -189,7 +195,7 @@ class TickerScore(BaseModel):
     scan_run_id: int | None = None
 
     # GICS industry group (finer-grained than sector)
-    industry_group: str | None = None
+    industry_group: GICSIndustryGroup | None = None
     # Thematic tags from ETF-based screening
     thematic_tags: list[str] = []
 

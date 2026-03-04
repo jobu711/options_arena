@@ -88,6 +88,23 @@ class ScanRequest(BaseModel):
                     ) from None
         return list(dict.fromkeys(result))
 
+    @field_validator("themes", mode="before")
+    @classmethod
+    def validate_theme_names(cls, v: list[str]) -> list[str]:
+        """Validate and deduplicate theme names against known themes."""
+        from options_arena.models.themes import THEME_ETF_MAPPING  # noqa: PLC0415
+
+        valid_names = set(THEME_ETF_MAPPING.keys())
+        result: list[str] = []
+        for item in v:
+            name = str(item).strip()
+            if name not in valid_names:
+                raise ValueError(
+                    f"Unknown theme {name!r}. Valid themes: {', '.join(sorted(valid_names))}"
+                )
+            result.append(name)
+        return list(dict.fromkeys(result))
+
     @field_validator("industry_groups", mode="before")
     @classmethod
     def normalize_industry_groups(

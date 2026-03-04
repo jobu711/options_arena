@@ -114,8 +114,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.batch_queues = {}
 
     # Background refresh for theme ETF holdings — non-blocking
+    # Store task reference on app.state to prevent garbage collection (Python < 3.12)
     if settings.themes.etf_refresh_enabled:
-        asyncio.create_task(_refresh_themes_background(theme_service))
+        app.state._theme_refresh_task = asyncio.create_task(
+            _refresh_themes_background(theme_service)
+        )
 
     logger.info("API services started")
     yield

@@ -210,21 +210,28 @@ async def _scan_async(
     """Run the scan pipeline with full service lifecycle management."""
     start_time = time.monotonic()
 
-    # Config with CLI overrides
+    # Config with CLI overrides (immutable copy pattern — same as API)
     settings = AppSettings()
-    settings.scan.top_n = top_n
-    settings.scan.min_score = min_score
-    settings.scan.sectors = sectors
+    scan_overrides: dict[str, object] = {
+        "top_n": top_n,
+        "min_score": min_score,
+        "sectors": sectors,
+    }
     if market_cap_tiers:
-        settings.scan.market_cap_tiers = market_cap_tiers
+        scan_overrides["market_cap_tiers"] = market_cap_tiers
     if exclude_near_earnings_days is not None:
-        settings.scan.exclude_near_earnings_days = exclude_near_earnings_days
+        scan_overrides["exclude_near_earnings_days"] = exclude_near_earnings_days
     if direction_filter is not None:
-        settings.scan.direction_filter = direction_filter
+        scan_overrides["direction_filter"] = direction_filter
     if min_iv_rank is not None:
-        settings.scan.min_iv_rank = min_iv_rank
+        scan_overrides["min_iv_rank"] = min_iv_rank
     if industry_groups:
-        settings.scan.industry_groups = industry_groups
+        scan_overrides["industry_groups"] = industry_groups
+    if themes:
+        scan_overrides["theme_filters"] = themes
+    settings = settings.model_copy(
+        update={"scan": settings.scan.model_copy(update=scan_overrides)}
+    )
 
     # Infrastructure (lightweight constructors — no I/O)
     _DATA_DIR.mkdir(parents=True, exist_ok=True)

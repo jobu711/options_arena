@@ -16,6 +16,7 @@ import logging
 import time
 from datetime import UTC, datetime
 
+import pandas as pd
 import yfinance as yf  # type: ignore[import-untyped]
 
 from options_arena.data.repository import Repository
@@ -169,9 +170,6 @@ class ThemeService:
                 logger.debug("No holdings data for ETF %s", etf_ticker)
                 return []
 
-            # top_holdings DataFrame has ticker symbols as the index
-            import pandas as pd  # noqa: PLC0415
-
             if not isinstance(holdings_df, pd.DataFrame) or holdings_df.empty:
                 logger.debug("Empty holdings DataFrame for ETF %s", etf_ticker)
                 return []
@@ -188,7 +186,7 @@ class ThemeService:
             return []
 
     @staticmethod
-    def _get_top_holdings(ticker_obj: yf.Ticker) -> object:
+    def _get_top_holdings(ticker_obj: yf.Ticker) -> pd.DataFrame | None:
         """Synchronous helper to access ``ticker.funds_data.top_holdings``.
 
         Separated into a static method so ``asyncio.to_thread`` receives a

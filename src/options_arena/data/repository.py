@@ -22,6 +22,7 @@ from options_arena.models import (
     DeltaPerformanceResult,
     DimensionalScores,
     ExerciseStyle,
+    GICSIndustryGroup,
     GICSSector,
     GreeksSource,
     HistoryPoint,
@@ -162,7 +163,7 @@ class Repository:
                     else None,
                     score.direction_confidence,
                     score.market_regime.value if score.market_regime is not None else None,
-                    score.industry_group,
+                    score.industry_group.value if score.industry_group is not None else None,
                     json.dumps(score.thematic_tags) if score.thematic_tags else None,
                 )
                 for score in scores
@@ -251,16 +252,12 @@ class Repository:
                 if raw_dim_json is not None
                 else None
             ),
-            direction_confidence=(
-                float(raw_confidence) if raw_confidence is not None else None
+            direction_confidence=(float(raw_confidence) if raw_confidence is not None else None),
+            market_regime=(MarketRegime(raw_regime) if raw_regime is not None else None),
+            industry_group=(
+                GICSIndustryGroup(raw_industry_group) if raw_industry_group is not None else None
             ),
-            market_regime=(
-                MarketRegime(raw_regime) if raw_regime is not None else None
-            ),
-            industry_group=raw_industry_group,
-            thematic_tags=(
-                json.loads(raw_tags_json) if raw_tags_json is not None else []
-            ),
+            thematic_tags=(json.loads(raw_tags_json) if raw_tags_json is not None else []),
         )
 
     # ------------------------------------------------------------------
@@ -696,13 +693,17 @@ class Repository:
     @staticmethod
     def _row_to_theme_snapshot(row: Row) -> ThemeSnapshot:
         """Reconstruct a ThemeSnapshot from an aiosqlite.Row."""
+        raw_dt = datetime.fromisoformat(row["updated_at"])
+        # Ensure UTC — fromisoformat may return naive datetime for legacy rows
+        if raw_dt.tzinfo is None:
+            raw_dt = raw_dt.replace(tzinfo=UTC)
         return ThemeSnapshot(
             name=str(row["name"]),
             description=str(row["description"]),
             source_etfs=json.loads(row["etf_source_json"]),
             tickers=json.loads(row["tickers_json"]),
             ticker_count=int(row["ticker_count"]),
-            updated_at=datetime.fromisoformat(row["updated_at"]),
+            updated_at=raw_dt,
         )
 
     # ------------------------------------------------------------------

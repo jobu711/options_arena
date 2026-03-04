@@ -8,6 +8,7 @@ import pytest_asyncio
 from options_arena.data.database import Database
 from options_arena.data.repository import Repository
 from options_arena.models import (
+    GICSIndustryGroup,
     IndicatorSignals,
     ScanPreset,
     ScanRun,
@@ -78,13 +79,13 @@ class TestIndustryGroupPersistence:
     async def test_save_score_with_industry_group(self, repo: Repository) -> None:
         """Verify industry_group persisted and retrieved."""
         scan_id = await repo.save_scan_run(_make_scan_run())
-        score = _make_ticker_score(industry_group="Software & Services")
+        score = _make_ticker_score(industry_group=GICSIndustryGroup.SOFTWARE_SERVICES)
 
         await repo.save_ticker_scores(scan_id, [score])
         result = await repo.get_scores_for_scan(scan_id)
 
         assert len(result) == 1
-        assert result[0].industry_group == "Software & Services"
+        assert result[0].industry_group == GICSIndustryGroup.SOFTWARE_SERVICES
 
     @pytest.mark.asyncio
     async def test_save_score_without_industry_group(self, repo: Repository) -> None:
@@ -105,30 +106,33 @@ class TestIndustryGroupPersistence:
     ) -> None:
         """Verify industry_group with ampersand and spaces roundtrips correctly."""
         scan_id = await repo.save_scan_run(_make_scan_run())
-        score = _make_ticker_score(industry_group="Pharmaceuticals, Biotechnology & Life Sciences")
+        ig = GICSIndustryGroup.PHARMA_BIOTECH
+        score = _make_ticker_score(industry_group=ig)
 
         await repo.save_ticker_scores(scan_id, [score])
         result = await repo.get_scores_for_scan(scan_id)
 
-        assert result[0].industry_group == "Pharmaceuticals, Biotechnology & Life Sciences"
+        assert result[0].industry_group == ig
 
     @pytest.mark.asyncio
     async def test_mixed_industry_group_in_batch(self, repo: Repository) -> None:
         """Verify batch with mixed None and populated industry_group values."""
         scan_id = await repo.save_scan_run(_make_scan_run())
         scores = [
-            _make_ticker_score(ticker="AAPL", industry_group="Technology Hardware & Equipment"),
+            _make_ticker_score(
+                ticker="AAPL", industry_group=GICSIndustryGroup.TECHNOLOGY_HARDWARE_EQUIPMENT,
+            ),
             _make_ticker_score(ticker="MSFT"),  # None
-            _make_ticker_score(ticker="JPM", industry_group="Banks"),
+            _make_ticker_score(ticker="JPM", industry_group=GICSIndustryGroup.BANKS),
         ]
         await repo.save_ticker_scores(scan_id, scores)
         result = await repo.get_scores_for_scan(scan_id)
 
         assert len(result) == 3
         by_ticker = {r.ticker: r for r in result}
-        assert by_ticker["AAPL"].industry_group == "Technology Hardware & Equipment"
+        assert by_ticker["AAPL"].industry_group == GICSIndustryGroup.TECHNOLOGY_HARDWARE_EQUIPMENT
         assert by_ticker["MSFT"].industry_group is None
-        assert by_ticker["JPM"].industry_group == "Banks"
+        assert by_ticker["JPM"].industry_group == GICSIndustryGroup.BANKS
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +185,7 @@ class TestThematicTagsPersistence:
         """Verify both new fields persist and roundtrip together."""
         scan_id = await repo.save_scan_run(_make_scan_run())
         score = _make_ticker_score(
-            industry_group="Semiconductors & Semiconductor Equipment",
+            industry_group=GICSIndustryGroup.SEMICONDUCTORS_EQUIPMENT,
             thematic_tags=["AI & Machine Learning"],
         )
 
@@ -189,5 +193,5 @@ class TestThematicTagsPersistence:
         result = await repo.get_scores_for_scan(scan_id)
 
         assert len(result) == 1
-        assert result[0].industry_group == "Semiconductors & Semiconductor Equipment"
+        assert result[0].industry_group == GICSIndustryGroup.SEMICONDUCTORS_EQUIPMENT
         assert result[0].thematic_tags == ["AI & Machine Learning"]

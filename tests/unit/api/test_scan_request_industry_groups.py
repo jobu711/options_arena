@@ -66,23 +66,28 @@ class TestScanRequestThemes:
         assert req.themes == []
 
     def test_themes_passthrough(self) -> None:
-        """Verify theme strings accepted as-is (no normalization)."""
-        req = ScanRequest(themes=["AI & Robotics", "Clean Energy"])
-        assert req.themes == ["AI & Robotics", "Clean Energy"]
+        """Verify valid theme names are accepted."""
+        req = ScanRequest(themes=["AI & Machine Learning", "Clean Energy"])
+        assert req.themes == ["AI & Machine Learning", "Clean Energy"]
 
-    def test_themes_preserves_case(self) -> None:
-        """Verify theme strings preserve original case."""
-        req = ScanRequest(themes=["TECH growth"])
-        assert req.themes == ["TECH growth"]
+    def test_themes_deduplicate(self) -> None:
+        """Verify duplicate theme names are removed."""
+        req = ScanRequest(themes=["Cybersecurity", "Cybersecurity"])
+        assert req.themes == ["Cybersecurity"]
+
+    def test_themes_reject_invalid(self) -> None:
+        """Verify ValidationError for unknown theme name."""
+        with pytest.raises(ValidationError, match="Unknown theme"):
+            ScanRequest(themes=["nonexistent_theme_xyz"])
 
     def test_combined_with_industry_groups(self) -> None:
         """Verify industry_groups and themes can be set together."""
         req = ScanRequest(
             industry_groups=["semis"],
-            themes=["AI & Robotics"],
+            themes=["AI & Machine Learning"],
         )
         assert req.industry_groups == [GICSIndustryGroup.SEMICONDUCTORS_EQUIPMENT]
-        assert req.themes == ["AI & Robotics"]
+        assert req.themes == ["AI & Machine Learning"]
 
 
 class TestScanRequestBackwardCompatibility:

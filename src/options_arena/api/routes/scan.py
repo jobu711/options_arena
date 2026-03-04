@@ -135,6 +135,8 @@ async def start_scan(
         scan_overrides["min_iv_rank"] = body.min_iv_rank
     if body.industry_groups:
         scan_overrides["industry_groups"] = body.industry_groups
+    if body.themes:
+        scan_overrides["theme_filters"] = body.themes
     if scan_overrides:
         scan_override = settings.scan.model_copy(update=scan_overrides)
         effective_settings = settings.model_copy(update={"scan": scan_override})
@@ -309,7 +311,7 @@ async def get_scores(  # noqa: ANN201
         filtered = [
             s
             for s in filtered
-            if s.industry_group is not None and s.industry_group.lower() in ig_set
+            if s.industry_group is not None and s.industry_group.value.lower() in ig_set
         ]
 
     # Theme filter (#230)

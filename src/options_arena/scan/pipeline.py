@@ -288,6 +288,17 @@ class ScanPipeline:
             "Industry group map: %d tickers inferred from sectors", len(industry_group_map)
         )
 
+        # Warn if industry group map coverage is low relative to active tickers
+        if industry_group_map and tickers:
+            ig_coverage = sum(1 for t in tickers if t in industry_group_map) / len(tickers)
+            if ig_coverage < 0.5:
+                logger.warning(
+                    "Industry group map covers only %.0f%% of %d active tickers; "
+                    "industry group filtering may exclude valid tickers",
+                    ig_coverage * 100,
+                    len(tickers),
+                )
+
         # Step 3d: Apply industry group filter (OR logic) when configured
         configured_industry_groups = self._settings.scan.industry_groups
         if configured_industry_groups:
@@ -300,6 +311,36 @@ class ScanPipeline:
                 len(tickers),
                 ", ".join(ig.value for ig in configured_industry_groups),
             )
+
+        # Step 3e: Apply theme filter (OR logic) when theme_filters are configured
+        configured_themes = self._settings.scan.theme_filters
+        if configured_themes and self._theme_service is not None:
+            try:
+                theme_sets = await self._theme_service.get_all_theme_sets()
+                # Build union of tickers across requested themes
+                theme_tickers: set[str] = set()
+                for theme_name in configured_themes:
+                    tset = theme_sets.get(theme_name, frozenset())
+                    theme_tickers |= tset
+                if theme_tickers:
+                    before_count = len(tickers)
+                    tickers = [t for t in tickers if t in theme_tickers]
+                    logger.info(
+                        "Theme filter: %d -> %d tickers (themes=%s)",
+                        before_count,
+                        len(tickers),
+                        ", ".join(configured_themes),
+                    )
+                else:
+                    logger.warning(
+                        "Theme filter: no tickers found for themes=%s; skipping filter",
+                        ", ".join(configured_themes),
+                    )
+            except Exception:
+                logger.warning(
+                    "Theme pre-filtering failed; continuing without filter",
+                    exc_info=True,
+                )
 
         # Step 4: Batch-fetch OHLCV
         progress(ScanPhase.UNIVERSE, 0, len(tickers))
@@ -418,7 +459,7 @@ class ScanPipeline:
                 ts.sector = sector
             ig = universe_result.industry_group_map.get(ts.ticker)
             if ig is not None:
-                ts.industry_group = ig.value
+                ts.industry_group = ig
 
         # Step 3b: Compute dimensional scores, direction confidence, and market regime
         for ts in scored:
