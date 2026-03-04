@@ -341,7 +341,6 @@ class TestNaNPropagation:
                 bb_width=None,
                 atr_pct=None,
                 keltner_width=None,
-                relative_volume=None,
             ),
         }
         result = invert_indicators(normalized)

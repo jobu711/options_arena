@@ -25,9 +25,12 @@ logger = logging.getLogger(__name__)
 
 # Indicators where higher raw value indicates a worse (less favorable) signal.
 # After percentile normalization, these are inverted: value = 100 - value.
-INVERTED_INDICATORS: frozenset[str] = frozenset(
-    {"bb_width", "atr_pct", "relative_volume", "keltner_width"}
-)
+#
+# NOTE: ``relative_volume`` is intentionally NOT inverted.  High relative volume
+# signals institutional attention and better options liquidity — desirable traits
+# for an options scanner.  Only volatility-width indicators are inverted (wider
+# bands = more uncertainty = less favorable).
+INVERTED_INDICATORS: frozenset[str] = frozenset({"bb_width", "atr_pct", "keltner_width"})
 
 # All indicator field names from IndicatorSignals, cached once at import time.
 _ALL_FIELDS: tuple[str, ...] = tuple(IndicatorSignals.model_fields.keys())

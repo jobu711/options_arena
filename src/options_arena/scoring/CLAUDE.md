@@ -42,12 +42,24 @@ layer and indicator output — **no API calls**.
 
 ### Inverted Indicators (normalization.py)
 Higher raw value = worse signal, flipped after normalization:
-`bb_width`, `atr_pct`, `relative_volume`, `keltner_width`
+`bb_width`, `atr_pct`, `keltner_width`
+
+Note: `relative_volume` is NOT inverted — high relative volume signals institutional
+attention and better options liquidity, which is desirable for an options scanner.
+
+### Composite Score Design (composite.py)
+- Direction-agnostic measure of overall "options interest level"
+- Effective range is [1.0, 100.0]; 0.0 reserved for "no data" (all indicators None)
+- `put_call_ratio` scoring high = interesting (not bullish); direction classification
+  separately handles bull/bear assignment
+- Phase 3 recomputes composite after options-specific indicators are populated
 
 ### Direction Thresholds (direction.py)
 - `ADX_TREND_THRESHOLD = 15.0` (below → NEUTRAL)
 - `RSI_OVERBOUGHT = 70.0`, `RSI_OVERSOLD = 30.0`
 - `SMA_BULLISH_THRESHOLD = 0.5`, `SMA_BEARISH_THRESHOLD = -0.5`
+- `ROC_THRESHOLD = 5.0` (|ROC| must exceed 5% for directional signal)
+- `supertrend` (+1/-1) and `roc` provide ±1 confirmation signals
 
 ### Contract Thresholds (contracts.py)
 - Delta: primary [0.20, 0.50], fallback [0.10, 0.80], target 0.35
