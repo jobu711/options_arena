@@ -600,13 +600,12 @@ class TestGetTopHoldings:
 
     def test_get_top_holdings_exception(self) -> None:
         """Verify _get_top_holdings returns None on exception."""
-        mock_ticker = MagicMock()
-        mock_ticker.funds_data = property(lambda self: (_ for _ in ()).throw(RuntimeError))
-        # More direct: make funds_data access raise
-        type(mock_ticker).funds_data = property(
-            lambda self: (_ for _ in ()).throw(RuntimeError("Bad access"))
-        )
 
-        result = ThemeService._get_top_holdings(mock_ticker)
+        class BrokenTicker:
+            @property
+            def funds_data(self) -> object:
+                raise RuntimeError("Bad access")
+
+        result = ThemeService._get_top_holdings(BrokenTicker())  # type: ignore[arg-type]
 
         assert result is None

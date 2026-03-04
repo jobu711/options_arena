@@ -267,7 +267,7 @@ SECTOR_ALIASES: dict[str, GICSSector] = {
 class GICSIndustryGroup(StrEnum):
     """GICS Industry Groups (2023 standard).
 
-    Exactly 25 industry groups across 11 sectors. Each group maps to exactly
+    Exactly 26 industry groups across 11 sectors. Each group maps to exactly
     one parent sector via ``SECTOR_TO_INDUSTRY_GROUPS``.
     """
 

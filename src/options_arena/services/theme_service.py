@@ -101,6 +101,7 @@ class ThemeService:
             try:
                 return await self.refresh_themes()
             except Exception:
+                self._last_refresh = time.monotonic()
                 logger.warning("Theme refresh failed, using cached data", exc_info=True)
         return await self._repo.get_themes()
 
@@ -113,7 +114,7 @@ class ThemeService:
         Returns:
             Frozenset of tickers for the theme, or empty frozenset if not found.
         """
-        themes = await self._repo.get_themes()
+        themes = await self.get_themes()
         for theme in themes:
             if theme.name == theme_name:
                 return frozenset(theme.tickers)
@@ -125,7 +126,7 @@ class ThemeService:
         Returns:
             Dict mapping theme names to frozensets of ticker symbols.
         """
-        themes = await self._repo.get_themes()
+        themes = await self.get_themes()
         return {t.name: frozenset(t.tickers) for t in themes}
 
     def _should_refresh(self) -> bool:

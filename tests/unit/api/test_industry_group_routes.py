@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -18,6 +19,14 @@ from options_arena.models.config import AppSettings
 from options_arena.models.enums import SignalDirection
 from options_arena.models.scan import IndicatorSignals, TickerScore
 from options_arena.services.universe import SP500Constituent
+
+
+@pytest.fixture(autouse=True)
+def _restore_limiter_state() -> Generator[None, None, None]:
+    """Restore limiter state after each test to prevent cross-test leakage."""
+    previous = limiter.enabled
+    yield
+    limiter.enabled = previous
 
 
 def _make_constituents() -> list[SP500Constituent]:

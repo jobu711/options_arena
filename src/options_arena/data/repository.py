@@ -697,6 +697,8 @@ class Repository:
         # Ensure UTC — fromisoformat may return naive datetime for legacy rows
         if raw_dt.tzinfo is None:
             raw_dt = raw_dt.replace(tzinfo=UTC)
+        else:
+            raw_dt = raw_dt.astimezone(UTC)
         return ThemeSnapshot(
             name=str(row["name"]),
             description=str(row["description"]),
