@@ -188,6 +188,11 @@ class TickerScore(BaseModel):
     next_earnings: date | None = None  # populated in Phase 3 from yfinance calendar
     scan_run_id: int | None = None
 
+    # GICS industry group (finer-grained than sector)
+    industry_group: str | None = None
+    # Thematic tags from ETF-based screening
+    thematic_tags: list[str] = []
+
     # DSE dimensional scoring (populated after score_universe in Phase 2)
     dimensional_scores: DimensionalScores | None = None
     direction_confidence: float | None = None

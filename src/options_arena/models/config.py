@@ -19,7 +19,14 @@ from typing import Self
 from pydantic import BaseModel, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from options_arena.models.enums import SECTOR_ALIASES, GICSSector, MarketCapTier, SignalDirection
+from options_arena.models.enums import (
+    INDUSTRY_GROUP_ALIASES,
+    SECTOR_ALIASES,
+    GICSIndustryGroup,
+    GICSSector,
+    MarketCapTier,
+    SignalDirection,
+)
 
 
 class ScanConfig(BaseModel):
@@ -48,6 +55,8 @@ class ScanConfig(BaseModel):
     exclude_near_earnings_days: int | None = None
     direction_filter: SignalDirection | None = None
     min_iv_rank: float | None = None
+    industry_groups: list[GICSIndustryGroup] = []
+    theme_filters: list[str] = []
     # Regime classification thresholds (applied to raw market_regime signal, 0-100 scale)
     regime_crisis_threshold: float = 80.0
     regime_volatile_threshold: float = 60.0
@@ -128,6 +137,37 @@ class ScanConfig(BaseModel):
                     valid = sorted({s.value for s in GICSSector})
                     raise ValueError(
                         f"Unknown sector {item!r}. Valid sectors: {', '.join(valid)}"
+                    ) from None
+        return list(dict.fromkeys(result))
+
+    @field_validator("industry_groups", mode="before")
+    @classmethod
+    def normalize_industry_groups(
+        cls, v: list[str | GICSIndustryGroup]
+    ) -> list[GICSIndustryGroup]:
+        """Normalize industry group input strings via INDUSTRY_GROUP_ALIASES.
+
+        Accepts canonical enum values, lowercase names, hyphenated, underscored,
+        short-name, and yfinance industry variants. Raises ValueError for
+        unrecognised inputs.
+        """
+        result: list[GICSIndustryGroup] = []
+        for item in v:
+            if isinstance(item, GICSIndustryGroup):
+                result.append(item)
+                continue
+            # Normalize: lowercase, strip whitespace
+            key = str(item).strip().lower()
+            if key in INDUSTRY_GROUP_ALIASES:
+                result.append(INDUSTRY_GROUP_ALIASES[key])
+            else:
+                # Try direct enum construction (handles canonical values)
+                try:
+                    result.append(GICSIndustryGroup(str(item).strip()))
+                except ValueError:
+                    valid = sorted({g.value for g in GICSIndustryGroup})
+                    raise ValueError(
+                        f"Unknown industry group {item!r}. Valid groups: {', '.join(valid)}"
                     ) from None
         return list(dict.fromkeys(result))
 
@@ -378,6 +418,25 @@ class OpenBBConfig(BaseModel):
     chain_validation_mode: bool = False
 
 
+class ThemeConfig(BaseModel):
+    """Thematic filtering configuration — controls ETF-based theme caching.
+
+    ``cache_ttl`` is the time-to-live in seconds for cached theme ETF holdings
+    (default 7 days). ``etf_refresh_enabled`` toggles automatic ETF holding refresh.
+    """
+
+    cache_ttl: int = 604800  # 7 days
+    etf_refresh_enabled: bool = True
+
+    @field_validator("cache_ttl")
+    @classmethod
+    def validate_cache_ttl(cls, v: int) -> int:
+        """Ensure cache_ttl is at least 0."""
+        if v < 0:
+            raise ValueError(f"cache_ttl must be >= 0, got {v}")
+        return v
+
+
 class AppSettings(BaseSettings):
     """Root application settings — the sole BaseSettings subclass.
 
@@ -402,3 +461,4 @@ class AppSettings(BaseSettings):
     openbb: OpenBBConfig = OpenBBConfig()
     intelligence: IntelligenceConfig = IntelligenceConfig()
     analytics: AnalyticsConfig = AnalyticsConfig()
+    themes: ThemeConfig = ThemeConfig()
