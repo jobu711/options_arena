@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 def _get_obb() -> Any:  # noqa: ANN401
     """Attempt to import the OpenBB SDK. Returns ``obb`` module or ``None``."""
     try:
-        from openbb import obb  # type: ignore[import-not-found]
+        from openbb import obb
 
         return obb
     except ImportError:

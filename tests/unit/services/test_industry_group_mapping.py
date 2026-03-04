@@ -103,6 +103,75 @@ class TestBuildIndustryGroupMap:
 
 
 # ---------------------------------------------------------------------------
+# GICS Sub-Industry (CSV) string mapping tests
+# ---------------------------------------------------------------------------
+
+
+class TestGICSSubIndustryMapping:
+    """GICS Sub-Industry strings from S&P 500 CSV map through build_industry_group_map."""
+
+    def test_application_software(self) -> None:
+        result = build_industry_group_map({"MSFT": "Application Software"})
+        assert result["MSFT"] == GICSIndustryGroup.SOFTWARE_SERVICES
+
+    def test_diversified_banks(self) -> None:
+        result = build_industry_group_map({"JPM": "Diversified Banks"})
+        assert result["JPM"] == GICSIndustryGroup.BANKS
+
+    def test_regional_banks(self) -> None:
+        result = build_industry_group_map({"KEY": "Regional Banks"})
+        assert result["KEY"] == GICSIndustryGroup.BANKS
+
+    def test_technology_hardware(self) -> None:
+        result = build_industry_group_map({"AAPL": "Technology Hardware Storage & Peripherals"})
+        assert result["AAPL"] == GICSIndustryGroup.TECHNOLOGY_HARDWARE_EQUIPMENT
+
+    def test_managed_health_care(self) -> None:
+        result = build_industry_group_map({"UNH": "Managed Health Care"})
+        assert result["UNH"] == GICSIndustryGroup.HEALTH_CARE_EQUIPMENT_SERVICES
+
+    def test_interactive_media(self) -> None:
+        result = build_industry_group_map({"GOOG": "Interactive Media & Services"})
+        assert result["GOOG"] == GICSIndustryGroup.MEDIA_ENTERTAINMENT
+
+    def test_broadline_retail(self) -> None:
+        result = build_industry_group_map({"AMZN": "Broadline Retail"})
+        assert result["AMZN"] == GICSIndustryGroup.RETAILING
+
+    def test_electric_utilities(self) -> None:
+        result = build_industry_group_map({"NEE": "Electric Utilities"})
+        assert result["NEE"] == GICSIndustryGroup.UTILITIES
+
+    def test_data_center_reits(self) -> None:
+        result = build_industry_group_map({"EQIX": "Data Center REITs"})
+        assert result["EQIX"] == GICSIndustryGroup.EQUITY_REITS
+
+    def test_integrated_oil_gas(self) -> None:
+        result = build_industry_group_map({"XOM": "Integrated Oil & Gas"})
+        assert result["XOM"] == GICSIndustryGroup.OIL_GAS_CONSUMABLE_FUELS
+
+    def test_life_sciences(self) -> None:
+        result = build_industry_group_map({"TMO": "Life Sciences Tools & Services"})
+        assert result["TMO"] == GICSIndustryGroup.PHARMA_BIOTECH
+
+    def test_passenger_airlines(self) -> None:
+        result = build_industry_group_map({"DAL": "Passenger Airlines"})
+        assert result["DAL"] == GICSIndustryGroup.TRANSPORTATION
+
+    def test_semiconductor_materials_equipment(self) -> None:
+        result = build_industry_group_map({"AMAT": "Semiconductor Materials & Equipment"})
+        assert result["AMAT"] == GICSIndustryGroup.SEMICONDUCTORS_EQUIPMENT
+
+    def test_transaction_payment_processing(self) -> None:
+        result = build_industry_group_map({"V": "Transaction & Payment Processing Services"})
+        assert result["V"] == GICSIndustryGroup.DIVERSIFIED_FINANCIALS
+
+    def test_construction_materials(self) -> None:
+        result = build_industry_group_map({"VMC": "Construction Materials"})
+        assert result["VMC"] == GICSIndustryGroup.MATERIALS
+
+
+# ---------------------------------------------------------------------------
 # filter_by_industry_groups tests
 # ---------------------------------------------------------------------------
 

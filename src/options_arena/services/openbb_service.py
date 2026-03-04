@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 def _get_obb() -> Any:  # noqa: ANN401
     """Attempt to import the OpenBB SDK. Returns ``obb`` module or ``None``."""
     try:
-        from openbb import obb  # type: ignore[import-not-found]
+        from openbb import obb
 
         return obb
     except ImportError:
@@ -45,7 +45,7 @@ def _get_obb() -> Any:  # noqa: ANN401
 def _get_vader() -> Any:  # noqa: ANN401
     """Attempt to import VADER sentiment analyzer. Returns analyzer or ``None``."""
     try:
-        from vaderSentiment.vaderSentiment import (  # type: ignore[import-not-found]
+        from vaderSentiment.vaderSentiment import (  # type: ignore[import-untyped]
             SentimentIntensityAnalyzer,
         )
 

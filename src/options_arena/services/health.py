@@ -224,7 +224,7 @@ class HealthService:
         """
         start = time.monotonic()
         try:
-            from openbb import obb  # type: ignore[import-not-found]  # noqa: F401
+            from openbb import obb  # noqa: F401
 
             latency_ms = (time.monotonic() - start) * 1000
             logger.info("OpenBB health check OK (%.1fms)", latency_ms)

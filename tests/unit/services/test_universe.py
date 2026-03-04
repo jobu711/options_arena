@@ -50,10 +50,10 @@ def service(config: ServiceConfig, cache: ServiceCache, limiter: RateLimiter) ->
 # ---------------------------------------------------------------------------
 
 
-def _mock_httpx_response(html: str = "<html></html>") -> MagicMock:
-    """Create a mock httpx.Response with the given HTML body."""
+def _mock_httpx_response(text: str = "") -> MagicMock:
+    """Create a mock httpx.Response with the given text body."""
     resp = MagicMock()
-    resp.text = html
+    resp.text = text
     resp.status_code = 200
     resp.raise_for_status = MagicMock()
     return resp
@@ -83,8 +83,8 @@ async def test_sp500_happy_path(service: UniverseService) -> None:
             return_value=_mock_httpx_response(),
         ),
         patch(
-            "options_arena.services.universe.pd.read_html",
-            return_value=[mock_df],
+            "options_arena.services.universe.pd.read_csv",
+            return_value=mock_df,
         ),
     ):
         result = await service.fetch_sp500_constituents()
@@ -122,8 +122,8 @@ async def test_sp500_ticker_translation(service: UniverseService) -> None:
             return_value=_mock_httpx_response(),
         ),
         patch(
-            "options_arena.services.universe.pd.read_html",
-            return_value=[mock_df],
+            "options_arena.services.universe.pd.read_csv",
+            return_value=mock_df,
         ),
     ):
         result = await service.fetch_sp500_constituents()
@@ -160,8 +160,8 @@ async def test_sp500_missing_required_column(service: UniverseService) -> None:
             return_value=_mock_httpx_response(),
         ),
         patch(
-            "options_arena.services.universe.pd.read_html",
-            return_value=[mock_df],
+            "options_arena.services.universe.pd.read_csv",
+            return_value=mock_df,
         ),
         pytest.raises(InsufficientDataError, match="missing columns"),
     ):
@@ -186,8 +186,8 @@ async def test_sp500_empty_dataframe(service: UniverseService) -> None:
             return_value=_mock_httpx_response(),
         ),
         patch(
-            "options_arena.services.universe.pd.read_html",
-            return_value=[mock_df],
+            "options_arena.services.universe.pd.read_csv",
+            return_value=mock_df,
         ),
         pytest.raises(InsufficientDataError, match="empty"),
     ):
@@ -195,13 +195,13 @@ async def test_sp500_empty_dataframe(service: UniverseService) -> None:
 
 
 # ---------------------------------------------------------------------------
-# S&P 500 — no tables returned
+# S&P 500 — CSV parse failure
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_sp500_no_tables(service: UniverseService) -> None:
-    """No tables found at Wikipedia raises InsufficientDataError."""
+async def test_sp500_csv_parse_failure(service: UniverseService) -> None:
+    """CSV parse failure maps to DataSourceUnavailableError."""
     with (
         patch.object(
             service._client,
@@ -210,10 +210,10 @@ async def test_sp500_no_tables(service: UniverseService) -> None:
             return_value=_mock_httpx_response(),
         ),
         patch(
-            "options_arena.services.universe.pd.read_html",
-            return_value=[],
+            "options_arena.services.universe.pd.read_csv",
+            side_effect=pd.errors.ParserError("malformed CSV"),
         ),
-        pytest.raises(InsufficientDataError, match="No tables"),
+        pytest.raises(DataSourceUnavailableError, match="GitHub"),
     ):
         await service.fetch_sp500_constituents()
 
@@ -383,7 +383,7 @@ async def test_cboe_cache_hit(service: UniverseService, cache: ServiceCache) -> 
 
 @pytest.mark.asyncio
 async def test_sp500_cache_hit(service: UniverseService, cache: ServiceCache) -> None:
-    """Pre-populated cache returns S&P 500 data without fetching from Wikipedia."""
+    """Pre-populated cache returns S&P 500 data without fetching from GitHub."""
     cached_constituents = [
         {"ticker": "AAPL", "sector": "Information Technology"},
         {"ticker": "MSFT", "sector": "Information Technology"},
@@ -394,10 +394,10 @@ async def test_sp500_cache_hit(service: UniverseService, cache: ServiceCache) ->
         ttl=TTL_REFERENCE,
     )
 
-    with patch("options_arena.services.universe.pd.read_html") as mock_read_html:
+    with patch("options_arena.services.universe.pd.read_csv") as mock_read_csv:
         result = await service.fetch_sp500_constituents()
 
-    mock_read_html.assert_not_called()
+    mock_read_csv.assert_not_called()
     assert len(result) == 2
     assert all(isinstance(c, SP500Constituent) for c in result)
     assert result[0].ticker == "AAPL"
@@ -450,13 +450,13 @@ async def test_cboe_network_failure(service: UniverseService) -> None:
 
 
 # ---------------------------------------------------------------------------
-# S&P 500 — Wikipedia unreachable
+# S&P 500 — GitHub unreachable
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_sp500_wikipedia_unreachable(service: UniverseService) -> None:
-    """Wikipedia network failure raises DataSourceUnavailableError."""
+async def test_sp500_github_unreachable(service: UniverseService) -> None:
+    """GitHub network failure raises DataSourceUnavailableError."""
     with (
         patch.object(
             service._client,
@@ -464,7 +464,7 @@ async def test_sp500_wikipedia_unreachable(service: UniverseService) -> None:
             new_callable=AsyncMock,
             side_effect=httpx.ConnectError("Connection refused"),
         ),
-        pytest.raises(DataSourceUnavailableError, match="Wikipedia"),
+        pytest.raises(DataSourceUnavailableError, match="GitHub"),
     ):
         await service.fetch_sp500_constituents()
 
@@ -497,3 +497,68 @@ async def test_cboe_case_normalization(service: UniverseService) -> None:
 def test_sp500_required_columns_constant() -> None:
     """SP500_REQUIRED_COLUMNS contains the expected column names."""
     assert {"Symbol", "GICS Sector"} == SP500_REQUIRED_COLUMNS
+
+
+# ---------------------------------------------------------------------------
+# S&P 500 — GICS Sub-Industry parsing
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_sp500_sub_industry_populated(service: UniverseService) -> None:
+    """sub_industry is populated when CSV has GICS Sub-Industry column."""
+    mock_df = pd.DataFrame(
+        {
+            "Symbol": ["AAPL", "NVDA"],
+            "GICS Sector": ["Information Technology", "Information Technology"],
+            "GICS Sub-Industry": [
+                "Technology Hardware Storage & Peripherals",
+                "Semiconductors",
+            ],
+        }
+    )
+
+    with (
+        patch.object(
+            service._client,
+            "get",
+            new_callable=AsyncMock,
+            return_value=_mock_httpx_response(),
+        ),
+        patch(
+            "options_arena.services.universe.pd.read_csv",
+            return_value=mock_df,
+        ),
+    ):
+        result = await service.fetch_sp500_constituents()
+
+    by_ticker = {c.ticker: c for c in result}
+    assert by_ticker["AAPL"].sub_industry == "Technology Hardware Storage & Peripherals"
+    assert by_ticker["NVDA"].sub_industry == "Semiconductors"
+
+
+@pytest.mark.asyncio
+async def test_sp500_sub_industry_none_when_column_absent(service: UniverseService) -> None:
+    """sub_industry is None when CSV lacks GICS Sub-Industry column."""
+    mock_df = pd.DataFrame(
+        {
+            "Symbol": ["AAPL", "NVDA"],
+            "GICS Sector": ["Information Technology", "Information Technology"],
+        }
+    )
+
+    with (
+        patch.object(
+            service._client,
+            "get",
+            new_callable=AsyncMock,
+            return_value=_mock_httpx_response(),
+        ),
+        patch(
+            "options_arena.services.universe.pd.read_csv",
+            return_value=mock_df,
+        ),
+    ):
+        result = await service.fetch_sp500_constituents()
+
+    assert all(c.sub_industry is None for c in result)

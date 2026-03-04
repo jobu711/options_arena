@@ -1,10 +1,10 @@
 """Universe service — CBOE optionable tickers and S&P 500 constituents.
 
 Fetches the optionable ticker universe from CBOE, classifies tickers by
-S&P 500 membership and GICS sector (via Wikipedia), and provides
+S&P 500 membership and GICS sector (via GitHub CSV), and provides
 ``MarketCapTier`` classification. Includes ETF detection and sector
 filtering helpers. Two external data sources:
-CBOE CSV (optionable universe) and Wikipedia table (S&P 500 constituents).
+CBOE CSV (optionable universe) and GitHub CSV (S&P 500 constituents).
 """
 
 import asyncio
@@ -33,7 +33,9 @@ from options_arena.utils.exceptions import DataSourceUnavailableError, Insuffici
 
 logger = logging.getLogger(__name__)
 
-SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+SP500_URL = (
+    "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv"
+)
 SP500_REQUIRED_COLUMNS: frozenset[str] = frozenset({"Symbol", "GICS Sector"})
 
 CBOE_URL = (
@@ -48,7 +50,7 @@ _TICKER_RE: re.Pattern[str] = re.compile(r"^[A-Z]{1,5}(\.[A-Z])?$")
 
 # Cache keys
 _CACHE_KEY_CBOE = "cboe:reference:universe:optionable"
-_CACHE_KEY_SP500 = "wiki:reference:sp500:constituents"
+_CACHE_KEY_SP500 = "github:reference:sp500:constituents"
 _CACHE_KEY_ETFS = "yf:reference:universe:etfs"
 
 # Curated ETF seed list — well-known optionable ETFs that are reliably available
@@ -142,12 +144,13 @@ class SP500Constituent(BaseModel):
 
     ticker: str
     sector: str
+    sub_industry: str | None = None
 
 
 class UniverseService:
     """Fetches optionable ticker universe and S&P 500 classification data.
 
-    Uses CBOE for the list of optionable tickers and Wikipedia for
+    Uses CBOE for the list of optionable tickers and a GitHub-hosted CSV for
     S&P 500 constituency and GICS sector mapping.
 
     Args:
@@ -175,7 +178,7 @@ class UniverseService:
                     "options analysis tool) "
                     "python-httpx"
                 ),
-                "Accept": "text/html",
+                "Accept": "text/html, text/plain, text/csv",
             },
         )
 
@@ -235,19 +238,19 @@ class UniverseService:
         return tickers
 
     async def fetch_sp500_constituents(self) -> list[SP500Constituent]:
-        """Fetch S&P 500 constituents with GICS sector classification from Wikipedia.
+        """Fetch S&P 500 constituents with GICS sector classification from GitHub CSV.
 
-        Uses ``pd.read_html`` with ``attrs={"id": "constituents"}`` for stable
-        table targeting. Translates tickers from Wikipedia format (``.`` separator)
-        to yfinance format (``-`` separator). Results are cached for 24 hours.
+        Downloads a CSV from the ``datasets/s-and-p-500-companies`` repository and
+        parses it with ``pd.read_csv``. Translates tickers from dot format (``.``)
+        to yfinance dash format (``-``). Results are cached for 24 hours.
 
         Returns:
             List of ``SP500Constituent`` models (ticker + sector).
 
         Raises:
-            InsufficientDataError: If the Wikipedia table schema has drifted
-                (missing required columns) or no data is returned.
-            DataSourceUnavailableError: If Wikipedia is unreachable.
+            InsufficientDataError: If the CSV schema has drifted (missing required
+                columns) or no data is returned.
+            DataSourceUnavailableError: If GitHub is unreachable.
         """
         # Check cache first
         cached = await self._cache.get(_CACHE_KEY_SP500)
@@ -257,7 +260,7 @@ class UniverseService:
             logger.debug("S&P 500 cache hit: %d constituents", len(constituents))
             return constituents
 
-        # Fetch HTML with httpx (proper User-Agent), then parse with pd.read_html
+        # Fetch CSV from GitHub, parse with pd.read_csv
         async with self._limiter:
             try:
                 response = await asyncio.wait_for(
@@ -265,42 +268,38 @@ class UniverseService:
                     timeout=self._config.yfinance_timeout,
                 )
                 response.raise_for_status()
-                tables: list[pd.DataFrame] = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        pd.read_html,
-                        io.StringIO(response.text),
-                        attrs={"id": "constituents"},
-                    ),
+                df: pd.DataFrame = await asyncio.wait_for(
+                    asyncio.to_thread(pd.read_csv, io.StringIO(response.text)),
                     timeout=self._config.yfinance_timeout,
                 )
             except TimeoutError as exc:
                 raise DataSourceUnavailableError(
-                    f"Wikipedia: timeout after {self._config.yfinance_timeout}s"
+                    f"GitHub: timeout after {self._config.yfinance_timeout}s"
                 ) from exc
             except Exception as exc:
-                raise DataSourceUnavailableError(f"Wikipedia: {exc}") from exc
-
-        if not tables:
-            raise InsufficientDataError("No tables found at Wikipedia S&P 500 page")
-
-        df = tables[0]
+                raise DataSourceUnavailableError(f"GitHub: {exc}") from exc
 
         # Validate required columns exist
         actual_columns = set(df.columns)
         if not actual_columns >= SP500_REQUIRED_COLUMNS:
             missing = SP500_REQUIRED_COLUMNS - actual_columns
             raise InsufficientDataError(
-                f"Wikipedia S&P 500 table missing columns: {missing}. Found: {actual_columns}"
+                f"S&P 500 CSV missing columns: {missing}. Found: {actual_columns}"
             )
 
         if df.empty:
-            raise InsufficientDataError("Wikipedia S&P 500 table is empty")
+            raise InsufficientDataError("S&P 500 CSV is empty")
 
         # Translate tickers: '.' → '-' for yfinance compatibility (BRK.B → BRK-B)
         df["Symbol"] = df["Symbol"].str.strip().str.replace(".", "-", regex=False)
 
+        has_sub_industry = "GICS Sub-Industry" in df.columns
         constituents = [
-            SP500Constituent(ticker=row["Symbol"], sector=row["GICS Sector"])
+            SP500Constituent(
+                ticker=row["Symbol"],
+                sector=row["GICS Sector"],
+                sub_industry=row.get("GICS Sub-Industry") if has_sub_industry else None,
+            )
             for _, row in df.iterrows()
         ]
 
