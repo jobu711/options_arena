@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import Tree from 'primevue/tree'
+import Panel from 'primevue/panel'
 import type { TreeNode } from 'primevue/treenode'
 import type { TreeSelectionKeys } from 'primevue/tree'
 import type { SectorHierarchy } from '@/types'
@@ -141,6 +142,21 @@ function onSelectionChange(newKeys: TreeSelectionKeys): void {
   emit('update:selectedIndustryGroups', industryGroups)
 }
 
+/** Count selected sectors + industry groups for the panel header badge. */
+const selectedCount = computed(() => {
+  let count = 0
+  for (const key of Object.keys(selectionKeys.value)) {
+    const entry = selectionKeys.value[key] as { checked: boolean; partialChecked: boolean } | undefined
+    if (entry?.checked && !entry.partialChecked) count++
+  }
+  return count
+})
+
+const panelHeader = computed(() => {
+  const base = 'Sectors (S&P 500 only)'
+  return selectedCount.value > 0 ? `${base} \u2014 ${selectedCount.value} selected` : base
+})
+
 /** Get accent color CSS variable for a sector node. */
 function sectorColor(sectorName: string): string {
   return SECTOR_COLOR_MAP[sectorName] ?? 'var(--p-surface-300, #aaa)'
@@ -149,27 +165,29 @@ function sectorColor(sectorName: string): string {
 
 <template>
   <div class="sector-tree-wrapper" data-testid="sector-tree">
-    <Tree
-      :value="treeNodes"
-      selectionMode="checkbox"
-      :selectionKeys="selectionKeys"
-      :disabled="disabled"
-      filter
-      filterPlaceholder="Search sectors..."
-      class="sector-tree"
-      @update:selectionKeys="onSelectionChange"
-    >
-      <template #default="{ node }">
-        <span class="tree-node-label" :class="{ 'tree-node-sector': node.data?.type === 'sector' }">
-          <span
-            v-if="node.data?.type === 'sector'"
-            class="sector-dot"
-            :style="{ backgroundColor: sectorColor(node.data.name) }"
-          />
-          {{ node.label }}
-        </span>
-      </template>
-    </Tree>
+    <Panel :header="panelHeader" :toggleable="true" :collapsed="true">
+      <Tree
+        :value="treeNodes"
+        selectionMode="checkbox"
+        :selectionKeys="selectionKeys"
+        :disabled="disabled"
+        filter
+        filterPlaceholder="Search sectors..."
+        class="sector-tree"
+        @update:selectionKeys="onSelectionChange"
+      >
+        <template #default="{ node }">
+          <span class="tree-node-label" :class="{ 'tree-node-sector': node.data?.type === 'sector' }">
+            <span
+              v-if="node.data?.type === 'sector'"
+              class="sector-dot"
+              :style="{ backgroundColor: sectorColor(node.data.name) }"
+            />
+            {{ node.label }}
+          </span>
+        </template>
+      </Tree>
+    </Panel>
   </div>
 </template>
 
@@ -182,7 +200,7 @@ function sectorColor(sectorName: string): string {
 .sector-tree {
   border: 1px solid var(--p-surface-700, #333);
   border-radius: 0.5rem;
-  max-height: 400px;
+  max-height: 220px;
   overflow-y: auto;
 }
 

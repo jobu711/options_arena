@@ -135,3 +135,20 @@ body {
 .p-select .p-select-label.p-placeholder {
   color: var(--p-surface-500, #666) !important;
 }
+
+/* ── PrimeVue Tree dark theme overrides ── */
+.p-tree {
+  background: var(--p-surface-900, #111) !important;
+  border-color: var(--p-surface-700, #333) !important;
+  color: var(--p-surface-100, #eee) !important;
+}
+
+.p-tree .p-tree-node-content:hover {
+  background: var(--p-surface-800, #1a1a1a) !important;
+}
+
+.p-tree .p-tree-filter-input {
+  background: var(--p-surface-800, #1a1a1a) !important;
+  color: var(--p-surface-100, #eee) !important;
+  border-color: var(--p-surface-600, #444) !important;
+}
