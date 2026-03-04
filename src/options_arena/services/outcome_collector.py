@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from options_arena.data.repository import Repository
 from options_arena.models.analytics import ContractOutcome, PerformanceSummary, RecommendedContract
@@ -20,6 +21,13 @@ from options_arena.models.enums import OptionType, OutcomeCollectionMethod
 from options_arena.services.market_data import MarketDataService
 
 logger = logging.getLogger(__name__)
+
+_EASTERN = ZoneInfo("America/New_York")
+
+
+def _market_today() -> date:
+    """Return today's date in US Eastern time (market timezone)."""
+    return datetime.now(_EASTERN).date()
 
 
 class OutcomeCollector:
@@ -82,7 +90,7 @@ class OutcomeCollector:
         outcomes for this period. Fetches current market data per contract
         and computes returns.
         """
-        today = date.today()
+        today = _market_today()
         from datetime import timedelta  # noqa: PLC0415
 
         lookback_date = today - timedelta(days=holding_days)
@@ -135,7 +143,7 @@ class OutcomeCollector:
         collected_at: datetime,
     ) -> ContractOutcome | None:
         """Process a single contract and return its outcome, or None on error."""
-        expired = self._is_expired(contract.expiration)
+        expired = self._is_expired(contract.expiration, exit_date)
 
         if expired:
             return await self._process_expired_contract(
@@ -293,9 +301,9 @@ class OutcomeCollector:
             return max(Decimal("0"), stock_price - strike)
         return max(Decimal("0"), strike - stock_price)
 
-    def _is_expired(self, expiration: date) -> bool:
-        """Check if a contract has expired (expiration date is before today)."""
-        return expiration < date.today()
+    def _is_expired(self, expiration: date, today: date) -> bool:
+        """Check if a contract has expired (expiration date is before *today*)."""
+        return expiration < today
 
     async def get_summary(
         self,

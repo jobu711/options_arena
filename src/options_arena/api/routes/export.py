@@ -16,7 +16,14 @@ from starlette.background import BackgroundTask
 from options_arena.api.app import limiter
 from options_arena.api.deps import get_repo
 from options_arena.data import Repository
-from options_arena.models import AgentResponse, TradeThesis
+from options_arena.models import (
+    AgentResponse,
+    ContrarianThesis,
+    FlowThesis,
+    FundamentalThesis,
+    RiskAssessment,
+    TradeThesis,
+)
 from options_arena.reporting import export_debate_markdown
 
 logger = logging.getLogger(__name__)
@@ -113,6 +120,27 @@ async def export_debate(
         with contextlib.suppress(Exception):
             bull_rebuttal = AgentResponse.model_validate_json(row.rebuttal_json)
 
+    # --- V2 agent outputs ---
+    flow_response: FlowThesis | None = None
+    with contextlib.suppress(Exception):
+        if row.flow_json:
+            flow_response = FlowThesis.model_validate_json(row.flow_json)
+
+    fundamental_response: FundamentalThesis | None = None
+    with contextlib.suppress(Exception):
+        if row.fundamental_json:
+            fundamental_response = FundamentalThesis.model_validate_json(row.fundamental_json)
+
+    risk_v2_response: RiskAssessment | None = None
+    with contextlib.suppress(Exception):
+        if row.risk_v2_json:
+            risk_v2_response = RiskAssessment.model_validate_json(row.risk_v2_json)
+
+    contrarian_response: ContrarianThesis | None = None
+    with contextlib.suppress(Exception):
+        if row.contrarian_json:
+            contrarian_response = ContrarianThesis.model_validate_json(row.contrarian_json)
+
     # Prefer persisted MarketContext; fall back to minimal placeholder
     context: MarketContext | None = row.market_context
     if context is None:
@@ -143,6 +171,11 @@ async def export_debate(
         is_fallback=row.is_fallback,
         vol_response=vol_response,
         bull_rebuttal=bull_rebuttal,
+        flow_response=flow_response,
+        fundamental_response=fundamental_response,
+        risk_v2_response=risk_v2_response,
+        contrarian_response=contrarian_response,
+        debate_protocol=row.debate_protocol,
     )
 
     md_content = export_debate_markdown(debate_result)

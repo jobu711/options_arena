@@ -14,6 +14,7 @@ Covers:
   - Collect all configured periods when holding_days is None.
   - DTE at exit computed correctly.
   - get_summary aggregation.
+  - Market-timezone-aware date via _market_today().
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -33,7 +35,7 @@ from options_arena.models.enums import (
     SignalDirection,
 )
 from options_arena.models.market_data import Quote
-from options_arena.services.outcome_collector import OutcomeCollector
+from options_arena.services.outcome_collector import OutcomeCollector, _market_today
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -236,9 +238,10 @@ class TestExpiredContracts:
             quote=make_quote(price=Decimal("180.00")),
         )
 
-        with patch("options_arena.services.outcome_collector.date") as mock_date:
-            mock_date.today.return_value = date(2026, 3, 10)
-            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
             outcomes = await collector.collect_outcomes(holding_days=10)
 
         assert len(outcomes) == 1
@@ -262,9 +265,10 @@ class TestExpiredContracts:
             quote=make_quote(price=Decimal("195.00")),
         )
 
-        with patch("options_arena.services.outcome_collector.date") as mock_date:
-            mock_date.today.return_value = date(2026, 3, 10)
-            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
             outcomes = await collector.collect_outcomes(holding_days=10)
 
         assert len(outcomes) == 1
@@ -290,9 +294,10 @@ class TestErrorHandling:
             quote_side_effect=Exception("Network error"),
         )
 
-        with patch("options_arena.services.outcome_collector.date") as mock_date:
-            mock_date.today.return_value = date(2026, 3, 10)
-            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
             # Should NOT raise — returns empty list
             outcomes = await collector.collect_outcomes(holding_days=10)
 
@@ -334,9 +339,10 @@ class TestErrorHandling:
 
         collector = OutcomeCollector(config, repo, market_data)
 
-        with patch("options_arena.services.outcome_collector.date") as mock_date:
-            mock_date.today.return_value = date(2026, 3, 10)
-            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
             outcomes = await collector.collect_outcomes(holding_days=10)
 
         # Only the successful contract should have an outcome
@@ -365,9 +371,10 @@ class TestWinnerFlag:
             quote=make_quote(price=Decimal("195.00")),
         )
 
-        with patch("options_arena.services.outcome_collector.date") as mock_date:
-            mock_date.today.return_value = date(2026, 3, 10)
-            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
             outcomes = await collector.collect_outcomes(holding_days=10)
 
         assert len(outcomes) == 1
@@ -387,9 +394,10 @@ class TestWinnerFlag:
             quote=make_quote(price=Decimal("186.00")),
         )
 
-        with patch("options_arena.services.outcome_collector.date") as mock_date:
-            mock_date.today.return_value = date(2026, 3, 10)
-            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
             outcomes = await collector.collect_outcomes(holding_days=10)
 
         assert len(outcomes) == 1
@@ -441,9 +449,10 @@ class TestDTEAtExit:
             quote=make_quote(price=Decimal("190.00")),
         )
 
-        with patch("options_arena.services.outcome_collector.date") as mock_date:
-            mock_date.today.return_value = date(2026, 3, 10)
-            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
             outcomes = await collector.collect_outcomes(holding_days=10)
 
         assert len(outcomes) == 1
@@ -482,3 +491,66 @@ class TestGetSummary:
         assert summary.total_contracts == 0
         assert summary.total_with_outcomes == 0
         assert summary.overall_win_rate is None
+
+
+# ---------------------------------------------------------------------------
+# Market-timezone-aware dates
+# ---------------------------------------------------------------------------
+
+
+class TestMarketToday:
+    """Tests for _market_today() helper returning Eastern timezone date."""
+
+    def test_market_today_returns_eastern_date(self) -> None:
+        """Verify _market_today() returns date in Eastern timezone.
+
+        When UTC is 2026-03-11 14:00 (10:00 AM ET), both UTC and Eastern
+        agree on the date (March 11). Verify the helper returns that date.
+        """
+        # 2026-03-11 14:00 UTC = 2026-03-11 10:00 AM EDT (same calendar day)
+        mock_now = datetime(2026, 3, 11, 14, 0, 0, tzinfo=UTC)
+
+        with patch(
+            "options_arena.services.outcome_collector.datetime",
+        ) as mock_dt:
+            mock_dt.now.return_value = mock_now.astimezone(ZoneInfo("America/New_York"))
+            result = _market_today()
+
+        assert result == date(2026, 3, 11)
+
+    def test_market_today_at_utc_midnight_returns_previous_eastern_date(self) -> None:
+        """Verify that UTC midnight (7/8 PM Eastern) returns the previous day.
+
+        At 2026-03-11 03:00 UTC it is still 2026-03-10 23:00 EDT.
+        _market_today() should return March 10 (previous day), not March 11.
+        """
+        # 2026-03-11 03:00 UTC = 2026-03-10 23:00 EDT (previous calendar day)
+        mock_now = datetime(2026, 3, 11, 3, 0, 0, tzinfo=UTC)
+
+        with patch(
+            "options_arena.services.outcome_collector.datetime",
+        ) as mock_dt:
+            mock_dt.now.return_value = mock_now.astimezone(ZoneInfo("America/New_York"))
+            result = _market_today()
+
+        assert result == date(2026, 3, 10)
+
+    @pytest.mark.asyncio
+    async def test_expired_check_uses_market_date(self) -> None:
+        """Verify contract expiry checking uses the passed-in market date.
+
+        Contract expires 2026-03-10. When today is March 10 (same day),
+        the contract should NOT be expired. When today is March 11, it should.
+        """
+        contract = make_contract(
+            expiration=date(2026, 3, 10),
+        )
+        collector = make_collector()
+
+        # Expiration == today -> NOT expired (< not <=)
+        is_expired = collector._is_expired(contract.expiration, date(2026, 3, 10))
+        assert is_expired is False
+
+        # Expiration < today -> expired
+        is_expired = collector._is_expired(contract.expiration, date(2026, 3, 11))
+        assert is_expired is True
