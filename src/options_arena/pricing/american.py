@@ -310,7 +310,9 @@ def american_price(
     Raises:
         ValueError: If S <= 0 or K <= 0.
     """
-    validate_positive_inputs(S, K)
+    validate_positive_inputs(S, K, T, r)
+    if not math.isfinite(q):
+        raise ValueError(f"q must be a finite number, got {q}")
 
     # Edge case: at or past expiration -- return intrinsic value.
     if T <= 0.0:
@@ -493,7 +495,9 @@ def american_greeks(
     Raises:
         ValueError: If S <= 0 or K <= 0.
     """
-    validate_positive_inputs(S, K)
+    validate_positive_inputs(S, K, T, r)
+    if not math.isfinite(q):
+        raise ValueError(f"q must be a finite number, got {q}")
 
     # Guard: sigma must be finite (NaN/Inf would corrupt all bump-and-reprice Greeks)
     if not math.isfinite(sigma):
@@ -597,7 +601,9 @@ def american_iv(
         ValueError: If ``market_price <= 0``, ``T <= 0``, ``S <= 0``, ``K <= 0``,
             or the solver fails (market price outside theoretical range).
     """
-    validate_positive_inputs(S, K)
+    validate_positive_inputs(S, K, T, r)
+    if not math.isfinite(q):
+        raise ValueError(f"q must be a finite number, got {q}")
 
     if config is None:
         config = PricingConfig()

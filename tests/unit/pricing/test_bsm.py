@@ -417,3 +417,84 @@ class TestBsmVega:
         """Standalone vega returns 0.0 when T = 0."""
         vega = bsm_vega(100.0, 100.0, 0.0, 0.05, 0.0, 0.20)
         assert vega == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------------------
+# 6. NaN defense for q, r, T parameters
+# ---------------------------------------------------------------------------
+
+
+class TestBsmNanDefense:
+    """NaN inputs for q, r, T must raise ValueError, not propagate silently."""
+
+    @pytest.mark.parametrize("option_type", [OptionType.CALL, OptionType.PUT])
+    def test_price_nan_q_raises(self, option_type: OptionType) -> None:
+        """bsm_price raises ValueError when q is NaN."""
+        with pytest.raises(ValueError, match="q must be a finite number"):
+            bsm_price(100.0, 100.0, 1.0, 0.05, float("nan"), 0.20, option_type)
+
+    @pytest.mark.parametrize("option_type", [OptionType.CALL, OptionType.PUT])
+    def test_price_nan_r_raises(self, option_type: OptionType) -> None:
+        """bsm_price raises ValueError when r is NaN."""
+        with pytest.raises(ValueError, match="r must be a finite number"):
+            bsm_price(100.0, 100.0, 1.0, float("nan"), 0.0, 0.20, option_type)
+
+    @pytest.mark.parametrize("option_type", [OptionType.CALL, OptionType.PUT])
+    def test_price_nan_t_raises(self, option_type: OptionType) -> None:
+        """bsm_price raises ValueError when T is NaN."""
+        with pytest.raises(ValueError, match="T must be a finite number"):
+            bsm_price(100.0, 100.0, float("nan"), 0.05, 0.0, 0.20, option_type)
+
+    @pytest.mark.parametrize("option_type", [OptionType.CALL, OptionType.PUT])
+    def test_price_inf_q_raises(self, option_type: OptionType) -> None:
+        """bsm_price raises ValueError when q is Inf."""
+        with pytest.raises(ValueError, match="q must be a finite number"):
+            bsm_price(100.0, 100.0, 1.0, 0.05, float("inf"), 0.20, option_type)
+
+    @pytest.mark.parametrize("option_type", [OptionType.CALL, OptionType.PUT])
+    def test_greeks_nan_q_raises(self, option_type: OptionType) -> None:
+        """bsm_greeks raises ValueError when q is NaN."""
+        with pytest.raises(ValueError, match="q must be a finite number"):
+            bsm_greeks(100.0, 100.0, 1.0, 0.05, float("nan"), 0.20, option_type)
+
+    @pytest.mark.parametrize("option_type", [OptionType.CALL, OptionType.PUT])
+    def test_greeks_nan_r_raises(self, option_type: OptionType) -> None:
+        """bsm_greeks raises ValueError when r is NaN."""
+        with pytest.raises(ValueError, match="r must be a finite number"):
+            bsm_greeks(100.0, 100.0, 1.0, float("nan"), 0.0, 0.20, option_type)
+
+    @pytest.mark.parametrize("option_type", [OptionType.CALL, OptionType.PUT])
+    def test_greeks_nan_t_raises(self, option_type: OptionType) -> None:
+        """bsm_greeks raises ValueError when T is NaN."""
+        with pytest.raises(ValueError, match="T must be a finite number"):
+            bsm_greeks(100.0, 100.0, float("nan"), 0.05, 0.0, 0.20, option_type)
+
+    def test_vega_nan_q_raises(self) -> None:
+        """bsm_vega raises ValueError when q is NaN."""
+        with pytest.raises(ValueError, match="q must be a finite number"):
+            bsm_vega(100.0, 100.0, 1.0, 0.05, float("nan"), 0.20)
+
+    def test_vega_nan_r_raises(self) -> None:
+        """bsm_vega raises ValueError when r is NaN."""
+        with pytest.raises(ValueError, match="r must be a finite number"):
+            bsm_vega(100.0, 100.0, 1.0, float("nan"), 0.0, 0.20)
+
+    def test_vega_nan_t_raises(self) -> None:
+        """bsm_vega raises ValueError when T is NaN."""
+        with pytest.raises(ValueError, match="T must be a finite number"):
+            bsm_vega(100.0, 100.0, float("nan"), 0.05, 0.0, 0.20)
+
+    def test_iv_nan_q_raises(self) -> None:
+        """bsm_iv raises ValueError when q is NaN."""
+        with pytest.raises(ValueError, match="q must be a finite number"):
+            bsm_iv(10.0, 100.0, 100.0, 1.0, 0.05, float("nan"), OptionType.CALL)
+
+    def test_iv_nan_r_raises(self) -> None:
+        """bsm_iv raises ValueError when r is NaN."""
+        with pytest.raises(ValueError, match="r must be a finite number"):
+            bsm_iv(10.0, 100.0, 100.0, 1.0, float("nan"), 0.0, OptionType.CALL)
+
+    def test_iv_nan_t_raises(self) -> None:
+        """bsm_iv raises ValueError when T is NaN."""
+        with pytest.raises(ValueError, match="T must be a finite number"):
+            bsm_iv(10.0, 100.0, 100.0, float("nan"), 0.05, 0.0, OptionType.CALL)

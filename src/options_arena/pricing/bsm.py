@@ -89,7 +89,9 @@ def bsm_price(
     Raises:
         ValueError: If S <= 0 or K <= 0.
     """
-    validate_positive_inputs(S, K)
+    validate_positive_inputs(S, K, T, r)
+    if not math.isfinite(q):
+        raise ValueError(f"q must be a finite number, got {q}")
 
     # Edge case: at or past expiration — return intrinsic value.
     if T <= 0.0:
@@ -157,7 +159,9 @@ def bsm_greeks(
     Raises:
         ValueError: If S <= 0 or K <= 0.
     """
-    validate_positive_inputs(S, K)
+    validate_positive_inputs(S, K, T, r)
+    if not math.isfinite(q):
+        raise ValueError(f"q must be a finite number, got {q}")
 
     # Edge case: at or past expiration — boundary Greeks.
     if T <= 0.0:
@@ -243,7 +247,9 @@ def bsm_vega(
     Raises:
         ValueError: If S <= 0 or K <= 0.
     """
-    validate_positive_inputs(S, K)
+    validate_positive_inputs(S, K, T, r)
+    if not math.isfinite(q):
+        raise ValueError(f"q must be a finite number, got {q}")
 
     if T <= 0.0 or not math.isfinite(sigma) or sigma <= 0.0:
         return 0.0
@@ -296,7 +302,9 @@ def bsm_iv(
             if ``T <= 0``, if ``S <= 0``, if ``K <= 0``, or if the market price
             is outside the theoretical range.
     """
-    validate_positive_inputs(S, K)
+    validate_positive_inputs(S, K, T, r)
+    if not math.isfinite(q):
+        raise ValueError(f"q must be a finite number, got {q}")
 
     if config is None:
         config = PricingConfig()

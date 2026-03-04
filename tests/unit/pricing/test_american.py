@@ -420,3 +420,69 @@ class TestBoundaryConditions:
         intrinsic = max(S - K, 0.0)
         # Should be very close to intrinsic with 1 day to expiration.
         assert price == pytest.approx(intrinsic, rel=0.05)
+
+
+# ---------------------------------------------------------------------------
+# 8. NaN defense for q, r, T parameters
+# ---------------------------------------------------------------------------
+
+
+class TestAmericanNanDefense:
+    """NaN inputs for q, r, T must raise ValueError, not propagate silently."""
+
+    @pytest.mark.parametrize("option_type", [OptionType.CALL, OptionType.PUT])
+    def test_price_nan_q_raises(self, option_type: OptionType) -> None:
+        """american_price raises ValueError when q is NaN."""
+        with pytest.raises(ValueError, match="q must be a finite number"):
+            american_price(100.0, 100.0, 1.0, 0.05, float("nan"), 0.20, option_type)
+
+    @pytest.mark.parametrize("option_type", [OptionType.CALL, OptionType.PUT])
+    def test_price_nan_r_raises(self, option_type: OptionType) -> None:
+        """american_price raises ValueError when r is NaN."""
+        with pytest.raises(ValueError, match="r must be a finite number"):
+            american_price(100.0, 100.0, 1.0, float("nan"), 0.0, 0.20, option_type)
+
+    @pytest.mark.parametrize("option_type", [OptionType.CALL, OptionType.PUT])
+    def test_price_nan_t_raises(self, option_type: OptionType) -> None:
+        """american_price raises ValueError when T is NaN."""
+        with pytest.raises(ValueError, match="T must be a finite number"):
+            american_price(100.0, 100.0, float("nan"), 0.05, 0.0, 0.20, option_type)
+
+    @pytest.mark.parametrize("option_type", [OptionType.CALL, OptionType.PUT])
+    def test_price_inf_q_raises(self, option_type: OptionType) -> None:
+        """american_price raises ValueError when q is Inf."""
+        with pytest.raises(ValueError, match="q must be a finite number"):
+            american_price(100.0, 100.0, 1.0, 0.05, float("inf"), 0.20, option_type)
+
+    @pytest.mark.parametrize("option_type", [OptionType.CALL, OptionType.PUT])
+    def test_greeks_nan_q_raises(self, option_type: OptionType) -> None:
+        """american_greeks raises ValueError when q is NaN."""
+        with pytest.raises(ValueError, match="q must be a finite number"):
+            american_greeks(100.0, 100.0, 1.0, 0.05, float("nan"), 0.20, option_type)
+
+    @pytest.mark.parametrize("option_type", [OptionType.CALL, OptionType.PUT])
+    def test_greeks_nan_r_raises(self, option_type: OptionType) -> None:
+        """american_greeks raises ValueError when r is NaN."""
+        with pytest.raises(ValueError, match="r must be a finite number"):
+            american_greeks(100.0, 100.0, 1.0, float("nan"), 0.0, 0.20, option_type)
+
+    @pytest.mark.parametrize("option_type", [OptionType.CALL, OptionType.PUT])
+    def test_greeks_nan_t_raises(self, option_type: OptionType) -> None:
+        """american_greeks raises ValueError when T is NaN."""
+        with pytest.raises(ValueError, match="T must be a finite number"):
+            american_greeks(100.0, 100.0, float("nan"), 0.05, 0.0, 0.20, option_type)
+
+    def test_iv_nan_q_raises(self) -> None:
+        """american_iv raises ValueError when q is NaN."""
+        with pytest.raises(ValueError, match="q must be a finite number"):
+            american_iv(10.0, 100.0, 100.0, 1.0, 0.05, float("nan"), OptionType.CALL)
+
+    def test_iv_nan_r_raises(self) -> None:
+        """american_iv raises ValueError when r is NaN."""
+        with pytest.raises(ValueError, match="r must be a finite number"):
+            american_iv(10.0, 100.0, 100.0, 1.0, float("nan"), 0.0, OptionType.CALL)
+
+    def test_iv_nan_t_raises(self) -> None:
+        """american_iv raises ValueError when T is NaN."""
+        with pytest.raises(ValueError, match="T must be a finite number"):
+            american_iv(10.0, 100.0, 100.0, float("nan"), 0.05, 0.0, OptionType.CALL)
