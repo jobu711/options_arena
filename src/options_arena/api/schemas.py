@@ -252,6 +252,12 @@ class DebateResultDetail(BaseModel):
     agent_agreement_score: float | None = None
     dissenting_agents: list[str] = Field(default_factory=list)
     agents_completed: int | None = None
+    # v2 agent structured outputs (6-agent protocol)
+    flow_response: dict[str, object] | None = None
+    fundamental_response: dict[str, object] | None = None
+    risk_v2_response: dict[str, object] | None = None
+    contrarian_response: dict[str, object] | None = None
+    debate_protocol: str | None = None
     # OpenBB enrichment (extracted from MarketContext)
     pe_ratio: float | None = None
     forward_pe: float | None = None

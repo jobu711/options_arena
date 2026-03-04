@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -175,6 +176,11 @@ async def _run_debate_background(
                 else None
             ),
             market_context_json=result.context.model_dump_json(),
+            flow_thesis=result.flow_response,
+            fundamental_thesis=result.fundamental_response,
+            risk_v2_assessment=result.risk_v2_response,
+            contrarian_thesis=result.contrarian_response,
+            debate_protocol=result.debate_protocol,
         )
 
         bridge.complete(debate_id)
@@ -369,6 +375,11 @@ async def _run_batch_debate_background(
                         else None
                     ),
                     market_context_json=result.context.model_dump_json(),
+                    flow_thesis=result.flow_response,
+                    fundamental_thesis=result.fundamental_response,
+                    risk_v2_assessment=result.risk_v2_response,
+                    contrarian_thesis=result.contrarian_response,
+                    debate_protocol=result.debate_protocol,
                 )
 
                 direction = result.thesis.direction.value
@@ -570,6 +581,12 @@ async def get_debate(
         agent_agreement_score=agent_agreement_score,
         dissenting_agents=dissenting_agents,
         agents_completed=agents_completed,
+        # v2 agent structured outputs
+        flow_response=json.loads(row.flow_json) if row.flow_json else None,
+        fundamental_response=json.loads(row.fundamental_json) if row.fundamental_json else None,
+        risk_v2_response=json.loads(row.risk_v2_json) if row.risk_v2_json else None,
+        contrarian_response=json.loads(row.contrarian_json) if row.contrarian_json else None,
+        debate_protocol=row.debate_protocol,
         # OpenBB enrichment fields
         pe_ratio=mc.pe_ratio if mc else None,
         forward_pe=mc.forward_pe if mc else None,
