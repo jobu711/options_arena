@@ -8,7 +8,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
 
 from options_arena.api.app import limiter
-from options_arena.api.deps import get_repo
+from options_arena.api.deps import get_repo, get_universe
 from options_arena.api.schemas import (
     WatchlistCreateRequest,
     WatchlistCreateResponse,
@@ -17,6 +17,7 @@ from options_arena.api.schemas import (
 )
 from options_arena.data import Repository
 from options_arena.models import SignalDirection, Watchlist, WatchlistDetail, WatchlistTickerDetail
+from options_arena.services.universe import UniverseService
 
 logger = logging.getLogger(__name__)
 
@@ -124,16 +125,26 @@ async def add_ticker(
     watchlist_id: int,
     body: WatchlistTickerRequest,
     repo: Repository = Depends(get_repo),
+    universe: UniverseService = Depends(get_universe),
 ) -> WatchlistTickerAddedResponse:
-    """Add a ticker to a watchlist.  Returns 409 on duplicate, 404 if watchlist not found."""
+    """Add a ticker to a watchlist.
+
+    Returns 422 if not optionable, 409 on duplicate, 404 if watchlist not found.
+    """
     watchlist = await repo.get_watchlist_by_id(watchlist_id)
     if watchlist is None:
         raise HTTPException(404, f"Watchlist {watchlist_id} not found")
+
+    ticker_upper = body.ticker.upper()
+    optionable = set(await universe.fetch_optionable_tickers())
+    if ticker_upper not in optionable:
+        raise HTTPException(422, f"Ticker '{ticker_upper}' not found in optionable universe")
+
     try:
-        await repo.add_ticker_to_watchlist(watchlist_id, body.ticker)
+        await repo.add_ticker_to_watchlist(watchlist_id, ticker_upper)
     except sqlite3.IntegrityError as exc:
-        raise HTTPException(409, f"Ticker '{body.ticker.upper()}' already in watchlist") from exc
-    return WatchlistTickerAddedResponse(status="added", ticker=body.ticker.upper())
+        raise HTTPException(409, f"Ticker '{ticker_upper}' already in watchlist") from exc
+    return WatchlistTickerAddedResponse(status="added", ticker=ticker_upper)
 
 
 @router.delete("/watchlist/{watchlist_id}/tickers/{ticker}", status_code=204)

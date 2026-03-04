@@ -23,6 +23,8 @@ const selectedWatchlistId = ref<number | null>(null)
 const showCreateDialog = ref(false)
 const newWatchlistName = ref('')
 const creating = ref(false)
+const newTicker = ref('')
+const addingTicker = ref(false)
 
 // Load watchlists on mount
 onMounted(async () => {
@@ -109,6 +111,32 @@ function onDeleteWatchlist(): void {
       }
     },
   })
+}
+
+async function onAddTicker(): Promise<void> {
+  const ticker = newTicker.value.trim().toUpperCase()
+  if (!ticker || selectedWatchlistId.value === null) return
+
+  addingTicker.value = true
+  const success = await watchlistStore.addTicker(selectedWatchlistId.value, ticker)
+  addingTicker.value = false
+
+  if (success) {
+    toast.add({
+      severity: 'success',
+      summary: 'Ticker Added',
+      detail: `${ticker} added to watchlist.`,
+      life: 5000,
+    })
+    newTicker.value = ''
+  } else {
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: watchlistStore.error ?? `Failed to add ${ticker}`,
+      life: 5000,
+    })
+  }
 }
 
 async function onRemoveTicker(ticker: string): Promise<void> {
@@ -204,6 +232,26 @@ function scoreClass(score: number | null): string {
       />
     </div>
 
+    <!-- Add ticker input -->
+    <div v-if="selectedWatchlistId !== null" class="ticker-input-row">
+      <InputText
+        v-model="newTicker"
+        placeholder="e.g. AAPL"
+        class="ticker-input"
+        data-testid="add-ticker-input"
+        @keydown.enter="onAddTicker"
+      />
+      <Button
+        label="Add"
+        icon="pi pi-plus"
+        size="small"
+        :loading="addingTicker"
+        :disabled="!newTicker.trim() || addingTicker"
+        data-testid="add-ticker-btn"
+        @click="onAddTicker"
+      />
+    </div>
+
     <!-- Watchlist tickers table -->
     <div v-if="watchlistStore.activeWatchlist" class="watchlist-detail">
       <DataTable
@@ -268,7 +316,7 @@ function scoreClass(score: number | null): string {
         </Column>
         <template #empty>
           <div class="empty-msg" data-testid="watchlist-tickers-empty">
-            Add tickers from scan results or the ticker drawer.
+            No tickers yet. Use the input above or add from scan results.
           </div>
         </template>
       </DataTable>
@@ -359,6 +407,18 @@ function scoreClass(score: number | null): string {
 
 .watchlist-select {
   min-width: 250px;
+}
+
+.ticker-input-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+
+.ticker-input {
+  width: 160px;
+  text-transform: uppercase;
 }
 
 .watchlist-detail {
