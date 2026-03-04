@@ -219,7 +219,7 @@ class Repository:
     def _row_to_scan_run(row: Row) -> ScanRun:
         """Reconstruct a ScanRun from an aiosqlite.Row."""
         completed_at_raw: str | None = row["completed_at"]
-        source_raw: str | None = row["source"] if "source" in row else None
+        source_raw: str | None = row["source"] if "source" in row else None  # noqa: SIM401
         return ScanRun(
             id=int(row["id"]),
             started_at=datetime.fromisoformat(row["started_at"]),
@@ -700,10 +700,7 @@ class Repository:
         """Reconstruct a ThemeSnapshot from an aiosqlite.Row."""
         raw_dt = datetime.fromisoformat(row["updated_at"])
         # Ensure UTC — fromisoformat may return naive datetime for legacy rows
-        if raw_dt.tzinfo is None:
-            raw_dt = raw_dt.replace(tzinfo=UTC)
-        else:
-            raw_dt = raw_dt.astimezone(UTC)
+        raw_dt = raw_dt.replace(tzinfo=UTC) if raw_dt.tzinfo is None else raw_dt.astimezone(UTC)
         return ThemeSnapshot(
             name=str(row["name"]),
             description=str(row["description"]),
