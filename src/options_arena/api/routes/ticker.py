@@ -1,4 +1,4 @@
-"""Ticker-specific endpoints -- score history and trending tickers."""
+"""Ticker-specific endpoints -- score history, trending tickers, and ticker info."""
 
 from __future__ import annotations
 
@@ -7,9 +7,10 @@ import logging
 from fastapi import APIRouter, Depends, Path, Query, Request
 
 from options_arena.api.app import limiter
-from options_arena.api.deps import get_repo
+from options_arena.api.deps import get_market_data, get_repo
 from options_arena.data import Repository
-from options_arena.models import HistoryPoint, TrendingTicker
+from options_arena.models import HistoryPoint, TickerInfo, TrendingTicker
+from options_arena.services.market_data import MarketDataService
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,21 @@ async def get_ticker_history(
 ) -> list[HistoryPoint]:
     """Get score history for a ticker across recent scans."""
     return await repo.get_score_history(ticker, limit=limit)
+
+
+@router.get("/ticker/{ticker}/info")
+@limiter.limit("60/minute")
+async def get_ticker_info(
+    request: Request,
+    ticker: str = Path(
+        min_length=1,
+        max_length=10,
+        pattern=r"^[A-Z0-9][A-Z0-9.\-^]{0,9}$",
+    ),
+    market_data: MarketDataService = Depends(get_market_data),
+) -> TickerInfo:
+    """Get fundamental info for a ticker (company name, sector, price, etc.)."""
+    return await market_data.fetch_ticker_info(ticker)
 
 
 @router.get("/ticker/trending")

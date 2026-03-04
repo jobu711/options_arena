@@ -12,7 +12,7 @@ import DimensionalScoreBars from './DimensionalScoreBars.vue'
 import { api } from '@/composables/useApi'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { useToast } from 'primevue/usetoast'
-import type { TickerScore, DebateResultSummary, HistoryPoint } from '@/types'
+import type { TickerScore, DebateResultSummary, HistoryPoint, TickerInfoResponse } from '@/types'
 
 interface Props {
   visible: boolean
@@ -28,6 +28,7 @@ const debates = ref<DebateResultSummary[]>([])
 const loadingDebates = ref(false)
 const history = ref<HistoryPoint[]>([])
 const loadingHistory = ref(false)
+const fetchedCompanyName = ref<string | null>(null)
 const watchlistStore = useWatchlistStore()
 const toastService = useToast()
 const selectedWatchlistId = ref<number | null>(null)
@@ -69,6 +70,7 @@ onMounted(() => {
 watch(
   () => props.score?.ticker,
   async (ticker) => {
+    fetchedCompanyName.value = null
     if (!ticker) {
       debates.value = []
       history.value = []
@@ -76,6 +78,19 @@ watch(
     }
     loadingDebates.value = true
     loadingHistory.value = true
+
+    // Fire company name fetch separately to preserve type safety on the main Promise.all
+    if (!props.score?.company_name) {
+      api<TickerInfoResponse>(`/api/ticker/${ticker}/info`)
+        .then((info) => {
+          // Guard against stale response from a previous ticker
+          if (props.score?.ticker === ticker) {
+            fetchedCompanyName.value = info.company_name
+          }
+        })
+        .catch(() => { /* leave as null — graceful fallback */ })
+    }
+
     try {
       const [debateData, historyData] = await Promise.all([
         api<DebateResultSummary[]>('/api/debate', {
@@ -162,7 +177,7 @@ function regimeClass(regime: string | null | undefined): string {
       <div class="drawer-header">
         <span class="drawer-ticker">{{ score?.ticker ?? 'Ticker Detail' }}</span>
         <span class="drawer-company-name" data-testid="drawer-company-name">
-          {{ score?.company_name ?? '\u2014' }}
+          {{ score?.company_name ?? fetchedCompanyName ?? '\u2014' }}
         </span>
       </div>
     </template>
