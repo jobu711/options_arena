@@ -15,7 +15,15 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from options_arena.agents._parsing import DebateResult
-    from options_arena.models import AgentResponse, MarketContext, VolatilityThesis
+    from options_arena.models import (
+        AgentResponse,
+        ContrarianThesis,
+        FlowThesis,
+        FundamentalThesis,
+        MarketContext,
+        RiskAssessment,
+        VolatilityThesis,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +88,155 @@ def _render_vol_section(vol: VolatilityThesis) -> str:
         lines.append("### Key Volatility Factors")
         for factor in vol.key_vol_factors:
             lines.append(f"- {factor}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def _render_flow_section(flow: FlowThesis) -> str:
+    """Render the flow analysis section as Markdown.
+
+    Args:
+        flow: The flow thesis from the flow agent.
+
+    Returns:
+        Markdown string for the flow section.
+    """
+    lines: list[str] = [
+        f"## Flow Analysis (Confidence: {flow.confidence:.0%})",
+        "",
+        f"**Direction**: {flow.direction.value}",
+        "",
+        f"**GEX Interpretation**: {flow.gex_interpretation}",
+        "",
+        f"**Smart Money Signal**: {flow.smart_money_signal}",
+        "",
+        f"**OI Analysis**: {flow.oi_analysis}",
+        "",
+        f"**Volume Confirmation**: {flow.volume_confirmation}",
+        "",
+    ]
+
+    if flow.key_flow_factors:
+        lines.append("### Key Flow Factors")
+        for factor in flow.key_flow_factors:
+            lines.append(f"- {factor}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def _render_fundamental_section(fund: FundamentalThesis) -> str:
+    """Render the fundamental analysis section as Markdown.
+
+    Args:
+        fund: The fundamental thesis from the fundamental agent.
+
+    Returns:
+        Markdown string for the fundamental section.
+    """
+    lines: list[str] = [
+        f"## Fundamental Analysis (Confidence: {fund.confidence:.0%})",
+        "",
+        f"**Direction**: {fund.direction.value}",
+        "",
+        f"**Catalyst Impact**: {fund.catalyst_impact.value}",
+        "",
+        f"**Earnings Assessment**: {fund.earnings_assessment}",
+        "",
+        f"**IV Crush Risk**: {fund.iv_crush_risk}",
+        "",
+    ]
+
+    if fund.short_interest_analysis is not None:
+        lines.append(f"**Short Interest Analysis**: {fund.short_interest_analysis}")
+        lines.append("")
+
+    if fund.dividend_impact is not None:
+        lines.append(f"**Dividend Impact**: {fund.dividend_impact}")
+        lines.append("")
+
+    if fund.key_fundamental_factors:
+        lines.append("### Key Fundamental Factors")
+        for factor in fund.key_fundamental_factors:
+            lines.append(f"- {factor}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def _render_risk_v2_section(risk: RiskAssessment) -> str:
+    """Render the v2 risk assessment section as Markdown.
+
+    Args:
+        risk: The expanded risk assessment from the risk agent.
+
+    Returns:
+        Markdown string for the risk assessment section.
+    """
+    lines: list[str] = [
+        f"## Risk Assessment (Confidence: {risk.confidence:.0%})",
+        "",
+        f"**Risk Level**: {risk.risk_level.value}",
+        "",
+    ]
+
+    if risk.pop_estimate is not None and math.isfinite(risk.pop_estimate):
+        lines.append(f"**Probability of Profit**: {risk.pop_estimate:.0%}")
+        lines.append("")
+
+    lines.append(f"**Max Loss Estimate**: {risk.max_loss_estimate}")
+    lines.append("")
+
+    if risk.charm_decay_warning is not None:
+        lines.append(f"**Charm Decay Warning**: {risk.charm_decay_warning}")
+        lines.append("")
+
+    if risk.key_risks:
+        lines.append("### Key Risks")
+        for risk_item in risk.key_risks:
+            lines.append(f"- {risk_item}")
+        lines.append("")
+
+    if risk.risk_mitigants:
+        lines.append("### Mitigants")
+        for mitigant in risk.risk_mitigants:
+            lines.append(f"- {mitigant}")
+        lines.append("")
+
+    if risk.recommended_position_size is not None:
+        lines.append(f"**Position Size**: {risk.recommended_position_size}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def _render_contrarian_section(contra: ContrarianThesis) -> str:
+    """Render the contrarian challenge section as Markdown.
+
+    Args:
+        contra: The contrarian thesis from the contrarian agent.
+
+    Returns:
+        Markdown string for the contrarian challenge section.
+    """
+    lines: list[str] = [
+        f"## Contrarian Challenge (Confidence: {contra.dissent_confidence:.0%})",
+        "",
+        f"**Dissent Direction**: {contra.dissent_direction.value}",
+        "",
+        f"**Primary Challenge**: {contra.primary_challenge}",
+        "",
+        f"**Consensus Weakness**: {contra.consensus_weakness}",
+        "",
+        f"**Alternative Scenario**: {contra.alternative_scenario}",
+        "",
+    ]
+
+    if contra.overlooked_risks:
+        lines.append("### Overlooked Risks")
+        for risk in contra.overlooked_risks:
+            lines.append(f"- {risk}")
         lines.append("")
 
     return "\n".join(lines)
@@ -155,29 +312,48 @@ def export_debate_markdown(result: DebateResult) -> str:
     if result.context is not None:
         sections.append(_render_market_snapshot(result.context))
 
-    # --- Bull Case ---
-    sections.append(
-        _render_agent_section("Bull Case", result.bull_response),
-    )
-
-    # --- Bear Case ---
-    sections.append(
-        _render_agent_section("Bear Case", result.bear_response),
-    )
-
-    # --- Volatility Assessment (optional) ---
-    if result.vol_response is not None:
-        sections.append(_render_vol_section(result.vol_response))
-
-    # --- Bull Rebuttal (optional) ---
-    if result.bull_rebuttal is not None:
+    if result.debate_protocol == "v2":
+        # V2 order: Trend Analysis -> Flow -> Fundamental -> Volatility
+        #           -> Risk Assessment -> Contrarian Challenge -> Verdict
         sections.append(
-            _render_agent_section(
-                "Bull Rebuttal",
-                result.bull_rebuttal,
-                include_risks=False,
-            ),
+            _render_agent_section("Trend Analysis", result.bull_response),
         )
+
+        if result.flow_response is not None:
+            sections.append(_render_flow_section(result.flow_response))
+
+        if result.fundamental_response is not None:
+            sections.append(_render_fundamental_section(result.fundamental_response))
+
+        if result.vol_response is not None:
+            sections.append(_render_vol_section(result.vol_response))
+
+        if result.risk_v2_response is not None:
+            sections.append(_render_risk_v2_section(result.risk_v2_response))
+
+        if result.contrarian_response is not None:
+            sections.append(_render_contrarian_section(result.contrarian_response))
+    else:
+        # V1 layout — unchanged
+        sections.append(
+            _render_agent_section("Bull Case", result.bull_response),
+        )
+
+        sections.append(
+            _render_agent_section("Bear Case", result.bear_response),
+        )
+
+        if result.vol_response is not None:
+            sections.append(_render_vol_section(result.vol_response))
+
+        if result.bull_rebuttal is not None:
+            sections.append(
+                _render_agent_section(
+                    "Bull Rebuttal",
+                    result.bull_rebuttal,
+                    include_risks=False,
+                ),
+            )
 
     # --- Verdict ---
     thesis = result.thesis
