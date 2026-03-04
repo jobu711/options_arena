@@ -171,6 +171,13 @@ class ScanConfig(BaseModel):
                     ) from None
         return list(dict.fromkeys(result))
 
+    @field_validator("theme_filters", mode="before")
+    @classmethod
+    def normalize_theme_filters(cls, v: list[str]) -> list[str]:
+        """Strip whitespace, filter empties, and deduplicate theme filter inputs."""
+        normalized = [str(item).strip() for item in v if str(item).strip()]
+        return list(dict.fromkeys(normalized))
+
     @model_validator(mode="after")
     def validate_all_finite(self) -> Self:
         """Reject NaN/Inf on all float config fields (defense-in-depth)."""

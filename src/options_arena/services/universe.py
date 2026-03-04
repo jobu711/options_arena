@@ -599,6 +599,9 @@ def build_industry_group_map(
     """
     result: dict[str, GICSIndustryGroup] = {}
     for ticker, raw_industry in industry_data.items():
+        if not isinstance(raw_industry, str) or not raw_industry.strip():
+            logger.debug("Unknown industry for %s: %r", ticker, raw_industry)
+            continue
         key = raw_industry.strip().lower()
         ig = INDUSTRY_GROUP_ALIASES.get(key)
         if ig is not None:

@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -115,15 +115,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     # Background refresh for theme ETF holdings — non-blocking
     # Store task reference on app.state to prevent garbage collection (Python < 3.12)
+    theme_refresh_task: asyncio.Task[None] | None = None
     if settings.themes.etf_refresh_enabled:
-        app.state._theme_refresh_task = asyncio.create_task(
+        theme_refresh_task = asyncio.create_task(
             _refresh_themes_background(theme_service)
         )
+        app.state._theme_refresh_task = theme_refresh_task
 
     logger.info("API services started")
     yield
 
-    # Shutdown — close all services
+    # Shutdown — cancel background tasks, then close all services
+    if theme_refresh_task is not None and not theme_refresh_task.done():
+        theme_refresh_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await theme_refresh_task
     if intelligence_svc is not None:
         await intelligence_svc.close()
     if openbb_svc is not None:

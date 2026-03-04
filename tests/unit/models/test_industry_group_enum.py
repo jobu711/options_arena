@@ -1,7 +1,7 @@
 """Unit tests for GICSIndustryGroup enum, INDUSTRY_GROUP_ALIASES, and SECTOR_TO_INDUSTRY_GROUPS.
 
 Tests:
-  - Exactly 25 members matching GICS 2023 standard
+  - Exactly 26 members matching GICS 2023 standard
   - StrEnum subclass check
   - Construction from canonical values
   - Alias resolution: lowercase, short names, hyphenated, underscored, yfinance

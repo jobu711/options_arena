@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
@@ -15,6 +16,14 @@ from options_arena.models.enums import SignalDirection
 from options_arena.models.scan import IndicatorSignals, TickerScore
 from options_arena.models.themes import ThemeSnapshot
 from options_arena.services.theme_service import ThemeService
+
+
+@pytest.fixture(autouse=True)
+def _restore_limiter_state() -> Generator[None, None, None]:
+    """Restore limiter state after each test to prevent cross-test leakage."""
+    previous = limiter.enabled
+    yield
+    limiter.enabled = previous
 
 
 def _make_theme(name: str, tickers: list[str], etfs: list[str]) -> ThemeSnapshot:
