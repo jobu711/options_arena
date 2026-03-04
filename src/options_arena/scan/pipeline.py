@@ -254,6 +254,7 @@ class ScanPipeline:
             c.ticker: c.sub_industry for c in sp500_constituents if c.sub_industry
         }
         industry_group_map = build_industry_group_map(sub_industry_data)
+        from_sub = len(industry_group_map)
 
         # Fallback: infer from sector for tickers without sub-industry data
         for ticker, sector in sector_map.items():
@@ -261,8 +262,6 @@ class ScanPipeline:
                 groups = SECTOR_TO_INDUSTRY_GROUPS.get(sector, [])
                 if len(groups) == 1:
                     industry_group_map[ticker] = groups[0]
-
-        from_sub = sum(1 for t in sub_industry_data if t in industry_group_map)
         logger.info(
             "Industry group map: %d tickers (%d from sub-industry, %d inferred)",
             len(industry_group_map),

@@ -298,7 +298,13 @@ class UniverseService:
             SP500Constituent(
                 ticker=row["Symbol"],
                 sector=row["GICS Sector"],
-                sub_industry=row.get("GICS Sub-Industry") if has_sub_industry else None,
+                sub_industry=(
+                    v.strip() or None
+                    if has_sub_industry
+                    and isinstance(v := row.get("GICS Sub-Industry"), str)
+                    and v.strip()
+                    else None
+                ),
             )
             for _, row in df.iterrows()
         ]

@@ -11,7 +11,7 @@ dependencies = [
     "aiosqlite>=0.22",
     "fastapi>=0.133.1",
     "httpx>=0.28",
-    "lxml>=6.0.2",
+
     "numpy>=2.4",
     "pandas>=3.0",
     "pydantic>=2.12",
@@ -67,6 +67,10 @@ select = ["E", "F", "I", "UP", "B", "SIM", "ANN"]
 strict = true
 warn_return_any = true
 warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["openbb.*", "vaderSentiment.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

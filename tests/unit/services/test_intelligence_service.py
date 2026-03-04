@@ -113,17 +113,15 @@ def _make_service(
 # ---------------------------------------------------------------------------
 
 
-def _make_analyst_targets_df() -> pd.DataFrame:
-    """Build a yfinance-style analyst price targets DataFrame."""
-    return pd.DataFrame(
-        {
-            "current": [185.0],
-            "low": [150.0],
-            "high": [220.0],
-            "mean": [195.0],
-            "median": [192.0],
-        }
-    )
+def _make_analyst_targets_dict() -> dict[str, float]:
+    """Build a yfinance-style analyst price targets dict."""
+    return {
+        "current": 185.0,
+        "low": 150.0,
+        "high": 220.0,
+        "mean": 195.0,
+        "median": 192.0,
+    }
 
 
 def _make_recommendations_df() -> pd.DataFrame:
@@ -258,7 +256,7 @@ class TestFetchAnalystTargets:
     ) -> None:
         """Happy path should return a fully populated AnalystSnapshot."""
         service = _make_service(config, mock_cache, mock_limiter)
-        targets_df = _make_analyst_targets_df()
+        targets_df = _make_analyst_targets_dict()
         recs_df = _make_recommendations_df()
 
         mock_ticker = MagicMock()
@@ -382,11 +380,11 @@ class TestFetchAnalystTargets:
     async def test_empty_dataframe_returns_none(
         self, config: IntelligenceConfig, mock_cache: MagicMock, mock_limiter: MagicMock
     ) -> None:
-        """Should return None when both DataFrames are empty."""
+        """Should return None when targets dict is empty and recs DataFrame is empty."""
         service = _make_service(config, mock_cache, mock_limiter)
 
         mock_ticker = MagicMock()
-        mock_ticker.get_analyst_price_targets = MagicMock(return_value=pd.DataFrame())
+        mock_ticker.get_analyst_price_targets = MagicMock(return_value={})
         mock_ticker.get_recommendations = MagicMock(return_value=pd.DataFrame())
 
         with patch("options_arena.services.intelligence.yf.Ticker", return_value=mock_ticker):
@@ -403,7 +401,7 @@ class TestFetchAnalystTargets:
         Formula: (5*2 + 10*1 + 8*0 + 2*-1 + 1*-2) / (26*2) = 16/52 = 0.3077
         """
         service = _make_service(config, mock_cache, mock_limiter)
-        targets_df = _make_analyst_targets_df()
+        targets_df = _make_analyst_targets_dict()
         recs_df = _make_recommendations_df()
 
         mock_ticker = MagicMock()
@@ -428,7 +426,7 @@ class TestFetchAnalystTargets:
         (195.0 - 185.0) / 185.0 = 0.054054...
         """
         service = _make_service(config, mock_cache, mock_limiter)
-        targets_df = _make_analyst_targets_df()
+        targets_df = _make_analyst_targets_dict()
         recs_df = _make_recommendations_df()
 
         mock_ticker = MagicMock()
@@ -448,7 +446,7 @@ class TestFetchAnalystTargets:
     ) -> None:
         """Should cache result on successful fetch."""
         service = _make_service(config, mock_cache, mock_limiter)
-        targets_df = _make_analyst_targets_df()
+        targets_df = _make_analyst_targets_dict()
         recs_df = _make_recommendations_df()
 
         mock_ticker = MagicMock()
@@ -1069,7 +1067,7 @@ class TestFetchIntelligence:
         """Should return IntelligencePackage with all fields populated."""
         service = _make_service(config, mock_cache, mock_limiter)
 
-        targets_df = _make_analyst_targets_df()
+        targets_df = _make_analyst_targets_dict()
         recs_df = _make_recommendations_df()
         ud_df = _make_upgrades_downgrades_df()
         insider_df = _make_insider_transactions_df()
@@ -1106,7 +1104,7 @@ class TestFetchIntelligence:
         """Should return partial IntelligencePackage when some methods fail."""
         service = _make_service(config, mock_cache, mock_limiter)
 
-        targets_df = _make_analyst_targets_df()
+        targets_df = _make_analyst_targets_dict()
         recs_df = _make_recommendations_df()
         news_data = _make_news_response()
 

@@ -562,3 +562,44 @@ async def test_sp500_sub_industry_none_when_column_absent(service: UniverseServi
         result = await service.fetch_sp500_constituents()
 
     assert all(c.sub_industry is None for c in result)
+
+
+@pytest.mark.asyncio
+async def test_sp500_sub_industry_blank_normalized_to_none(
+    service: UniverseService,
+) -> None:
+    """Blank or NaN sub-industry values are normalized to None at ingestion."""
+    mock_df = pd.DataFrame(
+        {
+            "Symbol": ["AAPL", "NVDA", "MSFT"],
+            "GICS Sector": [
+                "Information Technology",
+                "Information Technology",
+                "Information Technology",
+            ],
+            "GICS Sub-Industry": [
+                "Technology Hardware Storage & Peripherals",
+                "",  # blank string
+                "   ",  # whitespace-only
+            ],
+        }
+    )
+
+    with (
+        patch.object(
+            service._client,
+            "get",
+            new_callable=AsyncMock,
+            return_value=_mock_httpx_response(),
+        ),
+        patch(
+            "options_arena.services.universe.pd.read_csv",
+            return_value=mock_df,
+        ),
+    ):
+        result = await service.fetch_sp500_constituents()
+
+    by_ticker = {c.ticker: c for c in result}
+    assert by_ticker["AAPL"].sub_industry == "Technology Hardware Storage & Peripherals"
+    assert by_ticker["NVDA"].sub_industry is None
+    assert by_ticker["MSFT"].sub_industry is None

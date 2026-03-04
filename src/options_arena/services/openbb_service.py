@@ -45,7 +45,7 @@ def _get_obb() -> Any:  # noqa: ANN401
 def _get_vader() -> Any:  # noqa: ANN401
     """Attempt to import VADER sentiment analyzer. Returns analyzer or ``None``."""
     try:
-        from vaderSentiment.vaderSentiment import (  # type: ignore[import-untyped]
+        from vaderSentiment.vaderSentiment import (
             SentimentIntensityAnalyzer,
         )
 
