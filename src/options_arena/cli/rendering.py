@@ -17,7 +17,15 @@ from rich.text import Text
 
 from options_arena.agents._parsing import DebateResult
 from options_arena.data.repository import DebateRow
-from options_arena.models import ExtendedTradeThesis, TradeThesis, VolatilityThesis
+from options_arena.models import (
+    ContrarianThesis,
+    ExtendedTradeThesis,
+    FlowThesis,
+    FundamentalThesis,
+    RiskAssessment,
+    TradeThesis,
+    VolatilityThesis,
+)
 from options_arena.models.health import HealthStatus
 from options_arena.scan.models import ScanResult
 
@@ -186,11 +194,198 @@ def render_volatility_panel(thesis: VolatilityThesis) -> Panel:
     )
 
 
+def render_flow_panel(flow: FlowThesis) -> Panel:
+    """Render Flow Agent output as a bright_magenta-bordered Rich Panel.
+
+    Uses ``Text()`` constructor (defaults to no markup) to prevent bracket
+    interpretation from agent-generated content.
+
+    Args:
+        flow: FlowThesis from the Flow Agent.
+
+    Returns:
+        Rich Panel with bright_magenta border showing flow analysis.
+    """
+    direction_style = _DIRECTION_STYLES.get(flow.direction.value, "")
+    lines: list[str] = [
+        f"Direction: {flow.direction.value.upper()}",
+        f"Confidence: {flow.confidence * 100:.0f}%",
+        "",
+        f"GEX Interpretation: {flow.gex_interpretation}",
+        f"Smart Money Signal: {flow.smart_money_signal}",
+        f"OI Analysis: {flow.oi_analysis}",
+        f"Volume Confirmation: {flow.volume_confirmation}",
+    ]
+
+    if flow.key_flow_factors:
+        lines.append("")
+        lines.append("Key Flow Factors:")
+        for factor in flow.key_flow_factors:
+            lines.append(f"  * {factor}")
+
+    text = Text("\n".join(lines))
+    if direction_style:
+        direction_label = f"Direction: {flow.direction.value.upper()}"
+        text.stylize(direction_style, 0, len(direction_label))
+
+    return Panel(
+        text,
+        border_style="bright_magenta",
+        title="FLOW ANALYSIS",
+        title_align="left",
+    )
+
+
+def render_fundamental_panel(fund: FundamentalThesis) -> Panel:
+    """Render Fundamental Agent output as a bright_cyan-bordered Rich Panel.
+
+    Uses ``Text()`` constructor (defaults to no markup) to prevent bracket
+    interpretation from agent-generated content.
+
+    Args:
+        fund: FundamentalThesis from the Fundamental Agent.
+
+    Returns:
+        Rich Panel with bright_cyan border showing fundamental analysis.
+    """
+    direction_style = _DIRECTION_STYLES.get(fund.direction.value, "")
+    lines: list[str] = [
+        f"Direction: {fund.direction.value.upper()}",
+        f"Confidence: {fund.confidence * 100:.0f}%",
+        "",
+        f"Catalyst Impact: {fund.catalyst_impact.value.upper()}",
+        f"Earnings Assessment: {fund.earnings_assessment}",
+        f"IV Crush Risk: {fund.iv_crush_risk}",
+    ]
+
+    if fund.short_interest_analysis is not None:
+        lines.append(f"Short Interest: {fund.short_interest_analysis}")
+
+    if fund.dividend_impact is not None:
+        lines.append(f"Dividend Impact: {fund.dividend_impact}")
+
+    if fund.key_fundamental_factors:
+        lines.append("")
+        lines.append("Key Fundamental Factors:")
+        for factor in fund.key_fundamental_factors:
+            lines.append(f"  * {factor}")
+
+    text = Text("\n".join(lines))
+    if direction_style:
+        direction_label = f"Direction: {fund.direction.value.upper()}"
+        text.stylize(direction_style, 0, len(direction_label))
+
+    return Panel(
+        text,
+        border_style="bright_cyan",
+        title="FUNDAMENTAL ANALYSIS",
+        title_align="left",
+    )
+
+
+def render_risk_v2_panel(risk: RiskAssessment) -> Panel:
+    """Render Risk Agent v2 output as a bright_blue-bordered Rich Panel.
+
+    Uses ``Text()`` constructor (defaults to no markup) to prevent bracket
+    interpretation from agent-generated content.
+
+    Args:
+        risk: RiskAssessment from the Risk Agent (v2 protocol).
+
+    Returns:
+        Rich Panel with bright_blue border showing risk assessment.
+    """
+    lines: list[str] = [
+        f"Risk Level: {risk.risk_level.value.upper()}",
+        f"Confidence: {risk.confidence * 100:.0f}%",
+    ]
+
+    if risk.pop_estimate is not None and math.isfinite(risk.pop_estimate):
+        lines.append(f"Probability of Profit: {risk.pop_estimate * 100:.0f}%")
+
+    lines.append(f"Max Loss Estimate: {risk.max_loss_estimate}")
+
+    if risk.charm_decay_warning is not None:
+        lines.append(f"Charm Decay Warning: {risk.charm_decay_warning}")
+
+    if risk.spread_quality_assessment is not None:
+        lines.append(f"Spread Quality: {risk.spread_quality_assessment}")
+
+    if risk.key_risks:
+        lines.append("")
+        lines.append("Key Risks:")
+        for r in risk.key_risks:
+            lines.append(f"  * {r}")
+
+    if risk.risk_mitigants:
+        lines.append("")
+        lines.append("Risk Mitigants:")
+        for m in risk.risk_mitigants:
+            lines.append(f"  * {m}")
+
+    if risk.recommended_position_size is not None:
+        lines.append("")
+        lines.append(f"Recommended Position Size: {risk.recommended_position_size}")
+
+    return Panel(
+        Text("\n".join(lines)),
+        border_style="bright_blue",
+        title="RISK ASSESSMENT",
+        title_align="left",
+    )
+
+
+def render_contrarian_panel(contra: ContrarianThesis) -> Panel:
+    """Render Contrarian Agent output as a yellow-bordered Rich Panel.
+
+    Uses ``Text()`` constructor (defaults to no markup) to prevent bracket
+    interpretation from agent-generated content.
+
+    Args:
+        contra: ContrarianThesis from the Contrarian Agent.
+
+    Returns:
+        Rich Panel with yellow border showing contrarian analysis.
+    """
+    direction_style = _DIRECTION_STYLES.get(contra.dissent_direction.value, "")
+    lines: list[str] = [
+        f"Dissent Direction: {contra.dissent_direction.value.upper()}",
+        f"Dissent Confidence: {contra.dissent_confidence * 100:.0f}%",
+        "",
+        f"Primary Challenge: {contra.primary_challenge}",
+        f"Consensus Weakness: {contra.consensus_weakness}",
+        "",
+        f"Alternative Scenario: {contra.alternative_scenario}",
+    ]
+
+    if contra.overlooked_risks:
+        lines.append("")
+        lines.append("Overlooked Risks:")
+        for risk in contra.overlooked_risks:
+            lines.append(f"  * {risk}")
+
+    text = Text("\n".join(lines))
+    if direction_style:
+        direction_label = f"Dissent Direction: {contra.dissent_direction.value.upper()}"
+        text.stylize(direction_style, 0, len(direction_label))
+
+    return Panel(
+        text,
+        border_style="yellow",
+        title="CONTRARIAN ANALYSIS",
+        title_align="left",
+    )
+
+
 def render_debate_panels(console: Console, result: DebateResult) -> None:
     """Render debate result as Rich panels: Bull (green), Bear (red), Verdict (blue).
 
     Agent argument text is rendered with ``markup=False`` to prevent Rich from
     interpreting ``[brackets]`` (e.g., ``[RSI]``, ``[AAPL]``) as style tags.
+
+    Protocol-aware: when ``result.debate_protocol == "v2"``, renders the
+    6-agent layout (Trend, Flow, Fundamental, Volatility, Risk v2, Contrarian)
+    instead of the classic Bull/Bear/Rebuttal layout.
 
     Args:
         console: Rich Console instance for stdout output.
@@ -210,6 +405,26 @@ def render_debate_panels(console: Console, result: DebateResult) -> None:
         )
         console.print()
 
+    if result.debate_protocol == "v2":
+        _render_v2_panels(console, result)
+    else:
+        _render_v1_panels(console, result)
+
+    # --- Verdict panel (shared across protocols) ---
+    thesis = result.thesis
+    verdict_body = _build_verdict_panel_text(thesis)
+    console.print(
+        Panel(
+            verdict_body,
+            border_style="blue",
+            title=f"VERDICT: {thesis.ticker}",
+            title_align="left",
+        )
+    )
+
+
+def _render_v1_panels(console: Console, result: DebateResult) -> None:
+    """Render classic v1 debate panels: Bull, Bear, optional Rebuttal, optional Volatility."""
     # --- Bull panel ---
     bull = result.bull_response
     bull_body = _build_agent_panel_text(
@@ -268,17 +483,57 @@ def render_debate_panels(console: Console, result: DebateResult) -> None:
         console.print(render_volatility_panel(result.vol_response))
         console.print()
 
-    # --- Verdict panel ---
-    thesis = result.thesis
-    verdict_body = _build_verdict_panel_text(thesis)
+
+def _render_v2_panels(console: Console, result: DebateResult) -> None:
+    """Render 6-agent v2 debate panels.
+
+    Layout order: Trend (green) -> Flow -> Fundamental -> Volatility -> Risk v2 -> Contrarian.
+    The trend agent's output is stored in ``bull_response`` but rendered with the
+    'TREND ANALYSIS' title instead of 'BULL'.
+    """
+    # --- Trend panel (uses bull_response with TREND ANALYSIS title) ---
+    trend = result.bull_response
+    trend_body = _build_agent_panel_text(
+        direction=trend.direction.value.upper(),
+        confidence=trend.confidence,
+        argument=trend.argument,
+        key_points=trend.key_points,
+        risks=trend.risks_cited,
+    )
     console.print(
         Panel(
-            verdict_body,
-            border_style="blue",
-            title=f"VERDICT: {thesis.ticker}",
+            trend_body,
+            border_style="green",
+            title="TREND ANALYSIS",
             title_align="left",
         )
     )
+    console.print()
+
+    # --- Flow panel (optional) ---
+    if result.flow_response is not None:
+        console.print(render_flow_panel(result.flow_response))
+        console.print()
+
+    # --- Fundamental panel (optional) ---
+    if result.fundamental_response is not None:
+        console.print(render_fundamental_panel(result.fundamental_response))
+        console.print()
+
+    # --- Volatility panel (optional) ---
+    if result.vol_response is not None:
+        console.print(render_volatility_panel(result.vol_response))
+        console.print()
+
+    # --- Risk v2 panel (optional) ---
+    if result.risk_v2_response is not None:
+        console.print(render_risk_v2_panel(result.risk_v2_response))
+        console.print()
+
+    # --- Contrarian panel (optional) ---
+    if result.contrarian_response is not None:
+        console.print(render_contrarian_panel(result.contrarian_response))
+        console.print()
 
 
 def _build_agent_panel_text(

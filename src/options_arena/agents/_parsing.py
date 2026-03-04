@@ -351,6 +351,12 @@ class DebateResult(BaseModel):
     bull_rebuttal: AgentResponse | None = None  # None when rebuttal disabled/skipped
     vol_response: VolatilityThesis | None = None  # None when vol agent disabled/skipped
     citation_density: float = 0.0  # fraction of context labels cited in agent text
+    # --- v2 agent outputs (6-agent protocol) ---
+    flow_response: FlowThesis | None = None
+    fundamental_response: FundamentalThesis | None = None
+    risk_v2_response: RiskAssessment | None = None
+    contrarian_response: ContrarianThesis | None = None
+    debate_protocol: str = "v1"
 
 
 def _render_optional(label: str, value: float | None, fmt: str = ".1f") -> str | None:

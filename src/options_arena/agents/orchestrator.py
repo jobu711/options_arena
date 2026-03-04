@@ -1065,6 +1065,11 @@ async def _persist_result(
             debate_mode=debate_mode,
             citation_density=result.citation_density,
             market_context_json=result.context.model_dump_json(),
+            flow_thesis=result.flow_response,
+            fundamental_thesis=result.fundamental_response,
+            risk_v2_assessment=result.risk_v2_response,
+            contrarian_thesis=result.contrarian_response,
+            debate_protocol=result.debate_protocol,
         )
         logger.debug(
             "Persisted debate for %s (tokens=%d, fallback=%s, mode=%s)",
@@ -1819,6 +1824,11 @@ async def _run_v2_agents(
         bull_rebuttal=None,
         vol_response=vol_thesis,
         citation_density=density,
+        flow_response=flow_output,
+        fundamental_response=fundamental_output,
+        risk_v2_response=risk_v2_output,
+        contrarian_response=contrarian_output,
+        debate_protocol="v2",
     )
 
 

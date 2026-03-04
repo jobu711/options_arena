@@ -7,6 +7,10 @@ export type {
   DebateResult,
   AgentResponse,
   TradeThesis,
+  FlowThesis,
+  FundamentalThesis,
+  RiskAssessmentThesis,
+  ContrarianThesis,
   AgentProgressEntry,
 } from './debate'
 export type { ConfigResponse } from './config'
