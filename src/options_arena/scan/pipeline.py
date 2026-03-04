@@ -242,44 +242,7 @@ class ScanPipeline:
                     )
         logger.info("Sector map: %d tickers mapped to GICS sectors", len(sector_map))
 
-        # Step 3: Filter by preset
-        tickers: list[str]
-        if preset == ScanPreset.SP500:
-            sp500_set = set(sp500_sectors.keys())
-            tickers = [t for t in all_tickers if t in sp500_set]
-            logger.info(
-                "SP500 preset: filtered %d -> %d tickers",
-                len(all_tickers),
-                len(tickers),
-            )
-        elif preset == ScanPreset.ETFS:
-            etf_tickers = await self._universe.fetch_etf_tickers()
-            etf_set = frozenset(etf_tickers)
-            tickers = [t for t in all_tickers if t in etf_set]
-            logger.info(
-                "ETFS preset: filtered %d -> %d tickers",
-                len(all_tickers),
-                len(tickers),
-            )
-        else:
-            tickers = all_tickers
-
-        # Step 3b: Apply sector filter (OR logic) when sectors are configured
-        configured_sectors = self._settings.scan.sectors
-        if configured_sectors:
-            sector_set = frozenset(configured_sectors)
-            before_count = len(tickers)
-            tickers = [t for t in tickers if sector_map.get(t) in sector_set]
-            logger.info(
-                "Sector filter: %d -> %d tickers (sectors=%s)",
-                before_count,
-                len(tickers),
-                ", ".join(s.value for s in configured_sectors),
-            )
-
-        # Step 3c: Build industry group map from sector_map via SECTOR_TO_INDUSTRY_GROUPS.
-        # For sectors with a single industry group, we can infer the mapping directly.
-        # Multi-group sectors are left unmapped (require yfinance industry data per ticker).
+        # Step 3: Build industry group map (needed regardless of custom_tickers path)
         industry_group_map: dict[str, GICSIndustryGroup] = {}
         for ticker, sector in sector_map.items():
             groups = SECTOR_TO_INDUSTRY_GROUPS.get(sector, [])
@@ -289,60 +252,107 @@ class ScanPipeline:
             "Industry group map: %d tickers inferred from sectors", len(industry_group_map)
         )
 
-        # Warn if industry group map coverage is low relative to active tickers
-        if industry_group_map and tickers:
-            ig_coverage = sum(1 for t in tickers if t in industry_group_map) / len(tickers)
-            if ig_coverage < 0.5:
-                logger.warning(
-                    "Industry group map covers only %.0f%% of %d active tickers; "
-                    "industry group filtering may exclude valid tickers",
-                    ig_coverage * 100,
+        # Step 3a: Custom tickers branch — bypass preset/sector/industry/theme filters
+        custom = self._settings.scan.custom_tickers
+        tickers: list[str]
+        if custom:
+            optionable_set = frozenset(all_tickers)
+            valid = [t for t in custom if t in optionable_set]
+            excluded = [t for t in custom if t not in optionable_set]
+            if excluded:
+                logger.warning("Custom tickers not in optionable universe: %s", excluded)
+            logger.info("Custom tickers: %d requested, %d valid", len(custom), len(valid))
+            tickers = valid
+        else:
+            # Preset filter
+            if preset == ScanPreset.SP500:
+                sp500_set = set(sp500_sectors.keys())
+                tickers = [t for t in all_tickers if t in sp500_set]
+                logger.info(
+                    "SP500 preset: filtered %d -> %d tickers",
+                    len(all_tickers),
                     len(tickers),
                 )
-
-        # Step 3d: Apply industry group filter (OR logic) when configured
-        configured_industry_groups = self._settings.scan.industry_groups
-        if configured_industry_groups:
-            ig_set = frozenset(configured_industry_groups)
-            before_count = len(tickers)
-            tickers = [t for t in tickers if industry_group_map.get(t) in ig_set]
-            logger.info(
-                "Industry group filter: %d -> %d tickers (groups=%s)",
-                before_count,
-                len(tickers),
-                ", ".join(ig.value for ig in configured_industry_groups),
-            )
-
-        # Step 3e: Apply theme filter (OR logic) when theme_filters are configured
-        configured_themes = self._settings.scan.theme_filters
-        if configured_themes and self._theme_service is not None:
-            try:
-                theme_sets = await self._theme_service.get_all_theme_sets()
-                # Build union of tickers across requested themes
-                theme_tickers: set[str] = set()
-                for theme_name in configured_themes:
-                    tset = theme_sets.get(theme_name, frozenset())
-                    theme_tickers |= tset
-                if theme_tickers:
-                    before_count = len(tickers)
-                    tickers = [t for t in tickers if t in theme_tickers]
-                    logger.info(
-                        "Theme filter: %d -> %d tickers (themes=%s)",
-                        before_count,
-                        len(tickers),
-                        ", ".join(configured_themes),
-                    )
-                else:
-                    logger.info(
-                        "Theme filter resolved 0 tickers for themes=%s; returning empty universe",
-                        ", ".join(configured_themes),
-                    )
-                    tickers = []
-            except Exception:
-                logger.warning(
-                    "Theme pre-filtering failed; continuing without filter",
-                    exc_info=True,
+            elif preset == ScanPreset.ETFS:
+                etf_tickers = await self._universe.fetch_etf_tickers()
+                etf_set = frozenset(etf_tickers)
+                tickers = [t for t in all_tickers if t in etf_set]
+                logger.info(
+                    "ETFS preset: filtered %d -> %d tickers",
+                    len(all_tickers),
+                    len(tickers),
                 )
+            else:
+                tickers = all_tickers
+
+            # Sector filter (OR logic) when sectors are configured
+            configured_sectors = self._settings.scan.sectors
+            if configured_sectors:
+                sector_set = frozenset(configured_sectors)
+                before_count = len(tickers)
+                tickers = [t for t in tickers if sector_map.get(t) in sector_set]
+                logger.info(
+                    "Sector filter: %d -> %d tickers (sectors=%s)",
+                    before_count,
+                    len(tickers),
+                    ", ".join(s.value for s in configured_sectors),
+                )
+
+            # Warn if industry group map coverage is low relative to active tickers
+            if industry_group_map and tickers:
+                ig_coverage = sum(1 for t in tickers if t in industry_group_map) / len(tickers)
+                if ig_coverage < 0.5:
+                    logger.warning(
+                        "Industry group map covers only %.0f%% of %d active tickers; "
+                        "industry group filtering may exclude valid tickers",
+                        ig_coverage * 100,
+                        len(tickers),
+                    )
+
+            # Industry group filter (OR logic) when configured
+            configured_industry_groups = self._settings.scan.industry_groups
+            if configured_industry_groups:
+                ig_set = frozenset(configured_industry_groups)
+                before_count = len(tickers)
+                tickers = [t for t in tickers if industry_group_map.get(t) in ig_set]
+                logger.info(
+                    "Industry group filter: %d -> %d tickers (groups=%s)",
+                    before_count,
+                    len(tickers),
+                    ", ".join(ig.value for ig in configured_industry_groups),
+                )
+
+            # Theme filter (OR logic) when theme_filters are configured
+            configured_themes = self._settings.scan.theme_filters
+            if configured_themes and self._theme_service is not None:
+                try:
+                    theme_sets = await self._theme_service.get_all_theme_sets()
+                    # Build union of tickers across requested themes
+                    theme_tickers: set[str] = set()
+                    for theme_name in configured_themes:
+                        tset = theme_sets.get(theme_name, frozenset())
+                        theme_tickers |= tset
+                    if theme_tickers:
+                        before_count = len(tickers)
+                        tickers = [t for t in tickers if t in theme_tickers]
+                        logger.info(
+                            "Theme filter: %d -> %d tickers (themes=%s)",
+                            before_count,
+                            len(tickers),
+                            ", ".join(configured_themes),
+                        )
+                    else:
+                        logger.info(
+                            "Theme filter resolved 0 tickers for themes=%s; "
+                            "returning empty universe",
+                            ", ".join(configured_themes),
+                        )
+                        tickers = []
+                except Exception:
+                    logger.warning(
+                        "Theme pre-filtering failed; continuing without filter",
+                        exc_info=True,
+                    )
 
         # Step 4: Batch-fetch OHLCV
         progress(ScanPhase.UNIVERSE, 0, len(tickers))

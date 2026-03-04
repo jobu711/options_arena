@@ -135,6 +135,8 @@ async def start_scan(
         scan_overrides["industry_groups"] = body.industry_groups
     if body.themes:
         scan_overrides["theme_filters"] = body.themes
+    if body.custom_tickers:
+        scan_overrides["custom_tickers"] = body.custom_tickers
     if scan_overrides:
         scan_override = settings.scan.model_copy(update=scan_overrides)
         effective_settings = settings.model_copy(update={"scan": scan_override})
