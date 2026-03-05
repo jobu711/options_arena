@@ -42,9 +42,10 @@ function formatTime(iso: string): string {
 
     <p v-if="healthStore.error" class="error-msg">{{ healthStore.error }}</p>
 
-    <p v-if="healthStore.services.length === 0 && !healthStore.loading" class="empty-msg">
-      No health data yet. Click Re-check to fetch service statuses.
-    </p>
+    <div v-if="healthStore.services.length === 0 && !healthStore.loading" class="empty-state">
+      <i class="pi pi-heart empty-icon" />
+      <p class="empty-text">No health data yet. Click Re-check to fetch service statuses.</p>
+    </div>
 
     <div class="service-grid">
       <div
@@ -171,8 +172,26 @@ function formatTime(iso: string): string {
   margin-bottom: 1rem;
 }
 
-.empty-msg {
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  border: 1px dashed var(--p-surface-600, #444);
+  border-radius: 0.5rem;
   color: var(--p-surface-400, #888);
+}
+
+.empty-icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+  color: var(--p-surface-500, #666);
+}
+
+.empty-text {
+  margin: 0;
+  font-size: 0.9rem;
 }
 
 .last-checked {
