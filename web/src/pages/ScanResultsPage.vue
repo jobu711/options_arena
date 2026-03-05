@@ -639,7 +639,7 @@ onUnmounted(() => {
           v-if="selectedTickers.length > 0"
           :label="`Debate Selected (${selectedTickers.length})`"
           icon="pi pi-comments"
-          severity="info"
+          severity="success"
           size="small"
           :disabled="anyBusy"
           data-testid="batch-debate-btn"
@@ -650,6 +650,7 @@ onUnmounted(() => {
           icon="pi pi-bolt"
           severity="secondary"
           size="small"
+          outlined
           :disabled="anyBusy"
           data-testid="batch-debate-top5-btn"
           @click="onDebateTop5()"
@@ -848,7 +849,10 @@ onUnmounted(() => {
         </div>
       </template>
       <template #empty>
-        <div class="empty-msg" data-testid="empty-state">No results found matching your filters.</div>
+        <div class="empty-msg" data-testid="empty-state">
+          <i class="pi pi-search empty-icon" />
+          <p class="empty-text">No results found matching your filters.</p>
+        </div>
       </template>
     </DataTable>
 
@@ -911,6 +915,27 @@ onUnmounted(() => {
 
 .compare-select {
   min-width: 220px;
+}
+
+@media (max-width: 640px) {
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-input {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .compare-select {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .batch-actions {
+    margin-left: 0;
+  }
 }
 
 .sector-filter {
@@ -1021,9 +1046,9 @@ onUnmounted(() => {
 }
 
 .delta-chip {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  padding: 0.1rem 0.35rem;
+  padding: 0.15rem 0.4rem;
   border-radius: 0.25rem;
 }
 
@@ -1053,9 +1078,23 @@ onUnmounted(() => {
 }
 
 .empty-msg {
-  text-align: center;
-  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
   color: var(--p-surface-400, #888);
+}
+
+.empty-icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+  color: var(--p-surface-500, #666);
+}
+
+.empty-text {
+  margin: 0;
+  font-size: 0.9rem;
 }
 
 .earnings-warn {

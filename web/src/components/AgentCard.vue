@@ -79,7 +79,7 @@ defineProps<Props>()
 
 .agent-argument {
   font-size: 0.875rem;
-  color: var(--p-surface-300, #aaa);
+  color: var(--p-surface-200, #ccc);
   line-height: 1.5;
   margin: 0 0 0.75rem 0;
 }

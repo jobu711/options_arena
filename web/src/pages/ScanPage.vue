@@ -361,6 +361,11 @@ onUnmounted(() => {
 
 .scans-table :deep(tr) {
   cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.scans-table :deep(tbody tr:hover td) {
+  background: var(--p-surface-700, #2a2a2a) !important;
 }
 
 .mono {

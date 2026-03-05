@@ -87,7 +87,7 @@ defineProps<Props>()
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--p-surface-400, #888);
+  color: var(--p-surface-300, #aaa);
   margin-bottom: 0.1rem;
 }
 
@@ -103,7 +103,7 @@ defineProps<Props>()
 
 .agent-section h4 {
   font-size: 0.8rem;
-  color: var(--p-surface-400, #888);
+  color: var(--p-surface-300, #aaa);
   margin: 0 0 0.35rem 0;
   text-transform: uppercase;
   letter-spacing: 0.05em;

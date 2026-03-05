@@ -111,7 +111,7 @@ const display = computed<RegimeDisplay | null>(() => {
 
 .regime--volatile {
   background: var(--accent-amber, #f59e0b);
-  color: #111;
+  color: #000;
 }
 
 .regime--crisis {

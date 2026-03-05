@@ -89,7 +89,7 @@ function displayValue(value: number | null): string {
 .bar-label {
   width: 3.5rem;
   font-size: 0.75rem;
-  color: var(--p-surface-400, #888);
+  color: var(--p-surface-300, #aaa);
   text-align: right;
   flex-shrink: 0;
 }
@@ -132,7 +132,7 @@ function displayValue(value: number | null): string {
 
 .bar-fill--null {
   background: var(--accent-gray, #6b7280);
-  color: var(--accent-gray, #6b7280);
+  color: var(--p-surface-400, #888);
 }
 
 .mono {

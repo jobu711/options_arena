@@ -174,7 +174,7 @@ function regimeClass(regime: string | null | undefined): string {
   <Drawer
     :visible="visible"
     position="right"
-    :style="{ width: '400px' }"
+    :style="{ width: '400px', maxWidth: '100vw' }"
     data-testid="ticker-drawer"
     @update:visible="emit('update:visible', $event)"
   >
@@ -206,7 +206,7 @@ function regimeClass(regime: string | null | undefined): string {
 
       <div class="drawer-section" data-testid="drawer-score-history">
         <h3>Score History</h3>
-        <div v-if="loadingHistory" class="muted">Loading history...</div>
+        <div v-if="loadingHistory" class="muted"><i class="pi pi-spin pi-spinner" /> Loading history...</div>
         <ScoreHistoryChart v-else :history="history" />
       </div>
 
@@ -240,14 +240,16 @@ function regimeClass(regime: string | null | undefined): string {
 
       <div class="drawer-section">
         <h3>Past Debates</h3>
-        <div v-if="loadingDebates" class="muted">Loading...</div>
+        <div v-if="loadingDebates" class="muted"><i class="pi pi-spin pi-spinner" /> Loading...</div>
         <div v-else-if="debates.length === 0" class="muted">No debates for this ticker.</div>
         <div v-else class="debate-list">
           <div
             v-for="d in debates"
             :key="d.id"
             class="debate-item"
+            tabindex="0"
             @click="router.push(`/debate/${d.id}`)"
+            @keydown.enter="router.push(`/debate/${d.id}`)"
           >
             <DirectionBadge :direction="d.direction as 'bullish' | 'bearish' | 'neutral'" />
             <span class="mono">{{ (d.confidence * 100).toFixed(0) }}%</span>
@@ -302,7 +304,7 @@ function regimeClass(regime: string | null | undefined): string {
 .drawer-header {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.3rem;
 }
 
 .drawer-ticker {
@@ -312,7 +314,7 @@ function regimeClass(regime: string | null | undefined): string {
 }
 
 .drawer-company-name {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--p-surface-400, #888);
   font-weight: 400;
 }
@@ -375,6 +377,12 @@ function regimeClass(regime: string | null | undefined): string {
 }
 
 .debate-item:hover {
+  background: var(--p-surface-700, #333);
+}
+
+.debate-item:focus-visible {
+  outline: 2px solid var(--accent-blue, #3b82f6);
+  outline-offset: -2px;
   background: var(--p-surface-700, #333);
 }
 
