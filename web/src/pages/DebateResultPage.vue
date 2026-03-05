@@ -124,7 +124,7 @@ onMounted(() => void debateStore.fetchDebate(debateId))
           <Button
             label="Export PDF"
             icon="pi pi-file-pdf"
-            severity="secondary"
+            severity="contrast"
             size="small"
             data-testid="debate-export-pdf"
             @click="exportDebate('pdf')"
