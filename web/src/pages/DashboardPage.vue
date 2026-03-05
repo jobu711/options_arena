@@ -371,7 +371,7 @@ onUnmounted(() => {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
   padding: 0.5rem 0;
 }
 
@@ -413,6 +413,8 @@ onUnmounted(() => {
 
 .quick-debate-input {
   width: 140px;
+  min-width: 80px;
+  max-width: 100%;
   text-transform: uppercase;
 }
 
@@ -560,7 +562,7 @@ onUnmounted(() => {
 }
 
 .trending-table {
-  font-size: 0.875rem;
+  font-size: 0.9rem;
 }
 
 .trending-table :deep(tr) {
