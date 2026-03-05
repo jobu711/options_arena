@@ -239,7 +239,10 @@ onUnmounted(() => {
           @click="router.push(`/scan/${latestScan.id}`)"
         />
       </div>
-      <p v-else-if="!loading" class="empty-msg" data-testid="empty-state">No scans yet. Run your first scan to get started.</p>
+      <div v-else-if="!loading" class="empty-state" data-testid="empty-state">
+        <i class="pi pi-inbox empty-icon" />
+        <p class="empty-text">No scans yet. Run your first scan to get started.</p>
+      </div>
     </section>
 
     <!-- Trending Up -->
@@ -336,7 +339,10 @@ onUnmounted(() => {
           <span class="debate-date">{{ formatDate(debate.created_at) }}</span>
         </div>
       </div>
-      <p v-else-if="!loading" class="empty-msg">No debates yet.</p>
+      <div v-else-if="!loading" class="empty-state">
+        <i class="pi pi-comments empty-icon" />
+        <p class="empty-text">No debates yet.</p>
+      </div>
     </section>
 
     <!-- Config Summary -->
@@ -384,6 +390,12 @@ onUnmounted(() => {
   border-radius: 1rem;
   padding: 0.25rem 0.75rem;
   font-size: 0.8rem;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.health-chip:hover {
+  background: var(--p-surface-700, #2a2a2a);
+  border-color: var(--p-surface-600, #444);
 }
 
 .chip-label {
@@ -556,8 +568,23 @@ onUnmounted(() => {
   color: var(--accent-red);
 }
 
-.empty-msg {
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
   color: var(--p-surface-400, #888);
+}
+
+.empty-icon {
+  font-size: 1.75rem;
+  margin-bottom: 0.5rem;
+  color: var(--p-surface-500, #666);
+}
+
+.empty-text {
+  margin: 0;
   font-size: 0.875rem;
 }
 
