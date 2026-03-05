@@ -174,7 +174,7 @@ function regimeClass(regime: string | null | undefined): string {
   <Drawer
     :visible="visible"
     position="right"
-    :style="{ width: '400px' }"
+    :style="{ width: '400px', maxWidth: '100vw' }"
     data-testid="ticker-drawer"
     @update:visible="emit('update:visible', $event)"
   >
@@ -302,7 +302,7 @@ function regimeClass(regime: string | null | undefined): string {
 .drawer-header {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.3rem;
 }
 
 .drawer-ticker {
@@ -312,7 +312,7 @@ function regimeClass(regime: string | null | undefined): string {
 }
 
 .drawer-company-name {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--p-surface-400, #888);
   font-weight: 400;
 }
