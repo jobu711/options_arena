@@ -112,6 +112,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.debate_queues = {}
     app.state.batch_counter = 0
     app.state.batch_queues = {}
+    app.state.index_counter = 0
 
     # Background refresh for theme ETF holdings — non-blocking
     # Store task reference on app.state to prevent garbage collection (Python < 3.12)

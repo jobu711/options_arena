@@ -107,6 +107,7 @@ def test_app(
     app.state.debate_queues = {}
     app.state.batch_counter = 0
     app.state.batch_queues = {}
+    app.state.index_counter = 0
 
     return app
 
