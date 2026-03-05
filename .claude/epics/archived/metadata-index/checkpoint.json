@@ -1,0 +1,12 @@
+{
+  "epic": "metadata-index",
+  "phase": "executing",
+  "last_command": "/pm:epic-start metadata-index",
+  "last_updated": "2026-03-05T15:00:00Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced", "executing"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": ["#271", "#275"],
+  "blockers": [],
+  "notes": "Wave 1 launched: #271 (model+migration) and #275 (TickerInfo.industry) in parallel worktrees"
+}
