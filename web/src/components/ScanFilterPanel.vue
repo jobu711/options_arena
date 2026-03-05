@@ -194,4 +194,10 @@ function onSelectChange(): void {
   font-size: 0.8rem;
   color: var(--p-surface-400, #888);
 }
+
+@media (max-width: 640px) {
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
 </style>
