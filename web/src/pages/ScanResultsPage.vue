@@ -909,6 +909,14 @@ onUnmounted(() => {
   align-items: center;
 }
 
+.search-input {
+  min-width: 200px;
+}
+
+.compare-select {
+  min-width: 220px;
+}
+
 @media (max-width: 640px) {
   .filters {
     flex-direction: column;
@@ -928,14 +936,6 @@ onUnmounted(() => {
   .batch-actions {
     margin-left: 0;
   }
-}
-
-.search-input {
-  min-width: 200px;
-}
-
-.compare-select {
-  min-width: 220px;
 }
 
 .sector-filter {

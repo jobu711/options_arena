@@ -368,10 +368,6 @@ onUnmounted(() => {
   background: var(--p-surface-700, #2a2a2a) !important;
 }
 
-.scans-table :deep(tr:hover td) {
-  background: var(--p-surface-700, #2a2a2a) !important;
-}
-
 .mono {
   font-family: var(--font-mono);
 }
