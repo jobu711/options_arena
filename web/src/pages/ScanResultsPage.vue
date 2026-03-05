@@ -639,7 +639,7 @@ onUnmounted(() => {
           v-if="selectedTickers.length > 0"
           :label="`Debate Selected (${selectedTickers.length})`"
           icon="pi pi-comments"
-          severity="info"
+          severity="success"
           size="small"
           :disabled="anyBusy"
           data-testid="batch-debate-btn"
@@ -650,6 +650,7 @@ onUnmounted(() => {
           icon="pi pi-bolt"
           severity="secondary"
           size="small"
+          outlined
           :disabled="anyBusy"
           data-testid="batch-debate-top5-btn"
           @click="onDebateTop5()"
@@ -848,7 +849,10 @@ onUnmounted(() => {
         </div>
       </template>
       <template #empty>
-        <div class="empty-msg" data-testid="empty-state">No results found matching your filters.</div>
+        <div class="empty-msg" data-testid="empty-state">
+          <i class="pi pi-search empty-icon" />
+          <p class="empty-text">No results found matching your filters.</p>
+        </div>
       </template>
     </DataTable>
 
@@ -1074,9 +1078,23 @@ onUnmounted(() => {
 }
 
 .empty-msg {
-  text-align: center;
-  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
   color: var(--p-surface-400, #888);
+}
+
+.empty-icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+  color: var(--p-surface-500, #666);
+}
+
+.empty-text {
+  margin: 0;
+  font-size: 0.9rem;
 }
 
 .earnings-warn {
