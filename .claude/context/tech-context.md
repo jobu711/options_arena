@@ -20,7 +20,7 @@
 | typer | >=0.24.0 | CLI framework with subcommands |
 | rich | >=14.3.2 | Terminal output formatting (tables, colors, progress) |
 | pydantic-settings | >=2.13.0 | Configuration management |
-| lxml | >=6.0.2 | HTML parsing for Wikipedia S&P 500 table |
+
 | fastapi | >=0.133.1 | REST API + WebSocket backend |
 | uvicorn[standard] | >=0.41.0 | ASGI server for FastAPI |
 
@@ -33,7 +33,7 @@ For web/optional/dev deps, build system, and tool config: `.claude/guides/depend
 | Yahoo Finance | `market_data.py`, `options_data.py` | yfinance via `asyncio.to_thread` | OHLCV, quotes, ticker info, option chains | N/A (required) |
 | FRED | `fred.py` | httpx REST API | 10yr Treasury risk-free rate | `PricingConfig.risk_free_rate_fallback` (5%) |
 | CBOE | `universe.py`, `cboe_provider.py` | httpx CSV + OpenBB SDK | Optionable universe + option chains (primary) | Cached list (24h TTL) / yfinance fallback |
-| Wikipedia | `universe.py` | `pd.read_html` via `asyncio.to_thread` | S&P 500 constituents + GICS sectors | Cached list (24h TTL) |
+| GitHub CSV | `universe.py` | httpx + `pd.read_csv` via `asyncio.to_thread` | S&P 500 constituents + GICS sectors | Cached list (24h TTL) |
 | Groq | `agents/orchestrator.py`, `health.py` | PydanticAI + GroqProvider (cloud API) | LLM debate agents (llama-3.3-70b-versatile) | Data-driven verdict |
 | OpenBB | `openbb_service.py`, `health.py` | OpenBB SDK (guarded import) | Fundamentals, unusual flow, news sentiment | `None` (optional enrichment) |
 

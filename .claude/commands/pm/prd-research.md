@@ -53,6 +53,10 @@ You are a technical researcher investigating the codebase to prepare for impleme
 - Extract all requirements, constraints, user stories, and success criteria
 - Identify key technical areas the feature will touch
 
+### Context7 Requirement
+
+When any research agent encounters external library APIs (yfinance, pydantic, httpx, scipy, etc.), it MUST use Context7 (`resolve-library-id` → `query-docs`) to verify field names, return types, and signatures before documenting findings. Do not trust memory alone — Context7 docs are the source of truth for external API surfaces.
+
 ### 2. Parallel Codebase Investigation
 
 Spawn 2-3 parallel Explore agents to investigate the codebase:
