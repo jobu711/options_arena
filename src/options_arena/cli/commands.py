@@ -1036,9 +1036,7 @@ def index(
     concurrency: int = typer.Option(
         5, "--concurrency", min=1, help="Max concurrent yfinance calls"
     ),
-    max_age: int = typer.Option(
-        30, "--max-age", min=0, help="Max age in days before re-indexing"
-    ),
+    max_age: int = typer.Option(30, "--max-age", min=0, help="Max age in days before re-indexing"),
 ) -> None:
     """Bulk-index CBOE tickers to build metadata cache."""
     asyncio.run(_index_async(force=force, concurrency=concurrency, max_age=max_age))
