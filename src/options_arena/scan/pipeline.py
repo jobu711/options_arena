@@ -270,7 +270,7 @@ class ScanPipeline:
             len(industry_group_map) - from_sub,
         )
 
-        # Step 3 (metadata enrichment): load cached metadata to extend maps beyond S&P 500
+        # Step 4 (metadata enrichment): load cached metadata to extend maps beyond S&P 500
         try:
             all_metadata = await self._repository.get_all_ticker_metadata()
             for meta in all_metadata:

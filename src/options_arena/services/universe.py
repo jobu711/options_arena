@@ -714,11 +714,11 @@ def map_yfinance_to_metadata(ticker_info: TickerInfo) -> TickerMetadata:
     Returns:
         A frozen ``TickerMetadata`` snapshot with resolved GICS enums.
     """
-    # 1. Resolve sector via SECTOR_ALIASES
+    # 1. Resolve sector via _resolve_sector (canonical enum + SECTOR_ALIASES fallback)
     raw_sector = ticker_info.sector
     sector: GICSSector | None = None
     if raw_sector and raw_sector != "Unknown":
-        sector = SECTOR_ALIASES.get(raw_sector.strip().lower())
+        sector = _resolve_sector(raw_sector)
         if sector is None:
             logger.warning("Unmapped yfinance sector for %s: %s", ticker_info.ticker, raw_sector)
 

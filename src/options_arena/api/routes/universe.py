@@ -146,8 +146,10 @@ async def get_themes(
 # ---------------------------------------------------------------------------
 
 
+_INDEX_CONCURRENCY = 5
+
+
 async def _run_index_background(
-    request: Request,
     task_id: int,
     force: bool,
     max_age: int,
@@ -159,6 +161,7 @@ async def _run_index_background(
     """Run bulk metadata indexing as a background task.
 
     The lock is already acquired by the caller — this task releases it on completion.
+    Uses a semaphore for concurrency control, matching the CLI implementation.
     """
     try:
         # 1. Get CBOE optionable ticker list
@@ -183,18 +186,34 @@ async def _run_index_background(
             max_age,
         )
 
-        # 3. For each ticker: fetch_ticker_info → map → upsert
+        # 3. Process tickers with concurrency control
+        sem = asyncio.Semaphore(_INDEX_CONCURRENCY)
         indexed = 0
         errors = 0
-        for ticker in tickers_to_index:
-            try:
-                ticker_info = await market_data.fetch_ticker_info(ticker)
-                metadata = map_yfinance_to_metadata(ticker_info)
-                await repo.upsert_ticker_metadata(metadata)
-                indexed += 1
-            except Exception:
+
+        async def _process_one(ticker: str) -> bool:
+            async with sem:
+                try:
+                    ticker_info = await market_data.fetch_ticker_info(ticker)
+                    metadata = map_yfinance_to_metadata(ticker_info)
+                    await repo.upsert_ticker_metadata(metadata)
+                    return True
+                except Exception:
+                    logger.debug("Failed to index metadata for %s", ticker, exc_info=True)
+                    return False
+
+        results = await asyncio.gather(
+            *[_process_one(t) for t in tickers_to_index],
+            return_exceptions=True,
+        )
+        for result in results:
+            if isinstance(result, Exception):
                 errors += 1
-                logger.debug("Failed to index metadata for %s", ticker, exc_info=True)
+                logger.warning("Unexpected gather error: %s", result)
+            elif result:
+                indexed += 1
+            else:
+                errors += 1
 
         logger.info(
             "Metadata index task %d complete: indexed=%d, errors=%d",
@@ -251,6 +270,6 @@ async def start_index(
 
     # Background task owns the lock and releases it on completion
     asyncio.create_task(
-        _run_index_background(request, task_id, force, max_age, universe, market_data, repo, lock)
+        _run_index_background(task_id, force, max_age, universe, market_data, repo, lock)
     )
     return IndexStarted(index_task_id=task_id)

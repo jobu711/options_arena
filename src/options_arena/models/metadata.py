@@ -7,6 +7,7 @@ Two models for the metadata index:
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -52,3 +53,19 @@ class MetadataCoverage(BaseModel):
     with_sector: int
     with_industry_group: int
     coverage: float
+
+    @field_validator("total", "with_sector", "with_industry_group")
+    @classmethod
+    def _validate_non_negative(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError(f"must be >= 0, got {v}")
+        return v
+
+    @field_validator("coverage")
+    @classmethod
+    def _validate_coverage(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError(f"must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"must be between 0.0 and 1.0, got {v}")
+        return v

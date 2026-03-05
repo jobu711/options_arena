@@ -243,6 +243,7 @@ SECTOR_ALIASES: dict[str, GICSSector] = {
     "consumer staples": GICSSector.CONSUMER_STAPLES,
     "energy": GICSSector.ENERGY,
     "financials": GICSSector.FINANCIALS,
+    "financial services": GICSSector.FINANCIALS,
     "health care": GICSSector.HEALTH_CARE,
     "industrials": GICSSector.INDUSTRIALS,
     "information technology": GICSSector.INFORMATION_TECHNOLOGY,
