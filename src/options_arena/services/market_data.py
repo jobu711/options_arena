@@ -444,6 +444,7 @@ class MarketDataService:
             ticker=ticker,
             company_name=str(info.get("shortName", ticker)),
             sector=str(info.get("sector", "Unknown")),
+            industry=str(info.get("industry", "Unknown")),
             market_cap=market_cap_raw,
             market_cap_tier=market_cap_tier,
             dividend_yield=dividend_yield,
