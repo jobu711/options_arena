@@ -905,6 +905,27 @@ onUnmounted(() => {
   align-items: center;
 }
 
+@media (max-width: 640px) {
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-input {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .compare-select {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .batch-actions {
+    margin-left: 0;
+  }
+}
+
 .search-input {
   min-width: 200px;
 }
@@ -1021,9 +1042,9 @@ onUnmounted(() => {
 }
 
 .delta-chip {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  padding: 0.1rem 0.35rem;
+  padding: 0.15rem 0.4rem;
   border-radius: 0.25rem;
 }
 
