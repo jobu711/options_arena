@@ -97,9 +97,9 @@ function phaseState(index: number): 'complete' | 'active' | 'pending' {
   justify-content: center;
   font-size: 0.75rem;
   font-weight: 600;
-  border: 2px solid var(--p-surface-600, #444);
+  border: 2px solid var(--p-surface-500, #555);
   color: var(--p-surface-400, #888);
-  background: transparent;
+  background: var(--p-surface-800, #1a1a1a);
 }
 
 .phase--complete .phase-indicator {
