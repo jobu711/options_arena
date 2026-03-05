@@ -99,7 +99,7 @@ function closeBatch(): void {
     :header="headerText"
     :modal="true"
     :closable="batchComplete"
-    :style="{ width: batchMode ? '520px' : '400px' }"
+    :style="{ width: '520px', maxWidth: '95vw', transition: 'width 0.2s ease' }"
     :data-testid="batchMode ? 'batch-progress-modal' : 'debate-progress-modal'"
     @update:visible="emit('update:visible', $event)"
   >
@@ -322,7 +322,7 @@ function closeBatch(): void {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.4rem 0.6rem;
+  padding: 0.5rem 0.6rem;
   border-radius: 0.375rem;
   background: var(--p-surface-800, #1a1a1a);
 }
