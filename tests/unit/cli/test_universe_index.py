@@ -207,8 +207,7 @@ class TestUniverseIndex:
         assert result.exit_code == 0
         # 3 tickers attempted, 1 failed
         assert "Failed this run" in result.output
-        assert "1" in result.output  # 1 failure
-        assert "2" in result.output  # 2 successes
+        assert "Indexed this run" in result.output
 
     @patch("options_arena.cli.commands.Database")
     @patch("options_arena.cli.commands.Repository")

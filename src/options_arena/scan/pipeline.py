@@ -832,11 +832,11 @@ class ScanPipeline:
         # Write back metadata for this ticker
         try:
             metadata = map_yfinance_to_metadata(ticker_info)
-            await self._repository.upsert_ticker_metadata(metadata)
             if ticker_score.sector is None and metadata.sector is not None:
                 ticker_score.sector = metadata.sector
             if ticker_score.industry_group is None and metadata.industry_group is not None:
                 ticker_score.industry_group = metadata.industry_group
+            await self._repository.upsert_ticker_metadata(metadata)
         except Exception:
             logger.warning("Failed to upsert metadata for %s", ticker_info.ticker, exc_info=True)
 

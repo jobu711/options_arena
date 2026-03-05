@@ -171,7 +171,8 @@ async def _run_index_background(
         if force:
             tickers_to_index = all_tickers
         else:
-            stale_set = set(await repo.get_stale_tickers(max_age_days=max_age))
+            optionable_set = set(all_tickers)
+            stale_set = set(await repo.get_stale_tickers(max_age_days=max_age)) & optionable_set
             # Also include tickers not yet in the metadata table
             existing_metadata = await repo.get_all_ticker_metadata()
             existing_set = {m.ticker for m in existing_metadata}

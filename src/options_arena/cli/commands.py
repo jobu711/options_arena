@@ -1033,8 +1033,12 @@ def index(
     force: bool = typer.Option(
         False, "--force", help="Re-index all tickers regardless of staleness"
     ),
-    concurrency: int = typer.Option(5, "--concurrency", help="Max concurrent yfinance calls"),
-    max_age: int = typer.Option(30, "--max-age", help="Max age in days before re-indexing"),
+    concurrency: int = typer.Option(
+        5, "--concurrency", min=1, help="Max concurrent yfinance calls"
+    ),
+    max_age: int = typer.Option(
+        30, "--max-age", min=0, help="Max age in days before re-indexing"
+    ),
 ) -> None:
     """Bulk-index CBOE tickers to build metadata cache."""
     asyncio.run(_index_async(force=force, concurrency=concurrency, max_age=max_age))
@@ -1063,7 +1067,8 @@ async def _index_async(*, force: bool, concurrency: int, max_age: int) -> None:
             tickers_to_index = all_tickers
         else:
             # Get tickers already in DB with fresh metadata
-            stale = set(await repo.get_stale_tickers(max_age_days=max_age))
+            universe_set = set(all_tickers)
+            stale = universe_set.intersection(await repo.get_stale_tickers(max_age_days=max_age))
             # Also include tickers NOT in the metadata table at all
             coverage = await repo.get_metadata_coverage()
             if coverage.total == 0:
@@ -1072,7 +1077,7 @@ async def _index_async(*, force: bool, concurrency: int, max_age: int) -> None:
             else:
                 all_metadata = await repo.get_all_ticker_metadata()
                 indexed_tickers = {m.ticker for m in all_metadata}
-                missing = {t for t in all_tickers if t not in indexed_tickers}
+                missing = universe_set - indexed_tickers
                 tickers_to_index = sorted(missing | stale)
 
         if not tickers_to_index:

@@ -443,8 +443,8 @@ class MarketDataService:
         ticker_info = TickerInfo(
             ticker=ticker,
             company_name=str(info.get("shortName", ticker)),
-            sector=str(info.get("sector", "Unknown")),
-            industry=str(info.get("industry", "Unknown")),
+            sector=str(v) if (v := info.get("sector")) not in (None, "") else "Unknown",
+            industry=str(v) if (v := info.get("industry")) not in (None, "") else "Unknown",
             market_cap=market_cap_raw,
             market_cap_tier=market_cap_tier,
             dividend_yield=dividend_yield,
