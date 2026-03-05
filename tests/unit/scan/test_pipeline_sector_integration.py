@@ -513,8 +513,13 @@ class TestEnrichmentSectorAndCompanyName:
         assert by_ticker["AAPL"].company_name == "Apple Inc."
         assert by_ticker["MSFT"].company_name == "Microsoft Corporation"
 
-    async def test_sector_none_for_non_sp500_ticker(self) -> None:
-        """TickerScore.sector remains None for tickers not in S&P 500."""
+    async def test_sector_enriched_for_non_sp500_ticker_via_metadata(self) -> None:
+        """Non-S&P 500 tickers get sector from Phase 3 metadata write-back.
+
+        Since the metadata index integration, Phase 3 calls
+        ``map_yfinance_to_metadata()`` and enriches ``ticker_score.sector``
+        from the yfinance ``TickerInfo.sector`` when Phase 1 left it ``None``.
+        """
         # Only AAPL is in SP500, XYZ is not
         sp500 = [
             SP500Constituent(ticker="AAPL", sector="Information Technology"),
@@ -541,7 +546,8 @@ class TestEnrichmentSectorAndCompanyName:
 
         by_ticker = {ts.ticker: ts for ts in result.scores}
         assert by_ticker["AAPL"].sector is GICSSector.INFORMATION_TECHNOLOGY
-        assert by_ticker["XYZ"].sector is None
+        # XYZ gets sector from Phase 3 metadata write-back (TickerInfo.sector="Technology")
+        assert by_ticker["XYZ"].sector is GICSSector.INFORMATION_TECHNOLOGY
 
     async def test_sector_and_company_name_both_enriched(self) -> None:
         """Both sector (Phase 2) and company_name (Phase 3) are enriched on same ticker."""
