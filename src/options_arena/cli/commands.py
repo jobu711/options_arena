@@ -1028,6 +1028,138 @@ async def _stats_async() -> None:
         await cache.close()
 
 
+@universe_app.command()
+def index(
+    force: bool = typer.Option(
+        False, "--force", help="Re-index all tickers regardless of staleness"
+    ),
+    concurrency: int = typer.Option(
+        5, "--concurrency", min=1, help="Max concurrent yfinance calls"
+    ),
+    max_age: int = typer.Option(30, "--max-age", min=0, help="Max age in days before re-indexing"),
+) -> None:
+    """Bulk-index CBOE tickers to build metadata cache."""
+    asyncio.run(_index_async(force=force, concurrency=concurrency, max_age=max_age))
+
+
+async def _index_async(*, force: bool, concurrency: int, max_age: int) -> None:
+    """Fetch yfinance data for stale/missing CBOE tickers and persist to metadata table."""
+    settings = AppSettings()
+    cache = ServiceCache(settings.service)
+    limiter = RateLimiter(
+        settings.service.rate_limit_rps, settings.service.max_concurrent_requests
+    )
+    universe_svc = UniverseService(settings.service, cache, limiter)
+    market_data = MarketDataService(settings.service, cache, limiter)
+    db = Database(str(_DATA_DIR / "options_arena.db"))
+    await db.connect()
+    repo = Repository(db)
+
+    try:
+        # 1. Fetch CBOE ticker list
+        all_tickers = await universe_svc.fetch_optionable_tickers()
+        console.print(f"[bold]CBOE universe:[/bold] {len(all_tickers)} optionable tickers")
+
+        # 2. Determine which tickers need indexing
+        if force:
+            tickers_to_index = all_tickers
+        else:
+            # Get tickers already in DB with fresh metadata
+            universe_set = set(all_tickers)
+            stale = universe_set.intersection(await repo.get_stale_tickers(max_age_days=max_age))
+            # Also include tickers NOT in the metadata table at all
+            coverage = await repo.get_metadata_coverage()
+            if coverage.total == 0:
+                # No metadata at all — index everything
+                tickers_to_index = all_tickers
+            else:
+                all_metadata = await repo.get_all_ticker_metadata()
+                indexed_tickers = {m.ticker for m in all_metadata}
+                missing = universe_set - indexed_tickers
+                tickers_to_index = sorted(missing | stale)
+
+        if not tickers_to_index:
+            console.print("[green]All tickers are fresh — nothing to index.[/green]")
+            return
+
+        console.print(
+            f"[cyan]Indexing {len(tickers_to_index)} tickers "
+            f"(concurrency={concurrency}, max_age={max_age}d, force={force})[/cyan]"
+        )
+
+        # 3. Process tickers with concurrency control
+        sem = asyncio.Semaphore(concurrency)
+        success_count = 0
+        fail_count = 0
+
+        from options_arena.services.universe import map_yfinance_to_metadata  # noqa: PLC0415
+
+        async def _process_ticker(ticker: str) -> bool:
+            """Fetch ticker info, map to metadata, persist. Returns True on success."""
+            async with sem:
+                try:
+                    ticker_info = await market_data.fetch_ticker_info(ticker)
+                    metadata = map_yfinance_to_metadata(ticker_info)
+                    await repo.upsert_ticker_metadata(metadata)
+                    return True
+                except Exception:
+                    logger.warning("Failed to index %s", ticker, exc_info=True)
+                    return False
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeElapsedColumn(),
+            console=Console(stderr=True),
+            transient=False,
+        ) as progress:
+            task_id = progress.add_task("[cyan]Indexing tickers", total=len(tickers_to_index))
+
+            # Process in batches via gather for concurrency
+            tasks = []
+            for ticker in tickers_to_index:
+                tasks.append(_process_ticker(ticker))
+
+            # Gather all tasks but update progress as each completes
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, Exception):
+                    fail_count += 1
+                    logger.warning("Unexpected gather error: %s", result)
+                elif result:
+                    success_count += 1
+                else:
+                    fail_count += 1
+                progress.update(task_id, advance=1)
+
+        # 4. Final coverage report
+        final_coverage = await repo.get_metadata_coverage()
+        table = Table(title="Metadata Coverage")
+        table.add_column("Metric", style="bold white")
+        table.add_column("Value", justify="right", style="cyan")
+
+        table.add_row("Total indexed", str(final_coverage.total))
+        table.add_row("With sector", str(final_coverage.with_sector))
+        table.add_row("With industry group", str(final_coverage.with_industry_group))
+        table.add_row(
+            "Sector coverage",
+            f"{final_coverage.coverage * 100:.1f}%",
+        )
+        table.add_section()
+        table.add_row("Indexed this run", str(success_count))
+        table.add_row("Failed this run", str(fail_count))
+
+        console.print(table)
+
+    finally:
+        await market_data.close()
+        await universe_svc.close()
+        await cache.close()
+        await db.close()
+
+
 # ---------------------------------------------------------------------------
 # serve command
 # ---------------------------------------------------------------------------

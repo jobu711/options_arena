@@ -73,6 +73,7 @@ from options_arena.services import (
     build_industry_group_map,
 )
 from options_arena.services.theme_service import ThemeService
+from options_arena.services.universe import map_yfinance_to_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -268,6 +269,25 @@ class ScanPipeline:
             from_sub,
             len(industry_group_map) - from_sub,
         )
+
+        # Step 4 (metadata enrichment): load cached metadata to extend maps beyond S&P 500
+        try:
+            all_metadata = await self._repository.get_all_ticker_metadata()
+            for meta in all_metadata:
+                if meta.ticker not in sector_map and meta.sector is not None:
+                    sector_map[meta.ticker] = meta.sector
+                if meta.ticker not in industry_group_map and meta.industry_group is not None:
+                    industry_group_map[meta.ticker] = meta.industry_group
+            logger.info(
+                "Metadata enrichment: sector_map=%d, industry_group_map=%d",
+                len(sector_map),
+                len(industry_group_map),
+            )
+        except Exception:
+            logger.warning(
+                "Failed to load ticker metadata, continuing without enrichment",
+                exc_info=True,
+            )
 
         # Step 3a: Custom tickers branch — bypass preset/sector/industry/theme filters
         custom = self._settings.scan.custom_tickers
@@ -808,6 +828,17 @@ class ScanPipeline:
 
         # Enrich ticker_score with company_name from ticker info
         ticker_score.company_name = ticker_info.company_name
+
+        # Write back metadata for this ticker
+        try:
+            metadata = map_yfinance_to_metadata(ticker_info)
+            if ticker_score.sector is None and metadata.sector is not None:
+                ticker_score.sector = metadata.sector
+            if ticker_score.industry_group is None and metadata.industry_group is not None:
+                ticker_score.industry_group = metadata.industry_group
+            await self._repository.upsert_ticker_metadata(metadata)
+        except Exception:
+            logger.warning("Failed to upsert metadata for %s", ticker_info.ticker, exc_info=True)
 
         # Flatten all contracts across expirations
         all_contracts: list[OptionContract] = []

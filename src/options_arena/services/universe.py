@@ -12,6 +12,7 @@ import io
 import json
 import logging
 import re
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -27,6 +28,8 @@ from options_arena.models.enums import (
     GICSSector,
     MarketCapTier,
 )
+from options_arena.models.market_data import TickerInfo
+from options_arena.models.metadata import TickerMetadata
 from options_arena.services.cache import TTL_REFERENCE, ServiceCache
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.utils.exceptions import DataSourceUnavailableError, InsufficientDataError
@@ -666,3 +669,82 @@ def _resolve_sector(sector_str: str) -> GICSSector | None:
     # Fall back to aliases (lowercase lookup)
     key = sector_str.strip().lower()
     return SECTOR_ALIASES.get(key)
+
+
+def classify_market_cap(market_cap: int | None) -> MarketCapTier | None:
+    """Classify a market capitalisation value into a ``MarketCapTier``.
+
+    Standalone version of ``UniverseService.classify_market_cap`` — usable
+    without a service instance.
+
+    Args:
+        market_cap: Market capitalisation in dollars, or ``None`` if unknown.
+
+    Returns:
+        The corresponding ``MarketCapTier``, or ``None`` if input is ``None``.
+    """
+    if market_cap is None:
+        return None
+
+    if market_cap >= _MEGA_CAP_THRESHOLD:
+        return MarketCapTier.MEGA
+    if market_cap >= _LARGE_CAP_THRESHOLD:
+        return MarketCapTier.LARGE
+    if market_cap >= _MID_CAP_THRESHOLD:
+        return MarketCapTier.MID
+    if market_cap >= _SMALL_CAP_THRESHOLD:
+        return MarketCapTier.SMALL
+    return MarketCapTier.MICRO
+
+
+def map_yfinance_to_metadata(ticker_info: TickerInfo) -> TickerMetadata:
+    """Map yfinance ``TickerInfo`` to typed ``TickerMetadata`` using GICS alias dicts.
+
+    Resolves ``sector`` and ``industry`` strings from yfinance to typed GICS enums
+    via ``SECTOR_ALIASES`` and ``INDUSTRY_GROUP_ALIASES``. Classifies market cap
+    into a ``MarketCapTier``. Preserves original raw strings for audit.
+
+    Unmapped sector/industry strings are logged at WARNING level. The sentinel
+    value ``"Unknown"`` (the default from yfinance) is treated as absent and
+    does **not** trigger a warning.
+
+    Args:
+        ticker_info: A ``TickerInfo`` model from the market data service.
+
+    Returns:
+        A frozen ``TickerMetadata`` snapshot with resolved GICS enums.
+    """
+    # 1. Resolve sector via _resolve_sector (canonical enum + SECTOR_ALIASES fallback)
+    raw_sector = ticker_info.sector
+    sector: GICSSector | None = None
+    if raw_sector and raw_sector != "Unknown":
+        sector = _resolve_sector(raw_sector)
+        if sector is None:
+            logger.warning("Unmapped yfinance sector for %s: %s", ticker_info.ticker, raw_sector)
+
+    # 2. Resolve industry via INDUSTRY_GROUP_ALIASES
+    raw_industry = ticker_info.industry
+    industry_group: GICSIndustryGroup | None = None
+    if raw_industry and raw_industry != "Unknown":
+        industry_group = INDUSTRY_GROUP_ALIASES.get(raw_industry.strip().lower())
+        if industry_group is None:
+            logger.warning(
+                "Unmapped yfinance industry for %s: %s", ticker_info.ticker, raw_industry
+            )
+
+    # 3. Classify market cap
+    market_cap_tier: MarketCapTier | None = None
+    if ticker_info.market_cap is not None:
+        market_cap_tier = classify_market_cap(ticker_info.market_cap)
+
+    # 4. Build TickerMetadata
+    return TickerMetadata(
+        ticker=ticker_info.ticker.upper(),
+        sector=sector,
+        industry_group=industry_group,
+        market_cap_tier=market_cap_tier,
+        company_name=ticker_info.company_name,
+        raw_sector=raw_sector,
+        raw_industry=raw_industry,
+        last_updated=datetime.now(UTC),
+    )

@@ -163,6 +163,7 @@ class TickerInfo(BaseModel):
     ticker: str
     company_name: str
     sector: str
+    industry: str = "Unknown"
     market_cap: int | None = None
     market_cap_tier: MarketCapTier | None = None
 

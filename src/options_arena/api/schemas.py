@@ -439,3 +439,23 @@ class OutcomeCollectionResult(BaseModel):
     """Response for ``POST /api/analytics/collect-outcomes`` (202)."""
 
     outcomes_collected: int
+
+
+# ---------------------------------------------------------------------------
+# Metadata index schemas (#274)
+# ---------------------------------------------------------------------------
+
+
+class MetadataStats(BaseModel):
+    """Metadata coverage statistics."""
+
+    total: int
+    with_sector: int
+    with_industry_group: int
+    coverage: float  # with_sector / total, 0.0 if total == 0
+
+
+class IndexStarted(BaseModel):
+    """Response for ``POST /api/universe/index`` (202)."""
+
+    index_task_id: int

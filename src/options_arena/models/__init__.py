@@ -79,6 +79,7 @@ from options_arena.models.intelligence import (
     UpgradeDowngrade,
 )
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
+from options_arena.models.metadata import MetadataCoverage, TickerMetadata
 from options_arena.models.openbb import (
     FundamentalSnapshot,
     NewsHeadline,
@@ -200,6 +201,9 @@ __all__ = [
     "THEME_ETF_MAPPING",
     "ThemeDefinition",
     "ThemeSnapshot",
+    # Metadata
+    "MetadataCoverage",
+    "TickerMetadata",
     # Watchlist
     "Watchlist",
     "WatchlistDetail",
