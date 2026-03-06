@@ -62,6 +62,10 @@ class ScanConfig(BaseModel):
     industry_groups: list[GICSIndustryGroup] = []
     theme_filters: list[str] = []
     custom_tickers: list[str] = []
+    # Pre-scan price/DTE filters
+    max_price: float | None = None
+    min_dte: int | None = None
+    max_dte: int | None = None
     # Regime classification thresholds (applied to raw market_regime signal, 0-100 scale)
     regime_crisis_threshold: float = 80.0
     regime_volatile_threshold: float = 60.0
@@ -202,6 +206,36 @@ class ScanConfig(BaseModel):
         if len(result) > 200:
             raise ValueError(f"custom_tickers exceeds 200 tickers ({len(result)})")
         return result
+
+    @field_validator("max_price")
+    @classmethod
+    def validate_max_price(cls, v: float | None) -> float | None:
+        """Ensure max_price is finite and positive when set."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"max_price must be finite, got {v}")
+            if v <= 0.0:
+                raise ValueError(f"max_price must be positive, got {v}")
+        return v
+
+    @field_validator("min_dte", "max_dte")
+    @classmethod
+    def validate_dte_positive(cls, v: int | None) -> int | None:
+        """Ensure DTE values are positive when set."""
+        if v is not None and v <= 0:
+            raise ValueError(f"DTE must be positive, got {v}")
+        return v
+
+    @model_validator(mode="after")
+    def validate_cross_field_ranges(self) -> Self:
+        """Reject min > max for price and DTE when both are set."""
+        if self.min_dte is not None and self.max_dte is not None and self.min_dte > self.max_dte:
+            raise ValueError(f"min_dte ({self.min_dte}) must not exceed max_dte ({self.max_dte})")
+        if self.max_price is not None and self.min_price > self.max_price:
+            raise ValueError(
+                f"min_price ({self.min_price}) must not exceed max_price ({self.max_price})"
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_all_finite(self) -> Self:

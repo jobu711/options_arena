@@ -1,3 +1,5 @@
 """Options Arena - AI-powered options analysis tool."""
 
-__version__ = "0.1.0"
+from importlib.metadata import version
+
+__version__ = version("options-arena")

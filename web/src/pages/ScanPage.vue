@@ -3,20 +3,16 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
-import Select from 'primevue/select'
-import MultiSelect from 'primevue/multiselect'
-import InputNumber from 'primevue/inputnumber'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import ProgressTracker from '@/components/ProgressTracker.vue'
-import SectorTree from '@/components/SectorTree.vue'
+import PreScanFilters from '@/components/scan/PreScanFilters.vue'
 import { useScanStore } from '@/stores/scan'
 import { useOperationStore } from '@/stores/operation'
 import { useWebSocket } from '@/composables/useWebSocket'
-import { api, ApiError } from '@/composables/useApi'
-import ThemeChips from '@/components/scan/ThemeChips.vue'
+import { ApiError } from '@/composables/useApi'
 import type { ScanEvent } from '@/types/ws'
-import type { SectorHierarchy, ThemeInfo } from '@/types'
+import type { PreScanFilterPayload } from '@/types'
 
 const router = useRouter()
 const toast = useToast()
@@ -25,55 +21,11 @@ const opStore = useOperationStore()
 
 const SCAN_PHASES = ['universe', 'scoring', 'options', 'persist']
 
-const presetOptions = [
-  { label: 'S&P 500', value: 'sp500' },
-  { label: 'Full Universe', value: 'full' },
-  { label: 'ETFs', value: 'etfs' },
-]
-const selectedPreset = ref('sp500')
+// Current filter state from PreScanFilters component
+const currentFilters = ref<PreScanFilterPayload>({ preset: 'sp500' })
 
-// Sector + industry group filter state (hierarchical tree)
-const sectorHierarchy = ref<SectorHierarchy[]>([])
-const selectedSectors = ref<string[]>([])
-const selectedIndustryGroups = ref<string[]>([])
-
-// Pre-scan filter state
-const marketCapOptions = [
-  { label: 'Mega', value: 'mega' },
-  { label: 'Large', value: 'large' },
-  { label: 'Mid', value: 'mid' },
-  { label: 'Small', value: 'small' },
-  { label: 'Micro', value: 'micro' },
-]
-const selectedMarketCaps = ref<string[]>([])
-const excludeEarningsDays = ref<number | null>(null)
-const directionOptions = [
-  { label: 'Any Direction', value: null },
-  { label: 'Bullish Only', value: 'bullish' },
-  { label: 'Bearish Only', value: 'bearish' },
-  { label: 'Neutral Only', value: 'neutral' },
-]
-const selectedDirection = ref<string | null>(null)
-const minIvRank = ref<number | null>(null)
-
-async function fetchSectors(): Promise<void> {
-  try {
-    sectorHierarchy.value = await api<SectorHierarchy[]>('/api/universe/sectors')
-  } catch {
-    sectorHierarchy.value = []
-  }
-}
-
-// Theme filter state
-const availableThemes = ref<ThemeInfo[]>([])
-const selectedThemes = ref<string[]>([])
-
-async function fetchThemes(): Promise<void> {
-  try {
-    availableThemes.value = await api<ThemeInfo[]>('/api/universe/themes')
-  } catch {
-    availableThemes.value = []
-  }
+function onFiltersUpdate(payload: PreScanFilterPayload): void {
+  currentFilters.value = payload
 }
 
 // WebSocket connection for live scan progress
@@ -82,15 +34,21 @@ let wsClose: (() => void) | null = null
 async function runScan(): Promise<void> {
   try {
     opStore.start('scan')
+    const f = currentFilters.value
     const scanId = await scanStore.startScan({
-      preset: selectedPreset.value,
-      sectors: selectedSectors.value.length > 0 ? selectedSectors.value : undefined,
-      industryGroups: selectedIndustryGroups.value.length > 0 ? selectedIndustryGroups.value : undefined,
-      themes: selectedThemes.value.length > 0 ? selectedThemes.value : undefined,
-      market_cap_tiers: selectedMarketCaps.value,
-      exclude_near_earnings_days: excludeEarningsDays.value,
-      direction_filter: selectedDirection.value,
-      min_iv_rank: minIvRank.value,
+      preset: f.preset ?? 'sp500',
+      sectors: f.sectors,
+      industryGroups: f.industryGroups,
+      themes: f.themes,
+      market_cap_tiers: f.market_cap_tiers,
+      exclude_near_earnings_days: f.exclude_near_earnings_days,
+      direction_filter: f.direction_filter,
+      min_iv_rank: f.min_iv_rank,
+      min_price: f.min_price,
+      max_price: f.max_price,
+      min_dte: f.min_dte,
+      max_dte: f.max_dte,
+      min_score: f.min_score,
     })
 
     // Connect to WebSocket for progress updates
@@ -147,8 +105,6 @@ function formatDate(iso: string): string {
 
 onMounted(() => {
   void scanStore.fetchScans()
-  void fetchSectors()
-  void fetchThemes()
 })
 onUnmounted(() => {
   wsClose?.()
@@ -160,26 +116,14 @@ onUnmounted(() => {
   <div class="page">
     <h1 data-testid="scan-title">Scan</h1>
 
-    <!-- Launch Panel -->
+    <!-- Pre-scan Filters -->
+    <PreScanFilters
+      :disabled="scanStore.isScanning || opStore.inProgress"
+      @update:filters="onFiltersUpdate"
+    />
+
+    <!-- Run Scan Button -->
     <div class="launch-panel">
-      <Select
-        v-model="selectedPreset"
-        :options="presetOptions"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="Select preset"
-        :disabled="scanStore.isScanning || opStore.inProgress"
-        data-testid="preset-selector"
-      />
-      <SectorTree
-        :sectors="sectorHierarchy"
-        :selectedSectors="selectedSectors"
-        :selectedIndustryGroups="selectedIndustryGroups"
-        :disabled="scanStore.isScanning || opStore.inProgress"
-        data-testid="sector-tree"
-        @update:selectedSectors="(v: string[]) => selectedSectors = v"
-        @update:selectedIndustryGroups="(v: string[]) => selectedIndustryGroups = v"
-      />
       <Button
         label="Run Scan"
         icon="pi pi-play"
@@ -190,66 +134,6 @@ onUnmounted(() => {
         @click="runScan()"
       />
     </div>
-    <!-- Pre-scan Filters -->
-    <div class="filter-row">
-      <MultiSelect
-        v-model="selectedMarketCaps"
-        :options="marketCapOptions"
-        optionLabel="label"
-        optionValue="value"
-        display="chip"
-        placeholder="Market cap tiers"
-        :disabled="scanStore.isScanning || opStore.inProgress"
-        class="cap-filter"
-        data-testid="market-cap-filter"
-      />
-      <Select
-        v-model="selectedDirection"
-        :options="directionOptions"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="Direction"
-        :disabled="scanStore.isScanning || opStore.inProgress"
-        data-testid="direction-filter"
-      />
-      <InputNumber
-        v-model="excludeEarningsDays"
-        placeholder="Exclude earnings (days)"
-        :min="0"
-        :max="90"
-        :disabled="scanStore.isScanning || opStore.inProgress"
-        showButtons
-        suffix=" days"
-        data-testid="earnings-filter"
-      />
-      <InputNumber
-        v-model="minIvRank"
-        placeholder="Min IV Rank"
-        :min="0"
-        :max="100"
-        :disabled="scanStore.isScanning || opStore.inProgress"
-        showButtons
-        suffix="%"
-        data-testid="iv-rank-filter"
-      />
-    </div>
-
-    <div v-if="selectedSectors.length > 0 || selectedIndustryGroups.length > 0" class="active-filter-info" data-testid="active-sector-filter">
-      <span v-if="selectedSectors.length > 0">
-        Filtering by {{ selectedSectors.length }} sector{{ selectedSectors.length > 1 ? 's' : '' }}:
-        {{ selectedSectors.join(', ') }}
-      </span>
-      <span v-if="selectedIndustryGroups.length > 0">
-        {{ selectedSectors.length > 0 ? ' | ' : '' }}{{ selectedIndustryGroups.length }} industry group{{ selectedIndustryGroups.length > 1 ? 's' : '' }}:
-        {{ selectedIndustryGroups.join(', ') }}
-      </span>
-    </div>
-
-    <!-- Theme Chips (pre-scan filter) -->
-    <ThemeChips
-      :themes="availableThemes"
-      v-model:selectedThemes="selectedThemes"
-    />
 
     <!-- Progress Panel -->
     <ProgressTracker
@@ -317,31 +201,6 @@ onUnmounted(() => {
   display: flex;
   gap: 0.75rem;
   align-items: center;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-}
-
-.sector-filter {
-  min-width: 250px;
-  max-width: 500px;
-}
-
-.filter-row {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-}
-
-.cap-filter {
-  min-width: 200px;
-  max-width: 400px;
-}
-
-.active-filter-info {
-  font-size: 0.85rem;
-  color: var(--p-surface-400, #888);
   margin-bottom: 1rem;
 }
 

@@ -6,9 +6,11 @@ Most responses use existing Pydantic models from ``models/`` directly.
 
 from __future__ import annotations
 
+import math
 from datetime import datetime
+from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from options_arena.models import (
     TICKER_RE,
@@ -19,6 +21,7 @@ from options_arena.models import (
     GICSIndustryGroup,
     GICSSector,
     MarketCapTier,
+    RecommendedContract,
     RiskAssessment,
     ScanPreset,
     ScanSource,
@@ -45,7 +48,57 @@ class ScanRequest(BaseModel):
     direction_filter: SignalDirection | None = None
     min_iv_rank: float | None = None
     custom_tickers: list[str] = []
+    min_price: float | None = None
+    max_price: float | None = None
+    min_dte: int | None = None
+    max_dte: int | None = None
+    min_score: float | None = None
     source: ScanSource = ScanSource.MANUAL
+
+    @field_validator("min_price", "max_price")
+    @classmethod
+    def validate_price_fields(cls, v: float | None) -> float | None:
+        """Ensure price fields are finite and positive when set."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"price must be finite, got {v}")
+            if v <= 0.0:
+                raise ValueError(f"price must be positive, got {v}")
+        return v
+
+    @field_validator("min_score")
+    @classmethod
+    def validate_min_score(cls, v: float | None) -> float | None:
+        """Ensure min_score is finite and non-negative when set."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"min_score must be finite, got {v}")
+            if v < 0.0:
+                raise ValueError(f"min_score must be non-negative, got {v}")
+        return v
+
+    @field_validator("min_dte", "max_dte")
+    @classmethod
+    def validate_dte_fields(cls, v: int | None) -> int | None:
+        """Ensure DTE values are positive when set."""
+        if v is not None and v <= 0:
+            raise ValueError(f"DTE must be positive, got {v}")
+        return v
+
+    @model_validator(mode="after")
+    def validate_cross_field_ranges(self) -> Self:
+        """Reject min > max for price and DTE when both are set."""
+        if (
+            self.min_price is not None
+            and self.max_price is not None
+            and self.min_price > self.max_price
+        ):
+            raise ValueError(
+                f"min_price ({self.min_price}) must not exceed max_price ({self.max_price})"
+            )
+        if self.min_dte is not None and self.max_dte is not None and self.min_dte > self.max_dte:
+            raise ValueError(f"min_dte ({self.min_dte}) must not exceed max_dte ({self.max_dte})")
+        return self
 
     @field_validator("market_cap_tiers", mode="before")
     @classmethod
@@ -180,7 +233,7 @@ class TickerDetail(BaseModel):
     ticker: str
     composite_score: float
     direction: SignalDirection
-    contracts: list[str]  # Contract identifiers — empty until contracts are persisted
+    contracts: list[RecommendedContract]
 
 
 # ---------------------------------------------------------------------------
@@ -193,6 +246,8 @@ class DebateRequest(BaseModel):
 
     ticker: str = Field(min_length=1, max_length=10)
     scan_id: int | None = None
+    enable_rebuttal: bool | None = None
+    enable_volatility_agent: bool | None = None
 
     @field_validator("ticker", mode="before")
     @classmethod
@@ -435,6 +490,14 @@ class UniverseStats(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class OperationStatus(BaseModel):
+    """Response for ``GET /api/status`` — current system operation state."""
+
+    busy: bool
+    active_scan_ids: list[int] = []
+    active_debate_ids: list[int] = []
+
+
 class OutcomeCollectionResult(BaseModel):
     """Response for ``POST /api/analytics/collect-outcomes`` (202)."""
 
@@ -459,3 +522,17 @@ class IndexStarted(BaseModel):
     """Response for ``POST /api/universe/index`` (202)."""
 
     index_task_id: int
+
+
+# ---------------------------------------------------------------------------
+# Pre-scan preset schemas (#285)
+# ---------------------------------------------------------------------------
+
+
+class PresetInfo(BaseModel):
+    """Describes a scan preset for the frontend preset picker."""
+
+    preset: ScanPreset
+    label: str
+    description: str
+    estimated_count: int

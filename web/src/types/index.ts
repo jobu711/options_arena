@@ -1,6 +1,6 @@
 export type { HealthStatus } from './health'
 export type { Watchlist, WatchlistTicker, WatchlistDetail } from './watchlist'
-export type { ScanRun, TickerScore, DimensionalScores, PaginatedResponse, TickerDelta, ScanDiff, SectorOption, IndustryGroupInfo, SectorHierarchy, ThemeInfo, MarketRegime, FilterParams, TickerInfoResponse } from './scan'
+export type { ScanRun, TickerScore, DimensionalScores, PaginatedResponse, TickerDelta, ScanDiff, SectorOption, IndustryGroupInfo, SectorHierarchy, ThemeInfo, MarketRegime, FilterParams, TickerInfoResponse, RecommendedContract, PresetInfo, PreScanFilterPayload } from './scan'
 export type {
   DebateResultSummary,
   DebateResult,
@@ -13,6 +13,7 @@ export type {
   AgentProgressEntry,
 } from './debate'
 export type { ConfigResponse } from './config'
+export type { WinRateResult, ScoreCalibrationBucket, HoldingPeriodResult, DeltaPerformanceResult, PerformanceSummary } from './analytics'
 export type { HistoryPoint, TrendingTicker } from './history'
 export type {
   ScanProgressEvent,

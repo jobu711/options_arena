@@ -319,6 +319,35 @@ class ScanPipeline:
                     len(all_tickers),
                     len(tickers),
                 )
+            elif preset == ScanPreset.NASDAQ100:
+                preset_tickers = await self._universe.fetch_nasdaq100_constituents()
+                preset_set = frozenset(preset_tickers)
+                tickers = [t for t in all_tickers if t in preset_set]
+                logger.info(
+                    "NASDAQ100 preset: filtered %d -> %d tickers",
+                    len(all_tickers),
+                    len(tickers),
+                )
+            elif preset == ScanPreset.RUSSELL2000:
+                preset_tickers = await self._universe.fetch_russell2000_tickers(
+                    repo=self._repository,
+                )
+                preset_set = frozenset(preset_tickers)
+                tickers = [t for t in all_tickers if t in preset_set]
+                logger.info(
+                    "RUSSELL2000 preset: filtered %d -> %d tickers",
+                    len(all_tickers),
+                    len(tickers),
+                )
+            elif preset == ScanPreset.MOST_ACTIVE:
+                preset_tickers = await self._universe.fetch_most_active()
+                preset_set = frozenset(preset_tickers)
+                tickers = [t for t in all_tickers if t in preset_set]
+                logger.info(
+                    "MOST_ACTIVE preset: filtered %d -> %d tickers",
+                    len(all_tickers),
+                    len(tickers),
+                )
             else:
                 tickers = all_tickers
 
@@ -589,6 +618,7 @@ class ScanPipeline:
         # Step 1: Liquidity pre-filter
         min_dollar_volume = self._settings.scan.min_dollar_volume
         min_price = self._settings.scan.min_price
+        max_price = self._settings.scan.max_price
 
         liquid_scores: list[TickerScore] = []
         for ts in scoring_result.scores:
@@ -601,15 +631,22 @@ class ScanPipeline:
             )
             latest_close = float(ohlcv_list[-1].close)
 
-            if avg_dollar_volume >= min_dollar_volume and latest_close >= min_price:
-                liquid_scores.append(ts)
+            if avg_dollar_volume < min_dollar_volume:
+                continue
+            if latest_close < min_price:
+                continue
+            if max_price is not None and latest_close > max_price:
+                continue
+
+            liquid_scores.append(ts)
 
         logger.info(
-            "Liquidity pre-filter: %d -> %d tickers (min_dv=$%.0f, min_price=$%.0f)",
+            "Liquidity pre-filter: %d -> %d tickers (min_dv=$%.0f, min_price=$%.0f%s)",
             len(scoring_result.scores),
             len(liquid_scores),
             min_dollar_volume,
             min_price,
+            f", max_price=${max_price:.0f}" if max_price is not None else "",
         )
 
         # Step 2: Top-N selection (scores already sorted descending)

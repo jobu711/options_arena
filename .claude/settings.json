@@ -18,6 +18,15 @@
             "command": "python .claude/hooks/planning-lock.py"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/version-sync.py"
+          }
+        ]
       }
     ]
   }

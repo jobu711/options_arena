@@ -32,6 +32,11 @@ const routes: RouteRecordRaw[] = [
     name: 'ticker-detail',
     component: () => import('../pages/TickerDetailPage.vue'),
   },
+  {
+    path: '/analytics',
+    name: 'analytics',
+    component: () => import('../pages/AnalyticsPage.vue'),
+  },
 ]
 
 const router = createRouter({

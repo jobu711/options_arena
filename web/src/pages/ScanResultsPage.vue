@@ -595,6 +595,27 @@ onUnmounted(() => {
       </span>
     </div>
 
+    <!-- Scan Errors (if any) -->
+    <Panel
+      v-if="scanStore.errors.length > 0"
+      :toggleable="true"
+      :collapsed="true"
+      class="scan-errors-panel"
+      data-testid="scan-errors-panel"
+    >
+      <template #header>
+        <div class="panel-header">
+          <span class="errors-header-label">Skipped Tickers</span>
+          <Tag :value="String(scanStore.errors.length)" severity="warn" />
+        </div>
+      </template>
+      <div class="error-list">
+        <div v-for="(err, idx) in scanStore.errors" :key="idx" class="error-item">
+          {{ err.message }}
+        </div>
+      </div>
+    </Panel>
+
     <!-- Filters + Batch Actions -->
     <div class="filters">
       <InputText
@@ -899,6 +920,40 @@ onUnmounted(() => {
 .total-count {
   font-size: 0.9rem;
   color: var(--p-surface-400, #888);
+}
+
+.scan-errors-panel {
+  margin-bottom: 1rem;
+}
+
+.errors-header-label {
+  color: var(--accent-yellow);
+  font-weight: 500;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.error-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.error-item {
+  font-size: 0.8rem;
+  color: var(--p-surface-400, #888);
+  padding: 0.2rem 0;
+  border-bottom: 1px solid var(--p-surface-700, #333);
+}
+
+.error-item:last-child {
+  border-bottom: none;
 }
 
 .filters {

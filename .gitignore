@@ -49,6 +49,9 @@ htmlcov/
 # pytest
 .pytest_cache/
 
+# Architecture tools
+.tach/
+
 # Runtime logs
 logs/
 
