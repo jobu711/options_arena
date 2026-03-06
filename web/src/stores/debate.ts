@@ -81,7 +81,7 @@ export const useDebateStore = defineStore('debate', () => {
     currentDebateId.value = res.debate_id
 
     // Initialize agent progress with standard agents
-    const agents: Array<{ name: string; status: string; confidence: null }> = [
+    const agents: Array<{ name: string; status: 'pending' | 'started' | 'completed' | 'failed'; confidence: number | null }> = [
       { name: 'bull', status: 'pending', confidence: null },
       { name: 'bear', status: 'pending', confidence: null },
       { name: 'risk', status: 'pending', confidence: null },
