@@ -156,6 +156,7 @@ async def test_get_ticker_detail_found(client: AsyncClient, mock_repo: MagicMock
     """GET /api/scan/1/scores/AAPL returns ticker detail."""
     scores = [_make_ticker_score("AAPL", 80.0)]
     mock_repo.get_scores_for_scan = AsyncMock(return_value=scores)
+    mock_repo.get_contracts_for_scan = AsyncMock(return_value=[])
     response = await client.get("/api/scan/1/scores/AAPL")
     assert response.status_code == 200
     data = response.json()
