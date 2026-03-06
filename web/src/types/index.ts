@@ -13,7 +13,7 @@ export type {
   AgentProgressEntry,
 } from './debate'
 export type { ConfigResponse } from './config'
-export type { WinRateResult, ScoreCalibrationBucket, HoldingPeriodResult, DeltaPerformanceResult, PerformanceSummary } from './analytics'
+export type { WinRateResult, ScoreCalibrationBucket, IndicatorAttributionResult, HoldingPeriodResult, DeltaPerformanceResult, PerformanceSummary, OutcomeCollectionResult } from './analytics'
 export type { HistoryPoint, TrendingTicker } from './history'
 export type {
   ScanProgressEvent,
