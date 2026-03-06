@@ -101,4 +101,11 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **Expired handling**: ITM -> intrinsic value; OTM -> expired worthless (-100%)
 - **Analytics queries**: 6 typed results, 9 API endpoints on `/api/analytics`, CLI `outcomes` subcommand
 
+### Metadata Index Pattern (Ticker Classification Cache)
+- **Persistent cache**: SQLite table `ticker_metadata` — GICS sector, industry group, market cap tier
+- **Bulk upsert**: `Repository.upsert_metadata_batch()` for ~5K CBOE tickers
+- **Pipeline integration**: Phase 1 enriches tickers from cache; `universe index` CLI rebuilds
+- **API**: `/api/universe/metadata` + `/api/universe/metadata/stats` endpoints
+- **Staleness**: 30-day TTL; `MetadataStats` tracks coverage and freshness
+
 For detailed algorithm specs, see `system-patterns-reference.md`.

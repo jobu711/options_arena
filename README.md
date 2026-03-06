@@ -1,10 +1,10 @@
 # Options Arena
 
-AI-powered options analysis tool for American-style options on U.S. equities. Three AI agents (Bull, Bear, Risk) debate via Groq cloud API (Llama 3.3 70B) on options contracts, producing structured verdicts with risk assessments.
+AI-powered options analysis tool for American-style options on U.S. equities. Eight AI agents (Bull, Bear, Risk, Volatility, Contrarian, Flow, Fundamental, Trend) debate via Groq cloud API (Llama 3.3 70B) on options contracts, producing structured verdicts with risk assessments.
 
 ## Features
 
-- **AI Debate Engine** — Bull, Bear, and Risk agents argue over options contracts using PydanticAI + Groq (Llama 3.3 70B). Structured single-pass debate with optional bull rebuttal. Data-driven fallback when LLM is unavailable.
+- **AI Debate Engine** — Eight specialized agents (Bull, Bear, Risk, Volatility, Contrarian, Flow, Fundamental, Trend) argue over options contracts using PydanticAI + Groq (Llama 3.3 70B). Structured single-pass debate with optional bull rebuttal. Data-driven fallback when LLM is unavailable.
 - **Options Pricing** — BSM (Black-Scholes-Merton) for European-style and BAW (Barone-Adesi-Whaley) for American-style options. All Greeks computed locally — yfinance provides only implied volatility.
 - **4-Phase Scan Pipeline** — Async pipeline: universe filtering → scoring → options enrichment → persistence. Sector, market cap, IV rank, and direction filters.
 - **18 Technical Indicators** — RSI, MACD, Bollinger Bands, ATR, OBV, Stochastic, and more. Pure pandas math with no external API dependencies.
@@ -127,7 +127,7 @@ options-arena debate --help
 ```
 src/options_arena/
     cli/          # Typer CLI entry point
-    agents/       # PydanticAI debate agents (Bull, Bear, Risk, Volatility)
+    agents/       # PydanticAI debate agents (Bull, Bear, Risk, Volatility, Contrarian, Flow, Fundamental, Trend)
       prompts/    # Prompt templates & versioning
     models/       # Pydantic models, enums, config
     pricing/      # BSM + BAW option pricing & Greeks
@@ -141,7 +141,7 @@ src/options_arena/
     utils/        # Exception hierarchy
 
 web/              # Vue 3 SPA (TypeScript, Pinia, PrimeVue)
-tests/            # 3,900+ Python tests (unit + integration)
+tests/            # 3,959 tests (3,921 Python unit + 38 E2E)
 data/migrations/  # Sequential SQL migration files
 ```
 
@@ -251,8 +251,12 @@ GitHub Actions runs 4 gates on every push and PR:
 3. **Bear agent** argues the bearish case independently
 4. **Bull rebuttal** (optional) — Bull responds to Bear's counter-arguments
 5. **Volatility agent** assesses IV rank, term structure, and vol regime
-6. **Risk agent** synthesizes all arguments into a final verdict with trade thesis
-7. Results are persisted and available via CLI, API, and web dashboard
+6. **Contrarian agent** challenges consensus with alternative scenarios
+7. **Flow agent** analyzes options flow signals and unusual activity
+8. **Fundamental agent** evaluates financial health and valuation metrics
+9. **Trend agent** assesses momentum, trend strength, and regime context
+10. **Risk agent** synthesizes all arguments into a final verdict with trade thesis
+11. Results are persisted and available via CLI, API, and web dashboard
 
 ### Outcome Tracking
 

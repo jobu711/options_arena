@@ -6,11 +6,11 @@
 
 ## What This Project Does
 
-AI-powered options analysis tool for American-style options on U.S. equities. Three AI
-agents (Bull, Bear, Risk) debate via Groq cloud API (Llama 3.3 70B) on options
-contracts. The tool fetches market data, computes technical indicators, runs a structured
-single-pass debate, and produces a verdict with risk assessment. Data-driven fallback
-when the LLM provider is unreachable.
+AI-powered options analysis tool for American-style options on U.S. equities. Eight AI
+agents (Bull, Bear, Risk, Volatility, Contrarian, Flow, Fundamental, Trend) debate via
+Groq cloud API (Llama 3.3 70B) on options contracts. The tool fetches market data,
+computes technical indicators, runs a structured debate, and produces a verdict with
+risk assessment. Data-driven fallback when the LLM provider is unreachable.
 
 ## Tech Stack
 
@@ -45,7 +45,7 @@ src/options_arena/
     utils/        # DataFetchError exception hierarchy
 data/migrations/  # Sequential SQL migration files
 web/              # Vue 3 SPA (TypeScript, Pinia, PrimeVue)  → has own CLAUDE.md
-tests/            # 1,577 tests (unit + integration)         → has own CLAUDE.md
+tests/            # 3,959 tests (3,921 unit + 38 E2E)        → has own CLAUDE.md
 ```
 
 Each module's CLAUDE.md has the detailed file listing. Read it before modifying that module.

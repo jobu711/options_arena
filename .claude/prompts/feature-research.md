@@ -12,9 +12,7 @@ die from over-engineering as often as from under-investing.
 </context>
 
 <task>
-Research [TOPIC] for Options Arena. Produce a decision-ready
-analysis: should we build it, how should we build it, and
-what's the smallest version that delivers value?
+Redesign the dashboard pre-scan filtering implementation. Research framework that provides highest alpha for identifying trade ideas quickly.
 </task>
 
 <instructions>
@@ -23,9 +21,10 @@ the problem space before proposing solutions.
 
 ### Phase 1 — Assess
 Clarify the problem, then survey the landscape:
-- What user need or system gap does [TOPIC] address?
+- What user need or system gap does scan filtering address?
 - How is this handled today? (Workaround, manual, not at all)
 - What measurable outcome defines success?
+-What provides the highes alpha.
 - What open-source libraries, commercial APIs, or prior art
   exist? (Check PyPI, GitHub, academic literature)
 - For each option: maturity, Python 3.13 + async compat,
