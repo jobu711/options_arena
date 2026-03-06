@@ -14,6 +14,7 @@ import { useHealthStore } from '@/stores/health'
 import { useDebateStore } from '@/stores/debate'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { api, ApiError } from '@/composables/useApi'
+import { formatScanDuration, formatDateTime } from '@/utils/formatters'
 import type { ScanRun, DebateResultSummary, ConfigResponse, DebateEvent, TrendingTicker } from '@/types'
 
 const router = useRouter()
@@ -165,10 +166,6 @@ async function collectOutcomes(): Promise<void> {
   }
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString()
-}
-
 function formatConfidence(val: number): string {
   return `${(val * 100).toFixed(0)}%`
 }
@@ -177,6 +174,7 @@ function formatLatency(ms: number | null): string {
   if (ms === null) return '--'
   return `${ms.toFixed(0)}ms`
 }
+
 
 onMounted(() => {
   void loadDashboard()
@@ -312,7 +310,10 @@ onUnmounted(() => {
             {{ latestScan.tickers_scored }} scored /
             {{ latestScan.recommendations }} recommendations
           </span>
-          <span class="scan-date">{{ formatDate(latestScan.started_at) }}</span>
+          <span class="scan-date">
+            {{ formatDateTime(latestScan.started_at) }}
+            <span class="scan-duration">Duration: {{ formatScanDuration(latestScan) }}</span>
+          </span>
         </div>
         <Button
           label="View Results"
@@ -406,7 +407,19 @@ onUnmounted(() => {
 
     <!-- Recent Debates -->
     <section class="section">
-      <h2>Recent Debates</h2>
+      <div class="section-header">
+        <h2>Recent Debates</h2>
+        <Button
+          label="View Scans"
+          icon="pi pi-arrow-right"
+          iconPos="right"
+          severity="secondary"
+          text
+          size="small"
+          data-testid="dashboard-view-all-debates"
+          @click="router.push('/scan')"
+        />
+      </div>
       <div v-if="recentDebates.length > 0" class="debate-list" data-testid="dashboard-recent-debates">
         <div
           v-for="debate in recentDebates"
@@ -419,7 +432,7 @@ onUnmounted(() => {
             {{ debate.direction }}
           </span>
           <span class="debate-confidence mono">{{ formatConfidence(debate.confidence) }}</span>
-          <span class="debate-date">{{ formatDate(debate.created_at) }}</span>
+          <span class="debate-date">{{ formatDateTime(debate.created_at) }}</span>
         </div>
       </div>
       <div v-else-if="!loading" class="empty-state">
@@ -572,6 +585,22 @@ onUnmounted(() => {
 .scan-date {
   font-size: 0.8rem;
   color: var(--p-surface-500, #666);
+}
+
+.scan-duration {
+  margin-left: 0.75rem;
+  color: var(--p-surface-400, #888);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.section-header h2 {
+  margin-bottom: 0;
 }
 
 .debate-list {

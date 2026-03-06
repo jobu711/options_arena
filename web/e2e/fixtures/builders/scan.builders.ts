@@ -1,4 +1,4 @@
-import type { ScanRun, TickerScore, PaginatedResponse } from '../../../src/types'
+import type { ScanRun, TickerScore, PaginatedResponse, RecommendedContract } from '../../../src/types'
 
 let scanIdCounter = 1000
 
@@ -8,6 +8,7 @@ export function buildScanRun(overrides: Partial<ScanRun> = {}): ScanRun {
     started_at: '2026-02-26T14:00:00+00:00',
     completed_at: '2026-02-26T14:05:00+00:00',
     preset: 'sp500',
+    source: 'manual',
     tickers_scanned: 503,
     tickers_scored: 487,
     recommendations: 50,
@@ -40,6 +41,10 @@ export function buildTickerScore(overrides: Partial<TickerScore> = {}): TickerSc
     },
     next_earnings: null,
     scan_run_id: 1,
+    sector: null,
+    company_name: null,
+    industry_group: null,
+    thematic_tags: [],
     ...overrides,
   }
 }
@@ -68,4 +73,33 @@ export function buildPaginatedScores(
 /** Build an empty paginated response (for empty-state tests). */
 export function buildEmptyScores(): PaginatedResponse<TickerScore> {
   return { items: [], total: 0, page: 1, pages: 0 }
+}
+
+export function buildRecommendedContract(
+  overrides: Partial<RecommendedContract> = {},
+): RecommendedContract {
+  return {
+    id: 1,
+    scan_run_id: 1,
+    ticker: 'AAPL',
+    option_type: 'call',
+    strike: '195.00',
+    bid: '3.50',
+    ask: '3.80',
+    last: '3.65',
+    expiration: '2026-03-21',
+    volume: 1500,
+    open_interest: 12000,
+    market_iv: 0.32,
+    delta: 0.45,
+    gamma: 0.03,
+    theta: -0.05,
+    vega: 0.12,
+    direction: 'bullish',
+    composite_score: 8.2,
+    entry_stock_price: '190.50',
+    entry_mid: '3.65',
+    created_at: '2026-02-26T14:05:00+00:00',
+    ...overrides,
+  }
 }

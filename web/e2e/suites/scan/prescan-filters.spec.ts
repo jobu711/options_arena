@@ -157,6 +157,39 @@ test.describe('PreScanFilters', () => {
     expect(capturedBody!.max_dte).toBe(90)
   })
 
+  test('score filter accepts values 0-100 with step 5', async ({ page }) => {
+    // Capture the POST /api/scan request payload
+    let capturedBody: Record<string, unknown> | null = null
+    await page.route(pathMatcher('/api/scan'), async route => {
+      if (route.request().method() === 'POST') {
+        capturedBody = route.request().postDataJSON() as Record<string, unknown>
+        return route.fulfill({ status: 202, json: { scan_id: SCAN_ID } })
+      }
+      return route.continue()
+    })
+
+    const scanPage = new ScanPage(page)
+    await scanPage.goto()
+
+    // Expand the "Quality" or score-related panel
+    const scorePanel = page.locator('.p-panel').filter({ hasText: /Quality|Score/ })
+    const scoreToggler = scorePanel.locator('button[data-pc-section="toggler"], .p-panel-header button, [data-pc-section="header"] button').first()
+    await scoreToggler.click()
+
+    // Find the score filter input and set it to 75 (only possible if max >= 75)
+    const scoreInput = page.locator('[data-testid="min-score-filter"] input')
+    await scoreInput.click()
+    await scoreInput.fill('75')
+    await scoreInput.press('Tab')
+
+    // Click Run Scan
+    await scanPage.startScan()
+
+    // Verify the value 75 was sent (impossible with old max=10)
+    expect(capturedBody).not.toBeNull()
+    expect(capturedBody!.min_score).toBe(75)
+  })
+
   test('panel collapse preserves filter state', async ({ page }) => {
     const scanPage = new ScanPage(page)
     await scanPage.goto()

@@ -6,6 +6,7 @@ import Tag from 'primevue/tag'
 import DirectionBadge from '@/components/DirectionBadge.vue'
 import ScoreHistoryChart from '@/components/ScoreHistoryChart.vue'
 import { api } from '@/composables/useApi'
+import { formatPrice, formatDateShort, formatDateOnly, formatDateTime } from '@/utils/formatters'
 import type { HistoryPoint, DebateResultSummary, TickerInfoResponse, RecommendedContract } from '@/types'
 
 const route = useRoute()
@@ -20,25 +21,8 @@ const loading = ref(true)
 
 const latestPoint = ref<HistoryPoint | null>(null)
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
-
 function formatConfidence(val: number): string {
   return `${(val * 100).toFixed(0)}%`
-}
-
-function formatPrice(price: string): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(price))
 }
 
 function formatMarketCap(cap: number): string {
@@ -128,7 +112,7 @@ onMounted(() => {
         <div class="latest-summary">
           <span class="score-value mono">{{ latestPoint.composite_score.toFixed(1) }}</span>
           <DirectionBadge :direction="latestPoint.direction" />
-          <span class="score-date">as of {{ formatDate(latestPoint.scan_date) }}</span>
+          <span class="score-date">as of {{ formatDateShort(latestPoint.scan_date) }}</span>
         </div>
       </section>
 
@@ -145,12 +129,12 @@ onMounted(() => {
           <div v-for="c in contracts" :key="c.id ?? `${c.ticker}-${c.strike}-${c.expiration}`" class="contract-row">
             <Tag :value="c.option_type.toUpperCase()" :severity="c.option_type === 'call' ? 'success' : 'danger'" />
             <span class="mono contract-strike">{{ formatPrice(c.strike) }}</span>
-            <span class="contract-exp">{{ formatDate(c.expiration) }}</span>
+            <span class="contract-exp">{{ formatDateOnly(c.expiration) }}</span>
             <DirectionBadge :direction="c.direction" />
             <span class="mono contract-score">{{ c.composite_score.toFixed(1) }}</span>
             <span v-if="c.delta != null" class="mono contract-delta">&delta; {{ c.delta.toFixed(2) }}</span>
             <span class="mono contract-mid">Mid {{ formatPrice(c.entry_mid) }}</span>
-            <span class="contract-date">{{ formatDate(c.created_at) }}</span>
+            <span class="contract-date">{{ formatDateShort(c.created_at) }}</span>
           </div>
         </div>
       </section>
@@ -169,7 +153,7 @@ onMounted(() => {
             <DirectionBadge :direction="d.direction as 'bullish' | 'bearish' | 'neutral'" />
             <span class="mono debate-conf">{{ formatConfidence(d.confidence) }}</span>
             <span class="debate-model">{{ d.model_name }}</span>
-            <span class="debate-date">{{ formatDate(d.created_at) }}</span>
+            <span class="debate-date">{{ formatDateShort(d.created_at) }}</span>
           </div>
         </div>
       </section>

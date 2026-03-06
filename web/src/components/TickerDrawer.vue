@@ -6,17 +6,19 @@ import Drawer from 'primevue/drawer'
 import Button from 'primevue/button'
 import Select from 'primevue/select'
 import Message from 'primevue/message'
+import Tag from 'primevue/tag'
 import DirectionBadge from './DirectionBadge.vue'
 import ScoreHistoryChart from './ScoreHistoryChart.vue'
 import DimensionalScoreBars from './DimensionalScoreBars.vue'
 import DebateProgressModal from './DebateProgressModal.vue'
 import { api, ApiError } from '@/composables/useApi'
+import { formatPrice, formatDateTime, formatDateOnly } from '@/utils/formatters'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { useDebateStore } from '@/stores/debate'
 import { useOperationStore } from '@/stores/operation'
 import { useToast } from 'primevue/usetoast'
-import type { TickerScore, DebateResultSummary, HistoryPoint, TickerInfoResponse } from '@/types'
+import type { TickerScore, DebateResultSummary, HistoryPoint, TickerInfoResponse, RecommendedContract } from '@/types'
 import type { DebateEvent } from '@/types/ws'
 
 interface Props {
@@ -33,6 +35,8 @@ const debates = ref<DebateResultSummary[]>([])
 const loadingDebates = ref(false)
 const history = ref<HistoryPoint[]>([])
 const loadingHistory = ref(false)
+const contracts = ref<RecommendedContract[]>([])
+const contractsLoading = ref(false)
 const fetchedCompanyName = ref<string | null>(null)
 const watchlistStore = useWatchlistStore()
 const debateStore = useDebateStore()
@@ -128,10 +132,12 @@ watch(
     if (!ticker) {
       debates.value = []
       history.value = []
+      contracts.value = []
       return
     }
     loadingDebates.value = true
     loadingHistory.value = true
+    contractsLoading.value = true
 
     // Fire company name fetch separately to preserve type safety on the main Promise.all
     if (!props.score?.company_name) {
@@ -148,25 +154,32 @@ watch(
     const fetches: Promise<unknown>[] = [
       api<DebateResultSummary[]>('/api/debate', {
         params: { ticker, limit: 5 },
-      }),
+      }).catch(() => [] as DebateResultSummary[]),
       api<HistoryPoint[]>(`/api/ticker/${ticker}/history`, {
         params: { limit: 20 },
       }).catch(() => [] as HistoryPoint[]),
+      api<RecommendedContract[]>(`/api/analytics/ticker/${ticker}/contracts`, {
+        params: { limit: 3 },
+      }).catch(() => [] as RecommendedContract[]),
     ]
 
     try {
-      const [debateData, historyData] = await Promise.all(fetches) as [
+      const [debateData, historyData, contractData] = await Promise.all(fetches) as [
         DebateResultSummary[],
         HistoryPoint[],
+        RecommendedContract[],
       ]
       debates.value = debateData
       history.value = historyData
+      contracts.value = contractData
     } catch {
       debates.value = []
       history.value = []
+      contracts.value = []
     } finally {
       loadingDebates.value = false
       loadingHistory.value = false
+      contractsLoading.value = false
     }
   },
 )
@@ -195,10 +208,6 @@ function formatSignalName(key: string): string {
 function formatSignalValue(val: number | null): string {
   if (val === null) return '--'
   return val.toFixed(2)
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString()
 }
 
 function formatConfidence(val: number | null | undefined): string {
@@ -307,7 +316,30 @@ function regimeClass(regime: string | null | undefined): string {
           >
             <DirectionBadge :direction="d.direction as 'bullish' | 'bearish' | 'neutral'" />
             <span class="mono">{{ (d.confidence * 100).toFixed(0) }}%</span>
-            <span class="debate-date">{{ formatDate(d.created_at) }}</span>
+            <span class="debate-date">{{ formatDateTime(d.created_at) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="contractsLoading || contracts.length > 0" class="drawer-section" data-testid="drawer-contracts">
+        <h3>Recommended Contracts</h3>
+        <div v-if="contractsLoading" class="muted"><i class="pi pi-spin pi-spinner" /> Loading contracts...</div>
+        <div v-else class="contract-list">
+          <div
+            v-for="c in contracts"
+            :key="`${c.option_type}-${c.strike}-${c.expiration}`"
+            class="contract-item"
+          >
+            <div class="contract-header">
+              <Tag :value="c.option_type" :severity="c.option_type === 'call' ? 'success' : 'danger'" />
+              <span class="strike mono">{{ formatPrice(c.strike) }}</span>
+              <span class="expiration">{{ formatDateOnly(c.expiration) }}</span>
+            </div>
+            <div class="contract-details">
+              <DirectionBadge v-if="c.direction" :direction="c.direction" />
+              <span v-if="c.delta != null" class="delta mono">&#916; {{ c.delta.toFixed(2) }}</span>
+              <span class="score mono">Score: {{ c.composite_score.toFixed(1) }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -533,5 +565,51 @@ function regimeClass(regime: string | null | undefined): string {
 .regime-badge--null {
   background: var(--p-surface-700, #333);
   color: var(--p-surface-400, #888);
+}
+
+.contract-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.contract-item {
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  background: var(--p-surface-800, #1e1e1e);
+}
+
+.contract-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.contract-details {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.strike {
+  font-weight: 600;
+}
+
+.expiration {
+  margin-left: auto;
+  color: var(--p-surface-400, #888);
+  font-size: 0.75rem;
+}
+
+.delta {
+  color: var(--p-surface-300, #aaa);
+}
+
+.score {
+  margin-left: auto;
+  color: var(--p-surface-300, #aaa);
 }
 </style>

@@ -11,8 +11,9 @@ import { useScanStore } from '@/stores/scan'
 import { useOperationStore } from '@/stores/operation'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { ApiError } from '@/composables/useApi'
+import { formatScanDuration, formatDateTime } from '@/utils/formatters'
 import type { ScanEvent } from '@/types/ws'
-import type { PreScanFilterPayload } from '@/types'
+import type { PreScanFilterPayload, ScanRun } from '@/types'
 
 const router = useRouter()
 const toast = useToast()
@@ -99,10 +100,6 @@ function viewResults(scanId: number): void {
   router.push(`/scan/${scanId}`)
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString()
-}
-
 onMounted(() => {
   void scanStore.fetchScans()
 })
@@ -186,7 +183,12 @@ onUnmounted(() => {
           </template>
         </Column>
         <Column header="Date" field="started_at">
-          <template #body="{ data }">{{ formatDate(data.started_at) }}</template>
+          <template #body="{ data }">{{ formatDateTime(data.started_at) }}</template>
+        </Column>
+        <Column header="Duration" :style="{ width: '90px' }">
+          <template #body="{ data }">
+            <span class="mono">{{ formatScanDuration(data as ScanRun) }}</span>
+          </template>
         </Column>
         <template #empty>
           <div class="empty-msg" data-testid="scan-list-empty">No scans yet. Run your first scan above.</div>
