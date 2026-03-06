@@ -48,6 +48,7 @@ async function runScan(): Promise<void> {
       max_price: f.max_price,
       min_dte: f.min_dte,
       max_dte: f.max_dte,
+      min_score: f.min_score,
     })
 
     // Connect to WebSocket for progress updates

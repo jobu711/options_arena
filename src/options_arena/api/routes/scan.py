@@ -149,6 +149,8 @@ async def start_scan(
         scan_overrides["min_dte"] = body.min_dte
     if body.max_dte is not None:
         scan_overrides["max_dte"] = body.max_dte
+    if body.min_score is not None:
+        scan_overrides["min_score"] = body.min_score
 
     # DTE overrides also forward to PricingConfig for contract filtering
     pricing_overrides: dict[str, object] = {}
@@ -159,9 +161,7 @@ async def start_scan(
 
     if scan_overrides or pricing_overrides:
         new_scan = (
-            ScanConfig.model_validate(
-                settings.scan.model_copy(update=scan_overrides).model_dump()
-            )
+            ScanConfig.model_validate(settings.scan.model_copy(update=scan_overrides).model_dump())
             if scan_overrides
             else settings.scan
         )
@@ -393,11 +393,13 @@ async def get_ticker_detail(
     match = next((s for s in all_scores if s.ticker == ticker_upper), None)
     if match is None:
         raise HTTPException(404, f"Ticker {ticker_upper} not found in scan {scan_id}")
+    all_contracts = await repo.get_contracts_for_scan(scan_id)
+    ticker_contracts = [c for c in all_contracts if c.ticker == ticker_upper]
     return TickerDetail(
         ticker=match.ticker,
         composite_score=match.composite_score,
         direction=match.direction,
-        contracts=[],  # contracts not persisted in DB — empty for now
+        contracts=ticker_contracts,
     )
 
 

@@ -96,13 +96,42 @@ export interface ScanDiff {
 /** Market regime type alias. */
 export type MarketRegime = 'trending' | 'mean_reverting' | 'volatile' | 'crisis'
 
+/** Recommended contract from analytics endpoints. */
+export interface RecommendedContract {
+  id: number | null
+  scan_run_id: number
+  ticker: string
+  option_type: 'call' | 'put'
+  strike: string // Decimal as string
+  bid: string
+  ask: string
+  last: string | null
+  expiration: string // ISO date
+  volume: number
+  open_interest: number
+  market_iv: number
+  delta: number | null
+  gamma: number | null
+  theta: number | null
+  vega: number | null
+  direction: 'bullish' | 'bearish' | 'neutral'
+  composite_score: number
+  entry_stock_price: string | null
+  entry_mid: string
+  created_at: string
+}
+
 /** Ticker info from GET /api/ticker/{ticker}/info. */
 export interface TickerInfoResponse {
   ticker: string
   company_name: string
   sector: string
   market_cap: number | null
+  market_cap_tier: string | null
   current_price: string // Decimal serialized as string
+  fifty_two_week_high: string // Decimal as string
+  fifty_two_week_low: string // Decimal as string
+  dividend_yield: number
 }
 
 /** Scan preset info from GET /api/universe/preset-info. */
@@ -127,6 +156,7 @@ export interface PreScanFilterPayload {
   max_price?: number | null
   min_dte?: number | null
   max_dte?: number | null
+  min_score?: number | null
 }
 
 /** Post-scan dimensional filter parameters for ScanResultsPage. */

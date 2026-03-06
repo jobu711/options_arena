@@ -52,6 +52,20 @@ jobs:
         run: uv run pip-audit
       - run: uv run pytest tests/ -x -q --tb=short
 
+  architecture:
+    name: "Gate 5: Architecture Boundaries"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --frozen
+      - run: uv run tach check
+
   frontend:
     name: "Gate 4: Frontend"
     runs-on: ubuntu-latest

@@ -90,6 +90,7 @@ const directionOptions = [
 const selectedDirection = ref<string | null>(null)
 const excludeEarningsDays = ref<number | null>(null)
 const minIvRank = ref<number | null>(null)
+const minScore = ref<number | null>(null)
 
 const availableThemes = ref<ThemeInfo[]>([])
 const selectedThemes = ref<string[]>([])
@@ -129,6 +130,7 @@ const strategyFilterCount = computed(() => {
   if (selectedDirection.value != null) count++
   if (excludeEarningsDays.value != null) count++
   if (minIvRank.value != null) count++
+  if (minScore.value != null) count++
   if (selectedThemes.value.length > 0) count++
   return count
 })
@@ -160,6 +162,7 @@ function emitFilters(): void {
     max_price: maxPrice.value,
     min_dte: minDte.value,
     max_dte: maxDte.value,
+    min_score: minScore.value,
   }
   emit('update:filters', payload)
 }
@@ -175,13 +178,14 @@ watch(
     excludeEarningsDays,
     minIvRank,
     selectedThemes,
+    minScore,
     minPrice,
     maxPrice,
     minDte,
     maxDte,
   ],
   () => emitFilters(),
-  { deep: true },
+  { deep: true, immediate: true },
 )
 
 // ---------------------------------------------------------------------------
@@ -357,6 +361,25 @@ onMounted(() => {
             data-testid="iv-rank-filter"
           />
           <small class="description">Only include tickers above this IV rank percentile</small>
+        </div>
+      </div>
+
+      <div class="filter-row">
+        <div class="filter-group">
+          <label class="filter-label">Min Composite Score</label>
+          <InputNumber
+            v-model="minScore"
+            placeholder="Min score"
+            :min="0"
+            :max="10"
+            :step="0.5"
+            :minFractionDigits="1"
+            :maxFractionDigits="1"
+            :disabled="disabled"
+            showButtons
+            data-testid="min-score-filter"
+          />
+          <small class="description">Only include tickers scoring above this threshold (0-10)</small>
         </div>
       </div>
 

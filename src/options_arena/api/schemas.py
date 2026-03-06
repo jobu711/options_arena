@@ -21,6 +21,7 @@ from options_arena.models import (
     GICSIndustryGroup,
     GICSSector,
     MarketCapTier,
+    RecommendedContract,
     RiskAssessment,
     ScanPreset,
     ScanSource,
@@ -51,6 +52,7 @@ class ScanRequest(BaseModel):
     max_price: float | None = None
     min_dte: int | None = None
     max_dte: int | None = None
+    min_score: float | None = None
     source: ScanSource = ScanSource.MANUAL
 
     @field_validator("min_price", "max_price")
@@ -62,6 +64,17 @@ class ScanRequest(BaseModel):
                 raise ValueError(f"price must be finite, got {v}")
             if v <= 0.0:
                 raise ValueError(f"price must be positive, got {v}")
+        return v
+
+    @field_validator("min_score")
+    @classmethod
+    def validate_min_score(cls, v: float | None) -> float | None:
+        """Ensure min_score is finite and non-negative when set."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"min_score must be finite, got {v}")
+            if v < 0.0:
+                raise ValueError(f"min_score must be non-negative, got {v}")
         return v
 
     @field_validator("min_dte", "max_dte")
@@ -83,14 +96,8 @@ class ScanRequest(BaseModel):
             raise ValueError(
                 f"min_price ({self.min_price}) must not exceed max_price ({self.max_price})"
             )
-        if (
-            self.min_dte is not None
-            and self.max_dte is not None
-            and self.min_dte > self.max_dte
-        ):
-            raise ValueError(
-                f"min_dte ({self.min_dte}) must not exceed max_dte ({self.max_dte})"
-            )
+        if self.min_dte is not None and self.max_dte is not None and self.min_dte > self.max_dte:
+            raise ValueError(f"min_dte ({self.min_dte}) must not exceed max_dte ({self.max_dte})")
         return self
 
     @field_validator("market_cap_tiers", mode="before")
@@ -226,7 +233,7 @@ class TickerDetail(BaseModel):
     ticker: str
     composite_score: float
     direction: SignalDirection
-    contracts: list[str]  # Contract identifiers — empty until contracts are persisted
+    contracts: list[RecommendedContract]
 
 
 # ---------------------------------------------------------------------------
@@ -239,6 +246,8 @@ class DebateRequest(BaseModel):
 
     ticker: str = Field(min_length=1, max_length=10)
     scan_id: int | None = None
+    enable_rebuttal: bool | None = None
+    enable_volatility_agent: bool | None = None
 
     @field_validator("ticker", mode="before")
     @classmethod
@@ -479,6 +488,14 @@ class UniverseStats(BaseModel):
 # ---------------------------------------------------------------------------
 # Analytics schemas (#210-#213)
 # ---------------------------------------------------------------------------
+
+
+class OperationStatus(BaseModel):
+    """Response for ``GET /api/status`` — current system operation state."""
+
+    busy: bool
+    active_scan_ids: list[int] = []
+    active_debate_ids: list[int] = []
 
 
 class OutcomeCollectionResult(BaseModel):

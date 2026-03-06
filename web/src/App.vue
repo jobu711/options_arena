@@ -4,7 +4,6 @@ import { RouterLink, RouterView } from 'vue-router'
 import Toast from 'primevue/toast'
 import { useHealthStore } from '@/stores/health'
 import { useOperationStore } from '@/stores/operation'
-import { api } from '@/composables/useApi'
 
 const healthStore = useHealthStore()
 const operationStore = useOperationStore()
@@ -17,16 +16,8 @@ onMounted(async () => {
     // Health check failed — store keeps default unhealthy state
   }
 
-  // Sync operation store: check if a scan or batch debate is already in progress
-  try {
-    const status = await api<{ status: string }>('/api/health')
-    if (status.status === 'ok' && !operationStore.inProgress) {
-      // Backend is reachable — operation store starts clean (no stale state)
-      operationStore.finish()
-    }
-  } catch {
-    // Backend unreachable — leave operation store as-is
-  }
+  // Sync operation state from backend status endpoint
+  await operationStore.syncFromServer()
 })
 </script>
 
@@ -38,6 +29,7 @@ onMounted(async () => {
         <RouterLink to="/" class="nav-link" data-testid="nav-link-dashboard">Dashboard</RouterLink>
         <RouterLink to="/scan" class="nav-link" data-testid="nav-link-scan">Scan</RouterLink>
         <RouterLink to="/watchlist" class="nav-link" data-testid="nav-link-watchlist">Watchlists</RouterLink>
+        <RouterLink to="/analytics" class="nav-link" data-testid="nav-link-analytics">Analytics</RouterLink>
       </div>
     </nav>
     <main class="app-main">

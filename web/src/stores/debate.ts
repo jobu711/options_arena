@@ -63,9 +63,17 @@ export const useDebateStore = defineStore('debate', () => {
     }
   }
 
-  async function startDebate(ticker: string, scanId: number | null): Promise<number> {
-    const body: { ticker: string; scan_id?: number } = { ticker }
+  interface DebateOptions {
+    scanId?: number | null
+    enableRebuttal?: boolean | null
+    enableVolatilityAgent?: boolean | null
+  }
+
+  async function startDebate(ticker: string, scanId: number | null, options?: DebateOptions): Promise<number> {
+    const body: Record<string, unknown> = { ticker }
     if (scanId !== null) body.scan_id = scanId
+    if (options?.enableRebuttal != null) body.enable_rebuttal = options.enableRebuttal
+    if (options?.enableVolatilityAgent != null) body.enable_volatility_agent = options.enableVolatilityAgent
     const res = await api<{ debate_id: number }>('/api/debate', {
       method: 'POST',
       body,
@@ -73,11 +81,18 @@ export const useDebateStore = defineStore('debate', () => {
     currentDebateId.value = res.debate_id
 
     // Initialize agent progress with standard agents
-    agentProgress.value = [
+    const agents: Array<{ name: string; status: string; confidence: null }> = [
       { name: 'bull', status: 'pending', confidence: null },
       { name: 'bear', status: 'pending', confidence: null },
       { name: 'risk', status: 'pending', confidence: null },
     ]
+    if (options?.enableVolatilityAgent) {
+      agents.push({ name: 'volatility', status: 'pending', confidence: null })
+    }
+    if (options?.enableRebuttal) {
+      agents.push({ name: 'rebuttal', status: 'pending', confidence: null })
+    }
+    agentProgress.value = agents
     error.value = null
     return res.debate_id
   }

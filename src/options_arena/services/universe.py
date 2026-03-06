@@ -756,11 +756,14 @@ class UniverseService:
             optionable on CBOE.
         """
         # Check cache first
-        cached = await self._cache.get(_CACHE_KEY_NASDAQ100)
-        if cached is not None:
-            tickers: list[str] = json.loads(cached.decode())
-            logger.debug("NASDAQ-100 cache hit: %d tickers", len(tickers))
-            return tickers
+        try:
+            cached = await self._cache.get(_CACHE_KEY_NASDAQ100)
+            if cached is not None:
+                tickers: list[str] = json.loads(cached.decode())
+                logger.debug("NASDAQ-100 cache hit: %d tickers", len(tickers))
+                return tickers
+        except Exception:
+            logger.warning("NASDAQ-100 cache read failed, fetching fresh", exc_info=True)
 
         raw_tickers: list[str] = []
         try:
@@ -786,7 +789,8 @@ class UniverseService:
                 ticker_col = str(df.columns[0])
 
             if ticker_col is not None:
-                raw_tickers = df[ticker_col].dropna().astype(str).str.strip().str.upper().tolist()
+                raw_symbols = df[ticker_col].dropna().astype(str).str.strip().str.upper().tolist()
+                raw_tickers = UniverseService._filter_symbols(raw_symbols)
                 logger.info("NASDAQ-100 CSV fetched: %d raw tickers", len(raw_tickers))
         except Exception:
             logger.warning("NASDAQ-100 CSV fetch failed, using curated fallback", exc_info=True)
@@ -808,11 +812,14 @@ class UniverseService:
         logger.info("NASDAQ-100 universe: %d optionable tickers", len(tickers))
 
         # Cache for 24 hours
-        await self._cache.set(
-            _CACHE_KEY_NASDAQ100,
-            json.dumps(tickers).encode(),
-            ttl=TTL_REFERENCE,
-        )
+        try:
+            await self._cache.set(
+                _CACHE_KEY_NASDAQ100,
+                json.dumps(tickers).encode(),
+                ttl=TTL_REFERENCE,
+            )
+        except Exception:
+            logger.warning("NASDAQ-100 cache write failed", exc_info=True)
 
         return tickers
 
@@ -836,11 +843,14 @@ class UniverseService:
             Sorted, deduplicated list of small/micro-cap optionable tickers.
         """
         # Check cache first
-        cached = await self._cache.get(_CACHE_KEY_RUSSELL2000)
-        if cached is not None:
-            tickers: list[str] = json.loads(cached.decode())
-            logger.debug("Russell 2000 cache hit: %d tickers", len(tickers))
-            return tickers
+        try:
+            cached = await self._cache.get(_CACHE_KEY_RUSSELL2000)
+            if cached is not None:
+                tickers: list[str] = json.loads(cached.decode())
+                logger.debug("Russell 2000 cache hit: %d tickers", len(tickers))
+                return tickers
+        except Exception:
+            logger.warning("Russell 2000 cache read failed, fetching fresh", exc_info=True)
 
         if repo is None:
             logger.warning("Russell 2000 fetch skipped: no Repository provided")
@@ -864,11 +874,14 @@ class UniverseService:
 
             if not small_micro_tickers:
                 logger.info("Russell 2000: no small/micro-cap tickers in metadata index")
-                await self._cache.set(
-                    _CACHE_KEY_RUSSELL2000,
-                    json.dumps([]).encode(),
-                    ttl=TTL_REFERENCE,
-                )
+                try:
+                    await self._cache.set(
+                        _CACHE_KEY_RUSSELL2000,
+                        json.dumps([]).encode(),
+                        ttl=TTL_REFERENCE,
+                    )
+                except Exception:
+                    logger.warning("Russell 2000 cache write failed", exc_info=True)
                 return []
 
             # CBOE cross-reference
@@ -883,11 +896,14 @@ class UniverseService:
             logger.info("Russell 2000 universe: %d optionable tickers", len(tickers))
 
             # Cache for 24 hours
-            await self._cache.set(
-                _CACHE_KEY_RUSSELL2000,
-                json.dumps(tickers).encode(),
-                ttl=TTL_REFERENCE,
-            )
+            try:
+                await self._cache.set(
+                    _CACHE_KEY_RUSSELL2000,
+                    json.dumps(tickers).encode(),
+                    ttl=TTL_REFERENCE,
+                )
+            except Exception:
+                logger.warning("Russell 2000 cache write failed", exc_info=True)
 
             return tickers
 
@@ -907,11 +923,14 @@ class UniverseService:
             Sorted, deduplicated list of most-active optionable tickers.
         """
         # Check cache first
-        cached = await self._cache.get(_CACHE_KEY_MOST_ACTIVE)
-        if cached is not None:
-            tickers: list[str] = json.loads(cached.decode())
-            logger.debug("Most Active cache hit: %d tickers", len(tickers))
-            return tickers
+        try:
+            cached = await self._cache.get(_CACHE_KEY_MOST_ACTIVE)
+            if cached is not None:
+                tickers: list[str] = json.loads(cached.decode())
+                logger.debug("Most Active cache hit: %d tickers", len(tickers))
+                return tickers
+        except Exception:
+            logger.warning("Most Active cache read failed, fetching fresh", exc_info=True)
 
         try:
             # CBOE cross-reference
@@ -925,11 +944,14 @@ class UniverseService:
         logger.info("Most Active universe: %d tickers", len(tickers))
 
         # Cache for 24 hours
-        await self._cache.set(
-            _CACHE_KEY_MOST_ACTIVE,
-            json.dumps(tickers).encode(),
-            ttl=TTL_REFERENCE,
-        )
+        try:
+            await self._cache.set(
+                _CACHE_KEY_MOST_ACTIVE,
+                json.dumps(tickers).encode(),
+                ttl=TTL_REFERENCE,
+            )
+        except Exception:
+            logger.warning("Most Active cache write failed", exc_info=True)
 
         return tickers
 

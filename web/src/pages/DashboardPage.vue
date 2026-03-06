@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
+import Checkbox from 'primevue/checkbox'
 import { useToast } from 'primevue/usetoast'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
@@ -34,23 +35,31 @@ const quickTicker = ref('')
 const debateLoading = ref(false)
 const showDebateProgress = ref(false)
 const quickDebateTicker = ref('')
+const enableRebuttal = ref(false)
+const enableVolatilityAgent = ref(false)
 let closeWs: (() => void) | null = null
+
+// Outcome collection state
+const outcomeLoading = ref(false)
+const outcomeSummary = ref<{ total_recommendations: number; total_outcomes: number; overall_win_rate: number | null } | null>(null)
 
 async function loadDashboard(): Promise<void> {
   loading.value = true
   try {
-    const [scans, debates, cfg, bullish, bearish] = await Promise.all([
+    const [scans, debates, cfg, bullish, bearish, summary] = await Promise.all([
       api<ScanRun[]>('/api/scan', { params: { limit: 1 } }),
       api<DebateResultSummary[]>('/api/debate', { params: { limit: 5 } }),
       api<ConfigResponse>('/api/config'),
       api<TrendingTicker[]>('/api/ticker/trending', { params: { direction: 'bullish' } }).catch(() => [] as TrendingTicker[]),
       api<TrendingTicker[]>('/api/ticker/trending', { params: { direction: 'bearish' } }).catch(() => [] as TrendingTicker[]),
+      api<{ total_recommendations: number; total_outcomes: number; overall_win_rate: number | null }>('/api/analytics/summary').catch(() => null),
     ])
     latestScan.value = scans[0] ?? null
     recentDebates.value = debates
     config.value = cfg
     trendingUp.value = bullish.slice(0, 5)
     trendingDown.value = bearish.slice(0, 5)
+    outcomeSummary.value = summary
   } finally {
     loading.value = false
   }
@@ -65,7 +74,10 @@ async function submitQuickDebate(): Promise<void> {
   debateStore.reset()
 
   try {
-    const debateId = await debateStore.startDebate(ticker, null)
+    const debateId = await debateStore.startDebate(ticker, null, {
+      enableRebuttal: enableRebuttal.value || undefined,
+      enableVolatilityAgent: enableVolatilityAgent.value || undefined,
+    })
     showDebateProgress.value = true
     quickTicker.value = ''
 
@@ -115,6 +127,41 @@ async function submitQuickDebate(): Promise<void> {
     }
   } finally {
     debateLoading.value = false
+  }
+}
+
+async function collectOutcomes(): Promise<void> {
+  outcomeLoading.value = true
+  try {
+    const result = await api<{ outcomes_collected: number }>('/api/analytics/collect-outcomes', {
+      method: 'POST',
+    })
+    toast.add({
+      severity: 'success',
+      summary: 'Outcomes Collected',
+      detail: `${result.outcomes_collected} outcome${result.outcomes_collected !== 1 ? 's' : ''} collected.`,
+      life: 5000,
+    })
+    // Refresh summary to update counts
+    outcomeSummary.value = await api<{ total_recommendations: number; total_outcomes: number; overall_win_rate: number | null }>('/api/analytics/summary').catch(() => null)
+  } catch (err: unknown) {
+    if (err instanceof ApiError && err.status === 409) {
+      toast.add({
+        severity: 'warn',
+        summary: 'Operation Busy',
+        detail: 'Another operation is in progress.',
+        life: 5000,
+      })
+    } else {
+      toast.add({
+        severity: 'error',
+        summary: 'Collection Failed',
+        detail: err instanceof Error ? err.message : 'Failed to collect outcomes',
+        life: 5000,
+      })
+    }
+  } finally {
+    outcomeLoading.value = false
   }
 }
 
@@ -190,6 +237,16 @@ onUnmounted(() => {
           :disabled="debateLoading"
           @input="quickTicker = quickTicker.toUpperCase()"
         />
+        <div class="debate-toggles">
+          <label class="debate-toggle">
+            <Checkbox v-model="enableRebuttal" :binary="true" data-testid="toggle-rebuttal" />
+            <span>Rebuttal</span>
+          </label>
+          <label class="debate-toggle">
+            <Checkbox v-model="enableVolatilityAgent" :binary="true" data-testid="toggle-volatility" />
+            <span>Vol Agent</span>
+          </label>
+        </div>
         <Button
           label="Debate"
           icon="pi pi-comments"
@@ -209,6 +266,40 @@ onUnmounted(() => {
       :agents="debateStore.agentProgress"
       :error="debateStore.error"
     />
+
+    <!-- Outcomes Card -->
+    <section v-if="outcomeSummary" class="section" data-testid="dashboard-outcomes">
+      <h2>Outcome Tracking</h2>
+      <div class="outcome-card">
+        <div class="outcome-stats">
+          <div class="outcome-stat">
+            <span class="outcome-stat-value mono">{{ outcomeSummary.total_recommendations }}</span>
+            <span class="outcome-stat-label">Recommendations</span>
+          </div>
+          <div class="outcome-stat">
+            <span class="outcome-stat-value mono">{{ outcomeSummary.total_outcomes }}</span>
+            <span class="outcome-stat-label">Outcomes Tracked</span>
+          </div>
+          <div v-if="outcomeSummary.overall_win_rate != null" class="outcome-stat">
+            <span class="outcome-stat-value mono">{{ (outcomeSummary.overall_win_rate * 100).toFixed(1) }}%</span>
+            <span class="outcome-stat-label">Win Rate</span>
+          </div>
+          <div v-if="outcomeSummary.total_recommendations > outcomeSummary.total_outcomes" class="outcome-stat">
+            <span class="outcome-stat-value mono pending-count">{{ outcomeSummary.total_recommendations - outcomeSummary.total_outcomes }}</span>
+            <span class="outcome-stat-label">Pending</span>
+          </div>
+        </div>
+        <Button
+          label="Collect Outcomes"
+          icon="pi pi-refresh"
+          severity="info"
+          size="small"
+          :loading="outcomeLoading"
+          data-testid="btn-collect-outcomes"
+          @click="collectOutcomes"
+        />
+      </div>
+    </section>
 
     <!-- Latest Scan Card -->
     <section class="section">
@@ -427,6 +518,21 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 
+.debate-toggles {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.debate-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--p-surface-300, #aaa);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .section {
   margin-bottom: 2rem;
 }
@@ -583,6 +689,44 @@ onUnmounted(() => {
 .empty-text {
   margin: 0;
   font-size: 0.875rem;
+}
+
+.outcome-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--p-surface-800, #1a1a1a);
+  border: 1px solid var(--p-surface-700, #333);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.outcome-stats {
+  display: flex;
+  gap: 2rem;
+}
+
+.outcome-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.outcome-stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--p-surface-100, #eee);
+}
+
+.outcome-stat-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--p-surface-500, #666);
+}
+
+.pending-count {
+  color: var(--accent-yellow);
 }
 
 .trending-table {

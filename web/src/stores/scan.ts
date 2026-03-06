@@ -84,6 +84,7 @@ export const useScanStore = defineStore('scan', () => {
     max_price?: number | null
     min_dte?: number | null
     max_dte?: number | null
+    min_score?: number | null
   }
 
   async function startScan(options: StartScanOptions): Promise<number> {
@@ -126,6 +127,9 @@ export const useScanStore = defineStore('scan', () => {
     }
     if (options.max_dte != null) {
       body.max_dte = options.max_dte
+    }
+    if (options.min_score != null) {
+      body.min_score = options.min_score
     }
     const res = await api<{ scan_id: number }>('/api/scan', {
       method: 'POST',

@@ -12,7 +12,6 @@ import json
 import os
 import re
 import sys
-from pathlib import Path
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -35,9 +34,13 @@ def extract_package_json_version(root: str) -> str | None:
     path = os.path.join(root, "web", "package.json")
     if not os.path.isfile(path):
         return None
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-    return data.get("version")
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    version = data.get("version")
+    return version if isinstance(version, str) else None
 
 
 def extract_progress_version(root: str) -> str | None:
@@ -64,8 +67,11 @@ def main() -> None:
     if tool_name != "Bash":
         sys.exit(0)
 
-    tool_input: dict = data.get("tool_input", {})  # type: ignore[assignment]
-    command: str = tool_input.get("command", "")
+    tool_input_value = data.get("tool_input", {})
+    if not isinstance(tool_input_value, dict):
+        sys.exit(0)
+    command_value = tool_input_value.get("command", "")
+    command = command_value if isinstance(command_value, str) else ""
 
     # Only check on git commit commands
     if "git commit" not in command:

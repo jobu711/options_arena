@@ -180,11 +180,29 @@ def scan(
     theme: list[str] = typer.Option(  # noqa: B008
         [], "--theme", help="Filter by investment theme (repeatable)"
     ),
+    min_price: float | None = typer.Option(
+        None, "--min-price", help="Minimum underlying stock price"
+    ),
+    max_price: float | None = typer.Option(
+        None, "--max-price", help="Maximum underlying stock price"
+    ),
+    min_dte: int | None = typer.Option(
+        None, "--min-dte", help="Minimum days to expiration for option contracts"
+    ),
+    max_dte: int | None = typer.Option(
+        None, "--max-dte", help="Maximum days to expiration for option contracts"
+    ),
+    tickers: str | None = typer.Option(
+        None, "--tickers", help="Comma-separated list of custom tickers to scan"
+    ),
 ) -> None:
     """Run the full scan pipeline: universe -> scoring -> options -> persist."""
     sectors = _parse_sectors(sector)
     cap_tiers = _parse_market_caps(market_cap)
     industry_groups = _parse_industry_groups(industry_group)
+    custom_tickers = (
+        [t.strip().upper() for t in tickers.split(",") if t.strip()] if tickers else []
+    )
     asyncio.run(
         _scan_async(
             preset,
@@ -197,6 +215,11 @@ def scan(
             min_iv_rank,
             industry_groups=industry_groups,
             themes=theme,
+            min_price=min_price,
+            max_price=max_price,
+            min_dte=min_dte,
+            max_dte=max_dte,
+            custom_tickers=custom_tickers,
         )
     )
 
@@ -212,6 +235,11 @@ async def _scan_async(
     min_iv_rank: float | None = None,
     industry_groups: list[GICSIndustryGroup] | None = None,
     themes: list[str] | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    min_dte: int | None = None,
+    max_dte: int | None = None,
+    custom_tickers: list[str] | None = None,
 ) -> None:
     """Run the scan pipeline with full service lifecycle management."""
     start_time = time.monotonic()
@@ -235,8 +263,33 @@ async def _scan_async(
         scan_overrides["industry_groups"] = industry_groups
     if themes:
         scan_overrides["theme_filters"] = themes
+    if min_price is not None:
+        scan_overrides["min_price"] = min_price
+    if max_price is not None:
+        scan_overrides["max_price"] = max_price
+    if min_dte is not None:
+        scan_overrides["min_dte"] = min_dte
+    if max_dte is not None:
+        scan_overrides["max_dte"] = max_dte
+    if custom_tickers:
+        scan_overrides["custom_tickers"] = custom_tickers
+
+    # DTE overrides also forward to PricingConfig for contract filtering
+    pricing_overrides: dict[str, object] = {}
+    if min_dte is not None:
+        pricing_overrides["dte_min"] = min_dte
+    if max_dte is not None:
+        pricing_overrides["dte_max"] = max_dte
+
     settings = settings.model_copy(
-        update={"scan": settings.scan.model_copy(update=scan_overrides)}
+        update={
+            "scan": settings.scan.model_copy(update=scan_overrides),
+            **(
+                {"pricing": settings.pricing.model_copy(update=pricing_overrides)}
+                if pricing_overrides
+                else {}
+            ),
+        }
     )
 
     # Infrastructure (lightweight constructors — no I/O)
