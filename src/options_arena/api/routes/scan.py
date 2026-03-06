@@ -139,9 +139,32 @@ async def start_scan(
         scan_overrides["theme_filters"] = body.themes
     if body.custom_tickers:
         scan_overrides["custom_tickers"] = body.custom_tickers
-    if scan_overrides:
-        scan_override = settings.scan.model_copy(update=scan_overrides)
-        effective_settings = settings.model_copy(update={"scan": scan_override})
+    if body.min_price is not None:
+        scan_overrides["min_price"] = body.min_price
+    if body.max_price is not None:
+        scan_overrides["max_price"] = body.max_price
+    if body.min_dte is not None:
+        scan_overrides["min_dte"] = body.min_dte
+    if body.max_dte is not None:
+        scan_overrides["max_dte"] = body.max_dte
+
+    # DTE overrides also forward to PricingConfig for contract filtering
+    pricing_overrides: dict[str, object] = {}
+    if body.min_dte is not None:
+        pricing_overrides["dte_min"] = body.min_dte
+    if body.max_dte is not None:
+        pricing_overrides["dte_max"] = body.max_dte
+
+    if scan_overrides or pricing_overrides:
+        new_scan = (
+            settings.scan.model_copy(update=scan_overrides) if scan_overrides else settings.scan
+        )
+        new_pricing = (
+            settings.pricing.model_copy(update=pricing_overrides)
+            if pricing_overrides
+            else settings.pricing
+        )
+        effective_settings = settings.model_copy(update={"scan": new_scan, "pricing": new_pricing})
 
     pipeline = ScanPipeline(
         settings=effective_settings,

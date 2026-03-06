@@ -291,29 +291,42 @@ class TestMacdSignal:
 
 
 # ---------------------------------------------------------------------------
-# ScanPreset (3 members)
+# ScanPreset (6 members — 3 original + 3 added in #285)
 # ---------------------------------------------------------------------------
 
 
 class TestScanPreset:
-    def test_scan_preset_has_exactly_three_members(self) -> None:
-        assert len(ScanPreset) == 3
+    def test_scan_preset_has_exactly_six_members(self) -> None:
+        assert len(ScanPreset) == 6
 
     def test_scan_preset_values_are_lowercase(self) -> None:
         assert ScanPreset.FULL == "full"
         assert ScanPreset.SP500 == "sp500"
         assert ScanPreset.ETFS == "etfs"
+        assert ScanPreset.NASDAQ100 == "nasdaq100"
+        assert ScanPreset.RUSSELL2000 == "russell2000"
+        assert ScanPreset.MOST_ACTIVE == "most_active"
 
     def test_scan_preset_is_str_enum(self) -> None:
         assert issubclass(ScanPreset, StrEnum)
 
     def test_scan_preset_exhaustive_iteration(self) -> None:
-        assert set(ScanPreset) == {ScanPreset.FULL, ScanPreset.SP500, ScanPreset.ETFS}
+        assert set(ScanPreset) == {
+            ScanPreset.FULL,
+            ScanPreset.SP500,
+            ScanPreset.ETFS,
+            ScanPreset.NASDAQ100,
+            ScanPreset.RUSSELL2000,
+            ScanPreset.MOST_ACTIVE,
+        }
 
     def test_scan_preset_string_serialization(self) -> None:
         assert str(ScanPreset.FULL) == "full"
         assert str(ScanPreset.SP500) == "sp500"
         assert str(ScanPreset.ETFS) == "etfs"
+        assert str(ScanPreset.NASDAQ100) == "nasdaq100"
+        assert str(ScanPreset.RUSSELL2000) == "russell2000"
+        assert str(ScanPreset.MOST_ACTIVE) == "most_active"
 
 
 # ---------------------------------------------------------------------------

@@ -104,14 +104,20 @@ class MacdSignal(StrEnum):
 class ScanPreset(StrEnum):
     """Scan universe preset for the scan pipeline.
 
-    FULL  — full CBOE optionable universe.
-    SP500 — S&P 500 constituents only.
-    ETFS  — ETFs only.
+    FULL        — full CBOE optionable universe.
+    SP500       — S&P 500 constituents only.
+    ETFS        — ETFs only.
+    NASDAQ100   — NASDAQ-100 constituents only.
+    RUSSELL2000 — Russell 2000 small-cap constituents.
+    MOST_ACTIVE — most actively traded options.
     """
 
     FULL = "full"
     SP500 = "sp500"
     ETFS = "etfs"
+    NASDAQ100 = "nasdaq100"
+    RUSSELL2000 = "russell2000"
+    MOST_ACTIVE = "most_active"
 
 
 class ScanSource(StrEnum):

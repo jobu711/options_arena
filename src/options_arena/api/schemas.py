@@ -45,6 +45,10 @@ class ScanRequest(BaseModel):
     direction_filter: SignalDirection | None = None
     min_iv_rank: float | None = None
     custom_tickers: list[str] = []
+    min_price: float | None = None
+    max_price: float | None = None
+    min_dte: int | None = None
+    max_dte: int | None = None
     source: ScanSource = ScanSource.MANUAL
 
     @field_validator("market_cap_tiers", mode="before")
@@ -459,3 +463,17 @@ class IndexStarted(BaseModel):
     """Response for ``POST /api/universe/index`` (202)."""
 
     index_task_id: int
+
+
+# ---------------------------------------------------------------------------
+# Pre-scan preset schemas (#285)
+# ---------------------------------------------------------------------------
+
+
+class PresetInfo(BaseModel):
+    """Describes a scan preset for the frontend preset picker."""
+
+    preset: str
+    label: str
+    description: str
+    estimated_count: int
