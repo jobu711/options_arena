@@ -75,8 +75,8 @@ async function submitQuickDebate(): Promise<void> {
 
   try {
     const debateId = await debateStore.startDebate(ticker, null, {
-      enableRebuttal: enableRebuttal.value || undefined,
-      enableVolatilityAgent: enableVolatilityAgent.value || undefined,
+      enableRebuttal: enableRebuttal.value ? true : undefined,
+      enableVolatilityAgent: enableVolatilityAgent.value ? true : undefined,
     })
     showDebateProgress.value = true
     quickTicker.value = ''

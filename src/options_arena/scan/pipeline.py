@@ -332,6 +332,11 @@ class ScanPipeline:
                 preset_tickers = await self._universe.fetch_russell2000_tickers(
                     repo=self._repository,
                 )
+                if not preset_tickers:
+                    logger.warning(
+                        "RUSSELL2000 preset returned 0 tickers — metadata index may "
+                        "not be built. Run 'options-arena universe index' first."
+                    )
                 preset_set = frozenset(preset_tickers)
                 tickers = [t for t in all_tickers if t in preset_set]
                 logger.info(
@@ -615,13 +620,16 @@ class ScanPipeline:
         """
         ohlcv_map = universe_result.ohlcv_map
 
-        # Step 1: Liquidity pre-filter
+        # Step 1: Liquidity pre-filter + min_score filter
         min_dollar_volume = self._settings.scan.min_dollar_volume
         min_price = self._settings.scan.min_price
         max_price = self._settings.scan.max_price
+        min_score = self._settings.scan.min_score
 
         liquid_scores: list[TickerScore] = []
         for ts in scoring_result.scores:
+            if ts.composite_score < min_score:
+                continue
             ohlcv_list = ohlcv_map.get(ts.ticker)
             if ohlcv_list is None or len(ohlcv_list) == 0:
                 continue
@@ -641,12 +649,13 @@ class ScanPipeline:
             liquid_scores.append(ts)
 
         logger.info(
-            "Liquidity pre-filter: %d -> %d tickers (min_dv=$%.0f, min_price=$%.0f%s)",
+            "Liquidity pre-filter: %d -> %d tickers (min_dv=$%.0f, min_price=$%.0f%s%s)",
             len(scoring_result.scores),
             len(liquid_scores),
             min_dollar_volume,
             min_price,
             f", max_price=${max_price:.0f}" if max_price is not None else "",
+            f", min_score={min_score:.1f}" if min_score > 0.0 else "",
         )
 
         # Step 2: Top-N selection (scores already sorted descending)

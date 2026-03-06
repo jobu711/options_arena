@@ -232,9 +232,17 @@ class ScanConfig(BaseModel):
         if self.min_dte is not None and self.max_dte is not None and self.min_dte > self.max_dte:
             raise ValueError(f"min_dte ({self.min_dte}) must not exceed max_dte ({self.max_dte})")
         if self.max_price is not None and self.min_price > self.max_price:
-            raise ValueError(
-                f"min_price ({self.min_price}) must not exceed max_price ({self.max_price})"
-            )
+            # When max_price is set below the default min_price (10.0) and
+            # min_price was not explicitly overridden, auto-adjust downward
+            # so users can scan cheap stocks with just max_price=5.
+            default_min = ScanConfig.model_fields["min_price"].default
+            if self.min_price == default_min:
+                object.__setattr__(self, "min_price", 0.0)
+            else:
+                raise ValueError(
+                    f"min_price ({self.min_price}) must not exceed "
+                    f"max_price ({self.max_price})"
+                )
         return self
 
     @model_validator(mode="after")

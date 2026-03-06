@@ -31,7 +31,7 @@ async def get_status(
     """Return current operation status so frontend can sync after browser refresh."""
     active_scans: dict[int, object] = getattr(request.app.state, "active_scans", {})
     active_scan_ids = list(active_scans.keys())
-    active_debates: dict[int, object] = getattr(request.app.state, "debate_queues", {})
+    active_debates: dict[int, object] = getattr(request.app.state, "batch_queues", {})
     active_debate_ids = list(active_debates.keys())
     return OperationStatus(
         busy=lock.locked(),

@@ -1,5 +1,8 @@
 """Options Arena - AI-powered options analysis tool."""
 
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 
-__version__ = version("options-arena")
+try:
+    __version__ = version("options-arena")
+except PackageNotFoundError:
+    __version__ = "0.0.0-dev"
