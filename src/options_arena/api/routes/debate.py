@@ -629,6 +629,7 @@ async def get_debate(
             ContrarianThesis, row.contrarian_json, "contrarian_json", debate_id
         ),
         debate_protocol=row.debate_protocol,
+        scan_run_id=row.scan_run_id,
         # OpenBB enrichment fields
         pe_ratio=mc.pe_ratio if mc else None,
         forward_pe=mc.forward_pe if mc else None,

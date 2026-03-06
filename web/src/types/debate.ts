@@ -52,6 +52,14 @@ export interface DebateResult {
   vol_response?: string // Raw JSON string (parsed on demand)
   bull_rebuttal?: string // Raw JSON string (parsed on demand)
 
+  // V2 consensus fields
+  contrarian_dissent?: string | null
+  agent_agreement_score?: number | null
+  dissenting_agents?: string[]
+  agents_completed?: number | null
+  // Scan linkage
+  scan_run_id?: number | null
+
   // V2 agent outputs (optional, present when debate_protocol === 'v2')
   flow_response?: FlowThesis | null
   fundamental_response?: FundamentalThesis | null
