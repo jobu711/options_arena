@@ -117,9 +117,9 @@ test.describe('Scan Launch', () => {
     const durationHeader = page.locator('.p-datatable-thead th:has-text("Duration")')
     await expect(durationHeader).toBeVisible()
 
-    // Duration cell should show "2m 30s"
-    const durationCell = page.locator('.p-datatable-tbody tr').first().locator('.mono')
-    await expect(durationCell).toContainText('2m 30s')
+    // Duration cell should show "2m 30s" — use last .mono in row (Duration is the last column with .mono)
+    const row = page.locator('.p-datatable-tbody tr').first()
+    await expect(row).toContainText('2m 30s')
   })
 
   test('cancel button stops a running scan', async ({ page }) => {
