@@ -126,6 +126,11 @@ function formatConfidence(val: number): string {
   return `${(val * 100).toFixed(0)}%`
 }
 
+function formatLatency(ms: number | null): string {
+  if (ms === null) return '--'
+  return `${ms.toFixed(0)}ms`
+}
+
 onMounted(() => {
   void loadDashboard()
   void healthStore.fetchHealth()
@@ -153,6 +158,7 @@ onUnmounted(() => {
       >
         <HealthDot :available="svc.available" :latency-ms="svc.latency_ms" />
         <span class="chip-label">{{ svc.service_name }}</span>
+        <span class="chip-latency mono">{{ formatLatency(svc.latency_ms) }}</span>
       </span>
     </div>
 
@@ -164,20 +170,6 @@ onUnmounted(() => {
         severity="success"
         data-testid="dashboard-btn-new-scan"
         @click="router.push('/scan')"
-      />
-      <Button
-        label="View Universe"
-        icon="pi pi-globe"
-        severity="secondary"
-        data-testid="dashboard-btn-universe"
-        @click="router.push('/universe')"
-      />
-      <Button
-        label="Health Check"
-        icon="pi pi-heart"
-        severity="secondary"
-        data-testid="dashboard-btn-health"
-        @click="router.push('/health')"
       />
       <Button
         label="Watchlists"
@@ -400,6 +392,11 @@ onUnmounted(() => {
 
 .chip-label {
   text-transform: capitalize;
+}
+
+.chip-latency {
+  font-size: 0.7rem;
+  color: var(--p-surface-400, #888);
 }
 
 .quick-actions {

@@ -43,7 +43,7 @@ test.describe('API Failure Handling', () => {
       }),
     )
 
-    await page.goto('/health')
+    await page.goto('/')
 
     // Page should render without crash
     await expect(page.locator('body')).toBeVisible()
@@ -103,7 +103,7 @@ test.describe('API Failure Handling', () => {
     // App should not white-screen
     await expect(page.locator('body')).toBeVisible()
     // Navigation should still work
-    await page.goto('/health')
+    await page.goto('/')
     await expect(page.locator('body')).toBeVisible()
   })
 

@@ -23,16 +23,6 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../pages/DebateResultPage.vue'),
   },
   {
-    path: '/universe',
-    name: 'universe',
-    component: () => import('../pages/UniversePage.vue'),
-  },
-  {
-    path: '/health',
-    name: 'health',
-    component: () => import('../pages/HealthPage.vue'),
-  },
-  {
     path: '/watchlist',
     name: 'watchlist',
     component: () => import('../pages/WatchlistPage.vue'),

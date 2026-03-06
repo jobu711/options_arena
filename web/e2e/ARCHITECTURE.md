@@ -137,8 +137,6 @@ web/
                 scan.page.ts
                 scan-results.page.ts
                 debate-result.page.ts
-                universe.page.ts
-                health.page.ts
                 nav.page.ts          # Shared navigation bar interactions
             base.fixture.ts          # Extended Playwright test with app-specific fixtures
 

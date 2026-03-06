@@ -53,22 +53,6 @@ test.describe('Dashboard', () => {
     expect(page.url()).toContain('/scan')
   })
 
-  test('Universe button navigates to /universe', async ({ page }) => {
-    const dashboard = new DashboardPage(page)
-    await dashboard.goto()
-    await dashboard.expectLoaded()
-    await dashboard.clickUniverse()
-    expect(page.url()).toContain('/universe')
-  })
-
-  test('Health button navigates to /health', async ({ page }) => {
-    const dashboard = new DashboardPage(page)
-    await dashboard.goto()
-    await dashboard.expectLoaded()
-    await dashboard.clickHealth()
-    expect(page.url()).toContain('/health')
-  })
-
   test('shows degraded health indicator when service is down', async ({ page }) => {
     await mockAllApis(page, {
       scanList: [buildScanRun({ id: 10 })],

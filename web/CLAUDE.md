@@ -19,7 +19,7 @@ web/
         App.vue                  # Root component: layout shell, PrimeVue Toast host, nav
         main.ts                  # App bootstrap: createApp, router, pinia, PrimeVue plugin
         router/
-            index.ts             # 6 routes (see Route Map below)
+            index.ts             # 6 routes: /, /scan, /scan/:id, /debate/:id, /watchlist, /ticker/:ticker
         stores/
             scan.ts              # Pinia store: scan list, current scan, progress state
             debate.ts            # Pinia store: debate list, current debate, agent progress
@@ -30,8 +30,6 @@ web/
             ScanPage.vue         # Scan launcher + past scans list
             ScanResultsPage.vue  # Sortable/filterable ticker table for a single scan
             DebateResultPage.vue # Full agent arguments, thesis, export
-            UniversePage.vue     # Universe stats + ticker list
-            HealthPage.vue       # Service health cards
         components/
             ProgressTracker.vue  # Multi-phase progress bar (scan phases, debate agents)
             AgentCard.vue        # Single agent's response (name, confidence, key points, risks)
@@ -51,7 +49,6 @@ web/
             scan.ts              # ScanRun, TickerScore, ScanProgress, PaginatedResponse
             debate.ts            # DebateResult, AgentResponse, TradeThesis, DebateProgress
             health.ts            # HealthStatus
-            universe.ts          # UniverseStats, SP500Constituent
             ws.ts                # WebSocket event discriminated unions
     public/
         favicon.ico
@@ -97,7 +94,7 @@ web/
 
 ---
 
-## Route Map (6 Routes)
+## Route Map (6 routes)
 
 ```typescript
 // router/index.ts
@@ -106,8 +103,6 @@ const routes: RouteRecordRaw[] = [
   { path: '/scan',        name: 'scan',           component: () => import('../pages/ScanPage.vue') },
   { path: '/scan/:id',    name: 'scan-results',   component: () => import('../pages/ScanResultsPage.vue') },
   { path: '/debate/:id',  name: 'debate-result',  component: () => import('../pages/DebateResultPage.vue') },
-  { path: '/universe',    name: 'universe',        component: () => import('../pages/UniversePage.vue') },
-  { path: '/health',      name: 'health',          component: () => import('../pages/HealthPage.vue') },
 ]
 ```
 

@@ -1,4 +1,4 @@
-import { type Page, type Locator, expect } from '@playwright/test'
+import { type Page, type Locator } from '@playwright/test'
 import { selfHealingLocator } from '../base.fixture'
 
 export class DashboardPage {
@@ -7,8 +7,6 @@ export class DashboardPage {
   readonly healthStrip: Locator
   readonly recentDebates: Locator
   readonly newScanBtn: Locator
-  readonly universeBtn: Locator
-  readonly healthBtn: Locator
 
   constructor(page: Page) {
     this.page = page
@@ -19,8 +17,6 @@ export class DashboardPage {
     this.recentDebates = page.locator('[data-testid="dashboard-recent-debates"]')
       .or(page.locator('[class*="recent-debates"]'))
     this.newScanBtn = selfHealingLocator(page, 'dashboard-btn-new-scan', 'New Scan', 'New Scan')
-    this.universeBtn = selfHealingLocator(page, 'dashboard-btn-universe', 'View Universe', 'View Universe')
-    this.healthBtn = selfHealingLocator(page, 'dashboard-btn-health', 'Health Check', 'Health Check')
   }
 
   async goto(): Promise<void> {
@@ -40,13 +36,4 @@ export class DashboardPage {
     await this.page.waitForURL('**/scan')
   }
 
-  async clickUniverse(): Promise<void> {
-    await this.universeBtn.click()
-    await this.page.waitForURL('**/universe')
-  }
-
-  async clickHealth(): Promise<void> {
-    await this.healthBtn.click()
-    await this.page.waitForURL('**/health')
-  }
 }
