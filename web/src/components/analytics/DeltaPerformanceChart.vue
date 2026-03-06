@@ -39,16 +39,14 @@ const groups = computed(() => {
   return props.data.map((d, i) => {
     const groupX = pad.left + groupW * i
     const returnH = (Math.abs(d.avg_return_pct) / maxVal.value) * areaH
-    const returnY = d.avg_return_pct >= 0
-      ? pad.top + areaH - returnH
-      : pad.top + areaH
+    const returnY = pad.top + areaH - returnH
     const winH = (d.win_rate * 100 / maxVal.value) * areaH
     const winY = pad.top + areaH - winH
 
     return {
       returnBar: {
         x: groupX + (groupW / 2 - barW - 1),
-        y: d.avg_return_pct >= 0 ? returnY : returnY,
+        y: returnY,
         width: barW,
         height: Math.max(returnH, 1),
         fill: d.avg_return_pct >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
@@ -90,7 +88,7 @@ const groups = computed(() => {
       preserveAspectRatio="xMidYMid meet"
     >
       <!-- Grouped bars -->
-      <template v-for="(g, i) in groups" :key="i">
+      <template v-for="g in groups" :key="g.label">
         <rect
           :x="g.returnBar.x"
           :y="g.returnBar.y"
@@ -113,16 +111,16 @@ const groups = computed(() => {
 
       <!-- X-axis labels -->
       <text
-        v-for="(g, i) in groups"
-        :key="'xlabel-' + i"
+        v-for="g in groups"
+        :key="'xlabel-' + g.label"
         :x="g.labelX"
         :y="chartHeight - pad.bottom + 16"
         text-anchor="middle"
         class="axis-label"
       >{{ g.label }}</text>
       <text
-        v-for="(g, i) in groups"
-        :key="'xsamp-' + i"
+        v-for="g in groups"
+        :key="'xsamp-' + g.label"
         :x="g.labelX"
         :y="chartHeight - pad.bottom + 30"
         text-anchor="middle"

@@ -50,14 +50,14 @@ function directionSeverity(dir: string): 'success' | 'danger' | 'warn' {
       <div class="summary-card">
         <span
           class="summary-value mono"
-          :class="summary.avg_stock_return_pct != null && summary.avg_stock_return_pct >= 0 ? 'val-green' : 'val-red'"
+          :class="summary.avg_stock_return_pct != null ? (summary.avg_stock_return_pct >= 0 ? 'val-green' : 'val-red') : undefined"
         >{{ formatReturnPct(summary.avg_stock_return_pct) }}</span>
         <span class="summary-label">Avg Stock Return</span>
       </div>
       <div class="summary-card">
         <span
           class="summary-value mono"
-          :class="summary.avg_contract_return_pct != null && summary.avg_contract_return_pct >= 0 ? 'val-green' : 'val-red'"
+          :class="summary.avg_contract_return_pct != null ? (summary.avg_contract_return_pct >= 0 ? 'val-green' : 'val-red') : undefined"
         >{{ formatReturnPct(summary.avg_contract_return_pct) }}</span>
         <span class="summary-label">Avg Contract Return</span>
       </div>

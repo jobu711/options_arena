@@ -61,7 +61,7 @@ export interface PerformanceSummary {
   overall_win_rate: number | null
   avg_stock_return_pct: number | null
   avg_contract_return_pct: number | null
-  best_direction: string | null
+  best_direction: WinRateResult['direction'] | null
   best_holding_days: number | null
 }
 

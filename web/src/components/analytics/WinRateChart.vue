@@ -57,8 +57,8 @@ function directionColor(dir: string): string {
       preserveAspectRatio="xMidYMid meet"
     >
       <rect
-        v-for="(bar, i) in bars"
-        :key="i"
+        v-for="bar in bars"
+        :key="bar.label"
         :x="bar.x"
         :y="bar.y"
         :width="bar.width"
@@ -67,24 +67,24 @@ function directionColor(dir: string): string {
         rx="3"
       />
       <text
-        v-for="(bar, i) in bars"
-        :key="'rate-' + i"
+        v-for="bar in bars"
+        :key="'rate-' + bar.label"
         :x="bar.labelX"
         :y="bar.y - 6"
         text-anchor="middle"
         class="bar-label"
       >{{ bar.rate }}</text>
       <text
-        v-for="(bar, i) in bars"
-        :key="'name-' + i"
+        v-for="bar in bars"
+        :key="'name-' + bar.label"
         :x="bar.labelX"
         :y="chartHeight - padding.bottom + 18"
         text-anchor="middle"
         class="bar-axis-label"
       >{{ bar.label }}</text>
       <text
-        v-for="(bar, i) in bars"
-        :key="'detail-' + i"
+        v-for="bar in bars"
+        :key="'detail-' + bar.label"
         :x="bar.labelX"
         :y="chartHeight - padding.bottom + 34"
         text-anchor="middle"

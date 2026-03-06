@@ -110,8 +110,8 @@ const zeroLineY = computed(() => pad.top + (chartHeight - pad.top - pad.bottom) 
 
       <!-- Bars (avg return) -->
       <rect
-        v-for="(bar, i) in bars"
-        :key="'bar-' + i"
+        v-for="bar in bars"
+        :key="'bar-' + bar.label"
         :x="bar.x"
         :y="bar.y"
         :width="bar.width"
@@ -131,7 +131,7 @@ const zeroLineY = computed(() => pad.top + (chartHeight - pad.top - pad.bottom) 
       />
       <circle
         v-for="(c, i) in lineCircles"
-        :key="'dot-' + i"
+        :key="'dot-' + bars[i]?.label"
         :cx="c.cx"
         :cy="c.cy"
         r="3.5"
@@ -140,8 +140,8 @@ const zeroLineY = computed(() => pad.top + (chartHeight - pad.top - pad.bottom) 
 
       <!-- X-axis labels -->
       <text
-        v-for="(bar, i) in bars"
-        :key="'xlabel-' + i"
+        v-for="bar in bars"
+        :key="'xlabel-' + bar.label"
         :x="bar.labelX"
         :y="chartHeight - pad.bottom + 16"
         text-anchor="middle"
@@ -150,8 +150,8 @@ const zeroLineY = computed(() => pad.top + (chartHeight - pad.top - pad.bottom) 
 
       <!-- Count labels -->
       <text
-        v-for="(bar, i) in bars"
-        :key="'count-' + i"
+        v-for="bar in bars"
+        :key="'count-' + bar.label"
         :x="bar.labelX"
         :y="chartHeight - pad.bottom + 30"
         text-anchor="middle"

@@ -20,14 +20,18 @@ const directionOptions = [
   { label: 'Bearish', value: 'bearish' },
 ]
 
+const keyedData = computed(() =>
+  props.data.map(d => ({ ...d, _rowKey: `${d.holding_days}-${d.direction}` }))
+)
+
 const bestWinRateIdx = computed(() => {
   if (props.data.length === 0) return -1
   return props.data.reduce((best, row, i) =>
     row.win_rate > props.data[best].win_rate ? i : best, 0)
 })
 
-function rowClass(data: HoldingPeriodResult): string | undefined {
-  const idx = props.data.indexOf(data)
+function rowClass(data: HoldingPeriodResult & { _rowKey?: string }): string | undefined {
+  const idx = keyedData.value.findIndex(d => d._rowKey === data._rowKey)
   return idx === bestWinRateIdx.value ? 'best-row' : undefined
 }
 
@@ -60,8 +64,8 @@ function directionSeverity(dir: string): 'success' | 'danger' | 'warn' {
     <div v-if="data.length === 0" class="panel-empty">No holding period data available</div>
     <DataTable
       v-else
-      :value="data"
-      dataKey="holding_days"
+      :value="keyedData"
+      dataKey="_rowKey"
       :rows="20"
       :rowClass="rowClass"
       class="holding-table"
