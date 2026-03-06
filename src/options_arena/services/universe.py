@@ -411,6 +411,39 @@ class UniverseService:
 
         return confirmed_etfs
 
+    async def fetch_nasdaq100_constituents(self) -> list[str]:
+        """Fetch NASDAQ-100 constituent tickers.
+
+        Returns:
+            List of NASDAQ-100 ticker symbols.
+
+        Raises:
+            DataSourceUnavailableError: If the data source is unreachable.
+        """
+        raise NotImplementedError("fetch_nasdaq100_constituents not yet implemented")
+
+    async def fetch_russell2000_tickers(self) -> list[str]:
+        """Fetch Russell 2000 constituent tickers.
+
+        Returns:
+            List of Russell 2000 ticker symbols.
+
+        Raises:
+            DataSourceUnavailableError: If the data source is unreachable.
+        """
+        raise NotImplementedError("fetch_russell2000_tickers not yet implemented")
+
+    async def fetch_most_active(self) -> list[str]:
+        """Fetch the most actively traded options tickers.
+
+        Returns:
+            List of most-active ticker symbols by options volume.
+
+        Raises:
+            DataSourceUnavailableError: If the data source is unreachable.
+        """
+        raise NotImplementedError("fetch_most_active not yet implemented")
+
     async def close(self) -> None:
         """Close the shared httpx client."""
         await self._client.aclose()

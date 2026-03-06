@@ -149,7 +149,13 @@ def _parse_industry_groups(raw: list[str]) -> list[GICSIndustryGroup]:
 @app.command()
 def scan(
     preset: ScanPreset = typer.Option(  # noqa: B008
-        ScanPreset.SP500, "--preset", "-p", help="Scan preset: full, sp500, etfs"
+        ScanPreset.SP500,
+        "--preset",
+        "-p",
+        help=(
+            "Preset universe: full (all optionable), sp500, etfs,"
+            " nasdaq100, russell2000, most_active"
+        ),
     ),
     top_n: int = typer.Option(50, "--top-n", "-n", help="Top N tickers for options analysis"),
     min_score: float = typer.Option(0.0, "--min-score", help="Minimum composite score"),
