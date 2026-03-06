@@ -12,6 +12,7 @@ import ConsensusPanel from '@/components/ConsensusPanel.vue'
 import DirectionBadge from '@/components/DirectionBadge.vue'
 import ConfidenceBadge from '@/components/ConfidenceBadge.vue'
 import { useDebateStore } from '@/stores/debate'
+import { formatDateTime } from '@/utils/formatters'
 import type { AgentResponse } from '@/types/debate'
 
 const route = useRoute()
@@ -40,10 +41,6 @@ function tryParseAgent(json: string | undefined): AgentResponse | null {
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`
   return `${(ms / 1000).toFixed(1)}s`
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString()
 }
 
 function formatPercent(value: number): string {
@@ -373,7 +370,7 @@ onMounted(() => void debateStore.fetchDebate(debateId))
         </div>
         <div class="meta-item">
           <span class="meta-label">Date</span>
-          <span class="meta-value">{{ formatDate(debateStore.currentDebate.created_at) }}</span>
+          <span class="meta-value">{{ formatDateTime(debateStore.currentDebate.created_at) }}</span>
         </div>
       </div>
     </template>

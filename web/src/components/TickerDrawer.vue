@@ -12,7 +12,7 @@ import ScoreHistoryChart from './ScoreHistoryChart.vue'
 import DimensionalScoreBars from './DimensionalScoreBars.vue'
 import DebateProgressModal from './DebateProgressModal.vue'
 import { api, ApiError } from '@/composables/useApi'
-import { formatPrice } from '@/utils/formatters'
+import { formatPrice, formatDateTime, formatDateOnly } from '@/utils/formatters'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { useDebateStore } from '@/stores/debate'
@@ -154,7 +154,7 @@ watch(
     const fetches: Promise<unknown>[] = [
       api<DebateResultSummary[]>('/api/debate', {
         params: { ticker, limit: 5 },
-      }),
+      }).catch(() => [] as DebateResultSummary[]),
       api<HistoryPoint[]>(`/api/ticker/${ticker}/history`, {
         params: { limit: 20 },
       }).catch(() => [] as HistoryPoint[]),
@@ -208,10 +208,6 @@ function formatSignalName(key: string): string {
 function formatSignalValue(val: number | null): string {
   if (val === null) return '--'
   return val.toFixed(2)
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString()
 }
 
 function formatConfidence(val: number | null | undefined): string {
@@ -320,7 +316,7 @@ function regimeClass(regime: string | null | undefined): string {
           >
             <DirectionBadge :direction="d.direction as 'bullish' | 'bearish' | 'neutral'" />
             <span class="mono">{{ (d.confidence * 100).toFixed(0) }}%</span>
-            <span class="debate-date">{{ formatDate(d.created_at) }}</span>
+            <span class="debate-date">{{ formatDateTime(d.created_at) }}</span>
           </div>
         </div>
       </div>
@@ -337,7 +333,7 @@ function regimeClass(regime: string | null | undefined): string {
             <div class="contract-header">
               <Tag :value="c.option_type" :severity="c.option_type === 'call' ? 'success' : 'danger'" />
               <span class="strike mono">{{ formatPrice(c.strike) }}</span>
-              <span class="expiration">{{ formatDate(c.expiration) }}</span>
+              <span class="expiration">{{ formatDateOnly(c.expiration) }}</span>
             </div>
             <div class="contract-details">
               <DirectionBadge v-if="c.direction" :direction="c.direction" />

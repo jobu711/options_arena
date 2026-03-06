@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { HistoryPoint } from '@/types'
+import { formatDateCompact } from '@/utils/formatters'
 
 interface Props {
   history: HistoryPoint[]
@@ -31,9 +32,6 @@ function directionColor(direction: string): string {
   }
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
 
 interface ChartPoint {
   x: number
@@ -58,7 +56,7 @@ const points = computed<ChartPoint[]>(() => {
       score: pt.composite_score,
       date: pt.scan_date,
       direction: pt.direction,
-      label: `${formatDate(pt.scan_date)}: ${pt.composite_score.toFixed(1)} (${pt.direction})`,
+      label: `${formatDateCompact(pt.scan_date)}: ${pt.composite_score.toFixed(1)} (${pt.direction})`,
     }
   })
 })
@@ -84,13 +82,13 @@ const xLabels = computed(() => {
   for (let i = 0; i < data.length; i += step) {
     const pt = points.value[i]
     if (pt) {
-      labels.push({ x: pt.x, text: formatDate(data[i].scan_date) })
+      labels.push({ x: pt.x, text: formatDateCompact(data[i].scan_date) })
     }
   }
   // Always include the last point
   const lastPt = points.value[points.value.length - 1]
   if (lastPt && (labels.length === 0 || labels[labels.length - 1].x !== lastPt.x)) {
-    labels.push({ x: lastPt.x, text: formatDate(data[data.length - 1].scan_date) })
+    labels.push({ x: lastPt.x, text: formatDateCompact(data[data.length - 1].scan_date) })
   }
   return labels
 })

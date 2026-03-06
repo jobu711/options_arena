@@ -84,7 +84,7 @@ test.describe('Dashboard', () => {
     await expect(emptyOrPrompt).toBeVisible()
   })
 
-  test('"View All" debates button navigates to /scan', async ({ page }) => {
+  test('"View Scans" button navigates to /scan', async ({ page }) => {
     const dashboard = new DashboardPage(page)
     await dashboard.goto()
     await dashboard.expectLoaded()
