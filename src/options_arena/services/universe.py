@@ -135,7 +135,10 @@ _ETF_SEED_LIST: frozenset[str] = frozenset(
     }
 )
 
-NASDAQ100_URL = "https://raw.githubusercontent.com/datasets/nasdaq-100/main/data/constituents.csv"
+NASDAQ100_URL = (
+    "https://raw.githubusercontent.com/Gary-Strauss/"
+    "NASDAQ100_Constituents/master/data/nasdaq100_constituents.csv"
+)
 
 # Curated NASDAQ-100 fallback — well-known constituents used when GitHub CSV
 # is unavailable.  Cross-referenced against the CBOE optionable list.
