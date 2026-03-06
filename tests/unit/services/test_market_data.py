@@ -488,6 +488,46 @@ class TestFetchTickerInfo:
 
 
 # ---------------------------------------------------------------------------
+# TestShortInterestExtraction
+# ---------------------------------------------------------------------------
+
+
+class TestShortInterestExtraction:
+    """Tests for short interest field extraction in fetch_ticker_info (#319)."""
+
+    async def test_short_ratio_extracted(self, service: MarketDataService) -> None:
+        """Short interest fields are extracted from yfinance info dict."""
+        info = _make_info_dict(shortRatio=3.5, shortPercentOfFloat=0.12)
+        mock_ticker = MagicMock()
+        mock_ticker.info = info
+        mock_ticker.get_dividends.return_value = pd.Series([0.24, 0.24], dtype=float)
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.Ticker.return_value = mock_ticker
+            result = await service.fetch_ticker_info("GME")
+
+        assert result.short_ratio == pytest.approx(3.5)
+        assert result.short_pct_of_float == pytest.approx(0.12)
+
+    async def test_missing_short_ratio_returns_none(self, service: MarketDataService) -> None:
+        """When yfinance info has no shortRatio/shortPercentOfFloat, fields are None."""
+        info = _make_info_dict()
+        # Ensure the keys are absent (not just None)
+        info.pop("shortRatio", None)
+        info.pop("shortPercentOfFloat", None)
+        mock_ticker = MagicMock()
+        mock_ticker.info = info
+        mock_ticker.get_dividends.return_value = pd.Series([0.24, 0.24], dtype=float)
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.Ticker.return_value = mock_ticker
+            result = await service.fetch_ticker_info("AAPL")
+
+        assert result.short_ratio is None
+        assert result.short_pct_of_float is None
+
+
+# ---------------------------------------------------------------------------
 # TestDividendWaterfall
 # ---------------------------------------------------------------------------
 

@@ -449,6 +449,7 @@ def render_context_block(ctx: MarketContext) -> str:
         _render_optional("DEBT/EQUITY", ctx.debt_to_equity, ".2f"),
         _render_optional("REVENUE GROWTH", ctx.revenue_growth, ".1%"),
         _render_optional("PROFIT MARGIN", ctx.profit_margin, ".1%"),
+        _render_optional("SHORT RATIO", ctx.short_ratio, ".2f"),
     ]
     filtered_fund = [ln for ln in fundamental_lines if ln is not None]
     if filtered_fund:

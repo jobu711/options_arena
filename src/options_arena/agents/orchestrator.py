@@ -200,6 +200,8 @@ def build_market_context(
         max_pain_distance=signals.max_pain_distance,
         # Contract pricing
         contract_mid=first_contract.mid if first_contract else None,
+        # Short interest
+        short_ratio=ticker_info.short_ratio,
         # OpenBB enrichment — fundamentals
         pe_ratio=fundamentals.pe_ratio if fundamentals else None,
         forward_pe=fundamentals.forward_pe if fundamentals else None,

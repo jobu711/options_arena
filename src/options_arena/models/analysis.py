@@ -99,6 +99,9 @@ class MarketContext(BaseModel):
     # Contract pricing
     contract_mid: Decimal | None = None  # mid price of recommended contract
 
+    # Short interest — from yfinance TickerInfo
+    short_ratio: float | None = None  # days to cover
+
     # OpenBB enrichment — fundamentals (from FundamentalSnapshot)
     pe_ratio: float | None = None
     forward_pe: float | None = None
@@ -307,6 +310,8 @@ class MarketContext(BaseModel):
         "target_theta",
         "target_vega",
         "target_rho",
+        # Short interest
+        "short_ratio",
         # OpenBB enrichment float fields
         "pe_ratio",
         "forward_pe",

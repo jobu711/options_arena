@@ -454,6 +454,8 @@ class MarketDataService:
             current_price=current_price,
             fifty_two_week_high=fifty_two_week_high,
             fifty_two_week_low=fifty_two_week_low,
+            short_ratio=safe_float(info.get("shortRatio")),
+            short_pct_of_float=safe_float(info.get("shortPercentOfFloat")),
         )
 
         # Cache
