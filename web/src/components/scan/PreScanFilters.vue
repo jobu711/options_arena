@@ -371,15 +371,15 @@ onMounted(() => {
             v-model="minScore"
             placeholder="Min score"
             :min="0"
-            :max="10"
-            :step="0.5"
-            :minFractionDigits="1"
-            :maxFractionDigits="1"
+            :max="100"
+            :step="5"
+            :minFractionDigits="0"
+            :maxFractionDigits="0"
             :disabled="disabled"
             showButtons
             data-testid="min-score-filter"
           />
-          <small class="description">Only include tickers scoring above this threshold (0-10)</small>
+          <small class="description">Only include tickers scoring above this threshold (0-100)</small>
         </div>
       </div>
 
