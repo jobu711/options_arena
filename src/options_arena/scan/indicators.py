@@ -8,7 +8,7 @@ OHLCV column shape.
 Public API:
   - ``InputShape``         -- StrEnum encoding OHLCV column requirements.
   - ``IndicatorSpec``      -- NamedTuple registry entry.
-  - ``INDICATOR_REGISTRY`` -- 14 entries (options-specific indicators excluded).
+  - ``INDICATOR_REGISTRY`` -- 15 entries (options-specific indicators excluded).
   - ``ohlcv_to_dataframe`` -- Convert ``list[OHLCV]`` to indicator-ready DataFrame.
   - ``compute_indicators`` -- Generic dispatch: registry + DataFrame -> IndicatorSignals.
   - ``compute_options_indicators`` -- Compute put_call_ratio and max_pain_distance from chain.
@@ -63,6 +63,7 @@ from options_arena.indicators.trend import (
     compute_adx_exhaustion,
     compute_multi_tf_alignment,
     compute_rsi_divergence,
+    macd,
     roc,
     supertrend,
 )
@@ -109,7 +110,7 @@ class IndicatorSpec(NamedTuple):
 
 
 # ---------------------------------------------------------------------------
-# Registry — exactly 14 OHLCV-based indicators.
+# Registry — exactly 15 OHLCV-based indicators.
 # The 4 options-specific indicators (iv_rank, iv_percentile, put_call_ratio,
 # max_pain_distance) require chain data and are left as None.
 # ---------------------------------------------------------------------------
@@ -123,6 +124,7 @@ INDICATOR_REGISTRY: list[IndicatorSpec] = [
     IndicatorSpec("adx", adx, InputShape.HLC),
     IndicatorSpec("roc", roc, InputShape.CLOSE),
     IndicatorSpec("supertrend", supertrend, InputShape.HLC),
+    IndicatorSpec("macd", macd, InputShape.CLOSE),
     # Volatility
     IndicatorSpec("bb_width", bb_width, InputShape.CLOSE),
     IndicatorSpec("atr_pct", atr_percent, InputShape.HLC),

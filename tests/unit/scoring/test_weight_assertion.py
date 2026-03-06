@@ -17,9 +17,9 @@ def test_indicator_weights_sum_to_one() -> None:
     assert total == pytest.approx(1.0, abs=1e-9)
 
 
-def test_indicator_weights_has_18_entries() -> None:
-    """INDICATOR_WEIGHTS has exactly 18 entries (one per IndicatorSignals field)."""
-    assert len(INDICATOR_WEIGHTS) == 18
+def test_indicator_weights_has_19_entries() -> None:
+    """INDICATOR_WEIGHTS has exactly 19 entries (one per scored IndicatorSignals field)."""
+    assert len(INDICATOR_WEIGHTS) == 19
 
 
 def test_all_weights_are_positive() -> None:
