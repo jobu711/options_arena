@@ -178,6 +178,17 @@ function formatLatency(ms: number | null): string {
   return `${ms.toFixed(0)}ms`
 }
 
+function formatScanDuration(scan: ScanRun): string {
+  if (!scan.completed_at || !scan.started_at) return '--'
+  const ms = new Date(scan.completed_at).getTime() - new Date(scan.started_at).getTime()
+  if (ms < 0) return '--'
+  const totalSec = Math.round(ms / 1000)
+  if (totalSec < 60) return `${totalSec}s`
+  const min = Math.floor(totalSec / 60)
+  const sec = totalSec % 60
+  return sec > 0 ? `${min}m ${sec}s` : `${min}m`
+}
+
 onMounted(() => {
   void loadDashboard()
   void healthStore.fetchHealth()
@@ -312,7 +323,10 @@ onUnmounted(() => {
             {{ latestScan.tickers_scored }} scored /
             {{ latestScan.recommendations }} recommendations
           </span>
-          <span class="scan-date">{{ formatDate(latestScan.started_at) }}</span>
+          <span class="scan-date">
+            {{ formatDate(latestScan.started_at) }}
+            <span class="scan-duration">Duration: {{ formatScanDuration(latestScan) }}</span>
+          </span>
         </div>
         <Button
           label="View Results"
@@ -406,7 +420,19 @@ onUnmounted(() => {
 
     <!-- Recent Debates -->
     <section class="section">
-      <h2>Recent Debates</h2>
+      <div class="section-header">
+        <h2>Recent Debates</h2>
+        <Button
+          label="View All"
+          icon="pi pi-arrow-right"
+          iconPos="right"
+          severity="secondary"
+          text
+          size="small"
+          data-testid="dashboard-view-all-debates"
+          @click="router.push('/scan')"
+        />
+      </div>
       <div v-if="recentDebates.length > 0" class="debate-list" data-testid="dashboard-recent-debates">
         <div
           v-for="debate in recentDebates"
@@ -572,6 +598,22 @@ onUnmounted(() => {
 .scan-date {
   font-size: 0.8rem;
   color: var(--p-surface-500, #666);
+}
+
+.scan-duration {
+  margin-left: 0.75rem;
+  color: var(--p-surface-400, #888);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.section-header h2 {
+  margin-bottom: 0;
 }
 
 .debate-list {
