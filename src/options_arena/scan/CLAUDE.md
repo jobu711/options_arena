@@ -14,7 +14,7 @@ verified against the actual source before writing this document.
 | File | Purpose |
 |------|---------|
 | `progress.py` | `ScanPhase` enum, `CancellationToken`, `ProgressCallback` protocol |
-| `indicators.py` | `InputShape` enum, `IndicatorSpec`, `INDICATOR_REGISTRY` (14 entries), `ohlcv_to_dataframe()`, `compute_indicators()` |
+| `indicators.py` | `InputShape` enum, `IndicatorSpec`, `INDICATOR_REGISTRY` (15 entries), `ohlcv_to_dataframe()`, `compute_indicators()` |
 | `models.py` | Pipeline-internal typed models: `UniverseResult`, `ScoringResult`, `OptionsResult`, `ScanResult` |
 | `pipeline.py` | `ScanPipeline` class with 4 async phases |
 | `__init__.py` | Re-exports public API with `__all__` |
@@ -62,7 +62,7 @@ For each ticker:
     Index: date
 
   compute_indicators(df, INDICATOR_REGISTRY) → IndicatorSignals
-    14 fields populated, 4 options-specific fields left as None
+    15 fields populated, 4 options-specific fields left as None
     Values are RAW (not normalized)
 
 Collect: raw_signals: dict[str, IndicatorSignals]
@@ -139,7 +139,7 @@ Repository.save_ticker_scores(scan_id, scores) → None  (batch insert)
 
 ## IndicatorSpec Registry — 14 Entries (NOT 18)
 
-### Why 14, Not 18?
+### Why 15, Not 19?
 The 4 options-specific indicators (`iv_rank`, `iv_percentile`, `put_call_ratio`,
 `max_pain_distance`) require option chain data that isn't available during Phase 2.
 They are intentionally left as `None` on `IndicatorSignals`. The scoring module's
@@ -171,7 +171,7 @@ match spec.input_shape:
         result = spec.func(df["volume"])
 ```
 
-### Complete Registry (14 entries)
+### Complete Registry (15 entries)
 
 | # | `field_name` | Function | `InputShape` | Category |
 |---|-------------|----------|-------------|----------|
@@ -181,14 +181,15 @@ match spec.input_shape:
 | 4 | `adx` | `adx` | `HLC` | Trend |
 | 5 | `roc` | `roc` | `CLOSE` | Trend |
 | 6 | `supertrend` | `supertrend` | `HLC` | Trend |
-| 7 | `bb_width` | `bb_width` | `CLOSE` | Volatility |
-| 8 | `atr_pct` | `atr_percent` | `HLC` | Volatility |
-| 9 | `keltner_width` | `keltner_width` | `HLC` | Volatility |
-| 10 | `obv` | `obv_trend` | `CLOSE_VOLUME` | Volume |
-| 11 | `relative_volume` | `relative_volume` | `VOLUME` | Volume |
-| 12 | `ad` | `ad_trend` | `HLCV` | Volume |
-| 13 | `sma_alignment` | `sma_alignment` | `CLOSE` | Moving Avg |
-| 14 | `vwap_deviation` | `vwap_deviation` | `CLOSE_VOLUME` | Moving Avg |
+| 7 | `macd` | `macd` | `CLOSE` | Trend |
+| 8 | `bb_width` | `bb_width` | `CLOSE` | Volatility |
+| 9 | `atr_pct` | `atr_percent` | `HLC` | Volatility |
+| 10 | `keltner_width` | `keltner_width` | `HLC` | Volatility |
+| 11 | `obv` | `obv_trend` | `CLOSE_VOLUME` | Volume |
+| 12 | `relative_volume` | `relative_volume` | `VOLUME` | Volume |
+| 13 | `ad` | `ad_trend` | `HLCV` | Volume |
+| 14 | `sma_alignment` | `sma_alignment` | `CLOSE` | Moving Avg |
+| 15 | `vwap_deviation` | `vwap_deviation` | `CLOSE_VOLUME` | Moving Avg |
 
 ### Function Name ≠ Field Name Mapping
 
@@ -405,7 +406,7 @@ class ScanPipeline:
    (`CLOSE`, `HLC`, `CLOSE_VOLUME`, `HLCV`, `VOLUME`). "Series vs DataFrame" doesn't tell you
    which columns to extract.
 
-2. **Putting 18 entries in the registry** — Only 14 OHLCV-based indicators go in `INDICATOR_REGISTRY`.
+2. **Putting 19 entries in the registry** — Only 15 OHLCV-based indicators go in `INDICATOR_REGISTRY`.
    The 4 options-specific indicators need chain data, not OHLCV.
 
 3. **Passing normalized signals to `determine_direction()`** — Direction uses RAW ADX/RSI/SMA values.

@@ -51,9 +51,9 @@ class TestMacd:
         # After warmup, values should match
         # Warmup is slow_period + signal_period - 2 = 26 + 9 - 2 = 33
         for i in range(33, 50):
-            assert result.iloc[i] == pytest.approx(
-                expected_histogram.iloc[i], rel=1e-6
-            ), f"Mismatch at index {i}"
+            assert result.iloc[i] == pytest.approx(expected_histogram.iloc[i], rel=1e-6), (
+                f"Mismatch at index {i}"
+            )
 
     def test_minimum_data(self) -> None:
         """Verify exactly slow_period + signal_period rows produces one valid output."""
