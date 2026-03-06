@@ -14,6 +14,7 @@ import { useHealthStore } from '@/stores/health'
 import { useDebateStore } from '@/stores/debate'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { api, ApiError } from '@/composables/useApi'
+import { formatScanDuration } from '@/utils/formatters'
 import type { ScanRun, DebateResultSummary, ConfigResponse, DebateEvent, TrendingTicker } from '@/types'
 
 const router = useRouter()
@@ -178,16 +179,6 @@ function formatLatency(ms: number | null): string {
   return `${ms.toFixed(0)}ms`
 }
 
-function formatScanDuration(scan: ScanRun): string {
-  if (!scan.completed_at || !scan.started_at) return '--'
-  const ms = new Date(scan.completed_at).getTime() - new Date(scan.started_at).getTime()
-  if (ms < 0) return '--'
-  const totalSec = Math.round(ms / 1000)
-  if (totalSec < 60) return `${totalSec}s`
-  const min = Math.floor(totalSec / 60)
-  const sec = totalSec % 60
-  return sec > 0 ? `${min}m ${sec}s` : `${min}m`
-}
 
 onMounted(() => {
   void loadDashboard()

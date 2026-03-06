@@ -12,6 +12,7 @@ import ScoreHistoryChart from './ScoreHistoryChart.vue'
 import DimensionalScoreBars from './DimensionalScoreBars.vue'
 import DebateProgressModal from './DebateProgressModal.vue'
 import { api, ApiError } from '@/composables/useApi'
+import { formatPrice } from '@/utils/formatters'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { useDebateStore } from '@/stores/debate'
@@ -335,7 +336,7 @@ function regimeClass(regime: string | null | undefined): string {
           >
             <div class="contract-header">
               <Tag :value="c.option_type" :severity="c.option_type === 'call' ? 'success' : 'danger'" />
-              <span class="strike mono">${{ c.strike }}</span>
+              <span class="strike mono">{{ formatPrice(c.strike) }}</span>
               <span class="expiration">{{ formatDate(c.expiration) }}</span>
             </div>
             <div class="contract-details">
