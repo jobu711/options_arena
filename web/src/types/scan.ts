@@ -3,7 +3,7 @@ export interface ScanRun {
   id: number
   started_at: string
   completed_at: string | null
-  preset: 'full' | 'sp500' | 'etfs'
+  preset: 'full' | 'sp500' | 'etfs' | 'nasdaq100' | 'russell2000' | 'most_active'
   source: 'manual' | 'watchlist'
   tickers_scanned: number
   tickers_scored: number
@@ -103,6 +103,30 @@ export interface TickerInfoResponse {
   sector: string
   market_cap: number | null
   current_price: string // Decimal serialized as string
+}
+
+/** Scan preset info from GET /api/universe/preset-info. */
+export interface PresetInfo {
+  preset: string
+  label: string
+  description: string
+  estimated_count: number
+}
+
+/** Pre-scan filter payload emitted by PreScanFilters component. */
+export interface PreScanFilterPayload {
+  preset?: string
+  sectors?: string[]
+  industryGroups?: string[]
+  themes?: string[]
+  market_cap_tiers?: string[]
+  exclude_near_earnings_days?: number | null
+  direction_filter?: string | null
+  min_iv_rank?: number | null
+  min_price?: number | null
+  max_price?: number | null
+  min_dte?: number | null
+  max_dte?: number | null
 }
 
 /** Post-scan dimensional filter parameters for ScanResultsPage. */

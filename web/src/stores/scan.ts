@@ -80,6 +80,10 @@ export const useScanStore = defineStore('scan', () => {
     exclude_near_earnings_days?: number | null
     direction_filter?: string | null
     min_iv_rank?: number | null
+    min_price?: number | null
+    max_price?: number | null
+    min_dte?: number | null
+    max_dte?: number | null
   }
 
   async function startScan(options: StartScanOptions): Promise<number> {
@@ -110,6 +114,18 @@ export const useScanStore = defineStore('scan', () => {
     }
     if (options.min_iv_rank != null) {
       body.min_iv_rank = options.min_iv_rank
+    }
+    if (options.min_price != null) {
+      body.min_price = options.min_price
+    }
+    if (options.max_price != null) {
+      body.max_price = options.max_price
+    }
+    if (options.min_dte != null) {
+      body.min_dte = options.min_dte
+    }
+    if (options.max_dte != null) {
+      body.max_dte = options.max_dte
     }
     const res = await api<{ scan_id: number }>('/api/scan', {
       method: 'POST',
