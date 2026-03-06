@@ -36,6 +36,7 @@ def mock_repo() -> MagicMock:
     repo.get_recent_debates = AsyncMock(return_value=[])
     repo.save_debate = AsyncMock(return_value=1)
     repo.get_last_debate_dates = AsyncMock(return_value={})
+    repo.get_contracts_for_scan = AsyncMock(return_value=[])
     return repo
 
 
