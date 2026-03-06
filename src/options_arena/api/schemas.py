@@ -317,6 +317,8 @@ class DebateResultDetail(BaseModel):
     risk_v2_response: RiskAssessment | None = None
     contrarian_response: ContrarianThesis | None = None
     debate_protocol: str | None = None
+    # Scan linkage
+    scan_run_id: int | None = None
     # OpenBB enrichment (extracted from MarketContext)
     pe_ratio: float | None = None
     forward_pe: float | None = None
