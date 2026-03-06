@@ -327,7 +327,11 @@ class DebateConfig(BaseModel):
     min_debate_score: float = 30.0
     enable_volatility_agent: bool = False
     enable_rebuttal: bool = False
-    phase1_parallelism: int = 4  # 4 for paid Groq, 2 for free tier
+    phase1_parallelism: int = 2  # 2 for free tier, 4+ for paid Groq
+    phase1_batch_delay: float = 1.0  # seconds between Phase 1 agent batches
+    batch_ticker_delay: float = 5.0  # seconds between tickers in batch debate
+    rate_limit_retries: int = 3  # max 429 retries at transport level (0 = disabled)
+    rate_limit_max_wait: float = 30.0  # max single retry wait in seconds
     enable_regime_weights: bool = False  # opt-in regime-adjusted scoring weights
 
     @field_validator("min_debate_score")
@@ -392,6 +396,34 @@ class DebateConfig(BaseModel):
         """Ensure phase1_parallelism is within [1, 8]."""
         if not 1 <= v <= 8:
             raise ValueError(f"phase1_parallelism must be in [1, 8], got {v}")
+        return v
+
+    @field_validator("phase1_batch_delay", "batch_ticker_delay")
+    @classmethod
+    def validate_non_negative_delay(cls, v: float) -> float:
+        """Ensure delay values are finite and non-negative."""
+        if not math.isfinite(v):
+            raise ValueError(f"delay must be finite, got {v}")
+        if v < 0.0:
+            raise ValueError(f"delay must be >= 0, got {v}")
+        return v
+
+    @field_validator("rate_limit_retries")
+    @classmethod
+    def validate_rate_limit_retries(cls, v: int) -> int:
+        """Ensure rate_limit_retries is within [0, 10]."""
+        if not 0 <= v <= 10:
+            raise ValueError(f"rate_limit_retries must be in [0, 10], got {v}")
+        return v
+
+    @field_validator("rate_limit_max_wait")
+    @classmethod
+    def validate_rate_limit_max_wait(cls, v: float) -> float:
+        """Ensure rate_limit_max_wait is finite and positive."""
+        if not math.isfinite(v):
+            raise ValueError(f"rate_limit_max_wait must be finite, got {v}")
+        if v <= 0.0:
+            raise ValueError(f"rate_limit_max_wait must be > 0, got {v}")
         return v
 
     @model_validator(mode="after")

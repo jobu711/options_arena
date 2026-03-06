@@ -942,9 +942,9 @@ class TestDebateConfigDSEFields:
     """Tests for new DebateConfig fields: phase1_parallelism, enable_regime_weights."""
 
     def test_phase1_parallelism_default(self) -> None:
-        """Default phase1_parallelism is 4."""
+        """Default phase1_parallelism is 2 (free tier optimized)."""
         config = DebateConfig()
-        assert config.phase1_parallelism == 4
+        assert config.phase1_parallelism == 2
 
     def test_enable_regime_weights_default(self) -> None:
         """Default enable_regime_weights is False."""

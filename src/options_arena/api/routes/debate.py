@@ -279,7 +279,17 @@ async def _run_batch_debate_background(
     results: list[BatchTickerResult] = []
     try:
         all_scores = await repo.get_scores_for_scan(scan_id)
+        batch_delay = settings.debate.batch_ticker_delay
         for idx, ticker in enumerate(tickers):
+            if idx > 0 and batch_delay > 0:
+                logger.debug(
+                    "Batch inter-ticker delay: %.1fs before %s (%d/%d)",
+                    batch_delay,
+                    ticker,
+                    idx + 1,
+                    len(tickers),
+                )
+                await asyncio.sleep(batch_delay)
             bridge.batch_progress(ticker, idx + 1, len(tickers), "started")
             try:
                 quote = await market_data.fetch_quote(ticker)

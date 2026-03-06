@@ -4,24 +4,119 @@ Uses Groq cloud API exclusively. API key resolution: explicit config >
 ``GROQ_API_KEY`` env var.
 
 Use ``build_debate_model(config)`` to get the configured Groq model.
+
+Rate-limit resilience: when ``config.rate_limit_retries > 0``, builds an
+httpx ``AsyncClient`` with a retry transport that handles 429/502/503/504
+responses using exponential backoff + Retry-After header respect.
 """
 
 import logging
 import os
 
+import httpx
 from pydantic_ai.models import Model
 from pydantic_ai.models.groq import GroqModel
 from pydantic_ai.providers.groq import GroqProvider
+from tenacity import (
+    AsyncRetrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from options_arena.models import DebateConfig
 
 logger = logging.getLogger(__name__)
+
+# HTTP status codes that should trigger a retry
+_RETRYABLE_STATUS_CODES = frozenset({429, 502, 503, 504})
+
+
+class _RateLimitError(Exception):
+    """Raised by the retry transport when a retryable HTTP status is received."""
+
+    def __init__(self, response: httpx.Response) -> None:
+        self.response = response
+        super().__init__(f"HTTP {response.status_code}")
+
+
+class _RetryTransport(httpx.AsyncBaseTransport):
+    """Async httpx transport that retries on 429/5xx with exponential backoff.
+
+    Respects the ``Retry-After`` header when present, falling back to
+    exponential backoff (1s → 2s → 4s → ...) capped at ``max_wait``.
+    """
+
+    def __init__(
+        self,
+        *,
+        wrapped: httpx.AsyncBaseTransport,
+        max_attempts: int,
+        max_wait: float,
+    ) -> None:
+        self._wrapped = wrapped
+        self._max_attempts = max_attempts
+        self._max_wait = max_wait
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        """Send request with retry logic for rate-limit responses."""
+        last_response: httpx.Response | None = None
+
+        async for attempt in AsyncRetrying(
+            stop=stop_after_attempt(self._max_attempts),
+            wait=wait_exponential(multiplier=1, min=1, max=self._max_wait),
+            retry=retry_if_exception_type(_RateLimitError),
+            reraise=True,
+        ):
+            with attempt:
+                response = await self._wrapped.handle_async_request(request)
+                if response.status_code in _RETRYABLE_STATUS_CODES:
+                    last_response = response
+                    retry_after = response.headers.get("retry-after")
+                    if retry_after is not None:
+                        logger.warning(
+                            "Rate limited (HTTP %d), Retry-After: %ss",
+                            response.status_code,
+                            retry_after,
+                        )
+                    else:
+                        logger.warning("Retryable HTTP %d, backing off", response.status_code)
+                    raise _RateLimitError(response)
+                return response
+
+        # Should not reach here, but satisfy type checker
+        assert last_response is not None  # noqa: S101
+        return last_response
+
+
+def _build_rate_limit_client(config: DebateConfig) -> httpx.AsyncClient:
+    """Build an httpx AsyncClient with retry transport for rate-limit resilience.
+
+    Parameters
+    ----------
+    config
+        Debate configuration with ``rate_limit_retries`` and ``rate_limit_max_wait``.
+
+    Returns
+    -------
+    httpx.AsyncClient
+        Client with retry-capable transport wrapping the default httpx transport.
+    """
+    base_transport = httpx.AsyncHTTPTransport()
+    retry_transport = _RetryTransport(
+        wrapped=base_transport,
+        max_attempts=config.rate_limit_retries + 1,  # +1 because first attempt counts
+        max_wait=config.rate_limit_max_wait,
+    )
+    return httpx.AsyncClient(transport=retry_transport)
 
 
 def build_debate_model(config: DebateConfig) -> Model:
     """Build a PydanticAI model backed by Groq cloud API.
 
     API key resolution: ``config.api_key`` > ``GROQ_API_KEY`` env var.
+    When ``config.rate_limit_retries > 0``, wraps the HTTP transport with
+    automatic 429/5xx retry logic.
 
     Parameters
     ----------
@@ -45,7 +140,17 @@ def build_debate_model(config: DebateConfig) -> Model:
             "or pass api_key in DebateConfig."
         )
     logger.debug("Building GroqModel: model=%s", config.model)
-    provider = GroqProvider(api_key=api_key)
+
+    http_client: httpx.AsyncClient | None = None
+    if config.rate_limit_retries > 0:
+        http_client = _build_rate_limit_client(config)
+        logger.debug(
+            "Rate-limit transport: retries=%d, max_wait=%.1fs",
+            config.rate_limit_retries,
+            config.rate_limit_max_wait,
+        )
+
+    provider = GroqProvider(api_key=api_key, http_client=http_client)
     return GroqModel(config.model, provider=provider)
 
 

@@ -522,9 +522,19 @@ async def _batch_async(
 
         results: list[tuple[str, DebateResult | None, str | None]] = []
         start_time = time.monotonic()
+        batch_delay = settings.debate.batch_ticker_delay
 
         for i, ticker_score in enumerate(top_scores, 1):
             ticker = ticker_score.ticker
+            if i > 1 and batch_delay > 0:
+                logger.debug(
+                    "Batch inter-ticker delay: %.1fs before %s (%d/%d)",
+                    batch_delay,
+                    ticker,
+                    i,
+                    len(top_scores),
+                )
+                await asyncio.sleep(batch_delay)
             err_console.print(f"[cyan]Debating {ticker} ({i}/{len(top_scores)})...[/cyan]")
             try:
                 result = await _debate_single(

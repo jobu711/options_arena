@@ -64,6 +64,11 @@ _ARENA_ENV_VARS = [
     "ARENA_DEBATE__MIN_DEBATE_SCORE",
     "ARENA_DEBATE__ENABLE_VOLATILITY_AGENT",
     "ARENA_DEBATE__ENABLE_REBUTTAL",
+    "ARENA_DEBATE__PHASE1_PARALLELISM",
+    "ARENA_DEBATE__PHASE1_BATCH_DELAY",
+    "ARENA_DEBATE__BATCH_TICKER_DELAY",
+    "ARENA_DEBATE__RATE_LIMIT_RETRIES",
+    "ARENA_DEBATE__RATE_LIMIT_MAX_WAIT",
 ]
 
 
@@ -428,6 +433,150 @@ class TestDebateConfigPreScreening:
         monkeypatch.setenv("ARENA_DEBATE__ENABLE_VOLATILITY_AGENT", "true")
         settings = AppSettings()
         assert settings.debate.enable_volatility_agent is True
+
+
+# ---------------------------------------------------------------------------
+# Rate limit config fields
+# ---------------------------------------------------------------------------
+
+
+class TestDebateConfigRateLimit:
+    """Tests for rate-limit resilience config fields on DebateConfig."""
+
+    def test_phase1_batch_delay_default(self) -> None:
+        """Default phase1_batch_delay is 1.0."""
+        config = DebateConfig()
+        assert config.phase1_batch_delay == pytest.approx(1.0)
+
+    def test_batch_ticker_delay_default(self) -> None:
+        """Default batch_ticker_delay is 5.0."""
+        config = DebateConfig()
+        assert config.batch_ticker_delay == pytest.approx(5.0)
+
+    def test_rate_limit_retries_default(self) -> None:
+        """Default rate_limit_retries is 3."""
+        config = DebateConfig()
+        assert config.rate_limit_retries == 3
+
+    def test_rate_limit_max_wait_default(self) -> None:
+        """Default rate_limit_max_wait is 30.0."""
+        config = DebateConfig()
+        assert config.rate_limit_max_wait == pytest.approx(30.0)
+
+    def test_phase1_parallelism_default_is_2(self) -> None:
+        """Default phase1_parallelism changed to 2 (free tier optimized)."""
+        config = DebateConfig()
+        assert config.phase1_parallelism == 2
+
+    # --- Delay validation ---
+
+    def test_rejects_negative_phase1_batch_delay(self) -> None:
+        """Negative phase1_batch_delay is rejected."""
+        with pytest.raises(ValidationError, match="delay must be >= 0"):
+            DebateConfig(phase1_batch_delay=-1.0)
+
+    def test_accepts_zero_phase1_batch_delay(self) -> None:
+        """Zero delay is valid (disables delay)."""
+        config = DebateConfig(phase1_batch_delay=0.0)
+        assert config.phase1_batch_delay == pytest.approx(0.0)
+
+    def test_rejects_nan_phase1_batch_delay(self) -> None:
+        """NaN delay is rejected."""
+        with pytest.raises(ValidationError, match="delay must be finite"):
+            DebateConfig(phase1_batch_delay=float("nan"))
+
+    def test_rejects_inf_phase1_batch_delay(self) -> None:
+        """Inf delay is rejected."""
+        with pytest.raises(ValidationError, match="delay must be finite"):
+            DebateConfig(phase1_batch_delay=float("inf"))
+
+    def test_rejects_negative_batch_ticker_delay(self) -> None:
+        """Negative batch_ticker_delay is rejected."""
+        with pytest.raises(ValidationError, match="delay must be >= 0"):
+            DebateConfig(batch_ticker_delay=-0.5)
+
+    def test_accepts_zero_batch_ticker_delay(self) -> None:
+        """Zero batch_ticker_delay is valid."""
+        config = DebateConfig(batch_ticker_delay=0.0)
+        assert config.batch_ticker_delay == pytest.approx(0.0)
+
+    def test_rejects_nan_batch_ticker_delay(self) -> None:
+        """NaN batch_ticker_delay is rejected."""
+        with pytest.raises(ValidationError, match="delay must be finite"):
+            DebateConfig(batch_ticker_delay=float("nan"))
+
+    # --- Rate limit retries validation ---
+
+    def test_rejects_negative_rate_limit_retries(self) -> None:
+        """Negative rate_limit_retries is rejected."""
+        with pytest.raises(ValidationError, match="rate_limit_retries must be in"):
+            DebateConfig(rate_limit_retries=-1)
+
+    def test_rejects_rate_limit_retries_above_10(self) -> None:
+        """rate_limit_retries above 10 is rejected."""
+        with pytest.raises(ValidationError, match="rate_limit_retries must be in"):
+            DebateConfig(rate_limit_retries=11)
+
+    def test_accepts_rate_limit_retries_boundary(self) -> None:
+        """rate_limit_retries 0 and 10 are accepted."""
+        config_low = DebateConfig(rate_limit_retries=0)
+        assert config_low.rate_limit_retries == 0
+        config_high = DebateConfig(rate_limit_retries=10)
+        assert config_high.rate_limit_retries == 10
+
+    # --- Rate limit max wait validation ---
+
+    def test_rejects_zero_rate_limit_max_wait(self) -> None:
+        """Zero rate_limit_max_wait is rejected (must be > 0)."""
+        with pytest.raises(ValidationError, match="rate_limit_max_wait must be > 0"):
+            DebateConfig(rate_limit_max_wait=0.0)
+
+    def test_rejects_negative_rate_limit_max_wait(self) -> None:
+        """Negative rate_limit_max_wait is rejected."""
+        with pytest.raises(ValidationError, match="rate_limit_max_wait must be > 0"):
+            DebateConfig(rate_limit_max_wait=-5.0)
+
+    def test_rejects_nan_rate_limit_max_wait(self) -> None:
+        """NaN rate_limit_max_wait is rejected."""
+        with pytest.raises(ValidationError, match="rate_limit_max_wait must be finite"):
+            DebateConfig(rate_limit_max_wait=float("nan"))
+
+    def test_rejects_inf_rate_limit_max_wait(self) -> None:
+        """Inf rate_limit_max_wait is rejected."""
+        with pytest.raises(ValidationError, match="rate_limit_max_wait must be finite"):
+            DebateConfig(rate_limit_max_wait=float("inf"))
+
+    # --- Env var overrides ---
+
+    def test_env_override_phase1_batch_delay(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__PHASE1_BATCH_DELAY env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__PHASE1_BATCH_DELAY", "0.0")
+        settings = AppSettings()
+        assert settings.debate.phase1_batch_delay == pytest.approx(0.0)
+
+    def test_env_override_batch_ticker_delay(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__BATCH_TICKER_DELAY env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__BATCH_TICKER_DELAY", "1.0")
+        settings = AppSettings()
+        assert settings.debate.batch_ticker_delay == pytest.approx(1.0)
+
+    def test_env_override_rate_limit_retries(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__RATE_LIMIT_RETRIES env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__RATE_LIMIT_RETRIES", "0")
+        settings = AppSettings()
+        assert settings.debate.rate_limit_retries == 0
+
+    def test_env_override_rate_limit_max_wait(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__RATE_LIMIT_MAX_WAIT env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__RATE_LIMIT_MAX_WAIT", "60.0")
+        settings = AppSettings()
+        assert settings.debate.rate_limit_max_wait == pytest.approx(60.0)
+
+    def test_env_override_phase1_parallelism(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__PHASE1_PARALLELISM env var overrides default to paid tier value."""
+        monkeypatch.setenv("ARENA_DEBATE__PHASE1_PARALLELISM", "4")
+        settings = AppSettings()
+        assert settings.debate.phase1_parallelism == 4
 
 
 # ---------------------------------------------------------------------------

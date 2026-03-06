@@ -1570,9 +1570,16 @@ async def _run_v2_agents(
     if parallelism >= len(phase1_coros):
         phase1_results = await asyncio.gather(*phase1_coros, return_exceptions=True)
     else:
-        # Run in batches
+        # Run in batches with optional inter-batch delay for rate-limit avoidance
         phase1_results: list[object | BaseException] = []  # type: ignore[no-redef]
         for i in range(0, len(phase1_coros), parallelism):
+            if i > 0 and config.phase1_batch_delay > 0:
+                logger.debug(
+                    "Phase 1 inter-batch delay: %.1fs before batch %d",
+                    config.phase1_batch_delay,
+                    i // parallelism + 1,
+                )
+                await asyncio.sleep(config.phase1_batch_delay)
             batch = phase1_coros[i : i + parallelism]
             batch_results = await asyncio.gather(*batch, return_exceptions=True)
             phase1_results.extend(batch_results)
