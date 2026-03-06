@@ -26,7 +26,12 @@ from options_arena.api.schemas import (
     UniverseStats,
 )
 from options_arena.data import Repository
-from options_arena.models.enums import SECTOR_TO_INDUSTRY_GROUPS, GICSIndustryGroup, GICSSector
+from options_arena.models.enums import (
+    SECTOR_TO_INDUSTRY_GROUPS,
+    GICSIndustryGroup,
+    GICSSector,
+    ScanPreset,
+)
 from options_arena.services import MarketDataService, UniverseService
 from options_arena.services.theme_service import ThemeService
 from options_arena.services.universe import build_sector_map, map_yfinance_to_metadata
@@ -188,37 +193,37 @@ async def get_preset_info(
 
     return [
         PresetInfo(
-            preset="full",
+            preset=ScanPreset.FULL,
             label="Full Universe",
             description="All CBOE optionable equities and ETFs.",
             estimated_count=_safe_len(optionable_result),
         ),
         PresetInfo(
-            preset="sp500",
+            preset=ScanPreset.SP500,
             label="S&P 500",
             description="Large-cap U.S. equities in the S&P 500 index.",
             estimated_count=_safe_len(sp500_result),
         ),
         PresetInfo(
-            preset="etfs",
+            preset=ScanPreset.ETFS,
             label="ETFs",
             description="Exchange-traded funds with liquid options markets.",
             estimated_count=_safe_len(etf_result),
         ),
         PresetInfo(
-            preset="nasdaq100",
+            preset=ScanPreset.NASDAQ100,
             label="Nasdaq 100",
             description="Top 100 non-financial companies on the Nasdaq exchange.",
             estimated_count=_safe_len(nasdaq100_result),
         ),
         PresetInfo(
-            preset="russell2000",
+            preset=ScanPreset.RUSSELL2000,
             label="Russell 2000",
             description="Small-cap and micro-cap equities with options.",
             estimated_count=_safe_len(russell2000_result),
         ),
         PresetInfo(
-            preset="most_active",
+            preset=ScanPreset.MOST_ACTIVE,
             label="Most Active",
             description="Most actively traded options by volume.",
             estimated_count=_safe_len(most_active_result),

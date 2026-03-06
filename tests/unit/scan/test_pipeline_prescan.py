@@ -319,7 +319,9 @@ class TestPhase1PresetDispatch:
 
         result = await pipeline._phase_universe(ScanPreset.RUSSELL2000, _noop_progress)
 
-        mocks["universe"].fetch_russell2000_tickers.assert_awaited_once()
+        mocks["universe"].fetch_russell2000_tickers.assert_awaited_once_with(
+            repo=mocks["repository"],
+        )
         assert set(result.tickers) == {"SMTK", "ABCD"}
         assert "EFGH" not in result.tickers
 

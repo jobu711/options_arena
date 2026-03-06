@@ -32,6 +32,8 @@ from options_arena.data import Repository
 from options_arena.models import (
     AppSettings,
     MarketRegime,
+    PricingConfig,
+    ScanConfig,
     ScanDiff,
     ScanPreset,
     ScanRun,
@@ -157,10 +159,16 @@ async def start_scan(
 
     if scan_overrides or pricing_overrides:
         new_scan = (
-            settings.scan.model_copy(update=scan_overrides) if scan_overrides else settings.scan
+            ScanConfig.model_validate(
+                settings.scan.model_copy(update=scan_overrides).model_dump()
+            )
+            if scan_overrides
+            else settings.scan
         )
         new_pricing = (
-            settings.pricing.model_copy(update=pricing_overrides)
+            PricingConfig.model_validate(
+                settings.pricing.model_copy(update=pricing_overrides).model_dump()
+            )
             if pricing_overrides
             else settings.pricing
         )

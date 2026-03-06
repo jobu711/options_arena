@@ -329,7 +329,9 @@ class ScanPipeline:
                     len(tickers),
                 )
             elif preset == ScanPreset.RUSSELL2000:
-                preset_tickers = await self._universe.fetch_russell2000_tickers()
+                preset_tickers = await self._universe.fetch_russell2000_tickers(
+                    repo=self._repository,
+                )
                 preset_set = frozenset(preset_tickers)
                 tickers = [t for t in all_tickers if t in preset_set]
                 logger.info(

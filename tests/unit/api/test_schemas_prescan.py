@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import math
+
+import pytest
+from pydantic import ValidationError
+
 from options_arena.api.schemas import PresetInfo, ScanRequest
 
 
@@ -51,6 +56,66 @@ class TestScanRequestNewFields:
         assert req.max_dte == 60
 
 
+class TestScanRequestValidation:
+    """Tests for ScanRequest field validators (price, DTE, cross-field)."""
+
+    def test_rejects_negative_min_price(self) -> None:
+        with pytest.raises(ValidationError, match="price must be positive"):
+            ScanRequest(min_price=-10.0)
+
+    def test_rejects_negative_max_price(self) -> None:
+        with pytest.raises(ValidationError, match="price must be positive"):
+            ScanRequest(max_price=-5.0)
+
+    def test_rejects_zero_min_price(self) -> None:
+        with pytest.raises(ValidationError, match="price must be positive"):
+            ScanRequest(min_price=0.0)
+
+    def test_rejects_zero_max_price(self) -> None:
+        with pytest.raises(ValidationError, match="price must be positive"):
+            ScanRequest(max_price=0.0)
+
+    def test_rejects_nan_price(self) -> None:
+        with pytest.raises(ValidationError, match="price must be finite"):
+            ScanRequest(min_price=math.nan)
+
+    def test_rejects_inf_price(self) -> None:
+        with pytest.raises(ValidationError, match="price must be finite"):
+            ScanRequest(max_price=math.inf)
+
+    def test_rejects_negative_dte(self) -> None:
+        with pytest.raises(ValidationError, match="DTE must be positive"):
+            ScanRequest(min_dte=-5)
+
+    def test_rejects_zero_dte(self) -> None:
+        with pytest.raises(ValidationError, match="DTE must be positive"):
+            ScanRequest(max_dte=0)
+
+    def test_rejects_inverted_price_range(self) -> None:
+        with pytest.raises(ValidationError, match="min_price.*must not exceed.*max_price"):
+            ScanRequest(min_price=500.0, max_price=100.0)
+
+    def test_rejects_inverted_dte_range(self) -> None:
+        with pytest.raises(ValidationError, match="min_dte.*must not exceed.*max_dte"):
+            ScanRequest(min_dte=90, max_dte=30)
+
+    def test_accepts_equal_price_range(self) -> None:
+        req = ScanRequest(min_price=100.0, max_price=100.0)
+        assert req.min_price == 100.0
+        assert req.max_price == 100.0
+
+    def test_accepts_equal_dte_range(self) -> None:
+        req = ScanRequest(min_dte=30, max_dte=30)
+        assert req.min_dte == 30
+        assert req.max_dte == 30
+
+    def test_single_bound_no_cross_field_error(self) -> None:
+        """Setting only one bound should not trigger cross-field validation."""
+        req = ScanRequest(max_price=5.0)
+        assert req.max_price == 5.0
+        assert req.min_price is None
+
+
 class TestPresetInfo:
     """Tests for PresetInfo schema."""
 
@@ -97,9 +162,6 @@ class TestPresetInfo:
 
     def test_preset_info_requires_all_fields(self) -> None:
         """PresetInfo requires all four fields."""
-        import pytest
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError):
             PresetInfo(preset="sp500")  # type: ignore[call-arg]
 

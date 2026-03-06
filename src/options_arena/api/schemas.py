@@ -6,9 +6,11 @@ Most responses use existing Pydantic models from ``models/`` directly.
 
 from __future__ import annotations
 
+import math
 from datetime import datetime
+from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from options_arena.models import (
     TICKER_RE,
@@ -50,6 +52,46 @@ class ScanRequest(BaseModel):
     min_dte: int | None = None
     max_dte: int | None = None
     source: ScanSource = ScanSource.MANUAL
+
+    @field_validator("min_price", "max_price")
+    @classmethod
+    def validate_price_fields(cls, v: float | None) -> float | None:
+        """Ensure price fields are finite and positive when set."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"price must be finite, got {v}")
+            if v <= 0.0:
+                raise ValueError(f"price must be positive, got {v}")
+        return v
+
+    @field_validator("min_dte", "max_dte")
+    @classmethod
+    def validate_dte_fields(cls, v: int | None) -> int | None:
+        """Ensure DTE values are positive when set."""
+        if v is not None and v <= 0:
+            raise ValueError(f"DTE must be positive, got {v}")
+        return v
+
+    @model_validator(mode="after")
+    def validate_cross_field_ranges(self) -> Self:
+        """Reject min > max for price and DTE when both are set."""
+        if (
+            self.min_price is not None
+            and self.max_price is not None
+            and self.min_price > self.max_price
+        ):
+            raise ValueError(
+                f"min_price ({self.min_price}) must not exceed max_price ({self.max_price})"
+            )
+        if (
+            self.min_dte is not None
+            and self.max_dte is not None
+            and self.min_dte > self.max_dte
+        ):
+            raise ValueError(
+                f"min_dte ({self.min_dte}) must not exceed max_dte ({self.max_dte})"
+            )
+        return self
 
     @field_validator("market_cap_tiers", mode="before")
     @classmethod
@@ -473,7 +515,7 @@ class IndexStarted(BaseModel):
 class PresetInfo(BaseModel):
     """Describes a scan preset for the frontend preset picker."""
 
-    preset: str
+    preset: ScanPreset
     label: str
     description: str
     estimated_count: int
