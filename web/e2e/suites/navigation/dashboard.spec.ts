@@ -8,7 +8,7 @@
 import { test, expect } from '../../fixtures/base.fixture'
 import { DashboardPage } from '../../fixtures/pages/dashboard.page'
 import { mockAllApis, mockGet, pathMatcher } from '../../fixtures/mocks/api-handlers'
-import { buildScanRun } from '../../fixtures/builders/scan.builders'
+import { buildScanRun, buildRecommendedContract } from '../../fixtures/builders/scan.builders'
 import { buildDebateSummary } from '../../fixtures/builders/debate.builders'
 import { buildAllHealthy, buildOneDegraded } from '../../fixtures/builders/health.builders'
 
@@ -82,5 +82,30 @@ test.describe('Dashboard', () => {
     const emptyOrPrompt = page.locator('[data-testid="empty-state"]')
       .or(page.locator('text=/no scan|get started|run.*scan/i'))
     await expect(emptyOrPrompt).toBeVisible()
+  })
+
+  test('"View All" debates button navigates to /scan', async ({ page }) => {
+    const dashboard = new DashboardPage(page)
+    await dashboard.goto()
+    await dashboard.expectLoaded()
+
+    const viewAllBtn = page.locator('[data-testid="dashboard-view-all-debates"]')
+    await expect(viewAllBtn).toBeVisible()
+    await viewAllBtn.click()
+    await page.waitForURL('**/scan')
+    expect(page.url()).toContain('/scan')
+  })
+
+  test('latest scan card displays duration', async ({ page }) => {
+    // Default buildScanRun has started_at and completed_at 5 min apart
+    const dashboard = new DashboardPage(page)
+    await dashboard.goto()
+    await dashboard.expectLoaded()
+
+    // Duration text should appear in the latest scan card
+    const durationText = page.locator('text=/Duration:/')
+    await expect(durationText).toBeVisible()
+    // 5 minutes = "5m 0s" or "5m"
+    await expect(durationText).toContainText(/5m/)
   })
 })

@@ -13,6 +13,7 @@ import {
   buildPaginatedScores,
   buildTickerScore,
   buildEmptyScores,
+  buildRecommendedContract,
 } from '../../fixtures/builders/scan.builders'
 
 const SCAN_ID = 1
@@ -156,5 +157,37 @@ test.describe('Scan Results Table', () => {
     // Now batch button should appear and be enabled
     await expect(resultsPage.batchDebateBtn).toBeVisible()
     await expect(resultsPage.batchDebateBtn).toBeEnabled()
+  })
+
+  test('ticker drawer shows recommended contracts', async ({ page }) => {
+    // Mock contracts endpoint for AAPL
+    const contracts = [
+      buildRecommendedContract({ option_type: 'call', strike: '195.00', direction: 'bullish' }),
+      buildRecommendedContract({ id: 2, option_type: 'put', strike: '185.00', direction: 'bearish', delta: -0.35 }),
+    ]
+    await page.route(url => url.pathname.startsWith('/api/analytics/ticker/') && url.pathname.endsWith('/contracts'), route =>
+      route.fulfill({ json: contracts }),
+    )
+    // Mock debate and history endpoints for drawer
+    await mockGet(page, url => url.pathname === '/api/debate' && url.searchParams.has('ticker'), [])
+    await page.route(url => url.pathname.startsWith('/api/ticker/') && url.pathname.endsWith('/history'), route =>
+      route.fulfill({ json: [] }),
+    )
+    await page.route(url => url.pathname.startsWith('/api/ticker/') && url.pathname.endsWith('/info'), route =>
+      route.fulfill({ json: { ticker: 'AAPL', company_name: 'Apple Inc.', sector: 'Technology', market_cap: 3000000000000, market_cap_tier: 'mega' } }),
+    )
+
+    const resultsPage = new ScanResultsPage(page)
+    await resultsPage.goto(SCAN_ID)
+    await resultsPage.openTickerDrawer('AAPL')
+
+    // Contracts section should be visible
+    const contractsSection = page.locator('[data-testid="drawer-contracts"]')
+    await expect(contractsSection).toBeVisible({ timeout: 5_000 })
+    await expect(contractsSection).toContainText('Recommended Contracts')
+
+    // Should show both contracts
+    await expect(contractsSection).toContainText('$195.00')
+    await expect(contractsSection).toContainText('$185.00')
   })
 })

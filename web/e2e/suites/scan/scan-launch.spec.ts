@@ -100,6 +100,28 @@ test.describe('Scan Launch', () => {
     expect(rowCount).toBe(3)
   })
 
+  test('scan list shows Duration column', async ({ page }) => {
+    const pastScans = [
+      buildScanRun({
+        id: 10,
+        started_at: '2026-02-26T14:00:00+00:00',
+        completed_at: '2026-02-26T14:02:30+00:00',
+      }),
+    ]
+    await mockAllApis(page, { scanList: pastScans })
+
+    const scanPage = new ScanPage(page)
+    await scanPage.goto()
+
+    // Duration column header should exist
+    const durationHeader = page.locator('.p-datatable-thead th:has-text("Duration")')
+    await expect(durationHeader).toBeVisible()
+
+    // Duration cell should show "2m 30s"
+    const durationCell = page.locator('.p-datatable-tbody tr').first().locator('.mono')
+    await expect(durationCell).toContainText('2m 30s')
+  })
+
   test('cancel button stops a running scan', async ({ page }) => {
     // Mock DELETE /api/scan/current
     await page.route('**/api/scan/current', async route => {

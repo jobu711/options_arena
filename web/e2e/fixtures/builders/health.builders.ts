@@ -5,7 +5,8 @@ export function buildHealthStatus(overrides: Partial<HealthStatus> = {}): Health
     service_name: 'Yahoo Finance',
     available: true,
     latency_ms: 120,
-    message: null,
+    error: null,
+    checked_at: '2026-02-26T14:00:00+00:00',
     ...overrides,
   }
 }
@@ -22,7 +23,7 @@ export function buildAllHealthy(): HealthStatus[] {
 export function buildOneDegraded(degradedService: string): HealthStatus[] {
   return buildAllHealthy().map(h =>
     h.service_name === degradedService
-      ? { ...h, available: false, latency_ms: null, message: `${degradedService} is unreachable` }
+      ? { ...h, available: false, latency_ms: null, error: `${degradedService} is unreachable` }
       : h,
   )
 }
@@ -32,6 +33,6 @@ export function buildAllDown(): HealthStatus[] {
     ...h,
     available: false,
     latency_ms: null,
-    message: `${h.service_name} connection refused`,
+    error: `${h.service_name} connection refused`,
   }))
 }
