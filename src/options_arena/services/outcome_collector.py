@@ -9,6 +9,7 @@ Never raises — returns partial results and logs errors per contract.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -19,6 +20,7 @@ from options_arena.models.analytics import ContractOutcome, PerformanceSummary, 
 from options_arena.models.config import AnalyticsConfig
 from options_arena.models.enums import OptionType, OutcomeCollectionMethod
 from options_arena.services.market_data import MarketDataService
+from options_arena.services.options_data import OptionsDataService
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,10 @@ class OutcomeCollector:
         Database repository for reading contracts and writing outcomes.
     market_data
         Market data service for fetching current quotes.
+    options_data
+        Options data service for fetching live option chains (optional).
+        When provided, active contracts compute exit_contract_mid from
+        the live chain. When ``None``, falls back to stock-return-only.
     """
 
     def __init__(
@@ -52,10 +58,12 @@ class OutcomeCollector:
         config: AnalyticsConfig,
         repository: Repository,
         market_data: MarketDataService,
+        options_data: OptionsDataService | None = None,
     ) -> None:
         self._config = config
         self._repo = repository
         self._market_data = market_data
+        self._options_data = options_data
 
     async def collect_outcomes(
         self,
@@ -234,14 +242,44 @@ class OutcomeCollector:
         stock_return = self._compute_stock_return(contract.entry_stock_price, exit_stock_price)
         dte_at_exit = (contract.expiration - exit_date).days
 
-        # Option chain data would require OptionsDataService (not injected here).
-        # For active contracts, set contract_return to None to indicate
-        # option market data was unavailable; stock return is always computed.
+        # Attempt to fetch live option chain for contract-level P&L
         exit_contract_mid: Decimal | None = None
         exit_contract_bid: Decimal | None = None
         exit_contract_ask: Decimal | None = None
         contract_return: float | None = None
         is_winner: bool | None = None
+
+        if self._options_data is not None:
+            try:
+                chain = await asyncio.wait_for(
+                    self._options_data.fetch_chain(contract.ticker, contract.expiration),
+                    timeout=10,
+                )
+                matching = next(
+                    (
+                        c
+                        for c in chain
+                        if c.strike == contract.strike and c.option_type == contract.option_type
+                    ),
+                    None,
+                )
+                if matching is not None and matching.bid is not None and matching.ask is not None:
+                    exit_contract_bid = matching.bid
+                    exit_contract_ask = matching.ask
+                    exit_contract_mid = (matching.bid + matching.ask) / Decimal("2")
+                    if contract.entry_mid and contract.entry_mid > 0:
+                        contract_return = float(
+                            (exit_contract_mid - contract.entry_mid)
+                            / contract.entry_mid
+                            * Decimal("100")
+                        )
+                        is_winner = contract_return > 0
+            except Exception:
+                logger.warning(
+                    "Failed to fetch option chain for %s %s",
+                    contract.ticker,
+                    contract.expiration,
+                )
 
         return ContractOutcome(
             recommended_contract_id=contract.id,  # type: ignore[arg-type]

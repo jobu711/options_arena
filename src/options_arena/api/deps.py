@@ -78,4 +78,5 @@ def get_outcome_collector(request: Request) -> OutcomeCollector:
         config=request.app.state.settings.analytics,
         repository=request.app.state.repo,
         market_data=request.app.state.market_data,
+        options_data=request.app.state.options_data,
     )
