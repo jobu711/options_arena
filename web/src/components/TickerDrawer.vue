@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { computed } from 'vue'
 import Drawer from 'primevue/drawer'
@@ -9,10 +9,15 @@ import Message from 'primevue/message'
 import DirectionBadge from './DirectionBadge.vue'
 import ScoreHistoryChart from './ScoreHistoryChart.vue'
 import DimensionalScoreBars from './DimensionalScoreBars.vue'
-import { api } from '@/composables/useApi'
+import DebateProgressModal from './DebateProgressModal.vue'
+import { api, ApiError } from '@/composables/useApi'
+import { useWebSocket } from '@/composables/useWebSocket'
 import { useWatchlistStore } from '@/stores/watchlist'
+import { useDebateStore } from '@/stores/debate'
+import { useOperationStore } from '@/stores/operation'
 import { useToast } from 'primevue/usetoast'
 import type { TickerScore, DebateResultSummary, HistoryPoint, TickerInfoResponse } from '@/types'
+import type { DebateEvent } from '@/types/ws'
 
 interface Props {
   visible: boolean
@@ -30,7 +35,13 @@ const history = ref<HistoryPoint[]>([])
 const loadingHistory = ref(false)
 const fetchedCompanyName = ref<string | null>(null)
 const watchlistStore = useWatchlistStore()
+const debateStore = useDebateStore()
+const operationStore = useOperationStore()
 const toastService = useToast()
+const debateModalVisible = ref(false)
+const debatingTicker = ref('')
+const isDebating = ref(false)
+let debateWsClose: (() => void) | null = null
 const selectedWatchlistId = ref<number | null>(null)
 const addingToWatchlist = ref(false)
 
@@ -62,6 +73,49 @@ async function onAddToWatchlist(): Promise<void> {
     })
   }
 }
+
+async function startDebate(): Promise<void> {
+  if (!props.score || isDebating.value) return
+  const ticker = props.score.ticker
+  try {
+    debatingTicker.value = ticker
+    debateModalVisible.value = true
+    isDebating.value = true
+    const debateId = await debateStore.startDebate(ticker, props.scanId)
+
+    const { close } = useWebSocket<DebateEvent>({
+      url: `/ws/debate/${debateId}`,
+      onMessage(event) {
+        switch (event.type) {
+          case 'agent':
+            debateStore.updateAgentProgress(event)
+            break
+          case 'error':
+            debateStore.setDebateError(event.message)
+            break
+          case 'complete':
+            debateStore.setDebateComplete(event.debate_id)
+            close()
+            debateModalVisible.value = false
+            isDebating.value = false
+            router.push(`/debate/${event.debate_id}`)
+            break
+        }
+      },
+    })
+    debateWsClose = close
+  } catch (e) {
+    debateModalVisible.value = false
+    isDebating.value = false
+    debateStore.reset()
+    const msg = e instanceof ApiError ? e.message : 'Failed to start debate'
+    toastService.add({ severity: 'error', summary: 'Error', detail: msg, life: 5000 })
+  }
+}
+
+onUnmounted(() => {
+  debateWsClose?.()
+})
 
 onMounted(() => {
   void watchlistStore.fetchWatchlists()
@@ -264,7 +318,9 @@ function regimeClass(regime: string | null | undefined): string {
           icon="pi pi-comments"
           severity="info"
           size="small"
-          disabled
+          :disabled="operationStore.inProgress || isDebating"
+          v-tooltip="operationStore.inProgress ? 'Operation in progress' : undefined"
+          @click="startDebate"
         />
       </div>
 
@@ -297,6 +353,13 @@ function regimeClass(regime: string | null | undefined): string {
         </div>
       </div>
     </template>
+
+    <DebateProgressModal
+      v-model:visible="debateModalVisible"
+      :ticker="debatingTicker"
+      :agents="debateStore.agentProgress"
+      :error="debateStore.error"
+    />
   </Drawer>
 </template>
 

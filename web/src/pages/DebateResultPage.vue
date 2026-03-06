@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import AgentCard from '@/components/AgentCard.vue'
@@ -8,12 +8,14 @@ import FlowAgentCard from '@/components/FlowAgentCard.vue'
 import FundamentalAgentCard from '@/components/FundamentalAgentCard.vue'
 import RiskAgentCard from '@/components/RiskAgentCard.vue'
 import ContrarianAgentCard from '@/components/ContrarianAgentCard.vue'
+import ConsensusPanel from '@/components/ConsensusPanel.vue'
 import DirectionBadge from '@/components/DirectionBadge.vue'
 import ConfidenceBadge from '@/components/ConfidenceBadge.vue'
 import { useDebateStore } from '@/stores/debate'
 import type { AgentResponse } from '@/types/debate'
 
 const route = useRoute()
+const router = useRouter()
 const debateStore = useDebateStore()
 const debateId = Number(route.params.id)
 
@@ -114,6 +116,15 @@ onMounted(() => void debateStore.fetchDebate(debateId))
         </div>
         <div class="header-actions">
           <Button
+            v-if="debate?.scan_run_id"
+            label="Back to Scan Results"
+            icon="pi pi-arrow-left"
+            severity="secondary"
+            size="small"
+            data-testid="back-to-scan"
+            @click="router.push('/scan/' + debate!.scan_run_id)"
+          />
+          <Button
             label="Export MD"
             icon="pi pi-download"
             severity="secondary"
@@ -172,6 +183,15 @@ onMounted(() => void debateStore.fetchDebate(debateId))
         </div>
         <p class="thesis-risk">{{ debateStore.currentDebate.thesis.risk_assessment }}</p>
       </div>
+
+      <!-- Consensus Panel (v2 only) -->
+      <ConsensusPanel
+        v-if="debate?.agent_agreement_score != null"
+        :agreement-score="debate?.agent_agreement_score ?? null"
+        :agents-completed="debate?.agents_completed ?? null"
+        :dissenting-agents="debate?.dissenting_agents ?? []"
+        :contrarian-dissent="debate?.contrarian_dissent ?? null"
+      />
 
       <!-- V2 Agent Cards Grid (6-card layout) -->
       <div v-if="isV2" class="agents-grid" data-testid="v2-agents-grid">
