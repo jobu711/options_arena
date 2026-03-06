@@ -20,6 +20,7 @@ from options_arena.api.schemas import (
     IndexStarted,
     IndustryGroupInfo,
     MetadataStats,
+    PresetInfo,
     SectorHierarchy,
     ThemeInfo,
     UniverseStats,
@@ -138,6 +139,90 @@ async def get_themes(
             source_etfs=t.source_etfs,
         )
         for t in snapshots
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Preset info endpoint (#286)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/universe/preset-info")
+@limiter.limit("60/minute")
+async def get_preset_info(
+    request: Request,
+    universe: UniverseService = Depends(get_universe),
+    repo: Repository = Depends(get_repo),
+) -> list[PresetInfo]:
+    """Return metadata for all 6 scan presets with estimated ticker counts.
+
+    Uses ``asyncio.gather`` to fetch all preset universes in parallel,
+    then builds a ``PresetInfo`` response for each preset.
+    """
+    # Fetch all 6 preset universes in parallel
+    (
+        optionable_result,
+        sp500_result,
+        etf_result,
+        nasdaq100_result,
+        russell2000_result,
+        most_active_result,
+    ) = await asyncio.gather(
+        universe.fetch_optionable_tickers(),
+        universe.fetch_sp500_constituents(),
+        universe.fetch_etf_tickers(),
+        universe.fetch_nasdaq100_constituents(),
+        universe.fetch_russell2000_tickers(repo=repo),
+        universe.fetch_most_active(),
+        return_exceptions=True,
+    )
+
+    # Safe count extraction — if a fetch raised, count is 0
+    def _safe_len(result: object) -> int:
+        if isinstance(result, Exception):
+            logger.warning("Preset fetch failed: %s", result)
+            return 0
+        if isinstance(result, list):
+            return len(result)
+        return 0
+
+    return [
+        PresetInfo(
+            preset="full",
+            label="Full Universe",
+            description="All CBOE optionable equities and ETFs.",
+            estimated_count=_safe_len(optionable_result),
+        ),
+        PresetInfo(
+            preset="sp500",
+            label="S&P 500",
+            description="Large-cap U.S. equities in the S&P 500 index.",
+            estimated_count=_safe_len(sp500_result),
+        ),
+        PresetInfo(
+            preset="etfs",
+            label="ETFs",
+            description="Exchange-traded funds with liquid options markets.",
+            estimated_count=_safe_len(etf_result),
+        ),
+        PresetInfo(
+            preset="nasdaq100",
+            label="Nasdaq 100",
+            description="Top 100 non-financial companies on the Nasdaq exchange.",
+            estimated_count=_safe_len(nasdaq100_result),
+        ),
+        PresetInfo(
+            preset="russell2000",
+            label="Russell 2000",
+            description="Small-cap and micro-cap equities with options.",
+            estimated_count=_safe_len(russell2000_result),
+        ),
+        PresetInfo(
+            preset="most_active",
+            label="Most Active",
+            description="Most actively traded options by volume.",
+            estimated_count=_safe_len(most_active_result),
+        ),
     ]
 
 

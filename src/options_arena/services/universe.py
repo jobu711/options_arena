@@ -55,6 +55,9 @@ _TICKER_RE: re.Pattern[str] = re.compile(r"^[A-Z]{1,5}(\.[A-Z])?$")
 _CACHE_KEY_CBOE = "cboe:reference:universe:optionable"
 _CACHE_KEY_SP500 = "github:reference:sp500:constituents"
 _CACHE_KEY_ETFS = "yf:reference:universe:etfs"
+_CACHE_KEY_NASDAQ100 = "github:reference:nasdaq100:constituents"
+_CACHE_KEY_RUSSELL2000 = "meta:reference:russell2000:tickers"
+_CACHE_KEY_MOST_ACTIVE = "curated:reference:most_active:tickers"
 
 # Curated ETF seed list — well-known optionable ETFs that are reliably available
 # on CBOE. Cross-referenced against the CBOE optionable list.
@@ -129,6 +132,333 @@ _ETF_SEED_LIST: frozenset[str] = frozenset(
         # Real estate
         "VNQ",
         "IYR",
+    }
+)
+
+NASDAQ100_URL = "https://raw.githubusercontent.com/datasets/nasdaq-100/main/data/constituents.csv"
+
+# Curated NASDAQ-100 fallback — well-known constituents used when GitHub CSV
+# is unavailable.  Cross-referenced against the CBOE optionable list.
+_NASDAQ100_FALLBACK: frozenset[str] = frozenset(
+    {
+        "AAPL",
+        "ABNB",
+        "ADBE",
+        "ADI",
+        "ADP",
+        "ADSK",
+        "AEP",
+        "AMAT",
+        "AMD",
+        "AMGN",
+        "AMZN",
+        "ANSS",
+        "ARM",
+        "ASML",
+        "AVGO",
+        "AZN",
+        "BIIB",
+        "BKNG",
+        "BKR",
+        "CCEP",
+        "CDNS",
+        "CDW",
+        "CEG",
+        "CHTR",
+        "CMCSA",
+        "COIN",
+        "COST",
+        "CPRT",
+        "CRWD",
+        "CSCO",
+        "CSGP",
+        "CTAS",
+        "CTSH",
+        "DASH",
+        "DDOG",
+        "DLTR",
+        "DXCM",
+        "EA",
+        "EXC",
+        "FANG",
+        "FAST",
+        "FTNT",
+        "GEHC",
+        "GFS",
+        "GILD",
+        "GOOG",
+        "GOOGL",
+        "HON",
+        "IDXX",
+        "ILMN",
+        "INTC",
+        "INTU",
+        "ISRG",
+        "KDP",
+        "KHC",
+        "KLAC",
+        "LIN",
+        "LRCX",
+        "LULU",
+        "MAR",
+        "MCHP",
+        "MDB",
+        "MDLZ",
+        "MELI",
+        "META",
+        "MNST",
+        "MRNA",
+        "MRVL",
+        "MSFT",
+        "MU",
+        "NFLX",
+        "NVDA",
+        "NXPI",
+        "ODFL",
+        "ON",
+        "ORLY",
+        "PANW",
+        "PAYX",
+        "PCAR",
+        "PDD",
+        "PEP",
+        "PYPL",
+        "QCOM",
+        "REGN",
+        "ROP",
+        "ROST",
+        "SBUX",
+        "SMCI",
+        "SNPS",
+        "TEAM",
+        "TMUS",
+        "TSLA",
+        "TTD",
+        "TTWO",
+        "TXN",
+        "VRSK",
+        "VRTX",
+        "WBD",
+        "WDAY",
+        "XEL",
+        "ZS",
+    }
+)
+
+# Curated most-active options seed list — high-volume names that are reliably
+# available on CBOE.  Cross-referenced against the CBOE optionable list.
+_MOST_ACTIVE_SEED: frozenset[str] = frozenset(
+    {
+        # Mega-cap tech
+        "AAPL",
+        "MSFT",
+        "AMZN",
+        "GOOGL",
+        "GOOG",
+        "META",
+        "NVDA",
+        "TSLA",
+        # Broad-market ETFs
+        "SPY",
+        "QQQ",
+        "IWM",
+        "DIA",
+        "VOO",
+        "VTI",
+        # Semiconductor
+        "AMD",
+        "INTC",
+        "MU",
+        "AVGO",
+        "MRVL",
+        "QCOM",
+        "TXN",
+        "AMAT",
+        "LRCX",
+        "KLAC",
+        "ON",
+        "NXPI",
+        "SMCI",
+        "ARM",
+        # Software / cloud
+        "CRM",
+        "ORCL",
+        "ADBE",
+        "NOW",
+        "SNOW",
+        "PLTR",
+        "NET",
+        "DDOG",
+        "CRWD",
+        "ZS",
+        "PANW",
+        "TEAM",
+        "WDAY",
+        "MDB",
+        "SHOP",
+        # Consumer internet
+        "NFLX",
+        "DIS",
+        "ROKU",
+        "SNAP",
+        "PINS",
+        "SPOT",
+        "UBER",
+        "LYFT",
+        "ABNB",
+        "DASH",
+        "COIN",
+        "SQ",
+        "PYPL",
+        "HOOD",
+        # Financials
+        "JPM",
+        "BAC",
+        "C",
+        "GS",
+        "MS",
+        "WFC",
+        "SCHW",
+        "BLK",
+        "AXP",
+        "V",
+        "MA",
+        # Industrials
+        "BA",
+        "CAT",
+        "DE",
+        "GE",
+        "LMT",
+        "RTX",
+        "HON",
+        "UPS",
+        "FDX",
+        # Energy
+        "XOM",
+        "CVX",
+        "OXY",
+        "COP",
+        "SLB",
+        "HAL",
+        "DVN",
+        "MPC",
+        "PSX",
+        "VLO",
+        # Pharma / biotech
+        "JNJ",
+        "PFE",
+        "MRK",
+        "ABBV",
+        "LLY",
+        "BMY",
+        "AMGN",
+        "GILD",
+        "MRNA",
+        "BIIB",
+        "REGN",
+        # Healthcare
+        "UNH",
+        "CI",
+        "HUM",
+        "CVS",
+        "ELV",
+        "ISRG",
+        # Retail / consumer
+        "WMT",
+        "TGT",
+        "COST",
+        "HD",
+        "LOW",
+        "NKE",
+        "SBUX",
+        "MCD",
+        "LULU",
+        # Telecom / media
+        "T",
+        "VZ",
+        "TMUS",
+        "CMCSA",
+        "CHTR",
+        # Real estate / REITs
+        "O",
+        "AMT",
+        "PLD",
+        "SPG",
+        "WELL",
+        # EV / Auto
+        "RIVN",
+        "LCID",
+        "F",
+        "GM",
+        "NIO",
+        # Sector ETFs
+        "XLF",
+        "XLE",
+        "XLK",
+        "XLV",
+        "XLI",
+        "XLP",
+        "XLU",
+        "XLY",
+        "XLB",
+        "XLRE",
+        "XLC",
+        # Thematic ETFs
+        "SMH",
+        "XBI",
+        "XOP",
+        "KRE",
+        "XHB",
+        "XRT",
+        "ARKK",
+        # Fixed income / commodity ETFs
+        "TLT",
+        "HYG",
+        "GLD",
+        "SLV",
+        "USO",
+        "GDX",
+        # Volatility
+        "VXX",
+        "UVXY",
+        "SVXY",
+        # Leveraged
+        "TQQQ",
+        "SQQQ",
+        "SOXL",
+        "SOXS",
+        # Chinese ADRs
+        "BABA",
+        "JD",
+        "PDD",
+        "BIDU",
+        "LI",
+        "XPEV",
+        # Misc high-volume
+        "SOFI",
+        "MARA",
+        "RIOT",
+        "RBLX",
+        "U",
+        "TTWO",
+        "EA",
+        "ENPH",
+        "SEDG",
+        "FSLR",
+        "RUN",
+        "AAL",
+        "DAL",
+        "UAL",
+        "CCL",
+        "RCL",
+        "NCLH",
+        "WBA",
+        "KO",
+        "PEP",
+        "PM",
+        "MO",
+        "GME",
+        "AMC",
     }
 )
 
@@ -410,6 +740,198 @@ class UniverseService:
         )
 
         return confirmed_etfs
+
+    async def fetch_nasdaq100_constituents(self) -> list[str]:
+        """Fetch NASDAQ-100 constituents from GitHub CSV with CBOE cross-ref.
+
+        Downloads a CSV from the ``datasets/nasdaq-100`` repository and
+        extracts ticker symbols. Cross-references against the CBOE optionable
+        universe and falls back to a curated list (~100 tickers) on any
+        failure. Results are cached for 24 hours.
+
+        Never raises — returns empty list on total failure.
+
+        Returns:
+            Sorted, deduplicated list of NASDAQ-100 ticker symbols that are
+            optionable on CBOE.
+        """
+        # Check cache first
+        cached = await self._cache.get(_CACHE_KEY_NASDAQ100)
+        if cached is not None:
+            tickers: list[str] = json.loads(cached.decode())
+            logger.debug("NASDAQ-100 cache hit: %d tickers", len(tickers))
+            return tickers
+
+        raw_tickers: list[str] = []
+        try:
+            async with self._limiter:
+                response = await asyncio.wait_for(
+                    self._client.get(NASDAQ100_URL),
+                    timeout=self._config.yfinance_timeout,
+                )
+                response.raise_for_status()
+                df: pd.DataFrame = await asyncio.wait_for(
+                    asyncio.to_thread(pd.read_csv, io.StringIO(response.text)),
+                    timeout=self._config.yfinance_timeout,
+                )
+
+            # Look for a ticker/symbol column
+            ticker_col: str | None = None
+            for col_name in df.columns:
+                col_lower = str(col_name).strip().lower()
+                if col_lower in ("symbol", "ticker", "stock symbol"):
+                    ticker_col = str(col_name)
+                    break
+            if ticker_col is None and len(df.columns) > 0:
+                ticker_col = str(df.columns[0])
+
+            if ticker_col is not None:
+                raw_tickers = df[ticker_col].dropna().astype(str).str.strip().str.upper().tolist()
+                logger.info("NASDAQ-100 CSV fetched: %d raw tickers", len(raw_tickers))
+        except Exception:
+            logger.warning("NASDAQ-100 CSV fetch failed, using curated fallback", exc_info=True)
+
+        # Fallback to curated list if CSV failed or was empty
+        if not raw_tickers:
+            raw_tickers = sorted(_NASDAQ100_FALLBACK)
+            logger.info("NASDAQ-100 using curated fallback: %d tickers", len(raw_tickers))
+
+        # CBOE cross-reference
+        try:
+            optionable = await self.fetch_optionable_tickers()
+            optionable_set = frozenset(optionable)
+            tickers = sorted(t for t in raw_tickers if t in optionable_set)
+        except Exception:
+            logger.warning("CBOE cross-ref failed for NASDAQ-100, returning raw list")
+            tickers = sorted(set(raw_tickers))
+
+        logger.info("NASDAQ-100 universe: %d optionable tickers", len(tickers))
+
+        # Cache for 24 hours
+        await self._cache.set(
+            _CACHE_KEY_NASDAQ100,
+            json.dumps(tickers).encode(),
+            ttl=TTL_REFERENCE,
+        )
+
+        return tickers
+
+    async def fetch_russell2000_tickers(
+        self,
+        repo: object | None = None,
+    ) -> list[str]:
+        """Fetch Russell 2000-like small/micro-cap tickers from the metadata index.
+
+        Queries ``Repository.get_all_ticker_metadata()`` and filters for
+        ``market_cap_tier`` in ``{SMALL, MICRO}``. Cross-references against
+        the CBOE optionable universe. Results are cached for 24 hours.
+
+        Never raises — returns empty list on failure or missing repo.
+
+        Args:
+            repo: An optional ``Repository`` instance. If ``None``, returns
+                an empty list immediately.
+
+        Returns:
+            Sorted, deduplicated list of small/micro-cap optionable tickers.
+        """
+        # Check cache first
+        cached = await self._cache.get(_CACHE_KEY_RUSSELL2000)
+        if cached is not None:
+            tickers: list[str] = json.loads(cached.decode())
+            logger.debug("Russell 2000 cache hit: %d tickers", len(tickers))
+            return tickers
+
+        if repo is None:
+            logger.warning("Russell 2000 fetch skipped: no Repository provided")
+            return []
+
+        try:
+            # Duck-type check: repo must have get_all_ticker_metadata()
+            if not hasattr(repo, "get_all_ticker_metadata"):
+                logger.warning("Russell 2000 fetch skipped: repo lacks get_all_ticker_metadata")
+                return []
+
+            # hasattr guard above ensures get_all_ticker_metadata exists;
+            # cast to Any so mypy allows attribute access on duck-typed repo.
+            repo_any: Any = repo
+            all_metadata: list[TickerMetadata] = await repo_any.get_all_ticker_metadata()
+            small_micro_tickers = sorted(
+                m.ticker
+                for m in all_metadata
+                if m.market_cap_tier in {MarketCapTier.SMALL, MarketCapTier.MICRO}
+            )
+
+            if not small_micro_tickers:
+                logger.info("Russell 2000: no small/micro-cap tickers in metadata index")
+                await self._cache.set(
+                    _CACHE_KEY_RUSSELL2000,
+                    json.dumps([]).encode(),
+                    ttl=TTL_REFERENCE,
+                )
+                return []
+
+            # CBOE cross-reference
+            try:
+                optionable = await self.fetch_optionable_tickers()
+                optionable_set = frozenset(optionable)
+                tickers = sorted(t for t in small_micro_tickers if t in optionable_set)
+            except Exception:
+                logger.warning("CBOE cross-ref failed for Russell 2000, returning raw list")
+                tickers = small_micro_tickers
+
+            logger.info("Russell 2000 universe: %d optionable tickers", len(tickers))
+
+            # Cache for 24 hours
+            await self._cache.set(
+                _CACHE_KEY_RUSSELL2000,
+                json.dumps(tickers).encode(),
+                ttl=TTL_REFERENCE,
+            )
+
+            return tickers
+
+        except Exception:
+            logger.warning("Russell 2000 fetch failed", exc_info=True)
+            return []
+
+    async def fetch_most_active(self) -> list[str]:
+        """Fetch most actively traded options tickers with CBOE cross-ref.
+
+        Uses a curated seed list of ~250 high-volume names cross-referenced
+        against the CBOE optionable universe. Results are cached for 24 hours.
+
+        Never raises — returns empty list on failure.
+
+        Returns:
+            Sorted, deduplicated list of most-active optionable tickers.
+        """
+        # Check cache first
+        cached = await self._cache.get(_CACHE_KEY_MOST_ACTIVE)
+        if cached is not None:
+            tickers: list[str] = json.loads(cached.decode())
+            logger.debug("Most Active cache hit: %d tickers", len(tickers))
+            return tickers
+
+        try:
+            # CBOE cross-reference
+            optionable = await self.fetch_optionable_tickers()
+            optionable_set = frozenset(optionable)
+            tickers = sorted(t for t in _MOST_ACTIVE_SEED if t in optionable_set)
+        except Exception:
+            logger.warning("CBOE cross-ref failed for Most Active, returning seed list")
+            tickers = sorted(_MOST_ACTIVE_SEED)
+
+        logger.info("Most Active universe: %d tickers", len(tickers))
+
+        # Cache for 24 hours
+        await self._cache.set(
+            _CACHE_KEY_MOST_ACTIVE,
+            json.dumps(tickers).encode(),
+            ttl=TTL_REFERENCE,
+        )
+
+        return tickers
 
     async def close(self) -> None:
         """Close the shared httpx client."""
