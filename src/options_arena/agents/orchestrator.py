@@ -136,8 +136,9 @@ def build_market_context(
     """
     signals = ticker_score.signals
 
-    # Derive MACD signal from direction heuristic — no raw MACD data in scan signals
-    macd_signal = _derive_macd_signal(ticker_score.direction)
+    # Classify MACD from real indicator signal (normalized 0-100, centred to sign)
+    _raw_macd = (signals.macd - 50.0) if signals.macd is not None else None
+    macd_signal = classify_macd_signal(_raw_macd)
 
     # Contract-derived fields with safe defaults
     first_contract = contracts[0] if contracts else None
@@ -344,15 +345,33 @@ def _log_completeness_breakdown(context: MarketContext, ratio: float) -> None:
     )
 
 
-def _derive_macd_signal(direction: SignalDirection) -> MacdSignal:
-    """Derive a MACD signal from the scan pipeline direction.
+def classify_macd_signal(macd_value: float | None) -> MacdSignal:
+    """Classify a centered MACD value into a signal.
 
-    The scan pipeline does not produce a raw MACD crossover signal.
-    We approximate from the overall direction classification.
+    The scan pipeline stores MACD as a normalized 0-100 percentile on
+    ``IndicatorSignals.macd``.  The caller centres the value by subtracting
+    50 before passing it here so that the sign indicates histogram direction:
+
+    * positive  -> ``BULLISH_CROSSOVER``
+    * negative  -> ``BEARISH_CROSSOVER``
+    * zero / ``None`` / non-finite  -> ``NEUTRAL``
+
+    Parameters
+    ----------
+    macd_value
+        Centered MACD value (normalized - 50), or ``None`` when the
+        indicator was not computed.
+
+    Returns
+    -------
+    MacdSignal
+        Classification based on histogram sign.
     """
-    if direction == SignalDirection.BULLISH:
+    if macd_value is None or not math.isfinite(macd_value):
+        return MacdSignal.NEUTRAL
+    if macd_value > 0:
         return MacdSignal.BULLISH_CROSSOVER
-    if direction == SignalDirection.BEARISH:
+    if macd_value < 0:
         return MacdSignal.BEARISH_CROSSOVER
     return MacdSignal.NEUTRAL
 
