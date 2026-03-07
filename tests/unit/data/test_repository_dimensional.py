@@ -17,6 +17,8 @@ from options_arena.models import (
 )
 from options_arena.models.scoring import DimensionalScores
 
+pytestmark = pytest.mark.db
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

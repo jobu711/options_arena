@@ -57,7 +57,8 @@ pkill -f "dotnet.*test|cargo.*test|go.*test|swift.*test|flutter.*test" 2>/dev/nu
 
 ## Important Notes
 
-- Don't parallelize tests (avoid conflicts)
+- Parallel runs are safe: all fixtures are function-scoped, all DBs are :memory:, all APIs mocked
+- Use `-n auto` for full-suite runs, omit for debugging specific failures
 - Let each test complete fully
 - Report failures with actionable fixes
 - Focus output on failures, not successes

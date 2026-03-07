@@ -6,5 +6,5 @@
 -- is harmless in SQLite.
 
 DROP TABLE IF EXISTS intelligence_snapshots;
-DROP TABLE IF EXISTS watchlists;
 DROP TABLE IF EXISTS watchlist_tickers;
+DROP TABLE IF EXISTS watchlists;

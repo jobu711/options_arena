@@ -31,6 +31,8 @@ from options_arena.models.enums import DividendSource
 from options_arena.models.market_data import TickerInfo
 from options_arena.services.universe import map_yfinance_to_metadata
 
+pytestmark = pytest.mark.db
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

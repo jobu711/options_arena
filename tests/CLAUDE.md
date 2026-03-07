@@ -9,6 +9,14 @@ uv run pytest tests/ -v --cov=src/options_arena     # full + coverage
 uv run pytest tests/ -k "test_rsi" -v              # specific test
 ```
 
+## Fast Run Modes
+```bash
+uv run pytest tests/ -n auto -q          # parallel (~2x faster)
+uv run pytest tests/ -m smoke -v         # smoke only (<10s)
+uv run pytest tests/ -m "not db" -q      # skip DB tests
+uv run pytest tests/unit -q              # unit only
+```
+
 ## Absolute Rules
 1. **Never hit real APIs.** Mock Groq, Anthropic, and all data sources. Every test. No exceptions.
 2. **Never use `==` for floats.** Always `pytest.approx()`.

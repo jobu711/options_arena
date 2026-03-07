@@ -19,6 +19,8 @@ from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock
 
+import pytest
+
 from options_arena.models import (
     AppSettings,
     ScanPreset,

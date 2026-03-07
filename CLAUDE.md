@@ -213,7 +213,9 @@ def scan(preset: ScanPreset = ScanPreset.SP500) -> None:
 
 ```bash
 uv run ruff check . --fix && uv run ruff format .   # lint + format
-uv run pytest tests/ -v                              # all tests
+uv run pytest tests/ -n auto -q                      # all tests (parallel)
+uv run pytest tests/ -v                              # all tests (verbose, for debugging)
+uv run pytest tests/ -m smoke                        # smoke only (<10s pre-commit)
 uv run mypy src/ --strict                            # type checking
 ```
 
