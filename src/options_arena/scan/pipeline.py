@@ -518,20 +518,6 @@ class ScanPipeline:
                     ts.direction,
                 )
                 ts.direction_confidence = direction_signal.confidence
-
-                # Derive market regime from raw regime signal threshold mapping
-                raw_sig = raw_signals[ts.ticker]
-                regime_val = raw_sig.market_regime
-                if regime_val is not None and math.isfinite(regime_val):
-                    scan_cfg = self._settings.scan
-                    if regime_val >= scan_cfg.regime_crisis_threshold:
-                        ts.market_regime = MarketRegime.CRISIS
-                    elif regime_val >= scan_cfg.regime_volatile_threshold:
-                        ts.market_regime = MarketRegime.VOLATILE
-                    elif regime_val >= scan_cfg.regime_mean_reverting_threshold:
-                        ts.market_regime = MarketRegime.MEAN_REVERTING
-                    else:
-                        ts.market_regime = MarketRegime.TRENDING
             except Exception:
                 logger.warning(
                     "Dimensional scoring failed for %s; skipping",
@@ -1326,14 +1312,19 @@ def _recompute_composite_scores(
     logger.info("Phase 3 composite recompute complete for %d tickers", len(top_scores))
 
 
+_REGIME_CRISIS_THRESHOLD: float = 80.0
+_REGIME_VOLATILE_THRESHOLD: float = 60.0
+_REGIME_MEAN_REVERTING_THRESHOLD: float = 40.0
+
+
 def _recompute_dimensional_scores(
     top_scores: list[TickerScore],
 ) -> None:
-    """Refresh dimensional scores and direction confidence after Phase 3 normalization.
+    """Refresh dimensional scores, direction confidence, and market regime after Phase 3.
 
     The Phase 2 computation only saw Phase 2 fields.  Now that Phase 3 fields
-    are also normalized 0--100, recomputing gives dimensional scoring the full
-    picture.
+    (including ``market_regime`` from vol cone data) are also normalized 0--100,
+    recomputing gives dimensional scoring the full picture.
 
     Mutates ``top_scores`` in place.
     """
@@ -1348,6 +1339,18 @@ def _recompute_dimensional_scores(
                 ts.direction,
             )
             ts.direction_confidence = direction_signal.confidence
+
+            # Derive market regime from signals.market_regime (computed in Phase 3)
+            regime_val = ts.signals.market_regime
+            if regime_val is not None and math.isfinite(regime_val):
+                if regime_val >= _REGIME_CRISIS_THRESHOLD:
+                    ts.market_regime = MarketRegime.CRISIS
+                elif regime_val >= _REGIME_VOLATILE_THRESHOLD:
+                    ts.market_regime = MarketRegime.VOLATILE
+                elif regime_val >= _REGIME_MEAN_REVERTING_THRESHOLD:
+                    ts.market_regime = MarketRegime.MEAN_REVERTING
+                else:
+                    ts.market_regime = MarketRegime.TRENDING
         except Exception:
             logger.warning(
                 "Dimensional re-scoring failed for %s; keeping Phase 2 values",

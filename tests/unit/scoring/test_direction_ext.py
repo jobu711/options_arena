@@ -167,10 +167,10 @@ class TestComputeDirectionSignalEdgeCases:
         signals = _make_full_signals(50.0)
         result = compute_direction_signal(signals, 50.0, SignalDirection.NEUTRAL)
 
-        # With everything at 50, nothing is > 60 (bullish) or < 40 (bearish)
-        # Score magnitude is 0 (at 50). Should produce low confidence.
+        # With everything at exactly 50, z=0, p=0.5 — the data strongly
+        # confirms neutrality (zero deviation from neutral mean).
         assert result.direction is SignalDirection.NEUTRAL
-        assert result.confidence <= 0.5
+        assert result.confidence >= 0.9
 
     def test_nan_indicator_ignored(self) -> None:
         """NaN indicator values are excluded from analysis."""

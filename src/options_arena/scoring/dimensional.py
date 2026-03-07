@@ -261,103 +261,90 @@ def apply_regime_weights(
     return max(0.0, min(100.0, raw_composite))
 
 
+_PHI_SCALE: float = math.pi / math.sqrt(3)
+"""Logistic CDF scaling factor that approximates the normal CDF to within 0.01."""
+
+
 def compute_direction_signal(
     signals: IndicatorSignals,
     composite_score: float,
     direction: SignalDirection,
 ) -> DirectionSignal:
-    """Compute continuous direction confidence with contributing signals.
+    """Compute continuous direction confidence via z-test on mean shift.
 
-    Analyzes which indicators contributed to the direction call.  Confidence
-    is derived from:
-    - How many indicators agree with the direction.
-    - The composite score magnitude (distance from 50).
-    - The spread between bullish and bearish indicator counts.
+    Percentile-ranked signals are approximately uniform on [0, 100].
+    Under the null hypothesis "no directional bias," the mean of *n*
+    such values is 50 with known standard error ``100 / sqrt(12 * n)``.
+
+    The z-score measures how far the observed signal mean deviates from
+    neutral, then maps through a logistic CDF (approximates normal CDF)
+    to produce a probability in [0, 1].
 
     Args:
         signals: Percentile-ranked indicator signals (0--100 scale).
-            Both call sites pass normalized signals; thresholds (60/40) are
-            calibrated for percentile-ranked data.
         composite_score: The composite score (0--100) for this ticker.
-            Direction-agnostic measure of overall options interest level.
         direction: The discrete direction classification.
 
     Returns:
-        Frozen ``DirectionSignal`` with direction, confidence (0--1), and
-        contributing_signals list.
+        Frozen ``DirectionSignal`` with direction, confidence (0.10--0.95),
+        and contributing_signals list.
     """
-    # Thresholds for directional classification of individual indicators
-    _BULLISH_THRESHOLD: float = 60.0
-    _BEARISH_THRESHOLD: float = 40.0
-
-    bullish_signals: list[str] = []
-    bearish_signals: list[str] = []
-    total_valid: int = 0
-
-    # Assess each indicator for directional agreement
+    # 1. Collect non-None, finite values
+    values: list[float] = []
+    field_values: dict[str, float] = {}
     for field_name in IndicatorSignals.model_fields:
-        value: float | None = getattr(signals, field_name)
-        if value is None or not math.isfinite(value):
-            continue
-        total_valid += 1
+        v: float | None = getattr(signals, field_name)
+        if v is not None and math.isfinite(v):
+            values.append(v)
+            field_values[field_name] = v
 
-        if value > _BULLISH_THRESHOLD:
-            bullish_signals.append(field_name)
-        elif value < _BEARISH_THRESHOLD:
-            bearish_signals.append(field_name)
-
-    # If no valid indicators, return neutral with low confidence
-    if total_valid == 0:
+    n = len(values)
+    if n == 0:
         return DirectionSignal(
             direction=SignalDirection.NEUTRAL,
             confidence=0.1,
             contributing_signals=["no_valid_indicators"],
         )
 
-    # Determine contributing signals based on direction
-    if direction == SignalDirection.BULLISH:
-        contributing = bullish_signals
-    elif direction == SignalDirection.BEARISH:
-        contributing = bearish_signals
-    else:
-        # Neutral: report whichever side has more, or both if equal
-        contributing = bullish_signals + bearish_signals
+    # 2. Z-test: how far does the signal mean deviate from neutral (50)?
+    mean_val = sum(values) / n
+    se = 100.0 / (12.0 * n) ** 0.5  # SE under uniform[0,100]
+    z = (mean_val - 50.0) / se
+    p = 1.0 / (1.0 + math.exp(-_PHI_SCALE * z))  # logistic ≈ Φ(z)
 
-    # Ensure at least one contributing signal (model requires >= 1)
+    # 3. Map to directional confidence
+    if direction == SignalDirection.BULLISH:
+        raw_confidence = p
+    elif direction == SignalDirection.BEARISH:
+        raw_confidence = 1.0 - p
+    else:
+        raw_confidence = 1.0 - 2.0 * abs(p - 0.5)
+
+    confidence = max(0.10, min(0.95, raw_confidence))
+
+    # 4. Contributing signals: those leaning in the direction
+    contributing: list[str] = []
+    for name, v in field_values.items():
+        lean = (v - 50.0) / 50.0  # [-1, +1]
+        is_contributor = (
+            (direction == SignalDirection.BULLISH and lean > 0.10)
+            or (direction == SignalDirection.BEARISH and lean < -0.10)
+            or (direction == SignalDirection.NEUTRAL and abs(lean) > 0.10)
+        )
+        if is_contributor:
+            contributing.append(name)
+
     if not contributing:
         contributing = ["composite_score"]
 
-    # Compute confidence components
-    # 1) Agreement ratio: fraction of valid indicators agreeing with direction
-    if direction == SignalDirection.BULLISH:
-        agreement_count = len(bullish_signals)
-    elif direction == SignalDirection.BEARISH:
-        agreement_count = len(bearish_signals)
-    else:
-        agreement_count = max(len(bullish_signals), len(bearish_signals))
-
-    agreement_ratio = agreement_count / total_valid if total_valid > 0 else 0.0
-
-    # 2) Score magnitude: how far the composite score is from 50 (neutral)
-    score_magnitude = abs(composite_score - 50.0) / 50.0  # 0.0 to 1.0
-
-    # 3) Spread: difference between bullish and bearish counts, normalized
-    spread = abs(len(bullish_signals) - len(bearish_signals))
-    spread_ratio = min(spread / max(total_valid, 1), 1.0)
-
-    # Combined confidence: weighted blend of the three components
-    raw_confidence = 0.40 * agreement_ratio + 0.35 * score_magnitude + 0.25 * spread_ratio
-
-    # Clamp to [0.1, 1.0] -- never zero confidence (always some signal)
-    confidence = max(0.1, min(1.0, raw_confidence))
-
     logger.debug(
-        "Direction signal: %s conf=%.3f (agreement=%.2f, magnitude=%.2f, spread=%.2f)",
+        "Direction signal: %s conf=%.3f (mean=%.1f, z=%.2f, p=%.3f, n=%d)",
         direction.value,
         confidence,
-        agreement_ratio,
-        score_magnitude,
-        spread_ratio,
+        mean_val,
+        z,
+        p,
+        n,
     )
 
     return DirectionSignal(

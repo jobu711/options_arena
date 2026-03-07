@@ -142,24 +142,25 @@ class TestPipelineDimensionalWiring:
 
         assert ts.direction_confidence == pytest.approx(0.85)
 
-    def test_phase2_assigns_market_regime_from_raw_signals(self) -> None:
-        """Verify market regime derivation from raw signals."""
+    def test_market_regime_set_after_phase3(self) -> None:
+        """Verify market regime derivation from signals.market_regime (set in Phase 3)."""
         ts = _make_ticker_score()
-        raw = IndicatorSignals(market_regime=72.0)  # 60-80 range → VOLATILE
-        regime_val = raw.market_regime
+        # Simulate Phase 3 setting market_regime on signals
+        ts.signals.market_regime = 72.0  # 60-80 range → VOLATILE
+        regime_val = ts.signals.market_regime
 
         if regime_val is not None:
             ts.market_regime = _derive_market_regime(regime_val)
 
         assert ts.market_regime is MarketRegime.VOLATILE
 
-    def test_phase2_handles_none_market_regime_signal(self) -> None:
-        """Verify None market_regime signal results in None on TickerScore."""
+    def test_market_regime_none_when_no_vol_data(self) -> None:
+        """Verify None market_regime signal (no vol data in Phase 3) → None on TickerScore."""
         ts = _make_ticker_score()
-        raw = IndicatorSignals()  # market_regime is None
-        assert raw.market_regime is None
+        # signals.market_regime is None when Phase 3 had no vol cone data
+        assert ts.signals.market_regime is None
 
-        ts.market_regime = _derive_market_regime(raw.market_regime)
+        ts.market_regime = _derive_market_regime(ts.signals.market_regime)
         assert ts.market_regime is None
 
     def test_phase2_failure_doesnt_set_fields(self) -> None:

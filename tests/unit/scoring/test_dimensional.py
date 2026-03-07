@@ -485,10 +485,10 @@ class TestApplyRegimeWeights:
 
 
 class TestComputeDirectionSignal:
-    """Tests for compute_direction_signal()."""
+    """Tests for compute_direction_signal() — z-test on mean shift from neutral."""
 
     def test_bullish_direction_with_high_signals(self) -> None:
-        """Strong bullish signals produce bullish direction with high confidence."""
+        """Strong bullish signals (all at 80) produce high confidence (>0.5)."""
         signals = _make_full_signals(80.0)
         result = compute_direction_signal(signals, 80.0, SignalDirection.BULLISH)
 
@@ -498,7 +498,7 @@ class TestComputeDirectionSignal:
         assert len(result.contributing_signals) > 0
 
     def test_bearish_direction_with_low_signals(self) -> None:
-        """Low signals with bearish direction produce reasonable confidence."""
+        """Low signals (all at 20) with bearish direction produce high confidence."""
         signals = _make_full_signals(20.0)
         result = compute_direction_signal(signals, 20.0, SignalDirection.BEARISH)
 
@@ -507,13 +507,14 @@ class TestComputeDirectionSignal:
         assert len(result.contributing_signals) > 0
 
     def test_neutral_direction(self) -> None:
-        """Neutral direction with mixed signals produces moderate confidence."""
+        """Neutral direction with signals at 50 produces high neutral confidence."""
         signals = _make_full_signals(50.0)
         result = compute_direction_signal(signals, 50.0, SignalDirection.NEUTRAL)
 
         assert result.direction is SignalDirection.NEUTRAL
-        # Neutral with score at 50 should have low-moderate confidence
-        assert 0.1 <= result.confidence <= 1.0
+        # At exactly 50, z=0, p=0.5, neutral confidence = 1.0 - 2*|0.5-0.5| = 1.0
+        # Clamped to 0.95
+        assert 0.4 <= result.confidence <= 0.95
 
     def test_all_none_signals_returns_neutral(self) -> None:
         """All-None signals produce neutral with minimum confidence."""
@@ -537,7 +538,7 @@ class TestComputeDirectionSignal:
             )
 
     def test_confidence_range(self) -> None:
-        """Confidence is always within [0.1, 1.0]."""
+        """Confidence is always within [0.10, 0.95]."""
         test_cases = [
             (_make_full_signals(100.0), 100.0, SignalDirection.BULLISH),
             (_make_full_signals(0.0), 0.0, SignalDirection.BEARISH),
@@ -546,17 +547,17 @@ class TestComputeDirectionSignal:
         ]
         for signals, score, direction in test_cases:
             result = compute_direction_signal(signals, score, direction)
-            assert 0.1 <= result.confidence <= 1.0, (
-                f"Confidence {result.confidence} out of [0.1, 1.0] range"
+            assert 0.10 <= result.confidence <= 0.95, (
+                f"Confidence {result.confidence} out of [0.10, 0.95] range"
             )
 
     def test_higher_agreement_means_higher_confidence(self) -> None:
-        """More indicators agreeing with direction produces higher confidence."""
+        """More indicators leaning bullish → higher z-score → higher confidence."""
         # Few bullish signals
         few_signals = _make_signals(rsi=80.0)
         result_few = compute_direction_signal(few_signals, 70.0, SignalDirection.BULLISH)
 
-        # Many bullish signals
+        # Many bullish signals — higher mean, higher n, higher z
         many_signals = _make_signals(
             rsi=80.0,
             adx=75.0,
@@ -580,8 +581,35 @@ class TestComputeDirectionSignal:
 
     def test_at_least_one_contributing_signal(self) -> None:
         """There is always at least one contributing signal (model enforces >= 1)."""
-        # Edge case: direction is BULLISH but all signals are < 60 (no bullish indicators)
+        # Edge case: direction is BULLISH but all signals at 50 (no lean > 0.10)
         signals = _make_signals(rsi=50.0, adx=50.0)
         result = compute_direction_signal(signals, 50.0, SignalDirection.BULLISH)
 
         assert len(result.contributing_signals) >= 1
+
+    def test_moderate_lean_moderate_confidence(self) -> None:
+        """Mean ~55 with n=15 should produce moderate bullish confidence (~0.60-0.80)."""
+        # 10 indicators at 60, 5 at 45 → mean = (10*60 + 5*45)/15 = 55.0
+        fields = list(IndicatorSignals.model_fields.keys())
+        kwargs = {fields[i]: 60.0 for i in range(10)}
+        kwargs.update({fields[i]: 45.0 for i in range(10, 15)})
+        signals = IndicatorSignals(**kwargs)
+        result = compute_direction_signal(signals, 55.0, SignalDirection.BULLISH)
+
+        assert 0.55 <= result.confidence <= 0.90
+
+    def test_confidence_scales_with_n(self) -> None:
+        """Same mean deviation, more indicators → tighter SE → higher confidence."""
+        fields = list(IndicatorSignals.model_fields.keys())
+
+        # 5 indicators at 60 → mean=60, n=5
+        few_kwargs = {fields[i]: 60.0 for i in range(5)}
+        few_signals = IndicatorSignals(**few_kwargs)
+        result_few = compute_direction_signal(few_signals, 60.0, SignalDirection.BULLISH)
+
+        # 20 indicators at 60 → mean=60, n=20 (tighter SE → higher z)
+        many_kwargs = {fields[i]: 60.0 for i in range(20)}
+        many_signals = IndicatorSignals(**many_kwargs)
+        result_many = compute_direction_signal(many_signals, 60.0, SignalDirection.BULLISH)
+
+        assert result_many.confidence > result_few.confidence

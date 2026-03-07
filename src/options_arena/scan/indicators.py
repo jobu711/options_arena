@@ -626,6 +626,21 @@ def compute_phase3_indicators(
     except Exception:
         logger.warning("Indicator iv_crush_history failed; setting to None", exc_info=True)
 
+    # --- Market Regime (from volatility data) ---
+    try:
+        vcp = signals.vol_cone_percentile
+        if vcp is not None and math.isfinite(vcp):
+            regime_score = vcp
+            if hv_20d_val is not None and signals.ewma_vol_forecast is not None and hv_20d_val > 0:
+                ewma = signals.ewma_vol_forecast
+                if ewma > hv_20d_val * 1.10:
+                    regime_score = min(100.0, regime_score + 10.0)
+                elif ewma < hv_20d_val * 0.90:
+                    regime_score = max(0.0, regime_score - 10.0)
+            signals.market_regime = regime_score
+    except Exception:
+        logger.warning("Indicator market_regime failed; setting to None", exc_info=True)
+
     # --- Relative Strength ---
 
     # rs_vs_spx and correlation_regime_shift

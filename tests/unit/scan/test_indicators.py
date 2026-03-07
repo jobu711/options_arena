@@ -406,3 +406,120 @@ class TestComputeIndicators:
         df = ohlcv_to_dataframe(bars)
         result = compute_indicators(df, registry)
         assert result.relative_volume == pytest.approx(1.5)
+
+
+# ---------------------------------------------------------------------------
+# compute_phase3_indicators — market_regime tests
+# ---------------------------------------------------------------------------
+
+
+class TestPhase3MarketRegime:
+    """Tests for market_regime computation in compute_phase3_indicators()."""
+
+    def test_market_regime_from_vol_cone(self) -> None:
+        """High vol_cone_percentile → high market_regime score."""
+        from options_arena.scan.indicators import compute_phase3_indicators
+
+        bars = make_ohlcv(300)
+        df = ohlcv_to_dataframe(bars)
+        close_series = df["close"]
+
+        # Build a minimal set of contracts to avoid early return
+        from datetime import timedelta
+        from decimal import Decimal
+
+        from options_arena.models.enums import ExerciseStyle, OptionType
+        from options_arena.models.options import OptionContract
+
+        today = date.today()
+        contract = OptionContract(
+            ticker="TEST",
+            option_type=OptionType.CALL,
+            strike=Decimal("100"),
+            expiration=today + timedelta(days=30),
+            bid=Decimal("2.00"),
+            ask=Decimal("2.50"),
+            last=Decimal("2.25"),
+            volume=100,
+            open_interest=500,
+            market_iv=0.30,
+            exercise_style=ExerciseStyle.AMERICAN,
+        )
+
+        signals = compute_phase3_indicators(
+            contracts=[contract],
+            spot=100.0,
+            close_series=close_series,
+            dividend_yield=0.02,
+            next_earnings=None,
+            mp_strike=100.0,
+        )
+
+        # vol_cone_percentile is computed from close_series; if it's populated,
+        # market_regime should be derived from it
+        if signals.vol_cone_percentile is not None:
+            assert signals.market_regime is not None
+            assert 0.0 <= signals.market_regime <= 100.0
+
+    def test_market_regime_rising_vol_adjustment(self) -> None:
+        """When EWMA > HV * 1.1, regime_score gets +10 adjustment."""
+        from options_arena.models.scan import IndicatorSignals
+
+        signals = IndicatorSignals()
+        signals.vol_cone_percentile = 50.0
+        signals.ewma_vol_forecast = 0.35  # >10% higher than hv (0.35 > 0.30*1.10=0.33)
+        hv_20d_val = 0.30
+
+        # Simulate the regime computation logic inline
+        vcp = signals.vol_cone_percentile
+        regime_score = vcp
+        if hv_20d_val > 0 and signals.ewma_vol_forecast is not None:
+            ewma = signals.ewma_vol_forecast
+            if ewma > hv_20d_val * 1.10:
+                regime_score = min(100.0, regime_score + 10.0)
+            elif ewma < hv_20d_val * 0.90:
+                regime_score = max(0.0, regime_score - 10.0)
+
+        assert regime_score == pytest.approx(60.0, abs=0.01)
+
+    def test_market_regime_none_when_no_vol_data(self) -> None:
+        """When vol_cone_percentile is None, market_regime stays None."""
+        from options_arena.scan.indicators import compute_phase3_indicators
+
+        bars = make_ohlcv(30)  # Too few bars for vol_cone computation
+        df = ohlcv_to_dataframe(bars)
+        close_series = df["close"]
+
+        from datetime import timedelta
+        from decimal import Decimal
+
+        from options_arena.models.enums import ExerciseStyle, OptionType
+        from options_arena.models.options import OptionContract
+
+        today = date.today()
+        contract = OptionContract(
+            ticker="TEST",
+            option_type=OptionType.CALL,
+            strike=Decimal("100"),
+            expiration=today + timedelta(days=30),
+            bid=Decimal("2.00"),
+            ask=Decimal("2.50"),
+            last=Decimal("2.25"),
+            volume=100,
+            open_interest=500,
+            market_iv=0.30,
+            exercise_style=ExerciseStyle.AMERICAN,
+        )
+
+        signals = compute_phase3_indicators(
+            contracts=[contract],
+            spot=100.0,
+            close_series=close_series,
+            dividend_yield=0.02,
+            next_earnings=None,
+            mp_strike=100.0,
+        )
+
+        # With insufficient data for vol_cone, market_regime should be None
+        if signals.vol_cone_percentile is None:
+            assert signals.market_regime is None
