@@ -3,7 +3,7 @@
 Covers:
   - Custom tickers are used when provided (bypass preset filters).
   - Non-optionable custom tickers are excluded (intersection).
-  - Preset/sector/industry/theme filters are bypassed with custom tickers.
+  - Preset/sector/industry filters are bypassed with custom tickers.
   - Empty custom_tickers falls back to normal preset behavior (regression).
   - All custom tickers non-optionable → 0 valid tickers.
   - OHLCV fetch and min_bars filter still apply to custom tickers.
