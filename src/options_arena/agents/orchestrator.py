@@ -1076,14 +1076,19 @@ async def _run_v2_agents(
     )
 
     # Build optional Phase 1 agent coroutines for flow/fundamental.
-    # Run locally when not provided externally AND enrichment data exists.
+    # Always run when not provided externally — agents handle missing enrichment.
     has_enrichment = context.enrichment_ratio() > 0.0
+    if not has_enrichment:
+        logger.info(
+            "Running flow/fundamental agents without enrichment data for %s",
+            context.ticker,
+        )
 
     phase1_coros: list[Awaitable[object]] = [trend_coro, vol_coro]
     phase1_labels = ["trend", "volatility"]
 
     flow_coro = None
-    if flow_output is None and has_enrichment:
+    if flow_output is None:
         flow_deps = DebateDeps(
             context=context,
             ticker_score=ticker_score,
@@ -1102,7 +1107,7 @@ async def _run_v2_agents(
         phase1_labels.append("flow")
 
     fundamental_coro = None
-    if fundamental_output is None and has_enrichment:
+    if fundamental_output is None:
         fund_deps = DebateDeps(
             context=context,
             ticker_score=ticker_score,

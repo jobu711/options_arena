@@ -65,6 +65,8 @@ Rules:
 - If no dividend data or zero yield, set "dividend_impact" to null
 - Be specific. Cite DTE, earnings dates, yield values from the context.
 - Do NOT include <think> tags or reasoning traces in any field.
+- If the Fundamental Profile section is absent from the context block, focus on earnings \
+calendar proximity, dividend impact, and IV crush risk assessment.
 
 """
     + PROMPT_RULES_APPENDIX

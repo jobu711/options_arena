@@ -69,6 +69,8 @@ Rules:
 - "key_flow_factors" MUST have at least 1 item
 - Be specific. Cite GEX values, OI concentrations, volume ratios from the context.
 - Do NOT include <think> tags or reasoning traces in any field.
+- If the Unusual Options Flow section is absent from the context block, focus your analysis \
+on put/call ratio, OI concentration from listed contracts, and volume indicators.
 
 """
     + PROMPT_RULES_APPENDIX
