@@ -164,7 +164,7 @@ function clearFilter(key: string): void {
     max_dte: () => { maxDte.value = null },
     dte_range: () => { minDte.value = null; maxDte.value = null },
     sectors: () => { selectedSectors.value = [] },
-    industry_groups: () => { selectedIndustryGroups.value = [] },
+    industryGroups: () => { selectedIndustryGroups.value = [] },
   }
   defaults[key]?.()
 }
