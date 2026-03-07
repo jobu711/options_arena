@@ -16,6 +16,7 @@ venv/
 .idea/
 *.swp
 *.swo
+*.tmp.*
 
 # OS artifacts
 nul
@@ -66,6 +67,9 @@ web/vite.config.d.ts
 # SQLite WAL/SHM files
 data/*.db-wal
 data/*.db-shm
+
+# Stale E2E test databases
+.e2e-test-*.db*
 
 # Verification stamps (transient, per-session)
 .claude/.context7-stamp

@@ -586,6 +586,14 @@ def render_context_block(ctx: MarketContext) -> str:
                     "IV crush risk is elevated. Factor this into your analysis."
                 )
 
+    # Data-availability note when no enrichment data is present
+    if ctx.enrichment_ratio() == 0.0:
+        lines.append("")
+        lines.append(
+            "Note: Enrichment data not available for this ticker. "
+            "Analysis based on scan-derived indicators."
+        )
+
     return "\n".join(lines)
 
 
