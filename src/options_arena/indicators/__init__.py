@@ -13,7 +13,7 @@ from options_arena.indicators.options_specific import (
     put_call_ratio_volume,
 )
 from options_arena.indicators.oscillators import rsi, stoch_rsi, williams_r
-from options_arena.indicators.trend import adx, roc, supertrend
+from options_arena.indicators.trend import adx, macd, roc, supertrend
 from options_arena.indicators.volatility import atr_percent, bb_width, keltner_width
 from options_arena.indicators.volume import ad_trend, obv_trend, relative_volume
 
@@ -25,6 +25,7 @@ __all__ = [
     "iv_percentile",
     "iv_rank",
     "keltner_width",
+    "macd",
     "max_pain",
     "obv_trend",
     "put_call_ratio_oi",

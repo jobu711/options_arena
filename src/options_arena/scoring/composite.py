@@ -31,13 +31,14 @@ logger = logging.getLogger(__name__)
 # Individual weights sum to 1.0.
 INDICATOR_WEIGHTS: dict[str, tuple[float, str]] = {
     # Oscillators
-    "rsi": (0.08, "oscillators"),
+    "rsi": (0.07, "oscillators"),
     "stochastic_rsi": (0.05, "oscillators"),
     "williams_r": (0.05, "oscillators"),
     # Trend
-    "adx": (0.08, "trend"),
-    "roc": (0.05, "trend"),
+    "adx": (0.07, "trend"),
+    "roc": (0.03, "trend"),
     "supertrend": (0.05, "trend"),
+    "macd": (0.05, "trend"),
     # Volatility
     "atr_pct": (0.05, "volatility"),
     "bb_width": (0.05, "volatility"),
@@ -47,7 +48,7 @@ INDICATOR_WEIGHTS: dict[str, tuple[float, str]] = {
     "ad": (0.05, "volume"),
     "relative_volume": (0.05, "volume"),
     # Moving Averages
-    "sma_alignment": (0.08, "moving_averages"),
+    "sma_alignment": (0.07, "moving_averages"),
     "vwap_deviation": (0.05, "moving_averages"),
     # Options
     "iv_rank": (0.06, "options"),

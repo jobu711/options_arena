@@ -7,7 +7,7 @@ returns pandas Series/DataFrames out. No API calls. No Pydantic models. Pure mat
 ## Files
 - `_validation.py` — Shared input validation helpers (`validate_aligned`)
 - `oscillators.py` — RSI, Stochastic RSI, Williams %R
-- `trend.py` — Rate of Change, ADX, Supertrend
+- `trend.py` — Rate of Change, ADX, Supertrend, MACD
 - `volatility.py` — Bollinger Band Width, ATR%, Keltner Channel Width
 - `volume.py` — OBV Trend, Relative Volume, A/D Line Trend
 - `moving_averages.py` — SMA Alignment, VWAP Deviation

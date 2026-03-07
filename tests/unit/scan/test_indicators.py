@@ -99,8 +99,8 @@ class TestInputShape:
 class TestIndicatorRegistry:
     """INDICATOR_REGISTRY: 14 entries, all valid IndicatorSpec tuples."""
 
-    def test_exactly_14_entries(self) -> None:
-        assert len(INDICATOR_REGISTRY) == 14
+    def test_exactly_15_entries(self) -> None:
+        assert len(INDICATOR_REGISTRY) == 15
 
     def test_all_are_indicator_spec(self) -> None:
         for spec in INDICATOR_REGISTRY:
@@ -152,7 +152,7 @@ class TestIndicatorRegistry:
         assert spec.func is ad_trend
 
     def test_registry_covers_all_expected_fields(self) -> None:
-        """The 14 OHLCV-based fields are all present; 4 options-specific are absent."""
+        """The 15 OHLCV-based fields are all present; 4 options-specific are absent."""
         ohlcv_fields = {
             "rsi",
             "stochastic_rsi",
@@ -160,6 +160,7 @@ class TestIndicatorRegistry:
             "adx",
             "roc",
             "supertrend",
+            "macd",
             "bb_width",
             "atr_pct",
             "keltner_width",

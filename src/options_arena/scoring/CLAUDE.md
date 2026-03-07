@@ -29,15 +29,15 @@ layer and indicator output — **no API calls**.
 ## Key Constants
 
 ### Indicator Weights (composite.py)
-18 indicators across 6 categories, individual weights sum to 1.0:
+19 indicators across 6 categories, individual weights sum to 1.0:
 
 | Category | Indicators | Weights |
 |----------|-----------|---------|
-| Oscillators | rsi, stochastic_rsi, williams_r | 0.08, 0.05, 0.05 |
-| Trend | adx, roc, supertrend | 0.08, 0.05, 0.05 |
+| Oscillators | rsi, stochastic_rsi, williams_r | 0.07, 0.05, 0.05 |
+| Trend | adx, roc, supertrend, macd | 0.07, 0.03, 0.05, 0.05 |
 | Volatility | atr_pct, bb_width, keltner_width | 0.05, 0.05, 0.04 |
 | Volume | obv, ad, relative_volume | 0.05, 0.05, 0.05 |
-| Moving Averages | sma_alignment, vwap_deviation | 0.08, 0.05 |
+| Moving Averages | sma_alignment, vwap_deviation | 0.07, 0.05 |
 | Options | iv_rank, iv_percentile, put_call_ratio, max_pain_distance | 0.06, 0.06, 0.05, 0.05 |
 
 ### Inverted Indicators (normalization.py)

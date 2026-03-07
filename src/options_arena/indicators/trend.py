@@ -216,6 +216,55 @@ def supertrend(
     return typed_result
 
 
+def macd(
+    close: pd.Series,
+    *,
+    fast_period: int = 12,
+    slow_period: int = 26,
+    signal_period: int = 9,
+) -> pd.Series:
+    """MACD histogram: MACD line minus signal line.
+
+    Formula:
+        MACD line = EMA(fast_period) - EMA(slow_period)
+        Signal line = EMA(signal_period) of MACD line
+        Histogram = MACD line - Signal line
+
+    Warmup: first ``slow_period + signal_period - 2`` values are NaN.
+
+    Reference: Gerald Appel (1979), "The Moving Average Convergence Divergence
+    Trading Method".
+
+    Raises:
+        InsufficientDataError: If ``len(close) < slow_period + signal_period``
+            or if input is empty or all-NaN.
+    """
+    if len(close) < slow_period + signal_period:
+        raise InsufficientDataError(
+            f"MACD requires at least {slow_period + signal_period} data points, got {len(close)}"
+        )
+
+    # Guard against all-NaN input
+    if close.isna().all():
+        raise InsufficientDataError("MACD input is all NaN")
+
+    # EMA computation using standard EMA: ewm(span=N, adjust=False)
+    fast_ema = close.ewm(span=fast_period, adjust=False).mean()
+    slow_ema = close.ewm(span=slow_period, adjust=False).mean()
+
+    macd_line = fast_ema - slow_ema
+    signal_line = macd_line.ewm(span=signal_period, adjust=False).mean()
+    histogram = macd_line - signal_line
+
+    # Set warmup to NaN
+    warmup = slow_period + signal_period - 2
+    result = histogram.copy()
+    result.iloc[:warmup] = np.nan
+
+    typed_result: pd.Series = result
+    return typed_result
+
+
 # ---------------------------------------------------------------------------
 # Trend extension functions (Issue #152)
 # ---------------------------------------------------------------------------

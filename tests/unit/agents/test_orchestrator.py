@@ -14,7 +14,7 @@ Tests cover:
   - run_debate persistence failure does not crash
   - _opposite_direction helper tests
   - _extract_top_signals helper tests
-  - _derive_macd_signal helper tests
+  - classify_macd_signal helper tests
 """
 
 from __future__ import annotations
@@ -33,11 +33,11 @@ from options_arena.agents.bear import bear_agent
 from options_arena.agents.bull import bull_agent
 from options_arena.agents.orchestrator import (
     DebatePhase,
-    _derive_macd_signal,
     _extract_top_signals,
     _format_contract_refs,
     _opposite_direction,
     build_market_context,
+    classify_macd_signal,
     run_debate,
     should_debate,
 )
@@ -254,21 +254,24 @@ class TestBuildMarketContext:
 
 
 # ---------------------------------------------------------------------------
-# _derive_macd_signal
+# classify_macd_signal
 # ---------------------------------------------------------------------------
 
 
-class TestDeriveMacdSignal:
-    """Tests for _derive_macd_signal helper."""
+class TestClassifyMacdSignal:
+    """Tests for classify_macd_signal helper (replaces _derive_macd_signal)."""
 
-    def test_bullish_direction(self) -> None:
-        assert _derive_macd_signal(SignalDirection.BULLISH) == MacdSignal.BULLISH_CROSSOVER
+    def test_positive_value_bullish(self) -> None:
+        assert classify_macd_signal(1.5) == MacdSignal.BULLISH_CROSSOVER
 
-    def test_bearish_direction(self) -> None:
-        assert _derive_macd_signal(SignalDirection.BEARISH) == MacdSignal.BEARISH_CROSSOVER
+    def test_negative_value_bearish(self) -> None:
+        assert classify_macd_signal(-2.3) == MacdSignal.BEARISH_CROSSOVER
 
-    def test_neutral_direction(self) -> None:
-        assert _derive_macd_signal(SignalDirection.NEUTRAL) == MacdSignal.NEUTRAL
+    def test_zero_neutral(self) -> None:
+        assert classify_macd_signal(0.0) == MacdSignal.NEUTRAL
+
+    def test_none_neutral(self) -> None:
+        assert classify_macd_signal(None) == MacdSignal.NEUTRAL
 
 
 # ---------------------------------------------------------------------------

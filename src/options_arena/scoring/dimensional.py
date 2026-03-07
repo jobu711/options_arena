@@ -28,6 +28,7 @@ FAMILY_INDICATOR_MAP: dict[str, list[str]] = {
         "adx",
         "roc",
         "supertrend",
+        "macd",
         "sma_alignment",
         "multi_tf_alignment",
         "rsi_divergence",
