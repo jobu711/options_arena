@@ -29,7 +29,7 @@ export class ScanPage {
     await this.title.waitFor({ state: 'visible' })
   }
 
-  async selectPreset(preset: 'full' | 'sp500' | 'etfs'): Promise<void> {
+  async selectPreset(preset: 'full' | 'sp500' | 'etfs' | 'nasdaq100' | 'russell2000' | 'most_active'): Promise<void> {
     await this.page.locator(`[data-testid="preset-card-${preset}"]`).click()
   }
 

@@ -23,6 +23,13 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
+const currencyFmt = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
 const chips = computed<FilterChip[]>(() => {
   const result: FilterChip[] = []
   const f = props.filters
@@ -55,11 +62,11 @@ const chips = computed<FilterChip[]>(() => {
   if (f.min_price != null || f.max_price != null) {
     let label: string
     if (f.min_price != null && f.max_price != null) {
-      label = `$${f.min_price} - $${f.max_price}`
+      label = `${currencyFmt.format(f.min_price)} - ${currencyFmt.format(f.max_price)}`
     } else if (f.min_price != null) {
-      label = `Min $${f.min_price}`
+      label = `Min ${currencyFmt.format(f.min_price)}`
     } else {
-      label = `Max $${f.max_price}`
+      label = `Max ${currencyFmt.format(f.max_price!)}`
     }
     result.push({ key: 'price_range', label })
   }
@@ -78,13 +85,16 @@ const chips = computed<FilterChip[]>(() => {
   }
 
   if (props.sectorCount > 0) {
-    result.push({ key: 'sectors', label: `${props.sectorCount} Sectors` })
+    result.push({
+      key: 'sectors',
+      label: `${props.sectorCount} ${props.sectorCount === 1 ? 'Sector' : 'Sectors'}`,
+    })
   }
 
   if (props.industryGroupCount > 0) {
     result.push({
       key: 'industryGroups',
-      label: `${props.industryGroupCount} Industry Groups`,
+      label: `${props.industryGroupCount} ${props.industryGroupCount === 1 ? 'Industry Group' : 'Industry Groups'}`,
     })
   }
 
@@ -110,19 +120,19 @@ function onClearAll(): void {
       class="filter-chip"
     >
       {{ chip.label }}
-      <span
+      <button
+        type="button"
         class="chip-close"
-        role="button"
         :aria-label="`Clear ${chip.label}`"
         @click="onClearFilter(chip.key)"
-      >&times;</span>
+      >&times;</button>
     </span>
-    <span
+    <button
       v-if="chips.length >= 2"
+      type="button"
       class="clear-all"
-      role="button"
       @click="onClearAll"
-    >Clear All</span>
+    >Clear All</button>
   </div>
 </template>
 
@@ -155,6 +165,10 @@ function onClearAll(): void {
   cursor: pointer;
   color: var(--p-surface-400, #888);
   font-size: 0.7rem;
+  background: none;
+  border: none;
+  padding: 0;
+  line-height: 1;
 }
 
 .chip-close:hover {
@@ -166,6 +180,9 @@ function onClearAll(): void {
   color: var(--accent-blue, #3b82f6);
   cursor: pointer;
   text-decoration: underline;
+  background: none;
+  border: none;
+  padding: 0;
 }
 
 .clear-all:hover {

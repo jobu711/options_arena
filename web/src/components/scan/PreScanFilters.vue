@@ -24,13 +24,13 @@ const emit = defineEmits<{
 // Panel 1: Universe
 // ---------------------------------------------------------------------------
 
-const presetOptions = ref<Array<{ label: string; value: string; description: string; count: number }>>([
-  { label: 'S&P 500', value: 'sp500', description: 'Large-cap U.S. equities', count: 0 },
-  { label: 'Full Universe', value: 'full', description: 'All CBOE optionable tickers', count: 0 },
-  { label: 'ETFs', value: 'etfs', description: 'Exchange-traded funds', count: 0 },
-  { label: 'NASDAQ 100', value: 'nasdaq100', description: 'Top NASDAQ-listed companies', count: 0 },
-  { label: 'Russell 2000', value: 'russell2000', description: 'Small-cap U.S. equities', count: 0 },
-  { label: 'Most Active', value: 'most_active', description: 'Highest options volume today', count: 0 },
+const presetOptions = ref<Array<{ label: string; value: string; description: string; count: number | null }>>([
+  { label: 'S&P 500', value: 'sp500', description: 'Large-cap U.S. equities', count: null },
+  { label: 'Full Universe', value: 'full', description: 'All CBOE optionable tickers', count: null },
+  { label: 'ETFs', value: 'etfs', description: 'Exchange-traded funds', count: null },
+  { label: 'NASDAQ 100', value: 'nasdaq100', description: 'Top NASDAQ-listed companies', count: null },
+  { label: 'Russell 2000', value: 'russell2000', description: 'Small-cap U.S. equities', count: null },
+  { label: 'Most Active', value: 'most_active', description: 'Highest options volume today', count: null },
 ])
 const selectedPreset = ref('sp500')
 
@@ -222,7 +222,7 @@ onMounted(() => {
       <div class="filter-card">
         <div class="filter-grid">
           <div class="filter-group">
-            <label class="filter-label">Market Cap</label>
+            <label class="filter-label" for="market-cap-filter">Market Cap</label>
             <MultiSelect
               v-model="selectedMarketCaps"
               :options="marketCapOptions"
@@ -231,11 +231,12 @@ onMounted(() => {
               display="chip"
               placeholder="All market caps"
               :disabled="disabled"
+              inputId="market-cap-filter"
               data-testid="market-cap-filter"
             />
           </div>
           <div class="filter-group">
-            <label class="filter-label">Direction</label>
+            <label class="filter-label" for="direction-filter">Direction</label>
             <Select
               v-model="selectedDirection"
               :options="directionOptions"
@@ -243,11 +244,12 @@ onMounted(() => {
               optionValue="value"
               placeholder="Direction"
               :disabled="disabled"
+              inputId="direction-filter"
               data-testid="direction-filter"
             />
           </div>
           <div class="filter-group">
-            <label class="filter-label">Exclude Near Earnings</label>
+            <label class="filter-label" for="earnings-filter">Exclude Near Earnings</label>
             <InputNumber
               v-model="excludeEarningsDays"
               placeholder="Days before earnings"
@@ -256,11 +258,12 @@ onMounted(() => {
               :disabled="disabled"
               showButtons
               suffix=" days"
+              inputId="earnings-filter"
               data-testid="earnings-filter"
             />
           </div>
           <div class="filter-group">
-            <label class="filter-label">Min IV Rank</label>
+            <label class="filter-label" for="iv-rank-filter">Min IV Rank</label>
             <InputNumber
               v-model="minIvRank"
               placeholder="Min IV Rank"
@@ -269,11 +272,12 @@ onMounted(() => {
               :disabled="disabled"
               showButtons
               suffix="%"
+              inputId="iv-rank-filter"
               data-testid="iv-rank-filter"
             />
           </div>
           <div class="filter-group">
-            <label class="filter-label">Min Composite Score</label>
+            <label class="filter-label" for="min-score-filter">Min Composite Score</label>
             <InputNumber
               v-model="minScore"
               placeholder="Min score"
@@ -284,6 +288,7 @@ onMounted(() => {
               :maxFractionDigits="0"
               :disabled="disabled"
               showButtons
+              inputId="min-score-filter"
               data-testid="min-score-filter"
             />
           </div>
@@ -297,7 +302,7 @@ onMounted(() => {
       <div class="filter-card">
         <div class="filter-grid">
           <div class="filter-group">
-            <label class="filter-label">Min Stock Price</label>
+            <label class="filter-label" for="min-price-filter">Min Stock Price</label>
             <InputNumber
               v-model="minPrice"
               mode="currency"
@@ -306,11 +311,12 @@ onMounted(() => {
               :min="0.01"
               :disabled="disabled"
               placeholder="No minimum"
+              inputId="min-price-filter"
               data-testid="min-price-filter"
             />
           </div>
           <div class="filter-group">
-            <label class="filter-label">Max Stock Price</label>
+            <label class="filter-label" for="max-price-filter">Max Stock Price</label>
             <InputNumber
               v-model="maxPrice"
               mode="currency"
@@ -319,11 +325,12 @@ onMounted(() => {
               :min="0.01"
               :disabled="disabled"
               placeholder="No maximum"
+              inputId="max-price-filter"
               data-testid="max-price-filter"
             />
           </div>
           <div class="filter-group">
-            <label class="filter-label">Min DTE</label>
+            <label class="filter-label" for="min-dte-filter">Min DTE</label>
             <InputNumber
               v-model="minDte"
               :min="1"
@@ -332,11 +339,12 @@ onMounted(() => {
               showButtons
               suffix=" days"
               placeholder="No minimum"
+              inputId="min-dte-filter"
               data-testid="min-dte-filter"
             />
           </div>
           <div class="filter-group">
-            <label class="filter-label">Max DTE</label>
+            <label class="filter-label" for="max-dte-filter">Max DTE</label>
             <InputNumber
               v-model="maxDte"
               :min="1"
@@ -345,6 +353,7 @@ onMounted(() => {
               showButtons
               suffix=" days"
               placeholder="No maximum"
+              inputId="max-dte-filter"
               data-testid="max-dte-filter"
             />
           </div>

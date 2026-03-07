@@ -5,7 +5,7 @@ interface Props {
   preset: string
   label: string
   description: string
-  count: number
+  count: number | null
   icon: string
   selected: boolean
   disabled: boolean
@@ -39,7 +39,7 @@ function handleClick(): void {
     <div class="preset-header">
       <span class="preset-icon pi" :class="props.icon" />
       <span class="preset-label">{{ props.label }}</span>
-      <Badge :value="String(props.count)" severity="secondary" />
+      <Badge v-if="props.count != null" :value="String(props.count)" severity="secondary" />
     </div>
     <p class="preset-description">{{ props.description }}</p>
   </div>
