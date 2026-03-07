@@ -163,6 +163,14 @@ class ScanRun(BaseModel):
     tickers_scored: int
     recommendations: int
 
+    @field_validator("tickers_scanned", "tickers_scored", "recommendations")
+    @classmethod
+    def validate_counts_non_negative(cls, v: int) -> int:
+        """Ensure count fields are non-negative."""
+        if v < 0:
+            raise ValueError(f"must be >= 0, got {v}")
+        return v
+
     @field_validator("started_at", "completed_at")
     @classmethod
     def validate_utc(cls, v: datetime | None) -> datetime | None:

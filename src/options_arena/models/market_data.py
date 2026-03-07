@@ -194,6 +194,14 @@ class TickerInfo(BaseModel):
     fifty_two_week_high: Decimal
     fifty_two_week_low: Decimal
 
+    @field_validator("current_price", "fifty_two_week_high", "fifty_two_week_low")
+    @classmethod
+    def validate_price_positive(cls, v: Decimal) -> Decimal:
+        """Ensure price fields are finite and positive."""
+        if not v.is_finite() or v <= Decimal("0"):
+            raise ValueError(f"price must be finite and positive, got {v}")
+        return v
+
     # Short interest — populated from yfinance info dict
     short_ratio: float | None = None  # days to cover
     short_pct_of_float: float | None = None  # decimal fraction (no upper bound — squeezes > 1.0)

@@ -114,12 +114,32 @@ class RecommendedContract(BaseModel):
             raise ValueError(f"must be finite, got {v}")
         return v
 
-    @field_validator("market_iv", "composite_score", "risk_free_rate")
+    @field_validator("risk_free_rate")
     @classmethod
     def validate_float_finite(cls, v: float) -> float:
         """Ensure required float fields are finite."""
         if not math.isfinite(v):
             raise ValueError(f"must be finite, got {v}")
+        return v
+
+    @field_validator("market_iv")
+    @classmethod
+    def validate_market_iv(cls, v: float) -> float:
+        """Ensure market_iv is finite and non-negative."""
+        if not math.isfinite(v):
+            raise ValueError(f"market_iv must be finite, got {v}")
+        if v < 0.0:
+            raise ValueError(f"market_iv must be >= 0, got {v}")
+        return v
+
+    @field_validator("composite_score")
+    @classmethod
+    def validate_composite_score(cls, v: float) -> float:
+        """Ensure composite_score is finite and within [0, 100]."""
+        if not math.isfinite(v):
+            raise ValueError(f"composite_score must be finite, got {v}")
+        if not 0.0 <= v <= 100.0:
+            raise ValueError(f"composite_score must be in [0, 100], got {v}")
         return v
 
     @field_validator("delta")
@@ -213,6 +233,14 @@ class ContractOutcome(BaseModel):
     dte_at_exit: int | None = None
     collection_method: OutcomeCollectionMethod
     collected_at: datetime
+
+    @field_validator("holding_days", "dte_at_exit")
+    @classmethod
+    def validate_optional_int_non_negative(cls, v: int | None) -> int | None:
+        """Ensure holding_days and dte_at_exit are non-negative when provided."""
+        if v is not None and v < 0:
+            raise ValueError(f"must be >= 0, got {v}")
+        return v
 
     @field_validator(
         "exit_stock_price",
@@ -338,6 +366,14 @@ class WinRateResult(BaseModel):
     losers: int
     win_rate: float
 
+    @field_validator("total_contracts", "winners", "losers")
+    @classmethod
+    def validate_counts_non_negative(cls, v: int) -> int:
+        """Ensure count fields are non-negative."""
+        if v < 0:
+            raise ValueError(f"must be >= 0, got {v}")
+        return v
+
     @field_validator("win_rate")
     @classmethod
     def validate_win_rate(cls, v: float) -> float:
@@ -367,6 +403,14 @@ class ScoreCalibrationBucket(BaseModel):
     contract_count: int
     avg_return_pct: float
     win_rate: float
+
+    @field_validator("contract_count")
+    @classmethod
+    def validate_contract_count_non_negative(cls, v: int) -> int:
+        """Ensure contract_count is non-negative."""
+        if v < 0:
+            raise ValueError(f"must be >= 0, got {v}")
+        return v
 
     @field_validator("score_min", "score_max", "avg_return_pct")
     @classmethod
@@ -411,6 +455,14 @@ class IndicatorAttributionResult(BaseModel):
     avg_return_when_low: float
     sample_size: int
 
+    @field_validator("holding_days", "sample_size")
+    @classmethod
+    def validate_positive_int(cls, v: int) -> int:
+        """Ensure holding_days and sample_size are positive."""
+        if v < 1:
+            raise ValueError(f"must be >= 1, got {v}")
+        return v
+
     @field_validator("correlation")
     @classmethod
     def validate_correlation(cls, v: float) -> float:
@@ -452,6 +504,14 @@ class HoldingPeriodResult(BaseModel):
     median_return_pct: float
     win_rate: float
     sample_size: int
+
+    @field_validator("holding_days", "sample_size")
+    @classmethod
+    def validate_positive_int(cls, v: int) -> int:
+        """Ensure holding_days and sample_size are positive."""
+        if v < 1:
+            raise ValueError(f"must be >= 1, got {v}")
+        return v
 
     @field_validator("avg_return_pct", "median_return_pct")
     @classmethod
@@ -495,6 +555,14 @@ class DeltaPerformanceResult(BaseModel):
     win_rate: float
     sample_size: int
 
+    @field_validator("holding_days", "sample_size")
+    @classmethod
+    def validate_positive_int(cls, v: int) -> int:
+        """Ensure holding_days and sample_size are positive."""
+        if v < 1:
+            raise ValueError(f"must be >= 1, got {v}")
+        return v
+
     @field_validator("delta_min", "delta_max", "avg_return_pct")
     @classmethod
     def validate_float_finite(cls, v: float) -> float:
@@ -535,6 +603,23 @@ class PerformanceSummary(BaseModel):
     lookback_days: int
     total_contracts: int
     total_with_outcomes: int
+
+    @field_validator("lookback_days")
+    @classmethod
+    def validate_lookback_positive(cls, v: int) -> int:
+        """Ensure lookback_days is positive."""
+        if v < 1:
+            raise ValueError(f"lookback_days must be >= 1, got {v}")
+        return v
+
+    @field_validator("total_contracts", "total_with_outcomes")
+    @classmethod
+    def validate_totals_non_negative(cls, v: int) -> int:
+        """Ensure total count fields are non-negative."""
+        if v < 0:
+            raise ValueError(f"must be >= 0, got {v}")
+        return v
+
     overall_win_rate: float | None = None
     avg_stock_return_pct: float | None = None
     avg_contract_return_pct: float | None = None

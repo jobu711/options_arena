@@ -369,6 +369,14 @@ class MarketContext(BaseModel):
             raise ValueError(f"must be finite, got {v}")
         return v
 
+    @field_validator("contract_mid")
+    @classmethod
+    def validate_contract_mid(cls, v: Decimal | None) -> Decimal | None:
+        """Ensure contract_mid is finite when provided."""
+        if v is not None and not v.is_finite():
+            raise ValueError(f"contract_mid must be finite, got {v}")
+        return v
+
     @field_validator("data_timestamp")
     @classmethod
     def validate_utc(cls, v: datetime) -> datetime:
