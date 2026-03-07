@@ -49,11 +49,12 @@ class TestFlowAgentZeroEnrichment:
             ticker_score=mock_ticker_score,
             contracts=[mock_option_contract],
         )
-        result = await flow_agent.run(
-            f"Analyze options flow for {mock_market_context.ticker}.",
-            deps=deps,
-            model=TestModel(),
-        )
+        with flow_agent.override(model=TestModel()):
+            result = await flow_agent.run(
+                f"Analyze options flow for {mock_market_context.ticker}.",
+                deps=deps,
+                model=TestModel(),
+            )
         assert isinstance(result.output, FlowThesis)
         assert 0.0 <= result.output.confidence <= 1.0
         assert result.output.direction in {
@@ -85,11 +86,12 @@ class TestFundamentalAgentZeroEnrichment:
             ticker_score=mock_ticker_score,
             contracts=[mock_option_contract],
         )
-        result = await fundamental_agent.run(
-            f"Assess fundamental catalysts for {mock_market_context.ticker}.",
-            deps=deps,
-            model=TestModel(),
-        )
+        with fundamental_agent.override(model=TestModel()):
+            result = await fundamental_agent.run(
+                f"Assess fundamental catalysts for {mock_market_context.ticker}.",
+                deps=deps,
+                model=TestModel(),
+            )
         assert isinstance(result.output, FundamentalThesis)
         assert 0.0 <= result.output.confidence <= 1.0
         assert result.output.direction in {

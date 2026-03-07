@@ -1,4 +1,4 @@
-"""Universe endpoints — stats, refresh, sector hierarchy, and metadata index."""
+"""Universe endpoints — stats, refresh, sector hierarchy, metadata index, and preset-info."""
 
 from __future__ import annotations
 

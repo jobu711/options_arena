@@ -24,7 +24,7 @@ from options_arena.models import FundamentalThesis
 
 logger = logging.getLogger(__name__)
 
-# VERSION: v1.0
+# VERSION: v2.0
 FUNDAMENTAL_SYSTEM_PROMPT = (
     """You are a fundamental catalyst analyst specializing in options-relevant \
 corporate events. Your job is to assess how upcoming catalysts (earnings, \
