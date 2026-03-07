@@ -38,7 +38,6 @@ from options_arena.models.config import (
     PricingConfig,
     ScanConfig,
     ServiceConfig,
-    ThemeConfig,
 )
 from options_arena.models.enums import (
     INDUSTRY_GROUP_ALIASES,
@@ -91,7 +90,6 @@ from options_arena.models.options import OptionContract, OptionGreeks, OptionSpr
 from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
 from options_arena.models.scan_delta import ScanDiff, TickerDelta
 from options_arena.models.scoring import DimensionalScores, DirectionSignal
-from options_arena.models.themes import THEME_ETF_MAPPING, ThemeDefinition, ThemeSnapshot
 from options_arena.models.watchlist import (
     Watchlist,
     WatchlistDetail,
@@ -177,7 +175,6 @@ __all__ = [
     "ScanConfig",
     "ServiceConfig",
     "TICKER_RE",
-    "ThemeConfig",
     # History
     "HistoryPoint",
     "TrendingTicker",
@@ -197,10 +194,6 @@ __all__ = [
     "InstitutionalSnapshot",
     "IntelligencePackage",
     "UpgradeDowngrade",
-    # Themes
-    "THEME_ETF_MAPPING",
-    "ThemeDefinition",
-    "ThemeSnapshot",
     # Metadata
     "MetadataCoverage",
     "TickerMetadata",

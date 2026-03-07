@@ -17,7 +17,6 @@ from options_arena.api.deps import (
     get_options_data,
     get_repo,
     get_settings,
-    get_theme_service,
     get_universe,
 )
 from options_arena.api.schemas import (
@@ -49,7 +48,6 @@ from options_arena.services import (
     OptionsDataService,
     UniverseService,
 )
-from options_arena.services.theme_service import ThemeService
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +108,6 @@ async def start_scan(
     options_data: OptionsDataService = Depends(get_options_data),
     fred: FredService = Depends(get_fred),
     universe: UniverseService = Depends(get_universe),
-    theme_service: ThemeService = Depends(get_theme_service),
 ) -> ScanStarted:
     """Start a new scan pipeline in the background."""
     # Atomic try-acquire: eliminates TOCTOU race between lock.locked() and acquire()
@@ -137,8 +134,6 @@ async def start_scan(
         scan_overrides["min_iv_rank"] = body.min_iv_rank
     if body.industry_groups:
         scan_overrides["industry_groups"] = body.industry_groups
-    if body.themes:
-        scan_overrides["theme_filters"] = body.themes
     if body.custom_tickers:
         scan_overrides["custom_tickers"] = body.custom_tickers
     if body.min_price is not None:
@@ -181,7 +176,6 @@ async def start_scan(
         fred=fred,
         universe=universe,
         repository=repo,
-        theme_service=theme_service,
     )
 
     # Use a counter for scan IDs (initialized in lifespan)
@@ -249,9 +243,8 @@ async def get_scores(  # noqa: ANN201
     min_risk: float | None = Query(None, ge=0.0, le=100.0),
     max_earnings_days: int | None = Query(None, ge=0),
     min_earnings_days: int | None = Query(None, ge=0),
-    # GICS industry group + theme filters (#230)
+    # GICS industry group filter (#230)
     industry_groups: str | None = Query(None),
-    themes: str | None = Query(None),
 ) -> PaginatedResponse[TickerScore]:
     """Get paginated scores for a scan run with filtering/sorting."""
     all_scores = await repo.get_scores_for_scan(scan_id)
@@ -348,11 +341,6 @@ async def get_scores(  # noqa: ANN201
             for s in filtered
             if s.industry_group is not None and s.industry_group.value.lower() in ig_set
         ]
-
-    # Theme filter (#230)
-    if themes:
-        theme_set = {t.strip() for t in themes.split(",") if t.strip()}
-        filtered = [s for s in filtered if any(tag in theme_set for tag in s.thematic_tags)]
 
     # Sort
     reverse = order.lower() == "desc"

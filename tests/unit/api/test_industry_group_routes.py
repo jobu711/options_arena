@@ -12,7 +12,6 @@ from options_arena.api.app import create_app, limiter
 from options_arena.api.deps import (
     get_repo,
     get_settings,
-    get_theme_service,
     get_universe,
 )
 from options_arena.models.config import AppSettings
@@ -46,7 +45,6 @@ def _make_score(
     *,
     score: float = 50.0,
     industry_group: str | None = None,
-    thematic_tags: list[str] | None = None,
 ) -> TickerScore:
     """Build a minimal TickerScore for filtering tests."""
     return TickerScore(
@@ -55,7 +53,6 @@ def _make_score(
         direction=SignalDirection.BULLISH,
         signals=IndicatorSignals(),
         industry_group=industry_group,
-        thematic_tags=thematic_tags or [],
     )
 
 
@@ -76,13 +73,9 @@ def hierarchy_app() -> create_app:
     mock_repo.get_scan_by_id = AsyncMock(return_value=None)
     mock_repo.get_scores_for_scan = AsyncMock(return_value=[])
 
-    mock_theme_svc = MagicMock()
-    mock_theme_svc.get_themes = AsyncMock(return_value=[])
-
     app.dependency_overrides[get_universe] = lambda: mock_universe
     app.dependency_overrides[get_repo] = lambda: mock_repo
     app.dependency_overrides[get_settings] = lambda: AppSettings()
-    app.dependency_overrides[get_theme_service] = lambda: mock_theme_svc
 
     # Initialize app.state attributes
     app.state.cache = MagicMock()
@@ -207,12 +200,8 @@ class TestScoreFilteringByIndustryGroup:
         mock_repo.get_scan_by_id = AsyncMock(return_value=mock_scan)
         mock_repo.get_scores_for_scan = AsyncMock(return_value=scores)
 
-        mock_theme_svc = MagicMock()
-        mock_theme_svc.get_themes = AsyncMock(return_value=[])
-
         app.dependency_overrides[get_repo] = lambda: mock_repo
         app.dependency_overrides[get_settings] = lambda: AppSettings()
-        app.dependency_overrides[get_theme_service] = lambda: mock_theme_svc
 
         app.state.cache = MagicMock()
         app.state.limiter = MagicMock()
@@ -262,134 +251,3 @@ class TestScoreFilteringByIndustryGroup:
             assert response.status_code == 200
             data = response.json()
             assert data["total"] == 4
-
-
-class TestScoreFilteringByTheme:
-    """Tests for themes query param on GET /api/scan/{id}/scores."""
-
-    @pytest.fixture()
-    def theme_score_app(self) -> create_app:
-        """Create test app with scores that have thematic_tags set."""
-        import asyncio  # noqa: PLC0415
-
-        app = create_app()
-        limiter.enabled = False
-
-        scores = [
-            _make_score("AAPL", score=80.0, thematic_tags=["AI & Robotics", "Big Tech"]),
-            _make_score("NVDA", score=75.0, thematic_tags=["AI & Robotics"]),
-            _make_score("XOM", score=60.0, thematic_tags=["Clean Energy"]),
-            _make_score("JPM", score=55.0, thematic_tags=[]),
-        ]
-
-        mock_scan = MagicMock()
-        mock_scan.id = 1
-
-        mock_repo = MagicMock()
-        mock_repo.get_scan_by_id = AsyncMock(return_value=mock_scan)
-        mock_repo.get_scores_for_scan = AsyncMock(return_value=scores)
-
-        mock_theme_svc = MagicMock()
-        mock_theme_svc.get_themes = AsyncMock(return_value=[])
-
-        app.dependency_overrides[get_repo] = lambda: mock_repo
-        app.dependency_overrides[get_settings] = lambda: AppSettings()
-        app.dependency_overrides[get_theme_service] = lambda: mock_theme_svc
-
-        app.state.cache = MagicMock()
-        app.state.limiter = MagicMock()
-        app.state.scan_counter = 0
-        app.state.active_scans = {}
-        app.state.scan_queues = {}
-        app.state.debate_counter = 0
-        app.state.debate_queues = {}
-        app.state.batch_counter = 0
-        app.state.batch_queues = {}
-        app.state.operation_lock = asyncio.Lock()
-
-        return app
-
-    @pytest.mark.asyncio()
-    async def test_filter_by_theme(self, theme_score_app: create_app) -> None:
-        """Verify filtering by theme returns matching tickers."""
-        transport = ASGITransport(app=theme_score_app)  # type: ignore[arg-type]
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-            response = await client.get("/api/scan/1/scores?themes=AI %26 Robotics")
-            assert response.status_code == 200
-            data = response.json()
-            tickers = {item["ticker"] for item in data["items"]}
-            assert tickers == {"AAPL", "NVDA"}
-
-    @pytest.mark.asyncio()
-    async def test_filter_by_theme_no_match(self, theme_score_app: create_app) -> None:
-        """Verify filter with non-matching theme returns empty."""
-        transport = ASGITransport(app=theme_score_app)  # type: ignore[arg-type]
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-            response = await client.get("/api/scan/1/scores?themes=Nonexistent Theme")
-            assert response.status_code == 200
-            data = response.json()
-            assert data["total"] == 0
-
-    @pytest.mark.asyncio()
-    async def test_combined_industry_group_and_theme_filters(
-        self,
-    ) -> None:
-        """Verify industry_group + theme compose as AND filter."""
-        import asyncio  # noqa: PLC0415
-
-        app = create_app()
-        limiter.enabled = False
-
-        # AAPL: Software & Services + AI theme
-        # NVDA: Semis + AI theme
-        # Only AAPL matches both Software & Services AND AI
-        scores = [
-            _make_score(
-                "AAPL",
-                score=80.0,
-                industry_group="Software & Services",
-                thematic_tags=["AI & Robotics"],
-            ),
-            _make_score(
-                "NVDA",
-                score=75.0,
-                industry_group="Semiconductors & Semiconductor Equipment",
-                thematic_tags=["AI & Robotics"],
-            ),
-        ]
-
-        mock_scan = MagicMock()
-        mock_scan.id = 1
-
-        mock_repo = MagicMock()
-        mock_repo.get_scan_by_id = AsyncMock(return_value=mock_scan)
-        mock_repo.get_scores_for_scan = AsyncMock(return_value=scores)
-
-        mock_theme_svc = MagicMock()
-        mock_theme_svc.get_themes = AsyncMock(return_value=[])
-
-        app.dependency_overrides[get_repo] = lambda: mock_repo
-        app.dependency_overrides[get_settings] = lambda: AppSettings()
-        app.dependency_overrides[get_theme_service] = lambda: mock_theme_svc
-
-        app.state.cache = MagicMock()
-        app.state.limiter = MagicMock()
-        app.state.scan_counter = 0
-        app.state.active_scans = {}
-        app.state.scan_queues = {}
-        app.state.debate_counter = 0
-        app.state.debate_queues = {}
-        app.state.batch_counter = 0
-        app.state.batch_queues = {}
-        app.state.operation_lock = asyncio.Lock()
-
-        transport = ASGITransport(app=app)  # type: ignore[arg-type]
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-            response = await client.get(
-                "/api/scan/1/scores?industry_groups=software %26 services&themes=AI %26 Robotics"
-            )
-            assert response.status_code == 200
-            data = response.json()
-            tickers = {item["ticker"] for item in data["items"]}
-            # Only AAPL matches both filters (AND)
-            assert tickers == {"AAPL"}

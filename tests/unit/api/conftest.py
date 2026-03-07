@@ -15,7 +15,6 @@ from options_arena.api.deps import (
     get_options_data,
     get_repo,
     get_settings,
-    get_theme_service,
     get_universe,
 )
 from options_arena.models.config import AppSettings
@@ -90,12 +89,6 @@ def test_app(
     app.dependency_overrides[get_universe] = lambda: mock_universe
     app.dependency_overrides[get_settings] = lambda: AppSettings()
     app.dependency_overrides[get_operation_lock] = lambda: asyncio.Lock()
-
-    # Mock ThemeService for scan routes that now depend on it
-    mock_theme_svc = MagicMock()
-    mock_theme_svc.get_themes = AsyncMock(return_value=[])
-    mock_theme_svc.get_all_theme_sets = AsyncMock(return_value={})
-    app.dependency_overrides[get_theme_service] = lambda: mock_theme_svc
 
     # Initialize app.state attributes normally set by lifespan.
     # Route handlers no longer use hasattr/getattr fallbacks (AUDIT-014).

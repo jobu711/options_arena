@@ -43,7 +43,6 @@ export const useScanStore = defineStore('scan', () => {
       search?: string
       sectors?: string
       industry_groups?: string
-      themes?: string
       // Dimensional filters
       min_confidence?: number
       market_regime?: string
@@ -73,7 +72,6 @@ export const useScanStore = defineStore('scan', () => {
     preset: string
     sectors?: string[]
     industryGroups?: string[]
-    themes?: string[]
     customTickers?: string[]
     source?: 'manual' | 'watchlist'
     market_cap_tiers?: string[]
@@ -94,9 +92,6 @@ export const useScanStore = defineStore('scan', () => {
     }
     if (options.industryGroups && options.industryGroups.length > 0) {
       body.industry_groups = options.industryGroups
-    }
-    if (options.themes && options.themes.length > 0) {
-      body.themes = options.themes
     }
     if (options.customTickers && options.customTickers.length > 0) {
       body.custom_tickers = options.customTickers

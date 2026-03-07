@@ -44,7 +44,6 @@ export function buildTickerScore(overrides: Partial<TickerScore> = {}): TickerSc
     sector: null,
     company_name: null,
     industry_group: null,
-    thematic_tags: [],
     ...overrides,
   }
 }

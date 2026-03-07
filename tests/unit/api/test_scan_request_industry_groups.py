@@ -1,4 +1,4 @@
-"""Tests for ScanRequest industry_groups and themes fields (#230)."""
+"""Tests for ScanRequest industry_groups field (#230)."""
 
 from __future__ import annotations
 
@@ -57,39 +57,6 @@ class TestScanRequestIndustryGroups:
         assert req.industry_groups == [GICSIndustryGroup.BANKS]
 
 
-class TestScanRequestThemes:
-    """Tests for themes field on ScanRequest."""
-
-    def test_default_empty(self) -> None:
-        """Verify themes defaults to empty list."""
-        req = ScanRequest()
-        assert req.themes == []
-
-    def test_themes_passthrough(self) -> None:
-        """Verify valid theme names are accepted."""
-        req = ScanRequest(themes=["AI & Machine Learning", "Clean Energy"])
-        assert req.themes == ["AI & Machine Learning", "Clean Energy"]
-
-    def test_themes_deduplicate(self) -> None:
-        """Verify duplicate theme names are removed."""
-        req = ScanRequest(themes=["Cybersecurity", "Cybersecurity"])
-        assert req.themes == ["Cybersecurity"]
-
-    def test_themes_reject_invalid(self) -> None:
-        """Verify ValidationError for unknown theme name."""
-        with pytest.raises(ValidationError, match="Unknown theme"):
-            ScanRequest(themes=["nonexistent_theme_xyz"])
-
-    def test_combined_with_industry_groups(self) -> None:
-        """Verify industry_groups and themes can be set together."""
-        req = ScanRequest(
-            industry_groups=["semis"],
-            themes=["AI & Machine Learning"],
-        )
-        assert req.industry_groups == [GICSIndustryGroup.SEMICONDUCTORS_EQUIPMENT]
-        assert req.themes == ["AI & Machine Learning"]
-
-
 class TestScanRequestBackwardCompatibility:
     """Verify new fields don't break existing ScanRequest usage."""
 
@@ -97,6 +64,5 @@ class TestScanRequestBackwardCompatibility:
         """Verify new fields default without affecting existing fields."""
         req = ScanRequest()
         assert req.industry_groups == []
-        assert req.themes == []
         assert req.sectors == []
         assert req.preset.value == "sp500"

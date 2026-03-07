@@ -23,7 +23,7 @@ const PRESET_INFO = [
 
 const SCAN_ID = 55
 
-/** Set up all default mocks including preset-info, sectors, and themes. */
+/** Set up all default mocks including preset-info and sectors. */
 async function setupMocks(page: Page): Promise<void> {
   await mockAllApis(page, {
     scanList: [buildScanRun({ id: SCAN_ID - 1, preset: 'sp500' })],
@@ -39,10 +39,6 @@ async function setupMocks(page: Page): Promise<void> {
     route.fulfill({ json: [] }),
   )
 
-  // Themes endpoint
-  await page.route(pathMatcher('/api/universe/themes'), route =>
-    route.fulfill({ json: [] }),
-  )
 }
 
 test.describe('PreScanFilters', () => {

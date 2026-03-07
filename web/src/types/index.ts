@@ -1,6 +1,6 @@
 export type { HealthStatus } from './health'
 export type { Watchlist, WatchlistTicker, WatchlistDetail } from './watchlist'
-export type { ScanRun, TickerScore, DimensionalScores, PaginatedResponse, TickerDelta, ScanDiff, SectorOption, IndustryGroupInfo, SectorHierarchy, ThemeInfo, MarketRegime, FilterParams, TickerInfoResponse, RecommendedContract, PresetInfo, PreScanFilterPayload } from './scan'
+export type { ScanRun, TickerScore, DimensionalScores, PaginatedResponse, TickerDelta, ScanDiff, SectorOption, IndustryGroupInfo, SectorHierarchy, MarketRegime, FilterParams, TickerInfoResponse, RecommendedContract, PresetInfo, PreScanFilterPayload } from './scan'
 export type {
   DebateResultSummary,
   DebateResult,

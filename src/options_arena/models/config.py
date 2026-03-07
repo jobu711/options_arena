@@ -60,7 +60,6 @@ class ScanConfig(BaseModel):
     direction_filter: SignalDirection | None = None
     min_iv_rank: float | None = None
     industry_groups: list[GICSIndustryGroup] = []
-    theme_filters: list[str] = []
     custom_tickers: list[str] = []
     # Pre-scan price/DTE filters
     max_price: float | None = None
@@ -179,13 +178,6 @@ class ScanConfig(BaseModel):
                         f"Unknown industry group {item!r}. Valid groups: {', '.join(valid)}"
                     ) from None
         return list(dict.fromkeys(result))
-
-    @field_validator("theme_filters", mode="before")
-    @classmethod
-    def normalize_theme_filters(cls, v: list[str]) -> list[str]:
-        """Strip whitespace, filter empties, and deduplicate theme filter inputs."""
-        normalized = [str(item).strip() for item in v if str(item).strip()]
-        return list(dict.fromkeys(normalized))
 
     @field_validator("custom_tickers", mode="before")
     @classmethod
@@ -516,25 +508,6 @@ class OpenBBConfig(BaseModel):
     chain_validation_mode: bool = False
 
 
-class ThemeConfig(BaseModel):
-    """Thematic filtering configuration — controls ETF-based theme caching.
-
-    ``cache_ttl`` is the time-to-live in seconds for cached theme ETF holdings
-    (default 7 days). ``etf_refresh_enabled`` toggles automatic ETF holding refresh.
-    """
-
-    cache_ttl: int = 604800  # 7 days
-    etf_refresh_enabled: bool = True
-
-    @field_validator("cache_ttl")
-    @classmethod
-    def validate_cache_ttl(cls, v: int) -> int:
-        """Ensure cache_ttl is at least 0."""
-        if v < 0:
-            raise ValueError(f"cache_ttl must be >= 0, got {v}")
-        return v
-
-
 class AppSettings(BaseSettings):
     """Root application settings — the sole BaseSettings subclass.
 
@@ -559,4 +532,3 @@ class AppSettings(BaseSettings):
     openbb: OpenBBConfig = OpenBBConfig()
     intelligence: IntelligenceConfig = IntelligenceConfig()
     analytics: AnalyticsConfig = AnalyticsConfig()
-    themes: ThemeConfig = ThemeConfig()

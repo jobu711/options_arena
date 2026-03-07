@@ -23,7 +23,6 @@ from options_arena.services.options_data import (
 )
 from options_arena.services.outcome_collector import OutcomeCollector
 from options_arena.services.rate_limiter import RateLimiter
-from options_arena.services.theme_service import ThemeService
 from options_arena.services.universe import (
     SP500Constituent,
     UniverseService,
@@ -50,7 +49,6 @@ __all__ = [
     "RateLimiter",
     "SP500Constituent",
     "ServiceCache",
-    "ThemeService",
     "TickerOHLCVResult",
     "UniverseService",
     "YFinanceChainProvider",

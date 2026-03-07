@@ -1,4 +1,4 @@
-"""Universe endpoints — stats, refresh, sector hierarchy, themes, and metadata index."""
+"""Universe endpoints — stats, refresh, sector hierarchy, and metadata index."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from options_arena.api.deps import (
     get_market_data,
     get_operation_lock,
     get_repo,
-    get_theme_service,
     get_universe,
 )
 from options_arena.api.schemas import (
@@ -22,7 +21,6 @@ from options_arena.api.schemas import (
     MetadataStats,
     PresetInfo,
     SectorHierarchy,
-    ThemeInfo,
     UniverseStats,
 )
 from options_arena.data import Repository
@@ -33,7 +31,6 @@ from options_arena.models.enums import (
     ScanPreset,
 )
 from options_arena.services import MarketDataService, UniverseService
-from options_arena.services.theme_service import ThemeService
 from options_arena.services.universe import build_sector_map, map_yfinance_to_metadata
 
 logger = logging.getLogger(__name__)
@@ -127,24 +124,6 @@ async def get_sectors(
         )
 
     return hierarchy
-
-
-@router.get("/themes")
-@limiter.limit("60/minute")
-async def get_themes(
-    request: Request,
-    theme_service: ThemeService = Depends(get_theme_service),
-) -> list[ThemeInfo]:
-    """Return available investment themes with ticker counts and source ETFs."""
-    snapshots = await theme_service.get_themes()
-    return [
-        ThemeInfo(
-            name=t.name,
-            ticker_count=t.ticker_count,
-            source_etfs=t.source_etfs,
-        )
-        for t in snapshots
-    ]
 
 
 # ---------------------------------------------------------------------------

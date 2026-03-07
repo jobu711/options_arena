@@ -20,7 +20,7 @@ Tests cover:
 from __future__ import annotations
 
 import inspect
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest

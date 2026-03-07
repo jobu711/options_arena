@@ -9,7 +9,6 @@ import Select from 'primevue/select'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import Panel from 'primevue/panel'
-import ThemeChips from '@/components/scan/ThemeChips.vue'
 import SectorTree from '@/components/SectorTree.vue'
 import DirectionBadge from '@/components/DirectionBadge.vue'
 import SparklineChart from '@/components/SparklineChart.vue'
@@ -25,7 +24,7 @@ import { useOperationStore } from '@/stores/operation'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { api, ApiError } from '@/composables/useApi'
-import type { TickerScore, ScanRun, ScanDiff, TickerDelta, HistoryPoint, SectorHierarchy, ThemeInfo, FilterParams } from '@/types'
+import type { TickerScore, ScanRun, ScanDiff, TickerDelta, HistoryPoint, SectorHierarchy, FilterParams } from '@/types'
 import type { DebateEvent, BatchEvent } from '@/types/ws'
 
 /** Map GICS sector names to PrimeVue Tag severity values for color-coding. */
@@ -279,25 +278,6 @@ function onSectorFilterChange(): void {
   void loadScores()
 }
 
-// Theme filter state
-const availableThemes = ref<ThemeInfo[]>([])
-const selectedThemeFilters = ref<string[]>([])
-
-async function fetchThemeOptions(): Promise<void> {
-  try {
-    availableThemes.value = await api<ThemeInfo[]>('/api/universe/themes')
-  } catch {
-    availableThemes.value = []
-  }
-}
-
-function onThemeFilterChange(themes: string[]): void {
-  selectedThemeFilters.value = themes
-  page.value = 1
-  syncUrl()
-  void loadScores()
-}
-
 // Dimensional filters state (ScanFilterPanel + FilterPresets)
 const dimensionalFilters = ref<FilterParams>({})
 
@@ -376,9 +356,6 @@ function buildParams(): Record<string, string | number | undefined> {
   if (selectedIndustryGroupFilters.value.length > 0) {
     params.industry_groups = selectedIndustryGroupFilters.value.join(',')
   }
-  if (selectedThemeFilters.value.length > 0) {
-    params.themes = selectedThemeFilters.value.join(',')
-  }
   // Dimensional filters (use > 0 to avoid falsy 0 suppression)
   const df = dimensionalFilters.value
   if (df.min_score != null && df.min_score > 0) params.min_score = df.min_score
@@ -404,7 +381,6 @@ function syncUrl(): void {
   if (compareScanId.value !== null) query.compare = String(compareScanId.value)
   if (selectedSectorFilters.value.length > 0) query.sectors = selectedSectorFilters.value.join(',')
   if (selectedIndustryGroupFilters.value.length > 0) query.industry_groups = selectedIndustryGroupFilters.value.join(',')
-  if (selectedThemeFilters.value.length > 0) query.themes = selectedThemeFilters.value.join(',')
   // Dimensional filter URL params (use > 0 to avoid falsy 0 suppression)
   const df = dimensionalFilters.value
   if (df.min_score != null && df.min_score > 0) query.min_score = String(df.min_score)
@@ -529,11 +505,6 @@ onMounted(async () => {
   if (igParam) {
     selectedIndustryGroupFilters.value = igParam.split(',')
   }
-  // Restore theme filters from URL
-  const themesParam = route.query.themes as string | undefined
-  if (themesParam) {
-    selectedThemeFilters.value = themesParam.split(',')
-  }
   // Restore dimensional filters from URL
   const restoredFilters: FilterParams = {}
   const q = route.query
@@ -553,7 +524,6 @@ onMounted(async () => {
   void fetchSparklineData()
   void watchlistStore.fetchWatchlists()
   void fetchSectorOptions()
-  void fetchThemeOptions()
   // Load scan list for compare dropdown
   await scanStore.fetchScans(20)
   // If compare param is in URL, fetch the diff
@@ -585,13 +555,6 @@ onUnmounted(() => {
         <template v-if="selectedIndustryGroupFilters.length > 0">
           {{ selectedSectorFilters.length > 0 ? ' | ' : '' }}Groups: {{ selectedIndustryGroupFilters.join(', ') }}
         </template>
-      </span>
-      <span
-        v-if="selectedThemeFilters.length > 0"
-        class="active-theme-info"
-        data-testid="active-theme-filter"
-      >
-        Themes: {{ selectedThemeFilters.join(', ') }}
       </span>
     </div>
 
@@ -678,13 +641,6 @@ onUnmounted(() => {
         />
       </div>
     </div>
-
-    <!-- Theme Filter Chips -->
-    <ThemeChips
-      :themes="availableThemes"
-      :selectedThemes="selectedThemeFilters"
-      @update:selectedThemes="onThemeFilterChange"
-    />
 
     <!-- Top Movers Summary (shown when comparison is active) -->
     <Panel
@@ -1002,11 +958,6 @@ onUnmounted(() => {
   font-size: 0.8rem;
   color: var(--accent-blue, #3b82f6);
   margin-left: auto;
-}
-
-.active-theme-info {
-  font-size: 0.8rem;
-  color: var(--accent-purple, #a855f7);
 }
 
 .sector-tag {

@@ -60,7 +60,6 @@ from options_arena.services.market_data import MarketDataService
 from options_arena.services.openbb_service import OpenBBService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.rate_limiter import RateLimiter
-from options_arena.services.theme_service import ThemeService
 from options_arena.services.universe import UniverseService
 
 if TYPE_CHECKING:
@@ -177,9 +176,6 @@ def scan(
     industry_group: list[str] = typer.Option(  # noqa: B008
         [], "--industry-group", help="Filter by GICS industry group (repeatable)"
     ),
-    theme: list[str] = typer.Option(  # noqa: B008
-        [], "--theme", help="Filter by investment theme (repeatable)"
-    ),
     min_price: float | None = typer.Option(
         None, "--min-price", help="Minimum underlying stock price"
     ),
@@ -214,7 +210,6 @@ def scan(
             direction,
             min_iv_rank,
             industry_groups=industry_groups,
-            themes=theme,
             min_price=min_price,
             max_price=max_price,
             min_dte=min_dte,
@@ -234,7 +229,6 @@ async def _scan_async(
     direction_filter: SignalDirection | None = None,
     min_iv_rank: float | None = None,
     industry_groups: list[GICSIndustryGroup] | None = None,
-    themes: list[str] | None = None,
     min_price: float | None = None,
     max_price: float | None = None,
     min_dte: int | None = None,
@@ -261,8 +255,6 @@ async def _scan_async(
         scan_overrides["min_iv_rank"] = min_iv_rank
     if industry_groups:
         scan_overrides["industry_groups"] = industry_groups
-    if themes:
-        scan_overrides["theme_filters"] = themes
     if min_price is not None:
         scan_overrides["min_price"] = min_price
     if max_price is not None:
@@ -322,11 +314,6 @@ async def _scan_async(
         fred = FredService(settings.service, settings.pricing, cache)
         universe_svc = UniverseService(settings.service, cache, limiter)
 
-        # Theme service — created when themes are configured or for tagging
-        theme_svc: ThemeService | None = None
-        if themes or settings.themes.etf_refresh_enabled:
-            theme_svc = ThemeService(settings.themes, repo)
-
         # Pipeline
         pipeline = ScanPipeline(
             settings,
@@ -335,7 +322,6 @@ async def _scan_async(
             fred,
             universe_svc,
             repo,
-            theme_service=theme_svc,
         )
 
         # Cancellation token + SIGINT handler

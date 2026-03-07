@@ -72,7 +72,6 @@ from options_arena.services import (
     UniverseService,
     build_industry_group_map,
 )
-from options_arena.services.theme_service import ThemeService
 from options_arena.services.universe import map_yfinance_to_metadata
 
 logger = logging.getLogger(__name__)
@@ -102,7 +101,6 @@ class ScanPipeline:
         fred: FredService,
         universe: UniverseService,
         repository: Repository,
-        theme_service: ThemeService | None = None,
     ) -> None:
         self._settings = settings
         self._market_data = market_data
@@ -110,7 +108,6 @@ class ScanPipeline:
         self._fred = fred
         self._universe = universe
         self._repository = repository
-        self._theme_service = theme_service
 
     async def run(
         self,
@@ -289,7 +286,7 @@ class ScanPipeline:
                 exc_info=True,
             )
 
-        # Step 3a: Custom tickers branch — bypass preset/sector/industry/theme filters
+        # Step 3a: Custom tickers branch — bypass preset/sector/industry filters
         custom = self._settings.scan.custom_tickers
         tickers: list[str]
         if custom:
@@ -387,38 +384,6 @@ class ScanPipeline:
                     len(tickers),
                     ", ".join(ig.value for ig in configured_industry_groups),
                 )
-
-            # Theme filter (OR logic) when theme_filters are configured
-            configured_themes = self._settings.scan.theme_filters
-            if configured_themes and self._theme_service is not None:
-                try:
-                    theme_sets = await self._theme_service.get_all_theme_sets()
-                    # Build union of tickers across requested themes
-                    theme_tickers: set[str] = set()
-                    for theme_name in configured_themes:
-                        tset = theme_sets.get(theme_name, frozenset())
-                        theme_tickers |= tset
-                    if theme_tickers:
-                        before_count = len(tickers)
-                        tickers = [t for t in tickers if t in theme_tickers]
-                        logger.info(
-                            "Theme filter: %d -> %d tickers (themes=%s)",
-                            before_count,
-                            len(tickers),
-                            ", ".join(configured_themes),
-                        )
-                    else:
-                        logger.info(
-                            "Theme filter resolved 0 tickers for themes=%s; "
-                            "returning empty universe",
-                            ", ".join(configured_themes),
-                        )
-                        tickers = []
-                except Exception:
-                    logger.warning(
-                        "Theme pre-filtering failed; continuing without filter",
-                        exc_info=True,
-                    )
 
         # Step 4: Batch-fetch OHLCV
         progress(ScanPhase.UNIVERSE, 0, len(tickers))
@@ -750,22 +715,6 @@ class ScanPipeline:
             len(recommendations),
             len(top_scores),
         )
-
-        # Annotate thematic tags from ThemeService (#230)
-        if self._theme_service is not None:
-            try:
-                theme_sets = await self._theme_service.get_all_theme_sets()
-                for ts in scoring_result.scores:
-                    ts.thematic_tags = [
-                        name for name, tset in theme_sets.items() if ts.ticker in tset
-                    ]
-                logger.info(
-                    "Theme annotation: %d themes applied to %d tickers",
-                    len(theme_sets),
-                    len(scoring_result.scores),
-                )
-            except Exception:
-                logger.warning("Theme annotation failed; continuing without tags", exc_info=True)
 
         # Normalize Phase 3 fields (raw domain values → 0-100 percentile ranks)
         # so they are on the same scale as Phase 2 normalized fields.

@@ -33,7 +33,6 @@ export interface TickerScore {
   sector: string | null
   company_name: string | null
   industry_group: string | null
-  thematic_tags: string[]
   dimensional_scores?: DimensionalScores | null
   direction_confidence?: number | null
   market_regime?: 'trending' | 'mean_reverting' | 'volatile' | 'crisis' | null
@@ -56,13 +55,6 @@ export interface SectorHierarchy {
   name: string
   ticker_count: number
   industry_groups: IndustryGroupInfo[]
-}
-
-/** Investment theme from GET /api/universe/themes. */
-export interface ThemeInfo {
-  name: string
-  ticker_count: number
-  source_etfs: string[]
 }
 
 /** Paginated response wrapper. */
@@ -147,7 +139,6 @@ export interface PreScanFilterPayload {
   preset?: string
   sectors?: string[]
   industryGroups?: string[]
-  themes?: string[]
   market_cap_tiers?: string[]
   exclude_near_earnings_days?: number | null
   direction_filter?: string | null

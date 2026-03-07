@@ -6,9 +6,8 @@ import MultiSelect from 'primevue/multiselect'
 import InputNumber from 'primevue/inputnumber'
 import Badge from 'primevue/badge'
 import SectorTree from '@/components/SectorTree.vue'
-import ThemeChips from '@/components/scan/ThemeChips.vue'
 import { api } from '@/composables/useApi'
-import type { SectorHierarchy, ThemeInfo, PresetInfo, PreScanFilterPayload } from '@/types'
+import type { SectorHierarchy, PresetInfo, PreScanFilterPayload } from '@/types'
 
 interface Props {
   disabled?: boolean
@@ -92,17 +91,6 @@ const excludeEarningsDays = ref<number | null>(null)
 const minIvRank = ref<number | null>(null)
 const minScore = ref<number | null>(null)
 
-const availableThemes = ref<ThemeInfo[]>([])
-const selectedThemes = ref<string[]>([])
-
-async function fetchThemes(): Promise<void> {
-  try {
-    availableThemes.value = await api<ThemeInfo[]>('/api/universe/themes')
-  } catch {
-    availableThemes.value = []
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Panel 3: Price & Expiry
 // ---------------------------------------------------------------------------
@@ -131,7 +119,6 @@ const strategyFilterCount = computed(() => {
   if (excludeEarningsDays.value != null) count++
   if (minIvRank.value != null) count++
   if (minScore.value != null) count++
-  if (selectedThemes.value.length > 0) count++
   return count
 })
 
@@ -153,7 +140,6 @@ function emitFilters(): void {
     preset: selectedPreset.value,
     sectors: selectedSectors.value.length > 0 ? selectedSectors.value : undefined,
     industryGroups: selectedIndustryGroups.value.length > 0 ? selectedIndustryGroups.value : undefined,
-    themes: selectedThemes.value.length > 0 ? selectedThemes.value : undefined,
     market_cap_tiers: selectedMarketCaps.value.length > 0 ? selectedMarketCaps.value : undefined,
     exclude_near_earnings_days: excludeEarningsDays.value,
     direction_filter: selectedDirection.value,
@@ -177,7 +163,6 @@ watch(
     selectedDirection,
     excludeEarningsDays,
     minIvRank,
-    selectedThemes,
     minScore,
     minPrice,
     maxPrice,
@@ -195,7 +180,6 @@ watch(
 onMounted(() => {
   void fetchPresetInfo()
   void fetchSectors()
-  void fetchThemes()
 })
 </script>
 
@@ -383,11 +367,6 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Theme Chips -->
-      <ThemeChips
-        :themes="availableThemes"
-        v-model:selectedThemes="selectedThemes"
-      />
     </Panel>
 
     <!-- Panel 3: Price & Expiry -->

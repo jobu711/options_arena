@@ -25,7 +25,6 @@ from options_arena.api.deps import (
     get_options_data,
     get_repo,
     get_settings,
-    get_theme_service,
     get_universe,
 )
 from options_arena.models import AgentResponse, MarketContext, TradeThesis
@@ -53,10 +52,6 @@ async def test_scan_lock_contention_returns_409() -> None:
     mock_repo.save_scan_run = AsyncMock(return_value=1)
     mock_repo.save_ticker_scores = AsyncMock(return_value=None)
 
-    mock_theme_svc = MagicMock()
-    mock_theme_svc.get_themes = AsyncMock(return_value=[])
-    mock_theme_svc.get_all_theme_sets = AsyncMock(return_value={})
-
     app.dependency_overrides[get_repo] = lambda: mock_repo
     app.dependency_overrides[get_market_data] = lambda: MagicMock()
     app.dependency_overrides[get_options_data] = lambda: MagicMock()
@@ -64,7 +59,6 @@ async def test_scan_lock_contention_returns_409() -> None:
     app.dependency_overrides[get_universe] = lambda: MagicMock()
     app.dependency_overrides[get_settings] = lambda: AppSettings()
     app.dependency_overrides[get_operation_lock] = lambda: lock
-    app.dependency_overrides[get_theme_service] = lambda: mock_theme_svc
 
     # Initialize app.state (normally done by lifespan)
     app.state.scan_counter = 0

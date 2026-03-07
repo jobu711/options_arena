@@ -40,7 +40,6 @@ async function runScan(): Promise<void> {
       preset: f.preset ?? 'sp500',
       sectors: f.sectors,
       industryGroups: f.industryGroups,
-      themes: f.themes,
       market_cap_tiers: f.market_cap_tiers,
       exclude_near_earnings_days: f.exclude_near_earnings_days,
       direction_filter: f.direction_filter,

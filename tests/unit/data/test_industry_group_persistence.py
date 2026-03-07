@@ -1,4 +1,4 @@
-"""Tests for industry_group and thematic_tags persistence (migration 016)."""
+"""Tests for industry_group persistence (migration 016)."""
 
 from datetime import UTC, datetime
 
@@ -132,65 +132,3 @@ class TestIndustryGroupPersistence:
         assert by_ticker["AAPL"].industry_group == GICSIndustryGroup.TECHNOLOGY_HARDWARE_EQUIPMENT
         assert by_ticker["MSFT"].industry_group is None
         assert by_ticker["JPM"].industry_group == GICSIndustryGroup.BANKS
-
-
-# ---------------------------------------------------------------------------
-# thematic_tags persistence
-# ---------------------------------------------------------------------------
-
-
-class TestThematicTagsPersistence:
-    """Tests for thematic_tags_json column on ticker_scores."""
-
-    @pytest.mark.asyncio
-    async def test_save_score_with_thematic_tags(self, repo: Repository) -> None:
-        """Verify thematic_tags list persisted and retrieved as list[str]."""
-        scan_id = await repo.save_scan_run(_make_scan_run())
-        score = _make_ticker_score(thematic_tags=["AI & Machine Learning", "Cybersecurity"])
-
-        await repo.save_ticker_scores(scan_id, [score])
-        result = await repo.get_scores_for_scan(scan_id)
-
-        assert len(result) == 1
-        assert result[0].thematic_tags == ["AI & Machine Learning", "Cybersecurity"]
-
-    @pytest.mark.asyncio
-    async def test_save_score_with_empty_thematic_tags(self, repo: Repository) -> None:
-        """Verify empty thematic_tags list stored as NULL and retrieved as empty list."""
-        scan_id = await repo.save_scan_run(_make_scan_run())
-        score = _make_ticker_score()  # default empty list
-        assert score.thematic_tags == []
-
-        await repo.save_ticker_scores(scan_id, [score])
-        result = await repo.get_scores_for_scan(scan_id)
-
-        assert len(result) == 1
-        assert result[0].thematic_tags == []
-
-    @pytest.mark.asyncio
-    async def test_thematic_tags_json_roundtrip(self, repo: Repository) -> None:
-        """Verify ticker list survives JSON serialization with special characters."""
-        scan_id = await repo.save_scan_run(_make_scan_run())
-        tags = ["AI & Machine Learning", "Electric Vehicles", "Clean Energy"]
-        score = _make_ticker_score(thematic_tags=tags)
-
-        await repo.save_ticker_scores(scan_id, [score])
-        result = await repo.get_scores_for_scan(scan_id)
-
-        assert result[0].thematic_tags == tags
-
-    @pytest.mark.asyncio
-    async def test_both_industry_group_and_thematic_tags(self, repo: Repository) -> None:
-        """Verify both new fields persist and roundtrip together."""
-        scan_id = await repo.save_scan_run(_make_scan_run())
-        score = _make_ticker_score(
-            industry_group=GICSIndustryGroup.SEMICONDUCTORS_EQUIPMENT,
-            thematic_tags=["AI & Machine Learning"],
-        )
-
-        await repo.save_ticker_scores(scan_id, [score])
-        result = await repo.get_scores_for_scan(scan_id)
-
-        assert len(result) == 1
-        assert result[0].industry_group == GICSIndustryGroup.SEMICONDUCTORS_EQUIPMENT
-        assert result[0].thematic_tags == ["AI & Machine Learning"]

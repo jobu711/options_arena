@@ -1,13 +1,12 @@
-"""Unit tests for ScanConfig.industry_groups, theme_filters, and ThemeConfig.
+"""Unit tests for ScanConfig.industry_groups.
 
 Tests:
-  - Default empty list for industry_groups and theme_filters
+  - Default empty list for industry_groups
   - Normalization via INDUSTRY_GROUP_ALIASES (lowercase, short, hyphenated, underscored)
   - Deduplication after alias normalization
   - Invalid group raises ValueError
   - Mixed enum + string inputs
-  - ThemeConfig default values and validation
-  - TickerScore new fields (industry_group, thematic_tags)
+  - TickerScore new fields (industry_group)
 """
 
 import pytest
@@ -17,7 +16,6 @@ from options_arena.models import (
     AppSettings,
     GICSIndustryGroup,
     ScanConfig,
-    ThemeConfig,
     TickerScore,
 )
 from options_arena.models.enums import SignalDirection
@@ -29,9 +27,6 @@ from options_arena.models.scan import IndicatorSignals
 _ARENA_ENV_VARS = [
     "ARENA_SCAN__TOP_N",
     "ARENA_SCAN__INDUSTRY_GROUPS",
-    "ARENA_SCAN__THEME_FILTERS",
-    "ARENA_THEMES__CACHE_TTL",
-    "ARENA_THEMES__ETF_REFRESH_ENABLED",
 ]
 
 
@@ -154,58 +149,6 @@ class TestScanConfigIndustryGroups:
 
 
 # ---------------------------------------------------------------------------
-# ScanConfig.theme_filters
-# ---------------------------------------------------------------------------
-
-
-class TestScanConfigThemeFilters:
-    def test_default_empty(self) -> None:
-        """Verify theme_filters defaults to empty list."""
-        config = ScanConfig()
-        assert config.theme_filters == []
-
-    def test_accepts_string_list(self) -> None:
-        """Verify theme_filters accepts a list of strings."""
-        config = ScanConfig(theme_filters=["AI & Machine Learning", "Cybersecurity"])
-        assert config.theme_filters == ["AI & Machine Learning", "Cybersecurity"]
-
-
-# ---------------------------------------------------------------------------
-# ThemeConfig
-# ---------------------------------------------------------------------------
-
-
-class TestThemeConfig:
-    def test_default_values(self) -> None:
-        """Verify ThemeConfig defaults."""
-        tc = ThemeConfig()
-        assert tc.cache_ttl == 604800  # 7 days
-        assert tc.etf_refresh_enabled is True
-
-    def test_custom_values(self) -> None:
-        """Verify ThemeConfig accepts custom values."""
-        tc = ThemeConfig(cache_ttl=3600, etf_refresh_enabled=False)
-        assert tc.cache_ttl == 3600
-        assert tc.etf_refresh_enabled is False
-
-    def test_negative_cache_ttl_raises(self) -> None:
-        """Verify negative cache_ttl raises ValidationError."""
-        with pytest.raises(ValidationError, match="cache_ttl"):
-            ThemeConfig(cache_ttl=-1)
-
-    def test_zero_cache_ttl_allowed(self) -> None:
-        """Verify zero cache_ttl is valid (no caching)."""
-        tc = ThemeConfig(cache_ttl=0)
-        assert tc.cache_ttl == 0
-
-    def test_app_settings_themes_default(self) -> None:
-        """Verify AppSettings includes default ThemeConfig."""
-        settings = AppSettings()
-        assert settings.themes.cache_ttl == 604800
-        assert settings.themes.etf_refresh_enabled is True
-
-
-# ---------------------------------------------------------------------------
 # TickerScore new fields
 # ---------------------------------------------------------------------------
 
@@ -221,16 +164,6 @@ class TestTickerScoreNewFields:
         )
         assert score.industry_group is None
 
-    def test_thematic_tags_defaults_to_empty(self) -> None:
-        """Verify thematic_tags defaults to empty list."""
-        score = TickerScore(
-            ticker="AAPL",
-            composite_score=75.0,
-            direction=SignalDirection.BULLISH,
-            signals=IndicatorSignals(),
-        )
-        assert score.thematic_tags == []
-
     def test_industry_group_accepts_string(self) -> None:
         """Verify industry_group accepts a string value."""
         score = TickerScore(
@@ -241,27 +174,3 @@ class TestTickerScoreNewFields:
             industry_group="Semiconductors & Semiconductor Equipment",
         )
         assert score.industry_group == "Semiconductors & Semiconductor Equipment"
-
-    def test_thematic_tags_accepts_list(self) -> None:
-        """Verify thematic_tags accepts a list of strings."""
-        score = TickerScore(
-            ticker="TSLA",
-            composite_score=65.0,
-            direction=SignalDirection.BULLISH,
-            signals=IndicatorSignals(),
-            thematic_tags=["Electric Vehicles", "AI & Machine Learning"],
-        )
-        assert score.thematic_tags == ["Electric Vehicles", "AI & Machine Learning"]
-
-    def test_both_fields_populated(self) -> None:
-        """Verify both new fields work together."""
-        score = TickerScore(
-            ticker="MSFT",
-            composite_score=80.0,
-            direction=SignalDirection.BULLISH,
-            signals=IndicatorSignals(),
-            industry_group="Software & Services",
-            thematic_tags=["AI & Machine Learning", "Cybersecurity"],
-        )
-        assert score.industry_group == "Software & Services"
-        assert len(score.thematic_tags) == 2

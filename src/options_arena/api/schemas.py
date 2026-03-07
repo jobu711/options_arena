@@ -42,7 +42,6 @@ class ScanRequest(BaseModel):
     preset: ScanPreset = ScanPreset.SP500
     sectors: list[GICSSector] = []
     industry_groups: list[GICSIndustryGroup] = []
-    themes: list[str] = []
     market_cap_tiers: list[MarketCapTier] = []
     exclude_near_earnings_days: int | None = None
     direction_filter: SignalDirection | None = None
@@ -142,23 +141,6 @@ class ScanRequest(BaseModel):
                     raise ValueError(
                         f"Unknown sector {item!r}. Valid sectors: {', '.join(valid)}"
                     ) from None
-        return list(dict.fromkeys(result))
-
-    @field_validator("themes", mode="before")
-    @classmethod
-    def validate_theme_names(cls, v: list[str]) -> list[str]:
-        """Validate and deduplicate theme names against known themes."""
-        from options_arena.models.themes import THEME_ETF_MAPPING  # noqa: PLC0415
-
-        valid_names = set(THEME_ETF_MAPPING.keys())
-        result: list[str] = []
-        for item in v:
-            name = str(item).strip()
-            if name not in valid_names:
-                raise ValueError(
-                    f"Unknown theme {name!r}. Valid themes: {', '.join(sorted(valid_names))}"
-                )
-            result.append(name)
         return list(dict.fromkeys(result))
 
     @field_validator("industry_groups", mode="before")
@@ -469,14 +451,6 @@ class SectorHierarchy(BaseModel):
     name: str
     ticker_count: int
     industry_groups: list[IndustryGroupInfo]
-
-
-class ThemeInfo(BaseModel):
-    """Theme with ticker count and source ETFs."""
-
-    name: str
-    ticker_count: int
-    source_etfs: list[str]
 
 
 class UniverseStats(BaseModel):

@@ -199,8 +199,6 @@ class TickerScore(BaseModel):
 
     # GICS industry group (finer-grained than sector)
     industry_group: GICSIndustryGroup | None = None
-    # Thematic tags from ETF-based screening
-    thematic_tags: list[str] = []
 
     # DSE dimensional scoring (populated after score_universe in Phase 2)
     dimensional_scores: DimensionalScores | None = None
