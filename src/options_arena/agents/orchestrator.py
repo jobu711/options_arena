@@ -36,6 +36,10 @@ from options_arena.agents._parsing import (
     DebateResult,
     compute_citation_density,
     render_context_block,
+    render_flow_context,
+    render_fundamental_context,
+    render_trend_context,
+    render_volatility_context,
 )
 from options_arena.agents.contrarian_agent import contrarian_agent
 from options_arena.agents.flow_agent import flow_agent
@@ -650,7 +654,6 @@ AGENT_VOTE_WEIGHTS: dict[str, float] = {
     "volatility": 0.20,
     "flow": 0.20,
     "fundamental": 0.15,
-    "risk": 0.15,
     "contrarian": 0.05,
 }
 
@@ -698,6 +701,50 @@ def _get_majority_direction(agent_directions: dict[str, SignalDirection]) -> Sig
     if bearish_count > bullish_count:
         return SignalDirection.BEARISH
     return SignalDirection.NEUTRAL
+
+
+def _log_odds_pool(probabilities: list[float], weights: list[float]) -> float:
+    """Pool probabilities using weighted log-odds (Bordley 1982).
+
+    Properly compounds independent agreement: three agents at 0.9 produce
+    a combined probability of ~0.997, unlike linear averaging which yields 0.9.
+
+    Weights are NOT normalized — each agent's weight scales how much its
+    opinion shifts the pooled result. This is what enables compounding:
+    multiple agreeing agents produce higher confidence than any single agent.
+
+    Clamps inputs to [0.01, 0.99] to prevent ``log(0)`` / ``log(inf)``.
+
+    Parameters
+    ----------
+    probabilities
+        List of agent confidence values (each in [0.0, 1.0]).
+    weights
+        Corresponding importance weights. NOT normalized — each weight
+        scales the agent's contribution to the pooled log-odds sum.
+
+    Returns
+    -------
+    float
+        Pooled probability in (0.0, 1.0). Returns 0.5 if inputs are empty
+        or total weight is zero (neutral prior).
+    """
+    if not probabilities:
+        return 0.5  # no data -> neutral
+
+    # Clamp to avoid log(0) / log(inf)
+    clamped = [max(0.01, min(0.99, p)) for p in probabilities]
+
+    total_weight = sum(weights)
+    if total_weight == 0:
+        return 0.5
+
+    # Weighted sum in log-odds space (NOT divided by total_weight —
+    # this compounds independent opinions rather than averaging them)
+    log_odds_sum = sum(w * math.log(p / (1 - p)) for p, w in zip(clamped, weights, strict=True))
+
+    # Convert back to probability
+    return 1.0 / (1.0 + math.exp(-log_odds_sum))
 
 
 def _vol_strategy_str(vol: VolatilityThesis) -> str:
@@ -798,16 +845,16 @@ def synthesize_verdict(
     agreement = compute_agreement_score(agent_directions)
     majority_direction = _get_majority_direction(agent_directions)
 
-    # --- Weighted confidence ---
-    weighted_confidence = 0.0
-    total_weight = 0.0
+    # --- Log-odds confidence pooling (Bordley 1982) ---
+    probabilities: list[float] = []
+    weights: list[float] = []
     for name, output in agent_outputs.items():
         weight = AGENT_VOTE_WEIGHTS.get(name, 0.1)
         if hasattr(output, "confidence"):
-            weighted_confidence += weight * output.confidence
-            total_weight += weight
-    if total_weight > 0:
-        weighted_confidence /= total_weight
+            probabilities.append(output.confidence)
+            weights.append(weight)
+    if probabilities:
+        weighted_confidence = _log_odds_pool(probabilities, weights)
     else:
         weighted_confidence = config.fallback_confidence
 
@@ -1037,7 +1084,14 @@ async def _run_v2_agents(
     model = build_debate_model(config)
     settings = ModelSettings(temperature=config.temperature)
     per_agent_timeout = config.agent_timeout
-    context_text = render_context_block(context)
+
+    # Partitioned context: each Phase 1 agent sees only domain-specific fields.
+    # Risk (Phase 2) and Contrarian (Phase 3) keep the full context block.
+    trend_context = render_trend_context(context)
+    vol_context = render_volatility_context(context)
+    flow_context = render_flow_context(context)
+    fund_context = render_fundamental_context(context)
+    full_context = render_context_block(context)
 
     # ---------------------------------------------------------------
     # Phase 1: parallel — trend + volatility always; flow + fundamental
@@ -1052,7 +1106,7 @@ async def _run_v2_agents(
     # Build coroutines for local Phase 1 agents
     trend_coro = asyncio.wait_for(
         trend_agent.run(
-            f"Analyze trend and momentum for {context.ticker}.\n\n{context_text}",
+            f"Analyze trend and momentum for {context.ticker}.\n\n{trend_context}",
             model=model,
             deps=base_deps,
             model_settings=settings,
@@ -1067,7 +1121,7 @@ async def _run_v2_agents(
     )
     vol_coro = asyncio.wait_for(
         volatility_agent.run(
-            f"Assess implied volatility for {context.ticker}.\n\n{context_text}",
+            f"Assess implied volatility for {context.ticker}.\n\n{vol_context}",
             model=model,
             deps=vol_deps,
             model_settings=settings,
@@ -1096,7 +1150,7 @@ async def _run_v2_agents(
         )
         flow_coro = asyncio.wait_for(
             flow_agent.run(
-                f"Analyze options flow for {context.ticker}.\n\n{context_text}",
+                f"Analyze options flow for {context.ticker}.\n\n{flow_context}",
                 model=model,
                 deps=flow_deps,
                 model_settings=settings,
@@ -1115,7 +1169,7 @@ async def _run_v2_agents(
         )
         fundamental_coro = asyncio.wait_for(
             fundamental_agent.run(
-                f"Assess fundamental catalysts for {context.ticker}.\n\n{context_text}",
+                f"Assess fundamental catalysts for {context.ticker}.\n\n{fund_context}",
                 model=model,
                 deps=fund_deps,
                 model_settings=settings,
@@ -1259,7 +1313,7 @@ async def _run_v2_agents(
         )
         risk_result = await asyncio.wait_for(
             risk_agent_v2.run(
-                f"Assess risk for {context.ticker} based on all agent outputs.\n\n{context_text}",
+                f"Assess risk for {context.ticker} based on all agent outputs.\n\n{full_context}",
                 model=model,
                 deps=risk_deps,
                 model_settings=settings,
@@ -1304,7 +1358,7 @@ async def _run_v2_agents(
             )
             contrarian_result = await asyncio.wait_for(
                 contrarian_agent.run(
-                    f"Challenge the consensus for {context.ticker}.\n\n{context_text}",
+                    f"Challenge the consensus for {context.ticker}.\n\n{full_context}",
                     model=model,
                     deps=contrarian_deps,
                     model_settings=settings,
@@ -1359,7 +1413,7 @@ async def _run_v2_agents(
     agent_texts: list[str] = [thesis.summary, thesis.risk_assessment]
     if trend_output is not None:
         agent_texts.append(trend_output.argument)
-    density = compute_citation_density(context_text, *agent_texts)
+    density = compute_citation_density(full_context, *agent_texts)
 
     logger.info(
         "Debate complete for %s in %dms (agents=%d, agreement=%.2f, citation=%.2f)",
