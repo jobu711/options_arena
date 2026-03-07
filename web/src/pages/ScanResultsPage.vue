@@ -21,7 +21,6 @@ import DebateProgressModal from '@/components/DebateProgressModal.vue'
 import { useScanStore } from '@/stores/scan'
 import { useDebateStore } from '@/stores/debate'
 import { useOperationStore } from '@/stores/operation'
-import { useWatchlistStore } from '@/stores/watchlist'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { api, ApiError } from '@/composables/useApi'
 import type { TickerScore, ScanRun, ScanDiff, TickerDelta, HistoryPoint, SectorHierarchy, FilterParams } from '@/types'
@@ -55,7 +54,6 @@ const toast = useToast()
 const scanStore = useScanStore()
 const debateStore = useDebateStore()
 const operationStore = useOperationStore()
-const watchlistStore = useWatchlistStore()
 
 const scanId = Number(route.params.id)
 
@@ -465,35 +463,6 @@ function earningsClass(isoDate: string): string {
   return days < 7 ? 'earnings-warn' : 'earnings-normal'
 }
 
-async function addToFirstWatchlist(ticker: string): Promise<void> {
-  if (watchlistStore.watchlists.length === 0) {
-    toast.add({
-      severity: 'warn',
-      summary: 'No Watchlists',
-      detail: 'Create a watchlist first from the Watchlists page.',
-      life: 5000,
-    })
-    return
-  }
-  const wl = watchlistStore.watchlists[0]
-  const added = await watchlistStore.addTicker(wl.id, ticker)
-  if (added) {
-    toast.add({
-      severity: 'success',
-      summary: 'Added',
-      detail: `${ticker} added to "${wl.name}".`,
-      life: 3000,
-    })
-  } else {
-    toast.add({
-      severity: 'error',
-      summary: 'Error',
-      detail: watchlistStore.error ?? 'Failed to add ticker',
-      life: 5000,
-    })
-  }
-}
-
 onMounted(async () => {
   // Restore sector filters from URL
   const sectorsParam = route.query.sectors as string | undefined
@@ -522,7 +491,6 @@ onMounted(async () => {
   }
   await loadScores()
   void fetchSparklineData()
-  void watchlistStore.fetchWatchlists()
   void fetchSectorOptions()
   // Load scan list for compare dropdown
   await scanStore.fetchScans(20)
@@ -808,14 +776,6 @@ onUnmounted(() => {
               :disabled="anyBusy"
               :data-testid="`debate-btn-${data.ticker}`"
               @click.stop="startDebate(data.ticker)"
-            />
-            <Button
-              icon="pi pi-bookmark"
-              severity="secondary"
-              size="small"
-              text
-              :data-testid="`watchlist-btn-${data.ticker}`"
-              @click.stop="addToFirstWatchlist(data.ticker)"
             />
           </div>
         </template>

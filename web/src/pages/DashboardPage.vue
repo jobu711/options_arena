@@ -216,14 +216,6 @@ onUnmounted(() => {
         data-testid="dashboard-btn-new-scan"
         @click="router.push('/scan')"
       />
-      <Button
-        label="Watchlists"
-        icon="pi pi-bookmark"
-        severity="secondary"
-        data-testid="dashboard-btn-watchlists"
-        @click="router.push('/watchlist')"
-      />
-
       <span class="quick-debate-separator" />
 
       <form class="quick-debate-form" @submit.prevent="submitQuickDebate">

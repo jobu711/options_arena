@@ -163,7 +163,6 @@ onUnmounted(() => {
         <Column header="Preset" field="preset">
           <template #body="{ data }">
             <span class="preset-tag">{{ (data.preset as string).toUpperCase() }}</span>
-            <span v-if="data.source === 'watchlist'" class="source-tag">WL</span>
           </template>
         </Column>
         <Column header="Scanned" field="tickers_scanned">
@@ -236,17 +235,6 @@ onUnmounted(() => {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--accent-green);
-}
-
-.source-tag {
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: var(--accent-blue);
-  margin-left: 0.4rem;
-  padding: 0.1rem 0.3rem;
-  border: 1px solid var(--accent-blue);
-  border-radius: 0.25rem;
-  vertical-align: middle;
 }
 
 .empty-msg {
