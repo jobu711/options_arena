@@ -2,7 +2,7 @@
 
 ## Current State
 
-- **Version**: 2.8.0 — Metadata Index (persistent ticker classification cache)
+- **Version**: 2.9.0 — Data Completeness (MACD, short interest, v1 elimination)
 - **All 9 phases + 21 epics**: Complete and merged to master
 - **Tests**: 3,921 Python + 38 E2E
 - **GitHub issues**: 2 open, 280+ closed
@@ -13,14 +13,15 @@
 
 ## In Progress
 
-- **UI Fixes epic** (planning): `.claude/epics/ui-fixes/` — cosmetic improvements across web dashboard.
+- **Data Completeness epic** (active): `.claude/epics/data-completeness/` — branch `epic/data-completeness`. Issues #319-#322. Short interest e2e (#319), active-contract P&L (#320), indicator signal labels (#321) done. Issue #322 (verification) pending.
 
 ## Recently Completed
 
+- **MACD integration** (2026-03-06): feat(#312-#317) — real `macd()` in indicators/trend.py, registered in INDICATOR_REGISTRY, `IndicatorSignals.macd` field, `classify_macd_signal()` replaces fake derivation. 4 commits.
+- **V1 debate elimination** (2026-03-06): `run_debate_v2` → `run_debate`, removed v1 code path, cleaned up orchestrator (~500 lines removed).
+- **UI polish v29** (2026-03-06): Merge of formatter consolidation, timezone date fixes, NaN guards, recommended contracts in TickerDrawer, score filter fix, View All debates link.
 - **UI cosmetic fixes** (2026-03-05): fix(#266) — visual polish across AgentCard, DirectionBadge, RegimeBanner, TickerDrawer, DashboardPage, HealthPage, ScanResultsPage.
-- **Epic 21** (2026-03-05): Metadata Index — persistent SQLite ticker classification cache for ~5K CBOE tickers. GICS sector, industry group, market cap tier. +122 tests, 26 files. PR #278.
-- **Epic 20** (2026-03-04): Surface V2 Agent Outputs — 6 agent outputs across model, persistence, API, CLI, frontend, export. +45 tests, 23 files.
-- **Epic 19** (2026-03-04): Scan from Watchlist — custom tickers through full stack, +130 tests. PR #247.
+- **Epic 21** (2026-03-05): Metadata Index — persistent SQLite ticker classification cache. PR #278.
 
 ## Future Work
 

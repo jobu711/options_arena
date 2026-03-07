@@ -383,6 +383,9 @@ async def test_debate_background_persists_v2(
         bridge=bridge,
     )
 
+    # Verify OHLCV backfill path was exercised (scan_id=None)
+    mock_market_data.fetch_ohlcv.assert_awaited_once()
+
     # Verify save_debate was called with v2 keyword arguments
     mock_repo.save_debate.assert_awaited_once()
     call_kwargs = mock_repo.save_debate.call_args.kwargs

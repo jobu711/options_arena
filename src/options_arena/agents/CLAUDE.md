@@ -20,12 +20,11 @@ The orchestrator does **not fetch data** — the caller (CLI/API) provides all i
 | `_parsing.py` | `DebateDeps`, `DebateResult`, `strip_think_tags()`, `PROMPT_RULES_APPENDIX`, `build_cleaned_agent_response()`, `build_cleaned_trade_thesis()`, `render_context_block()` | Internal |
 | `bull.py` | Bull agent + system prompt + output validator | PydanticAI Agent |
 | `bear.py` | Bear agent + dynamic prompt (receives bull argument) | PydanticAI Agent |
-| `risk.py` | Risk agent (v1 legacy — kept for fallback) | PydanticAI Agent |
+| `risk.py` | `risk_agent` (v1 fallback) + `risk_agent_v2` (active — portfolio risk, position sizing, hedging) | PydanticAI Agent |
 | `trend_agent.py` | Trend agent — ADX, SuperTrend, SMA, RSI momentum analysis | PydanticAI Agent |
 | `volatility.py` | Volatility agent — IV rank/percentile, term structure, regime | PydanticAI Agent |
 | `flow_agent.py` | Flow agent — put/call ratio, volume, unusual activity | PydanticAI Agent |
 | `fundamental_agent.py` | Fundamental agent — earnings, dividends, sector valuation | PydanticAI Agent |
-| `risk_v2.py` | Risk v2 agent — portfolio risk, position sizing, hedging | PydanticAI Agent |
 | `contrarian_agent.py` | Contrarian agent — challenges consensus, finds blind spots | PydanticAI Agent |
 | `orchestrator.py` | `run_debate()` (6-agent), `build_market_context()`, fallback logic | Coordinator |
 | `__init__.py` | Re-exports: `run_debate`, `DebateResult`, `DebateDeps`, `build_market_context`, `build_debate_model`, `render_context_block`, `should_debate`, `synthesize_verdict`, `compute_agreement_score`, `classify_macd_signal`, `DebatePhase`, `DebateProgressCallback`, `AGENT_VOTE_WEIGHTS`, plus all 6 agent instances | Standard |
@@ -246,7 +245,7 @@ API key priority: `config.api_key` > `GROQ_API_KEY` env > ValueError.
 
 ## Orchestrator Flow (6-Agent, 4-Phase)
 
-```
+```text
 1. Build MarketContext from TickerScore + Quote + TickerInfo + contracts
 2. Check completeness: <0.4 → data-driven fallback; <0.6 → warning; >=0.6 → proceed
 3. Build GroqModel from DebateConfig
@@ -269,8 +268,14 @@ async def run_debate(
     ticker_info: TickerInfo,
     config: DebateConfig,
     repository: Repository | None = None,
-    progress_callback: DebateProgressCallback | None = None,
-    intelligence: IntelligenceResult | None = None,
+    progress: DebateProgressCallback | None = None,
+    dimensional_scores: DimensionalScores | None = None,
+    flow_output: FlowThesis | None = None,
+    fundamental_output: FundamentalThesis | None = None,
+    fundamentals: FundamentalSnapshot | None = None,
+    flow: UnusualFlowSnapshot | None = None,
+    sentiment: NewsSentimentSnapshot | None = None,
+    intelligence: IntelligencePackage | None = None,
 ) -> DebateResult:
     """Run 6-agent debate. On any failure, return data-driven fallback — never raises."""
     try:

@@ -258,6 +258,9 @@ async def test_single_debate_fetches_enrichment(
         bridge=bridge,
     )
 
+    # Verify OHLCV backfill path was exercised (scan_id=None)
+    mock_market_data.fetch_ohlcv.assert_awaited_once()
+
     # Verify all three fetch methods were called
     openbb_svc.fetch_fundamentals.assert_awaited_once_with("AAPL")
     openbb_svc.fetch_unusual_flow.assert_awaited_once_with("AAPL")

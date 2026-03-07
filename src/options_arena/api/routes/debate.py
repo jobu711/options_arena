@@ -90,11 +90,17 @@ async def _run_debate_background(
             # Compute real indicators from OHLCV so MarketContext has actual data
             # instead of an empty IndicatorSignals (which causes <40% completeness
             # and silent fallback to data-driven mode).
-            from options_arena.models import IndicatorSignals, SignalDirection, TickerScore
+            from options_arena.models import IndicatorSignals, TickerScore
             from options_arena.scan.indicators import (  # noqa: PLC0415
                 INDICATOR_REGISTRY,
                 compute_indicators,
                 ohlcv_to_dataframe,
+            )
+            from options_arena.scoring import (  # noqa: PLC0415
+                composite_score as calc_composite,
+            )
+            from options_arena.scoring import (
+                determine_direction,
             )
 
             ohlcv_list = await market_data.fetch_ohlcv(ticker, period="1y")
@@ -104,10 +110,19 @@ async def _run_debate_background(
             else:
                 raw_signals = IndicatorSignals()
 
+            adhoc_composite = calc_composite(raw_signals)
+            adhoc_direction = determine_direction(
+                adx=raw_signals.adx or 0.0,
+                rsi=raw_signals.rsi or 50.0,
+                sma_alignment=raw_signals.sma_alignment or 0.0,
+                supertrend=raw_signals.supertrend,
+                roc=raw_signals.roc,
+            )
+
             score_match = TickerScore(
                 ticker=ticker,
-                composite_score=50.0,
-                direction=SignalDirection.NEUTRAL,
+                composite_score=adhoc_composite,
+                direction=adhoc_direction,
                 signals=raw_signals,
             )
 
@@ -313,13 +328,18 @@ async def _run_batch_debate_background(
                 if score_match is None:
                     from options_arena.models import (  # noqa: PLC0415
                         IndicatorSignals,
-                        SignalDirection,
                         TickerScore,
                     )
                     from options_arena.scan.indicators import (  # noqa: PLC0415
                         INDICATOR_REGISTRY,
                         compute_indicators,
                         ohlcv_to_dataframe,
+                    )
+                    from options_arena.scoring import (  # noqa: PLC0415
+                        composite_score as calc_composite,
+                    )
+                    from options_arena.scoring import (
+                        determine_direction,
                     )
 
                     batch_ohlcv = await market_data.fetch_ohlcv(ticker, period="1y")
@@ -329,10 +349,19 @@ async def _run_batch_debate_background(
                     else:
                         batch_raw_signals = IndicatorSignals()
 
+                    batch_composite = calc_composite(batch_raw_signals)
+                    batch_direction = determine_direction(
+                        adx=batch_raw_signals.adx or 0.0,
+                        rsi=batch_raw_signals.rsi or 50.0,
+                        sma_alignment=batch_raw_signals.sma_alignment or 0.0,
+                        supertrend=batch_raw_signals.supertrend,
+                        roc=batch_raw_signals.roc,
+                    )
+
                     score_match = TickerScore(
                         ticker=ticker,
-                        composite_score=50.0,
-                        direction=SignalDirection.NEUTRAL,
+                        composite_score=batch_composite,
+                        direction=batch_direction,
                         signals=batch_raw_signals,
                     )
 

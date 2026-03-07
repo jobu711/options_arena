@@ -385,8 +385,10 @@ class TestExistingRatiosUnchanged:
             stochastic_rsi=0.4,
             relative_volume=1.2,
             max_pain_distance=0.05,
+            short_ratio=2.5,
+            short_pct_of_float=0.05,
         )
-        # 11 of 11 checkable fields populated (no contract_mid, so no Greeks)
+        # 13 of 13 checkable fields populated (no contract_mid, so no Greeks)
         assert ctx.completeness_ratio() == pytest.approx(1.0)
 
     def test_enrichment_ratio_still_works_with_openbb_fields(self) -> None:

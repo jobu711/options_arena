@@ -196,6 +196,8 @@ class MarketContext(BaseModel):
             self.atr_pct,
             self.stochastic_rsi,
             self.relative_volume,
+            self.short_ratio,
+            self.short_pct_of_float,
         ]
         # Only count Greeks when contracts are available — without contracts,
         # Greeks are inherently absent and shouldn't lower the ratio.
