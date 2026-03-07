@@ -131,7 +131,7 @@ def _make_contract() -> OptionContract:
         ticker="AAPL",
         option_type=OptionType.CALL,
         strike=Decimal("190.00"),
-        expiration=date.today() + timedelta(days=45),
+        expiration=datetime.now(UTC).date() + timedelta(days=45),
         bid=Decimal("4.50"),
         ask=Decimal("4.80"),
         last=Decimal("4.65"),
@@ -598,7 +598,7 @@ class TestBuildMarketContextCombined:
         # Contract-derived fields
         assert ctx.target_strike == Decimal("190.00")
         assert ctx.target_delta == pytest.approx(0.35)
-        assert ctx.dte_target == 45
+        assert ctx.dte_target == _make_contract().dte
         # Signals pass-through
         assert ctx.rsi_14 == pytest.approx(65.0)
         assert ctx.iv_rank == pytest.approx(50.0)
