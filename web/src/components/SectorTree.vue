@@ -194,7 +194,7 @@ function sectorColor(sectorName: string): string {
 <style scoped>
 .sector-tree-wrapper {
   min-width: 250px;
-  max-width: 500px;
+  max-width: 100%;
 }
 
 .sector-tree {
