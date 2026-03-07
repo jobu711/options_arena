@@ -9,7 +9,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from options_arena.agents import DebateResult, run_debate_v2
+from options_arena.agents import DebateResult, run_debate
 from options_arena.api.app import limiter
 from options_arena.api.deps import (
     get_market_data,
@@ -87,14 +87,28 @@ async def _run_debate_background(
             score_match = None
 
         if score_match is None:
-            # Create a minimal TickerScore for the debate
+            # Compute real indicators from OHLCV so MarketContext has actual data
+            # instead of an empty IndicatorSignals (which causes <40% completeness
+            # and silent fallback to data-driven mode).
             from options_arena.models import IndicatorSignals, SignalDirection, TickerScore
+            from options_arena.scan.indicators import (  # noqa: PLC0415
+                INDICATOR_REGISTRY,
+                compute_indicators,
+                ohlcv_to_dataframe,
+            )
+
+            ohlcv_list = await market_data.fetch_ohlcv(ticker, period="1y")
+            if ohlcv_list:
+                df = ohlcv_to_dataframe(ohlcv_list)
+                raw_signals = compute_indicators(df, INDICATOR_REGISTRY)
+            else:
+                raw_signals = IndicatorSignals()
 
             score_match = TickerScore(
                 ticker=ticker,
                 composite_score=50.0,
                 direction=SignalDirection.NEUTRAL,
-                signals=IndicatorSignals(),
+                signals=raw_signals,
             )
 
         # Fetch fresh option chains
@@ -142,7 +156,7 @@ async def _run_debate_background(
         if intelligence_svc is not None:
             intel = await intelligence_svc.fetch_intelligence(ticker, float(quote.price))
 
-        result: DebateResult = await run_debate_v2(
+        result: DebateResult = await run_debate(
             ticker_score=score_match,
             contracts=contracts,
             quote=quote,
@@ -302,12 +316,24 @@ async def _run_batch_debate_background(
                         SignalDirection,
                         TickerScore,
                     )
+                    from options_arena.scan.indicators import (  # noqa: PLC0415
+                        INDICATOR_REGISTRY,
+                        compute_indicators,
+                        ohlcv_to_dataframe,
+                    )
+
+                    batch_ohlcv = await market_data.fetch_ohlcv(ticker, period="1y")
+                    if batch_ohlcv:
+                        batch_df = ohlcv_to_dataframe(batch_ohlcv)
+                        batch_raw_signals = compute_indicators(batch_df, INDICATOR_REGISTRY)
+                    else:
+                        batch_raw_signals = IndicatorSignals()
 
                     score_match = TickerScore(
                         ticker=ticker,
                         composite_score=50.0,
                         direction=SignalDirection.NEUTRAL,
-                        signals=IndicatorSignals(),
+                        signals=batch_raw_signals,
                     )
 
                 contracts = []
@@ -362,7 +388,7 @@ async def _run_batch_debate_background(
                 # Create a per-ticker agent bridge that forwards to the batch bridge
                 agent_bridge = bridge.agent_bridge(ticker)
 
-                result: DebateResult = await run_debate_v2(
+                result: DebateResult = await run_debate(
                     ticker_score=score_match,
                     contracts=contracts,
                     quote=quote,

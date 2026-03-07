@@ -345,7 +345,7 @@ async def test_get_debate_v1_returns_none_v2(
 # ---------------------------------------------------------------------------
 
 
-@patch("options_arena.api.routes.debate.run_debate_v2", new_callable=AsyncMock)
+@patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
 @patch("options_arena.api.routes.debate.compute_dimensional_scores")
 async def test_debate_background_persists_v2(
     mock_dim_scores: MagicMock,
@@ -364,6 +364,7 @@ async def test_debate_background_persists_v2(
     mock_market_data = AsyncMock()
     mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
     mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info())
+    mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
 
     mock_options_data = AsyncMock()
     mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])

@@ -1,12 +1,11 @@
 """Tests for v2 agent output wiring through orchestrator to persistence.
 
 Tests cover:
-  - run_debate_v2 populates all 4 v2 fields on DebateResult
+  - run_debate populates all 4 v2 fields on DebateResult
     (flow, fundamental, risk_v2, contrarian)
-  - run_debate_v2 sets debate_protocol to "v2"
-  - run_debate (v1 path) does NOT populate v2 fields (regression guard)
+  - run_debate sets debate_protocol to "v2"
   - _persist_result serializes v2 fields to save_debate
-  - run_debate_v2 partial agent failure produces DebateResult with None for failed agent
+  - run_debate partial agent failure produces DebateResult with None for failed agent
 """
 
 from __future__ import annotations
@@ -18,14 +17,9 @@ from pydantic_ai import models
 from pydantic_ai.models.test import TestModel
 
 from options_arena.agents._parsing import DebateResult
-from options_arena.agents.bear import bear_agent
-from options_arena.agents.bull import bull_agent
 from options_arena.agents.contrarian_agent import contrarian_agent
-from options_arena.agents.orchestrator import (
-    run_debate,
-    run_debate_v2,
-)
-from options_arena.agents.risk import risk_agent, risk_agent_v2
+from options_arena.agents.orchestrator import run_debate
+from options_arena.agents.risk import risk_agent_v2
 from options_arena.agents.trend_agent import trend_agent
 from options_arena.agents.volatility import volatility_agent
 from options_arena.models import (
@@ -110,7 +104,7 @@ def _make_contrarian_thesis() -> ContrarianThesis:
 
 
 class TestRunDebateV2Populates:
-    """run_debate_v2 populates v2 agent output fields on DebateResult."""
+    """run_debate populates v2 agent output fields on DebateResult."""
 
     @pytest.mark.asyncio
     async def test_v2_debate_populates_all_fields(
@@ -137,7 +131,7 @@ class TestRunDebateV2Populates:
             risk_agent_v2.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
-            result = await run_debate_v2(
+            result = await run_debate(
                 ticker_score=mock_ticker_score,
                 contracts=[mock_option_contract],
                 quote=mock_quote,
@@ -177,7 +171,7 @@ class TestRunDebateV2Populates:
             risk_agent_v2.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
-            result = await run_debate_v2(
+            result = await run_debate(
                 ticker_score=mock_ticker_score,
                 contracts=[mock_option_contract],
                 quote=mock_quote,
@@ -187,44 +181,6 @@ class TestRunDebateV2Populates:
                 fundamental_output=_make_fundamental_thesis(),
             )
         assert result.debate_protocol == "v2"
-
-
-# ---------------------------------------------------------------------------
-# TestV1Unchanged — regression guard
-# ---------------------------------------------------------------------------
-
-
-class TestV1Unchanged:
-    """v1 path (run_debate) does NOT populate v2 fields."""
-
-    @pytest.mark.asyncio
-    async def test_v1_debate_unchanged(
-        self,
-        mock_ticker_score: TickerScore,
-        mock_option_contract: OptionContract,
-        mock_quote: Quote,
-        mock_ticker_info: TickerInfo,
-        mock_debate_config: DebateConfig,
-    ) -> None:
-        """v1 run_debate leaves v2 fields at defaults (None / 'v1')."""
-        with (
-            bull_agent.override(model=TestModel()),
-            bear_agent.override(model=TestModel()),
-            risk_agent.override(model=TestModel()),
-        ):
-            result = await run_debate(
-                ticker_score=mock_ticker_score,
-                contracts=[mock_option_contract],
-                quote=mock_quote,
-                ticker_info=mock_ticker_info,
-                config=mock_debate_config,
-            )
-        assert result.is_fallback is False
-        assert result.flow_response is None
-        assert result.fundamental_response is None
-        assert result.risk_v2_response is None
-        assert result.contrarian_response is None
-        assert result.debate_protocol == "v1"
 
 
 # ---------------------------------------------------------------------------
@@ -261,7 +217,7 @@ class TestPersistResultV2:
             risk_agent_v2.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
-            await run_debate_v2(
+            await run_debate(
                 ticker_score=mock_ticker_score,
                 contracts=[mock_option_contract],
                 quote=mock_quote,
@@ -314,7 +270,7 @@ class TestV2FallbackOnAgentFailure:
             raise RuntimeError("All agents failed")
 
         monkeypatch.setattr("options_arena.agents.orchestrator._run_v2_agents", fake_run_v2_agents)
-        result = await run_debate_v2(
+        result = await run_debate(
             ticker_score=mock_ticker_score,
             contracts=[mock_option_contract],
             quote=mock_quote,
@@ -327,5 +283,5 @@ class TestV2FallbackOnAgentFailure:
         assert result.fundamental_response is None
         assert result.risk_v2_response is None
         assert result.contrarian_response is None
-        # Fallback defaults to "v1" protocol
-        assert result.debate_protocol == "v1"
+        # Fallback defaults to "v2" protocol (v1 removed)
+        assert result.debate_protocol == "v2"

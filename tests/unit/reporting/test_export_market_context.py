@@ -104,6 +104,7 @@ def _make_debate_result(
         total_usage=RunUsage(),
         duration_ms=1500,
         is_fallback=False,
+        debate_protocol="v1",
     )
 
 

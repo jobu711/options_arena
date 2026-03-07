@@ -1,4 +1,4 @@
-"""Integration tests for the 6-agent debate protocol (run_debate_v2).
+"""Integration tests for the 6-agent debate protocol (run_debate).
 
 Tests cover:
   - Full 6-agent protocol flow (all agents succeed via TestModel)
@@ -29,7 +29,7 @@ from options_arena.agents.contrarian_agent import contrarian_agent
 from options_arena.agents.orchestrator import (
     AGENT_VOTE_WEIGHTS,
     compute_agreement_score,
-    run_debate_v2,
+    run_debate,
     synthesize_verdict,
 )
 from options_arena.agents.risk import risk_agent_v2
@@ -460,7 +460,7 @@ class TestSynthesizeVerdict:
 
 
 class TestRunDebateV2:
-    """Integration tests for run_debate_v2()."""
+    """Integration tests for run_debate()."""
 
     @pytest.mark.asyncio
     async def test_full_protocol_with_test_model(self) -> None:
@@ -475,7 +475,7 @@ class TestRunDebateV2:
             risk_agent_v2.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
-            result = await run_debate_v2(
+            result = await run_debate(
                 ticker_score=_make_ticker_score(),
                 contracts=[_make_contract()],
                 quote=_make_quote(),
@@ -503,7 +503,7 @@ class TestRunDebateV2:
             risk_agent_v2.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
-            result = await run_debate_v2(
+            result = await run_debate(
                 ticker_score=_make_ticker_score(),
                 contracts=[_make_contract()],
                 quote=_make_quote(),
@@ -524,7 +524,7 @@ class TestRunDebateV2:
             agent_timeout=0.5,
             max_total_duration=1.0,
         )
-        result = await run_debate_v2(
+        result = await run_debate(
             ticker_score=_make_ticker_score(),
             contracts=[_make_contract()],
             quote=_make_quote(),
@@ -548,7 +548,7 @@ class TestRunDebateV2:
             contrarian_agent.override(model=TestModel()),
         ):
             # No flow_output, no fundamental_output -> 2 failures already
-            result = await run_debate_v2(
+            result = await run_debate(
                 ticker_score=_make_ticker_score(),
                 contracts=[_make_contract()],
                 quote=_make_quote(),
@@ -580,7 +580,7 @@ class TestRunDebateV2:
             risk_agent_v2.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
-            result = await run_debate_v2(
+            result = await run_debate(
                 ticker_score=_make_ticker_score(),
                 contracts=[_make_contract()],
                 quote=_make_quote(),
@@ -604,7 +604,7 @@ class TestRunDebateV2:
             signals=IndicatorSignals(rsi=50.0),
             scan_run_id=1,
         )
-        result = await run_debate_v2(
+        result = await run_debate(
             ticker_score=score,
             contracts=[_make_contract()],
             quote=_make_quote(),
@@ -629,7 +629,7 @@ class TestRunDebateV2:
             risk_agent_v2.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
-            result = await run_debate_v2(
+            result = await run_debate(
                 ticker_score=_make_ticker_score(),
                 contracts=[_make_contract()],
                 quote=_make_quote(),
@@ -654,7 +654,7 @@ class TestRunDebateV2:
             risk_agent_v2.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
-            result = await run_debate_v2(
+            result = await run_debate(
                 ticker_score=_make_ticker_score(),
                 contracts=[_make_contract()],
                 quote=_make_quote(),

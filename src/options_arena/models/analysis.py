@@ -101,6 +101,7 @@ class MarketContext(BaseModel):
 
     # Short interest — from yfinance TickerInfo
     short_ratio: float | None = None  # days to cover
+    short_pct_of_float: float | None = None  # decimal fraction (no upper bound — squeezes > 1.0)
 
     # OpenBB enrichment — fundamentals (from FundamentalSnapshot)
     pe_ratio: float | None = None
@@ -312,6 +313,7 @@ class MarketContext(BaseModel):
         "target_rho",
         # Short interest
         "short_ratio",
+        "short_pct_of_float",
         # OpenBB enrichment float fields
         "pe_ratio",
         "forward_pe",

@@ -133,6 +133,7 @@ def _make_debate_result(
     vol_response: VolatilityThesis | None = None,
     bull_rebuttal: AgentResponse | None = None,
     is_fallback: bool = False,
+    debate_protocol: str = "v1",
 ) -> DebateResult:
     """Build a complete DebateResult with optional vol and rebuttal sections."""
     return DebateResult(
@@ -145,6 +146,7 @@ def _make_debate_result(
         is_fallback=is_fallback,
         vol_response=vol_response,
         bull_rebuttal=bull_rebuttal,
+        debate_protocol=debate_protocol,
     )
 
 

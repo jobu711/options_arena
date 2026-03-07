@@ -307,6 +307,7 @@ def _make_mock_debate_result(*, with_rebuttal: bool = False) -> DebateResult:
         duration_ms=1000,
         is_fallback=False,
         bull_rebuttal=rebuttal,
+        debate_protocol="v1",
     )
 
 

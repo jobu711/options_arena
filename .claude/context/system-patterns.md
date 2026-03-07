@@ -25,7 +25,7 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **Display guards**: CLI checks `isfinite()` before formatting, falls back to `"--"`.
 - **OHLCV candle validators**: Rejects zero/negative/non-finite prices; `model_validator` rejects impossible candles.
 - **Zero-price rejection**: `fetch_quote()`/`fetch_ticker_info()` raise `TickerNotFoundError` when price is None/<=0.
-- **MarketContext completeness**: Optional fields are `float | None`. `completeness_ratio()` measures populated fields. Debate requires >=60%; <80% warns.
+- **MarketContext completeness**: Optional fields are `float | None`. `completeness_ratio()` measures populated fields. <0.4 → data-driven fallback; <0.6 → warning (proceed with caution); >=0.6 → full debate.
 
 ### Service Layer Patterns
 - **Class-based DI**: `config`, `cache`, `limiter` via `__init__`. Explicit `close()`. Cache-first strategy.

@@ -263,7 +263,7 @@ class OutcomeCollector:
                     ),
                     None,
                 )
-                if matching is not None and matching.bid is not None and matching.ask is not None:
+                if matching is not None:
                     exit_contract_bid = matching.bid
                     exit_contract_ask = matching.ask
                     exit_contract_mid = (matching.bid + matching.ask) / Decimal("2")
