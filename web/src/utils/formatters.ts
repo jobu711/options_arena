@@ -48,10 +48,11 @@ export function formatDateShort(iso: string): string {
   })
 }
 
-/** Format an ISO date string as compact date for charts (e.g., "Mar 15"). */
+/** Format an ISO date/datetime string as compact date for charts (e.g., "Mar 15"). */
 export function formatDateCompact(iso: string): string {
-  const [year, month, day] = iso.split('-').map(Number)
-  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '--'
+  return d.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
   })
