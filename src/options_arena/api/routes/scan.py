@@ -88,8 +88,11 @@ async def _run_scan_background(
                     market_data=request.app.state.market_data,
                     options_data=request.app.state.options_data,
                 )
-                outcomes = await collector.collect_outcomes()
+                timeout = request.app.state.settings.analytics.collection_timeout
+                outcomes = await asyncio.wait_for(collector.collect_outcomes(), timeout=timeout)
                 outcomes_count = len(outcomes)
+            except TimeoutError:
+                logger.warning("Outcome collection timed out for scan %d", scan_id)
             except Exception:
                 logger.exception("Outcome collection failed for scan %d", scan_id)
 

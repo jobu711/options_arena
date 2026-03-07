@@ -111,8 +111,10 @@ class TestScanBackgroundOutcomeCollection:
         await lock.acquire()
 
         # Build mock request with app.state
+        mock_analytics = MagicMock()
+        mock_analytics.collection_timeout = 120.0
         mock_request = MagicMock()
-        mock_request.app.state.settings.analytics = MagicMock()
+        mock_request.app.state.settings.analytics = mock_analytics
         mock_request.app.state.repo = MagicMock()
         mock_request.app.state.market_data = MagicMock()
         mock_request.app.state.options_data = MagicMock()
@@ -135,7 +137,7 @@ class TestScanBackgroundOutcomeCollection:
             )
 
         mock_oc_class.assert_called_once_with(
-            config=mock_request.app.state.settings.analytics,
+            config=mock_analytics,
             repository=mock_request.app.state.repo,
             market_data=mock_request.app.state.market_data,
             options_data=mock_request.app.state.options_data,
@@ -192,8 +194,10 @@ class TestScanBackgroundOutcomeCollection:
         lock = asyncio.Lock()
         await lock.acquire()
 
+        mock_analytics = MagicMock()
+        mock_analytics.collection_timeout = 120.0
         mock_request = MagicMock()
-        mock_request.app.state.settings.analytics = MagicMock()
+        mock_request.app.state.settings.analytics = mock_analytics
         mock_request.app.state.repo = MagicMock()
         mock_request.app.state.market_data = MagicMock()
         mock_request.app.state.options_data = MagicMock()
@@ -238,8 +242,10 @@ class TestScanBackgroundOutcomeCollection:
         lock = asyncio.Lock()
         await lock.acquire()
 
+        mock_analytics = MagicMock()
+        mock_analytics.collection_timeout = 120.0
         mock_request = MagicMock()
-        mock_request.app.state.settings.analytics = MagicMock()
+        mock_request.app.state.settings.analytics = mock_analytics
         mock_request.app.state.repo = MagicMock()
         mock_request.app.state.market_data = MagicMock()
         mock_request.app.state.options_data = MagicMock()
@@ -263,6 +269,98 @@ class TestScanBackgroundOutcomeCollection:
             )
 
         # The complete event should still be sent with outcomes_collected=0
+        event = bridge.queue.get_nowait()
+        assert event["type"] == "complete"
+        assert event["scan_id"] == 42
+        assert event["outcomes_collected"] == 0
+        assert event["cancelled"] is False
+
+    @pytest.mark.asyncio
+    async def test_pipeline_failure_emits_error_then_complete(self) -> None:
+        """Verify outer pipeline.run() failure emits error + complete events."""
+        from options_arena.api.routes.scan import _run_scan_background
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.run = AsyncMock(side_effect=RuntimeError("Pipeline exploded"))
+
+        bridge = WebSocketProgressBridge()
+        lock = asyncio.Lock()
+        await lock.acquire()
+
+        mock_request = MagicMock()
+        mock_request.app.state.active_scans = {1: MagicMock()}
+        mock_request.app.state.scan_queues = {1: bridge.queue}
+
+        with patch(
+            "options_arena.api.routes.scan.OutcomeCollector",
+        ) as mock_oc_class:
+            await _run_scan_background(
+                mock_request,
+                1,
+                ScanPreset.SP500,
+                ScanSource.MANUAL,
+                MagicMock(),
+                bridge,
+                mock_pipeline,
+                lock,
+            )
+
+        # OutcomeCollector should never be constructed when pipeline fails
+        mock_oc_class.assert_not_called()
+
+        # First event: error
+        error_event = bridge.queue.get_nowait()
+        assert error_event["type"] == "error"
+
+        # Second event: complete with outcomes_collected=0
+        complete_event = bridge.queue.get_nowait()
+        assert complete_event["type"] == "complete"
+        assert complete_event["scan_id"] == 1
+        assert complete_event["cancelled"] is False
+        assert complete_event["outcomes_collected"] == 0
+
+    @pytest.mark.asyncio
+    async def test_outcomes_timeout_nonfatal(self) -> None:
+        """Verify scan succeeds if collect_outcomes() times out."""
+        from options_arena.api.routes.scan import _run_scan_background
+
+        result = _make_scan_result(cancelled=False, scan_id=42)
+        mock_pipeline = MagicMock()
+        mock_pipeline.run = AsyncMock(return_value=result)
+
+        mock_collector_instance = MagicMock()
+        mock_collector_instance.collect_outcomes = AsyncMock(
+            side_effect=TimeoutError("collection timed out")
+        )
+
+        bridge = WebSocketProgressBridge()
+        lock = asyncio.Lock()
+        await lock.acquire()
+
+        mock_request = MagicMock()
+        mock_request.app.state.settings.analytics = MagicMock()
+        mock_request.app.state.settings.analytics.collection_timeout = 1.0
+        mock_request.app.state.repo = MagicMock()
+        mock_request.app.state.market_data = MagicMock()
+        mock_request.app.state.options_data = MagicMock()
+        mock_request.app.state.active_scans = {1: MagicMock()}
+        mock_request.app.state.scan_queues = {1: bridge.queue}
+
+        with patch(
+            "options_arena.api.routes.scan.OutcomeCollector",
+            return_value=mock_collector_instance,
+        ):
+            await _run_scan_background(
+                mock_request,
+                1,
+                ScanPreset.SP500,
+                ScanSource.MANUAL,
+                MagicMock(),
+                bridge,
+                mock_pipeline,
+                lock,
+            )
+
         event = bridge.queue.get_nowait()
         assert event["type"] == "complete"
         assert event["scan_id"] == 42

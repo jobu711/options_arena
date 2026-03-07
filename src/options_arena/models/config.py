@@ -466,6 +466,7 @@ class AnalyticsConfig(BaseModel):
 
     holding_periods: list[int] = [1, 5, 10, 20]
     batch_size: int = 50
+    collection_timeout: float = 120.0
 
     @field_validator("batch_size")
     @classmethod

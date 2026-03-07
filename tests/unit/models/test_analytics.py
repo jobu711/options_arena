@@ -937,10 +937,11 @@ class TestAnalyticsConfig:
     """Tests for the AnalyticsConfig BaseModel and AppSettings wiring."""
 
     def test_defaults(self) -> None:
-        """Verify default holding_periods=[1,5,10,20], batch_size=50."""
+        """Verify default holding_periods=[1,5,10,20], batch_size=50, collection_timeout=120."""
         config = AnalyticsConfig()
         assert config.holding_periods == [1, 5, 10, 20]
         assert config.batch_size == 50
+        assert config.collection_timeout == 120.0
 
     def test_custom_values(self) -> None:
         """Verify custom values accepted."""
