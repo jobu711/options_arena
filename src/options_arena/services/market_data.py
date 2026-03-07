@@ -268,6 +268,26 @@ class MarketDataService:
         except Exception as exc:
             raise DataSourceUnavailableError(f"yfinance: {exc}") from exc
 
+    @staticmethod
+    def _build_info_from_fast_info(ticker_obj: yf.Ticker) -> dict[str, Any]:
+        """Build an info-compatible dict from ``fast_info`` (Context7-verified).
+
+        Used as fallback when ``Ticker.info`` fails (e.g. ETFs returning
+        HTTP 404 for quoteSummary fundamentals).  ``fast_info`` uses a
+        simpler Yahoo endpoint that works for all ticker types.
+        """
+        fi = ticker_obj.fast_info
+        return {
+            "currentPrice": fi["last_price"],
+            "regularMarketPrice": fi["last_price"],
+            "previousClose": fi["previous_close"],
+            "marketCap": fi.get("market_cap"),
+            "fiftyTwoWeekHigh": fi.get("year_high"),
+            "fiftyTwoWeekLow": fi.get("year_low"),
+            "volume": fi.get("last_volume"),
+            "shortName": ticker_obj.ticker,
+        }
+
     async def fetch_ohlcv(self, ticker: str, period: str = "1y") -> list[OHLCV]:
         """Fetch OHLCV history for *ticker* from yfinance.
 
@@ -365,9 +385,15 @@ class MarketDataService:
 
         async with self._limiter:
             ticker_obj = yf.Ticker(ticker)
-            info: dict[str, Any] = await fetch_with_retry(
-                lambda: self._yf_call(lambda: ticker_obj.info)
-            )
+            try:
+                info: dict[str, Any] = await fetch_with_retry(
+                    lambda: self._yf_call(lambda: ticker_obj.info)
+                )
+            except DataSourceUnavailableError:
+                # ETFs (SPY, QQQ) lack quoteSummary fundamentals (Yahoo 404).
+                # Fall back to fast_info for basic price data.
+                logger.warning("%s: Ticker.info failed, using fast_info fallback", ticker)
+                info = await self._yf_call(self._build_info_from_fast_info, ticker_obj)
 
         price_raw = info.get("currentPrice") or info.get("regularMarketPrice")
         price = safe_decimal(price_raw)
@@ -411,9 +437,15 @@ class MarketDataService:
 
         async with self._limiter:
             ticker_obj = yf.Ticker(ticker)
-            info: dict[str, Any] = await fetch_with_retry(
-                lambda: self._yf_call(lambda: ticker_obj.info)
-            )
+            try:
+                info: dict[str, Any] = await fetch_with_retry(
+                    lambda: self._yf_call(lambda: ticker_obj.info)
+                )
+            except DataSourceUnavailableError:
+                # ETFs (SPY, QQQ) lack quoteSummary fundamentals (Yahoo 404).
+                # Fall back to fast_info for basic price/market-cap data.
+                logger.warning("%s: Ticker.info failed, using fast_info fallback", ticker)
+                info = await self._yf_call(self._build_info_from_fast_info, ticker_obj)
 
         # Fetch dividends for tier 3 of the waterfall
         async with self._limiter:

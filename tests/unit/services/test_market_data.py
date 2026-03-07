@@ -409,6 +409,37 @@ class TestFetchQuote:
         assert result.ask == Decimal("42.6")
         assert result.volume == 100_000
 
+    async def test_fetch_quote_fast_info_fallback(self, service: MarketDataService) -> None:
+        """When Ticker.info raises (ETF 404), falls back to fast_info for quote."""
+        mock_ticker = MagicMock()
+        # .info property raises (simulates Yahoo quoteSummary 404 for ETFs)
+        type(mock_ticker).info = property(
+            lambda self: (_ for _ in ()).throw(Exception("HTTP Error 404"))
+        )
+        mock_ticker.ticker = "SPY"
+        mock_ticker.fast_info = {
+            "last_price": 580.25,
+            "previous_close": 578.10,
+            "market_cap": 530_000_000_000,
+            "year_high": 615.0,
+            "year_low": 490.0,
+            "last_volume": 80_000_000,
+        }
+
+        with (
+            patch("options_arena.services.market_data.yf") as mock_yf,
+            patch("options_arena.services.helpers.asyncio.sleep", return_value=None),
+        ):
+            mock_yf.Ticker.return_value = mock_ticker
+            result = await service.fetch_quote("SPY")
+
+        assert isinstance(result, Quote)
+        assert result.ticker == "SPY"
+        assert result.price == Decimal("580.25")
+        assert result.bid == Decimal("0")  # not available via fast_info
+        assert result.ask == Decimal("0")
+        assert result.volume == 80_000_000
+
 
 # ---------------------------------------------------------------------------
 # TestFetchTickerInfo
@@ -486,6 +517,42 @@ class TestFetchTickerInfo:
             mock_yf.Ticker.return_value = mock_ticker
             with pytest.raises(TickerNotFoundError, match="invalid current price"):
                 await service.fetch_ticker_info("ZEROTICKER")
+
+    async def test_fetch_ticker_info_fast_info_fallback(self, service: MarketDataService) -> None:
+        """When Ticker.info raises (ETF 404), falls back to fast_info for ticker info."""
+        mock_ticker = MagicMock()
+        # .info property raises (simulates Yahoo quoteSummary 404 for ETFs)
+        type(mock_ticker).info = property(
+            lambda self: (_ for _ in ()).throw(Exception("HTTP Error 404"))
+        )
+        mock_ticker.ticker = "SPY"
+        mock_ticker.fast_info = {
+            "last_price": 580.25,
+            "previous_close": 578.10,
+            "market_cap": 530_000_000_000,
+            "year_high": 615.0,
+            "year_low": 490.0,
+            "last_volume": 80_000_000,
+        }
+        # Dividends still work for ETFs
+        mock_ticker.get_dividends.return_value = pd.Series([1.50, 1.55, 1.60, 1.65], dtype=float)
+
+        with (
+            patch("options_arena.services.market_data.yf") as mock_yf,
+            patch("options_arena.services.helpers.asyncio.sleep", return_value=None),
+        ):
+            mock_yf.Ticker.return_value = mock_ticker
+            result = await service.fetch_ticker_info("SPY")
+
+        assert isinstance(result, TickerInfo)
+        assert result.ticker == "SPY"
+        assert result.company_name == "SPY"  # shortName defaults to ticker
+        assert result.sector == "Unknown"
+        assert result.industry == "Unknown"
+        assert result.current_price == Decimal("580.25")
+        assert result.market_cap == 530_000_000_000
+        assert result.fifty_two_week_high == Decimal("615.0")
+        assert result.fifty_two_week_low == Decimal("490.0")
 
 
 # ---------------------------------------------------------------------------
