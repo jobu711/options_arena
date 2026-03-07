@@ -3,10 +3,12 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
+import Badge from 'primevue/badge'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import ProgressTracker from '@/components/ProgressTracker.vue'
 import PreScanFilters from '@/components/scan/PreScanFilters.vue'
+import FilterSummaryChips from '@/components/scan/FilterSummaryChips.vue'
 import { useScanStore } from '@/stores/scan'
 import { useOperationStore } from '@/stores/operation'
 import { useWebSocket } from '@/composables/useWebSocket'
@@ -22,11 +24,22 @@ const opStore = useOperationStore()
 
 const SCAN_PHASES = ['universe', 'scoring', 'options', 'persist']
 
+// Template ref for programmatic filter clearing
+const preFiltersRef = ref<InstanceType<typeof PreScanFilters> | null>(null)
+
 // Current filter state from PreScanFilters component
 const currentFilters = ref<PreScanFilterPayload>({ preset: 'sp500' })
 
 function onFiltersUpdate(payload: PreScanFilterPayload): void {
   currentFilters.value = payload
+}
+
+function handleClearFilter(key: string): void {
+  preFiltersRef.value?.clearFilter(key)
+}
+
+function handleClearAll(): void {
+  preFiltersRef.value?.clearAll()
 }
 
 // WebSocket connection for live scan progress
@@ -110,20 +123,34 @@ onUnmounted(() => {
 
 <template>
   <div class="page">
-    <h1 data-testid="scan-title">Scan</h1>
+    <!-- Page header with subtitle -->
+    <div class="page-header">
+      <h1 data-testid="scan-title">Scan</h1>
+      <p class="page-subtitle">Configure and launch options universe scans</p>
+    </div>
 
     <!-- Pre-scan Filters -->
     <PreScanFilters
+      ref="preFiltersRef"
       :disabled="scanStore.isScanning || opStore.inProgress"
       @update:filters="onFiltersUpdate"
     />
 
-    <!-- Run Scan Button -->
-    <div class="launch-panel">
+    <!-- Filter Summary + Launch -->
+    <div v-if="!scanStore.isScanning" class="launch-section">
+      <FilterSummaryChips
+        :filters="currentFilters"
+        :sector-count="currentFilters.sectors?.length ?? 0"
+        :industry-group-count="currentFilters.industryGroups?.length ?? 0"
+        :disabled="opStore.inProgress"
+        @clear-filter="handleClearFilter"
+        @clear-all="handleClearAll"
+      />
       <Button
         label="Run Scan"
         icon="pi pi-play"
         severity="success"
+        size="large"
         :disabled="scanStore.isScanning || opStore.inProgress"
         :loading="scanStore.isScanning"
         data-testid="start-scan-btn"
@@ -131,7 +158,7 @@ onUnmounted(() => {
       />
     </div>
 
-    <!-- Progress Panel -->
+    <!-- Progress (replaces launch when scanning) -->
     <ProgressTracker
       v-if="scanStore.isScanning && scanStore.progress"
       :phases="SCAN_PHASES"
@@ -143,8 +170,11 @@ onUnmounted(() => {
     />
 
     <!-- Past Scans -->
-    <section class="section">
-      <h2>Past Scans</h2>
+    <section class="section past-scans-section">
+      <h2>
+        Past Scans
+        <Badge v-if="scanStore.scans.length > 0" :value="String(scanStore.scans.length)" severity="secondary" />
+      </h2>
       <DataTable
         :value="scanStore.scans"
         :loading="scanStore.loading && !scanStore.isScanning"
@@ -197,11 +227,26 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.launch-panel {
+.page-header {
+  margin-bottom: 1.5rem;
+}
+
+.page-subtitle {
+  color: var(--p-surface-400, #888);
+  font-size: 0.9rem;
+  margin: 0.25rem 0 0;
+}
+
+.launch-section {
+  background: var(--p-surface-800, #1a1a1a);
+  border: 1px solid var(--p-surface-700, #333);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
   display: flex;
-  gap: 0.75rem;
+  flex-direction: column;
   align-items: center;
-  margin-bottom: 1rem;
+  gap: 1rem;
+  margin: 1rem 0;
 }
 
 .progress-panel {
