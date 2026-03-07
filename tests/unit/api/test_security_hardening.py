@@ -7,8 +7,6 @@ and WebSocket origin validation (AUDIT-024).
 from __future__ import annotations
 
 import html as html_module
-from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import AsyncClient
@@ -17,7 +15,6 @@ from pydantic import ValidationError
 from options_arena.api.schemas import (
     BatchDebateRequest,
     DebateRequest,
-    WatchlistTickerRequest,
 )
 from options_arena.api.ws import _is_loopback_origin
 
@@ -76,26 +73,6 @@ class TestDebateRequestTickerValidation:
     def test_ticker_with_hyphen(self) -> None:
         req = DebateRequest(ticker="BF-B")
         assert req.ticker == "BF-B"
-
-
-class TestWatchlistTickerRequestValidation:
-    """WatchlistTickerRequest ticker field validation."""
-
-    def test_valid_ticker(self) -> None:
-        req = WatchlistTickerRequest(ticker="GOOGL")
-        assert req.ticker == "GOOGL"
-
-    def test_lowercase_uppercased(self) -> None:
-        req = WatchlistTickerRequest(ticker="googl")
-        assert req.ticker == "GOOGL"
-
-    def test_invalid_rejected(self) -> None:
-        with pytest.raises(ValidationError):
-            WatchlistTickerRequest(ticker="a]b")
-
-    def test_empty_rejected(self) -> None:
-        with pytest.raises(ValidationError):
-            WatchlistTickerRequest(ticker="")
 
 
 class TestBatchDebateRequestValidation:
@@ -169,23 +146,6 @@ async def test_batch_debate_invalid_ticker_returns_422(client: AsyncClient) -> N
         "/api/debate/batch",
         json={"scan_id": 1, "tickers": ["AAPL", "<script>"]},
     )
-    assert response.status_code == 422
-
-
-@pytest.mark.asyncio
-async def test_watchlist_add_invalid_ticker_returns_422(
-    client: AsyncClient, mock_repo: MagicMock
-) -> None:
-    """POST /api/watchlist/{id}/tickers with invalid ticker returns 422."""
-    from options_arena.models import Watchlist  # noqa: PLC0415
-
-    mock_repo.get_watchlist_by_id = AsyncMock(
-        return_value=Watchlist(
-            id=1, name="Test", created_at=datetime(2026, 2, 27, 12, 0, 0, tzinfo=UTC)
-        )
-    )
-    mock_repo.add_ticker_to_watchlist = AsyncMock(return_value=None)
-    response = await client.post("/api/watchlist/1/tickers", json={"ticker": "a]b"})
     assert response.status_code == 422
 
 

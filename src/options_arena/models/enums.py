@@ -123,12 +123,10 @@ class ScanPreset(StrEnum):
 class ScanSource(StrEnum):
     """Origin of a scan request.
 
-    MANUAL    — started from the scan page or CLI.
-    WATCHLIST — started from a watchlist with custom tickers.
+    MANUAL — started from the scan page or CLI.
     """
 
     MANUAL = "manual"
-    WATCHLIST = "watchlist"
 
 
 class GreeksSource(StrEnum):

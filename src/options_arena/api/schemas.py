@@ -370,44 +370,6 @@ class BatchTickerResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-# ---------------------------------------------------------------------------
-# Watchlist schemas (#144)
-# ---------------------------------------------------------------------------
-
-
-class WatchlistCreateRequest(BaseModel):
-    """Request body for ``POST /api/watchlist``."""
-
-    name: str
-
-
-class WatchlistCreateResponse(BaseModel):
-    """Response for ``POST /api/watchlist`` (201)."""
-
-    id: int
-    name: str
-
-
-class WatchlistTickerRequest(BaseModel):
-    """Request body for ``POST /api/watchlist/{id}/tickers``."""
-
-    ticker: str = Field(min_length=1, max_length=10)
-
-    @field_validator("ticker", mode="before")
-    @classmethod
-    def normalize_ticker(cls, v: str) -> str:
-        """Uppercase and strip whitespace before pattern validation."""
-        if not isinstance(v, str):
-            raise ValueError("ticker must be a string")
-        v = v.upper().strip()
-        if not TICKER_RE.match(v):
-            raise ValueError(
-                f"Invalid ticker format: {v!r}. "
-                "Must be 1-10 characters: A-Z, 0-9, dots, hyphens, or caret."
-            )
-        return v
-
-
 class ConfigResponse(BaseModel):
     """Read-only safe config values (no secrets)."""
 
@@ -416,13 +378,6 @@ class ConfigResponse(BaseModel):
     enable_rebuttal: bool
     enable_volatility_agent: bool
     agent_timeout: float
-
-
-class WatchlistTickerAddedResponse(BaseModel):
-    """Response for adding a ticker to a watchlist."""
-
-    status: str
-    ticker: str
 
 
 class CancelScanResponse(BaseModel):
