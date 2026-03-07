@@ -358,9 +358,7 @@ class TestMarketContext:
         assert isinstance(ctx.news_sentiment_label, SentimentLabel)
         assert ctx.news_sentiment_label == SentimentLabel.BEARISH
 
-    def test_news_sentiment_label_none_allowed(
-        self, sample_market_context: MarketContext
-    ) -> None:
+    def test_news_sentiment_label_none_allowed(self, sample_market_context: MarketContext) -> None:
         """MarketContext news_sentiment_label defaults to None."""
         assert sample_market_context.news_sentiment_label is None
 
