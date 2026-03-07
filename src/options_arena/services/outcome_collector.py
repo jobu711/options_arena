@@ -195,7 +195,7 @@ class OutcomeCollector:
         intrinsic = self._compute_intrinsic_value(
             contract.option_type, contract.strike, exit_stock_price
         )
-        dte_at_exit = (contract.expiration - exit_date).days
+        dte_at_exit = max(0, (contract.expiration - exit_date).days)
 
         if intrinsic == Decimal("0"):
             # Expired worthless — OTM at expiry
