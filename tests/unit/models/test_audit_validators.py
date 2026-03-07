@@ -9,7 +9,6 @@ Covers:
   6. MarketContext: contract_mid Decimal finite validator
 """
 
-import math
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -28,7 +27,6 @@ from options_arena.models import (
     WinRateResult,
 )
 from options_arena.models.enums import (
-    DividendSource,
     ExerciseStyle,
     MacdSignal,
     OptionType,
