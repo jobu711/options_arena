@@ -33,6 +33,7 @@ def _make_uniform_signals(value: float) -> IndicatorSignals:
 class TestCompositeScore:
     """Tests for composite_score()."""
 
+    @pytest.mark.smoke
     def test_known_values_geometric_mean(self) -> None:
         """Manually computed geometric mean for two indicators matches output.
 

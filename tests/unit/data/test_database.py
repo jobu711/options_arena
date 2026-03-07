@@ -8,6 +8,8 @@ import pytest_asyncio
 
 from options_arena.data.database import Database
 
+pytestmark = pytest.mark.db
+
 
 @pytest_asyncio.fixture
 async def db() -> Database:

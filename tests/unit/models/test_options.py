@@ -445,6 +445,7 @@ class TestOptionContract:
         assert sample_contract_with_greeks.greeks.delta == pytest.approx(0.45)
         assert sample_contract_with_greeks.greeks.pricing_model == PricingModel.BAW
 
+    @pytest.mark.smoke
     def test_decimal_roundtrip_via_json(self) -> None:
         """Decimal("1.05") survives JSON roundtrip as string, not float."""
         contract = OptionContract(

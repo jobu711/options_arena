@@ -22,6 +22,8 @@ from options_arena.data.repository import DebateRow, Repository
 from options_arena.models import MarketContext
 from options_arena.models.enums import ExerciseStyle, MacdSignal
 
+pytestmark = pytest.mark.db
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

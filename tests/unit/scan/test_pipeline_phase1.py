@@ -158,6 +158,7 @@ class TestScanPipelineConstructor:
 class TestPhaseUniverse:
     """Phase 1 fetches optionable tickers, S&P 500 sectors, and OHLCV data."""
 
+    @pytest.mark.smoke
     async def test_fetches_optionable_tickers(self) -> None:
         tickers = ["AAPL", "MSFT", "GOOG"]
         pipeline, mocks = _make_pipeline(optionable_tickers=tickers)

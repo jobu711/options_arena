@@ -68,6 +68,7 @@ models.ALLOW_MODEL_REQUESTS = False
 class TestBuildMarketContext:
     """Tests for build_market_context field mapping."""
 
+    @pytest.mark.smoke
     def test_maps_ticker_from_score(
         self,
         mock_ticker_score: TickerScore,

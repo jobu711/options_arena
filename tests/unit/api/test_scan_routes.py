@@ -47,6 +47,7 @@ async def test_list_scans_empty(client: AsyncClient) -> None:
     assert response.json() == []
 
 
+@pytest.mark.smoke
 async def test_list_scans_returns_data(client: AsyncClient, mock_repo: MagicMock) -> None:
     """GET /api/scan returns scan list."""
     mock_repo.get_recent_scans = AsyncMock(return_value=[_make_scan_run()])

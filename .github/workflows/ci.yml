@@ -50,7 +50,7 @@ jobs:
       - run: uv sync --frozen
       - name: Dependency audit
         run: uv run pip-audit
-      - run: uv run pytest tests/ -x -q --tb=short
+      - run: uv run pytest tests/ -n auto -x -q --tb=short
 
   frontend:
     name: "Gate 4: Frontend"
