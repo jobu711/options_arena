@@ -4,7 +4,7 @@ export interface ScanRun {
   started_at: string
   completed_at: string | null
   preset: 'full' | 'sp500' | 'etfs' | 'nasdaq100' | 'russell2000' | 'most_active'
-  source: 'manual' | 'watchlist'
+  source: 'manual'
   tickers_scanned: number
   tickers_scored: number
   recommendations: number

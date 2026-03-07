@@ -122,7 +122,7 @@ class ScanPipeline:
             preset: Universe preset (FULL, SP500, ETFS).
             token: Instance-scoped cancellation token checked between phases.
             progress: Callback for reporting per-phase progress.
-            source: Origin of the scan (manual, watchlist).
+            source: Origin of the scan (manual).
 
         Returns:
             A ``ScanResult`` with all phases completed (or partial if cancelled).

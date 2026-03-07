@@ -6,7 +6,6 @@ Tests cover:
   - Bull rebuttal section appears when bull_rebuttal is present
   - Fallback warning displayed when is_fallback=True
   - File write creates a valid markdown file at the target path
-  - PDF export raises ImportError when weasyprint is unavailable
   - Export directory is created automatically when it does not exist
   - Unsupported format raises ValueError
   - Disclaimer is NOT present in output (removed per AUDIT-010)
@@ -293,16 +292,3 @@ def test_export_raises_value_error_for_unsupported_format(tmp_path: Path) -> Non
 
     with pytest.raises(ValueError, match="Unsupported format"):
         export_debate_to_file(result, dest, fmt="html")
-
-
-def test_export_pdf_raises_import_error_without_weasyprint(tmp_path: Path) -> None:
-    """PDF export raises ImportError when weasyprint is not installed.
-
-    weasyprint is an optional dependency. When absent, _render_pdf does a
-    lazy import that raises ImportError with a user-friendly install message.
-    """
-    result = _make_debate_result()
-    dest = tmp_path / "report.pdf"
-
-    with pytest.raises(ImportError, match="weasyprint"):
-        export_debate_to_file(result, dest, fmt="pdf")

@@ -38,11 +38,11 @@ function barWidth(value: number | null): string {
   return `${Math.min(100, Math.max(0, value))}%`
 }
 
-function barColorClass(value: number | null): string {
-  if (value === null) return 'bar-fill--null'
-  if (value < 30) return 'bar-fill--low'
-  if (value < 60) return 'bar-fill--mid'
-  return 'bar-fill--high'
+function tierClass(value: number | null): string {
+  if (value === null) return 'tier--null'
+  if (value < 30) return 'tier--low'
+  if (value < 60) return 'tier--mid'
+  return 'tier--high'
 }
 
 function displayValue(value: number | null): string {
@@ -57,16 +57,16 @@ function displayValue(value: number | null): string {
       v-for="bar in bars"
       :key="bar.key"
       class="bar-row"
+      :class="tierClass(bar.value)"
     >
       <span class="bar-label">{{ bar.label }}</span>
       <div class="bar-track">
         <div
           class="bar-fill"
-          :class="barColorClass(bar.value)"
           :style="{ width: barWidth(bar.value) }"
         />
       </div>
-      <span class="bar-value mono" :class="barColorClass(bar.value)">
+      <span class="bar-value mono">
         {{ displayValue(bar.value) }}
       </span>
     </div>
@@ -77,7 +77,7 @@ function displayValue(value: number | null): string {
 .dim-scores {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.35rem;
 }
 
 .bar-row {
@@ -100,6 +100,7 @@ function displayValue(value: number | null): string {
   background: var(--p-surface-700, #333);
   border-radius: 0.25rem;
   overflow: hidden;
+  min-width: 0;
 }
 
 .bar-fill {
@@ -109,29 +110,39 @@ function displayValue(value: number | null): string {
 }
 
 .bar-value {
-  width: 2rem;
+  width: 2.25rem;
   font-size: 0.75rem;
+  font-weight: 600;
   text-align: right;
   flex-shrink: 0;
 }
 
-.bar-fill--high {
+/* --- Tier colors: bar fill via .bar-fill, text via .bar-value --- */
+.tier--high .bar-fill {
   background: var(--accent-emerald, #10b981);
+}
+.tier--high .bar-value {
   color: var(--accent-emerald, #10b981);
 }
 
-.bar-fill--mid {
+.tier--mid .bar-fill {
   background: var(--accent-amber, #f59e0b);
+}
+.tier--mid .bar-value {
   color: var(--accent-amber, #f59e0b);
 }
 
-.bar-fill--low {
+.tier--low .bar-fill {
   background: var(--accent-red, #ef4444);
+}
+.tier--low .bar-value {
   color: var(--accent-red, #ef4444);
 }
 
-.bar-fill--null {
-  background: var(--accent-gray, #6b7280);
+.tier--null .bar-fill {
+  background: var(--p-surface-600, #555);
+}
+.tier--null .bar-value {
   color: var(--p-surface-400, #888);
 }
 

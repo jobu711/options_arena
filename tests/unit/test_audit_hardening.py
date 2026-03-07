@@ -27,7 +27,6 @@ from options_arena.models import (
     ScanConfig,
     ScanPreset,
     SignalDirection,
-    WatchlistTickerDetail,
 )
 
 # ---------------------------------------------------------------------------
@@ -204,43 +203,7 @@ class TestOptionContractValidators:
 
 
 class TestCompositeScoreBounds:
-    """WatchlistTickerDetail and HistoryPoint reject out-of-range composite_score."""
-
-    def test_watchlist_ticker_detail_rejects_101(self) -> None:
-        """WatchlistTickerDetail rejects composite_score of 101."""
-        with pytest.raises(ValidationError, match="composite_score must be in"):
-            WatchlistTickerDetail(
-                ticker="AAPL",
-                added_at=datetime(2025, 6, 15, 14, 30, tzinfo=UTC),
-                composite_score=101.0,
-            )
-
-    def test_watchlist_ticker_detail_rejects_negative(self) -> None:
-        """WatchlistTickerDetail rejects negative composite_score."""
-        with pytest.raises(ValidationError, match="composite_score must be in"):
-            WatchlistTickerDetail(
-                ticker="AAPL",
-                added_at=datetime(2025, 6, 15, 14, 30, tzinfo=UTC),
-                composite_score=-1.0,
-            )
-
-    def test_watchlist_ticker_detail_rejects_nan(self) -> None:
-        """WatchlistTickerDetail rejects NaN composite_score."""
-        with pytest.raises(ValidationError, match="composite_score must be finite"):
-            WatchlistTickerDetail(
-                ticker="AAPL",
-                added_at=datetime(2025, 6, 15, 14, 30, tzinfo=UTC),
-                composite_score=float("nan"),
-            )
-
-    def test_watchlist_ticker_detail_accepts_none(self) -> None:
-        """WatchlistTickerDetail accepts None composite_score."""
-        w = WatchlistTickerDetail(
-            ticker="AAPL",
-            added_at=datetime(2025, 6, 15, 14, 30, tzinfo=UTC),
-            composite_score=None,
-        )
-        assert w.composite_score is None
+    """HistoryPoint rejects out-of-range composite_score."""
 
     def test_history_point_rejects_101(self) -> None:
         """HistoryPoint rejects composite_score of 101."""

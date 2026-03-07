@@ -90,12 +90,6 @@ from options_arena.models.options import OptionContract, OptionGreeks, OptionSpr
 from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
 from options_arena.models.scan_delta import ScanDiff, TickerDelta
 from options_arena.models.scoring import DimensionalScores, DirectionSignal
-from options_arena.models.watchlist import (
-    Watchlist,
-    WatchlistDetail,
-    WatchlistTicker,
-    WatchlistTickerDetail,
-)
 
 __all__ = [
     # Enums
@@ -197,9 +191,4 @@ __all__ = [
     # Metadata
     "MetadataCoverage",
     "TickerMetadata",
-    # Watchlist
-    "Watchlist",
-    "WatchlistDetail",
-    "WatchlistTicker",
-    "WatchlistTickerDetail",
 ]

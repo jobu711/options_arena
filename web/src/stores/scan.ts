@@ -73,7 +73,7 @@ export const useScanStore = defineStore('scan', () => {
     sectors?: string[]
     industryGroups?: string[]
     customTickers?: string[]
-    source?: 'manual' | 'watchlist'
+    source?: 'manual'
     market_cap_tiers?: string[]
     exclude_near_earnings_days?: number | null
     direction_filter?: string | null

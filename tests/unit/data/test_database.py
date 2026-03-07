@@ -43,14 +43,12 @@ async def test_foreign_keys_enabled(db: Database) -> None:
 
 @pytest.mark.asyncio
 async def test_all_tables_created(db: Database) -> None:
-    """All 6 business tables exist after connect + migration."""
+    """All business tables exist after connect + migration."""
     expected_tables = {
         "scan_runs",
         "ticker_scores",
         "service_cache",
         "ai_theses",
-        "watchlists",
-        "watchlist_tickers",
     }
     async with db.conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"

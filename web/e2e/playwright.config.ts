@@ -66,19 +66,11 @@ export default defineConfig({
       },
     },
     {
-      name: 'watchlist-workflows',
-      testDir: './suites/watchlist',
-      use: {
-        ...devices['Desktop Chrome'],
-        baseURL: `http://127.0.0.1:${BASE_PORT + 4}`,
-      },
-    },
-    {
       name: 'score-history',
       testDir: './suites/score-history',
       use: {
         ...devices['Desktop Chrome'],
-        baseURL: `http://127.0.0.1:${BASE_PORT + 5}`,
+        baseURL: `http://127.0.0.1:${BASE_PORT + 4}`,
       },
     },
     {
@@ -86,12 +78,12 @@ export default defineConfig({
       testDir: './suites/analytics',
       use: {
         ...devices['Desktop Chrome'],
-        baseURL: `http://127.0.0.1:${BASE_PORT + 6}`,
+        baseURL: `http://127.0.0.1:${BASE_PORT + 5}`,
       },
     },
   ],
 
-  webServer: Array.from({ length: 7 }, (_, i) => ({
+  webServer: Array.from({ length: 6 }, (_, i) => ({
     command: `uv run uvicorn options_arena.api:create_app --factory --port ${BASE_PORT + i} --host 127.0.0.1`,
     port: BASE_PORT + i,
     reuseExistingServer: !process.env.CI,

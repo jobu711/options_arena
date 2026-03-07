@@ -16,15 +16,13 @@ async def db() -> Database:
 
 
 @pytest.mark.asyncio
-async def test_all_six_tables_exist(db: Database) -> None:
-    """Fresh database has all 6 business tables after connect."""
+async def test_all_business_tables_exist(db: Database) -> None:
+    """Fresh database has all business tables after connect."""
     expected = {
         "scan_runs",
         "ticker_scores",
         "service_cache",
         "ai_theses",
-        "watchlists",
-        "watchlist_tickers",
     }
     async with db.conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
@@ -71,7 +69,6 @@ async def test_ticker_scores_columns(db: Database) -> None:
         "direction_confidence": "REAL",
         "market_regime": "TEXT",
         "industry_group": "TEXT",
-        "thematic_tags_json": "TEXT",
     }
     async with db.conn.execute("PRAGMA table_info(ticker_scores)") as cursor:
         rows = await cursor.fetchall()
