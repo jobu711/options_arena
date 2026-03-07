@@ -121,17 +121,17 @@ class TestPromptAppendixIntegration:
     def test_bull_prompt_contains_appendix(self) -> None:
         assert "Confidence calibration" in BULL_SYSTEM_PROMPT
         assert "Data citation rules" in BULL_SYSTEM_PROMPT
-        assert "Data anchors" in BULL_SYSTEM_PROMPT
+        assert "Domain-specific calibration" in BULL_SYSTEM_PROMPT
 
     def test_bear_prompt_contains_appendix(self) -> None:
         assert "Confidence calibration" in BEAR_SYSTEM_PROMPT
         assert "Data citation rules" in BEAR_SYSTEM_PROMPT
-        assert "Data anchors" in BEAR_SYSTEM_PROMPT
+        assert "Domain-specific calibration" in BEAR_SYSTEM_PROMPT
 
     def test_risk_prompt_contains_appendix(self) -> None:
         assert "Confidence calibration" in RISK_SYSTEM_PROMPT
         assert "Data citation rules" in RISK_SYSTEM_PROMPT
-        assert "Data anchors" in RISK_SYSTEM_PROMPT
+        assert "Domain-specific calibration" in RISK_SYSTEM_PROMPT
 
     def test_risk_prompt_contains_strategy_tree(self) -> None:
         assert "Strategy selection decision tree" in RISK_SYSTEM_PROMPT
