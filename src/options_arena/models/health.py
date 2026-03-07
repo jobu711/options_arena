@@ -29,9 +29,12 @@ class HealthStatus(BaseModel):
     @field_validator("latency_ms")
     @classmethod
     def validate_latency_finite(cls, v: float | None) -> float | None:
-        """Ensure latency_ms is finite when provided."""
-        if v is not None and not math.isfinite(v):
-            raise ValueError(f"latency_ms must be finite, got {v}")
+        """Ensure latency_ms is finite and non-negative when provided."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"latency_ms must be finite, got {v}")
+            if v < 0.0:
+                raise ValueError(f"latency_ms must be >= 0, got {v}")
         return v
 
     @field_validator("checked_at")

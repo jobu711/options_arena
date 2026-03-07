@@ -37,7 +37,6 @@ from options_arena.models import (
     FlowThesis,
     FundamentalThesis,
     RiskAssessment,
-    SentimentLabel,
     TradeThesis,
 )
 from options_arena.models.intelligence import IntelligencePackage
@@ -706,8 +705,6 @@ async def get_debate(
         net_call_premium=mc.net_call_premium if mc else None,
         net_put_premium=mc.net_put_premium if mc else None,
         news_sentiment_score=mc.news_sentiment if mc else None,
-        news_sentiment_label=(
-            SentimentLabel(mc.news_sentiment_label) if mc and mc.news_sentiment_label else None
-        ),
+        news_sentiment_label=(mc.news_sentiment_label if mc else None),
         enrichment_ratio=mc.enrichment_ratio() if mc else None,
     )

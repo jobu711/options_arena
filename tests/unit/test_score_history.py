@@ -234,6 +234,28 @@ class TestTrendingTickerModel:
         )
         assert tt.score_change == pytest.approx(-5.2)
 
+    def test_zero_consecutive_scans_raises(self) -> None:
+        """TrendingTicker rejects consecutive_scans = 0."""
+        with pytest.raises(ValueError, match="consecutive_scans"):
+            TrendingTicker(
+                ticker="AAPL",
+                direction="bullish",
+                consecutive_scans=0,
+                latest_score=82.3,
+                score_change=4.1,
+            )
+
+    def test_negative_consecutive_scans_raises(self) -> None:
+        """TrendingTicker rejects negative consecutive_scans."""
+        with pytest.raises(ValueError, match="consecutive_scans"):
+            TrendingTicker(
+                ticker="AAPL",
+                direction="bullish",
+                consecutive_scans=-1,
+                latest_score=82.3,
+                score_change=4.1,
+            )
+
     def test_json_roundtrip(self) -> None:
         """TrendingTicker survives JSON serialization round-trip."""
         tt = TrendingTicker(

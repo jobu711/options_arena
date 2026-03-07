@@ -20,6 +20,7 @@ from options_arena.models import (
     ExerciseStyle,
     MacdSignal,
     MarketContext,
+    SentimentLabel,
     SignalDirection,
     SpreadType,
     TradeThesis,
@@ -327,6 +328,85 @@ class TestMarketContext:
         assert ctx.iv_percentile is None
         assert ctx.atm_iv_30d is None
         assert ctx.put_call_ratio is None
+
+    def test_news_sentiment_label_accepts_strenum(
+        self, sample_market_context: MarketContext
+    ) -> None:
+        """MarketContext news_sentiment_label accepts SentimentLabel enum."""
+        sample_market_context.news_sentiment_label = SentimentLabel.BULLISH
+        assert sample_market_context.news_sentiment_label == SentimentLabel.BULLISH
+        assert sample_market_context.news_sentiment_label == "bullish"
+
+    def test_news_sentiment_label_coerces_string(self) -> None:
+        """MarketContext coerces raw 'bearish' string to SentimentLabel during construction."""
+        ctx = MarketContext(
+            ticker="AAPL",
+            current_price=Decimal("185.50"),
+            price_52w_high=Decimal("199.62"),
+            price_52w_low=Decimal("164.08"),
+            macd_signal=MacdSignal.NEUTRAL,
+            next_earnings=None,
+            dte_target=45,
+            target_strike=Decimal("185.00"),
+            target_delta=0.35,
+            sector="Technology",
+            dividend_yield=0.005,
+            exercise_style=ExerciseStyle.AMERICAN,
+            data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+            news_sentiment_label="bearish",  # type: ignore[arg-type]
+        )
+        assert isinstance(ctx.news_sentiment_label, SentimentLabel)
+        assert ctx.news_sentiment_label == SentimentLabel.BEARISH
+
+    def test_news_sentiment_label_none_allowed(
+        self, sample_market_context: MarketContext
+    ) -> None:
+        """MarketContext news_sentiment_label defaults to None."""
+        assert sample_market_context.news_sentiment_label is None
+
+    def test_news_sentiment_label_invalid_raises(
+        self, sample_market_context: MarketContext
+    ) -> None:
+        """MarketContext rejects invalid sentiment label string."""
+        with pytest.raises(ValidationError):
+            MarketContext(
+                ticker="AAPL",
+                current_price=Decimal("185.50"),
+                price_52w_high=Decimal("199.62"),
+                price_52w_low=Decimal("164.08"),
+                macd_signal=MacdSignal.NEUTRAL,
+                next_earnings=None,
+                dte_target=45,
+                target_strike=Decimal("185.00"),
+                target_delta=0.35,
+                sector="Technology",
+                dividend_yield=0.005,
+                exercise_style=ExerciseStyle.AMERICAN,
+                data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+                news_sentiment_label="very_bullish",  # invalid
+            )
+
+    def test_news_sentiment_label_json_roundtrip(self) -> None:
+        """MarketContext with SentimentLabel survives JSON roundtrip."""
+        ctx = MarketContext(
+            ticker="AAPL",
+            current_price=Decimal("185.50"),
+            price_52w_high=Decimal("199.62"),
+            price_52w_low=Decimal("164.08"),
+            macd_signal=MacdSignal.NEUTRAL,
+            next_earnings=None,
+            dte_target=45,
+            target_strike=Decimal("185.00"),
+            target_delta=0.35,
+            sector="Technology",
+            dividend_yield=0.005,
+            exercise_style=ExerciseStyle.AMERICAN,
+            data_timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+            news_sentiment_label=SentimentLabel.BULLISH,
+        )
+        json_str = ctx.model_dump_json()
+        restored = MarketContext.model_validate_json(json_str)
+        assert restored.news_sentiment_label == SentimentLabel.BULLISH
 
 
 # ---------------------------------------------------------------------------

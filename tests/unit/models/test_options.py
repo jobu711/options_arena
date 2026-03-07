@@ -533,6 +533,21 @@ class TestSpreadLeg:
                 quantity=-1,
             )
 
+    def test_frozen_enforcement(self, sample_contract: OptionContract) -> None:
+        """SpreadLeg is frozen: attribute reassignment raises ValidationError."""
+        leg = SpreadLeg(contract=sample_contract, side=PositionSide.LONG)
+        with pytest.raises(ValidationError):
+            leg.quantity = 5  # type: ignore[misc]
+
+    def test_json_roundtrip(self, sample_contract: OptionContract) -> None:
+        """SpreadLeg survives JSON serialization/deserialization."""
+        leg = SpreadLeg(contract=sample_contract, side=PositionSide.LONG, quantity=3)
+        json_str = leg.model_dump_json()
+        restored = SpreadLeg.model_validate_json(json_str)
+        assert restored.side == PositionSide.LONG
+        assert restored.quantity == 3
+        assert restored.contract.ticker == sample_contract.ticker
+
 
 # ---------------------------------------------------------------------------
 # OptionSpread Tests

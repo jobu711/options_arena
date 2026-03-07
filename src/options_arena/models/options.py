@@ -193,11 +193,17 @@ class OptionContract(BaseModel):
 class SpreadLeg(BaseModel):
     """A single leg of an option spread.
 
+    Frozen (immutable after construction) — a completed leg specification.
+    Without ``frozen=True``, OptionSpread's immutability would be compromised
+    (``spread.legs[0].quantity = 5`` would succeed).
+
     Attributes:
         contract: The option contract for this leg.
         side: LONG or SHORT position.
         quantity: Number of contracts (defaults to 1, must be >= 1).
     """
+
+    model_config = ConfigDict(frozen=True)
 
     contract: OptionContract
     side: PositionSide

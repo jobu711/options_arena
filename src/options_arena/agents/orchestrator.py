@@ -217,7 +217,7 @@ def build_market_context(
         options_put_call_ratio=flow.put_call_ratio if flow else None,
         # OpenBB enrichment — news sentiment
         news_sentiment=sentiment.aggregate_sentiment if sentiment else None,
-        news_sentiment_label=(sentiment.sentiment_label.value if sentiment else None),
+        news_sentiment_label=(sentiment.sentiment_label if sentiment else None),
         recent_headlines=(
             [h.title for h in sentiment.headlines[:5]]
             if sentiment and sentiment.headlines

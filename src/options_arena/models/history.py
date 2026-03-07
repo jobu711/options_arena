@@ -64,6 +64,14 @@ class TrendingTicker(BaseModel):
     latest_score: float
     score_change: float
 
+    @field_validator("consecutive_scans")
+    @classmethod
+    def validate_consecutive_scans(cls, v: int) -> int:
+        """Ensure consecutive_scans is at least 1."""
+        if v < 1:
+            raise ValueError(f"consecutive_scans must be >= 1, got {v}")
+        return v
+
     @field_validator("latest_score", "score_change")
     @classmethod
     def validate_finite(cls, v: float) -> float:

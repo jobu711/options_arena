@@ -39,6 +39,7 @@ from options_arena.models.enums import (
     ExerciseStyle,
     MacdSignal,
     RiskLevel,
+    SentimentLabel,
     SignalDirection,
     SpreadType,
     VolAssessment,
@@ -119,7 +120,7 @@ class MarketContext(BaseModel):
 
     # OpenBB enrichment — news sentiment (from NewsSentimentSnapshot)
     news_sentiment: float | None = None  # -1.0 to 1.0
-    news_sentiment_label: str | None = None  # "bullish"/"bearish"/"neutral"
+    news_sentiment_label: SentimentLabel | None = None
     recent_headlines: list[str] | None = None  # up to 5 headline strings
 
     # --- Arena Recon: Analyst Intelligence ---

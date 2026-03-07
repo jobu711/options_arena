@@ -110,3 +110,43 @@ class TestHealthStatus:
         json_str = sample_health_unavailable.model_dump_json()
         restored = HealthStatus.model_validate_json(json_str)
         assert restored == sample_health_unavailable
+
+    def test_negative_latency_raises(self) -> None:
+        """HealthStatus rejects negative latency_ms."""
+        with pytest.raises(ValidationError, match="latency_ms"):
+            HealthStatus(
+                service_name="groq",
+                available=True,
+                latency_ms=-1.0,
+                checked_at=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+            )
+
+    def test_zero_latency_allowed(self) -> None:
+        """HealthStatus accepts latency_ms = 0.0 (boundary)."""
+        status = HealthStatus(
+            service_name="groq",
+            available=True,
+            latency_ms=0.0,
+            checked_at=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+        )
+        assert status.latency_ms == pytest.approx(0.0)
+
+    def test_nan_latency_raises(self) -> None:
+        """HealthStatus rejects NaN latency_ms."""
+        with pytest.raises(ValidationError, match="latency_ms"):
+            HealthStatus(
+                service_name="groq",
+                available=True,
+                latency_ms=float("nan"),
+                checked_at=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+            )
+
+    def test_inf_latency_raises(self) -> None:
+        """HealthStatus rejects Inf latency_ms."""
+        with pytest.raises(ValidationError, match="latency_ms"):
+            HealthStatus(
+                service_name="groq",
+                available=True,
+                latency_ms=float("inf"),
+                checked_at=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
+            )
