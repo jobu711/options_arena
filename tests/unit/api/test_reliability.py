@@ -226,6 +226,7 @@ def test_export_markdown_no_disclaimer() -> None:
         total_usage=RunUsage(),
         duration_ms=1500,
         is_fallback=False,
+        debate_protocol="v1",
     )
 
     md = export_debate_markdown(result)

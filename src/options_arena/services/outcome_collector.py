@@ -9,6 +9,7 @@ Never raises — returns partial results and logs errors per contract.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -18,7 +19,9 @@ from options_arena.data.repository import Repository
 from options_arena.models.analytics import ContractOutcome, PerformanceSummary, RecommendedContract
 from options_arena.models.config import AnalyticsConfig
 from options_arena.models.enums import OptionType, OutcomeCollectionMethod
+from options_arena.models.options import OptionContract
 from options_arena.services.market_data import MarketDataService
+from options_arena.services.options_data import OptionsDataService
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +48,10 @@ class OutcomeCollector:
         Database repository for reading contracts and writing outcomes.
     market_data
         Market data service for fetching current quotes.
+    options_data
+        Options data service for fetching live option chains (optional).
+        When provided, active contracts compute exit_contract_mid from
+        the live chain. When ``None``, falls back to stock-return-only.
     """
 
     def __init__(
@@ -52,10 +59,12 @@ class OutcomeCollector:
         config: AnalyticsConfig,
         repository: Repository,
         market_data: MarketDataService,
+        options_data: OptionsDataService | None = None,
     ) -> None:
         self._config = config
         self._repo = repository
         self._market_data = market_data
+        self._options_data = options_data
 
     async def collect_outcomes(
         self,
@@ -114,9 +123,16 @@ class OutcomeCollector:
         outcomes: list[ContractOutcome] = []
         now = datetime.now(UTC)
 
+        # Per-period chain cache to avoid redundant fetch_chain calls for
+        # contracts sharing the same (ticker, expiration).  A None sentinel
+        # means the lookup already failed/timed-out — don't retry.
+        chain_cache: dict[tuple[str, date], list[OptionContract] | None] = {}
+
         for contract in contracts:
             try:
-                outcome = await self._process_contract(contract, holding_days, today, now)
+                outcome = await self._process_contract(
+                    contract, holding_days, today, now, chain_cache=chain_cache
+                )
                 if outcome is not None:
                     outcomes.append(outcome)
             except Exception:
@@ -141,6 +157,8 @@ class OutcomeCollector:
         holding_days: int,
         exit_date: date,
         collected_at: datetime,
+        *,
+        chain_cache: dict[tuple[str, date], list[OptionContract] | None] | None = None,
     ) -> ContractOutcome | None:
         """Process a single contract and return its outcome, or None on error."""
         expired = self._is_expired(contract.expiration, exit_date)
@@ -149,7 +167,9 @@ class OutcomeCollector:
             return await self._process_expired_contract(
                 contract, holding_days, exit_date, collected_at
             )
-        return await self._process_active_contract(contract, holding_days, exit_date, collected_at)
+        return await self._process_active_contract(
+            contract, holding_days, exit_date, collected_at, chain_cache=chain_cache
+        )
 
     async def _process_expired_contract(
         self,
@@ -218,6 +238,8 @@ class OutcomeCollector:
         holding_days: int,
         exit_date: date,
         collected_at: datetime,
+        *,
+        chain_cache: dict[tuple[str, date], list[OptionContract] | None] | None = None,
     ) -> ContractOutcome | None:
         """Handle an active (non-expired) contract — fetch current market data."""
         try:
@@ -234,14 +256,56 @@ class OutcomeCollector:
         stock_return = self._compute_stock_return(contract.entry_stock_price, exit_stock_price)
         dte_at_exit = (contract.expiration - exit_date).days
 
-        # Option chain data would require OptionsDataService (not injected here).
-        # For active contracts, set contract_return to None to indicate
-        # option market data was unavailable; stock return is always computed.
+        # Attempt to fetch live option chain for contract-level P&L
         exit_contract_mid: Decimal | None = None
         exit_contract_bid: Decimal | None = None
         exit_contract_ask: Decimal | None = None
         contract_return: float | None = None
         is_winner: bool | None = None
+
+        if self._options_data is not None:
+            cache_key = (contract.ticker, contract.expiration)
+            chain: list[OptionContract] | None = None
+
+            # Check per-period cache first to avoid redundant fetches
+            if chain_cache is not None and cache_key in chain_cache:
+                chain = chain_cache[cache_key]
+            else:
+                try:
+                    chain = await asyncio.wait_for(
+                        self._options_data.fetch_chain(contract.ticker, contract.expiration),
+                        timeout=10,
+                    )
+                except Exception:
+                    logger.warning(
+                        "Failed to fetch option chain for %s %s",
+                        contract.ticker,
+                        contract.expiration,
+                    )
+                    chain = None
+                if chain_cache is not None:
+                    chain_cache[cache_key] = chain
+
+            if chain is not None:
+                matching = next(
+                    (
+                        c
+                        for c in chain
+                        if c.strike == contract.strike and c.option_type == contract.option_type
+                    ),
+                    None,
+                )
+                if matching is not None:
+                    exit_contract_bid = matching.bid
+                    exit_contract_ask = matching.ask
+                    exit_contract_mid = (matching.bid + matching.ask) / Decimal("2")
+                    if contract.entry_mid and contract.entry_mid > 0:
+                        contract_return = float(
+                            (exit_contract_mid - contract.entry_mid)
+                            / contract.entry_mid
+                            * Decimal("100")
+                        )
+                        is_winner = contract_return > 0
 
         return ContractOutcome(
             recommended_contract_id=contract.id,  # type: ignore[arg-type]

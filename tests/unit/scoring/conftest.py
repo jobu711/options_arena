@@ -1,6 +1,6 @@
 """Shared fixtures for scoring unit tests."""
 
-from datetime import date, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -130,7 +130,7 @@ def make_contract(
         ticker=ticker,
         option_type=option_type,
         strike=Decimal(strike),
-        expiration=date.today() + timedelta(days=dte_days),
+        expiration=datetime.now(UTC).date() + timedelta(days=dte_days),
         bid=Decimal(bid),
         ask=Decimal(ask),
         last=Decimal(last),

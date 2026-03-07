@@ -426,3 +426,25 @@ class TestBuildMarketContextExpanded:
         assert ctx.target_rho is None
         # contract_mid should still be populated (bid+ask)/2
         assert ctx.contract_mid == Decimal("4.65")
+
+
+# ---------------------------------------------------------------------------
+# Short Ratio in Context Block (#319)
+# ---------------------------------------------------------------------------
+
+
+class TestShortRatioInContext:
+    """Tests for short_ratio rendering in the context block (#319)."""
+
+    def test_context_block_renders_short_ratio(self) -> None:
+        """SHORT RATIO appears in the Fundamental Profile section when set."""
+        ctx = _make_context(short_ratio=3.5)
+        text = render_context_block(ctx)
+        assert "SHORT RATIO: 3.50" in text
+        assert "Fundamental Profile" in text
+
+    def test_context_block_omits_when_none(self) -> None:
+        """SHORT RATIO does not appear when short_ratio is None."""
+        ctx = _make_context(short_ratio=None)
+        text = render_context_block(ctx)
+        assert "SHORT RATIO" not in text

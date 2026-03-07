@@ -19,6 +19,7 @@ from options_arena.data import Database, Repository
 from options_arena.models.config import AppSettings
 from options_arena.services.cache import ServiceCache
 from options_arena.services.market_data import MarketDataService
+from options_arena.services.options_data import OptionsDataService
 from options_arena.services.outcome_collector import OutcomeCollector
 from options_arena.services.rate_limiter import RateLimiter
 
@@ -64,13 +65,15 @@ async def _outcomes_collect_async(holding_days: int | None) -> None:
     db = Database(db_path)
 
     market_data: MarketDataService | None = None
+    options_data: OptionsDataService | None = None
 
     try:
         await db.connect()
         repo = Repository(db)
 
         market_data = MarketDataService(settings.service, cache, limiter)
-        collector = OutcomeCollector(settings.analytics, repo, market_data)
+        options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
+        collector = OutcomeCollector(settings.analytics, repo, market_data, options_data)
 
         if holding_days is not None:
             err_console.print(f"[cyan]Collecting outcomes for {holding_days}-day period...[/cyan]")
@@ -144,6 +147,8 @@ async def _outcomes_collect_async(holding_days: int | None) -> None:
         )
         raise typer.Exit(code=1) from exc
     finally:
+        if options_data is not None:
+            await options_data.close()
         if market_data is not None:
             await market_data.close()
         await cache.close()

@@ -17,7 +17,6 @@ from options_arena.agents.orchestrator import (
     classify_macd_signal,
     compute_agreement_score,
     run_debate,
-    run_debate_v2,
     should_debate,
     synthesize_verdict,
 )
@@ -39,7 +38,6 @@ __all__ = [
     "fundamental_agent",
     "render_context_block",
     "run_debate",
-    "run_debate_v2",
     "should_debate",
     "synthesize_verdict",
     "trend_agent",

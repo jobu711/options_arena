@@ -349,7 +349,7 @@ async def test_debate_closes_openbb_in_finally(
 
 
 @pytest.mark.asyncio
-@patch("options_arena.agents.run_debate_v2", new_callable=AsyncMock)
+@patch("options_arena.agents.run_debate", new_callable=AsyncMock)
 @patch("options_arena.scoring.compute_dimensional_scores")
 @patch("options_arena.cli.commands.recommend_contracts")
 @patch("options_arena.cli.commands.compute_indicators")
@@ -412,19 +412,19 @@ async def test_debate_single_fetches_enrichment(
 
 
 @pytest.mark.asyncio
-@patch("options_arena.agents.run_debate_v2", new_callable=AsyncMock)
+@patch("options_arena.agents.run_debate", new_callable=AsyncMock)
 @patch("options_arena.scoring.compute_dimensional_scores")
 @patch("options_arena.cli.commands.recommend_contracts")
 @patch("options_arena.cli.commands.compute_indicators")
 @patch("options_arena.cli.commands.ohlcv_to_dataframe")
-async def test_debate_single_passes_enrichment_to_run_debate_v2(
+async def test_debate_single_passes_enrichment_to_run_debate(
     mock_ohlcv_to_df: MagicMock,
     mock_compute_ind: MagicMock,
     mock_recommend: MagicMock,
     mock_dim_scores: MagicMock,
     mock_run_debate: AsyncMock,
 ) -> None:
-    """Verify enrichment kwargs passed to run_debate_v2."""
+    """Verify enrichment kwargs passed to run_debate."""
     from options_arena.cli.commands import _debate_single  # noqa: PLC0415
     from options_arena.models.config import AppSettings  # noqa: PLC0415
 
@@ -468,7 +468,7 @@ async def test_debate_single_passes_enrichment_to_run_debate_v2(
         openbb_svc=mock_openbb,
     )
 
-    # Verify run_debate_v2 received the enrichment data
+    # Verify run_debate received the enrichment data
     call_kwargs = mock_run_debate.call_args.kwargs
     assert call_kwargs["fundamentals"] is fundamental
     assert call_kwargs["flow"] is flow
@@ -476,7 +476,7 @@ async def test_debate_single_passes_enrichment_to_run_debate_v2(
 
 
 @pytest.mark.asyncio
-@patch("options_arena.agents.run_debate_v2", new_callable=AsyncMock)
+@patch("options_arena.agents.run_debate", new_callable=AsyncMock)
 @patch("options_arena.scoring.compute_dimensional_scores")
 @patch("options_arena.cli.commands.recommend_contracts")
 @patch("options_arena.cli.commands.compute_indicators")

@@ -197,6 +197,54 @@ const earningsDays = computed<number | null>(() => {
 /** Whether earnings warning banner should be shown (< 7 days). */
 const showEarningsWarning = computed(() => earningsDays.value !== null && earningsDays.value < 7 && earningsDays.value >= 0)
 
+interface SignalClassification {
+  label: string
+  severity: 'success' | 'danger' | 'warn' | 'info'
+}
+
+function classifySignal(key: string, value: number | null): SignalClassification | null {
+  if (value === null) return null
+  switch (key) {
+    case 'rsi':
+      if (value < 30) return { label: 'Oversold', severity: 'success' }
+      if (value > 70) return { label: 'Overbought', severity: 'danger' }
+      return null
+    case 'stochastic_rsi':
+      if (value < 20) return { label: 'Oversold', severity: 'success' }
+      if (value > 80) return { label: 'Overbought', severity: 'danger' }
+      return null
+    case 'adx':
+      if (value < 30) return { label: 'Weak', severity: 'warn' }
+      if (value > 60) return { label: 'Strong Trend', severity: 'success' }
+      return null
+    case 'sma_alignment':
+      if (value < 40) return { label: 'Bearish', severity: 'danger' }
+      if (value > 60) return { label: 'Bullish', severity: 'success' }
+      return null
+    case 'relative_volume':
+      if (value < 30) return { label: 'Low Vol', severity: 'info' }
+      if (value > 70) return { label: 'High Vol', severity: 'warn' }
+      return null
+    case 'bb_width':
+      if (value < 20) return { label: 'Compressed', severity: 'info' }
+      if (value > 80) return { label: 'Expanded', severity: 'warn' }
+      return null
+    default:
+      return null
+  }
+}
+
+/** Pre-computed signal rows with classification (avoids calling classifySignal multiple times per row). */
+const signalRows = computed(() => {
+  if (!props.score?.signals) return []
+  const signals = props.score.signals as Record<string, number | null>
+  return Object.entries(signals).map(([key, value]) => ({
+    key,
+    value,
+    classification: classifySignal(key, value),
+  }))
+})
+
 /** Format signal names for display: rsi → RSI, bb_width → BB Width */
 function formatSignalName(key: string): string {
   return key
@@ -290,14 +338,20 @@ function regimeClass(regime: string | null | undefined): string {
       <div class="drawer-section">
         <h3>Indicators</h3>
         <div class="signal-grid">
-          <div
-            v-for="(val, key) in score.signals"
+          <template
+            v-for="{ key, value, classification } in signalRows"
             :key="key"
-            class="signal-row"
           >
-            <span class="signal-name">{{ formatSignalName(String(key)) }}</span>
-            <span class="signal-value mono">{{ formatSignalValue(val as number | null) }}</span>
-          </div>
+            <span class="signal-name">{{ formatSignalName(key) }}</span>
+            <span class="signal-value mono">{{ formatSignalValue(value) }}</span>
+            <Tag
+              v-if="classification"
+              :value="classification.label"
+              :severity="classification.severity"
+              class="signal-tag"
+            />
+            <span v-else class="signal-tag-placeholder" />
+          </template>
         </div>
       </div>
 
@@ -437,12 +491,8 @@ function regimeClass(regime: string | null | undefined): string {
 
 .signal-grid {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 0.25rem 1rem;
-}
-
-.signal-row {
-  display: contents;
 }
 
 .signal-name {
@@ -453,6 +503,15 @@ function regimeClass(regime: string | null | undefined): string {
 .signal-value {
   font-size: 0.8rem;
   text-align: right;
+}
+
+.signal-tag {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+}
+
+.signal-tag-placeholder {
+  /* Empty spacer to maintain 3-column grid alignment */
 }
 
 .debate-list {

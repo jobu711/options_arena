@@ -2,7 +2,7 @@
 
 Mirrors test_debate_openbb.py pattern -- verifies --no-recon flag routing,
 IntelligenceService creation/cleanup lifecycle, and fetch_intelligence passthrough
-to run_debate_v2.
+to run_debate.
 """
 
 from __future__ import annotations
@@ -456,7 +456,7 @@ class TestDebateSingleIntelligence:
     """Tests for intelligence data flow in _debate_single."""
 
     @pytest.mark.asyncio
-    @patch("options_arena.agents.run_debate_v2", new_callable=AsyncMock)
+    @patch("options_arena.agents.run_debate", new_callable=AsyncMock)
     @patch("options_arena.scoring.compute_dimensional_scores")
     @patch("options_arena.cli.commands.recommend_contracts")
     @patch("options_arena.cli.commands.compute_indicators")
@@ -512,12 +512,12 @@ class TestDebateSingleIntelligence:
         mock_intel_svc.fetch_intelligence.assert_awaited_once()
 
     @pytest.mark.asyncio
-    @patch("options_arena.agents.run_debate_v2", new_callable=AsyncMock)
+    @patch("options_arena.agents.run_debate", new_callable=AsyncMock)
     @patch("options_arena.scoring.compute_dimensional_scores")
     @patch("options_arena.cli.commands.recommend_contracts")
     @patch("options_arena.cli.commands.compute_indicators")
     @patch("options_arena.cli.commands.ohlcv_to_dataframe")
-    async def test_passes_intelligence_to_run_debate_v2(
+    async def test_passes_intelligence_to_run_debate(
         self,
         mock_ohlcv_to_df: MagicMock,
         mock_compute_ind: MagicMock,
@@ -525,7 +525,7 @@ class TestDebateSingleIntelligence:
         mock_dim_scores: MagicMock,
         mock_run_debate: AsyncMock,
     ) -> None:
-        """IntelligencePackage passed to run_debate_v2 via intelligence kwarg."""
+        """IntelligencePackage passed to run_debate via intelligence kwarg."""
         from options_arena.cli.commands import _debate_single
         from options_arena.models.config import AppSettings
 
@@ -569,7 +569,7 @@ class TestDebateSingleIntelligence:
         assert call_kwargs["intelligence"] is intel_pkg
 
     @pytest.mark.asyncio
-    @patch("options_arena.agents.run_debate_v2", new_callable=AsyncMock)
+    @patch("options_arena.agents.run_debate", new_callable=AsyncMock)
     @patch("options_arena.scoring.compute_dimensional_scores")
     @patch("options_arena.cli.commands.recommend_contracts")
     @patch("options_arena.cli.commands.compute_indicators")
@@ -582,7 +582,7 @@ class TestDebateSingleIntelligence:
         mock_dim_scores: MagicMock,
         mock_run_debate: AsyncMock,
     ) -> None:
-        """intelligence=None passed to run_debate_v2 when service is None."""
+        """intelligence=None passed to run_debate when service is None."""
         from options_arena.cli.commands import _debate_single
         from options_arena.models.config import AppSettings
 

@@ -1,10 +1,10 @@
 """Tests for v2 agent fields on DebateResult.
 
 Tests cover:
-  - v2 fields default to None / "v1" when not provided (backward-compatible)
+  - v2 fields default to None when not provided (backward-compatible)
   - v2 fields can be populated with typed agent outputs
   - JSON roundtrip preserves v2 fields
-  - debate_protocol defaults to "v1"
+  - debate_protocol defaults to "v2"
   - frozen immutability preserved with v2 fields
 """
 
@@ -57,13 +57,13 @@ class TestV2FieldDefaults:
         assert result.risk_v2_response is None
         assert result.contrarian_response is None
 
-    def test_debate_protocol_defaults_to_v1(
+    def test_debate_protocol_defaults_to_v2(
         self,
         mock_market_context: MarketContext,
         mock_agent_response: AgentResponse,
         mock_trade_thesis: TradeThesis,
     ) -> None:
-        """debate_protocol defaults to 'v1' when not provided."""
+        """debate_protocol defaults to 'v2' (v1 removed)."""
         result = DebateResult(
             context=mock_market_context,
             bull_response=mock_agent_response,
@@ -73,7 +73,7 @@ class TestV2FieldDefaults:
             duration_ms=1000,
             is_fallback=False,
         )
-        assert result.debate_protocol == "v1"
+        assert result.debate_protocol == "v2"
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +249,7 @@ class TestV2FieldsPopulated:
         assert restored.fundamental_response is None
         assert restored.risk_v2_response is None
         assert restored.contrarian_response is None
-        assert restored.debate_protocol == "v1"
+        assert restored.debate_protocol == "v2"
 
 
 # ---------------------------------------------------------------------------
@@ -304,4 +304,4 @@ class TestV2FrozenImmutability:
         assert "risk_v2_response" in dump
         assert "contrarian_response" in dump
         assert "debate_protocol" in dump
-        assert dump["debate_protocol"] == "v1"
+        assert dump["debate_protocol"] == "v2"

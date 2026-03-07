@@ -2,14 +2,14 @@
 
 ## Purpose
 
-Three-agent AI debate system for qualitative options analysis. Bull, Bear, and Risk
-agents run sequentially via PydanticAI, transforming quantitative scan results into
-human-readable reasoning. Uses **Groq** cloud API (Llama 3.3 70B) as the sole LLM
-provider. Data-driven fallback when the LLM provider is unreachable ensures the tool
-always produces a verdict.
+Six-agent AI debate system for qualitative options analysis. Trend, Volatility, Flow,
+Fundamental, Risk, and Contrarian agents run in a 4-phase pipeline via PydanticAI,
+transforming quantitative scan results into human-readable reasoning. Uses **Groq**
+cloud API (Llama 3.3 70B) as the sole LLM provider. Data-driven fallback when the
+LLM provider is unreachable ensures the tool always produces a verdict.
 
 Agents have **no knowledge of each other** — the orchestrator coordinates them.
-The orchestrator does **not fetch data** — the caller (CLI) provides all inputs.
+The orchestrator does **not fetch data** — the caller (CLI/API) provides all inputs.
 
 ## Files
 
@@ -17,12 +17,17 @@ The orchestrator does **not fetch data** — the caller (CLI) provides all input
 |------|---------|---------|
 | `CLAUDE.md` | Module conventions and rules | — |
 | `model_config.py` | `build_debate_model()` — Groq-only model builder | Config utility |
-| `_parsing.py` | `DebateDeps`, `DebateResult` (Pydantic BaseModel), `strip_think_tags()`, `PROMPT_RULES_APPENDIX`, `build_cleaned_agent_response()`, `build_cleaned_trade_thesis()` | Internal |
+| `_parsing.py` | `DebateDeps`, `DebateResult`, `strip_think_tags()`, `PROMPT_RULES_APPENDIX`, `build_cleaned_agent_response()`, `build_cleaned_trade_thesis()`, `render_context_block()` | Internal |
 | `bull.py` | Bull agent + system prompt + output validator | PydanticAI Agent |
 | `bear.py` | Bear agent + dynamic prompt (receives bull argument) | PydanticAI Agent |
-| `risk.py` | Risk agent + dynamic prompt (receives both arguments) | PydanticAI Agent |
-| `orchestrator.py` | `run_debate()`, `build_market_context()`, fallback logic | Coordinator |
-| `__init__.py` | Re-exports `run_debate`, `DebateResult`, `build_market_context` with `__all__` | Standard |
+| `risk.py` | `risk_agent` (v1 fallback) + `risk_agent_v2` (active — portfolio risk, position sizing, hedging) | PydanticAI Agent |
+| `trend_agent.py` | Trend agent — ADX, SuperTrend, SMA, RSI momentum analysis | PydanticAI Agent |
+| `volatility.py` | Volatility agent — IV rank/percentile, term structure, regime | PydanticAI Agent |
+| `flow_agent.py` | Flow agent — put/call ratio, volume, unusual activity | PydanticAI Agent |
+| `fundamental_agent.py` | Fundamental agent — earnings, dividends, sector valuation | PydanticAI Agent |
+| `contrarian_agent.py` | Contrarian agent — challenges consensus, finds blind spots | PydanticAI Agent |
+| `orchestrator.py` | `run_debate()` (6-agent), `build_market_context()`, fallback logic | Coordinator |
+| `__init__.py` | Re-exports: `run_debate`, `DebateResult`, `DebateDeps`, `build_market_context`, `build_debate_model`, `render_context_block`, `should_debate`, `synthesize_verdict`, `compute_agreement_score`, `classify_macd_signal`, `DebatePhase`, `DebateProgressCallback`, `AGENT_VOTE_WEIGHTS`, plus all 6 agent instances | Standard |
 
 ---
 
@@ -30,8 +35,8 @@ The orchestrator does **not fetch data** — the caller (CLI) provides all input
 
 | Rule | Detail |
 |------|--------|
-| **No inter-agent imports** | `bull.py` never imports from `bear.py` or `risk.py`. Each agent is self-contained. |
-| **Orchestrator coordinates** | Only `orchestrator.py` imports from agent modules. Agents import from `_parsing.py` only. |
+| **No inter-agent imports** | No agent module imports from any other agent module. Each agent is self-contained. |
+| **Orchestrator coordinates** | Only `orchestrator.py` imports from agent modules. Agents import from `_parsing.py` and `prompts/` only. |
 | **No data fetching** | Agents and orchestrator receive pre-fetched data. No `httpx`, `yfinance`, or service imports. |
 | **No pricing** | Agents never import from `pricing/`. All Greeks arrive pre-computed on `OptionContract.greeks`. |
 | **Typed boundaries** | `run_debate()` returns `DebateResult`. Agent outputs are `AgentResponse` or `TradeThesis`. No raw dicts. |
@@ -238,18 +243,19 @@ API key priority: `config.api_key` > `GROQ_API_KEY` env > ValueError.
 
 ---
 
-## Orchestrator Flow
+## Orchestrator Flow (6-Agent, 4-Phase)
 
-```
+```text
 1. Build MarketContext from TickerScore + Quote + TickerInfo + contracts
-2. Build GroqModel from DebateConfig
-3. Bull agent → AgentResponse
-4. Bear agent (receives bull argument) → AgentResponse
-5. Rebuttal + Volatility (parallel if both enabled, sequential otherwise)
-6. Risk agent (receives all) → TradeThesis
-7. Compute citation density, accumulate RunUsage
-8. Persist to ai_theses (incl. debate_mode, citation_density)
-9. Return DebateResult
+2. Check completeness: <0.4 → data-driven fallback; <0.6 → warning; >=0.6 → proceed
+3. Build GroqModel from DebateConfig
+4. Phase 1 (parallel): Trend + Volatility + [Flow + Fundamental if intelligence data]
+5. Phase 2: Risk v2 agent (receives all Phase 1 outputs)
+6. Phase 3: Contrarian agent (challenges consensus from Phase 1+2)
+7. Phase 4: Algorithmic verdict synthesis (compute_agreement_score, synthesize_verdict)
+8. Compute citation density, accumulate RunUsage
+9. Persist to ai_theses (incl. debate_mode, citation_density, v2 agent outputs)
+10. Return DebateResult
 ```
 
 ### Error Handling — Never-Raises Pattern
@@ -262,24 +268,27 @@ async def run_debate(
     ticker_info: TickerInfo,
     config: DebateConfig,
     repository: Repository | None = None,
+    progress: DebateProgressCallback | None = None,
+    dimensional_scores: DimensionalScores | None = None,
+    flow_output: FlowThesis | None = None,
+    fundamental_output: FundamentalThesis | None = None,
+    fundamentals: FundamentalSnapshot | None = None,
+    flow: UnusualFlowSnapshot | None = None,
+    sentiment: NewsSentimentSnapshot | None = None,
+    intelligence: IntelligencePackage | None = None,
 ) -> DebateResult:
-    """Run debate. On any failure, return data-driven fallback — never raises."""
+    """Run 6-agent debate. On any failure, return data-driven fallback — never raises."""
     try:
-        # ... build context, run agents sequentially
+        # ... build context, run 4-phase agent pipeline
         pass
-    except (
-        UnexpectedModelBehavior,   # PydanticAI: LLM returned invalid output after retries
-        httpx.ConnectError,        # Groq unreachable
-        TimeoutError,              # Per-agent or total timeout
-        Exception,                 # Catch-all for unexpected failures
-    ) as e:
+    except Exception as e:
         logger.warning("Debate failed (%s), using data-driven fallback", type(e).__name__)
         return _build_fallback_result(context, ticker_score, contracts)
 ```
 
 **Timeout strategy**:
 - Per-agent: `asyncio.wait_for(agent.run(...), timeout=config.agent_timeout)` (60s default)
-- Total debate: `asyncio.wait_for(_run_agents(...), timeout=config.max_total_duration)` (1800s default)
+- Total debate: `asyncio.wait_for(_run_v2_agents(...), timeout=config.max_total_duration)` (1800s default)
 - Fallback computation: < 1s (no LLM, pure string formatting)
 
 ### `build_market_context()` Mapping
@@ -345,8 +354,8 @@ BULL_SYSTEM_PROMPT = """You are a bullish options analyst. ...\n\n""" + PROMPT_R
 - **Flat context**: `MarketContext` rendered as key-value text block, not JSON blob
 - **Options-specific**: agents MUST cite specific strikes, expirations, Greeks, indicators
 - **No hallucinated data**: agents can only reference data present in the context block
-- **Rebuttal injection**: bear receives bull's text wrapped in `<<<BULL_ARGUMENT>>>` delimiters
-  to prevent instruction bleed from LLM-generated text
+- **Prior output injection**: Later-phase agents receive earlier outputs wrapped in delimiters
+  (e.g., `<<<PRIOR_OUTPUTS>>>`) to prevent instruction bleed from LLM-generated text
 
 ### Context Rendering
 
@@ -382,8 +391,6 @@ class DebateConfig(BaseModel):
     temperature: float = 0.3              # LLM temperature [0.0, 2.0]
     fallback_confidence: float = 0.3       # data-driven fallback confidence cap
     max_total_duration: float = 1800.0     # total debate timeout (seconds)
-    enable_rebuttal: bool = False          # optional bull rebuttal round
-    enable_volatility_agent: bool = False  # optional volatility analysis
     min_debate_score: float = 50.0         # minimum score threshold for debate
 ```
 
@@ -471,8 +478,8 @@ Mark with `@pytest.mark.integration`. Skipped by default; run with `pytest -m in
 
 ## What Claude Gets Wrong — Agents-Specific (Fix These)
 
-1. **Inter-agent imports** — `bull.py` must never import from `bear.py` or `risk.py`. Agents
-   are self-contained modules. Only the orchestrator imports from all three.
+1. **Inter-agent imports** — No agent module imports from any other agent module. Agents
+   are self-contained modules. Only the orchestrator imports from all agent modules.
 
 2. **Fetching data in agents** — Agents and orchestrator receive all data pre-fetched.
    Never import `httpx`, `yfinance`, or service classes. The caller (CLI) provides
@@ -512,8 +519,8 @@ Mark with `@pytest.mark.integration`. Skipped by default; run with `pytest -m in
     misconfiguration could accidentally make real API calls. Set at module level in every
     test file.
 
-13. **Parallel agent execution** — Bull → Bear must be sequential. Rebuttal + Volatility
-    can be parallel (via `asyncio.gather`) when both are enabled. Risk always runs last.
+13. **Parallel agent execution** — Phase 1 agents (Trend, Volatility, Flow, Fundamental)
+    run in parallel via `asyncio.gather`. Phase 2 (Risk) and Phase 3 (Contrarian) are sequential.
 
 14. **Forgetting `dynamic=True` on bear/risk prompts** — Bear and risk prompts depend on
     runtime deps (opponent arguments). Without `dynamic=True`, the prompt is cached from the

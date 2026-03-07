@@ -216,7 +216,7 @@ def _make_mock_openbb_service(
 # ---------------------------------------------------------------------------
 
 
-@patch("options_arena.api.routes.debate.run_debate_v2", new_callable=AsyncMock)
+@patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
 @patch("options_arena.api.routes.debate.compute_dimensional_scores")
 async def test_single_debate_fetches_enrichment(
     mock_dim_scores: MagicMock,
@@ -239,6 +239,7 @@ async def test_single_debate_fetches_enrichment(
     mock_market_data = AsyncMock()
     mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
     mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info())
+    mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
 
     mock_options_data = AsyncMock()
     mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])
@@ -257,19 +258,22 @@ async def test_single_debate_fetches_enrichment(
         bridge=bridge,
     )
 
+    # Verify OHLCV backfill path was exercised (scan_id=None)
+    mock_market_data.fetch_ohlcv.assert_awaited_once()
+
     # Verify all three fetch methods were called
     openbb_svc.fetch_fundamentals.assert_awaited_once_with("AAPL")
     openbb_svc.fetch_unusual_flow.assert_awaited_once_with("AAPL")
     openbb_svc.fetch_news_sentiment.assert_awaited_once_with("AAPL")
 
 
-@patch("options_arena.api.routes.debate.run_debate_v2", new_callable=AsyncMock)
+@patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
 @patch("options_arena.api.routes.debate.compute_dimensional_scores")
-async def test_single_debate_passes_enrichment_to_run_debate_v2(
+async def test_single_debate_passes_enrichment_to_run_debate(
     mock_dim_scores: MagicMock,
     mock_run_debate: AsyncMock,
 ) -> None:
-    """Verify enrichment kwargs passed to run_debate_v2."""
+    """Verify enrichment kwargs passed to run_debate."""
     mock_dim_scores.return_value = None
     mock_run_debate.return_value = _make_debate_result()
 
@@ -286,6 +290,7 @@ async def test_single_debate_passes_enrichment_to_run_debate_v2(
     mock_market_data = AsyncMock()
     mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
     mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info())
+    mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
 
     mock_options_data = AsyncMock()
     mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])
@@ -304,14 +309,14 @@ async def test_single_debate_passes_enrichment_to_run_debate_v2(
         bridge=bridge,
     )
 
-    # Check that run_debate_v2 was called with the enrichment data
+    # Check that run_debate was called with the enrichment data
     call_kwargs = mock_run_debate.call_args.kwargs
     assert call_kwargs["fundamentals"] is fundamental
     assert call_kwargs["flow"] is flow
     assert call_kwargs["sentiment"] is sentiment
 
 
-@patch("options_arena.api.routes.debate.run_debate_v2", new_callable=AsyncMock)
+@patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
 @patch("options_arena.api.routes.debate.compute_dimensional_scores")
 async def test_single_debate_skips_enrichment_when_openbb_none(
     mock_dim_scores: MagicMock,
@@ -331,6 +336,7 @@ async def test_single_debate_skips_enrichment_when_openbb_none(
     mock_market_data = AsyncMock()
     mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
     mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info())
+    mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
 
     mock_options_data = AsyncMock()
     mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])
@@ -349,7 +355,7 @@ async def test_single_debate_skips_enrichment_when_openbb_none(
         bridge=bridge,
     )
 
-    # Verify run_debate_v2 was called with None for all enrichment
+    # Verify run_debate was called with None for all enrichment
     call_kwargs = mock_run_debate.call_args.kwargs
     assert call_kwargs["fundamentals"] is None
     assert call_kwargs["flow"] is None
@@ -361,7 +367,7 @@ async def test_single_debate_skips_enrichment_when_openbb_none(
 # ---------------------------------------------------------------------------
 
 
-@patch("options_arena.api.routes.debate.run_debate_v2", new_callable=AsyncMock)
+@patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
 @patch("options_arena.api.routes.debate.compute_dimensional_scores")
 async def test_batch_debate_fetches_enrichment_per_ticker(
     mock_dim_scores: MagicMock,
@@ -385,6 +391,7 @@ async def test_batch_debate_fetches_enrichment_per_ticker(
     mock_market_data = AsyncMock()
     mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
     mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info())
+    mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
 
     mock_options_data = AsyncMock()
     mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])
@@ -412,7 +419,7 @@ async def test_batch_debate_fetches_enrichment_per_ticker(
     assert openbb_svc.fetch_news_sentiment.await_count == 2
 
 
-@patch("options_arena.api.routes.debate.run_debate_v2", new_callable=AsyncMock)
+@patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
 @patch("options_arena.api.routes.debate.compute_dimensional_scores")
 async def test_enrichment_failure_does_not_crash_debate(
     mock_dim_scores: MagicMock,
@@ -433,6 +440,7 @@ async def test_enrichment_failure_does_not_crash_debate(
     mock_market_data = AsyncMock()
     mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
     mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info())
+    mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
 
     mock_options_data = AsyncMock()
     mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])
@@ -451,7 +459,7 @@ async def test_enrichment_failure_does_not_crash_debate(
         bridge=bridge,
     )
 
-    # Debate still runs — run_debate_v2 was called
+    # Debate still runs — run_debate was called
     mock_run_debate.assert_awaited_once()
     # All enrichment args are None
     call_kwargs = mock_run_debate.call_args.kwargs
@@ -460,7 +468,7 @@ async def test_enrichment_failure_does_not_crash_debate(
     assert call_kwargs["sentiment"] is None
 
 
-@patch("options_arena.api.routes.debate.run_debate_v2", new_callable=AsyncMock)
+@patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
 @patch("options_arena.api.routes.debate.compute_dimensional_scores")
 async def test_partial_enrichment_passes_through(
     mock_dim_scores: MagicMock,
@@ -482,6 +490,7 @@ async def test_partial_enrichment_passes_through(
     mock_market_data = AsyncMock()
     mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
     mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info())
+    mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
 
     mock_options_data = AsyncMock()
     mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])

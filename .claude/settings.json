@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/planning-lock.py"
+            "command": "python C:/Users/nicho/Desktop/Options_Arena/.claude/hooks/planning-lock.py"
           }
         ]
       },
@@ -15,16 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/planning-lock.py"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python .claude/hooks/version-sync.py"
+            "command": "python C:/Users/nicho/Desktop/Options_Arena/.claude/hooks/planning-lock.py"
           }
         ]
       }

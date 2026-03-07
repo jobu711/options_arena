@@ -1,7 +1,7 @@
 """Trend agent for Options Arena AI debate.
 
-Direction-agnostic momentum and trend analysis. Replaces the Bull agent in the
-6-agent protocol (``run_debate_v2``). Analyzes ADX, SuperTrend, SMA alignment,
+Direction-agnostic momentum and trend analysis. Part of the 6-agent debate
+protocol (``run_debate``). Analyzes ADX, SuperTrend, SMA alignment,
 RSI, and other trend/momentum signals without bullish or bearish bias.
 
 Architecture rules:

@@ -25,7 +25,7 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **Display guards**: CLI checks `isfinite()` before formatting, falls back to `"--"`.
 - **OHLCV candle validators**: Rejects zero/negative/non-finite prices; `model_validator` rejects impossible candles.
 - **Zero-price rejection**: `fetch_quote()`/`fetch_ticker_info()` raise `TickerNotFoundError` when price is None/<=0.
-- **MarketContext completeness**: Optional fields are `float | None`. `completeness_ratio()` measures populated fields. Debate requires >=60%; <80% warns.
+- **MarketContext completeness**: Optional fields are `float | None`. `completeness_ratio()` measures populated fields. <0.4 → data-driven fallback; <0.6 → warning (proceed with caution); >=0.6 → full debate.
 
 ### Service Layer Patterns
 - **Class-based DI**: `config`, `cache`, `limiter` via `__init__`. Explicit `close()`. Cache-first strategy.
@@ -44,6 +44,7 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - `@agent.output_validator` delegates to shared helpers: `build_cleaned_agent_response()` (bull/bear) and `build_cleaned_trade_thesis()` (risk) — strips `<think>` tags without costly retries
 - **Shared prompt appendix**: `PROMPT_RULES_APPENDIX` appended to bull/bear/risk. `RISK_STRATEGY_TREE` appended to risk only.
 - **Groq-only**: `build_debate_model()` builds `GroqModel` directly (no provider abstraction)
+- **Single debate path**: `run_debate()` (v1 eliminated, v2 renamed). No legacy code paths.
 - **Bull rebuttal** (optional): bull runs a second time with `bear_counter_argument` set. Uses string concatenation, NOT `str.format()` — safe for LLM text with curly braces.
 - **Score-confidence clamping**: `TradeThesis` model_validator clamps confidence <=0.5 when scores contradict direction
 - **Citation density**: `compute_citation_density()` measures fraction of context labels cited in agent output

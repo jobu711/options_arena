@@ -9,7 +9,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from options_arena.agents import DebateResult, run_debate_v2
+from options_arena.agents import DebateResult, run_debate
 from options_arena.api.app import limiter
 from options_arena.api.deps import (
     get_market_data,
@@ -87,14 +87,43 @@ async def _run_debate_background(
             score_match = None
 
         if score_match is None:
-            # Create a minimal TickerScore for the debate
-            from options_arena.models import IndicatorSignals, SignalDirection, TickerScore
+            # Compute real indicators from OHLCV so MarketContext has actual data
+            # instead of an empty IndicatorSignals (which causes <40% completeness
+            # and silent fallback to data-driven mode).
+            from options_arena.models import IndicatorSignals, TickerScore
+            from options_arena.scan.indicators import (  # noqa: PLC0415
+                INDICATOR_REGISTRY,
+                compute_indicators,
+                ohlcv_to_dataframe,
+            )
+            from options_arena.scoring import (  # noqa: PLC0415
+                composite_score as calc_composite,
+            )
+            from options_arena.scoring import (
+                determine_direction,
+            )
+
+            ohlcv_list = await market_data.fetch_ohlcv(ticker, period="1y")
+            if ohlcv_list:
+                df = ohlcv_to_dataframe(ohlcv_list)
+                raw_signals = compute_indicators(df, INDICATOR_REGISTRY)
+            else:
+                raw_signals = IndicatorSignals()
+
+            adhoc_composite = calc_composite(raw_signals)
+            adhoc_direction = determine_direction(
+                adx=raw_signals.adx or 0.0,
+                rsi=raw_signals.rsi or 50.0,
+                sma_alignment=raw_signals.sma_alignment or 0.0,
+                supertrend=raw_signals.supertrend,
+                roc=raw_signals.roc,
+            )
 
             score_match = TickerScore(
                 ticker=ticker,
-                composite_score=50.0,
-                direction=SignalDirection.NEUTRAL,
-                signals=IndicatorSignals(),
+                composite_score=adhoc_composite,
+                direction=adhoc_direction,
+                signals=raw_signals,
             )
 
         # Fetch fresh option chains
@@ -142,7 +171,7 @@ async def _run_debate_background(
         if intelligence_svc is not None:
             intel = await intelligence_svc.fetch_intelligence(ticker, float(quote.price))
 
-        result: DebateResult = await run_debate_v2(
+        result: DebateResult = await run_debate(
             ticker_score=score_match,
             contracts=contracts,
             quote=quote,
@@ -299,15 +328,41 @@ async def _run_batch_debate_background(
                 if score_match is None:
                     from options_arena.models import (  # noqa: PLC0415
                         IndicatorSignals,
-                        SignalDirection,
                         TickerScore,
+                    )
+                    from options_arena.scan.indicators import (  # noqa: PLC0415
+                        INDICATOR_REGISTRY,
+                        compute_indicators,
+                        ohlcv_to_dataframe,
+                    )
+                    from options_arena.scoring import (  # noqa: PLC0415
+                        composite_score as calc_composite,
+                    )
+                    from options_arena.scoring import (
+                        determine_direction,
+                    )
+
+                    batch_ohlcv = await market_data.fetch_ohlcv(ticker, period="1y")
+                    if batch_ohlcv:
+                        batch_df = ohlcv_to_dataframe(batch_ohlcv)
+                        batch_raw_signals = compute_indicators(batch_df, INDICATOR_REGISTRY)
+                    else:
+                        batch_raw_signals = IndicatorSignals()
+
+                    batch_composite = calc_composite(batch_raw_signals)
+                    batch_direction = determine_direction(
+                        adx=batch_raw_signals.adx or 0.0,
+                        rsi=batch_raw_signals.rsi or 50.0,
+                        sma_alignment=batch_raw_signals.sma_alignment or 0.0,
+                        supertrend=batch_raw_signals.supertrend,
+                        roc=batch_raw_signals.roc,
                     )
 
                     score_match = TickerScore(
                         ticker=ticker,
-                        composite_score=50.0,
-                        direction=SignalDirection.NEUTRAL,
-                        signals=IndicatorSignals(),
+                        composite_score=batch_composite,
+                        direction=batch_direction,
+                        signals=batch_raw_signals,
                     )
 
                 contracts = []
@@ -362,7 +417,7 @@ async def _run_batch_debate_background(
                 # Create a per-ticker agent bridge that forwards to the batch bridge
                 agent_bridge = bridge.agent_bridge(ticker)
 
-                result: DebateResult = await run_debate_v2(
+                result: DebateResult = await run_debate(
                     ticker_score=score_match,
                     contracts=contracts,
                     quote=quote,

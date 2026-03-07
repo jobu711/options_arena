@@ -194,6 +194,21 @@ class TickerInfo(BaseModel):
     fifty_two_week_high: Decimal
     fifty_two_week_low: Decimal
 
+    # Short interest — populated from yfinance info dict
+    short_ratio: float | None = None  # days to cover
+    short_pct_of_float: float | None = None  # decimal fraction (no upper bound — squeezes > 1.0)
+
+    @field_validator("short_ratio", "short_pct_of_float")
+    @classmethod
+    def validate_short_interest_fields(cls, v: float | None) -> float | None:
+        """Ensure short interest fields are finite and non-negative when provided."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"must be finite, got {v}")
+            if v < 0.0:
+                raise ValueError(f"must be >= 0, got {v}")
+        return v
+
     @field_serializer("current_price", "fifty_two_week_high", "fifty_two_week_low")
     def serialize_decimal(self, v: Decimal) -> str:
         """Serialize Decimal fields to str to avoid float precision loss in JSON."""

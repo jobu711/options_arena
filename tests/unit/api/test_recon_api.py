@@ -373,7 +373,7 @@ class TestAPIDepsIntelligence:
 class TestDebateRouteIntelligence:
     """Tests for intelligence integration in debate background tasks."""
 
-    @patch("options_arena.api.routes.debate.run_debate_v2", new_callable=AsyncMock)
+    @patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
     @patch("options_arena.api.routes.debate.compute_dimensional_scores")
     async def test_intelligence_fetched_before_debate(
         self,
@@ -397,6 +397,7 @@ class TestDebateRouteIntelligence:
         mock_market_data = AsyncMock()
         mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
         mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info())
+        mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
 
         mock_options_data = AsyncMock()
         mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])
@@ -417,7 +418,7 @@ class TestDebateRouteIntelligence:
 
         mock_intel_svc.fetch_intelligence.assert_awaited_once()
 
-    @patch("options_arena.api.routes.debate.run_debate_v2", new_callable=AsyncMock)
+    @patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
     @patch("options_arena.api.routes.debate.compute_dimensional_scores")
     async def test_intelligence_none_when_service_missing(
         self,
@@ -438,6 +439,7 @@ class TestDebateRouteIntelligence:
         mock_market_data = AsyncMock()
         mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
         mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info())
+        mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
 
         mock_options_data = AsyncMock()
         mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])
@@ -459,14 +461,14 @@ class TestDebateRouteIntelligence:
         call_kwargs = mock_run_debate.call_args.kwargs
         assert call_kwargs["intelligence"] is None
 
-    @patch("options_arena.api.routes.debate.run_debate_v2", new_callable=AsyncMock)
+    @patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
     @patch("options_arena.api.routes.debate.compute_dimensional_scores")
     async def test_intelligence_passed_to_orchestrator(
         self,
         mock_dim_scores: MagicMock,
         mock_run_debate: AsyncMock,
     ) -> None:
-        """IntelligencePackage passed through to run_debate_v2."""
+        """IntelligencePackage passed through to run_debate."""
         mock_dim_scores.return_value = None
         mock_run_debate.return_value = _make_debate_result()
 
@@ -483,6 +485,7 @@ class TestDebateRouteIntelligence:
         mock_market_data = AsyncMock()
         mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
         mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info())
+        mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
 
         mock_options_data = AsyncMock()
         mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])
@@ -504,7 +507,7 @@ class TestDebateRouteIntelligence:
         call_kwargs = mock_run_debate.call_args.kwargs
         assert call_kwargs["intelligence"] is intel_pkg
 
-    @patch("options_arena.api.routes.debate.run_debate_v2", new_callable=AsyncMock)
+    @patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
     @patch("options_arena.api.routes.debate.compute_dimensional_scores")
     async def test_batch_intelligence_fetched_per_ticker(
         self,
@@ -532,6 +535,7 @@ class TestDebateRouteIntelligence:
         mock_market_data = AsyncMock()
         mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
         mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info())
+        mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
 
         mock_options_data = AsyncMock()
         mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])

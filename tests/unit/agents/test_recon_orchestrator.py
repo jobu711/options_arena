@@ -14,8 +14,7 @@ Tests cover:
   - Combined: all 30 new fields populated
   - Combined: all 30 new fields None
   - Existing fields unaffected by new intelligence/DSE wiring
-  - run_debate() accepts intelligence parameter
-  - run_debate_v2() accepts intelligence parameter with None default
+  - run_debate() accepts intelligence parameter with None default
 """
 
 from __future__ import annotations
@@ -30,7 +29,6 @@ from pydantic_ai import models
 from options_arena.agents.orchestrator import (
     build_market_context,
     run_debate,
-    run_debate_v2,
 )
 from options_arena.models import (
     DimensionalScores,
@@ -133,7 +131,7 @@ def _make_contract() -> OptionContract:
         ticker="AAPL",
         option_type=OptionType.CALL,
         strike=Decimal("190.00"),
-        expiration=date.today() + timedelta(days=45),
+        expiration=datetime.now(UTC).date() + timedelta(days=45),
         bid=Decimal("4.50"),
         ask=Decimal("4.80"),
         last=Decimal("4.65"),
@@ -600,7 +598,7 @@ class TestBuildMarketContextCombined:
         # Contract-derived fields
         assert ctx.target_strike == Decimal("190.00")
         assert ctx.target_delta == pytest.approx(0.35)
-        assert ctx.dte_target == 45
+        assert ctx.dte_target == _make_contract().dte
         # Signals pass-through
         assert ctx.rsi_14 == pytest.approx(65.0)
         assert ctx.iv_rank == pytest.approx(50.0)
@@ -625,27 +623,5 @@ class TestRunDebateSignature:
     def test_intelligence_default_is_none(self) -> None:
         """run_debate's intelligence parameter defaults to None."""
         sig = inspect.signature(run_debate)
-        param = sig.parameters["intelligence"]
-        assert param.default is None
-
-
-# ---------------------------------------------------------------------------
-# TestRunDebateV2Signature
-# ---------------------------------------------------------------------------
-
-
-class TestRunDebateV2Signature:
-    """Tests for run_debate_v2 accepting the intelligence parameter."""
-
-    def test_accepts_intelligence_param(self) -> None:
-        """run_debate_v2 has an 'intelligence' parameter in its signature."""
-        sig = inspect.signature(run_debate_v2)
-        assert "intelligence" in sig.parameters, (
-            "run_debate_v2 must accept an 'intelligence' parameter"
-        )
-
-    def test_intelligence_none_default(self) -> None:
-        """run_debate_v2's intelligence parameter defaults to None."""
-        sig = inspect.signature(run_debate_v2)
         param = sig.parameters["intelligence"]
         assert param.default is None

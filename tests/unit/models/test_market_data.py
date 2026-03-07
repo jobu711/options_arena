@@ -478,3 +478,120 @@ class TestTickerInfo:
         json_str = sample_ticker_info.model_dump_json()
         restored = TickerInfo.model_validate_json(json_str)
         assert restored == sample_ticker_info
+
+
+# ---------------------------------------------------------------------------
+# TickerInfo Short Interest Tests
+# ---------------------------------------------------------------------------
+
+
+class TestTickerInfoShortInterest:
+    """Tests for short interest fields on TickerInfo (#319)."""
+
+    def test_valid_short_ratio(self) -> None:
+        """TickerInfo accepts a valid short_ratio value."""
+        info = TickerInfo(
+            ticker="GME",
+            company_name="GameStop Corp.",
+            sector="Consumer Discretionary",
+            current_price=Decimal("25.00"),
+            fifty_two_week_high=Decimal("65.00"),
+            fifty_two_week_low=Decimal("10.00"),
+            short_ratio=2.5,
+        )
+        assert info.short_ratio == pytest.approx(2.5)
+
+    def test_valid_short_pct_of_float(self) -> None:
+        """TickerInfo accepts short_pct_of_float > 1.0 (short squeezes can exceed 100%)."""
+        info = TickerInfo(
+            ticker="GME",
+            company_name="GameStop Corp.",
+            sector="Consumer Discretionary",
+            current_price=Decimal("25.00"),
+            fifty_two_week_high=Decimal("65.00"),
+            fifty_two_week_low=Decimal("10.00"),
+            short_pct_of_float=1.42,  # 142% — valid for squeeze scenarios
+        )
+        assert info.short_pct_of_float == pytest.approx(1.42)
+
+    def test_none_defaults(self) -> None:
+        """Short interest fields default to None when not provided."""
+        info = TickerInfo(
+            ticker="AAPL",
+            company_name="Apple Inc.",
+            sector="Technology",
+            current_price=Decimal("186.50"),
+            fifty_two_week_high=Decimal("199.62"),
+            fifty_two_week_low=Decimal("164.08"),
+        )
+        assert info.short_ratio is None
+        assert info.short_pct_of_float is None
+
+    def test_nan_rejected(self) -> None:
+        """TickerInfo rejects NaN for short interest fields."""
+        with pytest.raises(ValidationError, match="must be finite"):
+            TickerInfo(
+                ticker="GME",
+                company_name="GameStop Corp.",
+                sector="Consumer Discretionary",
+                current_price=Decimal("25.00"),
+                fifty_two_week_high=Decimal("65.00"),
+                fifty_two_week_low=Decimal("10.00"),
+                short_ratio=float("nan"),
+            )
+        with pytest.raises(ValidationError, match="must be finite"):
+            TickerInfo(
+                ticker="GME",
+                company_name="GameStop Corp.",
+                sector="Consumer Discretionary",
+                current_price=Decimal("25.00"),
+                fifty_two_week_high=Decimal("65.00"),
+                fifty_two_week_low=Decimal("10.00"),
+                short_pct_of_float=float("nan"),
+            )
+
+    def test_inf_rejected(self) -> None:
+        """TickerInfo rejects Inf for short interest fields."""
+        with pytest.raises(ValidationError, match="must be finite"):
+            TickerInfo(
+                ticker="GME",
+                company_name="GameStop Corp.",
+                sector="Consumer Discretionary",
+                current_price=Decimal("25.00"),
+                fifty_two_week_high=Decimal("65.00"),
+                fifty_two_week_low=Decimal("10.00"),
+                short_ratio=float("inf"),
+            )
+        with pytest.raises(ValidationError, match="must be finite"):
+            TickerInfo(
+                ticker="GME",
+                company_name="GameStop Corp.",
+                sector="Consumer Discretionary",
+                current_price=Decimal("25.00"),
+                fifty_two_week_high=Decimal("65.00"),
+                fifty_two_week_low=Decimal("10.00"),
+                short_pct_of_float=float("-inf"),
+            )
+
+    def test_negative_rejected(self) -> None:
+        """TickerInfo rejects negative values for short interest fields."""
+        with pytest.raises(ValidationError, match="must be >= 0"):
+            TickerInfo(
+                ticker="GME",
+                company_name="GameStop Corp.",
+                sector="Consumer Discretionary",
+                current_price=Decimal("25.00"),
+                fifty_two_week_high=Decimal("65.00"),
+                fifty_two_week_low=Decimal("10.00"),
+                short_ratio=-1.0,
+            )
+        with pytest.raises(ValidationError, match="must be >= 0"):
+            TickerInfo(
+                ticker="GME",
+                company_name="GameStop Corp.",
+                sector="Consumer Discretionary",
+                current_price=Decimal("25.00"),
+                fifty_two_week_high=Decimal("65.00"),
+                fifty_two_week_low=Decimal("10.00"),
+                short_pct_of_float=-0.05,
+            )

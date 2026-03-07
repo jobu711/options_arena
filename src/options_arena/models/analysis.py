@@ -99,6 +99,10 @@ class MarketContext(BaseModel):
     # Contract pricing
     contract_mid: Decimal | None = None  # mid price of recommended contract
 
+    # Short interest — from yfinance TickerInfo
+    short_ratio: float | None = None  # days to cover
+    short_pct_of_float: float | None = None  # decimal fraction (no upper bound — squeezes > 1.0)
+
     # OpenBB enrichment — fundamentals (from FundamentalSnapshot)
     pe_ratio: float | None = None
     forward_pe: float | None = None
@@ -192,6 +196,8 @@ class MarketContext(BaseModel):
             self.atr_pct,
             self.stochastic_rsi,
             self.relative_volume,
+            self.short_ratio,
+            self.short_pct_of_float,
         ]
         # Only count Greeks when contracts are available — without contracts,
         # Greeks are inherently absent and shouldn't lower the ratio.
@@ -307,6 +313,9 @@ class MarketContext(BaseModel):
         "target_theta",
         "target_vega",
         "target_rho",
+        # Short interest
+        "short_ratio",
+        "short_pct_of_float",
         # OpenBB enrichment float fields
         "pe_ratio",
         "forward_pe",

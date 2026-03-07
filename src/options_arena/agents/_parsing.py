@@ -356,7 +356,7 @@ class DebateResult(BaseModel):
     fundamental_response: FundamentalThesis | None = None
     risk_v2_response: RiskAssessment | None = None
     contrarian_response: ContrarianThesis | None = None
-    debate_protocol: str = "v1"
+    debate_protocol: str = "v2"
 
 
 def _render_optional(label: str, value: float | None, fmt: str = ".1f") -> str | None:
@@ -449,6 +449,8 @@ def render_context_block(ctx: MarketContext) -> str:
         _render_optional("DEBT/EQUITY", ctx.debt_to_equity, ".2f"),
         _render_optional("REVENUE GROWTH", ctx.revenue_growth, ".1%"),
         _render_optional("PROFIT MARGIN", ctx.profit_margin, ".1%"),
+        _render_optional("SHORT RATIO", ctx.short_ratio, ".2f"),
+        _render_optional("SHORT % OF FLOAT", ctx.short_pct_of_float, ".1%"),
     ]
     filtered_fund = [ln for ln in fundamental_lines if ln is not None]
     if filtered_fund:

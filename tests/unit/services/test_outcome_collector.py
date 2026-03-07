@@ -554,3 +554,340 @@ class TestMarketToday:
         # Expiration < today -> expired
         is_expired = collector._is_expired(contract.expiration, date(2026, 3, 11))
         assert is_expired is True
+
+
+# ---------------------------------------------------------------------------
+# Active-contract option chain P&L (OptionsDataService DI)
+# ---------------------------------------------------------------------------
+
+
+def _make_option_contract(
+    *,
+    ticker: str = "AAPL",
+    option_type: OptionType = OptionType.CALL,
+    strike: Decimal = Decimal("185.00"),
+    expiration: date = date(2026, 4, 15),
+    bid: Decimal = Decimal("6.00"),
+    ask: Decimal = Decimal("6.40"),
+) -> object:
+    """Build a lightweight mock OptionContract for chain matching tests.
+
+    Uses a SimpleNamespace to avoid importing the full OptionContract model
+    (which has computed fields that need many fields populated). Only the
+    fields accessed by the matching logic are set.
+    """
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        ticker=ticker,
+        option_type=option_type,
+        strike=strike,
+        expiration=expiration,
+        bid=bid,
+        ask=ask,
+    )
+
+
+def make_collector_with_options(
+    *,
+    holding_periods: list[int] | None = None,
+    contracts_needing: list[RecommendedContract] | None = None,
+    quote: Quote | None = None,
+    chain: list[object] | None = None,
+    chain_side_effect: Exception | None = None,
+) -> OutcomeCollector:
+    """Build an OutcomeCollector with mocked dependencies including OptionsDataService."""
+    config = AnalyticsConfig(holding_periods=holding_periods or [1, 5, 10, 20])
+
+    repo = AsyncMock()
+    repo.get_contracts_needing_outcomes = AsyncMock(return_value=contracts_needing or [])
+    repo.save_contract_outcomes = AsyncMock()
+    repo.get_performance_summary = AsyncMock()
+
+    market_data = AsyncMock()
+    market_data.fetch_quote = AsyncMock(return_value=quote or make_quote())
+
+    options_data = AsyncMock()
+    if chain_side_effect is not None:
+        options_data.fetch_chain = AsyncMock(side_effect=chain_side_effect)
+    else:
+        options_data.fetch_chain = AsyncMock(return_value=chain or [])
+
+    return OutcomeCollector(config, repo, market_data, options_data)
+
+
+class TestActiveContractOptionChain:
+    """Tests for active-contract P&L via OptionsDataService DI."""
+
+    @pytest.mark.asyncio
+    async def test_fetch_chain_success_computes_mid(self) -> None:
+        """Verify exit_contract_mid is computed as (bid+ask)/2 from live chain."""
+        contract = make_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            entry_mid=Decimal("5.00"),
+            expiration=date(2026, 4, 15),  # Still active
+        )
+        matching_option = _make_option_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            bid=Decimal("6.00"),
+            ask=Decimal("6.40"),
+        )
+        collector = make_collector_with_options(
+            contracts_needing=[contract],
+            quote=make_quote(price=Decimal("190.00")),
+            chain=[matching_option],
+        )
+
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
+            outcomes = await collector.collect_outcomes(holding_days=10)
+
+        assert len(outcomes) == 1
+        expected_mid = (Decimal("6.00") + Decimal("6.40")) / Decimal("2")
+        assert outcomes[0].exit_contract_mid == expected_mid
+        assert outcomes[0].exit_contract_bid == Decimal("6.00")
+        assert outcomes[0].exit_contract_ask == Decimal("6.40")
+
+    @pytest.mark.asyncio
+    async def test_fetch_chain_computes_return_pct(self) -> None:
+        """Verify contract_return_pct = (exit_mid - entry_mid) / entry_mid * 100."""
+        contract = make_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            entry_mid=Decimal("5.00"),
+            expiration=date(2026, 4, 15),
+        )
+        # exit_mid = (6.00 + 6.40) / 2 = 6.20
+        # return = (6.20 - 5.00) / 5.00 * 100 = 24.0%
+        matching_option = _make_option_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            bid=Decimal("6.00"),
+            ask=Decimal("6.40"),
+        )
+        collector = make_collector_with_options(
+            contracts_needing=[contract],
+            quote=make_quote(price=Decimal("190.00")),
+            chain=[matching_option],
+        )
+
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
+            outcomes = await collector.collect_outcomes(holding_days=10)
+
+        assert len(outcomes) == 1
+        assert outcomes[0].contract_return_pct == pytest.approx(24.0)
+
+    @pytest.mark.asyncio
+    async def test_fetch_chain_sets_is_winner(self) -> None:
+        """Verify is_winner=True when contract_return_pct > 0."""
+        contract = make_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            entry_mid=Decimal("5.00"),
+            expiration=date(2026, 4, 15),
+        )
+        # exit_mid = (7.00 + 7.40) / 2 = 7.20 -> +44% -> winner
+        matching_option = _make_option_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            bid=Decimal("7.00"),
+            ask=Decimal("7.40"),
+        )
+        collector = make_collector_with_options(
+            contracts_needing=[contract],
+            quote=make_quote(price=Decimal("195.00")),
+            chain=[matching_option],
+        )
+
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
+            outcomes = await collector.collect_outcomes(holding_days=10)
+
+        assert len(outcomes) == 1
+        assert outcomes[0].is_winner is True
+
+        # Also test is_winner=False for losing trade
+        # exit_mid = (2.00 + 2.40) / 2 = 2.20 -> -56% -> loser
+        losing_option = _make_option_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            bid=Decimal("2.00"),
+            ask=Decimal("2.40"),
+        )
+        collector2 = make_collector_with_options(
+            contracts_needing=[contract],
+            quote=make_quote(price=Decimal("183.00")),
+            chain=[losing_option],
+        )
+
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
+            outcomes2 = await collector2.collect_outcomes(holding_days=10)
+
+        assert len(outcomes2) == 1
+        assert outcomes2[0].is_winner is False
+
+    @pytest.mark.asyncio
+    async def test_no_matching_contract_returns_none(self) -> None:
+        """Verify no match in chain leaves contract P&L fields as None."""
+        contract = make_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            entry_mid=Decimal("5.00"),
+            expiration=date(2026, 4, 15),
+        )
+        # Chain has a different strike — no match
+        wrong_strike_option = _make_option_contract(
+            strike=Decimal("190.00"),
+            option_type=OptionType.CALL,
+            bid=Decimal("3.00"),
+            ask=Decimal("3.40"),
+        )
+        collector = make_collector_with_options(
+            contracts_needing=[contract],
+            quote=make_quote(price=Decimal("190.00")),
+            chain=[wrong_strike_option],
+        )
+
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
+            outcomes = await collector.collect_outcomes(holding_days=10)
+
+        assert len(outcomes) == 1
+        assert outcomes[0].exit_contract_mid is None
+        assert outcomes[0].exit_contract_bid is None
+        assert outcomes[0].exit_contract_ask is None
+        assert outcomes[0].contract_return_pct is None
+        assert outcomes[0].is_winner is None
+
+    @pytest.mark.asyncio
+    async def test_fetch_chain_failure_falls_back(self) -> None:
+        """Verify fetch_chain exception falls back to stock-return-only."""
+        contract = make_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            entry_mid=Decimal("5.00"),
+            expiration=date(2026, 4, 15),
+        )
+        collector = make_collector_with_options(
+            contracts_needing=[contract],
+            quote=make_quote(price=Decimal("190.00")),
+            chain_side_effect=Exception("CBOE unreachable"),
+        )
+
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
+            outcomes = await collector.collect_outcomes(holding_days=10)
+
+        assert len(outcomes) == 1
+        # Contract P&L fields should be None (fallback)
+        assert outcomes[0].exit_contract_mid is None
+        assert outcomes[0].contract_return_pct is None
+        assert outcomes[0].is_winner is None
+        # Stock return should still be computed
+        assert outcomes[0].stock_return_pct is not None
+        assert outcomes[0].collection_method is OutcomeCollectionMethod.MARKET
+
+    @pytest.mark.asyncio
+    async def test_fetch_chain_timeout_falls_back(self) -> None:
+        """Verify asyncio.wait_for timeout falls back to stock-return-only."""
+        contract = make_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            entry_mid=Decimal("5.00"),
+            expiration=date(2026, 4, 15),
+        )
+        collector = make_collector_with_options(
+            contracts_needing=[contract],
+            quote=make_quote(price=Decimal("190.00")),
+            chain_side_effect=TimeoutError("Timed out"),
+        )
+
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
+            outcomes = await collector.collect_outcomes(holding_days=10)
+
+        assert len(outcomes) == 1
+        assert outcomes[0].exit_contract_mid is None
+        assert outcomes[0].contract_return_pct is None
+        assert outcomes[0].is_winner is None
+        assert outcomes[0].stock_return_pct is not None
+
+    @pytest.mark.asyncio
+    async def test_no_options_data_backward_compat(self) -> None:
+        """Verify OutcomeCollector without options_data still works (backward compat)."""
+        contract = make_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            entry_mid=Decimal("5.00"),
+            expiration=date(2026, 4, 15),
+        )
+        # Use the original make_collector without options_data
+        collector = make_collector(
+            contracts_needing=[contract],
+            quote=make_quote(price=Decimal("190.00")),
+        )
+
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
+            outcomes = await collector.collect_outcomes(holding_days=10)
+
+        assert len(outcomes) == 1
+        assert outcomes[0].exit_contract_mid is None
+        assert outcomes[0].contract_return_pct is None
+        assert outcomes[0].is_winner is None
+        assert outcomes[0].stock_return_pct is not None
+
+    @pytest.mark.asyncio
+    async def test_zero_entry_mid_skips_return(self) -> None:
+        """Verify zero entry_mid skips contract return computation."""
+        contract = make_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            entry_mid=Decimal("0"),
+            expiration=date(2026, 4, 15),
+        )
+        matching_option = _make_option_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            bid=Decimal("6.00"),
+            ask=Decimal("6.40"),
+        )
+        collector = make_collector_with_options(
+            contracts_needing=[contract],
+            quote=make_quote(price=Decimal("190.00")),
+            chain=[matching_option],
+        )
+
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
+            outcomes = await collector.collect_outcomes(holding_days=10)
+
+        assert len(outcomes) == 1
+        # Mid should still be computed
+        expected_mid = (Decimal("6.00") + Decimal("6.40")) / Decimal("2")
+        assert outcomes[0].exit_contract_mid == expected_mid
+        # But contract return should be None due to zero entry_mid
+        assert outcomes[0].contract_return_pct is None
+        assert outcomes[0].is_winner is None
