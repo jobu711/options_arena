@@ -18,6 +18,7 @@ const directionOptions = [
   { label: 'All', value: 'all' },
   { label: 'Bullish', value: 'bullish' },
   { label: 'Bearish', value: 'bearish' },
+  { label: 'Neutral', value: 'neutral' },
 ]
 
 const keyedData = computed(() =>

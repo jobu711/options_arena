@@ -204,7 +204,7 @@ const groups = computed(() => {
 }
 
 .legend-return {
-  background: var(--accent-green);
+  background: linear-gradient(to right, var(--accent-red), var(--accent-green));
   opacity: 0.85;
 }
 

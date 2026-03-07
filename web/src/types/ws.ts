@@ -18,6 +18,7 @@ export interface ScanCompleteEvent {
   type: 'complete'
   scan_id: number
   cancelled: boolean
+  outcomes_collected: number
 }
 
 export type ScanEvent = ScanProgressEvent | ScanErrorEvent | ScanCompleteEvent

@@ -48,6 +48,7 @@ from options_arena.services import (
     OptionsDataService,
     UniverseService,
 )
+from options_arena.services.outcome_collector import OutcomeCollector
 
 logger = logging.getLogger(__name__)
 
@@ -77,9 +78,27 @@ async def _run_scan_background(
     try:
         result: ScanResult = await pipeline.run(preset, token, bridge, source=source)
 
+        # Collect outcomes for previous scans (never-raises contract)
+        outcomes_count = 0
+        if not result.cancelled:
+            try:
+                collector = OutcomeCollector(
+                    config=request.app.state.settings.analytics,
+                    repository=request.app.state.repo,
+                    market_data=request.app.state.market_data,
+                    options_data=request.app.state.options_data,
+                )
+                timeout = request.app.state.settings.analytics.collection_timeout
+                outcomes = await asyncio.wait_for(collector.collect_outcomes(), timeout=timeout)
+                outcomes_count = len(outcomes)
+            except TimeoutError:
+                logger.warning("Outcome collection timed out for scan %d", scan_id)
+            except Exception:
+                logger.exception("Outcome collection failed for scan %d", scan_id)
+
         # Phase 4 assigns the DB ID; fall back to counter-based scan_id on None
         actual_id = result.scan_run.id if result.scan_run.id is not None else scan_id
-        bridge.complete(actual_id, cancelled=result.cancelled)
+        bridge.complete(actual_id, cancelled=result.cancelled, outcomes_collected=outcomes_count)
     except Exception:
         logger.exception("Scan %d failed", scan_id)
         bridge.error("Scan failed due to an internal error")

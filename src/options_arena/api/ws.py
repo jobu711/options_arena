@@ -59,9 +59,16 @@ class WebSocketProgressBridge:
             {"type": "progress", "phase": phase.value, "current": current, "total": total}
         )
 
-    def complete(self, scan_id: int, *, cancelled: bool) -> None:
+    def complete(self, scan_id: int, *, cancelled: bool, outcomes_collected: int = 0) -> None:
         """Signal scan completion."""
-        self.queue.put_nowait({"type": "complete", "scan_id": scan_id, "cancelled": cancelled})
+        self.queue.put_nowait(
+            {
+                "type": "complete",
+                "scan_id": scan_id,
+                "cancelled": cancelled,
+                "outcomes_collected": outcomes_collected,
+            }
+        )
 
     def error(self, message: str) -> None:
         """Signal an error event."""
