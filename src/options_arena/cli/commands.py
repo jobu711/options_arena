@@ -408,7 +408,7 @@ def debate(
     fallback_only: bool = typer.Option(
         False, "--fallback-only", help="Force data-driven path (skip AI)"
     ),
-    export: str | None = typer.Option(None, "--export", help="Export format: md or pdf"),
+    export: str | None = typer.Option(None, "--export", help="Export format: md"),
     export_dir: str = typer.Option("./reports", "--export-dir", help="Export output directory"),
     no_openbb: bool = typer.Option(False, "--no-openbb", help="Skip OpenBB enrichment"),
     no_recon: bool = typer.Option(False, "--no-recon", help="Skip intelligence fetching"),
@@ -423,8 +423,8 @@ def debate(
     if not batch and ticker is None:
         err_console.print("[red]Provide a TICKER or use --batch.[/red]")
         raise typer.Exit(code=1)
-    if export is not None and export not in ("md", "pdf"):
-        err_console.print("[red]--export must be 'md' or 'pdf'.[/red]")
+    if export is not None and export != "md":
+        err_console.print("[red]--export must be 'md'.[/red]")
         raise typer.Exit(code=1)
 
     if batch:
@@ -594,10 +594,6 @@ def _export_result(
     try:
         export_debate_to_file(result, export_path, fmt=fmt)
         err_console.print(f"[green]Exported: {export_path}[/green]")
-    except ImportError:
-        err_console.print(
-            "[red]PDF export requires weasyprint. Install: uv add 'options-arena[pdf]'[/red]"
-        )
     except OSError:
         logger.exception("Failed to write export file: %s", export_path)
         err_console.print(f"[red]Failed to write: {export_path}[/red]")

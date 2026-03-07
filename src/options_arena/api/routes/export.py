@@ -1,9 +1,8 @@
-"""Debate export endpoint — Markdown/PDF file download."""
+"""Debate export endpoint — Markdown file download."""
 
 from __future__ import annotations
 
 import contextlib
-import html as html_module
 import logging
 import os
 import tempfile
@@ -39,16 +38,15 @@ async def export_debate(
     repo: Repository = Depends(get_repo),
     fmt: str = Query("md", alias="format"),
 ) -> FileResponse:
-    """Export a debate result as a downloadable file.
+    """Export a debate result as a downloadable Markdown file.
 
-    Supports ``?format=md`` (default) and ``?format=pdf``.
-    PDF returns 501 if ``weasyprint`` is not installed.
+    Supports ``?format=md`` (default).
     """
     row = await repo.get_debate_by_id(debate_id)
     if row is None:
         raise HTTPException(404, "Debate not found")
 
-    if fmt not in ("md", "pdf"):
+    if fmt != "md":
         raise HTTPException(422, f"Unsupported format: {fmt}")
 
     # Reconstruct a minimal DebateResult for the export function
@@ -193,21 +191,5 @@ async def export_debate(
             background=BackgroundTask(os.unlink, tmp_path),
         )
 
-    # PDF
-    try:
-        from weasyprint import HTML  # type: ignore[import-not-found]
-    except ImportError:
-        raise HTTPException(501, "PDF export requires weasyprint") from None
-
-    escaped_content = html_module.escape(md_content)
-    html = f"<html><body><pre>{escaped_content}</pre></body></html>"
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_fd:
-        tmp_path = tmp_fd.name
-    HTML(string=html).write_pdf(tmp_path)
-    return FileResponse(
-        path=tmp_path,
-        filename=f"{filename}.pdf",
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}.pdf"'},
-        background=BackgroundTask(os.unlink, tmp_path),
-    )
+    # Unreachable — format validated above; satisfies mypy return type
+    raise HTTPException(422, f"Unsupported format: {fmt}")  # pragma: no cover

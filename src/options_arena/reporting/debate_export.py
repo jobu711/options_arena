@@ -7,7 +7,6 @@ GitHub-flavored Markdown report string. No I/O, no side effects.
 from __future__ import annotations
 
 import datetime
-import html as html_module
 import logging
 import math
 from pathlib import Path
@@ -424,51 +423,21 @@ def export_debate_to_file(
     path: Path,
     fmt: str = "md",
 ) -> Path:
-    """Write debate result to file as markdown or PDF.
+    """Write debate result to file as Markdown.
 
     Args:
         result: Complete debate output from ``run_debate()``.
         path: Destination file path.
-        fmt: Output format — ``"md"`` (default) or ``"pdf"``.
+        fmt: Output format — ``"md"`` (default).
 
     Returns:
         The path that was written.
 
     Raises:
-        ValueError: If *fmt* is not ``"md"`` or ``"pdf"``.
-        ImportError: If *fmt* is ``"pdf"`` and ``weasyprint`` is not installed.
+        ValueError: If *fmt* is not ``"md"``.
     """
     md_content = export_debate_markdown(result)
     if fmt == "md":
         path.write_text(md_content, encoding="utf-8")
         return path
-    if fmt == "pdf":
-        return _render_pdf(md_content, path)
     raise ValueError(f"Unsupported format: {fmt}")
-
-
-def _render_pdf(md_content: str, path: Path) -> Path:
-    """Convert markdown to PDF via weasyprint.
-
-    Wraps the markdown in minimal ``<pre>`` HTML and renders to PDF.
-
-    Args:
-        md_content: The markdown string to render.
-        path: Destination PDF file path.
-
-    Returns:
-        The path that was written.
-
-    Raises:
-        ImportError: If ``weasyprint`` is not installed.
-    """
-    try:
-        from weasyprint import HTML  # type: ignore[import-not-found]
-    except ImportError:
-        raise ImportError(
-            "PDF export requires weasyprint. Install: uv add 'options-arena[pdf]'"
-        ) from None
-    escaped = html_module.escape(md_content)
-    html = f"<html><body><pre>{escaped}</pre></body></html>"
-    HTML(string=html).write_pdf(str(path))
-    return path
