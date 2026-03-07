@@ -460,12 +460,11 @@ class AnalyticsConfig(BaseModel):
     """Analytics persistence configuration — controls outcome collection and batch sizing.
 
     ``holding_periods`` defines which holding periods (in trading days) to evaluate
-    contract outcomes for. ``auto_collect`` enables automatic outcome collection after
-    each scan. ``batch_size`` controls how many contracts are processed per batch.
+    contract outcomes for. ``batch_size`` controls how many contracts are processed per
+    batch. Outcome collection runs automatically after every successful scan.
     """
 
     holding_periods: list[int] = [1, 5, 10, 20]
-    auto_collect: bool = False
     batch_size: int = 50
 
     @field_validator("batch_size")

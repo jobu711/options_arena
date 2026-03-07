@@ -29,7 +29,7 @@ export function scanProgressSequence(scanId: number): ScanEvent[] {
     { type: 'progress', phase: 'options', current: 25, total: 50 },
     { type: 'progress', phase: 'options', current: 50, total: 50 },
     { type: 'progress', phase: 'persist', current: 1, total: 1 },
-    { type: 'complete', scan_id: scanId, cancelled: false },
+    { type: 'complete', scan_id: scanId, cancelled: false, outcomes_collected: 0 },
   ]
 }
 
@@ -48,7 +48,7 @@ export function scanCancelSequence(scanId: number): ScanEvent[] {
   return [
     { type: 'progress', phase: 'universe', current: 0, total: 503 },
     { type: 'progress', phase: 'universe', current: 100, total: 503 },
-    { type: 'complete', scan_id: scanId, cancelled: true },
+    { type: 'complete', scan_id: scanId, cancelled: true, outcomes_collected: 0 },
   ]
 }
 

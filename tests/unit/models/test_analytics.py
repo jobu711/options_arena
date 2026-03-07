@@ -937,21 +937,18 @@ class TestAnalyticsConfig:
     """Tests for the AnalyticsConfig BaseModel and AppSettings wiring."""
 
     def test_defaults(self) -> None:
-        """Verify default holding_periods=[1,5,10,20], auto_collect=False, batch_size=50."""
+        """Verify default holding_periods=[1,5,10,20], batch_size=50."""
         config = AnalyticsConfig()
         assert config.holding_periods == [1, 5, 10, 20]
-        assert config.auto_collect is False
         assert config.batch_size == 50
 
     def test_custom_values(self) -> None:
         """Verify custom values accepted."""
         config = AnalyticsConfig(
             holding_periods=[1, 3, 7],
-            auto_collect=True,
             batch_size=100,
         )
         assert config.holding_periods == [1, 3, 7]
-        assert config.auto_collect is True
         assert config.batch_size == 100
 
     def test_batch_size_rejects_zero(self) -> None:
@@ -968,11 +965,9 @@ class TestAnalyticsConfig:
         """Verify AppSettings includes analytics config with defaults."""
         # Clear env vars that might interfere
         monkeypatch.delenv("ARENA_ANALYTICS__HOLDING_PERIODS", raising=False)
-        monkeypatch.delenv("ARENA_ANALYTICS__AUTO_COLLECT", raising=False)
         monkeypatch.delenv("ARENA_ANALYTICS__BATCH_SIZE", raising=False)
         settings = AppSettings()
         assert settings.analytics.holding_periods == [1, 5, 10, 20]
-        assert settings.analytics.auto_collect is False
         assert settings.analytics.batch_size == 50
 
     def test_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:

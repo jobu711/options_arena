@@ -83,7 +83,10 @@ async function runScan(): Promise<void> {
             if (event.cancelled) {
               toast.add({ severity: 'info', summary: 'Scan Cancelled', life: 3000 })
             } else {
-              toast.add({ severity: 'success', summary: 'Scan Complete', detail: `Scan #${event.scan_id} finished`, life: 5000 })
+              const detail = event.outcomes_collected > 0
+                ? `Scan #${event.scan_id} finished — ${event.outcomes_collected} outcomes collected`
+                : `Scan #${event.scan_id} finished`
+              toast.add({ severity: 'success', summary: 'Scan Complete', detail, life: 5000 })
               void scanStore.fetchScans()
             }
             break

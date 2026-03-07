@@ -246,7 +246,7 @@ const zeroLineY = computed(() => pad.top + (chartHeight - pad.top - pad.bottom) 
 }
 
 .legend-bar {
-  background: var(--accent-green);
+  background: linear-gradient(to right, var(--accent-red), var(--accent-green));
   opacity: 0.8;
 }
 
