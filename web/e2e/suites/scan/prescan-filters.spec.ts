@@ -1,8 +1,8 @@
 /**
  * E2E tests: PreScanFilters component interactions.
  *
- * Covers: preset selection with ticker counts, price range controls,
- * DTE range controls, and collapsible panel state preservation.
+ * Covers: card-based preset selection with ticker counts, price range controls,
+ * DTE range controls, score filter, and filter visibility (all filters always visible).
  */
 
 import { test, expect } from '../../fixtures/base.fixture'
@@ -50,24 +50,24 @@ test.describe('PreScanFilters', () => {
     const scanPage = new ScanPage(page)
     await scanPage.goto()
 
-    // The default preset is S&P 500 — badge should show 503 once preset-info loads
-    const presetSelector = page.locator('[data-testid="preset-selector"]')
-    await expect(presetSelector).toBeVisible()
+    // The preset grid should be visible
+    const presetGrid = page.locator('[data-testid="preset-selector"]')
+    await expect(presetGrid).toBeVisible()
 
-    // Wait for preset-info API to populate counts, then verify the count badge appears
-    // The badge is inside the selected value template of the Select component
-    const countBadge = presetSelector.locator('.p-badge').or(presetSelector.locator('[class*="badge"]'))
-    await expect(countBadge).toBeVisible({ timeout: 5_000 })
-    await expect(countBadge).toContainText('503')
+    // Wait for preset-info API to populate counts
+    // S&P 500 card should show count of 503
+    const sp500Card = page.locator('[data-testid="preset-card-sp500"]')
+    await expect(sp500Card).toBeVisible()
+    const sp500Badge = sp500Card.locator('.p-badge')
+    await expect(sp500Badge).toContainText('503', { timeout: 5_000 })
 
-    // Open the dropdown and select NASDAQ 100
-    await presetSelector.click()
-    const nasdaq100Option = page.locator('.p-select-list .p-select-option, .p-select-overlay li, .p-select-option')
-      .filter({ hasText: 'NASDAQ 100' })
-    await nasdaq100Option.click()
+    // Click NASDAQ 100 card
+    const nasdaqCard = page.locator('[data-testid="preset-card-nasdaq100"]')
+    await nasdaqCard.click()
 
-    // After selection, the displayed count should update to 103
-    await expect(countBadge).toContainText('103')
+    // Verify NASDAQ 100 card shows its count (103) and has selected state
+    const nasdaqBadge = nasdaqCard.locator('.p-badge')
+    await expect(nasdaqBadge).toContainText('103')
   })
 
   test('price range controls send values in scan request payload', async ({ page }) => {
@@ -85,11 +85,6 @@ test.describe('PreScanFilters', () => {
 
     const scanPage = new ScanPage(page)
     await scanPage.goto()
-
-    // Expand the "Price & Expiry" panel (it is collapsed by default)
-    const pricePanel = page.locator('.p-panel').filter({ hasText: 'Price & Expiry' })
-    const priceToggler = pricePanel.locator('button[data-pc-section="toggler"], .p-panel-header button, [data-pc-section="header"] button').first()
-    await priceToggler.click()
 
     // Set min price to 50
     const minPriceInput = page.locator('[data-testid="min-price-filter"] input')
@@ -127,11 +122,6 @@ test.describe('PreScanFilters', () => {
     const scanPage = new ScanPage(page)
     await scanPage.goto()
 
-    // Expand the "Price & Expiry" panel (collapsed by default)
-    const pricePanel = page.locator('.p-panel').filter({ hasText: 'Price & Expiry' })
-    const priceToggler = pricePanel.locator('button[data-pc-section="toggler"], .p-panel-header button, [data-pc-section="header"] button').first()
-    await priceToggler.click()
-
     // Set min DTE to 14
     const minDteInput = page.locator('[data-testid="min-dte-filter"] input')
     await minDteInput.click()
@@ -167,11 +157,6 @@ test.describe('PreScanFilters', () => {
     const scanPage = new ScanPage(page)
     await scanPage.goto()
 
-    // Expand the "Quality" or score-related panel
-    const scorePanel = page.locator('.p-panel').filter({ hasText: /Quality|Score/ })
-    const scoreToggler = scorePanel.locator('button[data-pc-section="toggler"], .p-panel-header button, [data-pc-section="header"] button').first()
-    await scoreToggler.click()
-
     // Find the score filter input and set it to 75 (only possible if max >= 75)
     const scoreInput = page.locator('[data-testid="min-score-filter"] input')
     await scoreInput.click()
@@ -186,63 +171,20 @@ test.describe('PreScanFilters', () => {
     expect(capturedBody!.min_score).toBe(75)
   })
 
-  test('panel collapse preserves filter state', async ({ page }) => {
+  test('filters are always visible without panel expansion', async ({ page }) => {
     const scanPage = new ScanPage(page)
     await scanPage.goto()
 
-    // Expand the "Price & Expiry" panel
-    const pricePanel = page.locator('.p-panel').filter({ hasText: 'Price & Expiry' })
-    const priceToggler = pricePanel.locator('button[data-pc-section="toggler"], .p-panel-header button, [data-pc-section="header"] button').first()
-    await priceToggler.click()
-
-    // Set min price to 75
-    const minPriceInput = page.locator('[data-testid="min-price-filter"] input')
-    await minPriceInput.click()
-    await minPriceInput.fill('75')
-    await minPriceInput.press('Tab')
-
-    // Set min DTE to 30
-    const minDteInput = page.locator('[data-testid="min-dte-filter"] input')
-    await minDteInput.click()
-    await minDteInput.fill('30')
-    await minDteInput.press('Tab')
-
-    // The filter badge on the panel header should show active filter count
-    const filterBadge = pricePanel.locator('.p-badge, [class*="filter-badge"]')
-    await expect(filterBadge).toBeVisible()
-
-    // Collapse the panel
-    await priceToggler.click()
-
-    // Verify inputs are hidden (panel content collapsed)
-    await expect(minPriceInput).toBeHidden()
-
-    // Re-expand the panel
-    await priceToggler.click()
-
-    // Verify values persisted after collapse/expand
-    // Price input uses currency formatting ($75.00), DTE uses suffix (30 days)
-    const minPriceAfter = page.locator('[data-testid="min-price-filter"] input')
-    await expect(minPriceAfter).toBeVisible()
-    await expect(minPriceAfter).toHaveValue(/75/)
-
-    const minDteAfter = page.locator('[data-testid="min-dte-filter"] input')
-    await expect(minDteAfter).toHaveValue(/30/)
-
-    // Now start a scan and verify the values were still sent correctly
-    let capturedBody: Record<string, unknown> | null = null
-    await page.route(pathMatcher('/api/scan'), async route => {
-      if (route.request().method() === 'POST') {
-        capturedBody = route.request().postDataJSON() as Record<string, unknown>
-        return route.fulfill({ status: 202, json: { scan_id: SCAN_ID } })
-      }
-      return route.continue()
-    })
-
-    await scanPage.startScan()
-
-    expect(capturedBody).not.toBeNull()
-    expect(capturedBody!.min_price).toBe(75)
-    expect(capturedBody!.min_dte).toBe(30)
+    // All filter inputs should be immediately visible (no panel to expand)
+    await expect(page.locator('[data-testid="preset-selector"]')).toBeVisible()
+    await expect(page.locator('[data-testid="market-cap-filter"]')).toBeVisible()
+    await expect(page.locator('[data-testid="direction-filter"]')).toBeVisible()
+    await expect(page.locator('[data-testid="earnings-filter"]')).toBeVisible()
+    await expect(page.locator('[data-testid="iv-rank-filter"]')).toBeVisible()
+    await expect(page.locator('[data-testid="min-score-filter"]')).toBeVisible()
+    await expect(page.locator('[data-testid="min-price-filter"]')).toBeVisible()
+    await expect(page.locator('[data-testid="max-price-filter"]')).toBeVisible()
+    await expect(page.locator('[data-testid="min-dte-filter"]')).toBeVisible()
+    await expect(page.locator('[data-testid="max-dte-filter"]')).toBeVisible()
   })
 })

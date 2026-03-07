@@ -17,7 +17,6 @@ export class ScanPage {
     this.startScanBtn = selfHealingLocator(page, 'start-scan-btn', 'Run Scan', 'Run Scan')
     this.cancelScanBtn = selfHealingLocator(page, 'cancel-scan-btn', 'Cancel Scan', 'Cancel')
     this.presetSelector = page.locator('[data-testid="preset-selector"]')
-      .or(page.locator('[aria-label="Scan Preset"]'))
     this.scanListTable = page.locator('[data-testid="scan-list-table"]')
       .or(page.locator('.p-datatable'))
     this.emptyState = page.locator('[data-testid="scan-list-empty"]')
@@ -30,11 +29,8 @@ export class ScanPage {
     await this.title.waitFor({ state: 'visible' })
   }
 
-  async selectPreset(preset: 'full' | 'sp500' | 'etfs'): Promise<void> {
-    await this.presetSelector.click()
-    await this.page.locator(`[data-testid="preset-option-${preset}"]`)
-      .or(this.page.locator(`li:has-text("${preset}")`))
-      .click()
+  async selectPreset(preset: 'full' | 'sp500' | 'etfs' | 'nasdaq100' | 'russell2000' | 'most_active'): Promise<void> {
+    await this.page.locator(`[data-testid="preset-card-${preset}"]`).click()
   }
 
   async startScan(): Promise<void> {
