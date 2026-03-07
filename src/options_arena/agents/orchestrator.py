@@ -50,6 +50,7 @@ from options_arena.agents.trend_agent import trend_agent
 from options_arena.agents.volatility import volatility_agent
 from options_arena.data.repository import Repository
 from options_arena.models import (
+    AgentPrediction,
     AgentResponse,
     ContrarianThesis,
     DebateConfig,
@@ -578,6 +579,109 @@ def _opposite_direction(direction: SignalDirection) -> SignalDirection:
     return SignalDirection.NEUTRAL
 
 
+def extract_agent_predictions(
+    debate_id: int,
+    result: DebateResult,
+) -> list[AgentPrediction]:
+    """Extract per-agent predictions from a DebateResult for accuracy tracking.
+
+    Each agent response type is handled individually because they have different
+    field names for direction and confidence (e.g. ``dissent_direction`` on
+    ``ContrarianThesis``, no direction on ``RiskAssessment``).
+
+    Returns a list of ``AgentPrediction`` — empty if all agents failed.
+    """
+    now = datetime.now(UTC)
+    predictions: list[AgentPrediction] = []
+
+    # Bull response (AgentResponse — has direction + confidence)
+    if result.bull_response is not None:
+        predictions.append(
+            AgentPrediction(
+                debate_id=debate_id,
+                agent_name="bull",
+                direction=result.bull_response.direction,
+                confidence=result.bull_response.confidence,
+                created_at=now,
+            )
+        )
+
+    # Bear response (AgentResponse — has direction + confidence)
+    if result.bear_response is not None:
+        predictions.append(
+            AgentPrediction(
+                debate_id=debate_id,
+                agent_name="bear",
+                direction=result.bear_response.direction,
+                confidence=result.bear_response.confidence,
+                created_at=now,
+            )
+        )
+
+    # Flow response (FlowThesis — has direction + confidence)
+    if result.flow_response is not None:
+        predictions.append(
+            AgentPrediction(
+                debate_id=debate_id,
+                agent_name="flow",
+                direction=result.flow_response.direction,
+                confidence=result.flow_response.confidence,
+                created_at=now,
+            )
+        )
+
+    # Fundamental response (FundamentalThesis — has direction + confidence)
+    if result.fundamental_response is not None:
+        predictions.append(
+            AgentPrediction(
+                debate_id=debate_id,
+                agent_name="fundamental",
+                direction=result.fundamental_response.direction,
+                confidence=result.fundamental_response.confidence,
+                created_at=now,
+            )
+        )
+
+    # Volatility response (VolatilityThesis — has confidence, direction may not exist yet)
+    if result.vol_response is not None:
+        vol_direction: SignalDirection | None = getattr(result.vol_response, "direction", None)
+        predictions.append(
+            AgentPrediction(
+                debate_id=debate_id,
+                agent_name="volatility",
+                direction=vol_direction,
+                confidence=result.vol_response.confidence,
+                created_at=now,
+            )
+        )
+
+    # Risk v2 response (RiskAssessment — has confidence, no direction field)
+    if result.risk_v2_response is not None:
+        predictions.append(
+            AgentPrediction(
+                debate_id=debate_id,
+                agent_name="risk",
+                direction=None,
+                confidence=result.risk_v2_response.confidence,
+                created_at=now,
+            )
+        )
+
+    # Contrarian response (ContrarianThesis — has dissent_direction + dissent_confidence)
+    if result.contrarian_response is not None:
+        predictions.append(
+            AgentPrediction(
+                debate_id=debate_id,
+                agent_name="contrarian",
+                direction=result.contrarian_response.dissent_direction,
+                confidence=result.contrarian_response.dissent_confidence,
+                created_at=now,
+            )
+        )
+
+    return predictions
+
+
 async def _persist_result(
     result: DebateResult,
     ticker_score: TickerScore,
@@ -601,7 +705,7 @@ async def _persist_result(
         else:
             debate_mode = "base"
 
-        await repository.save_debate(
+        debate_id = await repository.save_debate(
             scan_run_id=ticker_score.scan_run_id,
             ticker=result.context.ticker,
             bull_json=result.bull_response.model_dump_json(),
@@ -629,12 +733,19 @@ async def _persist_result(
             contrarian_thesis=result.contrarian_response,
             debate_protocol=result.debate_protocol,
         )
+
+        # Persist per-agent predictions for accuracy tracking (FR-8)
+        predictions = extract_agent_predictions(debate_id, result)
+        if predictions:
+            await repository.save_agent_predictions(predictions)
+
         logger.debug(
-            "Persisted debate for %s (tokens=%d, fallback=%s, mode=%s)",
+            "Persisted debate for %s (tokens=%d, fallback=%s, mode=%s, predictions=%d)",
             result.context.ticker,
             total_tokens,
             result.is_fallback,
             debate_mode,
+            len(predictions),
         )
     except Exception:
         logger.warning(
@@ -701,6 +812,35 @@ def _get_majority_direction(agent_directions: dict[str, SignalDirection]) -> Sig
     if bearish_count > bullish_count:
         return SignalDirection.BEARISH
     return SignalDirection.NEUTRAL
+
+
+def _vote_entropy(agent_directions: dict[str, SignalDirection]) -> float:
+    """Shannon entropy of vote distribution.
+
+    Measures ensemble diversity: 0.0 = unanimous, ~1.585 = equal 3-way split.
+
+    Parameters
+    ----------
+    agent_directions
+        Mapping of agent name to their direction call.
+
+    Returns
+    -------
+    float
+        Shannon entropy in bits. 0.0 when empty or unanimous.
+    """
+    if not agent_directions:
+        return 0.0
+    counts: dict[SignalDirection, int] = {}
+    for d in agent_directions.values():
+        counts[d] = counts.get(d, 0) + 1
+    total = len(agent_directions)
+    entropy = 0.0
+    for count in counts.values():
+        p = count / total
+        if p > 0:
+            entropy -= p * math.log2(p)
+    return entropy
 
 
 def _log_odds_pool(probabilities: list[float], weights: list[float]) -> float:
@@ -835,15 +975,13 @@ def synthesize_verdict(
     # --- Collect agent directions ---
     agent_directions: dict[str, SignalDirection] = {}
     for name, output in agent_outputs.items():
-        if isinstance(output, VolatilityThesis):
-            # Vol agent doesn't have a direction — skip for direction voting
-            continue
         if hasattr(output, "direction"):
             agent_directions[name] = output.direction
 
-    # --- Compute agreement score ---
+    # --- Compute agreement score and vote entropy ---
     agreement = compute_agreement_score(agent_directions)
     majority_direction = _get_majority_direction(agent_directions)
+    entropy = _vote_entropy(agent_directions)
 
     # --- Log-odds confidence pooling (Bordley 1982) ---
     probabilities: list[float] = []
@@ -942,6 +1080,7 @@ def synthesize_verdict(
         recommended_strategy=None,
         contrarian_dissent=contrarian_text,
         agent_agreement_score=agreement,
+        ensemble_entropy=entropy,
         dissenting_agents=dissenting,
         dimensional_scores=dimensional_scores,
         agents_completed=agents_completed,
@@ -1332,10 +1471,10 @@ async def _run_v2_agents(
         logger.warning("Risk agent v2 failed for %s: %s", context.ticker, e)
 
     # ---------------------------------------------------------------
-    # Phase 3: Contrarian (sequential, skip if >= 2 Phase 1 failures)
+    # Phase 3: Contrarian (sequential, skip if >= 3 Phase 1 failures)
     # ---------------------------------------------------------------
     contrarian_output: ContrarianThesis | None = None
-    if phase1_failures < 2:
+    if phase1_failures < 3:
         logger.info("Phase 3: running contrarian agent for %s", context.ticker)
         try:
             prior_text = _format_prior_outputs(
@@ -1377,7 +1516,7 @@ async def _run_v2_agents(
             logger.warning("Contrarian agent failed for %s: %s", context.ticker, e)
     else:
         logger.info(
-            "Phase 3 skipped for %s: %d Phase 1 failures (>= 2)",
+            "Phase 3 skipped for %s: %d Phase 1 failures (>= 3)",
             context.ticker,
             phase1_failures,
         )

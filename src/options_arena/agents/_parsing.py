@@ -167,6 +167,7 @@ def build_cleaned_volatility_thesis(output: VolatilityThesis) -> VolatilityThesi
         suggested_strikes=[strip_think_tags(s) for s in output.suggested_strikes],
         key_vol_factors=[strip_think_tags(f) for f in output.key_vol_factors],
         model_used=strip_think_tags(output.model_used),
+        direction=output.direction,
     )
 
 
