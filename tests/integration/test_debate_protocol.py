@@ -677,14 +677,20 @@ class TestRunDebateV2:
 class TestAgentVoteWeights:
     """Tests for AGENT_VOTE_WEIGHTS constant."""
 
-    def test_weights_sum_to_one(self) -> None:
-        """All agent weights should sum to 1.0."""
+    def test_weights_sum_positive(self) -> None:
+        """Voting agent weights should be positive.
+
+        Note: log-odds pooling does NOT require weights to sum to 1.0.
+        Each weight scales how much the agent shifts the pooled log-odds.
+        Risk was removed from AGENT_VOTE_WEIGHTS (Phase 2 non-voting agent).
+        """
         total = sum(AGENT_VOTE_WEIGHTS.values())
-        assert total == pytest.approx(1.0)
+        assert total == pytest.approx(0.85)
+        assert all(w > 0 for w in AGENT_VOTE_WEIGHTS.values())
 
     def test_all_agents_have_weights(self) -> None:
-        """All 6 agents have weight entries."""
-        expected = {"trend", "volatility", "flow", "fundamental", "risk", "contrarian"}
+        """All 5 voting agents have weight entries (risk is Phase 2, non-voting)."""
+        expected = {"trend", "volatility", "flow", "fundamental", "contrarian"}
         assert set(AGENT_VOTE_WEIGHTS.keys()) == expected
 
     def test_trend_has_highest_weight(self) -> None:
