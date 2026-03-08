@@ -1072,3 +1072,45 @@ class TestFetchBatchDailyChanges:
         assert len(result) == 1
         assert result[0].change_pct is None
         assert result[0].price == pytest.approx(185.0)
+
+    async def test_chunking_splits_large_batch(self, service: MarketDataService) -> None:
+        """Verify >_BATCH_CHUNK_SIZE tickers results in multiple yf.download calls."""
+        from options_arena.services.market_data import _BATCH_CHUNK_SIZE
+
+        tickers = [f"T{i:04d}" for i in range(_BATCH_CHUNK_SIZE + 10)]
+        df = _make_multi_ticker_df(
+            {t: {"Close": [100.0, 101.0], "Volume": [1000, 2000]} for t in tickers}
+        )
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.download.return_value = df
+            result = await service.fetch_batch_daily_changes(tickers)
+            assert mock_yf.download.call_count == 2
+        assert len(result) == len(tickers)
+
+    async def test_partial_chunk_failure(self, service: MarketDataService) -> None:
+        """Verify one chunk timing out still returns results from the other chunk."""
+        from options_arena.services.market_data import _BATCH_CHUNK_SIZE
+
+        chunk1 = [f"A{i:04d}" for i in range(_BATCH_CHUNK_SIZE)]
+        chunk2 = [f"B{i:04d}" for i in range(5)]
+        tickers = chunk1 + chunk2
+
+        df_good = _make_multi_ticker_df(
+            {t: {"Close": [100.0, 102.0], "Volume": [1000, 2000]} for t in chunk1}
+        )
+
+        call_count = 0
+
+        def _side_effect(*args: object, **kwargs: object) -> pd.DataFrame:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 2:
+                raise TimeoutError("chunk timeout")
+            return df_good
+
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.download.side_effect = _side_effect
+            result = await service.fetch_batch_daily_changes(tickers)
+
+        assert len(result) == _BATCH_CHUNK_SIZE
+        assert all(q.ticker.startswith("A") for q in result)
