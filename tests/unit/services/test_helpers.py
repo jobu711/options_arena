@@ -67,10 +67,13 @@ class TestFetchWithRetry:
         )
         loop = asyncio.get_event_loop()
         start = loop.time()
-        with pytest.raises(DataSourceUnavailableError):
+        with (
+            pytest.raises(DataSourceUnavailableError),
+            patch("options_arena.services.helpers.random.random", return_value=1.0),
+        ):
             await fetch_with_retry(factory, max_retries=3, base_delay=0.05, max_delay=1.0)
         elapsed = loop.time() - start
-        # Expected delays: 0.05 (attempt 0→1) + 0.10 (attempt 1→2) = 0.15s
+        # With jitter=1.0: delays are 0.05 (attempt 0→1) + 0.10 (attempt 1→2) = 0.15s
         assert elapsed >= 0.10  # at least most of the expected delay
         assert elapsed < 1.0  # upper sanity bound
 

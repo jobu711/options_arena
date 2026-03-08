@@ -342,7 +342,7 @@ class OutcomeCollector:
         is unavailable.  Returns ``None`` if both sources fail.
         """
         try:
-            days_since = (date.today() - expiration).days
+            days_since = (_market_today() - expiration).days
             period = "5d" if days_since <= 7 else "1mo" if days_since <= 35 else "3mo"
             bars = await self._market_data.fetch_ohlcv(ticker, period=period)
             if bars:

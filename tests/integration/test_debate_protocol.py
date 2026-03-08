@@ -245,6 +245,15 @@ class TestComputeAgreementScore:
         }
         assert compute_agreement_score(directions) == pytest.approx(1.0)
 
+    def test_all_neutral_returns_zero(self) -> None:
+        """All-neutral inputs return 0.0 agreement (no directional agents)."""
+        directions = {
+            "trend": SignalDirection.NEUTRAL,
+            "flow": SignalDirection.NEUTRAL,
+            "fundamental": SignalDirection.NEUTRAL,
+        }
+        assert compute_agreement_score(directions) == pytest.approx(0.0)
+
 
 # ---------------------------------------------------------------------------
 # synthesize_verdict tests

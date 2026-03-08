@@ -1,7 +1,7 @@
 """Tests for orchestrator wiring — partitioned context and vote weights.
 
 Verifies:
-  - 'risk' weight removed from AGENT_VOTE_WEIGHTS (dead code cleanup)
+  - 'risk' is advisory-only in AGENT_VOTE_WEIGHTS (weight 0.0)
   - Phase 1 agents receive domain-specific context strings
   - Risk (Phase 2) and Contrarian (Phase 3) receive full context
 """

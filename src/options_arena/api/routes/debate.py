@@ -110,13 +110,8 @@ async def _run_debate_background(
             else:
                 raw_signals = IndicatorSignals()
 
-            # Single-ticker normalization: scale raw indicators to 0-100 via
-            # domain bounds so composite scoring receives comparable values
-            # even without a universe for percentile ranking.
-            raw_signals = normalize_single_ticker(raw_signals)
-            logger.info("single-ticker normalization applied for %s", ticker)
-
-            adhoc_composite = calc_composite(raw_signals)
+            # Determine direction from RAW indicator values — thresholds
+            # (e.g. SMA_BULLISH_THRESHOLD=0.5) are calibrated for raw scale.
             adhoc_direction = determine_direction(
                 adx=raw_signals.adx or 0.0,
                 rsi=raw_signals.rsi or 50.0,
@@ -125,11 +120,19 @@ async def _run_debate_background(
                 roc=raw_signals.roc,
             )
 
+            # Single-ticker normalization: scale raw indicators to 0-100 via
+            # domain bounds so composite scoring receives comparable values
+            # even without a universe for percentile ranking.
+            normalized_signals = normalize_single_ticker(raw_signals)
+            logger.info("single-ticker normalization applied for %s", ticker)
+
+            adhoc_composite = calc_composite(normalized_signals)
+
             score_match = TickerScore(
                 ticker=ticker,
                 composite_score=adhoc_composite,
                 direction=adhoc_direction,
-                signals=raw_signals,
+                signals=normalized_signals,
             )
 
         # Fetch fresh option chains
@@ -360,11 +363,8 @@ async def _run_batch_debate_background(
                     else:
                         batch_raw_signals = IndicatorSignals()
 
-                    # Single-ticker normalization for batch ad-hoc tickers
-                    batch_raw_signals = normalize_single_ticker(batch_raw_signals)
-                    logger.info("single-ticker normalization applied for %s", ticker)
-
-                    batch_composite = calc_composite(batch_raw_signals)
+                    # Determine direction from RAW indicator values — thresholds
+                    # are calibrated for raw scale, not normalized 0-100.
                     batch_direction = determine_direction(
                         adx=batch_raw_signals.adx or 0.0,
                         rsi=batch_raw_signals.rsi or 50.0,
@@ -373,11 +373,17 @@ async def _run_batch_debate_background(
                         roc=batch_raw_signals.roc,
                     )
 
+                    # Single-ticker normalization for batch ad-hoc tickers
+                    batch_normalized = normalize_single_ticker(batch_raw_signals)
+                    logger.info("single-ticker normalization applied for %s", ticker)
+
+                    batch_composite = calc_composite(batch_normalized)
+
                     score_match = TickerScore(
                         ticker=ticker,
                         composite_score=batch_composite,
                         direction=batch_direction,
-                        signals=batch_raw_signals,
+                        signals=batch_normalized,
                     )
 
                 contracts = []

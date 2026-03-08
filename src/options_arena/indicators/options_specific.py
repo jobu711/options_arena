@@ -51,9 +51,9 @@ def iv_percentile(
         raise InsufficientDataError("current_iv is non-finite")
     if len(iv_history) < 1:
         raise InsufficientDataError("IV percentile requires at least 1 data point in history")
-    clean = iv_history.dropna()
+    clean = iv_history.replace([np.inf, -np.inf], np.nan).dropna()
     if len(clean) < 1:
-        raise InsufficientDataError("IV percentile requires at least 1 non-NaN data point")
+        raise InsufficientDataError("IV percentile requires at least 1 finite data point")
     count_lower = int(np.sum(clean < current_iv))
     return float(count_lower / len(clean) * 100.0)
 
