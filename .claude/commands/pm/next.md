@@ -9,77 +9,69 @@ You are a strategic development advisor. This command has 3 phases executed in s
 
 ## Phase 1 -- Interview (MANDATORY FIRST ACTION)
 
-Before doing ANYTHING else, you must:
+IMMEDIATELY call AskUserQuestion with all 3 questions below in a single tool call.
 
-1. Output this exact text to the user: "Let me ask a few quick questions to tailor recommendations to your current headspace."
-2. Immediately call AskUserQuestion with the 3 questions below.
-3. Do NOT run any bash commands, read any files, or gather any context before OR alongside this call.
-4. After the user answers, proceed to Phase 2.
+Question 1 — header: "Mode", multiSelect: false
+  question: "What kind of work fits your headspace right now?"
+  options:
+    label: "Build new features" → description: "New capabilities, endpoints, or UI"
+    label: "Fix and harden" → description: "Bugs, edge cases, test coverage"
+    label: "Polish and refine" → description: "UX, performance, code quality"
+    label: "Surprise me" → description: "Rank purely on project impact"
 
-Ask all 3 questions in ONE AskUserQuestion call. Use this exact structure:
+Question 2 — header: "Area", multiSelect: true
+  question: "Which parts of the codebase do you want to work in?"
+  options:
+    label: "Backend (Python)" → description: "Models, services, scoring, pricing"
+    label: "Frontend (Vue)" → description: "Components, views, stores, styling"
+    label: "AI agents" → description: "Prompts, orchestration, LLM providers"
+    label: "Infrastructure" → description: "CI/CD, config, tooling, DevOps"
 
-```json
-{
-  "questions": [
-    {
-      "question": "What kind of work fits your headspace right now?",
-      "header": "Mode",
-      "multiSelect": false,
-      "options": [
-        {"label": "Build new features", "description": "New capabilities, endpoints, or UI"},
-        {"label": "Fix and harden", "description": "Bugs, edge cases, test coverage"},
-        {"label": "Polish and refine", "description": "UX, performance, code quality"},
-        {"label": "Surprise me", "description": "Rank purely on project impact"}
-      ]
-    },
-    {
-      "question": "Which parts of the codebase do you want to work in?",
-      "header": "Area",
-      "multiSelect": true,
-      "options": [
-        {"label": "Backend (Python)", "description": "Models, services, scoring, pricing"},
-        {"label": "Frontend (Vue)", "description": "Components, views, stores, styling"},
-        {"label": "AI agents", "description": "Prompts, orchestration, LLM providers"},
-        {"label": "Infrastructure", "description": "CI/CD, config, tooling, DevOps"}
-      ]
-    },
-    {
-      "question": "How much time do you want to invest?",
-      "header": "Scope",
-      "multiSelect": false,
-      "options": [
-        {"label": "Quick wins (hours)", "description": "S-sized: a focused session or two"},
-        {"label": "Focused sprint (days)", "description": "M-sized: a few days of work"},
-        {"label": "Deep project (week+)", "description": "L/XL-sized: multi-day epics"}
-      ]
-    }
-  ]
-}
-```
+Question 3 — header: "Scope", multiSelect: false
+  question: "How much time do you want to invest?"
+  options:
+    label: "Quick wins (hours)" → description: "S-sized: a focused session or two"
+    label: "Focused sprint (days)" → description: "M-sized: a few days of work"
+    label: "Deep project (week+)" → description: "L/XL-sized: multi-day epics"
 
-Do NOT include any other tool calls alongside AskUserQuestion.
+WAIT for the user's actual responses. Phase 2 uses answers from Phase 1.
 
 ## Phase 2 -- Context Sweep + Ranking (after interview answers received)
 
 Use the user's answers from Phase 1 (Mode, Area, Scope) to filter and rank below.
 
-Silently gather project state — no progress updates to the user.
+Spawn an Explore agent to gather project state silently. Pass the user's Mode, Area, and Scope answers in the prompt so the agent can tag candidates.
 
-Run in parallel:
-```bash
-git log master --oneline --merges -15
-git log master --oneline -20 --no-merges
-git branch -a --no-merged master
-git log master --oneline --since="14 days ago" --no-merges
-```
+Use the Agent tool with these parameters:
+- description: "Context sweep for /pm:next"
+- subagent_type: "Explore"
+- prompt: Include ALL of the instructions below verbatim, plus the user's interview answers.
 
-For each unmerged branch: `git log master..<branch> --oneline`
+Agent instructions (include in prompt):
 
-**Backlog discovery** (cross-reference against git ground truth):
-1. Scan `.claude/prds/` frontmatter (first 10-15 lines). A PRD is **done** if its epic appears in the merge log or `.claude/epics/archived/`.
-2. Read `progress.md` "Future Work" section ONLY for idea discovery. Derive actual state from git.
-3. For unmerged epics, check branch commit content (not task file statuses).
-4. Check `web/src/views/` and glob/grep to confirm whether suggested capabilities already exist.
+> Gather project state for development targeting. Return a compact summary under 30 lines.
+>
+> 1. Run: `git log master --oneline -10` (recent commits)
+> 2. Run: `git branch --no-merged master` (in-flight work)
+> 3. Read first 10 lines of each file in `.claude/prds/` (frontmatter only — name, status)
+> 4. Read `.claude/context/progress.md` — extract "Recently Completed" and "Future Work" sections
+> 5. List directories in `.claude/epics/archived/` (shipped epics)
+> 6. For each PRD candidate not yet shipped: glob/grep to check if the feature already exists in the codebase (check `src/options_arena/`, `web/src/views/`, `web/src/components/`)
+>
+> Cross-reference rule — a feature is SHIPPED if ANY of these is true:
+> - Its epic name appears in `.claude/epics/archived/`
+> - It appears in progress.md "Recently Completed"
+> - Its PRD frontmatter has `status: done` or `status: archived`
+> - Its key components already exist in the codebase (confirmed by glob/grep)
+>
+> Return your summary in this exact format:
+> - SHIPPED: [list of shipped feature names]
+> - BACKLOG: [list of unshipped PRD names with effort estimate]
+> - IN-FLIGHT: [unmerged branches, if any]
+> - FUTURE IDEAS: [items from progress.md "Future Work"]
+> - RECENT THEMES: [2-3 word summary of last 2 weeks of commits]
+
+After the agent returns its summary, apply ranking in the main context.
 
 **Tag each candidate** with: Area (Backend/Frontend/AI agents/Infrastructure), Effort (S/M/L/XL), Momentum signal (yes/no + which recent work).
 
@@ -108,9 +100,16 @@ Scope multipliers:
 Additional rules:
 - Avoid duplicating or conflicting with in-progress efforts
 - Prefer targets with existing PRDs (less overhead). Flag if a target needs a PRD first.
-- If user answered "Other", interpret their free text and apply closest matching multipliers.
+- If the user provided free text instead of selecting a preset, interpret their intent and apply closest matching multipliers.
 
 ## Phase 3 -- Tailored Output
+
+For strategic opportunities, analyze:
+1. **Capability extension**: What existing infrastructure enables new features? (e.g., "WebSocket pipeline exists — could power real-time price alerts")
+2. **Module maturity gaps**: Which modules are feature-rich vs underdeveloped?
+3. **Industry patterns**: What do comparable options analytics tools have that this lacks?
+
+Always ground strategic suggestions in specific codebase evidence — reference actual modules, services, or infrastructure that enable the opportunity.
 
 Present results in this exact format:
 
@@ -137,17 +136,30 @@ Present results in this exact format:
 ...
 
 ---
-**Filtered out (already shipped/in-flight):** [list briefly]
+
+## Strategic Opportunities
+
+### S1. [Novel idea based on codebase capabilities]
+**Opportunity:** [What the architecture enables that isn't built yet — 1-2 sentences]
+**Builds on:** [Which existing modules/infrastructure this leverages]
+**Effort:** [S / M / L / XL] · **Area:** [Backend / Frontend / AI agents / Infrastructure]
+**Next command:** `/pm:prd-new [feature-name]`
+
+---
+**Filtered out (already shipped):** [list from subagent SHIPPED section]
 **Filtered out (outside your profile):** [list briefly]
-**Recent themes:** [2-3 word summary of last 2 weeks]
+**Recent themes:** [from subagent RECENT THEMES]
 **Suggested focus:** [1 sentence strategic direction]
 ```
+
+If no backlog items match the user's profile, show "No backlog items match your profile" under Development Targets and let Strategic Opportunities be the primary output.
 
 ## Guidelines
 
 - Be opinionated — rank decisively, don't hedge
 - Ground every suggestion in concrete evidence from git history
 - Interview answers must visibly change the output — "Fix and harden" produces different targets than "Build new features"
-- If the backlog is empty or all PRDs are done, suggest genuinely new directions based on what the codebase enables
+- Strategic suggestions must reference specific modules, services, or infrastructure — no vague ideas
+- Include at least 1 strategic opportunity even when backlog items exist
 - Keep each suggestion to 3-5 lines — brainstorm, not design doc
 - Always suggest actionable next commands
