@@ -113,6 +113,14 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **API**: `/api/universe/metadata` + `/api/universe/metadata/stats` endpoints
 - **Staleness**: 30-day TTL; `MetadataStats` tracks coverage and freshness
 
+### Liquidity Scoring Pattern
+- **Chain-level indicators**: `chain_spread_pct` (OI-weighted bid-ask spread %) and `chain_oi_depth` (log10 total OI)
+- **Numpy at boundary**: pandas Series → `.to_numpy(dtype=float)` for mypy-clean computation
+- **Inverted normalization**: `chain_spread_pct` in `INVERTED_INDICATORS` (wider spread = worse)
+- **Contract multiplier**: `_compute_liquidity_score()` blends spread (70%) + OI depth (30%) → adjusts effective delta distance in `select_by_delta()`
+- **Floor guard**: `max(liq, 0.01)` prevents division-by-zero; `max(0.0, spread)` guards stale bid>ask
+- **Weight redistribution**: 6% total liquidity weight (0.04 spread + 0.02 depth), redistributed from existing indicators; import-time `sum==1.0` guard
+
 ### S&P 500 Heatmap Pattern
 - **Batch quotes**: `BatchQuote` model + `fetch_batch_daily_changes()` fetches daily % change for all S&P 500 tickers
 - **Chunked download**: Batches chunked to prevent timeout on large universe
