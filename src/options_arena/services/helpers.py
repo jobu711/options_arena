@@ -7,6 +7,7 @@ NOT exported in ``__init__.py`` — internal use only.
 import asyncio
 import logging
 import math
+import random
 from collections.abc import Awaitable, Callable
 from decimal import Decimal, InvalidOperation
 
@@ -48,6 +49,8 @@ async def fetch_with_retry[T](
             last_exc = exc
             if attempt < max_retries - 1:
                 delay = min(base_delay * (2**attempt), max_delay)
+                jitter = 0.5 + random.random() * 0.5  # noqa: S311
+                delay *= jitter
                 logger.warning(
                     "Retry %d/%d after %s: %.1fs delay",
                     attempt + 1,
