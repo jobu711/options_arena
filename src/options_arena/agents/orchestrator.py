@@ -781,10 +781,12 @@ AGENT_VOTE_WEIGHTS: dict[str, float] = {
 
 
 def compute_agreement_score(agent_directions: dict[str, SignalDirection]) -> float:
-    """Compute fraction of agents agreeing with the majority direction.
+    """Compute fraction of directional agents agreeing with the majority.
 
-    Returns a float in [0.0, 1.0]. With 0 agents, returns 0.0.
-    Only considers BULLISH/BEARISH for majority — NEUTRAL counts as non-agreeing.
+    NEUTRAL agents are excluded from the denominator so they don't dilute
+    agreement among agents that actually took a directional stance.
+
+    Returns a float in [0.0, 1.0]. With 0 agents or all NEUTRAL, returns 0.0.
 
     Parameters
     ----------
@@ -794,17 +796,20 @@ def compute_agreement_score(agent_directions: dict[str, SignalDirection]) -> flo
     Returns
     -------
     float
-        Fraction of agents agreeing with the majority direction.
+        Fraction of directional agents agreeing with the majority direction.
     """
     if not agent_directions:
         return 0.0
 
     bullish_count = sum(1 for d in agent_directions.values() if d == SignalDirection.BULLISH)
     bearish_count = sum(1 for d in agent_directions.values() if d == SignalDirection.BEARISH)
-    total = len(agent_directions)
 
-    majority_count = max(bullish_count, bearish_count)
-    return majority_count / total
+    directional_count = bullish_count + bearish_count
+    if directional_count == 0:
+        return 0.0  # All NEUTRAL — no directional consensus
+
+    majority = max(bullish_count, bearish_count)
+    return majority / directional_count
 
 
 def _get_majority_direction(agent_directions: dict[str, SignalDirection]) -> SignalDirection:

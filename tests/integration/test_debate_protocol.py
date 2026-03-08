@@ -233,15 +233,17 @@ class TestComputeAgreementScore:
         directions = {"trend": SignalDirection.BULLISH}
         assert compute_agreement_score(directions) == pytest.approx(1.0)
 
-    def test_neutral_not_counted_as_majority(self) -> None:
-        """Neutral agents don't count toward majority bullish/bearish."""
+    def test_neutral_excluded_from_denominator(self) -> None:
+        """Neutral agents are excluded from the denominator.
+
+        1 BULL, 0 BEAR, 2 NEUTRAL -> directional = 1 -> 1/1 = 1.0.
+        """
         directions = {
             "trend": SignalDirection.NEUTRAL,
             "flow": SignalDirection.NEUTRAL,
             "fundamental": SignalDirection.BULLISH,
         }
-        # 1 bullish, 0 bearish, 2 neutral -> majority = max(1,0)/3 = 0.333
-        assert compute_agreement_score(directions) == pytest.approx(1.0 / 3.0)
+        assert compute_agreement_score(directions) == pytest.approx(1.0)
 
 
 # ---------------------------------------------------------------------------
@@ -302,31 +304,34 @@ class TestSynthesizeVerdict:
         assert 0.0 <= verdict.agent_agreement_score <= 1.0
 
     def test_low_agreement_caps_confidence(self) -> None:
-        """When agreement < 0.4, confidence is capped at 0.4."""
-        # 2 bullish, 2 bearish, 1 neutral -> agreement = 2/5 = 0.4
-        # Actually need < 0.4 so make it 1 bull 1 bear 1 neutral
+        """When agreement < 0.4 (all NEUTRAL), confidence is capped at 0.4.
+
+        With NEUTRAL exclusion from denominator, agreement is 0.0 when all
+        agents are NEUTRAL -- the only scenario where agreement < 0.4, since
+        the minimum directional agreement is 0.5 (equal split).
+        """
         agents: dict[
             str,
             AgentResponse | FlowThesis | FundamentalThesis | VolatilityThesis,
         ] = {
             "trend": AgentResponse(
                 agent_name="trend",
-                direction=SignalDirection.BULLISH,
-                confidence=0.9,
-                argument="Strong bull.",
+                direction=SignalDirection.NEUTRAL,
+                confidence=0.5,
+                argument="No clear trend.",
                 key_points=["Point A"],
                 risks_cited=["Risk A"],
                 contracts_referenced=["AAPL $190 CALL"],
                 model_used="test",
             ),
             "flow": FlowThesis(
-                direction=SignalDirection.BEARISH,
-                confidence=0.8,
-                gex_interpretation="Negative GEX.",
-                smart_money_signal="Distribution.",
-                oi_analysis="Put OI dominant.",
-                volume_confirmation="Volume declining.",
-                key_flow_factors=["Negative GEX"],
+                direction=SignalDirection.NEUTRAL,
+                confidence=0.5,
+                gex_interpretation="Flat GEX.",
+                smart_money_signal="No signal.",
+                oi_analysis="Balanced OI.",
+                volume_confirmation="Average volume.",
+                key_flow_factors=["No signal"],
                 model_used="test",
             ),
             "fundamental": FundamentalThesis(
@@ -347,9 +352,9 @@ class TestSynthesizeVerdict:
             ticker="AAPL",
             config=_make_config(),
         )
-        # agreement = max(1 bull, 1 bear) / 3 = 0.333 < 0.4
+        # All NEUTRAL -> directional_count = 0 -> agreement = 0.0 < 0.4
         assert verdict.agent_agreement_score is not None
-        assert verdict.agent_agreement_score < 0.4
+        assert verdict.agent_agreement_score == pytest.approx(0.0)
         assert verdict.confidence <= 0.4
 
     def test_contrarian_dissent_included(self) -> None:

@@ -154,7 +154,7 @@ class TestAgreementScoreSixAgents:
         assert compute_agreement_score(directions) == pytest.approx(1.0)
 
     def test_agreement_score_six_agents_four_two_split(self) -> None:
-        """Agreement score reflects 4/6 majority."""
+        """Agreement score reflects 4/6 majority among directional agents."""
         directions = {
             "trend": SignalDirection.BULLISH,
             "volatility": SignalDirection.BULLISH,
@@ -176,3 +176,41 @@ class TestAgreementScoreSixAgents:
             "fundamental": SignalDirection.BEARISH,
         }
         assert compute_agreement_score(directions) == pytest.approx(4.0 / 6.0)
+
+
+# ---------------------------------------------------------------------------
+# Agreement score — NEUTRAL exclusion (#361)
+# ---------------------------------------------------------------------------
+
+
+class TestAgreementNeutralExclusion:
+    """Tests for NEUTRAL exclusion from agreement denominator."""
+
+    def test_all_neutral_returns_zero(self) -> None:
+        """All NEUTRAL agents -> agreement = 0.0."""
+        directions = {
+            "trend": SignalDirection.NEUTRAL,
+            "volatility": SignalDirection.NEUTRAL,
+            "flow": SignalDirection.NEUTRAL,
+        }
+        assert compute_agreement_score(directions) == pytest.approx(0.0)
+
+    def test_neutral_excluded_from_denominator(self) -> None:
+        """3 BULL + 1 NEUTRAL -> agreement = 3/3 = 1.0, not 3/4 = 0.75."""
+        directions = {
+            "trend": SignalDirection.BULLISH,
+            "volatility": SignalDirection.BULLISH,
+            "flow": SignalDirection.BULLISH,
+            "fundamental": SignalDirection.NEUTRAL,
+        }
+        assert compute_agreement_score(directions) == pytest.approx(1.0)
+
+    def test_mixed_with_neutral_higher_agreement(self) -> None:
+        """2 BULL + 1 BEAR + 1 NEUTRAL -> agreement = 2/3, not 2/4."""
+        directions = {
+            "trend": SignalDirection.BULLISH,
+            "volatility": SignalDirection.BULLISH,
+            "flow": SignalDirection.BEARISH,
+            "fundamental": SignalDirection.NEUTRAL,
+        }
+        assert compute_agreement_score(directions) == pytest.approx(2.0 / 3.0)
