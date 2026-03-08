@@ -33,7 +33,12 @@ from options_arena.services.cache import (
     TTL_REFERENCE,
     ServiceCache,
 )
-from options_arena.services.helpers import fetch_with_retry, safe_decimal, safe_float, safe_int
+from options_arena.services.helpers import (
+    fetch_with_limiter_retry,
+    safe_decimal,
+    safe_float,
+    safe_int,
+)
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.utils.exceptions import (
     DataFetchError,
@@ -308,11 +313,10 @@ class MarketDataService:
             return _deserialize_ohlcv_list(cached, ticker)
 
         # Fetch from yfinance (with retry on transient failures)
-        async with self._limiter:
-            ticker_obj = yf.Ticker(ticker)
-            df: pd.DataFrame = await fetch_with_retry(
-                lambda: self._yf_call(ticker_obj.history, period=period)
-            )
+        ticker_obj = yf.Ticker(ticker)
+        df: pd.DataFrame = await fetch_with_limiter_retry(
+            self._yf_call, ticker_obj.history, period=period, limiter=self._limiter
+        )
 
         if df.empty:
             raise InsufficientDataError(f"{ticker}: no OHLCV data returned by yfinance")
@@ -383,16 +387,23 @@ class MarketDataService:
             logger.debug("Cache hit for %s", cache_key)
             return _deserialize_quote(cached)
 
-        async with self._limiter:
-            ticker_obj = yf.Ticker(ticker)
-            try:
-                # Single attempt — ETF 404s are permanent, retrying wastes ~31s.
-                info: dict[str, Any] = await self._yf_call(lambda: ticker_obj.info)
-            except DataSourceUnavailableError:
-                # ETFs (SPY, QQQ) lack quoteSummary fundamentals (Yahoo 404).
-                # Fall back to fast_info for basic price data.
-                logger.warning("%s: Ticker.info failed, using fast_info fallback", ticker)
-                info = await self._yf_call(self._build_info_from_fast_info, ticker_obj)
+        ticker_obj = yf.Ticker(ticker)
+        try:
+            # Single attempt — ETF 404s are permanent, retrying wastes ~31s.
+            info: dict[str, Any] = await fetch_with_limiter_retry(
+                self._yf_call, lambda: ticker_obj.info, limiter=self._limiter, max_attempts=1
+            )
+        except DataSourceUnavailableError:
+            # ETFs (SPY, QQQ) lack quoteSummary fundamentals (Yahoo 404).
+            # Fall back to fast_info for basic price data.
+            logger.warning("%s: Ticker.info failed, using fast_info fallback", ticker)
+            info = await fetch_with_limiter_retry(
+                self._yf_call,
+                self._build_info_from_fast_info,
+                ticker_obj,
+                limiter=self._limiter,
+                max_attempts=1,
+            )
 
         price_raw = info.get("currentPrice") or info.get("regularMarketPrice")
         price = safe_decimal(price_raw)
@@ -434,23 +445,29 @@ class MarketDataService:
             logger.debug("Cache hit for %s", cache_key)
             return _deserialize_ticker_info(cached)
 
-        async with self._limiter:
-            ticker_obj = yf.Ticker(ticker)
-            try:
-                # Single attempt — ETF 404s are permanent, retrying wastes ~31s.
-                info: dict[str, Any] = await self._yf_call(lambda: ticker_obj.info)
-            except DataSourceUnavailableError:
-                # ETFs (SPY, QQQ) lack quoteSummary fundamentals (Yahoo 404).
-                # Fall back to fast_info for basic price/market-cap data.
-                logger.warning("%s: Ticker.info failed, using fast_info fallback", ticker)
-                info = await self._yf_call(self._build_info_from_fast_info, ticker_obj)
+        ticker_obj = yf.Ticker(ticker)
+        try:
+            # Single attempt — ETF 404s are permanent, retrying wastes ~31s.
+            info: dict[str, Any] = await fetch_with_limiter_retry(
+                self._yf_call, lambda: ticker_obj.info, limiter=self._limiter, max_attempts=1
+            )
+        except DataSourceUnavailableError:
+            # ETFs (SPY, QQQ) lack quoteSummary fundamentals (Yahoo 404).
+            # Fall back to fast_info for basic price/market-cap data.
+            logger.warning("%s: Ticker.info failed, using fast_info fallback", ticker)
+            info = await fetch_with_limiter_retry(
+                self._yf_call,
+                self._build_info_from_fast_info,
+                ticker_obj,
+                limiter=self._limiter,
+                max_attempts=1,
+            )
 
         # Fetch dividends for tier 3 of the waterfall
         try:
-            async with self._limiter:
-                dividends_series: pd.Series[float] = await fetch_with_retry(
-                    lambda: self._yf_call(ticker_obj.get_dividends, period="1y")
-                )
+            dividends_series: pd.Series[float] = await fetch_with_limiter_retry(
+                self._yf_call, ticker_obj.get_dividends, period="1y", limiter=self._limiter
+            )
         except (DataSourceUnavailableError, DataFetchError):
             # ETFs or tickers without dividend data — fall through to tier 4 (0.0).
             logger.warning("%s: get_dividends failed, using empty series", ticker)
@@ -548,11 +565,10 @@ class MarketDataService:
             return _deserialize_earnings_date(cached)
 
         try:
-            async with self._limiter:
-                ticker_obj = yf.Ticker(ticker)
-                calendar: dict[str, Any] = await fetch_with_retry(
-                    lambda: self._yf_call(lambda: ticker_obj.calendar)
-                )
+            ticker_obj = yf.Ticker(ticker)
+            calendar: dict[str, Any] = await fetch_with_limiter_retry(
+                self._yf_call, lambda: ticker_obj.calendar, limiter=self._limiter
+            )
         except Exception:
             logger.debug("No earnings calendar available for %s", ticker)
             # Cache the absence to avoid re-fetching on the same scan
@@ -629,11 +645,13 @@ class MarketDataService:
         # Fetch all in parallel using _yf_call pattern
         async def _fetch_one(symbol: str) -> tuple[str, pd.DataFrame | None]:
             try:
-                async with self._limiter:
-                    ticker_obj = yf.Ticker(symbol)
-                    df: pd.DataFrame = await fetch_with_retry(
-                        lambda t=ticker_obj: self._yf_call(t.history, period="3mo")  # type: ignore[misc]
-                    )
+                ticker_obj = yf.Ticker(symbol)
+                df: pd.DataFrame = await fetch_with_limiter_retry(
+                    self._yf_call,
+                    ticker_obj.history,
+                    period="3mo",
+                    limiter=self._limiter,
+                )
                 if df.empty:
                     logger.debug("Empty data for universe ticker %s", symbol)
                     return (symbol, None)

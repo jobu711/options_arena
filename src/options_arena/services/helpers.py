@@ -11,6 +11,7 @@ import random
 from collections.abc import Awaitable, Callable
 from decimal import Decimal, InvalidOperation
 
+from options_arena.services.rate_limiter import RateLimiter
 from options_arena.utils.exceptions import DataSourceUnavailableError
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,61 @@ async def fetch_with_retry[T](
     # All retries exhausted — raise the last retryable exception
     assert last_exc is not None  # noqa: S101 — guaranteed by loop logic
     raise last_exc
+
+
+async def fetch_with_limiter_retry[T](
+    fn: Callable[..., Awaitable[T]],
+    *args: object,
+    limiter: RateLimiter,
+    max_attempts: int = 3,
+    base_delay: float = 1.0,
+    max_delay: float = 16.0,
+    **kwargs: object,
+) -> T:
+    """Retry with rate limiter — releases semaphore during backoff sleep.
+
+    Unlike :func:`fetch_with_retry` which holds the rate-limit slot for the
+    entire retry loop, this function acquires the limiter per-attempt and
+    releases it before sleeping between retries. This avoids starving other
+    tasks of concurrency slots during backoff waits.
+
+    Args:
+        fn: Async callable to invoke on each attempt.
+        *args: Positional arguments forwarded to ``fn``.
+        limiter: :class:`RateLimiter` instance — acquired per attempt.
+        max_attempts: Maximum number of attempts before raising.
+        base_delay: Initial delay in seconds before first retry.
+        max_delay: Upper bound on delay between retries.
+        **kwargs: Keyword arguments forwarded to ``fn``.
+
+    Returns:
+        The result of ``fn(*args, **kwargs)``.
+
+    Raises:
+        The last exception encountered after all attempts are exhausted.
+    """
+    last_error: Exception | None = None
+    for attempt in range(max_attempts):
+        async with limiter:  # acquire per attempt
+            try:
+                return await fn(*args, **kwargs)
+            except Exception as exc:
+                last_error = exc
+        # Limiter released before sleeping
+        if attempt < max_attempts - 1:
+            delay = min(base_delay * (2**attempt), max_delay)
+            jitter = 0.5 + random.random() * 0.5  # noqa: S311
+            delay *= jitter
+            logger.warning(
+                "Limiter-retry %d/%d after %s: %.1fs delay",
+                attempt + 1,
+                max_attempts - 1,
+                type(last_error).__name__,
+                delay,
+            )
+            await asyncio.sleep(delay)
+    assert last_error is not None  # noqa: S101 — guaranteed by loop logic
+    raise last_error
 
 
 def safe_decimal(value: object) -> Decimal | None:
