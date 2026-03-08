@@ -526,6 +526,8 @@ class VolatilityThesis(BaseModel):
 
     Frozen (immutable after construction) -- represents a completed vol assessment.
     ``confidence`` is validated to be within [0.0, 1.0] with ``math.isfinite()`` guard.
+    ``direction`` defaults to NEUTRAL for backward-compatible deserialization of
+    existing data that lacks this field.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -540,6 +542,7 @@ class VolatilityThesis(BaseModel):
     suggested_strikes: list[str]
     key_vol_factors: list[str]
     model_used: str
+    direction: SignalDirection = SignalDirection.NEUTRAL
 
     @field_validator("confidence")
     @classmethod
@@ -712,6 +715,7 @@ class ExtendedTradeThesis(TradeThesis):
 
     contrarian_dissent: str | None = None
     agent_agreement_score: float | None = None  # 0.0-1.0, fraction of agents agreeing
+    ensemble_entropy: float | None = None  # Shannon entropy of vote distribution
     dissenting_agents: list[str] = Field(default_factory=list)
     dimensional_scores: DimensionalScores | None = None
     agents_completed: int = 0
@@ -734,3 +738,45 @@ class ExtendedTradeThesis(TradeThesis):
             if not 0.0 <= v <= 1.0:
                 raise ValueError(f"agent_agreement_score must be in [0, 1], got {v}")
         return v
+
+    @field_validator("ensemble_entropy")
+    @classmethod
+    def validate_ensemble_entropy(cls, v: float | None) -> float | None:
+        """Ensure ensemble_entropy is finite and non-negative when provided."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"ensemble_entropy must be finite, got {v}")
+            if v < 0.0:
+                raise ValueError(f"ensemble_entropy must be >= 0.0, got {v}")
+        return v
+
+
+class AgentPrediction(BaseModel):
+    """Per-agent prediction record for accuracy tracking.
+
+    Frozen (immutable after construction) — represents a completed agent prediction.
+    ``confidence`` is validated to be within [0.0, 1.0] with ``math.isfinite()`` guard.
+    ``created_at`` is validated to be UTC.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    debate_id: int
+    agent_name: str
+    direction: SignalDirection | None = None
+    confidence: float
+    created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def _validate_utc(cls, v: datetime) -> datetime:
+        """Ensure created_at is UTC."""
+        if v.tzinfo is None or v.utcoffset() != timedelta(0):
+            raise ValueError("created_at must be UTC")
+        return v
+
+    @field_validator("confidence")
+    @classmethod
+    def _validate_confidence(cls, v: float) -> float:
+        """Ensure confidence is finite and within [0.0, 1.0]."""
+        return validate_unit_interval(v, "confidence")

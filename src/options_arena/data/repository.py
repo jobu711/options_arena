@@ -17,6 +17,7 @@ import numpy as np
 
 from options_arena.data.database import Database
 from options_arena.models import (
+    AgentPrediction,
     ContractOutcome,
     ContrarianThesis,
     DeltaPerformanceResult,
@@ -342,6 +343,37 @@ class Repository:
         row_id: int = cursor.lastrowid  # type: ignore[assignment]
         logger.debug("Saved debate id=%d for ticker=%s", row_id, ticker)
         return row_id
+
+    async def save_agent_predictions(self, predictions: list[AgentPrediction]) -> None:
+        """Persist per-agent predictions for accuracy tracking.
+
+        Uses ``INSERT OR IGNORE`` with ``UNIQUE(debate_id, agent_name)`` for idempotency.
+        Skips empty prediction lists without touching the database.
+        """
+        if not predictions:
+            return
+        conn = self._db.conn
+        await conn.executemany(
+            "INSERT OR IGNORE INTO agent_predictions "
+            "(debate_id, agent_name, direction, confidence, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            [
+                (
+                    p.debate_id,
+                    p.agent_name,
+                    p.direction.value if p.direction is not None else None,
+                    p.confidence,
+                    p.created_at.isoformat(),
+                )
+                for p in predictions
+            ],
+        )
+        await conn.commit()
+        logger.debug(
+            "Saved %d agent predictions for debate_id=%d",
+            len(predictions),
+            predictions[0].debate_id,
+        )
 
     async def get_debate_by_id(self, debate_id: int) -> DebateRow | None:
         """Get a single debate by its primary key, or None if not found."""

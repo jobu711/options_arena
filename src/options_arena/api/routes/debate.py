@@ -9,7 +9,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from options_arena.agents import DebateResult, run_debate
+from options_arena.agents import DebateResult, extract_agent_predictions, run_debate
 from options_arena.api.app import limiter
 from options_arena.api.deps import (
     get_market_data,
@@ -187,7 +187,7 @@ async def _run_debate_background(
 
         # Persist debate to DB
         total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens
-        await repo.save_debate(
+        db_debate_id = await repo.save_debate(
             scan_run_id=scan_id,
             ticker=ticker,
             bull_json=result.bull_response.model_dump_json(),
@@ -215,6 +215,11 @@ async def _run_debate_background(
             contrarian_thesis=result.contrarian_response,
             debate_protocol=result.debate_protocol,
         )
+
+        # Persist per-agent predictions for accuracy tracking (FR-8)
+        predictions = extract_agent_predictions(db_debate_id, result)
+        if predictions:
+            await repo.save_agent_predictions(predictions)
 
         bridge.complete(debate_id)
     except Exception:
@@ -462,6 +467,11 @@ async def _run_batch_debate_background(
                     contrarian_thesis=result.contrarian_response,
                     debate_protocol=result.debate_protocol,
                 )
+
+                # Persist per-agent predictions for accuracy tracking (FR-8)
+                batch_predictions = extract_agent_predictions(debate_id, result)
+                if batch_predictions:
+                    await repo.save_agent_predictions(batch_predictions)
 
                 direction = result.thesis.direction.value
                 confidence = result.thesis.confidence

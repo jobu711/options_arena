@@ -8,7 +8,7 @@ LLM output, etc.), returns a data-driven fallback — ``run_debate()`` never rai
 Protocol flow:
   Phase 1 (parallel): trend + volatility (always), flow + fundamental (when enrichment exists)
   Phase 2 (sequential): risk agent with all Phase 1 outputs
-  Phase 3 (sequential): contrarian with all prior outputs (skip if >=2 Phase 1 failures)
+  Phase 3 (sequential): contrarian with all prior outputs (skip if >=3 Phase 1 failures)
   Phase 4 (algorithmic): synthesize_verdict -> ExtendedTradeThesis
 
 Architecture rules:
@@ -36,6 +36,10 @@ from options_arena.agents._parsing import (
     DebateResult,
     compute_citation_density,
     render_context_block,
+    render_flow_context,
+    render_fundamental_context,
+    render_trend_context,
+    render_volatility_context,
 )
 from options_arena.agents.contrarian_agent import contrarian_agent
 from options_arena.agents.flow_agent import flow_agent
@@ -46,6 +50,7 @@ from options_arena.agents.trend_agent import trend_agent
 from options_arena.agents.volatility import volatility_agent
 from options_arena.data.repository import Repository
 from options_arena.models import (
+    AgentPrediction,
     AgentResponse,
     ContrarianThesis,
     DebateConfig,
@@ -574,6 +579,117 @@ def _opposite_direction(direction: SignalDirection) -> SignalDirection:
     return SignalDirection.NEUTRAL
 
 
+def extract_agent_predictions(
+    debate_id: int,
+    result: DebateResult,
+) -> list[AgentPrediction]:
+    """Extract per-agent predictions from a DebateResult for accuracy tracking.
+
+    Each agent response type is handled individually because they have different
+    field names for direction and confidence (e.g. ``dissent_direction`` on
+    ``ContrarianThesis``, no direction on ``RiskAssessment``).
+
+    In v2 protocol, ``bull_response`` actually holds the trend agent output and
+    ``bear_response`` is a static fallback — extract "trend" instead of "bull"
+    and skip the fake "bear".
+
+    Returns a list of ``AgentPrediction`` — empty if all agents failed.
+    """
+    now = datetime.now(UTC)
+    predictions: list[AgentPrediction] = []
+    is_v2 = result.debate_protocol == "v2"
+
+    # In v2, bull_response holds the trend agent output (backward-compat shim).
+    # Extract as "trend" to avoid conflating with the retired bull agent.
+    # In v1 (legacy), extract as "bull" for backward compatibility.
+    if result.bull_response is not None:
+        agent_name = "trend" if is_v2 else "bull"
+        predictions.append(
+            AgentPrediction(
+                debate_id=debate_id,
+                agent_name=agent_name,
+                direction=result.bull_response.direction,
+                confidence=result.bull_response.confidence,
+                created_at=now,
+            )
+        )
+
+    # Bear response — only extract in v1. In v2, bear_response is a static
+    # fallback (not a real agent output) so skip it to avoid misleading data.
+    if result.bear_response is not None and not is_v2:
+        predictions.append(
+            AgentPrediction(
+                debate_id=debate_id,
+                agent_name="bear",
+                direction=result.bear_response.direction,
+                confidence=result.bear_response.confidence,
+                created_at=now,
+            )
+        )
+
+    # Flow response (FlowThesis — has direction + confidence)
+    if result.flow_response is not None:
+        predictions.append(
+            AgentPrediction(
+                debate_id=debate_id,
+                agent_name="flow",
+                direction=result.flow_response.direction,
+                confidence=result.flow_response.confidence,
+                created_at=now,
+            )
+        )
+
+    # Fundamental response (FundamentalThesis — has direction + confidence)
+    if result.fundamental_response is not None:
+        predictions.append(
+            AgentPrediction(
+                debate_id=debate_id,
+                agent_name="fundamental",
+                direction=result.fundamental_response.direction,
+                confidence=result.fundamental_response.confidence,
+                created_at=now,
+            )
+        )
+
+    # Volatility response (VolatilityThesis — has direction + confidence)
+    if result.vol_response is not None:
+        predictions.append(
+            AgentPrediction(
+                debate_id=debate_id,
+                agent_name="volatility",
+                direction=result.vol_response.direction,
+                confidence=result.vol_response.confidence,
+                created_at=now,
+            )
+        )
+
+    # Risk v2 response (RiskAssessment — has confidence, no direction field)
+    if result.risk_v2_response is not None:
+        predictions.append(
+            AgentPrediction(
+                debate_id=debate_id,
+                agent_name="risk",
+                direction=None,
+                confidence=result.risk_v2_response.confidence,
+                created_at=now,
+            )
+        )
+
+    # Contrarian response (ContrarianThesis — has dissent_direction + dissent_confidence)
+    if result.contrarian_response is not None:
+        predictions.append(
+            AgentPrediction(
+                debate_id=debate_id,
+                agent_name="contrarian",
+                direction=result.contrarian_response.dissent_direction,
+                confidence=result.contrarian_response.dissent_confidence,
+                created_at=now,
+            )
+        )
+
+    return predictions
+
+
 async def _persist_result(
     result: DebateResult,
     ticker_score: TickerScore,
@@ -597,7 +713,7 @@ async def _persist_result(
         else:
             debate_mode = "base"
 
-        await repository.save_debate(
+        debate_id = await repository.save_debate(
             scan_run_id=ticker_score.scan_run_id,
             ticker=result.context.ticker,
             bull_json=result.bull_response.model_dump_json(),
@@ -625,12 +741,19 @@ async def _persist_result(
             contrarian_thesis=result.contrarian_response,
             debate_protocol=result.debate_protocol,
         )
+
+        # Persist per-agent predictions for accuracy tracking (FR-8)
+        predictions = extract_agent_predictions(debate_id, result)
+        if predictions:
+            await repository.save_agent_predictions(predictions)
+
         logger.debug(
-            "Persisted debate for %s (tokens=%d, fallback=%s, mode=%s)",
+            "Persisted debate for %s (tokens=%d, fallback=%s, mode=%s, predictions=%d)",
             result.context.ticker,
             total_tokens,
             result.is_fallback,
             debate_mode,
+            len(predictions),
         )
     except Exception:
         logger.warning(
@@ -644,13 +767,14 @@ async def _persist_result(
 # 6-Agent Debate Protocol
 # ---------------------------------------------------------------------------
 
-# Agent vote weights for verdict synthesis
+# Agent vote weights for verdict synthesis.
+# Sum is intentionally < 1.0 (0.85) — risk agent has no directional vote so it
+# is excluded. Unnormalized weights are correct for Bordley 1982 log-odds pooling.
 AGENT_VOTE_WEIGHTS: dict[str, float] = {
     "trend": 0.25,
     "volatility": 0.20,
     "flow": 0.20,
     "fundamental": 0.15,
-    "risk": 0.15,
     "contrarian": 0.05,
 }
 
@@ -698,6 +822,79 @@ def _get_majority_direction(agent_directions: dict[str, SignalDirection]) -> Sig
     if bearish_count > bullish_count:
         return SignalDirection.BEARISH
     return SignalDirection.NEUTRAL
+
+
+def _vote_entropy(agent_directions: dict[str, SignalDirection]) -> float:
+    """Shannon entropy of vote distribution.
+
+    Measures ensemble diversity: 0.0 = unanimous, ~1.585 = equal 3-way split.
+
+    Parameters
+    ----------
+    agent_directions
+        Mapping of agent name to their direction call.
+
+    Returns
+    -------
+    float
+        Shannon entropy in bits. 0.0 when empty or unanimous.
+    """
+    if not agent_directions:
+        return 0.0
+    counts: dict[SignalDirection, int] = {}
+    for d in agent_directions.values():
+        counts[d] = counts.get(d, 0) + 1
+    total = len(agent_directions)
+    entropy = 0.0
+    for count in counts.values():
+        p = count / total
+        if p > 0:
+            entropy -= p * math.log2(p)
+    return entropy
+
+
+def _log_odds_pool(probabilities: list[float], weights: list[float]) -> float:
+    """Pool probabilities using weighted log-odds (Bordley 1982).
+
+    Properly compounds independent agreement: three agents at 0.9 produce
+    a combined probability of ~0.997, unlike linear averaging which yields 0.9.
+
+    Weights are NOT normalized — each agent's weight scales how much its
+    opinion shifts the pooled result. This is what enables compounding:
+    multiple agreeing agents produce higher confidence than any single agent.
+
+    Clamps inputs to [0.01, 0.99] to prevent ``log(0)`` / ``log(inf)``.
+
+    Parameters
+    ----------
+    probabilities
+        List of agent confidence values (each in [0.0, 1.0]).
+    weights
+        Corresponding importance weights. NOT normalized — each weight
+        scales the agent's contribution to the pooled log-odds sum.
+
+    Returns
+    -------
+    float
+        Pooled probability in (0.0, 1.0). Returns 0.5 if inputs are empty
+        or total weight is zero (neutral prior).
+    """
+    if not probabilities:
+        return 0.5  # no data -> neutral
+
+    # Clamp to avoid log(0) / log(inf)
+    clamped = [max(0.01, min(0.99, p)) for p in probabilities]
+
+    total_weight = sum(weights)
+    if total_weight == 0:
+        return 0.5
+
+    # Weighted sum in log-odds space (NOT divided by total_weight —
+    # this compounds independent opinions rather than averaging them)
+    log_odds_sum = sum(w * math.log(p / (1 - p)) for p, w in zip(clamped, weights, strict=True))
+
+    # Convert back to probability
+    return 1.0 / (1.0 + math.exp(-log_odds_sum))
 
 
 def _vol_strategy_str(vol: VolatilityThesis) -> str:
@@ -788,26 +985,24 @@ def synthesize_verdict(
     # --- Collect agent directions ---
     agent_directions: dict[str, SignalDirection] = {}
     for name, output in agent_outputs.items():
-        if isinstance(output, VolatilityThesis):
-            # Vol agent doesn't have a direction — skip for direction voting
-            continue
         if hasattr(output, "direction"):
             agent_directions[name] = output.direction
 
-    # --- Compute agreement score ---
+    # --- Compute agreement score and vote entropy ---
     agreement = compute_agreement_score(agent_directions)
     majority_direction = _get_majority_direction(agent_directions)
+    entropy = _vote_entropy(agent_directions)
 
-    # --- Weighted confidence ---
-    weighted_confidence = 0.0
-    total_weight = 0.0
+    # --- Log-odds confidence pooling (Bordley 1982) ---
+    probabilities: list[float] = []
+    weights: list[float] = []
     for name, output in agent_outputs.items():
         weight = AGENT_VOTE_WEIGHTS.get(name, 0.1)
         if hasattr(output, "confidence"):
-            weighted_confidence += weight * output.confidence
-            total_weight += weight
-    if total_weight > 0:
-        weighted_confidence /= total_weight
+            probabilities.append(output.confidence)
+            weights.append(weight)
+    if probabilities:
+        weighted_confidence = _log_odds_pool(probabilities, weights)
     else:
         weighted_confidence = config.fallback_confidence
 
@@ -895,6 +1090,7 @@ def synthesize_verdict(
         recommended_strategy=None,
         contrarian_dissent=contrarian_text,
         agent_agreement_score=agreement,
+        ensemble_entropy=entropy,
         dissenting_agents=dissenting,
         dimensional_scores=dimensional_scores,
         agents_completed=agents_completed,
@@ -922,7 +1118,7 @@ async def run_debate(
     Protocol flow:
       Phase 1 (parallel): trend, volatility, [flow, fundamental if enrichment exists]
       Phase 2 (sequential): risk agent with all Phase 1 outputs
-      Phase 3 (sequential): contrarian with all prior outputs (skip if >= 2 failures)
+      Phase 3 (sequential): contrarian with all prior outputs (skip if >= 3 failures)
       Phase 4 (algorithmic): synthesize_verdict -> ExtendedTradeThesis
 
     Flow and Fundamental agents run locally in Phase 1 when enrichment data
@@ -1037,7 +1233,14 @@ async def _run_v2_agents(
     model = build_debate_model(config)
     settings = ModelSettings(temperature=config.temperature)
     per_agent_timeout = config.agent_timeout
-    context_text = render_context_block(context)
+
+    # Partitioned context: each Phase 1 agent sees only domain-specific fields.
+    # Risk (Phase 2) and Contrarian (Phase 3) keep the full context block.
+    trend_context = render_trend_context(context)
+    vol_context = render_volatility_context(context)
+    flow_context = render_flow_context(context)
+    fund_context = render_fundamental_context(context)
+    full_context = render_context_block(context)
 
     # ---------------------------------------------------------------
     # Phase 1: parallel — trend + volatility always; flow + fundamental
@@ -1052,7 +1255,7 @@ async def _run_v2_agents(
     # Build coroutines for local Phase 1 agents
     trend_coro = asyncio.wait_for(
         trend_agent.run(
-            f"Analyze trend and momentum for {context.ticker}.\n\n{context_text}",
+            f"Analyze trend and momentum for {context.ticker}.\n\n{trend_context}",
             model=model,
             deps=base_deps,
             model_settings=settings,
@@ -1067,7 +1270,7 @@ async def _run_v2_agents(
     )
     vol_coro = asyncio.wait_for(
         volatility_agent.run(
-            f"Assess implied volatility for {context.ticker}.\n\n{context_text}",
+            f"Assess implied volatility for {context.ticker}.\n\n{vol_context}",
             model=model,
             deps=vol_deps,
             model_settings=settings,
@@ -1096,7 +1299,7 @@ async def _run_v2_agents(
         )
         flow_coro = asyncio.wait_for(
             flow_agent.run(
-                f"Analyze options flow for {context.ticker}.\n\n{context_text}",
+                f"Analyze options flow for {context.ticker}.\n\n{flow_context}",
                 model=model,
                 deps=flow_deps,
                 model_settings=settings,
@@ -1115,7 +1318,7 @@ async def _run_v2_agents(
         )
         fundamental_coro = asyncio.wait_for(
             fundamental_agent.run(
-                f"Assess fundamental catalysts for {context.ticker}.\n\n{context_text}",
+                f"Assess fundamental catalysts for {context.ticker}.\n\n{fund_context}",
                 model=model,
                 deps=fund_deps,
                 model_settings=settings,
@@ -1259,7 +1462,7 @@ async def _run_v2_agents(
         )
         risk_result = await asyncio.wait_for(
             risk_agent_v2.run(
-                f"Assess risk for {context.ticker} based on all agent outputs.\n\n{context_text}",
+                f"Assess risk for {context.ticker} based on all agent outputs.\n\n{full_context}",
                 model=model,
                 deps=risk_deps,
                 model_settings=settings,
@@ -1278,10 +1481,10 @@ async def _run_v2_agents(
         logger.warning("Risk agent v2 failed for %s: %s", context.ticker, e)
 
     # ---------------------------------------------------------------
-    # Phase 3: Contrarian (sequential, skip if >= 2 Phase 1 failures)
+    # Phase 3: Contrarian (sequential, skip if >= 3 Phase 1 failures)
     # ---------------------------------------------------------------
     contrarian_output: ContrarianThesis | None = None
-    if phase1_failures < 2:
+    if phase1_failures < 3:
         logger.info("Phase 3: running contrarian agent for %s", context.ticker)
         try:
             prior_text = _format_prior_outputs(
@@ -1304,7 +1507,7 @@ async def _run_v2_agents(
             )
             contrarian_result = await asyncio.wait_for(
                 contrarian_agent.run(
-                    f"Challenge the consensus for {context.ticker}.\n\n{context_text}",
+                    f"Challenge the consensus for {context.ticker}.\n\n{full_context}",
                     model=model,
                     deps=contrarian_deps,
                     model_settings=settings,
@@ -1323,7 +1526,7 @@ async def _run_v2_agents(
             logger.warning("Contrarian agent failed for %s: %s", context.ticker, e)
     else:
         logger.info(
-            "Phase 3 skipped for %s: %d Phase 1 failures (>= 2)",
+            "Phase 3 skipped for %s: %d Phase 1 failures (>= 3)",
             context.ticker,
             phase1_failures,
         )
@@ -1359,7 +1562,7 @@ async def _run_v2_agents(
     agent_texts: list[str] = [thesis.summary, thesis.risk_assessment]
     if trend_output is not None:
         agent_texts.append(trend_output.argument)
-    density = compute_citation_density(context_text, *agent_texts)
+    density = compute_citation_density(full_context, *agent_texts)
 
     logger.info(
         "Debate complete for %s in %dms (agents=%d, agreement=%.2f, citation=%.2f)",
