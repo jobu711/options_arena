@@ -18,6 +18,7 @@ from options_arena.models import (
     AppSettings,
     DebateConfig,
     GICSSector,
+    LLMProvider,
     PricingConfig,
     ScanConfig,
     ServiceConfig,
@@ -69,6 +70,12 @@ _ARENA_ENV_VARS = [
     "ARENA_DEBATE__BATCH_TICKER_DELAY",
     "ARENA_DEBATE__RATE_LIMIT_RETRIES",
     "ARENA_DEBATE__RATE_LIMIT_MAX_WAIT",
+    "ARENA_DEBATE__PROVIDER",
+    "ARENA_DEBATE__ANTHROPIC_MODEL",
+    "ARENA_DEBATE__ANTHROPIC_API_KEY",
+    "ARENA_DEBATE__ENABLE_EXTENDED_THINKING",
+    "ARENA_DEBATE__THINKING_BUDGET_TOKENS",
+    "ARENA_SERVICE__ANTHROPIC_API_KEY",
 ]
 
 
@@ -647,3 +654,111 @@ class TestScanConfigSectors:
             GICSSector.INFORMATION_TECHNOLOGY,
             GICSSector.ENERGY,
         ]
+
+
+# ---------------------------------------------------------------------------
+# LLMProvider enum
+# ---------------------------------------------------------------------------
+
+
+class TestLLMProviderEnum:
+    def test_provider_values(self) -> None:
+        """LLMProvider has exactly groq and anthropic members."""
+        assert LLMProvider.GROQ == "groq"
+        assert LLMProvider.ANTHROPIC == "anthropic"
+        assert len(LLMProvider) == 2
+
+    def test_provider_is_str_enum(self) -> None:
+        """LLMProvider is a StrEnum subclass."""
+        from enum import StrEnum
+
+        assert issubclass(LLMProvider, StrEnum)
+
+    def test_provider_serialization_roundtrip(self) -> None:
+        """StrEnum serializes to string and back."""
+        assert LLMProvider("groq") is LLMProvider.GROQ
+        assert LLMProvider("anthropic") is LLMProvider.ANTHROPIC
+
+
+# ---------------------------------------------------------------------------
+# DebateConfig — Anthropic fields
+# ---------------------------------------------------------------------------
+
+
+class TestDebateConfigAnthropicFields:
+    def test_defaults_provider_groq(self) -> None:
+        """Default provider is groq (backward compatible)."""
+        config = DebateConfig()
+        assert config.provider is LLMProvider.GROQ
+
+    def test_anthropic_field_defaults(self) -> None:
+        """Anthropic fields have correct defaults."""
+        config = DebateConfig()
+        assert config.anthropic_model == "claude-sonnet-4-5-20250929"
+        assert config.anthropic_api_key is None
+        assert config.enable_extended_thinking is False
+        assert config.thinking_budget_tokens == 5000
+
+    def test_backward_compatible_no_args(self) -> None:
+        """Existing DebateConfig() with no args still works."""
+        config = DebateConfig()
+        assert config.model == "llama-3.3-70b-versatile"
+        assert config.provider is LLMProvider.GROQ
+
+    def test_thinking_budget_valid_range(self) -> None:
+        """thinking_budget_tokens accepts values in [1024, 128000]."""
+        config_low = DebateConfig(thinking_budget_tokens=1024)
+        assert config_low.thinking_budget_tokens == 1024
+        config_high = DebateConfig(thinking_budget_tokens=128_000)
+        assert config_high.thinking_budget_tokens == 128_000
+
+    def test_thinking_budget_too_low(self) -> None:
+        """thinking_budget_tokens rejects values below 1024."""
+        with pytest.raises(ValidationError, match="thinking_budget_tokens must be in"):
+            DebateConfig(thinking_budget_tokens=512)
+
+    def test_thinking_budget_too_high(self) -> None:
+        """thinking_budget_tokens rejects values above 128000."""
+        with pytest.raises(ValidationError, match="thinking_budget_tokens must be in"):
+            DebateConfig(thinking_budget_tokens=200_000)
+
+    def test_thinking_budget_nan_rejected(self) -> None:
+        """thinking_budget_tokens rejects NaN (Pydantic int coercion rejects non-finite)."""
+        with pytest.raises(ValidationError, match="finite"):
+            DebateConfig(thinking_budget_tokens=float("nan"))  # type: ignore[arg-type]
+
+    def test_env_var_provider_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__PROVIDER=anthropic overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__PROVIDER", "anthropic")
+        settings = AppSettings()
+        assert settings.debate.provider is LLMProvider.ANTHROPIC
+
+    def test_env_var_anthropic_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_DEBATE__ANTHROPIC_API_KEY env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__ANTHROPIC_API_KEY", "sk-ant-test-key")
+        settings = AppSettings()
+        assert settings.debate.anthropic_api_key is not None
+        assert settings.debate.anthropic_api_key.get_secret_value() == "sk-ant-test-key"
+
+    def test_service_config_anthropic_api_key(self) -> None:
+        """ServiceConfig has anthropic_api_key field defaulting to None."""
+        config = ServiceConfig()
+        assert config.anthropic_api_key is None
+
+    def test_service_config_anthropic_api_key_set(self) -> None:
+        """ServiceConfig.anthropic_api_key can be set."""
+        config = ServiceConfig(anthropic_api_key="sk-ant-test")
+        assert config.anthropic_api_key is not None
+        assert config.anthropic_api_key.get_secret_value() == "sk-ant-test"
+
+    def test_service_anthropic_api_key_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ARENA_SERVICE__ANTHROPIC_API_KEY env var works."""
+        monkeypatch.setenv("ARENA_SERVICE__ANTHROPIC_API_KEY", "sk-ant-svc")
+        settings = AppSettings()
+        assert settings.service.anthropic_api_key is not None
+        assert settings.service.anthropic_api_key.get_secret_value() == "sk-ant-svc"
+
+    def test_provider_string_coercion(self) -> None:
+        """String 'anthropic' is coerced to LLMProvider.ANTHROPIC."""
+        config = DebateConfig(provider="anthropic")  # type: ignore[arg-type]
+        assert config.provider is LLMProvider.ANTHROPIC
