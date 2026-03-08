@@ -386,9 +386,8 @@ class MarketDataService:
         async with self._limiter:
             ticker_obj = yf.Ticker(ticker)
             try:
-                info: dict[str, Any] = await fetch_with_retry(
-                    lambda: self._yf_call(lambda: ticker_obj.info)
-                )
+                # Single attempt — ETF 404s are permanent, retrying wastes ~31s.
+                info: dict[str, Any] = await self._yf_call(lambda: ticker_obj.info)
             except DataSourceUnavailableError:
                 # ETFs (SPY, QQQ) lack quoteSummary fundamentals (Yahoo 404).
                 # Fall back to fast_info for basic price data.
@@ -438,9 +437,8 @@ class MarketDataService:
         async with self._limiter:
             ticker_obj = yf.Ticker(ticker)
             try:
-                info: dict[str, Any] = await fetch_with_retry(
-                    lambda: self._yf_call(lambda: ticker_obj.info)
-                )
+                # Single attempt — ETF 404s are permanent, retrying wastes ~31s.
+                info: dict[str, Any] = await self._yf_call(lambda: ticker_obj.info)
             except DataSourceUnavailableError:
                 # ETFs (SPY, QQQ) lack quoteSummary fundamentals (Yahoo 404).
                 # Fall back to fast_info for basic price/market-cap data.
@@ -448,10 +446,15 @@ class MarketDataService:
                 info = await self._yf_call(self._build_info_from_fast_info, ticker_obj)
 
         # Fetch dividends for tier 3 of the waterfall
-        async with self._limiter:
-            dividends_series: pd.Series[float] = await fetch_with_retry(
-                lambda: self._yf_call(ticker_obj.get_dividends, period="1y")
-            )
+        try:
+            async with self._limiter:
+                dividends_series: pd.Series[float] = await fetch_with_retry(
+                    lambda: self._yf_call(ticker_obj.get_dividends, period="1y")
+                )
+        except (DataSourceUnavailableError, DataFetchError):
+            # ETFs or tickers without dividend data — fall through to tier 4 (0.0).
+            logger.warning("%s: get_dividends failed, using empty series", ticker)
+            dividends_series = pd.Series(dtype=float)
 
         # Extract current price — prefer currentPrice, fall back to previousClose
         current_price_raw = info.get("currentPrice") or info.get("previousClose")
