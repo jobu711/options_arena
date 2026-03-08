@@ -1,9 +1,11 @@
 """LLM model configuration for PydanticAI debate agents.
 
-Uses Groq cloud API exclusively. API key resolution: explicit config >
-``GROQ_API_KEY`` env var.
+Multi-provider dispatcher: Groq (default) and Anthropic (Claude). Provider
+selection via ``DebateConfig.provider`` (``LLMProvider`` enum).
 
-Use ``build_debate_model(config)`` to get the configured Groq model.
+API key resolution per provider:
+  - Groq: ``config.api_key`` > ``GROQ_API_KEY`` env var
+  - Anthropic: ``config.anthropic_api_key`` > ``ANTHROPIC_API_KEY`` env var
 
 Rate-limit resilience: when ``config.rate_limit_retries > 0``, builds an
 httpx ``AsyncClient`` with a retry transport that handles 429/502/503/504
@@ -15,7 +17,9 @@ import os
 
 import httpx
 from pydantic_ai.models import Model
+from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.groq import GroqModel
+from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.groq import GroqProvider
 from tenacity import (
     AsyncRetrying,
@@ -24,7 +28,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from options_arena.models import DebateConfig
+from options_arena.models import DebateConfig, LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +116,38 @@ def _build_rate_limit_client(config: DebateConfig) -> httpx.AsyncClient:
 
 
 def build_debate_model(config: DebateConfig) -> Model:
-    """Build a PydanticAI model backed by Groq cloud API.
+    """Build a PydanticAI model for the configured LLM provider.
+
+    Dispatches to the appropriate provider builder based on
+    ``config.provider`` (``LLMProvider`` enum). Supported providers:
+
+    - **GROQ** (default): Groq cloud API with optional rate-limit retry transport.
+    - **ANTHROPIC**: Anthropic API (Claude models).
+
+    Parameters
+    ----------
+    config
+        Debate configuration with provider selection, model names, and API keys.
+
+    Returns
+    -------
+    Model
+        Configured PydanticAI model (``GroqModel`` or ``AnthropicModel``).
+
+    Raises
+    ------
+    ValueError
+        If no API key is found in config or environment for the selected provider.
+    """
+    match config.provider:
+        case LLMProvider.GROQ:
+            return _build_groq_model(config)
+        case LLMProvider.ANTHROPIC:
+            return _build_anthropic_model(config)
+
+
+def _build_groq_model(config: DebateConfig) -> GroqModel:
+    """Build a PydanticAI GroqModel backed by Groq cloud API.
 
     API key resolution: ``config.api_key`` > ``GROQ_API_KEY`` env var.
     When ``config.rate_limit_retries > 0``, wraps the HTTP transport with
@@ -125,20 +160,15 @@ def build_debate_model(config: DebateConfig) -> Model:
 
     Returns
     -------
-    Model
+    GroqModel
         Configured PydanticAI GroqModel.
 
     Raises
     ------
     ValueError
-        If no API key is found in config or environment.
+        If no Groq API key is found in config or environment.
     """
-    api_key = _resolve_api_key(config)
-    if api_key is None:
-        raise ValueError(
-            "Groq API key required. Set ARENA_DEBATE__API_KEY or GROQ_API_KEY env var, "
-            "or pass api_key in DebateConfig."
-        )
+    api_key = _resolve_groq_api_key(config)
     logger.debug("Building GroqModel: model=%s", config.model)
 
     http_client: httpx.AsyncClient | None = None
@@ -154,8 +184,98 @@ def build_debate_model(config: DebateConfig) -> Model:
     return GroqModel(config.model, provider=provider)
 
 
+def _build_anthropic_model(config: DebateConfig) -> AnthropicModel:
+    """Build a PydanticAI AnthropicModel backed by Anthropic API.
+
+    API key resolution: ``config.anthropic_api_key`` > ``ANTHROPIC_API_KEY``
+    env var.
+
+    Parameters
+    ----------
+    config
+        Debate configuration with ``anthropic_model`` and optional
+        ``anthropic_api_key``.
+
+    Returns
+    -------
+    AnthropicModel
+        Configured PydanticAI AnthropicModel.
+
+    Raises
+    ------
+    ValueError
+        If no Anthropic API key is found in config or environment.
+    """
+    api_key = _resolve_anthropic_api_key(config)
+    logger.debug("Building AnthropicModel: model=%s", config.anthropic_model)
+    provider = AnthropicProvider(api_key=api_key)
+    return AnthropicModel(config.anthropic_model, provider=provider)
+
+
+def _resolve_groq_api_key(config: DebateConfig) -> str:
+    """Resolve Groq API key with priority: config > env > ValueError.
+
+    Parameters
+    ----------
+    config
+        Debate configuration with optional ``api_key``.
+
+    Returns
+    -------
+    str
+        Resolved Groq API key.
+
+    Raises
+    ------
+    ValueError
+        If no Groq API key is found.
+    """
+    if config.api_key is not None:
+        return config.api_key.get_secret_value()
+    env_key = os.environ.get("GROQ_API_KEY")
+    if env_key is not None:
+        return env_key
+    raise ValueError(
+        "Groq API key required. Set ARENA_DEBATE__API_KEY or GROQ_API_KEY env var, "
+        "or pass api_key in DebateConfig."
+    )
+
+
+def _resolve_anthropic_api_key(config: DebateConfig) -> str:
+    """Resolve Anthropic API key with priority: config > env > ValueError.
+
+    Parameters
+    ----------
+    config
+        Debate configuration with optional ``anthropic_api_key``.
+
+    Returns
+    -------
+    str
+        Resolved Anthropic API key.
+
+    Raises
+    ------
+    ValueError
+        If no Anthropic API key is found.
+    """
+    if config.anthropic_api_key is not None:
+        return config.anthropic_api_key.get_secret_value()
+    env_key = os.environ.get("ANTHROPIC_API_KEY")
+    if env_key is not None:
+        return env_key
+    raise ValueError(
+        "Anthropic API key required. Set ARENA_DEBATE__ANTHROPIC_API_KEY or "
+        "ANTHROPIC_API_KEY env var, or pass anthropic_api_key in DebateConfig."
+    )
+
+
 def _resolve_api_key(config: DebateConfig) -> str | None:
-    """Resolve Groq API key with priority: config > env > None."""
+    """Resolve Groq API key with priority: config > env > None.
+
+    .. deprecated::
+        Use ``_resolve_groq_api_key()`` instead. Kept for backward compatibility.
+    """
     if config.api_key is not None:
         return config.api_key.get_secret_value()
     return os.environ.get("GROQ_API_KEY")
