@@ -305,3 +305,48 @@ class TestMaxPain:
         result = max_pain(strikes, call_oi, put_oi)
         # All have pain=0, first strike wins
         assert result == pytest.approx(90.0, rel=1e-4)
+
+
+# ---------------------------------------------------------------------------
+# iv_rank isfinite guard tests
+# ---------------------------------------------------------------------------
+
+
+class TestIVRankIsfiniteGuards:
+    """Tests for iv_rank isfinite guards (FR-11/L5)."""
+
+    def test_nan_current_iv_returns_neutral(self) -> None:
+        """iv_rank(NaN, ...) returns 50.0."""
+        result = iv_rank(current_iv=float("nan"), iv_high=50.0, iv_low=10.0)
+        assert result == pytest.approx(50.0, rel=1e-4)
+
+    def test_inf_high_iv_returns_neutral(self) -> None:
+        """iv_rank(..., inf, ...) returns 50.0."""
+        result = iv_rank(current_iv=30.0, iv_high=float("inf"), iv_low=10.0)
+        assert result == pytest.approx(50.0, rel=1e-4)
+
+    def test_neg_inf_low_iv_returns_neutral(self) -> None:
+        """iv_rank(..., ..., -inf) returns 50.0."""
+        result = iv_rank(current_iv=30.0, iv_high=50.0, iv_low=float("-inf"))
+        assert result == pytest.approx(50.0, rel=1e-4)
+
+
+# ---------------------------------------------------------------------------
+# iv_percentile isfinite guard tests
+# ---------------------------------------------------------------------------
+
+
+class TestIVPercentileIsfiniteGuards:
+    """Tests for iv_percentile isfinite guards (FR-11/L6)."""
+
+    def test_nan_current_iv_raises(self) -> None:
+        """iv_percentile(NaN, [...]) raises InsufficientDataError."""
+        history = pd.Series([10.0, 20.0, 30.0, 40.0, 50.0])
+        with pytest.raises(InsufficientDataError, match="current_iv is non-finite"):
+            iv_percentile(history, current_iv=float("nan"))
+
+    def test_inf_current_iv_raises(self) -> None:
+        """iv_percentile(inf, [...]) raises InsufficientDataError."""
+        history = pd.Series([10.0, 20.0, 30.0, 40.0, 50.0])
+        with pytest.raises(InsufficientDataError, match="current_iv is non-finite"):
+            iv_percentile(history, current_iv=float("inf"))

@@ -82,6 +82,9 @@ def determine_direction(
     bearish_score: int = 0
 
     # Step 2: RSI scoring (momentum interpretation)
+    # FR-11/L7: Strict `>` (not `>=`) is intentional. RSI exactly at the overbought
+    # or oversold boundary is ambiguous — it should NOT trigger a strong signal.
+    # This prevents false directional bias at the threshold edges.
     if rsi > cfg.rsi_overbought:
         bullish_score += _STRONG_SIGNAL_WEIGHT
     elif rsi > RSI_MIDPOINT:

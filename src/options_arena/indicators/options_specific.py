@@ -19,9 +19,13 @@ def iv_rank(current_iv: float, iv_high: float, iv_low: float) -> float:
     """IV Rank: (current - low) / (high - low) * 100.
 
     Returns 0-100. Guard: if high == low, return 50.
+    Non-finite inputs (NaN, ±inf) return 50.0 (neutral fallback).
 
     Reference: tastytrade/tastyworks IV Rank definition.
     """
+    # FR-11/L5: isfinite guard on all inputs — NaN silently passes arithmetic
+    if not (math.isfinite(current_iv) and math.isfinite(iv_high) and math.isfinite(iv_low)):
+        return 50.0
     if iv_high == iv_low:
         return 50.0
     return (current_iv - iv_low) / (iv_high - iv_low) * 100.0
@@ -39,8 +43,12 @@ def iv_percentile(
     Reference: CBOE IV Percentile methodology.
 
     Raises:
-        InsufficientDataError: If ``len(iv_history) < 1``.
+        InsufficientDataError: If ``len(iv_history) < 1`` or ``current_iv``
+            is non-finite (NaN/±inf).
     """
+    # FR-11/L6: isfinite guard — non-finite current_iv produces meaningless comparison
+    if not math.isfinite(current_iv):
+        raise InsufficientDataError("current_iv is non-finite")
     if len(iv_history) < 1:
         raise InsufficientDataError("IV percentile requires at least 1 data point in history")
     clean = iv_history.dropna()
