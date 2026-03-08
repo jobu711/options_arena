@@ -886,14 +886,14 @@ class TestCheckFinancialDatasets:
         # Mock ALL check methods to avoid real API calls
         # Map method names to production service_name values
         method_service_map = {
-            "check_yfinance": "check_yfinance",
-            "check_fred": "check_fred",
-            "check_groq": "check_groq",
-            "check_anthropic": "check_anthropic",
-            "check_cboe": "check_cboe",
-            "check_openbb": "check_openbb",
-            "check_cboe_chains": "check_cboe_chains",
-            "check_intelligence": "check_intelligence",
+            "check_yfinance": "yfinance",
+            "check_fred": "fred",
+            "check_groq": "groq",
+            "check_anthropic": "anthropic",
+            "check_cboe": "cboe",
+            "check_openbb": "openbb",
+            "check_cboe_chains": "cboe_chains",
+            "check_intelligence": "intelligence",
             "check_financial_datasets": "financial_datasets",
         }
         for method_name, service_name in method_service_map.items():
@@ -911,8 +911,8 @@ class TestCheckFinancialDatasets:
         assert "financial_datasets" in service_names
 
     @pytest.mark.asyncio
-    async def test_check_all_omits_fd_when_disabled(self) -> None:
-        """Verify check_all skips FD check when config disabled."""
+    async def test_check_all_omits_fd_when_no_config(self) -> None:
+        """Verify check_all skips FD check when fd_config is None."""
         svc_config = ServiceConfig(
             yfinance_timeout=5.0,
             fred_timeout=5.0,
@@ -922,19 +922,21 @@ class TestCheckFinancialDatasets:
         svc = HealthService(svc_config)
 
         # Mock ALL base check methods to avoid real API calls
-        for method_name in [
-            "check_yfinance",
-            "check_fred",
-            "check_groq",
-            "check_anthropic",
-            "check_cboe",
-            "check_openbb",
-            "check_cboe_chains",
-            "check_intelligence",
-        ]:
+        # Map method names to production service_name values
+        method_service_map = {
+            "check_yfinance": "yfinance",
+            "check_fred": "fred",
+            "check_groq": "groq",
+            "check_anthropic": "anthropic",
+            "check_cboe": "cboe",
+            "check_openbb": "openbb",
+            "check_cboe_chains": "cboe_chains",
+            "check_intelligence": "intelligence",
+        }
+        for method_name, service_name in method_service_map.items():
             mock = AsyncMock(
                 return_value=HealthStatus(
-                    service_name=method_name,
+                    service_name=service_name,
                     available=True,
                     checked_at=_utc_now(),
                 )
@@ -944,6 +946,48 @@ class TestCheckFinancialDatasets:
         results = await svc.check_all()
         service_names = [r.service_name for r in results]
         assert "financial_datasets" not in service_names
+
+    @pytest.mark.asyncio
+    async def test_check_all_includes_fd_when_disabled(self) -> None:
+        """Verify check_all includes FD check even when disabled (returns diagnostic status)."""
+        from options_arena.models.config import FinancialDatasetsConfig
+
+        fd_config = FinancialDatasetsConfig(enabled=False, api_key="test_fd_key")
+        svc_config = ServiceConfig(
+            yfinance_timeout=5.0,
+            fred_timeout=5.0,
+            groq_api_key="gsk_test",
+        )
+        svc = HealthService(svc_config, fd_config=fd_config)
+
+        # Mock ALL check methods to avoid real API calls
+        method_service_map = {
+            "check_yfinance": "yfinance",
+            "check_fred": "fred",
+            "check_groq": "groq",
+            "check_anthropic": "anthropic",
+            "check_cboe": "cboe",
+            "check_openbb": "openbb",
+            "check_cboe_chains": "cboe_chains",
+            "check_intelligence": "intelligence",
+            "check_financial_datasets": "financial_datasets",
+        }
+        for method_name, service_name in method_service_map.items():
+            mock = AsyncMock(
+                return_value=HealthStatus(
+                    service_name=service_name,
+                    available=False,
+                    error="disabled" if service_name == "financial_datasets" else None,
+                    checked_at=_utc_now(),
+                )
+            )
+            setattr(svc, method_name, mock)
+
+        results = await svc.check_all()
+        service_names = [r.service_name for r in results]
+        assert "financial_datasets" in service_names
+        fd_result = next(r for r in results if r.service_name == "financial_datasets")
+        assert fd_result.available is False
 
 
 # ---------------------------------------------------------------------------

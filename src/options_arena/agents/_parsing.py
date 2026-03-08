@@ -620,19 +620,21 @@ def render_fundamental_context(ctx: MarketContext) -> str:
     # --- Income Statement (TTM) — Financial Datasets enrichment ---
     income_lines: list[str] = []
     if ctx.fd_revenue is not None:
-        income_lines.append(f"Revenue: {_format_dollars(ctx.fd_revenue)}")
+        income_lines.append(f"REVENUE: {_format_dollars(ctx.fd_revenue)}")
     if ctx.fd_net_income is not None:
-        income_lines.append(f"Net Income: {_format_dollars(ctx.fd_net_income)}")
+        income_lines.append(f"NET INCOME: {_format_dollars(ctx.fd_net_income)}")
     if ctx.fd_operating_income is not None:
-        income_lines.append(f"Operating Income: {_format_dollars(ctx.fd_operating_income)}")
+        income_lines.append(f"OPERATING INCOME: {_format_dollars(ctx.fd_operating_income)}")
+    if ctx.fd_gross_profit is not None:
+        income_lines.append(f"GROSS PROFIT: {_format_dollars(ctx.fd_gross_profit)}")
     if ctx.fd_eps_diluted is not None:
-        income_lines.append(f"EPS (Diluted): ${ctx.fd_eps_diluted:.2f}")
+        income_lines.append(f"EPS (DILUTED): ${ctx.fd_eps_diluted:.2f}")
     if ctx.fd_gross_margin is not None:
-        income_lines.append(f"Gross Margin: {ctx.fd_gross_margin * 100:.1f}%")
+        income_lines.append(f"GROSS MARGIN: {ctx.fd_gross_margin * 100:.1f}%")
     if ctx.fd_operating_margin is not None:
-        income_lines.append(f"Operating Margin: {ctx.fd_operating_margin * 100:.1f}%")
+        income_lines.append(f"OPERATING MARGIN: {ctx.fd_operating_margin * 100:.1f}%")
     if ctx.fd_net_margin is not None:
-        income_lines.append(f"Net Margin: {ctx.fd_net_margin * 100:.1f}%")
+        income_lines.append(f"NET MARGIN: {ctx.fd_net_margin * 100:.1f}%")
     if income_lines:
         lines.append("")
         lines.append("## Income Statement (TTM)")
@@ -641,13 +643,13 @@ def render_fundamental_context(ctx: MarketContext) -> str:
     # --- Balance Sheet — Financial Datasets enrichment ---
     balance_lines: list[str] = []
     if ctx.fd_total_debt is not None:
-        balance_lines.append(f"Total Debt: {_format_dollars(ctx.fd_total_debt)}")
+        balance_lines.append(f"TOTAL DEBT: {_format_dollars(ctx.fd_total_debt)}")
     if ctx.fd_total_cash is not None:
-        balance_lines.append(f"Total Cash: {_format_dollars(ctx.fd_total_cash)}")
+        balance_lines.append(f"TOTAL CASH: {_format_dollars(ctx.fd_total_cash)}")
     if ctx.fd_total_assets is not None:
-        balance_lines.append(f"Total Assets: {_format_dollars(ctx.fd_total_assets)}")
+        balance_lines.append(f"TOTAL ASSETS: {_format_dollars(ctx.fd_total_assets)}")
     if ctx.fd_current_ratio is not None:
-        balance_lines.append(f"Current Ratio: {ctx.fd_current_ratio:.1f}x")
+        balance_lines.append(f"CURRENT RATIO: {ctx.fd_current_ratio:.1f}x")
     if balance_lines:
         lines.append("")
         lines.append("## Balance Sheet")
@@ -656,13 +658,13 @@ def render_fundamental_context(ctx: MarketContext) -> str:
     # --- Growth & Valuation — Financial Datasets enrichment ---
     growth_lines: list[str] = []
     if ctx.fd_revenue_growth is not None:
-        growth_lines.append(f"Revenue Growth: {ctx.fd_revenue_growth * 100:.1f}%")
+        growth_lines.append(f"REVENUE GROWTH (YOY): {ctx.fd_revenue_growth * 100:.1f}%")
     if ctx.fd_earnings_growth is not None:
-        growth_lines.append(f"Earnings Growth: {ctx.fd_earnings_growth * 100:.1f}%")
+        growth_lines.append(f"EARNINGS GROWTH (YOY): {ctx.fd_earnings_growth * 100:.1f}%")
     if ctx.fd_ev_to_ebitda is not None:
         growth_lines.append(f"EV/EBITDA: {ctx.fd_ev_to_ebitda:.1f}x")
     if ctx.fd_free_cash_flow_yield is not None:
-        growth_lines.append(f"FCF Yield: {ctx.fd_free_cash_flow_yield * 100:.1f}%")
+        growth_lines.append(f"FCF YIELD: {ctx.fd_free_cash_flow_yield * 100:.1f}%")
     if growth_lines:
         lines.append("")
         lines.append("## Growth & Valuation")
@@ -809,19 +811,21 @@ def render_context_block(ctx: MarketContext) -> str:
     # --- Income Statement (TTM) — Financial Datasets enrichment ---
     fd_income_lines: list[str] = []
     if ctx.fd_revenue is not None:
-        fd_income_lines.append(f"Revenue: {_format_dollars(ctx.fd_revenue)}")
+        fd_income_lines.append(f"REVENUE: {_format_dollars(ctx.fd_revenue)}")
     if ctx.fd_net_income is not None:
-        fd_income_lines.append(f"Net Income: {_format_dollars(ctx.fd_net_income)}")
+        fd_income_lines.append(f"NET INCOME: {_format_dollars(ctx.fd_net_income)}")
     if ctx.fd_operating_income is not None:
-        fd_income_lines.append(f"Operating Income: {_format_dollars(ctx.fd_operating_income)}")
+        fd_income_lines.append(f"OPERATING INCOME: {_format_dollars(ctx.fd_operating_income)}")
+    if ctx.fd_gross_profit is not None:
+        fd_income_lines.append(f"GROSS PROFIT: {_format_dollars(ctx.fd_gross_profit)}")
     if ctx.fd_eps_diluted is not None:
-        fd_income_lines.append(f"EPS (Diluted): ${ctx.fd_eps_diluted:.2f}")
+        fd_income_lines.append(f"EPS (DILUTED): ${ctx.fd_eps_diluted:.2f}")
     if ctx.fd_gross_margin is not None:
-        fd_income_lines.append(f"Gross Margin: {ctx.fd_gross_margin * 100:.1f}%")
+        fd_income_lines.append(f"GROSS MARGIN: {ctx.fd_gross_margin * 100:.1f}%")
     if ctx.fd_operating_margin is not None:
-        fd_income_lines.append(f"Operating Margin: {ctx.fd_operating_margin * 100:.1f}%")
+        fd_income_lines.append(f"OPERATING MARGIN: {ctx.fd_operating_margin * 100:.1f}%")
     if ctx.fd_net_margin is not None:
-        fd_income_lines.append(f"Net Margin: {ctx.fd_net_margin * 100:.1f}%")
+        fd_income_lines.append(f"NET MARGIN: {ctx.fd_net_margin * 100:.1f}%")
     if fd_income_lines:
         lines.append("")
         lines.append("## Income Statement (TTM)")
@@ -830,13 +834,13 @@ def render_context_block(ctx: MarketContext) -> str:
     # --- Balance Sheet — Financial Datasets enrichment ---
     fd_balance_lines: list[str] = []
     if ctx.fd_total_debt is not None:
-        fd_balance_lines.append(f"Total Debt: {_format_dollars(ctx.fd_total_debt)}")
+        fd_balance_lines.append(f"TOTAL DEBT: {_format_dollars(ctx.fd_total_debt)}")
     if ctx.fd_total_cash is not None:
-        fd_balance_lines.append(f"Total Cash: {_format_dollars(ctx.fd_total_cash)}")
+        fd_balance_lines.append(f"TOTAL CASH: {_format_dollars(ctx.fd_total_cash)}")
     if ctx.fd_total_assets is not None:
-        fd_balance_lines.append(f"Total Assets: {_format_dollars(ctx.fd_total_assets)}")
+        fd_balance_lines.append(f"TOTAL ASSETS: {_format_dollars(ctx.fd_total_assets)}")
     if ctx.fd_current_ratio is not None:
-        fd_balance_lines.append(f"Current Ratio: {ctx.fd_current_ratio:.1f}x")
+        fd_balance_lines.append(f"CURRENT RATIO: {ctx.fd_current_ratio:.1f}x")
     if fd_balance_lines:
         lines.append("")
         lines.append("## Balance Sheet")
@@ -845,13 +849,13 @@ def render_context_block(ctx: MarketContext) -> str:
     # --- Growth & Valuation — Financial Datasets enrichment ---
     fd_growth_lines: list[str] = []
     if ctx.fd_revenue_growth is not None:
-        fd_growth_lines.append(f"Revenue Growth: {ctx.fd_revenue_growth * 100:.1f}%")
+        fd_growth_lines.append(f"REVENUE GROWTH (YOY): {ctx.fd_revenue_growth * 100:.1f}%")
     if ctx.fd_earnings_growth is not None:
-        fd_growth_lines.append(f"Earnings Growth: {ctx.fd_earnings_growth * 100:.1f}%")
+        fd_growth_lines.append(f"EARNINGS GROWTH (YOY): {ctx.fd_earnings_growth * 100:.1f}%")
     if ctx.fd_ev_to_ebitda is not None:
         fd_growth_lines.append(f"EV/EBITDA: {ctx.fd_ev_to_ebitda:.1f}x")
     if ctx.fd_free_cash_flow_yield is not None:
-        fd_growth_lines.append(f"FCF Yield: {ctx.fd_free_cash_flow_yield * 100:.1f}%")
+        fd_growth_lines.append(f"FCF YIELD: {ctx.fd_free_cash_flow_yield * 100:.1f}%")
     if fd_growth_lines:
         lines.append("")
         lines.append("## Growth & Valuation")

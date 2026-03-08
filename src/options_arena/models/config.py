@@ -524,6 +524,14 @@ class FinancialDatasetsConfig(BaseModel):
     request_timeout: float = 10.0
     cache_ttl: int = 3600
 
+    @field_validator("api_key", mode="before")
+    @classmethod
+    def normalize_blank_api_key(cls, v: object) -> object:
+        """Treat blank or whitespace-only API keys as unset (None)."""
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
     @field_validator("request_timeout")
     @classmethod
     def validate_request_timeout(cls, v: float) -> float:

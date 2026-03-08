@@ -26,6 +26,7 @@ from options_arena.models.financial_datasets import (
     IncomeStatementData,
 )
 from options_arena.services.cache import ServiceCache
+from options_arena.services.helpers import safe_float, safe_int
 from options_arena.services.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
@@ -95,27 +96,27 @@ class FinancialDatasetsService:
 
             data = items[0]
             result = FinancialMetricsData(
-                pe_ratio=_safe_float(data.get("pe_ratio")),
-                forward_pe=_safe_float(data.get("forward_pe")),
-                peg_ratio=_safe_float(data.get("peg_ratio")),
-                price_to_book=_safe_float(data.get("price_to_book")),
-                price_to_sales=_safe_float(data.get("price_to_sales")),
-                enterprise_value_to_ebitda=_safe_float(data.get("enterprise_value_to_ebitda")),
-                enterprise_value_to_revenue=_safe_float(data.get("enterprise_value_to_revenue")),
-                gross_margin=_safe_float(data.get("gross_margin")),
-                operating_margin=_safe_float(data.get("operating_margin")),
-                net_margin=_safe_float(data.get("net_margin")),
-                profit_margin=_safe_float(data.get("profit_margin")),
-                revenue_growth=_safe_float(data.get("revenue_growth")),
-                earnings_growth=_safe_float(data.get("earnings_growth")),
-                return_on_equity=_safe_float(data.get("return_on_equity")),
-                return_on_assets=_safe_float(data.get("return_on_assets")),
-                return_on_capital=_safe_float(data.get("return_on_capital")),
-                debt_to_equity=_safe_float(data.get("debt_to_equity")),
-                current_ratio=_safe_float(data.get("current_ratio")),
-                eps_diluted=_safe_float(data.get("eps_diluted")),
-                free_cash_flow_yield=_safe_float(data.get("free_cash_flow_yield")),
-                dividend_yield=_safe_float(data.get("dividend_yield")),
+                pe_ratio=safe_float(data.get("pe_ratio")),
+                forward_pe=safe_float(data.get("forward_pe")),
+                peg_ratio=safe_float(data.get("peg_ratio")),
+                price_to_book=safe_float(data.get("price_to_book")),
+                price_to_sales=safe_float(data.get("price_to_sales")),
+                enterprise_value_to_ebitda=safe_float(data.get("enterprise_value_to_ebitda")),
+                enterprise_value_to_revenue=safe_float(data.get("enterprise_value_to_revenue")),
+                gross_margin=safe_float(data.get("gross_margin")),
+                operating_margin=safe_float(data.get("operating_margin")),
+                net_margin=safe_float(data.get("net_margin")),
+                profit_margin=safe_float(data.get("profit_margin")),
+                revenue_growth=safe_float(data.get("revenue_growth")),
+                earnings_growth=safe_float(data.get("earnings_growth")),
+                return_on_equity=safe_float(data.get("return_on_equity")),
+                return_on_assets=safe_float(data.get("return_on_assets")),
+                return_on_capital=safe_float(data.get("return_on_capital")),
+                debt_to_equity=safe_float(data.get("debt_to_equity")),
+                current_ratio=safe_float(data.get("current_ratio")),
+                eps_diluted=safe_float(data.get("eps_diluted")),
+                free_cash_flow_yield=safe_float(data.get("free_cash_flow_yield")),
+                dividend_yield=safe_float(data.get("dividend_yield")),
             )
 
             await self._cache.set(
@@ -164,14 +165,14 @@ class FinancialDatasetsService:
 
             data = items[0]
             result = IncomeStatementData(
-                revenue=_safe_float(data.get("revenue")),
-                gross_profit=_safe_float(data.get("gross_profit")),
-                operating_income=_safe_float(data.get("operating_income")),
-                net_income=_safe_float(data.get("net_income")),
-                eps_diluted=_safe_float(data.get("eps_diluted")),
-                gross_margin=_safe_float(data.get("gross_margin")),
-                operating_margin=_safe_float(data.get("operating_margin")),
-                net_margin=_safe_float(data.get("net_margin")),
+                revenue=safe_float(data.get("revenue")),
+                gross_profit=safe_float(data.get("gross_profit")),
+                operating_income=safe_float(data.get("operating_income")),
+                net_income=safe_float(data.get("net_income")),
+                eps_diluted=safe_float(data.get("eps_diluted")),
+                gross_margin=safe_float(data.get("gross_margin")),
+                operating_margin=safe_float(data.get("operating_margin")),
+                net_margin=safe_float(data.get("net_margin")),
             )
 
             await self._cache.set(
@@ -220,14 +221,14 @@ class FinancialDatasetsService:
 
             data = items[0]
             result = BalanceSheetData(
-                total_assets=_safe_float(data.get("total_assets")),
-                total_liabilities=_safe_float(data.get("total_liabilities")),
-                total_equity=_safe_float(data.get("total_equity")),
-                total_debt=_safe_float(data.get("total_debt")),
-                total_cash=_safe_float(data.get("total_cash")),
-                current_assets=_safe_float(data.get("current_assets")),
-                current_liabilities=_safe_float(data.get("current_liabilities")),
-                shares_outstanding=_safe_int(data.get("shares_outstanding")),
+                total_assets=safe_float(data.get("total_assets")),
+                total_liabilities=safe_float(data.get("total_liabilities")),
+                total_equity=safe_float(data.get("total_equity")),
+                total_debt=safe_float(data.get("total_debt")),
+                total_cash=safe_float(data.get("total_cash")),
+                current_assets=safe_float(data.get("current_assets")),
+                current_liabilities=safe_float(data.get("current_liabilities")),
+                shares_outstanding=safe_int(data.get("shares_outstanding")),
             )
 
             await self._cache.set(
@@ -334,26 +335,3 @@ class FinancialDatasetsService:
         except Exception:
             logger.warning("Financial Datasets API request failed for %s", path, exc_info=True)
             return None
-
-
-def _safe_float(value: object) -> float | None:
-    """Convert to float safely. Returns ``None`` for non-finite or unparseable."""
-    if value is None:
-        return None
-    try:
-        import math
-
-        f = float(value)  # type: ignore[arg-type]
-        return f if math.isfinite(f) else None
-    except (ValueError, TypeError):
-        return None
-
-
-def _safe_int(value: object) -> int | None:
-    """Convert to int safely. Returns ``None`` for non-integer or unparseable."""
-    if value is None:
-        return None
-    try:
-        return int(value)  # type: ignore[call-overload, no-any-return]
-    except (ValueError, TypeError):
-        return None

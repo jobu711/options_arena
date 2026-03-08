@@ -479,3 +479,19 @@ class TestFinancialDatasetsConfig:
         """FinancialDatasetsConfig rejects negative request_timeout."""
         with pytest.raises(ValidationError, match="must be > 0"):
             FinancialDatasetsConfig(request_timeout=-5.0)
+
+    def test_blank_api_key_normalized_to_none(self) -> None:
+        """Empty string api_key is normalized to None (prevents empty auth headers)."""
+        config = FinancialDatasetsConfig(api_key="")
+        assert config.api_key is None
+
+    def test_whitespace_api_key_normalized_to_none(self) -> None:
+        """Whitespace-only api_key is normalized to None."""
+        config = FinancialDatasetsConfig(api_key="   ")
+        assert config.api_key is None
+
+    def test_valid_api_key_preserved(self) -> None:
+        """Non-blank api_key is preserved as SecretStr."""
+        config = FinancialDatasetsConfig(api_key="fd_real_key_abc123")
+        assert config.api_key is not None
+        assert config.api_key.get_secret_value() == "fd_real_key_abc123"

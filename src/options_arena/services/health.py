@@ -488,24 +488,31 @@ class HealthService:
         from options_arena.services.cache import ServiceCache  # noqa: PLC0415
         from options_arena.services.rate_limiter import RateLimiter  # noqa: PLC0415
 
-        # Use existing cache/limiter if provided, otherwise create minimal ones
-        cache = (
-            self._cache if isinstance(self._cache, ServiceCache) else ServiceCache(self._config)
-        )
-        limiter = (
-            self._limiter
-            if isinstance(self._limiter, RateLimiter)
-            else RateLimiter(self._config.rate_limit_rps, self._config.max_concurrent_requests)
-        )
-
-        svc = FinancialDatasetsService(
-            config=self._fd_config,
-            cache=cache,
-            limiter=limiter,
-        )
-
         start = time.monotonic()
+        svc: FinancialDatasetsService | None = None
+        local_cache: ServiceCache | None = None
         try:
+            # Use existing cache/limiter if provided, otherwise create minimal ones
+            cache: ServiceCache
+            if isinstance(self._cache, ServiceCache):
+                cache = self._cache
+            else:
+                local_cache = ServiceCache(self._config)
+                cache = local_cache
+            limiter = (
+                self._limiter
+                if isinstance(self._limiter, RateLimiter)
+                else RateLimiter(
+                    self._config.rate_limit_rps, self._config.max_concurrent_requests
+                )
+            )
+
+            svc = FinancialDatasetsService(
+                config=self._fd_config,
+                cache=cache,
+                limiter=limiter,
+            )
+
             result = await svc.fetch_financial_metrics("AAPL")
             latency_ms = (time.monotonic() - start) * 1000
             if result is not None:
@@ -535,7 +542,10 @@ class HealthService:
                 checked_at=datetime.now(UTC),
             )
         finally:
-            await svc.close()
+            if svc is not None:
+                await svc.close()
+            if local_cache is not None:
+                await local_cache.close()
 
     async def check_all(self) -> list[HealthStatus]:
         """Run all health checks concurrently.
@@ -566,8 +576,8 @@ class HealthService:
             "intelligence",
         ]
 
-        # Add Financial Datasets check when config is enabled and API key is set
-        if self._fd_config is not None and self._fd_config.enabled and self._fd_config.api_key:
+        # Add Financial Datasets check when config is provided (method handles disabled/no-key)
+        if self._fd_config is not None:
             tasks.append(self.check_financial_datasets())
             service_names.append("financial_datasets")
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)

@@ -664,7 +664,7 @@ class TestFDContextRendering:
         text = render_fundamental_context(ctx)
 
         assert "## Income Statement (TTM)" in text
-        assert "Revenue: $50.0B" in text
+        assert "REVENUE: $50.0B" in text
 
     def test_balance_sheet_section_rendered(self) -> None:
         """Verify Balance Sheet section appears when fd_total_debt set."""
@@ -672,7 +672,7 @@ class TestFDContextRendering:
         text = render_fundamental_context(ctx)
 
         assert "## Balance Sheet" in text
-        assert "Total Debt: $25.0B" in text
+        assert "TOTAL DEBT: $25.0B" in text
 
     def test_growth_valuation_section_rendered(self) -> None:
         """Verify Growth & Valuation section appears when fd_revenue_growth set."""
@@ -680,7 +680,7 @@ class TestFDContextRendering:
         text = render_fundamental_context(ctx)
 
         assert "## Growth & Valuation" in text
-        assert "Revenue Growth: 15.0%" in text
+        assert "REVENUE GROWTH (YOY): 15.0%" in text
 
     def test_sections_omitted_when_all_none(self) -> None:
         """Verify no FD sections when all fd_* fields are None."""
@@ -701,12 +701,12 @@ class TestFDContextRendering:
         text = render_fundamental_context(ctx)
 
         assert "## Income Statement (TTM)" in text
-        assert "Revenue: $100.0B" in text
-        assert "Gross Margin: 45.0%" in text
+        assert "REVENUE: $100.0B" in text
+        assert "GROSS MARGIN: 45.0%" in text
         # Fields not set should not appear
-        assert "Net Income:" not in text
-        assert "Operating Income:" not in text
-        assert "EPS (Diluted):" not in text
+        assert "NET INCOME:" not in text
+        assert "OPERATING INCOME:" not in text
+        assert "EPS (DILUTED):" not in text
 
     def test_dollar_formatting(self) -> None:
         """Verify revenue/income formatted as $X.XB or $X.XM."""
@@ -734,12 +734,12 @@ class TestFDContextRendering:
         )
         text = render_fundamental_context(ctx)
 
-        assert "Gross Margin: 45.0%" in text
-        assert "Operating Margin: 30.0%" in text
-        assert "Net Margin: 25.0%" in text
-        assert "Revenue Growth: 12.0%" in text
-        assert "Earnings Growth: -5.0%" in text
-        assert "FCF Yield: 3.5%" in text
+        assert "GROSS MARGIN: 45.0%" in text
+        assert "OPERATING MARGIN: 30.0%" in text
+        assert "NET MARGIN: 25.0%" in text
+        assert "REVENUE GROWTH (YOY): 12.0%" in text
+        assert "EARNINGS GROWTH (YOY): -5.0%" in text
+        assert "FCF YIELD: 3.5%" in text
 
     def test_context_block_includes_fd_sections(self) -> None:
         """Verify render_context_block() also renders FD sections."""
@@ -755,15 +755,15 @@ class TestFDContextRendering:
 
         # Income Statement
         assert "## Income Statement (TTM)" in text
-        assert "Revenue: $50.0B" in text
-        assert "Net Income: $12.0B" in text
+        assert "REVENUE: $50.0B" in text
+        assert "NET INCOME: $12.0B" in text
         # Balance Sheet
         assert "## Balance Sheet" in text
-        assert "Total Debt: $30.0B" in text
-        assert "Current Ratio: 1.5x" in text
+        assert "TOTAL DEBT: $30.0B" in text
+        assert "CURRENT RATIO: 1.5x" in text
         # Growth & Valuation
         assert "## Growth & Valuation" in text
-        assert "Revenue Growth: 8.0%" in text
+        assert "REVENUE GROWTH (YOY): 8.0%" in text
         assert "EV/EBITDA: 18.5x" in text
 
     def test_ev_to_ebitda_formatting(self) -> None:
@@ -778,11 +778,11 @@ class TestFDContextRendering:
         ctx = _make_context(fd_current_ratio=2.3)
         text = render_fundamental_context(ctx)
 
-        assert "Current Ratio: 2.3x" in text
+        assert "CURRENT RATIO: 2.3x" in text
 
     def test_eps_formatting(self) -> None:
         """Verify EPS formatted with dollar sign and 2 decimals."""
         ctx = _make_context(fd_eps_diluted=6.42)
         text = render_fundamental_context(ctx)
 
-        assert "EPS (Diluted): $6.42" in text
+        assert "EPS (DILUTED): $6.42" in text
