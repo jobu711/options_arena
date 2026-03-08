@@ -109,6 +109,16 @@ async def _run_debate_background(
             else:
                 raw_signals = IndicatorSignals()
 
+            # Single-ticker normalization: scale raw indicators to 0-100 via
+            # domain bounds so composite scoring receives comparable values
+            # even without a universe for percentile ranking.
+            from options_arena.scoring.normalization import (  # noqa: PLC0415
+                normalize_single_ticker,
+            )
+
+            raw_signals = normalize_single_ticker(raw_signals)
+            logger.info("single-ticker normalization applied for %s", ticker)
+
             adhoc_composite = calc_composite(raw_signals)
             adhoc_direction = determine_direction(
                 adx=raw_signals.adx or 0.0,
@@ -352,6 +362,14 @@ async def _run_batch_debate_background(
                         batch_raw_signals = compute_indicators(batch_df, INDICATOR_REGISTRY)
                     else:
                         batch_raw_signals = IndicatorSignals()
+
+                    # Single-ticker normalization for batch ad-hoc tickers
+                    from options_arena.scoring.normalization import (  # noqa: PLC0415
+                        normalize_single_ticker,
+                    )
+
+                    batch_raw_signals = normalize_single_ticker(batch_raw_signals)
+                    logger.info("single-ticker normalization applied for %s", ticker)
 
                     batch_composite = calc_composite(batch_raw_signals)
                     batch_direction = determine_direction(

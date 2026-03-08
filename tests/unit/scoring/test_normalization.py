@@ -4,9 +4,11 @@ import pytest
 
 from options_arena.models.scan import IndicatorSignals
 from options_arena.scoring.normalization import (
+    DOMAIN_BOUNDS,
     INVERTED_INDICATORS,
     get_active_indicators,
     invert_indicators,
+    normalize_single_ticker,
     percentile_rank_normalize,
 )
 
@@ -422,3 +424,147 @@ class TestFullPipeline:
         # Non-inverted RSI remains unchanged.
         assert _field_val(inverted["WIDE"], "rsi") == pytest.approx(100.0)
         assert _field_val(inverted["NARROW"], "rsi") == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------------------
+# normalize_single_ticker
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizeSingleTicker:
+    """Tests for normalize_single_ticker() — domain-bound linear scaling."""
+
+    def test_mid_range_values_scale_to_50(self) -> None:
+        """Values at domain midpoint produce ~50.0."""
+        # RSI domain is [0, 100], midpoint is 50.0 -> scaled 50.0
+        # ADX domain is [0, 100], midpoint is 50.0 -> scaled 50.0
+        # MACD domain is [-5, 5], midpoint is 0.0 -> scaled 50.0
+        signals = IndicatorSignals(rsi=50.0, adx=50.0, macd=0.0)
+        result = normalize_single_ticker(signals)
+
+        assert _field_val(result, "rsi") == pytest.approx(50.0)
+        assert _field_val(result, "adx") == pytest.approx(50.0)
+        assert _field_val(result, "macd") == pytest.approx(50.0)
+
+    def test_min_bound_scales_to_zero(self) -> None:
+        """Values at domain minimum produce 0.0."""
+        signals = IndicatorSignals(
+            rsi=0.0,  # domain [0, 100] -> 0.0
+            adx=0.0,  # domain [0, 100] -> 0.0
+            macd=-5.0,  # domain [-5, 5] -> 0.0
+            williams_r=-100.0,  # domain [-100, 0] -> 0.0
+        )
+        result = normalize_single_ticker(signals)
+
+        assert _field_val(result, "rsi") == pytest.approx(0.0)
+        assert _field_val(result, "adx") == pytest.approx(0.0)
+        assert _field_val(result, "macd") == pytest.approx(0.0)
+        assert _field_val(result, "williams_r") == pytest.approx(0.0)
+
+    def test_max_bound_scales_to_hundred(self) -> None:
+        """Values at domain maximum produce 100.0."""
+        signals = IndicatorSignals(
+            rsi=100.0,  # domain [0, 100] -> 100.0
+            adx=100.0,  # domain [0, 100] -> 100.0
+            macd=5.0,  # domain [-5, 5] -> 100.0
+            williams_r=0.0,  # domain [-100, 0] -> 100.0
+        )
+        result = normalize_single_ticker(signals)
+
+        assert _field_val(result, "rsi") == pytest.approx(100.0)
+        assert _field_val(result, "adx") == pytest.approx(100.0)
+        assert _field_val(result, "macd") == pytest.approx(100.0)
+        assert _field_val(result, "williams_r") == pytest.approx(100.0)
+
+    def test_out_of_bounds_clamped(self) -> None:
+        """Values beyond domain bounds are clamped to [0, 100]."""
+        signals = IndicatorSignals(
+            macd=10.0,  # domain [-5, 5], 10.0 is above max -> clamped to 100
+            vwap_deviation=-0.5,  # domain [-0.1, 0.1], -0.5 is below min -> clamped to 0
+        )
+        result = normalize_single_ticker(signals)
+
+        assert _field_val(result, "macd") == pytest.approx(100.0)
+        assert _field_val(result, "vwap_deviation") == pytest.approx(0.0)
+
+    def test_none_values_preserved(self) -> None:
+        """None indicator values pass through unchanged."""
+        signals = IndicatorSignals(rsi=50.0, adx=None, macd=None)
+        result = normalize_single_ticker(signals)
+
+        assert _field_val(result, "rsi") == pytest.approx(50.0)
+        assert _field_val(result, "adx") is None
+        assert _field_val(result, "macd") is None
+
+    def test_inverted_indicators_flipped(self) -> None:
+        """bb_width, atr_pct, keltner_width are inverted after scaling."""
+        # bb_width domain [0, 0.5], value 0.25 -> scaled 50.0 -> inverted to 50.0
+        # bb_width domain [0, 0.5], value 0.0 -> scaled 0.0 -> inverted to 100.0
+        # atr_pct domain [0, 0.1], value 0.1 -> scaled 100.0 -> inverted to 0.0
+        signals = IndicatorSignals(
+            bb_width=0.0,  # scaled 0.0 -> inverted to 100.0
+            atr_pct=0.1,  # scaled 100.0 -> inverted to 0.0
+            keltner_width=0.25,  # scaled 50.0 -> inverted to 50.0
+        )
+        result = normalize_single_ticker(signals)
+
+        assert _field_val(result, "bb_width") == pytest.approx(100.0)
+        assert _field_val(result, "atr_pct") == pytest.approx(0.0)
+        assert _field_val(result, "keltner_width") == pytest.approx(50.0)
+
+    def test_nan_values_preserved(self) -> None:
+        """NaN values are passed through (model_validator normalizes to None)."""
+        # IndicatorSignals model_validator converts NaN to None
+        signals = IndicatorSignals(rsi=float("nan"), adx=30.0)
+        result = normalize_single_ticker(signals)
+
+        assert _field_val(result, "rsi") is None
+        assert _field_val(result, "adx") == pytest.approx(30.0)
+
+    def test_all_none_passthrough(self) -> None:
+        """All-None IndicatorSignals passes through without error."""
+        signals = IndicatorSignals()
+        result = normalize_single_ticker(signals)
+
+        for field in DOMAIN_BOUNDS:
+            assert _field_val(result, field) is None
+
+    def test_domain_bounds_cover_expected_fields(self) -> None:
+        """DOMAIN_BOUNDS contains entries for the core 19 indicator fields."""
+        expected = {
+            "rsi",
+            "stochastic_rsi",
+            "williams_r",
+            "adx",
+            "roc",
+            "supertrend",
+            "macd",
+            "bb_width",
+            "atr_pct",
+            "keltner_width",
+            "obv",
+            "ad",
+            "relative_volume",
+            "sma_alignment",
+            "vwap_deviation",
+            "iv_rank",
+            "iv_percentile",
+            "put_call_ratio",
+            "max_pain_distance",
+        }
+        assert set(DOMAIN_BOUNDS.keys()) == expected
+
+    def test_fields_not_in_domain_bounds_unchanged(self) -> None:
+        """DSE fields not in DOMAIN_BOUNDS pass through without scaling."""
+        signals = IndicatorSignals(
+            rsi=50.0,
+            iv_hv_spread=0.15,  # DSE field, not in DOMAIN_BOUNDS
+            gex=500.0,  # DSE field, not in DOMAIN_BOUNDS
+        )
+        result = normalize_single_ticker(signals)
+
+        # RSI is in DOMAIN_BOUNDS -> scaled
+        assert _field_val(result, "rsi") == pytest.approx(50.0)
+        # DSE fields not in DOMAIN_BOUNDS -> unchanged
+        assert _field_val(result, "iv_hv_spread") == pytest.approx(0.15)
+        assert _field_val(result, "gex") == pytest.approx(500.0)

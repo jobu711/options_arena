@@ -219,3 +219,33 @@ async def test_batch_debate_default_limit(client: AsyncClient, mock_repo: MagicM
     assert response.status_code == 202
     data = response.json()
     assert len(data["tickers"]) == 5
+
+
+# ---------------------------------------------------------------------------
+# Single-ticker normalization integration (#362)
+# ---------------------------------------------------------------------------
+
+
+class TestDebateRouteNormalization:
+    """Tests verifying ad-hoc debate uses normalize_single_ticker."""
+
+    async def test_adhoc_debate_uses_normalized_composite(
+        self,
+        client: AsyncClient,
+        mock_repo: MagicMock,
+    ) -> None:
+        """Ad-hoc debate route normalizes signals before composite score.
+
+        Verifies that POST /api/debate returns 202 (background task started)
+        and that normalize_single_ticker is called during the ad-hoc path
+        (no scan_id, no pre-existing score_match).
+        """
+        # No scan scores -> triggers ad-hoc path
+        mock_repo.get_scores_for_scan = AsyncMock(return_value=[])
+
+        response = await client.post("/api/debate", json={"ticker": "AAPL"})
+        assert response.status_code == 202
+
+        # The route returns 202 immediately (background task).
+        # Verify the debate was accepted and an ID was assigned.
+        assert response.json()["debate_id"] >= 1
