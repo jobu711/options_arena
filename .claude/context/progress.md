@@ -13,10 +13,11 @@
 
 ## In Progress
 
-- **Liquidity weighting epic** near complete (12/13 tasks, ~50 tests). PR #384 open.
+- None currently
 
 ## Recently Completed
 
+- **Liquidity weighting epic** (2026-03-08): PR #384, issues #375-#383. `chain_spread_pct` and `chain_oi_depth` indicators, liquidity multiplier in `select_by_delta()`, weight redistribution (sum=1.0), 50+ tests across 7 files.
 - **Anthropic API epic** (2026-03-08): PR #374, issues #215-#219. `LLMProvider` StrEnum, multi-provider `build_debate_model()` dispatcher (Groq + Anthropic), `--provider` CLI flag, `check_anthropic()` health check, conditional `ModelSettings` for extended thinking, `anthropic>=0.83.0` dependency.
 - **Housekeeping** (2026-03-08): Archived completed epics, pruned stale branches/stashes, removed cruft, synced docs. Added `daily-audit` command, `tach.toml` boundary enforcement, `tools/bootstrap-dev-env.py`, ast-grep rules.
 - **S&P 500 Heatmap epic** (2026-03-08): Issues #366-#372. BatchQuote model, `fetch_batch_daily_changes()`, `GET /api/market/heatmap`, `MarketHeatmap.vue` squarify treemap, Pinia heatmap store, chunked batch download, E2E tests.
@@ -24,7 +25,7 @@
 ## Future Work
 
 - Additional LLM providers (OpenAI) — Groq + Anthropic done
-- Options liquidity weighting in composite scoring (PRD drafted)
+- Options liquidity weighting refinements (config params, delta dominance tuning)
 - Real-time market data streaming
 - Frontend unit testing (Vitest + Vue Test Utils) — E2E covered by Playwright
 
