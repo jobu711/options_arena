@@ -467,3 +467,42 @@ class PresetInfo(BaseModel):
     label: str
     description: str
     estimated_count: int
+
+
+# ---------------------------------------------------------------------------
+# Heatmap schemas (#367)
+# ---------------------------------------------------------------------------
+
+
+class HeatmapTicker(BaseModel):
+    """Single ticker entry for the S&P 500 heatmap treemap.
+
+    Frozen (immutable) — represents a point-in-time snapshot for rendering.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    ticker: str
+    company_name: str
+    sector: str
+    industry_group: str
+    market_cap_weight: float
+    change_pct: float | None
+    price: float
+    volume: int
+
+    @field_validator("price")
+    @classmethod
+    def _validate_price(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("price must be finite")
+        if v <= 0:
+            raise ValueError("price must be positive")
+        return v
+
+    @field_validator("change_pct")
+    @classmethod
+    def _validate_change_pct(cls, v: float | None) -> float | None:
+        if v is not None and not math.isfinite(v):
+            raise ValueError("change_pct must be finite")
+        return v
