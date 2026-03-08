@@ -9,6 +9,7 @@ wrapped with ``asyncio.to_thread`` + ``asyncio.wait_for`` for async safety.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import math
@@ -754,7 +755,8 @@ class MarketDataService:
         if not tickers:
             return []
 
-        cache_key = "yf:heatmap:sp500"
+        ticker_hash = hashlib.sha256(",".join(sorted(tickers)).encode()).hexdigest()[:16]
+        cache_key = f"yf:heatmap:{ticker_hash}"
         cached = await self._cache.get(cache_key)
         if cached is not None:
             logger.debug("Cache hit for %s", cache_key)

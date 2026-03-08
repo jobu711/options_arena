@@ -90,6 +90,48 @@ class TestHeatmapTickerSchema:
         with pytest.raises(ValidationError):
             ht.price = 200.0  # type: ignore[misc]
 
+    def test_isfinite_rejects_nan_market_cap_weight(self) -> None:
+        """Verify NaN market_cap_weight raises ValidationError."""
+        with pytest.raises(ValidationError, match="market_cap_weight must be finite"):
+            HeatmapTicker(
+                ticker="BAD",
+                company_name="Bad Corp",
+                sector="IT",
+                industry_group="Software",
+                market_cap_weight=float("nan"),
+                change_pct=0.0,
+                price=100.0,
+                volume=100,
+            )
+
+    def test_isfinite_rejects_inf_market_cap_weight(self) -> None:
+        """Verify infinite market_cap_weight raises ValidationError."""
+        with pytest.raises(ValidationError, match="market_cap_weight must be finite"):
+            HeatmapTicker(
+                ticker="BAD",
+                company_name="Bad Corp",
+                sector="IT",
+                industry_group="Software",
+                market_cap_weight=float("inf"),
+                change_pct=0.0,
+                price=100.0,
+                volume=100,
+            )
+
+    def test_negative_market_cap_weight_rejected(self) -> None:
+        """Verify negative market_cap_weight raises ValidationError."""
+        with pytest.raises(ValidationError, match="market_cap_weight must be non-negative"):
+            HeatmapTicker(
+                ticker="BAD",
+                company_name="Bad Corp",
+                sector="IT",
+                industry_group="Software",
+                market_cap_weight=-5.0,
+                change_pct=0.0,
+                price=100.0,
+                volume=100,
+            )
+
     def test_isfinite_rejects_nan_price(self) -> None:
         """Verify NaN price raises ValidationError."""
         with pytest.raises(ValidationError, match="price must be finite"):

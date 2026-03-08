@@ -70,13 +70,12 @@ test.describe('Dashboard Heatmap', () => {
   })
 
   test('dashboard loads when heatmap API fails', async ({ page }) => {
-    // Override heatmap endpoint to return 500
-    await mockServerError(page, pathMatcher('/api/market/heatmap'), 'Heatmap unavailable')
+    // Provide non-heatmap mocks first
     await mockAllApis(page, {
       scanList: [buildScanRun({ id: 10 })],
       healthServices: buildAllHealthy(),
     })
-    // Re-mock heatmap as error (mockAllApis sets a default — override after)
+    // Mock heatmap as error (after mockAllApis so it takes precedence)
     await page.route(pathMatcher('/api/market/heatmap'), route =>
       route.fulfill({ status: 500, json: { detail: 'Heatmap unavailable' } }),
     )

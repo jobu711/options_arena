@@ -36,7 +36,7 @@ TTL_EARNINGS: int = 24 * 60 * 60  # 24 hrs — earnings dates rarely change intr
 TTL_HEATMAP: int = 5 * 60  # 5 min — heatmap refreshes frequently
 
 # Data types that stay in-memory only (short-TTL, high-churn)
-_MEMORY_ONLY_TYPES: frozenset[str] = frozenset({"quote", "chain"})
+_MEMORY_ONLY_TYPES: frozenset[str] = frozenset({"quote", "chain", "heatmap"})
 
 # Eastern timezone for market-hours detection
 _ET = ZoneInfo("America/New_York")

@@ -491,6 +491,15 @@ class HeatmapTicker(BaseModel):
     price: float
     volume: int
 
+    @field_validator("market_cap_weight")
+    @classmethod
+    def _validate_market_cap_weight(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("market_cap_weight must be finite")
+        if v < 0:
+            raise ValueError("market_cap_weight must be non-negative")
+        return v
+
     @field_validator("price")
     @classmethod
     def _validate_price(cls, v: float) -> float:

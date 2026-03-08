@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Skeleton from 'primevue/skeleton'
@@ -9,9 +9,27 @@ import type { HeatmapTicker } from '@/types'
 const store = useHeatmapStore()
 const router = useRouter()
 
-// Container dimensions
-const containerWidth = 1200
-const containerHeight = 500
+// Responsive container dimensions via ResizeObserver
+const containerRef = ref<HTMLElement | null>(null)
+const containerWidth = ref(1200)
+const containerHeight = computed(() =>
+  Math.max(400, Math.min(600, Math.round(containerWidth.value * 0.42))),
+)
+
+let resizeObserver: ResizeObserver | null = null
+
+watch(containerRef, (el) => {
+  resizeObserver?.disconnect()
+  if (el) {
+    containerWidth.value = el.clientWidth || 1200
+    resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        containerWidth.value = Math.max(300, Math.round(entry.contentRect.width))
+      }
+    })
+    resizeObserver.observe(el)
+  }
+})
 
 // ---------------------------------------------------------------------------
 // Squarify algorithm (standard Bruls-Huizing-van Wijk 2000)
@@ -49,6 +67,7 @@ function squarify<T extends { weight: number; key: string }>(
   while (i < sorted.length) {
     const isVertical = remaining.w >= remaining.h
     const side = isVertical ? remaining.h : remaining.w
+    const remainingArea = remaining.w * remaining.h
 
     // Greedily add items to current row until aspect ratio worsens
     const row: T[] = [sorted[i]]
@@ -58,8 +77,8 @@ function squarify<T extends { weight: number; key: string }>(
     while (i < sorted.length) {
       const candidate = sorted[i]
       const testWeight = rowWeight + candidate.weight
-      if (worstAspect(row, rowWeight, side, remainingWeight) <=
-          worstAspect([...row, candidate], testWeight, side, remainingWeight)) {
+      if (worstAspect(row, rowWeight, side, remainingWeight, remainingArea) <=
+          worstAspect([...row, candidate], testWeight, side, remainingWeight, remainingArea)) {
         break
       }
       row.push(candidate)
@@ -103,9 +122,10 @@ function worstAspect<T extends { weight: number }>(
   rowWeight: number,
   side: number,
   totalWeight: number,
+  area: number,
 ): number {
   if (totalWeight <= 0 || rowWeight <= 0 || side <= 0) return Infinity
-  const rowArea = (rowWeight / totalWeight) * side * side
+  const rowArea = (rowWeight / totalWeight) * area
   const rowThickness = rowArea / side
   let worst = 0
   for (const item of row) {
@@ -165,7 +185,7 @@ interface SectorGroup {
 
 const layout = computed(() => {
   const data = store.tickers
-  if (data.length === 0) return { cells: [] as CellData[], sectors: [] as Array<{ name: string; rect: Rect }> }
+  if (data.length === 0 || containerWidth.value <= 0) return { cells: [] as CellData[], sectors: [] as Array<{ name: string; rect: Rect }> }
 
   // Group by sector
   const sectorMap = new Map<string, HeatmapTicker[]>()
@@ -191,7 +211,7 @@ const layout = computed(() => {
     group: sg,
   }))
 
-  const sectorRects = squarify(sectorItems, { x: 0, y: 0, w: containerWidth, h: containerHeight })
+  const sectorRects = squarify(sectorItems, { x: 0, y: 0, w: containerWidth.value, h: containerHeight.value })
 
   const cells: CellData[] = []
   const sectorLabels: Array<{ name: string; rect: Rect }> = []
@@ -236,11 +256,15 @@ const tooltip = ref<{ visible: boolean; x: number; y: number; ticker: HeatmapTic
   ticker: null,
 })
 
+const TOOLTIP_WIDTH = 200
+const TOOLTIP_HEIGHT = 160
+const TOOLTIP_MARGIN = 8
+
 function onCellMouseMove(event: MouseEvent, ticker: HeatmapTicker): void {
   tooltip.value = {
     visible: true,
-    x: event.clientX + 12,
-    y: event.clientY + 12,
+    x: Math.min(event.clientX + 12, window.innerWidth - TOOLTIP_WIDTH - TOOLTIP_MARGIN),
+    y: Math.min(event.clientY + 12, window.innerHeight - TOOLTIP_HEIGHT - TOOLTIP_MARGIN),
     ticker,
   }
 }
@@ -285,6 +309,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   store.stopAutoRefresh()
+  resizeObserver?.disconnect()
 })
 </script>
 
@@ -327,8 +352,9 @@ onUnmounted(() => {
     <!-- Treemap -->
     <div
       v-else
+      ref="containerRef"
       class="heatmap-container"
-      :style="{ width: `${containerWidth}px`, height: `${containerHeight}px` }"
+      :style="{ height: `${containerHeight}px` }"
     >
       <!-- Sector labels -->
       <div
@@ -400,7 +426,6 @@ onUnmounted(() => {
 <style scoped>
 .heatmap-section {
   width: 100%;
-  max-width: 1200px;
 }
 
 .heatmap-header {
@@ -442,6 +467,7 @@ onUnmounted(() => {
 
 .heatmap-container {
   position: relative;
+  width: 100%;
   border-radius: 0.5rem;
   overflow: hidden;
   background: var(--p-surface-800, #1e1e2e);
