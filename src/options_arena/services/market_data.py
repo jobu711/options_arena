@@ -50,6 +50,10 @@ from options_arena.utils.exceptions import (
 
 logger = logging.getLogger(__name__)
 
+# Max tickers per yf.download call.  Keeps each chunk well within the
+# per-call timeout while allowing concurrent downloads for large batches.
+_BATCH_CHUNK_SIZE = 50
+
 # GICS sector → SPDR sector ETF mapping for regime/macro indicators.
 SECTOR_ETF_MAP: dict[str, str] = {
     "Technology": "XLK",
@@ -759,15 +763,33 @@ class MarketDataService:
         )
         return universe
 
+    async def _download_chunk(self, chunk: list[str]) -> pd.DataFrame:
+        """Download a single chunk of tickers via ``yf.download``."""
+        async with self._limiter:
+            df: pd.DataFrame = await asyncio.wait_for(
+                asyncio.to_thread(
+                    yf.download,
+                    tickers=" ".join(chunk),
+                    period="2d",
+                    group_by="ticker",
+                    progress=False,
+                    threads=True,
+                    timeout=self._config.yfinance_timeout,
+                ),
+                timeout=self._config.yfinance_timeout,
+            )
+        return df
+
     async def fetch_batch_daily_changes(
         self,
         tickers: list[str],
     ) -> list[BatchQuote]:
-        """Fetch daily price changes for multiple tickers in a single batch call.
+        """Fetch daily price changes for multiple tickers in concurrent chunks.
 
-        Uses ``yf.download()`` to fetch 2 days of data for all tickers at once,
-        then computes the daily percent change. Results are cached with a 5-minute
-        heatmap TTL via ``cache.ttl_for("heatmap")``.
+        Splits tickers into chunks of ``_BATCH_CHUNK_SIZE``, downloads them in
+        parallel via ``yf.download()``, and merges results.  A single chunk
+        failure only loses that chunk's tickers — the rest still succeed.
+        Results are cached with a 5-minute heatmap TTL.
         """
         if not tickers:
             return []
@@ -779,78 +801,72 @@ class MarketDataService:
             logger.debug("Cache hit for %s", cache_key)
             return _deserialize_batch_quotes(cached)
 
-        try:
-            async with self._limiter:
-                df: pd.DataFrame = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        yf.download,
-                        tickers=" ".join(tickers),
-                        period="2d",
-                        group_by="ticker",
-                        progress=False,
-                        threads=True,
-                        timeout=self._config.yfinance_timeout,
-                    ),
-                    timeout=self._config.yfinance_timeout,
-                )
-        except Exception:
-            logger.warning("yf.download batch fetch failed", exc_info=True)
-            return []
-
-        if df.empty:
-            logger.warning("yf.download returned empty DataFrame for batch fetch")
-            return []
+        # Download in parallel chunks — partial failure is tolerated
+        chunks = [
+            tickers[i : i + _BATCH_CHUNK_SIZE] for i in range(0, len(tickers), _BATCH_CHUNK_SIZE)
+        ]
+        results = await asyncio.gather(
+            *(self._download_chunk(chunk) for chunk in chunks),
+            return_exceptions=True,
+        )
 
         quotes: list[BatchQuote] = []
-        single_ticker = len(tickers) == 1
-
-        for ticker in tickers:
-            try:
-                if single_ticker:
-                    close_series = df["Close"]
-                    vol_series = df["Volume"]
-                else:
-                    close_series = df[(ticker, "Close")]
-                    vol_series = df[(ticker, "Volume")]
-
-                close_values = close_series.dropna()
-                if close_values.empty:
-                    continue
-
-                latest_close = float(close_values.iloc[-1])
-                if not math.isfinite(latest_close) or latest_close <= 0:
-                    continue
-
-                change_pct: float | None = None
-                if len(close_values) >= 2:  # noqa: PLR2004
-                    prev_close = float(close_values.iloc[-2])
-                    if math.isfinite(prev_close) and prev_close > 0:
-                        change_pct = (latest_close - prev_close) / prev_close * 100.0
-                        if not math.isfinite(change_pct):
-                            change_pct = None
-
-                vol_values = vol_series.dropna()
-                volume = int(vol_values.iloc[-1]) if not vol_values.empty else 0
-
-                quotes.append(
-                    BatchQuote(
-                        ticker=ticker,
-                        price=latest_close,
-                        change_pct=change_pct,
-                        volume=volume,
-                    )
-                )
-            except (KeyError, IndexError, ValueError, TypeError):
-                logger.debug("Skipping %s in batch daily changes", ticker)
+        for chunk, result in zip(chunks, results, strict=True):
+            if isinstance(result, BaseException):
+                logger.warning("Chunk download failed (%d tickers): %s", len(chunk), result)
                 continue
+            if result.empty:
+                continue
+
+            single_ticker = len(chunk) == 1
+            for ticker in chunk:
+                try:
+                    if single_ticker:
+                        close_series = result["Close"]
+                        vol_series = result["Volume"]
+                    else:
+                        close_series = result[(ticker, "Close")]
+                        vol_series = result[(ticker, "Volume")]
+
+                    close_values = close_series.dropna()
+                    if close_values.empty:
+                        continue
+
+                    latest_close = float(close_values.iloc[-1])
+                    if not math.isfinite(latest_close) or latest_close <= 0:
+                        continue
+
+                    change_pct: float | None = None
+                    if len(close_values) >= 2:  # noqa: PLR2004
+                        prev_close = float(close_values.iloc[-2])
+                        if math.isfinite(prev_close) and prev_close > 0:
+                            change_pct = (latest_close - prev_close) / prev_close * 100.0
+                            if not math.isfinite(change_pct):
+                                change_pct = None
+
+                    vol_values = vol_series.dropna()
+                    volume = int(vol_values.iloc[-1]) if not vol_values.empty else 0
+
+                    quotes.append(
+                        BatchQuote(
+                            ticker=ticker,
+                            price=latest_close,
+                            change_pct=change_pct,
+                            volume=volume,
+                        )
+                    )
+                except (KeyError, IndexError, ValueError, TypeError):
+                    logger.debug("Skipping %s in batch daily changes", ticker)
+                    continue
 
         serialized = _serialize_batch_quotes(quotes)
         await self._cache.set(cache_key, serialized, ttl=self._cache.ttl_for("heatmap"))
 
         logger.debug(
-            "Fetched batch daily changes: %d/%d tickers succeeded",
+            "Fetched batch daily changes: %d/%d tickers succeeded (%d chunks)",
             len(quotes),
             len(tickers),
+            len(chunks),
         )
         return quotes
 
