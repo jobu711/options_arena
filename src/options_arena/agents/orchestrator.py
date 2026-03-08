@@ -8,7 +8,7 @@ LLM output, etc.), returns a data-driven fallback — ``run_debate()`` never rai
 Protocol flow:
   Phase 1 (parallel): trend + volatility (always), flow + fundamental (when enrichment exists)
   Phase 2 (sequential): risk agent with all Phase 1 outputs
-  Phase 3 (sequential): contrarian with all prior outputs (skip if >=2 Phase 1 failures)
+  Phase 3 (sequential): contrarian with all prior outputs (skip if >=3 Phase 1 failures)
   Phase 4 (algorithmic): synthesize_verdict -> ExtendedTradeThesis
 
 Architecture rules:
@@ -589,25 +589,34 @@ def extract_agent_predictions(
     field names for direction and confidence (e.g. ``dissent_direction`` on
     ``ContrarianThesis``, no direction on ``RiskAssessment``).
 
+    In v2 protocol, ``bull_response`` actually holds the trend agent output and
+    ``bear_response`` is a static fallback — extract "trend" instead of "bull"
+    and skip the fake "bear".
+
     Returns a list of ``AgentPrediction`` — empty if all agents failed.
     """
     now = datetime.now(UTC)
     predictions: list[AgentPrediction] = []
+    is_v2 = result.debate_protocol == "v2"
 
-    # Bull response (AgentResponse — has direction + confidence)
+    # In v2, bull_response holds the trend agent output (backward-compat shim).
+    # Extract as "trend" to avoid conflating with the retired bull agent.
+    # In v1 (legacy), extract as "bull" for backward compatibility.
     if result.bull_response is not None:
+        agent_name = "trend" if is_v2 else "bull"
         predictions.append(
             AgentPrediction(
                 debate_id=debate_id,
-                agent_name="bull",
+                agent_name=agent_name,
                 direction=result.bull_response.direction,
                 confidence=result.bull_response.confidence,
                 created_at=now,
             )
         )
 
-    # Bear response (AgentResponse — has direction + confidence)
-    if result.bear_response is not None:
+    # Bear response — only extract in v1. In v2, bear_response is a static
+    # fallback (not a real agent output) so skip it to avoid misleading data.
+    if result.bear_response is not None and not is_v2:
         predictions.append(
             AgentPrediction(
                 debate_id=debate_id,
@@ -642,14 +651,13 @@ def extract_agent_predictions(
             )
         )
 
-    # Volatility response (VolatilityThesis — has confidence, direction may not exist yet)
+    # Volatility response (VolatilityThesis — has direction + confidence)
     if result.vol_response is not None:
-        vol_direction: SignalDirection | None = getattr(result.vol_response, "direction", None)
         predictions.append(
             AgentPrediction(
                 debate_id=debate_id,
                 agent_name="volatility",
-                direction=vol_direction,
+                direction=result.vol_response.direction,
                 confidence=result.vol_response.confidence,
                 created_at=now,
             )
@@ -759,7 +767,9 @@ async def _persist_result(
 # 6-Agent Debate Protocol
 # ---------------------------------------------------------------------------
 
-# Agent vote weights for verdict synthesis
+# Agent vote weights for verdict synthesis.
+# Sum is intentionally < 1.0 (0.85) — risk agent has no directional vote so it
+# is excluded. Unnormalized weights are correct for Bordley 1982 log-odds pooling.
 AGENT_VOTE_WEIGHTS: dict[str, float] = {
     "trend": 0.25,
     "volatility": 0.20,
