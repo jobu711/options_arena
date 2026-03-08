@@ -140,7 +140,7 @@ class HealthService:
                     "https://api.groq.com/openai/v1/models",
                     headers={"Authorization": f"Bearer {api_key}"},
                 ),
-                timeout=10.0,
+                timeout=self._config.health_check_timeout,
             )
             latency_ms = (time.monotonic() - start) * 1000
 
@@ -151,6 +151,26 @@ class HealthService:
                     available=False,
                     latency_ms=latency_ms,
                     error="invalid API key (401)",
+                    checked_at=datetime.now(UTC),
+                )
+
+            if response.status_code == 403:
+                logger.warning("Groq health check failed: forbidden (403)")
+                return HealthStatus(
+                    service_name="groq",
+                    available=False,
+                    latency_ms=latency_ms,
+                    error="forbidden (403)",
+                    checked_at=datetime.now(UTC),
+                )
+
+            if response.status_code == 429:
+                logger.warning("Groq health check: rate limited (429)")
+                return HealthStatus(
+                    service_name="groq",
+                    available=True,
+                    latency_ms=latency_ms,
+                    error="rate limited (429)",
                     checked_at=datetime.now(UTC),
                 )
 
@@ -216,7 +236,7 @@ class HealthService:
                         "anthropic-version": "2023-06-01",
                     },
                 ),
-                timeout=10.0,
+                timeout=self._config.health_check_timeout,
             )
             latency_ms = (time.monotonic() - start) * 1000
 
@@ -227,6 +247,26 @@ class HealthService:
                     available=False,
                     latency_ms=latency_ms,
                     error="invalid API key (401)",
+                    checked_at=datetime.now(UTC),
+                )
+
+            if response.status_code == 403:
+                logger.warning("Anthropic health check failed: forbidden (403)")
+                return HealthStatus(
+                    service_name="anthropic",
+                    available=False,
+                    latency_ms=latency_ms,
+                    error="forbidden (403)",
+                    checked_at=datetime.now(UTC),
+                )
+
+            if response.status_code == 429:
+                logger.warning("Anthropic health check: rate limited (429)")
+                return HealthStatus(
+                    service_name="anthropic",
+                    available=True,
+                    latency_ms=latency_ms,
+                    error="rate limited (429)",
                     checked_at=datetime.now(UTC),
                 )
 

@@ -261,6 +261,11 @@ async def start_debate(
     No operation lock is needed here: single debates are lightweight, short-lived,
     and do not conflict with concurrent access. Only batch debates and scans
     require the mutex (AUDIT-015).
+
+    NOTE: Provider selection (Groq vs Anthropic) is not yet exposed via the API.
+    The API uses whatever ``ARENA_DEBATE__PROVIDER`` env var is set (defaults to
+    Groq). To use Anthropic from the web UI, set the env var before starting the
+    server. The CLI ``--provider`` flag is the only per-invocation override.
     """
     bridge = DebateProgressBridge()
 

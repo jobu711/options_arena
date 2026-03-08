@@ -267,6 +267,7 @@ class ServiceConfig(BaseModel):
     yfinance_timeout: float = 15.0
     fred_timeout: float = 10.0
     cboe_timeout: float = 10.0
+    health_check_timeout: float = 10.0
     fred_api_key: SecretStr | None = None
     groq_api_key: SecretStr | None = None
     anthropic_api_key: SecretStr | None = None
@@ -336,9 +337,7 @@ class DebateConfig(BaseModel):
         if not math.isfinite(v):
             raise ValueError(f"thinking_budget_tokens must be finite, got {v}")
         if not 1024 <= v <= 128_000:
-            raise ValueError(
-                f"thinking_budget_tokens must be in [1024, 128000], got {v}"
-            )
+            raise ValueError(f"thinking_budget_tokens must be in [1024, 128000], got {v}")
         return v
 
     @field_validator("min_debate_score")

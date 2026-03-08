@@ -144,6 +144,8 @@ def build_debate_model(config: DebateConfig) -> Model:
             return _build_groq_model(config)
         case LLMProvider.ANTHROPIC:
             return _build_anthropic_model(config)
+        case _:
+            raise ValueError(f"Unsupported LLM provider: {config.provider}")
 
 
 def _build_groq_model(config: DebateConfig) -> GroqModel:
@@ -188,7 +190,8 @@ def _build_anthropic_model(config: DebateConfig) -> AnthropicModel:
     """Build a PydanticAI AnthropicModel backed by Anthropic API.
 
     API key resolution: ``config.anthropic_api_key`` > ``ANTHROPIC_API_KEY``
-    env var.
+    env var. When ``config.rate_limit_retries > 0``, wraps the HTTP transport
+    with automatic 429/5xx retry logic (same resilience as Groq builder).
 
     Parameters
     ----------
@@ -208,7 +211,17 @@ def _build_anthropic_model(config: DebateConfig) -> AnthropicModel:
     """
     api_key = _resolve_anthropic_api_key(config)
     logger.debug("Building AnthropicModel: model=%s", config.anthropic_model)
-    provider = AnthropicProvider(api_key=api_key)
+
+    http_client: httpx.AsyncClient | None = None
+    if config.rate_limit_retries > 0:
+        http_client = _build_rate_limit_client(config)
+        logger.debug(
+            "Rate-limit transport: retries=%d, max_wait=%.1fs",
+            config.rate_limit_retries,
+            config.rate_limit_max_wait,
+        )
+
+    provider = AnthropicProvider(api_key=api_key, http_client=http_client)
     return AnthropicModel(config.anthropic_model, provider=provider)
 
 
@@ -276,6 +289,13 @@ def _resolve_api_key(config: DebateConfig) -> str | None:
     .. deprecated::
         Use ``_resolve_groq_api_key()`` instead. Kept for backward compatibility.
     """
+    import warnings  # noqa: PLC0415
+
+    warnings.warn(
+        "Use _resolve_groq_api_key() instead of _resolve_api_key()",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     if config.api_key is not None:
         return config.api_key.get_secret_value()
     return os.environ.get("GROQ_API_KEY")

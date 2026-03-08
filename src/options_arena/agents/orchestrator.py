@@ -1252,6 +1252,25 @@ def _build_model_settings(config: DebateConfig) -> ModelSettings:
     return ModelSettings(temperature=config.temperature)
 
 
+# Anthropic models are slower than Groq; extended thinking adds more latency.
+_ANTHROPIC_TIMEOUT_MULTIPLIER = 2.0
+_ANTHROPIC_THINKING_TIMEOUT_MULTIPLIER = 3.0
+
+
+def _effective_agent_timeout(config: DebateConfig) -> float:
+    """Return per-agent timeout, auto-adjusted for Anthropic provider.
+
+    Groq cloud inference is fast (default 60s is fine). Anthropic models are
+    slower, and extended thinking adds further latency. Multipliers ensure
+    the configured ``agent_timeout`` is scaled appropriately.
+    """
+    if config.provider != LLMProvider.ANTHROPIC:
+        return config.agent_timeout
+    if config.enable_extended_thinking:
+        return config.agent_timeout * _ANTHROPIC_THINKING_TIMEOUT_MULTIPLIER
+    return config.agent_timeout * _ANTHROPIC_TIMEOUT_MULTIPLIER
+
+
 async def _run_v2_agents(
     context: MarketContext,
     ticker_score: TickerScore,
@@ -1266,7 +1285,7 @@ async def _run_v2_agents(
     """Run the 6-agent pipeline. Raises on total failure."""
     model = build_debate_model(config)
     settings = _build_model_settings(config)
-    per_agent_timeout = config.agent_timeout
+    per_agent_timeout = _effective_agent_timeout(config)
 
     # Partitioned context: each Phase 1 agent sees only domain-specific fields.
     # Risk (Phase 2) and Contrarian (Phase 3) keep the full context block.

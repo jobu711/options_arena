@@ -7,7 +7,7 @@ Tests cover:
   - check_openbb() measures latency
   - check_openbb() never raises
   - check_all() includes openbb status
-  - check_all() returns 7 statuses (includes intelligence)
+  - check_all() returns 8 statuses (includes intelligence + anthropic)
 """
 
 from __future__ import annotations
@@ -128,8 +128,8 @@ class TestCheckAllIncludesOpenBB:
         assert "openbb" in service_names
 
     @pytest.mark.asyncio
-    async def test_check_all_count_is_seven(self, health_service: HealthService) -> None:
-        """check_all() returns 7 statuses including intelligence."""
+    async def test_check_all_count_is_eight(self, health_service: HealthService) -> None:
+        """check_all() returns 8 statuses including intelligence and anthropic."""
         health_service.check_yfinance = AsyncMock(  # type: ignore[method-assign]
             return_value=_make_status("yfinance")
         )
