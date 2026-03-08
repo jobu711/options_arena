@@ -23,6 +23,7 @@ from starlette.responses import JSONResponse
 from options_arena.data import Database, Repository
 from options_arena.models.config import AppSettings
 from options_arena.services.cache import ServiceCache
+from options_arena.services.financial_datasets import FinancialDatasetsService
 from options_arena.services.fred import FredService
 from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.market_data import MarketDataService
@@ -84,6 +85,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     if settings.intelligence.enabled:
         intelligence_svc = IntelligenceService(settings.intelligence, cache, limiter)
 
+    # Financial Datasets service — created only when enabled and API key set
+    fd_svc: FinancialDatasetsService | None = None
+    if settings.financial_datasets.enabled and settings.financial_datasets.api_key:
+        fd_svc = FinancialDatasetsService(
+            config=settings.financial_datasets,
+            cache=cache,
+            limiter=limiter,
+        )
+
     # Store on app.state for Depends() access
     app.state.settings = settings
     app.state.db = db
@@ -96,6 +106,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.universe = universe
     app.state.openbb = openbb_svc
     app.state.intelligence = intelligence_svc
+    app.state.financial_datasets = fd_svc
     app.state.operation_lock = asyncio.Lock()
 
     # Initialize counters and mutable state eagerly so route handlers
@@ -113,6 +124,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     yield
 
     # Shutdown — close all services
+    if fd_svc is not None:
+        await fd_svc.close()
     if intelligence_svc is not None:
         await intelligence_svc.close()
     if openbb_svc is not None:

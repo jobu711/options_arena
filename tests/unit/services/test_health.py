@@ -8,6 +8,7 @@ import pytest
 
 from options_arena.models.config import ServiceConfig
 from options_arena.models.health import HealthStatus
+from options_arena.services.financial_datasets import FinancialDatasetsService
 from options_arena.services.health import HealthService
 
 
@@ -751,6 +752,196 @@ class TestClose:
         service._client.aclose = AsyncMock()  # type: ignore[method-assign]
         await service.close()
         service._client.aclose.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# check_financial_datasets
+# ---------------------------------------------------------------------------
+
+
+class TestCheckFinancialDatasets:
+    """Tests for Financial Datasets health check."""
+
+    @pytest.mark.asyncio
+    async def test_healthy(self) -> None:
+        """Successful FD check returns available=True with latency."""
+        from options_arena.models.config import FinancialDatasetsConfig
+
+        fd_config = FinancialDatasetsConfig(enabled=True, api_key="test_fd_key")
+        svc_config = ServiceConfig(yfinance_timeout=5.0, fred_timeout=5.0)
+        svc = HealthService(svc_config, fd_config=fd_config)
+
+        from options_arena.models.financial_datasets import FinancialMetricsData
+
+        mock_result = FinancialMetricsData(pe_ratio=28.5)
+        with (
+            patch.object(
+                FinancialDatasetsService,
+                "fetch_financial_metrics",
+                new_callable=AsyncMock,
+                return_value=mock_result,
+            ),
+            patch.object(FinancialDatasetsService, "close", new_callable=AsyncMock),
+        ):
+            result = await svc.check_financial_datasets()
+
+        assert isinstance(result, HealthStatus)
+        assert result.service_name == "financial_datasets"
+        assert result.available is True
+        assert result.latency_ms is not None
+        assert result.latency_ms > 0
+        assert result.error is None
+
+    @pytest.mark.asyncio
+    async def test_unhealthy_no_data(self) -> None:
+        """FD check returns available=False when no data returned."""
+        from options_arena.models.config import FinancialDatasetsConfig
+
+        fd_config = FinancialDatasetsConfig(enabled=True, api_key="test_fd_key")
+        svc_config = ServiceConfig(yfinance_timeout=5.0, fred_timeout=5.0)
+        svc = HealthService(svc_config, fd_config=fd_config)
+
+        with (
+            patch.object(
+                FinancialDatasetsService,
+                "fetch_financial_metrics",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch.object(FinancialDatasetsService, "close", new_callable=AsyncMock),
+        ):
+            result = await svc.check_financial_datasets()
+
+        assert result.service_name == "financial_datasets"
+        assert result.available is False
+        assert result.error == "No data returned"
+
+    @pytest.mark.asyncio
+    async def test_unhealthy_exception(self) -> None:
+        """FD check returns available=False on API failure."""
+        from options_arena.models.config import FinancialDatasetsConfig
+
+        fd_config = FinancialDatasetsConfig(enabled=True, api_key="test_fd_key")
+        svc_config = ServiceConfig(yfinance_timeout=5.0, fred_timeout=5.0)
+        svc = HealthService(svc_config, fd_config=fd_config)
+
+        with (
+            patch.object(
+                FinancialDatasetsService,
+                "fetch_financial_metrics",
+                new_callable=AsyncMock,
+                side_effect=ConnectionError("API down"),
+            ),
+            patch.object(FinancialDatasetsService, "close", new_callable=AsyncMock),
+        ):
+            result = await svc.check_financial_datasets()
+
+        assert result.service_name == "financial_datasets"
+        assert result.available is False
+        assert "API down" in (result.error or "")
+
+    @pytest.mark.asyncio
+    async def test_disabled(self) -> None:
+        """FD check returns available=False when config disabled."""
+        from options_arena.models.config import FinancialDatasetsConfig
+
+        fd_config = FinancialDatasetsConfig(enabled=False, api_key="test_fd_key")
+        svc_config = ServiceConfig(yfinance_timeout=5.0, fred_timeout=5.0)
+        svc = HealthService(svc_config, fd_config=fd_config)
+
+        result = await svc.check_financial_datasets()
+
+        assert result.service_name == "financial_datasets"
+        assert result.available is False
+        assert "disabled" in (result.error or "").lower()
+
+    @pytest.mark.asyncio
+    async def test_no_api_key(self) -> None:
+        """FD check returns available=False when no API key."""
+        from options_arena.models.config import FinancialDatasetsConfig
+
+        fd_config = FinancialDatasetsConfig(enabled=True, api_key=None)
+        svc_config = ServiceConfig(yfinance_timeout=5.0, fred_timeout=5.0)
+        svc = HealthService(svc_config, fd_config=fd_config)
+
+        result = await svc.check_financial_datasets()
+
+        assert result.service_name == "financial_datasets"
+        assert result.available is False
+        assert "no api key" in (result.error or "").lower()
+
+    @pytest.mark.asyncio
+    async def test_check_all_includes_fd_when_enabled(self) -> None:
+        """Verify check_all includes FD check when config enabled."""
+        from options_arena.models.config import FinancialDatasetsConfig
+
+        fd_config = FinancialDatasetsConfig(enabled=True, api_key="test_fd_key")
+        svc_config = ServiceConfig(
+            yfinance_timeout=5.0,
+            fred_timeout=5.0,
+            groq_api_key="gsk_test",
+        )
+        svc = HealthService(svc_config, fd_config=fd_config)
+
+        # Mock ALL check methods to avoid real API calls
+        for method_name in [
+            "check_yfinance",
+            "check_fred",
+            "check_groq",
+            "check_anthropic",
+            "check_cboe",
+            "check_openbb",
+            "check_cboe_chains",
+            "check_intelligence",
+            "check_financial_datasets",
+        ]:
+            mock = AsyncMock(
+                return_value=HealthStatus(
+                    service_name=method_name,
+                    available=True,
+                    checked_at=_utc_now(),
+                )
+            )
+            setattr(svc, method_name, mock)
+
+        results = await svc.check_all()
+        service_names = [r.service_name for r in results]
+        assert "check_financial_datasets" in service_names
+
+    @pytest.mark.asyncio
+    async def test_check_all_omits_fd_when_disabled(self) -> None:
+        """Verify check_all skips FD check when config disabled."""
+        svc_config = ServiceConfig(
+            yfinance_timeout=5.0,
+            fred_timeout=5.0,
+            groq_api_key="gsk_test",
+        )
+        # No fd_config provided -> fd check skipped
+        svc = HealthService(svc_config)
+
+        # Mock ALL base check methods to avoid real API calls
+        for method_name in [
+            "check_yfinance",
+            "check_fred",
+            "check_groq",
+            "check_anthropic",
+            "check_cboe",
+            "check_openbb",
+            "check_cboe_chains",
+            "check_intelligence",
+        ]:
+            mock = AsyncMock(
+                return_value=HealthStatus(
+                    service_name=method_name,
+                    available=True,
+                    checked_at=_utc_now(),
+                )
+            )
+            setattr(svc, method_name, mock)
+
+        results = await svc.check_all()
+        service_names = [r.service_name for r in results]
+        assert "financial_datasets" not in service_names
 
 
 # ---------------------------------------------------------------------------

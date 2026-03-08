@@ -54,6 +54,7 @@ from options_arena.scan.indicators import (
 )
 from options_arena.scoring import recommend_contracts
 from options_arena.services.cache import ServiceCache
+from options_arena.services.financial_datasets import FinancialDatasetsService
 from options_arena.services.fred import FredService
 from options_arena.services.health import HealthService
 from options_arena.services.intelligence import IntelligenceService
@@ -515,6 +516,7 @@ async def _batch_async(
     fred: FredService | None = None
     openbb_svc: OpenBBService | None = None
     intelligence_svc: IntelligenceService | None = None
+    fd_svc: FinancialDatasetsService | None = None
 
     try:
         await db.connect()
@@ -552,6 +554,13 @@ async def _batch_async(
         if not no_recon and settings.intelligence.enabled:
             intelligence_svc = IntelligenceService(settings.intelligence, cache, limiter)
 
+        if settings.financial_datasets.enabled and settings.financial_datasets.api_key:
+            fd_svc = FinancialDatasetsService(
+                config=settings.financial_datasets,
+                cache=cache,
+                limiter=limiter,
+            )
+
         err_console.print(f"[cyan]Batch debate: {len(top_scores)} tickers[/cyan]\n")
 
         results: list[tuple[str, DebateResult | None, str | None]] = []
@@ -581,6 +590,7 @@ async def _batch_async(
                     fallback_only=fallback_only,
                     openbb_svc=openbb_svc,
                     intelligence_svc=intelligence_svc,
+                    fd_svc=fd_svc,
                 )
                 results.append((ticker, result, None))
                 # Brief per-ticker result
@@ -612,6 +622,8 @@ async def _batch_async(
         err_console.print("[red]Batch failed. Check logs/options_arena.log for details.[/red]")
         raise typer.Exit(code=1) from exc
     finally:
+        if fd_svc is not None:
+            await fd_svc.close()
         if intelligence_svc is not None:
             await intelligence_svc.close()
         if openbb_svc is not None:
@@ -658,6 +670,7 @@ async def _debate_single(
     fallback_only: bool = False,
     openbb_svc: OpenBBService | None = None,
     intelligence_svc: IntelligenceService | None = None,
+    fd_svc: FinancialDatasetsService | None = None,
 ) -> DebateResult:
     """Run a single AI debate for one ticker. Returns result without rendering.
 
@@ -762,6 +775,15 @@ async def _debate_single(
     if intelligence_svc is not None:
         intel = await intelligence_svc.fetch_intelligence(ticker, spot)
 
+    # Fetch Financial Datasets enrichment (never raises — returns None on error)
+    from options_arena.models.financial_datasets import (  # noqa: PLC0415
+        FinancialDatasetsPackage,
+    )
+
+    fd_package: FinancialDatasetsPackage | None = None
+    if fd_svc is not None:
+        fd_package = await fd_svc.fetch_package(ticker)
+
     # Lazy import: agents/ depends on pydantic-ai which may not be available.
     # Importing at call time keeps CLI tests (scan, health, universe) working
     # even when the optional dependency is absent.
@@ -798,6 +820,7 @@ async def _debate_single(
         flow=flow,
         sentiment=sentiment,
         intelligence=intel,
+        fd_package=fd_package,
     )
 
 
@@ -828,6 +851,7 @@ async def _debate_async(
     fred: FredService | None = None
     openbb_svc: OpenBBService | None = None
     intelligence_svc: IntelligenceService | None = None
+    fd_svc: FinancialDatasetsService | None = None
 
     try:
         await db.connect()
@@ -876,6 +900,13 @@ async def _debate_async(
         if not no_recon and settings.intelligence.enabled:
             intelligence_svc = IntelligenceService(settings.intelligence, cache, limiter)
 
+        if settings.financial_datasets.enabled and settings.financial_datasets.api_key:
+            fd_svc = FinancialDatasetsService(
+                config=settings.financial_datasets,
+                cache=cache,
+                limiter=limiter,
+            )
+
         err_console.print(f"[cyan]Fetching live data for {ticker}...[/cyan]")
         err_console.print(f"[cyan]Running debate for {ticker}...[/cyan]")
 
@@ -889,6 +920,7 @@ async def _debate_async(
             fallback_only=fallback_only,
             openbb_svc=openbb_svc,
             intelligence_svc=intelligence_svc,
+            fd_svc=fd_svc,
         )
 
         # Render debate output
@@ -914,6 +946,8 @@ async def _debate_async(
         err_console.print("[red]Debate failed. Check logs/options_arena.log for details.[/red]")
         raise typer.Exit(code=1) from exc
     finally:
+        if fd_svc is not None:
+            await fd_svc.close()
         if intelligence_svc is not None:
             await intelligence_svc.close()
         if openbb_svc is not None:
@@ -947,7 +981,11 @@ async def _health_async() -> None:
         settings.service.rate_limit_rps, settings.service.max_concurrent_requests
     )
     svc = HealthService(
-        settings.service, openbb_config=settings.openbb, cache=cache, limiter=limiter
+        settings.service,
+        openbb_config=settings.openbb,
+        fd_config=settings.financial_datasets,
+        cache=cache,
+        limiter=limiter,
     )
     try:
         statuses = await svc.check_all()

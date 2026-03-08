@@ -1029,3 +1029,272 @@ class TestBuildModelSettings:
         settings = _build_model_settings(config)
         assert settings["temperature"] == pytest.approx(0.4)
         assert "anthropic_thinking" not in settings
+
+
+# ---------------------------------------------------------------------------
+# Financial Datasets integration
+# ---------------------------------------------------------------------------
+
+
+class TestBuildMarketContextFD:
+    """Tests for build_market_context with Financial Datasets package."""
+
+    def test_fd_fields_populated_from_package(
+        self,
+        mock_ticker_score: TickerScore,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_option_contract: OptionContract,
+    ) -> None:
+        """Verify fd_* fields populated from FD package components."""
+        from datetime import UTC, datetime
+
+        from options_arena.models.financial_datasets import (
+            BalanceSheetData,
+            FinancialDatasetsPackage,
+            FinancialMetricsData,
+            IncomeStatementData,
+        )
+
+        fd = FinancialDatasetsPackage(
+            ticker="AAPL",
+            metrics=FinancialMetricsData(
+                pe_ratio=28.5,
+                revenue_growth=0.08,
+                earnings_growth=0.12,
+                current_ratio=1.2,
+                enterprise_value_to_ebitda=22.0,
+                free_cash_flow_yield=0.035,
+                profit_margin=0.25,
+                gross_margin=0.44,
+                operating_margin=0.30,
+                net_margin=0.24,
+                eps_diluted=6.50,
+            ),
+            income=IncomeStatementData(
+                revenue=383_000_000_000.0,
+                net_income=97_000_000_000.0,
+                gross_profit=170_000_000_000.0,
+                operating_income=115_000_000_000.0,
+                eps_diluted=6.42,
+                gross_margin=0.45,
+                operating_margin=0.31,
+                net_margin=0.25,
+            ),
+            balance_sheet=BalanceSheetData(
+                total_debt=111_000_000_000.0,
+                total_cash=62_000_000_000.0,
+                total_assets=352_000_000_000.0,
+            ),
+            fetched_at=datetime.now(UTC),
+        )
+
+        ctx = build_market_context(
+            mock_ticker_score,
+            mock_quote,
+            mock_ticker_info,
+            [mock_option_contract],
+            fd_package=fd,
+        )
+
+        # Check fd_* fields from income statement (income takes priority over metrics)
+        assert ctx.fd_revenue == pytest.approx(383_000_000_000.0)
+        assert ctx.fd_net_income == pytest.approx(97_000_000_000.0)
+        assert ctx.fd_gross_profit == pytest.approx(170_000_000_000.0)
+        assert ctx.fd_operating_income == pytest.approx(115_000_000_000.0)
+        assert ctx.fd_eps_diluted == pytest.approx(6.42)  # income takes priority
+        assert ctx.fd_gross_margin == pytest.approx(0.45)  # income takes priority
+        assert ctx.fd_operating_margin == pytest.approx(0.31)  # income takes priority
+        assert ctx.fd_net_margin == pytest.approx(0.25)  # income takes priority
+
+        # Check fd_* fields from balance sheet
+        assert ctx.fd_total_debt == pytest.approx(111_000_000_000.0)
+        assert ctx.fd_total_cash == pytest.approx(62_000_000_000.0)
+        assert ctx.fd_total_assets == pytest.approx(352_000_000_000.0)
+
+        # Check fd_* fields from metrics
+        assert ctx.fd_current_ratio == pytest.approx(1.2)
+        assert ctx.fd_revenue_growth == pytest.approx(0.08)
+        assert ctx.fd_earnings_growth == pytest.approx(0.12)
+        assert ctx.fd_ev_to_ebitda == pytest.approx(22.0)
+        assert ctx.fd_free_cash_flow_yield == pytest.approx(0.035)
+
+    def test_fd_none_fallback(
+        self,
+        mock_ticker_score: TickerScore,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_option_contract: OptionContract,
+    ) -> None:
+        """Verify all fd_* fields remain None when fd_package is None."""
+        ctx = build_market_context(
+            mock_ticker_score,
+            mock_quote,
+            mock_ticker_info,
+            [mock_option_contract],
+            fd_package=None,
+        )
+
+        assert ctx.fd_revenue is None
+        assert ctx.fd_net_income is None
+        assert ctx.fd_gross_profit is None
+        assert ctx.fd_operating_income is None
+        assert ctx.fd_eps_diluted is None
+        assert ctx.fd_gross_margin is None
+        assert ctx.fd_operating_margin is None
+        assert ctx.fd_net_margin is None
+        assert ctx.fd_total_debt is None
+        assert ctx.fd_total_cash is None
+        assert ctx.fd_total_assets is None
+        assert ctx.fd_current_ratio is None
+        assert ctx.fd_revenue_growth is None
+        assert ctx.fd_earnings_growth is None
+        assert ctx.fd_ev_to_ebitda is None
+        assert ctx.fd_free_cash_flow_yield is None
+
+    def test_fd_priority_over_openbb(
+        self,
+        mock_ticker_score: TickerScore,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_option_contract: OptionContract,
+    ) -> None:
+        """Verify FD value takes priority when both FD and OpenBB provide pe_ratio."""
+        from datetime import UTC, datetime
+
+        from options_arena.models.financial_datasets import (
+            FinancialDatasetsPackage,
+            FinancialMetricsData,
+        )
+        from options_arena.models.openbb import FundamentalSnapshot
+
+        fd = FinancialDatasetsPackage(
+            ticker="AAPL",
+            metrics=FinancialMetricsData(
+                pe_ratio=28.5,
+                forward_pe=25.0,
+                peg_ratio=1.5,
+                price_to_book=40.0,
+                debt_to_equity=1.8,
+                revenue_growth=0.08,
+                profit_margin=0.25,
+            ),
+            fetched_at=datetime.now(UTC),
+        )
+
+        openbb_fundamentals = FundamentalSnapshot(
+            ticker="AAPL",
+            pe_ratio=30.0,
+            forward_pe=27.0,
+            peg_ratio=2.0,
+            price_to_book=45.0,
+            debt_to_equity=2.1,
+            revenue_growth=0.06,
+            profit_margin=0.22,
+            fetched_at=datetime.now(UTC),
+        )
+
+        ctx = build_market_context(
+            mock_ticker_score,
+            mock_quote,
+            mock_ticker_info,
+            [mock_option_contract],
+            fundamentals=openbb_fundamentals,
+            fd_package=fd,
+        )
+
+        # FD values take priority
+        assert ctx.pe_ratio == pytest.approx(28.5)
+        assert ctx.forward_pe == pytest.approx(25.0)
+        assert ctx.peg_ratio == pytest.approx(1.5)
+        assert ctx.price_to_book == pytest.approx(40.0)
+        assert ctx.debt_to_equity == pytest.approx(1.8)
+        assert ctx.revenue_growth == pytest.approx(0.08)
+        assert ctx.profit_margin == pytest.approx(0.25)
+
+    def test_openbb_fallback_when_fd_none(
+        self,
+        mock_ticker_score: TickerScore,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_option_contract: OptionContract,
+    ) -> None:
+        """Verify OpenBB value used when FD field is None."""
+        from datetime import UTC, datetime
+
+        from options_arena.models.financial_datasets import (
+            FinancialDatasetsPackage,
+            FinancialMetricsData,
+        )
+        from options_arena.models.openbb import FundamentalSnapshot
+
+        # FD has pe_ratio but not forward_pe
+        fd = FinancialDatasetsPackage(
+            ticker="AAPL",
+            metrics=FinancialMetricsData(
+                pe_ratio=28.5,
+                forward_pe=None,
+            ),
+            fetched_at=datetime.now(UTC),
+        )
+
+        openbb_fundamentals = FundamentalSnapshot(
+            ticker="AAPL",
+            pe_ratio=30.0,
+            forward_pe=27.0,
+            fetched_at=datetime.now(UTC),
+        )
+
+        ctx = build_market_context(
+            mock_ticker_score,
+            mock_quote,
+            mock_ticker_info,
+            [mock_option_contract],
+            fundamentals=openbb_fundamentals,
+            fd_package=fd,
+        )
+
+        # FD wins for pe_ratio
+        assert ctx.pe_ratio == pytest.approx(28.5)
+        # OpenBB fallback for forward_pe
+        assert ctx.forward_pe == pytest.approx(27.0)
+
+    def test_fd_partial_package(
+        self,
+        mock_ticker_score: TickerScore,
+        mock_quote: Quote,
+        mock_ticker_info: TickerInfo,
+        mock_option_contract: OptionContract,
+    ) -> None:
+        """Verify partial FD package (metrics only, no income/balance_sheet)."""
+        from datetime import UTC, datetime
+
+        from options_arena.models.financial_datasets import (
+            FinancialDatasetsPackage,
+            FinancialMetricsData,
+        )
+
+        fd = FinancialDatasetsPackage(
+            ticker="AAPL",
+            metrics=FinancialMetricsData(current_ratio=1.5),
+            income=None,
+            balance_sheet=None,
+            fetched_at=datetime.now(UTC),
+        )
+
+        ctx = build_market_context(
+            mock_ticker_score,
+            mock_quote,
+            mock_ticker_info,
+            [mock_option_contract],
+            fd_package=fd,
+        )
+
+        # Metrics field populated
+        assert ctx.fd_current_ratio == pytest.approx(1.5)
+        # Income fields remain None
+        assert ctx.fd_revenue is None
+        assert ctx.fd_net_income is None
+        # Balance sheet fields remain None
+        assert ctx.fd_total_debt is None
+        assert ctx.fd_total_cash is None

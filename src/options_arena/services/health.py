@@ -13,8 +13,9 @@ from datetime import UTC, datetime
 import httpx
 import yfinance as yf  # type: ignore[import-untyped]
 
-from options_arena.models.config import OpenBBConfig, ServiceConfig
+from options_arena.models.config import FinancialDatasetsConfig, OpenBBConfig, ServiceConfig
 from options_arena.models.health import HealthStatus
+from options_arena.services.financial_datasets import FinancialDatasetsService
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +32,13 @@ class HealthService:
         config: ServiceConfig,
         *,
         openbb_config: OpenBBConfig | None = None,
+        fd_config: FinancialDatasetsConfig | None = None,
         cache: object | None = None,
         limiter: object | None = None,
     ) -> None:
         self._config = config
         self._openbb_config = openbb_config
+        self._fd_config = fd_config
         self._cache = cache
         self._limiter = limiter
         self._client = httpx.AsyncClient(
@@ -461,6 +464,79 @@ class HealthService:
                 checked_at=datetime.now(UTC),
             )
 
+    async def check_financial_datasets(self) -> HealthStatus:
+        """Check Financial Datasets API health by fetching AAPL metrics.
+
+        Requires ``fd_config`` with ``enabled=True`` and an API key. Creates a
+        temporary ``FinancialDatasetsService`` for the probe call.
+        """
+        if self._fd_config is None or not self._fd_config.enabled:
+            return HealthStatus(
+                service_name="financial_datasets",
+                available=False,
+                error="Financial Datasets disabled",
+                checked_at=datetime.now(UTC),
+            )
+        if not self._fd_config.api_key:
+            return HealthStatus(
+                service_name="financial_datasets",
+                available=False,
+                error="no API key configured",
+                checked_at=datetime.now(UTC),
+            )
+
+        from options_arena.services.cache import ServiceCache  # noqa: PLC0415
+        from options_arena.services.rate_limiter import RateLimiter  # noqa: PLC0415
+
+        # Use existing cache/limiter if provided, otherwise create minimal ones
+        cache = (
+            self._cache if isinstance(self._cache, ServiceCache) else ServiceCache(self._config)
+        )
+        limiter = (
+            self._limiter
+            if isinstance(self._limiter, RateLimiter)
+            else RateLimiter(self._config.rate_limit_rps, self._config.max_concurrent_requests)
+        )
+
+        svc = FinancialDatasetsService(
+            config=self._fd_config,
+            cache=cache,
+            limiter=limiter,
+        )
+
+        start = time.monotonic()
+        try:
+            result = await svc.fetch_financial_metrics("AAPL")
+            latency_ms = (time.monotonic() - start) * 1000
+            if result is not None:
+                logger.info("Financial Datasets health check OK (%.1fms)", latency_ms)
+                return HealthStatus(
+                    service_name="financial_datasets",
+                    available=True,
+                    latency_ms=latency_ms,
+                    checked_at=datetime.now(UTC),
+                )
+            logger.warning("Financial Datasets health check: no data returned")
+            return HealthStatus(
+                service_name="financial_datasets",
+                available=False,
+                latency_ms=latency_ms,
+                error="No data returned",
+                checked_at=datetime.now(UTC),
+            )
+        except Exception as exc:
+            latency_ms = (time.monotonic() - start) * 1000
+            logger.warning("Financial Datasets health check failed: %s", exc)
+            return HealthStatus(
+                service_name="financial_datasets",
+                available=False,
+                latency_ms=latency_ms,
+                error=str(exc),
+                checked_at=datetime.now(UTC),
+            )
+        finally:
+            await svc.close()
+
     async def check_all(self) -> list[HealthStatus]:
         """Run all health checks concurrently.
 
@@ -489,6 +565,11 @@ class HealthService:
             "cboe_chains",
             "intelligence",
         ]
+
+        # Add Financial Datasets check when config is enabled and API key is set
+        if self._fd_config is not None and self._fd_config.enabled and self._fd_config.api_key:
+            tasks.append(self.check_financial_datasets())
+            service_names.append("financial_datasets")
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         results: list[HealthStatus] = []
