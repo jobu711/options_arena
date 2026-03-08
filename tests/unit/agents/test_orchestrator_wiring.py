@@ -39,13 +39,14 @@ models.ALLOW_MODEL_REQUESTS = False
 class TestOrchestratorWiring:
     """Verify orchestrator wiring of partitioned context and vote weights."""
 
-    def test_risk_weight_removed(self) -> None:
-        """Verify 'risk' not in AGENT_VOTE_WEIGHTS."""
-        assert "risk" not in AGENT_VOTE_WEIGHTS
+    def test_risk_weight_is_zero(self) -> None:
+        """Verify 'risk' is in AGENT_VOTE_WEIGHTS with weight 0.0 (advisory-only)."""
+        assert "risk" in AGENT_VOTE_WEIGHTS
+        assert AGENT_VOTE_WEIGHTS["risk"] == 0.0
 
     def test_expected_weights_present(self) -> None:
         """Verify all expected agent weights are still present."""
-        expected = {"trend", "volatility", "flow", "fundamental", "contrarian"}
+        expected = {"trend", "volatility", "flow", "fundamental", "contrarian", "risk"}
         assert set(AGENT_VOTE_WEIGHTS.keys()) == expected
 
     @pytest.mark.asyncio
