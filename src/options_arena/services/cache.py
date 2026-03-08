@@ -33,9 +33,10 @@ TTL_FUNDAMENTALS: int = 24 * 60 * 60  # 24 hrs
 TTL_REFERENCE: int = 24 * 60 * 60  # 24 hrs (FRED rate, universe)
 TTL_FAILURE: int = 24 * 60 * 60  # 24 hrs (cached failures)
 TTL_EARNINGS: int = 24 * 60 * 60  # 24 hrs — earnings dates rarely change intra-day
+TTL_HEATMAP: int = 5 * 60  # 5 min — heatmap refreshes frequently
 
 # Data types that stay in-memory only (short-TTL, high-churn)
-_MEMORY_ONLY_TYPES: frozenset[str] = frozenset({"quote", "chain"})
+_MEMORY_ONLY_TYPES: frozenset[str] = frozenset({"quote", "chain", "heatmap"})
 
 # Eastern timezone for market-hours detection
 _ET = ZoneInfo("America/New_York")
@@ -279,6 +280,8 @@ class ServiceCache:
                 return TTL_REFERENCE
             case "failure":
                 return TTL_FAILURE
+            case "heatmap":
+                return TTL_HEATMAP
             case _:
                 logger.warning("Unknown data type %r, using after-hours TTL", data_type)
                 return self._config.cache_ttl_after_hours

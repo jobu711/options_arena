@@ -9,6 +9,7 @@ wrapped with ``asyncio.to_thread`` + ``asyncio.wait_for`` for async safety.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import math
@@ -20,7 +21,7 @@ from typing import Any, cast
 
 import pandas as pd
 import yfinance as yf  # type: ignore[import-untyped]
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, field_validator
 from pydantic import ValidationError as PydanticValidationError
 
 from options_arena.models.config import ServiceConfig
@@ -118,6 +119,33 @@ class BatchOHLCVResult(BaseModel):
             if r.ticker == ticker:
                 return r
         return None
+
+
+class BatchQuote(BaseModel):
+    """A single ticker's daily price snapshot for heatmap display."""
+
+    model_config = ConfigDict(frozen=True)
+
+    ticker: str
+    price: float
+    change_pct: float | None
+    volume: int
+
+    @field_validator("price")
+    @classmethod
+    def _validate_price(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("price must be finite")
+        if v <= 0:
+            raise ValueError("price must be positive")
+        return v
+
+    @field_validator("change_pct")
+    @classmethod
+    def _validate_change_pct(cls, v: float | None) -> float | None:
+        if v is not None and not math.isfinite(v):
+            raise ValueError("change_pct must be finite")
+        return v
 
 
 def _extract_dividend_yield(
@@ -731,6 +759,101 @@ class MarketDataService:
         )
         return universe
 
+    async def fetch_batch_daily_changes(
+        self,
+        tickers: list[str],
+    ) -> list[BatchQuote]:
+        """Fetch daily price changes for multiple tickers in a single batch call.
+
+        Uses ``yf.download()`` to fetch 2 days of data for all tickers at once,
+        then computes the daily percent change. Results are cached with a 5-minute
+        heatmap TTL via ``cache.ttl_for("heatmap")``.
+        """
+        if not tickers:
+            return []
+
+        ticker_hash = hashlib.sha256(",".join(sorted(tickers)).encode()).hexdigest()[:16]
+        cache_key = f"yf:heatmap:{ticker_hash}"
+        cached = await self._cache.get(cache_key)
+        if cached is not None:
+            logger.debug("Cache hit for %s", cache_key)
+            return _deserialize_batch_quotes(cached)
+
+        try:
+            async with self._limiter:
+                df: pd.DataFrame = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        yf.download,
+                        tickers=" ".join(tickers),
+                        period="2d",
+                        group_by="ticker",
+                        progress=False,
+                        threads=True,
+                        timeout=self._config.yfinance_timeout,
+                    ),
+                    timeout=self._config.yfinance_timeout,
+                )
+        except Exception:
+            logger.warning("yf.download batch fetch failed", exc_info=True)
+            return []
+
+        if df.empty:
+            logger.warning("yf.download returned empty DataFrame for batch fetch")
+            return []
+
+        quotes: list[BatchQuote] = []
+        single_ticker = len(tickers) == 1
+
+        for ticker in tickers:
+            try:
+                if single_ticker:
+                    close_series = df["Close"]
+                    vol_series = df["Volume"]
+                else:
+                    close_series = df[(ticker, "Close")]
+                    vol_series = df[(ticker, "Volume")]
+
+                close_values = close_series.dropna()
+                if close_values.empty:
+                    continue
+
+                latest_close = float(close_values.iloc[-1])
+                if not math.isfinite(latest_close) or latest_close <= 0:
+                    continue
+
+                change_pct: float | None = None
+                if len(close_values) >= 2:  # noqa: PLR2004
+                    prev_close = float(close_values.iloc[-2])
+                    if math.isfinite(prev_close) and prev_close > 0:
+                        change_pct = (latest_close - prev_close) / prev_close * 100.0
+                        if not math.isfinite(change_pct):
+                            change_pct = None
+
+                vol_values = vol_series.dropna()
+                volume = int(vol_values.iloc[-1]) if not vol_values.empty else 0
+
+                quotes.append(
+                    BatchQuote(
+                        ticker=ticker,
+                        price=latest_close,
+                        change_pct=change_pct,
+                        volume=volume,
+                    )
+                )
+            except (KeyError, IndexError, ValueError, TypeError):
+                logger.debug("Skipping %s in batch daily changes", ticker)
+                continue
+
+        serialized = _serialize_batch_quotes(quotes)
+        await self._cache.set(cache_key, serialized, ttl=self._cache.ttl_for("heatmap"))
+
+        logger.debug(
+            "Fetched batch daily changes: %d/%d tickers succeeded",
+            len(quotes),
+            len(tickers),
+        )
+        return quotes
+
     async def close(self) -> None:
         """Release resources. Safe to call multiple times."""
         logger.debug("MarketDataService closed")
@@ -829,3 +952,14 @@ def _deserialize_universe_data(data: bytes) -> UniverseData:
         spx_return_20d=raw.get("spx_return_20d"),
         sector_etf_returns=raw.get("sector_etf_returns", {}),
     )
+
+
+def _serialize_batch_quotes(quotes: list[BatchQuote]) -> bytes:
+    """Serialize a list of BatchQuote models to bytes for cache storage."""
+    return json.dumps([q.model_dump(mode="json") for q in quotes]).encode("utf-8")
+
+
+def _deserialize_batch_quotes(data: bytes) -> list[BatchQuote]:
+    """Deserialize bytes from cache back into a list of BatchQuote models."""
+    raw_list: list[dict[str, Any]] = json.loads(data.decode("utf-8"))
+    return [BatchQuote.model_validate(item) for item in raw_list]

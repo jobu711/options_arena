@@ -150,6 +150,18 @@ export interface PreScanFilterPayload {
   min_score?: number | null
 }
 
+/** Single ticker entry for S&P 500 heatmap treemap. */
+export interface HeatmapTicker {
+  ticker: string
+  company_name: string
+  sector: string
+  industry_group: string
+  market_cap_weight: number
+  change_pct: number | null
+  price: string
+  volume: number
+}
+
 /** Post-scan dimensional filter parameters for ScanResultsPage. */
 export interface FilterParams {
   min_score?: number

@@ -8,6 +8,7 @@ import { useToast } from 'primevue/usetoast'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import HealthDot from '@/components/HealthDot.vue'
+import MarketHeatmap from '@/components/MarketHeatmap.vue'
 import SparklineChart from '@/components/SparklineChart.vue'
 import DebateProgressModal from '@/components/DebateProgressModal.vue'
 import { useHealthStore } from '@/stores/health'
@@ -206,6 +207,11 @@ onUnmounted(() => {
         <span class="chip-latency mono">{{ formatLatency(svc.latency_ms) }}</span>
       </span>
     </div>
+
+    <!-- Market Heatmap -->
+    <section class="section" data-testid="dashboard-heatmap">
+      <MarketHeatmap />
+    </section>
 
     <!-- Quick Actions -->
     <div class="quick-actions">
