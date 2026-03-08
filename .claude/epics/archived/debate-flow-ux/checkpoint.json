@@ -1,0 +1,12 @@
+{
+  "epic": "debate-flow-ux",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync debate-flow-ux",
+  "last_updated": "2026-03-06T18:31:00Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}

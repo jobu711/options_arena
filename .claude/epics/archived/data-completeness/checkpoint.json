@@ -1,0 +1,12 @@
+{
+  "epic": "data-completeness",
+  "phase": "executing",
+  "last_command": "/pm:epic-start data-completeness",
+  "last_updated": "2026-03-06T23:35:00Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced", "research", "executing"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [319, 320, 321],
+  "blockers": [],
+  "notes": "3 parallel agents launched in worktrees"
+}

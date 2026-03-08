@@ -831,9 +831,10 @@ def _get_majority_direction(agent_directions: dict[str, SignalDirection]) -> Sig
 
 
 def _vote_entropy(agent_directions: dict[str, SignalDirection]) -> float:
-    """Shannon entropy of vote distribution.
+    """Shannon entropy of directional vote distribution.
 
-    Measures ensemble diversity: 0.0 = unanimous, ~1.585 = equal 3-way split.
+    Measures ensemble diversity: 0.0 = unanimous, 1.0 = perfect two-way split.
+    NEUTRAL agents are excluded (consistent with :func:`compute_agreement_score`).
 
     Parameters
     ----------
@@ -843,14 +844,18 @@ def _vote_entropy(agent_directions: dict[str, SignalDirection]) -> float:
     Returns
     -------
     float
-        Shannon entropy in bits. 0.0 when empty or unanimous.
+        Shannon entropy in bits. 0.0 when empty, all NEUTRAL, or unanimous.
     """
     if not agent_directions:
         return 0.0
+    # Exclude NEUTRAL agents — consistent with compute_agreement_score
+    directional = {k: v for k, v in agent_directions.items() if v != SignalDirection.NEUTRAL}
+    if not directional:
+        return 0.0
     counts: dict[SignalDirection, int] = {}
-    for d in agent_directions.values():
+    for d in directional.values():
         counts[d] = counts.get(d, 0) + 1
-    total = len(agent_directions)
+    total = len(directional)
     entropy = 0.0
     for count in counts.values():
         p = count / total

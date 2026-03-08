@@ -1,0 +1,6 @@
+id: no-raw-dict-return
+language: python
+severity: warning
+message: "Function returns raw dict. Use a Pydantic model (CLAUDE.md: NO RAW DICTS)."
+rule:
+  pattern: "def $FUNC($$$) -> dict[$$$]:"

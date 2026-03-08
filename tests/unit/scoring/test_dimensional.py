@@ -490,7 +490,7 @@ class TestComputeDirectionSignal:
     def test_bullish_direction_with_high_signals(self) -> None:
         """Strong bullish signals (all at 80) produce high confidence (>0.5)."""
         signals = _make_full_signals(80.0)
-        result = compute_direction_signal(signals, 80.0, SignalDirection.BULLISH)
+        result = compute_direction_signal(signals, SignalDirection.BULLISH)
 
         assert isinstance(result, DirectionSignal)
         assert result.direction is SignalDirection.BULLISH
@@ -500,7 +500,7 @@ class TestComputeDirectionSignal:
     def test_bearish_direction_with_low_signals(self) -> None:
         """Low signals (all at 20) with bearish direction produce high confidence."""
         signals = _make_full_signals(20.0)
-        result = compute_direction_signal(signals, 20.0, SignalDirection.BEARISH)
+        result = compute_direction_signal(signals, SignalDirection.BEARISH)
 
         assert result.direction is SignalDirection.BEARISH
         assert result.confidence > 0.5
@@ -509,7 +509,7 @@ class TestComputeDirectionSignal:
     def test_neutral_direction(self) -> None:
         """Neutral direction with signals at 50 produces high neutral confidence."""
         signals = _make_full_signals(50.0)
-        result = compute_direction_signal(signals, 50.0, SignalDirection.NEUTRAL)
+        result = compute_direction_signal(signals, SignalDirection.NEUTRAL)
 
         assert result.direction is SignalDirection.NEUTRAL
         # At exactly 50, z=0, p=0.5, neutral confidence = 1.0 - 2*|0.5-0.5| = 1.0
@@ -519,7 +519,7 @@ class TestComputeDirectionSignal:
     def test_all_none_signals_returns_neutral(self) -> None:
         """All-None signals produce neutral with minimum confidence."""
         signals = IndicatorSignals()
-        result = compute_direction_signal(signals, 50.0, SignalDirection.NEUTRAL)
+        result = compute_direction_signal(signals, SignalDirection.NEUTRAL)
 
         assert result.direction is SignalDirection.NEUTRAL
         assert result.confidence == pytest.approx(0.1, abs=0.01)
@@ -528,7 +528,7 @@ class TestComputeDirectionSignal:
     def test_contributing_signals_are_indicator_names(self) -> None:
         """Contributing signals should be valid IndicatorSignals field names."""
         signals = _make_signals(rsi=80.0, adx=75.0, obv=65.0)
-        result = compute_direction_signal(signals, 70.0, SignalDirection.BULLISH)
+        result = compute_direction_signal(signals, SignalDirection.BULLISH)
 
         for signal_name in result.contributing_signals:
             if signal_name == "composite_score":
@@ -540,13 +540,13 @@ class TestComputeDirectionSignal:
     def test_confidence_range(self) -> None:
         """Confidence is always within [0.10, 0.95]."""
         test_cases = [
-            (_make_full_signals(100.0), 100.0, SignalDirection.BULLISH),
-            (_make_full_signals(0.0), 0.0, SignalDirection.BEARISH),
-            (_make_full_signals(50.0), 50.0, SignalDirection.NEUTRAL),
-            (IndicatorSignals(), 50.0, SignalDirection.NEUTRAL),
+            (_make_full_signals(100.0), SignalDirection.BULLISH),
+            (_make_full_signals(0.0), SignalDirection.BEARISH),
+            (_make_full_signals(50.0), SignalDirection.NEUTRAL),
+            (IndicatorSignals(), SignalDirection.NEUTRAL),
         ]
-        for signals, score, direction in test_cases:
-            result = compute_direction_signal(signals, score, direction)
+        for signals, direction in test_cases:
+            result = compute_direction_signal(signals, direction)
             assert 0.10 <= result.confidence <= 0.95, (
                 f"Confidence {result.confidence} out of [0.10, 0.95] range"
             )
@@ -555,7 +555,7 @@ class TestComputeDirectionSignal:
         """More indicators leaning bullish → higher z-score → higher confidence."""
         # Few bullish signals
         few_signals = _make_signals(rsi=80.0)
-        result_few = compute_direction_signal(few_signals, 70.0, SignalDirection.BULLISH)
+        result_few = compute_direction_signal(few_signals, SignalDirection.BULLISH)
 
         # Many bullish signals — higher mean, higher n, higher z
         many_signals = _make_signals(
@@ -567,14 +567,14 @@ class TestComputeDirectionSignal:
             supertrend=90.0,
             roc=65.0,
         )
-        result_many = compute_direction_signal(many_signals, 80.0, SignalDirection.BULLISH)
+        result_many = compute_direction_signal(many_signals, SignalDirection.BULLISH)
 
         assert result_many.confidence >= result_few.confidence
 
     def test_result_is_frozen(self) -> None:
         """DirectionSignal is frozen (immutable)."""
         signals = _make_full_signals(50.0)
-        result = compute_direction_signal(signals, 50.0, SignalDirection.NEUTRAL)
+        result = compute_direction_signal(signals, SignalDirection.NEUTRAL)
 
         with pytest.raises(Exception):  # noqa: B017
             result.confidence = 0.99  # type: ignore[misc]
@@ -583,7 +583,7 @@ class TestComputeDirectionSignal:
         """There is always at least one contributing signal (model enforces >= 1)."""
         # Edge case: direction is BULLISH but all signals at 50 (no lean > 0.10)
         signals = _make_signals(rsi=50.0, adx=50.0)
-        result = compute_direction_signal(signals, 50.0, SignalDirection.BULLISH)
+        result = compute_direction_signal(signals, SignalDirection.BULLISH)
 
         assert len(result.contributing_signals) >= 1
 
@@ -594,7 +594,7 @@ class TestComputeDirectionSignal:
         kwargs = {fields[i]: 60.0 for i in range(10)}
         kwargs.update({fields[i]: 45.0 for i in range(10, 15)})
         signals = IndicatorSignals(**kwargs)
-        result = compute_direction_signal(signals, 55.0, SignalDirection.BULLISH)
+        result = compute_direction_signal(signals, SignalDirection.BULLISH)
 
         assert 0.55 <= result.confidence <= 0.90
 
@@ -605,11 +605,11 @@ class TestComputeDirectionSignal:
         # 5 indicators at 60 → mean=60, n=5
         few_kwargs = {fields[i]: 60.0 for i in range(5)}
         few_signals = IndicatorSignals(**few_kwargs)
-        result_few = compute_direction_signal(few_signals, 60.0, SignalDirection.BULLISH)
+        result_few = compute_direction_signal(few_signals, SignalDirection.BULLISH)
 
         # 20 indicators at 60 → mean=60, n=20 (tighter SE → higher z)
         many_kwargs = {fields[i]: 60.0 for i in range(20)}
         many_signals = IndicatorSignals(**many_kwargs)
-        result_many = compute_direction_signal(many_signals, 60.0, SignalDirection.BULLISH)
+        result_many = compute_direction_signal(many_signals, SignalDirection.BULLISH)
 
         assert result_many.confidence > result_few.confidence

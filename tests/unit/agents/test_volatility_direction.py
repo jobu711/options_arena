@@ -7,6 +7,8 @@ Verifies:
 
 from __future__ import annotations
 
+import pytest
+
 from options_arena.agents.orchestrator import synthesize_verdict
 from options_arena.agents.volatility import VOLATILITY_SYSTEM_PROMPT
 from options_arena.models import (
@@ -115,8 +117,8 @@ class TestVolatilityDirectionVoting:
         # 2 bearish (trend, volatility) vs 1 bullish (flow) -> bearish majority
         assert thesis.direction == SignalDirection.BEARISH
 
-    def test_volatility_neutral_counted(self) -> None:
-        """Verify volatility NEUTRAL direction is counted in entropy but not in dissent."""
+    def test_volatility_neutral_excluded_from_entropy(self) -> None:
+        """Verify volatility NEUTRAL direction is excluded from both entropy and dissent."""
         agent_outputs: dict[str, AgentResponse | FlowThesis | VolatilityThesis] = {
             "trend": _make_agent_response("trend", SignalDirection.BULLISH),
             "volatility": _make_vol_thesis(direction=SignalDirection.NEUTRAL),
@@ -132,9 +134,10 @@ class TestVolatilityDirectionVoting:
         )
         # NEUTRAL agents are not in dissenting_agents (they don't oppose majority)
         assert "volatility" not in thesis.dissenting_agents
-        # But entropy should be > 0 because there's a 2-way split
+        # NEUTRAL excluded from entropy (consistent with agreement_score)
+        # Only 1 directional agent remains → unanimous → entropy = 0.0
         assert thesis.ensemble_entropy is not None
-        assert thesis.ensemble_entropy > 0.0
+        assert thesis.ensemble_entropy == pytest.approx(0.0, abs=1e-9)
 
     def test_entropy_set_on_thesis(self) -> None:
         """Verify synthesize_verdict sets ensemble_entropy on the thesis."""

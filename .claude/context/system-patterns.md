@@ -113,4 +113,11 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **API**: `/api/universe/metadata` + `/api/universe/metadata/stats` endpoints
 - **Staleness**: 30-day TTL; `MetadataStats` tracks coverage and freshness
 
+### S&P 500 Heatmap Pattern
+- **Batch quotes**: `BatchQuote` model + `fetch_batch_daily_changes()` fetches daily % change for all S&P 500 tickers
+- **Chunked download**: Batches chunked to prevent timeout on large universe
+- **API**: `GET /api/market/heatmap` returns `list[HeatmapTicker]` (ticker, change_pct, sector, market_cap)
+- **Frontend**: `MarketHeatmap.vue` — client-side squarify treemap layout, color-coded by % change
+- **State**: Pinia `heatmap` store with async fetch + caching
+
 For detailed algorithm specs, see `system-patterns-reference.md`.

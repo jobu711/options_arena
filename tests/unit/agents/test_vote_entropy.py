@@ -41,15 +41,15 @@ class TestVoteEntropy:
         result = _vote_entropy(directions)
         assert result == pytest.approx(1.0, abs=1e-9)
 
-    def test_three_way_split(self) -> None:
-        """Equal 3-way -> entropy = log2(3) ~= 1.585."""
+    def test_two_directional_one_neutral(self) -> None:
+        """1 bullish + 1 bearish + 1 neutral -> entropy = 1.0 (NEUTRAL excluded)."""
         directions = {
             "trend": SignalDirection.BULLISH,
             "flow": SignalDirection.BEARISH,
             "fundamental": SignalDirection.NEUTRAL,
         }
         result = _vote_entropy(directions)
-        assert result == pytest.approx(math.log2(3), abs=1e-6)
+        assert result == pytest.approx(1.0, abs=1e-6)
 
     def test_empty_dict(self) -> None:
         """Empty directions -> entropy = 0.0."""
@@ -76,11 +76,23 @@ class TestVoteEntropy:
         assert result == pytest.approx(expected, abs=1e-6)
 
     def test_all_neutral(self) -> None:
-        """All agents neutral -> entropy = 0.0 (unanimous)."""
+        """All agents neutral -> entropy = 0.0 (all excluded)."""
         directions = {
             "trend": SignalDirection.NEUTRAL,
             "flow": SignalDirection.NEUTRAL,
             "fundamental": SignalDirection.NEUTRAL,
+        }
+        result = _vote_entropy(directions)
+        assert result == pytest.approx(0.0, abs=1e-9)
+
+    def test_neutral_excluded_unanimous(self) -> None:
+        """3 bullish + 2 neutral -> entropy = 0.0 (unanimous after filtering)."""
+        directions = {
+            "trend": SignalDirection.BULLISH,
+            "flow": SignalDirection.BULLISH,
+            "fundamental": SignalDirection.BULLISH,
+            "volatility": SignalDirection.NEUTRAL,
+            "contrarian": SignalDirection.NEUTRAL,
         }
         result = _vote_entropy(directions)
         assert result == pytest.approx(0.0, abs=1e-9)

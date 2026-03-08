@@ -1,0 +1,6 @@
+id: no-optional-syntax
+language: python
+severity: warning
+message: "Use `X | None` instead of `Optional[X]`."
+rule:
+  pattern: "Optional[$TYPE]"

@@ -514,7 +514,6 @@ class ScanPipeline:
 
                 direction_signal = compute_direction_signal(
                     ts.signals,
-                    ts.composite_score,
                     ts.direction,
                 )
                 ts.direction_confidence = direction_signal.confidence
@@ -1312,6 +1311,8 @@ def _recompute_composite_scores(
     logger.info("Phase 3 composite recompute complete for %d tickers", len(top_scores))
 
 
+# Regime classification thresholds (applied to raw market_regime signal, 0-100 scale).
+# Not configurable — empirical thresholds for vol-cone-based regime detection.
 _REGIME_CRISIS_THRESHOLD: float = 80.0
 _REGIME_VOLATILE_THRESHOLD: float = 60.0
 _REGIME_MEAN_REVERTING_THRESHOLD: float = 40.0
@@ -1335,7 +1336,6 @@ def _recompute_dimensional_scores(
 
             direction_signal = compute_direction_signal(
                 ts.signals,
-                ts.composite_score,
                 ts.direction,
             )
             ts.direction_confidence = direction_signal.confidence

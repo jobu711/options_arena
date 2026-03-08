@@ -343,7 +343,16 @@ class OutcomeCollector:
         """
         try:
             days_since = (_market_today() - expiration).days
-            period = "5d" if days_since <= 7 else "1mo" if days_since <= 35 else "3mo"
+            if days_since <= 7:
+                period = "5d"
+            elif days_since <= 35:
+                period = "1mo"
+            elif days_since <= 90:
+                period = "3mo"
+            elif days_since <= 180:
+                period = "6mo"
+            else:
+                period = "1y"
             bars = await self._market_data.fetch_ohlcv(ticker, period=period)
             if bars:
                 # Bars are sorted ascending by date.  Find the last bar

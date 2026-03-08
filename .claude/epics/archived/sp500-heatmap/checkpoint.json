@@ -1,0 +1,12 @@
+{
+  "epic": "sp500-heatmap",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync sp500-heatmap",
+  "last_updated": "2026-03-08T02:03:46Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}

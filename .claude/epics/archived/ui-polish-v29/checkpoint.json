@@ -1,0 +1,12 @@
+{
+  "epic": "ui-polish-v29",
+  "phase": "executing",
+  "last_command": "/pm:epic-start ui-polish-v29",
+  "last_updated": "2026-03-06T18:00:00Z",
+  "completed_phases": ["prd-created", "research", "planning", "executing"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": ["score-filter-fix", "contracts-drawer", "view-all-duration"],
+  "blockers": [],
+  "notes": "3 parallel agents launched in worktrees for independent frontend changes."
+}

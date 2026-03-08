@@ -1,0 +1,12 @@
+{
+  "epic": "real-macd",
+  "phase": "ready-to-merge",
+  "last_command": "/pm:epic-start real-macd",
+  "last_updated": "2026-03-06T21:30:00Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced", "executing", "ready-to-merge"],
+  "current_task": null,
+  "tasks_completed": ["312", "314", "316", "313", "315", "317"],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "All 6 tasks complete. 4100 tests passing. Ready for merge."
+}

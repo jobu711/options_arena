@@ -1,4 +1,3 @@
-<claude_instructions>
 # CLAUDE.md — Reporting
 
 ## Purpose
@@ -11,88 +10,32 @@ Every report includes metadata for reproducibility.
 - ~~`disclaimer.py`~~ — removed (AUDIT-010)
 
 ## Every Report Must Include (in order)
-1. **Header**: ticker, option type, strike, expiration, DTE, analysis timestamp (UTC).
-2. **Market Snapshot**: price, IV rank, IV percentile, key Greeks, indicator readings.
-3. **Strategy Summary**: recommended position (or none), max profit, max loss, breakeven, probability of profit.
-4. **Debate Summary**: bull case (condensed), bear case (condensed), winner, confidence.
-5. **Key Factors**: 3-5 data points that drove the verdict.
-6. **Risk Assessment**: primary risks with quantified impact.
-7. **Metadata Block**: data source, data timestamp, AI models + prompt versions, token usage, duration.
-8. ~~**Disclaimer**~~: removed (AUDIT-010).
+1. **Header**: ticker, option type, strike, expiration, DTE, timestamp (UTC)
+2. **Market Snapshot**: price, IV rank/percentile, key Greeks, indicators
+3. **Strategy Summary**: position, max profit/loss, breakeven, probability of profit
+4. **Debate Summary**: bull/bear cases condensed, winner, confidence
+5. **Key Factors**: 3-5 driving data points
+6. **Risk Assessment**: primary risks with quantified impact
+7. **Metadata Block**: data source, timestamp, AI models + prompt versions, token usage, duration
 
-## Metadata Block — Mandatory
-```markdown
----
-Generated: 2025-03-15T14:32:00Z
-Ticker: AAPL | $190 Call | Exp: 2025-04-18 | 34 DTE
-Data Source: yfinance
-Data Timestamp: 2025-03-15T14:30:00Z
-Bull Agent: claude-sonnet-4-5-20250929 (prompt v1.2)
-Bear Agent: llama-3.3-70b-versatile via Groq (prompt v1.1)
-Moderator: claude-sonnet-4-5-20250929 (prompt v1.0)
-Debate Rounds: 3
-Claude Tokens: 12,450 in / 3,200 out (~$0.08)
-Analysis Duration: 47.3s
----
-```
-
-## Greeks Table — Always With Interpretation
-```markdown
-| Greek | Value  | What It Means                          |
-|-------|--------|----------------------------------------|
-| Delta | 0.45   | $45 P&L per $1 move in underlying      |
-| Gamma | 0.032  | Delta changes 0.032 per $1 move        |
-| Theta | -0.08  | Losing $8/day to time decay per contract|
-| Vega  | 0.15   | $15 P&L per 1% change in IV            |
-| Rho   | 0.02   | Minimal interest rate sensitivity       |
-```
-Always express theta as dollar impact per day per contract (theta × 100).
-Always express vega as dollar impact per 1% IV change (vega × 100).
-
-## Strategy P&L Table — When a Spread Is Recommended
-```markdown
-| Metric       | Value                |
-|--------------|----------------------|
-| Strategy     | Bull Call Spread     |
-| Long Leg     | $185 Call @ $5.20    |
-| Short Leg    | $195 Call @ $1.80    |
-| Net Debit    | $3.40 ($340/contract)|
-| Max Profit   | $6.60 ($660)         |
-| Max Loss     | $3.40 ($340)         |
-| Breakeven    | $188.40              |
-| P.O.P.       | ~42%                 |
-```
-
-## Indicator Summary — Grouped With Signals
-```markdown
-**Trend**: MACD bullish crossover (3d ago), ADX 28.5 (moderate trend)
-**Momentum**: RSI 68.2 (approaching overbought), Stochastic %K 75.3
-**Volatility**: IV Rank 72.3 (elevated), BB %B 0.82 (near upper band)
-**Volume**: OBV rising, Put/Call Ratio 0.82 (mildly bullish)
-⚠️ Conflicting: Momentum near overbought contradicts trend strength.
-```
-Always interpret in parentheses. Flag conflicting signals explicitly.
-
-## Disclaimer — Removed (AUDIT-010)
-
-Disclaimers were removed in the production-audit epic per PRD decision. No disclaimer
-text should be added to exports, CLI output, or any rendering path.
-
-## File Naming
-`{TICKER}_{DATE}_{STRIKE}_{TYPE}_analysis.{ext}`
-Example: `AAPL_2025-03-15_190C_analysis.md`
+## Display Rules
+- Greeks: always with dollar-impact interpretation (theta×100 = $/day, vega×100 = $/1% IV)
+- Indicators: always with signal context ("overbought", "bullish", etc.)
+- Strategy P&L table when a spread is recommended
+- File naming: `{TICKER}_{DATE}_{STRIKE}_{TYPE}_analysis.{ext}`
 
 ## Output Formats
-- **Markdown** (default): GitHub-flavored, tables for data, blockquotes for disclaimer.
-- **HTML** (optional): inline CSS only, no JS, print-friendly, standalone file.
-- **Terminal**: `rich` library — green=bullish, red=bearish, yellow=caution.
+- **Markdown** (default): GitHub-flavored, tables for data
+- **HTML** (optional): inline CSS, no JS, print-friendly, standalone
+- **Terminal**: `rich` — green=bullish, red=bearish, yellow=caution
 
-## What Claude Gets Wrong Here (Fix These)
-- Don't construct raw dicts to pass report data around — all report inputs (`DebateVerdict`, `MarketContext`, `OptionGreeks`) and outputs must be typed Pydantic models. Report generator functions accept models and return models, never `dict[str, Any]`.
-- Don't generate reports without metadata block.
-- Don't add disclaimer text — disclaimers were removed (AUDIT-010).
-- Don't show raw Greeks without dollar-impact interpretation.
-- Don't show indicators without signal context ("overbought", "bullish", etc.).
-- Don't omit strategy P&L table when a spread is recommended.
-- Don't forget to include cost estimate for Claude API usage in metadata.
-</claude_instructions>
+## Disclaimer — Removed (AUDIT-010)
+No disclaimer text in exports, CLI, or any rendering path.
+
+## What Claude Gets Wrong
+- Don't generate reports without metadata block
+- Don't add disclaimer text (removed AUDIT-010)
+- Don't show raw Greeks without dollar-impact interpretation
+- Don't show indicators without signal context
+- Don't omit P&L table when spread is recommended
+- Don't use raw dicts — all report I/O uses typed Pydantic models

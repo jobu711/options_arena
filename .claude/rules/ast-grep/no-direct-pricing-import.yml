@@ -1,0 +1,10 @@
+id: no-direct-pricing-import
+language: python
+severity: error
+message: "Import from pricing.dispatch only (CLAUDE.md boundary rule)."
+files:
+  - "!**/pricing/**"
+rule:
+  any:
+    - pattern: "from options_arena.pricing.bsm import $$$"
+    - pattern: "from options_arena.pricing.american import $$$"

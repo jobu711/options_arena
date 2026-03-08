@@ -1,0 +1,9 @@
+id: no-print-in-library
+language: python
+severity: error
+message: "Use logging.getLogger(__name__), not print() (CLAUDE.md rule)."
+files:
+  - "!**/cli/**"
+  - "!**/tests/**"
+rule:
+  pattern: "print($$$)"

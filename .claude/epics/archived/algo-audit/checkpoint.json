@@ -1,0 +1,12 @@
+{
+  "epic": "algo-audit",
+  "phase": "executing",
+  "last_command": "/pm:epic-start algo-audit",
+  "last_updated": "2026-03-08T01:00:00Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced", "executing"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": ["#356", "#357", "#358", "#359", "#360", "#361", "#362"],
+  "blockers": [],
+  "notes": "Wave 1: 6 agents (7 tasks, #359+#361 combined). Wave 2: #363 after #357."
+}

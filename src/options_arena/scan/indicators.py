@@ -631,7 +631,12 @@ def compute_phase3_indicators(
         vcp = signals.vol_cone_percentile
         if vcp is not None and math.isfinite(vcp):
             regime_score = vcp
-            if hv_20d_val is not None and signals.ewma_vol_forecast is not None and hv_20d_val > 0:
+            if (
+                hv_20d_val is not None
+                and signals.ewma_vol_forecast is not None
+                and math.isfinite(signals.ewma_vol_forecast)
+                and hv_20d_val > 0
+            ):
                 ewma = signals.ewma_vol_forecast
                 if ewma > hv_20d_val * 1.10:
                     regime_score = min(100.0, regime_score + 10.0)

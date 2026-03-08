@@ -1,0 +1,53 @@
+source_roots = ["src"]
+exact = true
+forbid_circular_dependencies = true
+ignore_type_checking_imports = true
+exclude = ["tests/", "web/", "data/migrations/", ".claude/", "**/__pycache__"]
+
+[[modules]]
+path = "options_arena.utils"
+depends_on = []
+
+[[modules]]
+path = "options_arena.models"
+depends_on = []
+
+[[modules]]
+path = "options_arena.indicators"
+depends_on = ["options_arena.models", "options_arena.utils"]
+
+[[modules]]
+path = "options_arena.pricing"
+depends_on = ["options_arena.models"]
+
+[[modules]]
+path = "options_arena.data"
+depends_on = ["options_arena.models"]
+
+[[modules]]
+path = "options_arena.services"
+depends_on = ["options_arena.models", "options_arena.utils", "options_arena.data"]
+
+[[modules]]
+path = "options_arena.scoring"
+depends_on = ["options_arena.models", "options_arena.pricing"]
+
+[[modules]]
+path = "options_arena.reporting"
+depends_on = [ "options_arena.models"]
+
+[[modules]]
+path = "options_arena.scan"
+depends_on = ["options_arena.models", "options_arena.data", "options_arena.indicators", "options_arena.scoring", "options_arena.services"]
+
+[[modules]]
+path = "options_arena.agents"
+depends_on = ["options_arena.models", "options_arena.data"]
+
+[[modules]]
+path = "options_arena.api"
+depends_on = ["options_arena.models", "options_arena.data", "options_arena.services", "options_arena.agents", "options_arena.scan", "options_arena.scoring", "options_arena.reporting", "options_arena.utils"]
+
+[[modules]]
+path = "options_arena.cli"
+depends_on = ["options_arena.models", "options_arena.data", "options_arena.services", "options_arena.agents", "options_arena.scan", "options_arena.scoring", "options_arena.reporting"]

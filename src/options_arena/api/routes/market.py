@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Request
 
@@ -85,7 +84,7 @@ def build_heatmap_tickers(
                 industry_group=industry_group,
                 market_cap_weight=weight,
                 change_pct=quote.change_pct,
-                price=Decimal(str(quote.price)),
+                price=quote.price,
                 volume=quote.volume,
             )
         )

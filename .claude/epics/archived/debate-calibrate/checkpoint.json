@@ -1,0 +1,12 @@
+{
+  "epic": "debate-calibrate",
+  "phase": "executing",
+  "last_command": "/pm:epic-start debate-calibrate",
+  "last_updated": "2026-03-07T23:00:00Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced", "research", "executing"],
+  "current_task": "#346",
+  "tasks_completed": [],
+  "tasks_in_progress": ["#346"],
+  "blockers": [],
+  "notes": "Wave 1 foundation: Task #346 must complete before #347 can start."
+}

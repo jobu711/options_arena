@@ -267,7 +267,6 @@ _PHI_SCALE: float = math.pi / math.sqrt(3)
 
 def compute_direction_signal(
     signals: IndicatorSignals,
-    composite_score: float,
     direction: SignalDirection,
 ) -> DirectionSignal:
     """Compute continuous direction confidence via z-test on mean shift.
@@ -282,7 +281,6 @@ def compute_direction_signal(
 
     Args:
         signals: Percentile-ranked indicator signals (0--100 scale).
-        composite_score: The composite score (0--100) for this ticker.
         direction: The discrete direction classification.
 
     Returns:

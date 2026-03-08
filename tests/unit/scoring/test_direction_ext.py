@@ -115,7 +115,7 @@ class TestComputeDirectionSignalEdgeCases:
     def test_all_indicators_none_neutral_low_confidence(self) -> None:
         """All None indicators produce NEUTRAL with minimum confidence."""
         signals = IndicatorSignals()
-        result = compute_direction_signal(signals, 50.0, SignalDirection.NEUTRAL)
+        result = compute_direction_signal(signals, SignalDirection.NEUTRAL)
 
         assert result.direction is SignalDirection.NEUTRAL
         assert result.confidence == pytest.approx(0.1, abs=0.01)
@@ -124,7 +124,7 @@ class TestComputeDirectionSignalEdgeCases:
     def test_single_bullish_indicator(self) -> None:
         """A single high indicator with bullish direction produces valid signal."""
         signals = _make_signals(rsi=90.0)
-        result = compute_direction_signal(signals, 70.0, SignalDirection.BULLISH)
+        result = compute_direction_signal(signals, SignalDirection.BULLISH)
 
         assert result.direction is SignalDirection.BULLISH
         assert result.confidence >= 0.1
@@ -133,7 +133,7 @@ class TestComputeDirectionSignalEdgeCases:
     def test_single_bearish_indicator(self) -> None:
         """A single low indicator with bearish direction produces valid signal."""
         signals = _make_signals(rsi=10.0)
-        result = compute_direction_signal(signals, 30.0, SignalDirection.BEARISH)
+        result = compute_direction_signal(signals, SignalDirection.BEARISH)
 
         assert result.direction is SignalDirection.BEARISH
         assert result.confidence >= 0.1
@@ -142,7 +142,7 @@ class TestComputeDirectionSignalEdgeCases:
     def test_mixed_signals_bullish(self) -> None:
         """Mixed high/low signals with bullish direction still works."""
         signals = _make_signals(rsi=80.0, adx=20.0, obv=90.0, bb_width=10.0)
-        result = compute_direction_signal(signals, 55.0, SignalDirection.BULLISH)
+        result = compute_direction_signal(signals, SignalDirection.BULLISH)
 
         assert result.direction is SignalDirection.BULLISH
         # Should have rsi and obv as bullish contributors
@@ -151,21 +151,21 @@ class TestComputeDirectionSignalEdgeCases:
     def test_extreme_high_composite_score(self) -> None:
         """Composite score at 100.0 contributes to high confidence."""
         signals = _make_full_signals(90.0)
-        result = compute_direction_signal(signals, 100.0, SignalDirection.BULLISH)
+        result = compute_direction_signal(signals, SignalDirection.BULLISH)
 
         assert result.confidence > 0.5
 
     def test_extreme_low_composite_score(self) -> None:
         """Composite score at 0.0 with bearish direction."""
         signals = _make_full_signals(10.0)
-        result = compute_direction_signal(signals, 0.0, SignalDirection.BEARISH)
+        result = compute_direction_signal(signals, SignalDirection.BEARISH)
 
         assert result.confidence > 0.5
 
     def test_neutral_at_midpoint(self) -> None:
         """Score at exactly 50.0 with all indicators at 50 (no directional signal)."""
         signals = _make_full_signals(50.0)
-        result = compute_direction_signal(signals, 50.0, SignalDirection.NEUTRAL)
+        result = compute_direction_signal(signals, SignalDirection.NEUTRAL)
 
         # With everything at exactly 50, z=0, p=0.5 — the data strongly
         # confirms neutrality (zero deviation from neutral mean).
@@ -175,7 +175,7 @@ class TestComputeDirectionSignalEdgeCases:
     def test_nan_indicator_ignored(self) -> None:
         """NaN indicator values are excluded from analysis."""
         signals = _make_signals(rsi=float("nan"), adx=80.0)
-        result = compute_direction_signal(signals, 65.0, SignalDirection.BULLISH)
+        result = compute_direction_signal(signals, SignalDirection.BULLISH)
 
         # NaN rsi should be ignored; only adx (80 > 60) should contribute
         assert "rsi" not in result.contributing_signals
@@ -184,7 +184,7 @@ class TestComputeDirectionSignalEdgeCases:
     def test_inf_indicator_ignored(self) -> None:
         """Infinity indicator values are excluded from analysis."""
         signals = _make_signals(rsi=float("inf"), adx=80.0)
-        result = compute_direction_signal(signals, 65.0, SignalDirection.BULLISH)
+        result = compute_direction_signal(signals, SignalDirection.BULLISH)
 
         assert "rsi" not in result.contributing_signals
         assert "adx" in result.contributing_signals
@@ -193,7 +193,7 @@ class TestComputeDirectionSignalEdgeCases:
         """When no indicators agree with direction, fallback to 'composite_score'."""
         # All indicators at 50 (between 40-60, neither bullish nor bearish)
         signals = _make_signals(rsi=50.0, adx=50.0)
-        result = compute_direction_signal(signals, 70.0, SignalDirection.BULLISH)
+        result = compute_direction_signal(signals, SignalDirection.BULLISH)
 
         # No indicators > 60 → no bullish contributing signals
         # Fallback should be "composite_score"
@@ -203,7 +203,7 @@ class TestComputeDirectionSignalEdgeCases:
         """Each direction value produces a valid result."""
         signals = _make_signals(rsi=70.0, adx=65.0)
         for direction in SignalDirection:
-            result = compute_direction_signal(signals, 60.0, direction)
+            result = compute_direction_signal(signals, direction)
             assert result.direction is direction
             assert 0.1 <= result.confidence <= 1.0
             assert len(result.contributing_signals) >= 1
@@ -212,7 +212,7 @@ class TestComputeDirectionSignalEdgeCases:
         """Higher distance from 50 in composite score increases confidence."""
         signals = _make_full_signals(80.0)
 
-        result_near_50 = compute_direction_signal(signals, 55.0, SignalDirection.BULLISH)
-        result_far_from_50 = compute_direction_signal(signals, 95.0, SignalDirection.BULLISH)
+        result_near_50 = compute_direction_signal(signals, SignalDirection.BULLISH)
+        result_far_from_50 = compute_direction_signal(signals, SignalDirection.BULLISH)
 
         assert result_far_from_50.confidence >= result_near_50.confidence
