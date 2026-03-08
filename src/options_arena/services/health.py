@@ -140,7 +140,7 @@ class HealthService:
                     "https://api.groq.com/openai/v1/models",
                     headers={"Authorization": f"Bearer {api_key}"},
                 ),
-                timeout=10.0,
+                timeout=self._config.health_check_timeout,
             )
             latency_ms = (time.monotonic() - start) * 1000
 
@@ -151,6 +151,26 @@ class HealthService:
                     available=False,
                     latency_ms=latency_ms,
                     error="invalid API key (401)",
+                    checked_at=datetime.now(UTC),
+                )
+
+            if response.status_code == 403:
+                logger.warning("Groq health check failed: forbidden (403)")
+                return HealthStatus(
+                    service_name="groq",
+                    available=False,
+                    latency_ms=latency_ms,
+                    error="forbidden (403)",
+                    checked_at=datetime.now(UTC),
+                )
+
+            if response.status_code == 429:
+                logger.warning("Groq health check: rate limited (429)")
+                return HealthStatus(
+                    service_name="groq",
+                    available=True,
+                    latency_ms=latency_ms,
+                    error="rate limited (429)",
                     checked_at=datetime.now(UTC),
                 )
 
@@ -176,6 +196,102 @@ class HealthService:
             logger.warning("Groq health check failed: %s", exc)
             return HealthStatus(
                 service_name="groq",
+                available=False,
+                latency_ms=latency_ms,
+                error=str(exc),
+                checked_at=datetime.now(UTC),
+            )
+
+    async def check_anthropic(self) -> HealthStatus:
+        """Check Anthropic API availability by listing models.
+
+        Checks if an API key is configured (config or ``ANTHROPIC_API_KEY`` env),
+        then sends ``GET https://api.anthropic.com/v1/models`` with ``x-api-key`` header.
+        """
+        start = time.monotonic()
+
+        # Resolve API key: config > env > None
+        api_key: str | None = None
+        if self._config.anthropic_api_key is not None:
+            api_key = self._config.anthropic_api_key.get_secret_value()
+        else:
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if api_key is None:
+            latency_ms = (time.monotonic() - start) * 1000
+            logger.warning("Anthropic health check failed: no API key configured")
+            return HealthStatus(
+                service_name="anthropic",
+                available=False,
+                latency_ms=latency_ms,
+                error="no API key configured",
+                checked_at=datetime.now(UTC),
+            )
+
+        try:
+            response = await asyncio.wait_for(
+                self._client.get(
+                    "https://api.anthropic.com/v1/models",
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                    },
+                ),
+                timeout=self._config.health_check_timeout,
+            )
+            latency_ms = (time.monotonic() - start) * 1000
+
+            if response.status_code == 401:
+                logger.warning("Anthropic health check failed: invalid API key")
+                return HealthStatus(
+                    service_name="anthropic",
+                    available=False,
+                    latency_ms=latency_ms,
+                    error="invalid API key (401)",
+                    checked_at=datetime.now(UTC),
+                )
+
+            if response.status_code == 403:
+                logger.warning("Anthropic health check failed: forbidden (403)")
+                return HealthStatus(
+                    service_name="anthropic",
+                    available=False,
+                    latency_ms=latency_ms,
+                    error="forbidden (403)",
+                    checked_at=datetime.now(UTC),
+                )
+
+            if response.status_code == 429:
+                logger.warning("Anthropic health check: rate limited (429)")
+                return HealthStatus(
+                    service_name="anthropic",
+                    available=True,
+                    latency_ms=latency_ms,
+                    error="rate limited (429)",
+                    checked_at=datetime.now(UTC),
+                )
+
+            if response.status_code >= 500:
+                logger.warning("Anthropic health check failed: HTTP %d", response.status_code)
+                return HealthStatus(
+                    service_name="anthropic",
+                    available=False,
+                    latency_ms=latency_ms,
+                    error=f"HTTP {response.status_code}",
+                    checked_at=datetime.now(UTC),
+                )
+
+            logger.info("Anthropic health check OK (%.1fms)", latency_ms)
+            return HealthStatus(
+                service_name="anthropic",
+                available=True,
+                latency_ms=latency_ms,
+                checked_at=datetime.now(UTC),
+            )
+        except Exception as exc:
+            latency_ms = (time.monotonic() - start) * 1000
+            logger.warning("Anthropic health check failed: %s", exc)
+            return HealthStatus(
+                service_name="anthropic",
                 available=False,
                 latency_ms=latency_ms,
                 error=str(exc),
@@ -357,6 +473,7 @@ class HealthService:
             self.check_yfinance(),
             self.check_fred(),
             self.check_groq(),
+            self.check_anthropic(),
             self.check_cboe(),
             self.check_openbb(),
             self.check_cboe_chains(),
@@ -366,6 +483,7 @@ class HealthService:
             "yfinance",
             "fred",
             "groq",
+            "anthropic",
             "cboe",
             "openbb",
             "cboe_chains",

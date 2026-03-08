@@ -34,6 +34,7 @@ from options_arena.agents.contrarian_agent import contrarian_agent
 from options_arena.agents.flow_agent import flow_agent
 from options_arena.agents.fundamental_agent import fundamental_agent
 from options_arena.agents.orchestrator import (
+    _build_model_settings,
     _extract_top_signals,
     _format_contract_refs,
     _opposite_direction,
@@ -48,6 +49,7 @@ from options_arena.agents.volatility import volatility_agent
 from options_arena.models import (
     DebateConfig,
     IndicatorSignals,
+    LLMProvider,
     MacdSignal,
     OptionContract,
     Quote,
@@ -964,3 +966,66 @@ class TestQualityGate:
         # Should proceed (not fallback) but log a warning
         assert result.is_fallback is False
         assert any("proceeding with caution" in record.message for record in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# _build_model_settings — conditional ModelSettings for extended thinking
+# ---------------------------------------------------------------------------
+
+
+class TestBuildModelSettings:
+    """Tests for _build_model_settings helper — provider-aware ModelSettings."""
+
+    def test_groq_standard_settings(self) -> None:
+        """Groq provider returns plain ModelSettings with configured temperature."""
+        config = DebateConfig(provider=LLMProvider.GROQ, temperature=0.3)
+        settings = _build_model_settings(config)
+        assert settings["temperature"] == pytest.approx(0.3)
+        assert "anthropic_thinking" not in settings
+
+    def test_anthropic_no_thinking(self) -> None:
+        """Anthropic without extended thinking returns plain ModelSettings."""
+        config = DebateConfig(
+            provider=LLMProvider.ANTHROPIC,
+            enable_extended_thinking=False,
+            temperature=0.5,
+        )
+        settings = _build_model_settings(config)
+        assert settings["temperature"] == pytest.approx(0.5)
+        assert "anthropic_thinking" not in settings
+
+    def test_anthropic_with_thinking(self) -> None:
+        """Anthropic with extended thinking returns AnthropicModelSettings with thinking dict."""
+        config = DebateConfig(
+            provider=LLMProvider.ANTHROPIC,
+            enable_extended_thinking=True,
+            thinking_budget_tokens=5000,
+        )
+        settings = _build_model_settings(config)
+        assert settings["temperature"] == pytest.approx(1.0)
+        assert settings["anthropic_thinking"] == {
+            "type": "enabled",
+            "budget_tokens": 5000,
+        }
+
+    def test_thinking_budget_passed_through(self) -> None:
+        """Custom thinking_budget_tokens value is passed through to settings."""
+        config = DebateConfig(
+            provider=LLMProvider.ANTHROPIC,
+            enable_extended_thinking=True,
+            thinking_budget_tokens=10000,
+        )
+        settings = _build_model_settings(config)
+        assert "anthropic_thinking" in settings
+        assert settings["anthropic_thinking"]["budget_tokens"] == 10000
+
+    def test_groq_ignores_extended_thinking(self) -> None:
+        """Groq provider ignores enable_extended_thinking — returns plain settings."""
+        config = DebateConfig(
+            provider=LLMProvider.GROQ,
+            enable_extended_thinking=True,
+            temperature=0.4,
+        )
+        settings = _build_model_settings(config)
+        assert settings["temperature"] == pytest.approx(0.4)
+        assert "anthropic_thinking" not in settings

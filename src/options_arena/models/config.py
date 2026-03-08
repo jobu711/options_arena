@@ -25,6 +25,7 @@ from options_arena.models.enums import (
     SECTOR_ALIASES,
     GICSIndustryGroup,
     GICSSector,
+    LLMProvider,
     MarketCapTier,
     SignalDirection,
 )
@@ -266,8 +267,10 @@ class ServiceConfig(BaseModel):
     yfinance_timeout: float = 15.0
     fred_timeout: float = 10.0
     cboe_timeout: float = 10.0
+    health_check_timeout: float = 10.0
     fred_api_key: SecretStr | None = None
     groq_api_key: SecretStr | None = None
+    anthropic_api_key: SecretStr | None = None
     rate_limit_rps: float = 2.0
     max_concurrent_requests: int = 5
     cache_ttl_market_hours: int = 300
@@ -279,6 +282,15 @@ class ServiceConfig(BaseModel):
         for name, value in self.__dict__.items():
             if isinstance(value, float) and not math.isfinite(value):
                 raise ValueError(f"{name} must be finite, got {value}")
+        return self
+
+    @model_validator(mode="after")
+    def validate_timeouts_positive(self) -> Self:
+        """Ensure all timeout fields are strictly positive."""
+        for name in ("yfinance_timeout", "fred_timeout", "cboe_timeout", "health_check_timeout"):
+            value = getattr(self, name)
+            if value <= 0.0:
+                raise ValueError(f"{name} must be > 0, got {value}")
         return self
 
 
@@ -295,17 +307,22 @@ class DataConfig(BaseModel):
 
 
 class DebateConfig(BaseModel):
-    """AI debate configuration — controls Groq LLM, timeouts, and fallback behavior.
+    """AI debate configuration — controls LLM provider, timeouts, and fallback behavior.
 
-    Uses Groq cloud API exclusively. Requires ``GROQ_API_KEY`` or
-    ``ARENA_DEBATE__API_KEY`` env var.
+    Supports Groq (default, free) and Anthropic (Claude) providers. Provider selection
+    via ``ARENA_DEBATE__PROVIDER=anthropic`` env var or ``--provider`` CLI flag.
 
     Default ``agent_timeout`` (60s) is for Groq cloud inference. Override via
     ``ARENA_DEBATE__AGENT_TIMEOUT=90``, ``ARENA_DEBATE__MAX_TOTAL_DURATION=300``.
     """
 
+    provider: LLMProvider = LLMProvider.GROQ
     model: str = "llama-3.3-70b-versatile"
+    anthropic_model: str = "claude-sonnet-4-5-20250929"
     api_key: SecretStr | None = None
+    anthropic_api_key: SecretStr | None = None
+    enable_extended_thinking: bool = False
+    thinking_budget_tokens: int = 5000
     agent_timeout: float = 60.0
     num_ctx: int = 8192
     retries: int = 2
@@ -321,6 +338,16 @@ class DebateConfig(BaseModel):
     rate_limit_retries: int = 3  # max 429 retries at transport level (0 = disabled)
     rate_limit_max_wait: float = 30.0  # max single retry wait in seconds
     enable_regime_weights: bool = False  # opt-in regime-adjusted scoring weights
+
+    @field_validator("thinking_budget_tokens")
+    @classmethod
+    def validate_thinking_budget_tokens(cls, v: int) -> int:
+        """Ensure thinking_budget_tokens is finite and within [1024, 128000]."""
+        if not math.isfinite(v):
+            raise ValueError(f"thinking_budget_tokens must be finite, got {v}")
+        if not 1024 <= v <= 128_000:
+            raise ValueError(f"thinking_budget_tokens must be in [1024, 128000], got {v}")
+        return v
 
     @field_validator("min_debate_score")
     @classmethod

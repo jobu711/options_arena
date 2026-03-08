@@ -220,6 +220,17 @@ class OutcomeCollectionMethod(StrEnum):
     EXPIRED_WORTHLESS = "expired_worthless"
 
 
+class LLMProvider(StrEnum):
+    """LLM provider for AI debate agents.
+
+    GROQ      — Groq cloud API (free tier, Llama 3.3 70B).
+    ANTHROPIC — Anthropic API (Claude models, supports extended thinking).
+    """
+
+    GROQ = "groq"
+    ANTHROPIC = "anthropic"
+
+
 class GICSSector(StrEnum):
     """Global Industry Classification Standard (GICS) sectors.
 

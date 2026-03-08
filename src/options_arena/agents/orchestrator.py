@@ -28,6 +28,7 @@ from datetime import UTC, date, datetime
 from enum import StrEnum
 
 from pydantic_ai import AgentRunResult
+from pydantic_ai.models.anthropic import AnthropicModelSettings
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RunUsage
 
@@ -60,6 +61,7 @@ from options_arena.models import (
     FlowThesis,
     FundamentalSnapshot,
     FundamentalThesis,
+    LLMProvider,
     MacdSignal,
     MarketContext,
     NewsSentimentSnapshot,
@@ -699,7 +701,9 @@ async def _persist_result(
     """Persist debate result to the database. Never raises -- logs on failure."""
     try:
         total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens
-        model_name = config.model
+        model_name = (
+            config.anthropic_model if config.provider == LLMProvider.ANTHROPIC else config.model
+        )
 
         # Compute debate_mode for A/B logging
         if result.is_fallback:
@@ -1229,6 +1233,46 @@ async def run_debate(
     return result
 
 
+def _build_model_settings(config: DebateConfig) -> ModelSettings:
+    """Build provider-appropriate ``ModelSettings`` for agent runs.
+
+    When provider is Anthropic and extended thinking is enabled, returns
+    ``AnthropicModelSettings`` with ``anthropic_thinking`` configured and
+    temperature forced to ``1.0`` (required by the Anthropic thinking API).
+    Otherwise returns standard ``ModelSettings`` with the configured temperature.
+
+    Groq ignores ``enable_extended_thinking`` — thinking is Anthropic-only.
+    """
+    if config.provider == LLMProvider.ANTHROPIC and config.enable_extended_thinking:
+        return AnthropicModelSettings(
+            temperature=1.0,
+            anthropic_thinking={
+                "type": "enabled",
+                "budget_tokens": config.thinking_budget_tokens,
+            },
+        )
+    return ModelSettings(temperature=config.temperature)
+
+
+# Anthropic models are slower than Groq; extended thinking adds more latency.
+_ANTHROPIC_TIMEOUT_MULTIPLIER = 2.0
+_ANTHROPIC_THINKING_TIMEOUT_MULTIPLIER = 3.0
+
+
+def _effective_agent_timeout(config: DebateConfig) -> float:
+    """Return per-agent timeout, auto-adjusted for Anthropic provider.
+
+    Groq cloud inference is fast (default 60s is fine). Anthropic models are
+    slower, and extended thinking adds further latency. Multipliers ensure
+    the configured ``agent_timeout`` is scaled appropriately.
+    """
+    if config.provider != LLMProvider.ANTHROPIC:
+        return config.agent_timeout
+    if config.enable_extended_thinking:
+        return config.agent_timeout * _ANTHROPIC_THINKING_TIMEOUT_MULTIPLIER
+    return config.agent_timeout * _ANTHROPIC_TIMEOUT_MULTIPLIER
+
+
 async def _run_v2_agents(
     context: MarketContext,
     ticker_score: TickerScore,
@@ -1242,8 +1286,8 @@ async def _run_v2_agents(
 ) -> DebateResult:
     """Run the 6-agent pipeline. Raises on total failure."""
     model = build_debate_model(config)
-    settings = ModelSettings(temperature=config.temperature)
-    per_agent_timeout = config.agent_timeout
+    settings = _build_model_settings(config)
+    per_agent_timeout = _effective_agent_timeout(config)
 
     # Partitioned context: each Phase 1 agent sees only domain-specific fields.
     # Risk (Phase 2) and Contrarian (Phase 3) keep the full context block.

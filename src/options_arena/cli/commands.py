@@ -41,6 +41,7 @@ from options_arena.models.enums import (
     SECTOR_ALIASES,
     GICSIndustryGroup,
     GICSSector,
+    LLMProvider,
     MarketCapTier,
     ScanPreset,
     SignalDirection,
@@ -72,6 +73,36 @@ err_console = Console(stderr=True)
 
 # Near-zero timeout that forces the data-driven fallback path (skips AI agents)
 _FALLBACK_ONLY_TIMEOUT_SEC = 0.001
+
+
+def _validate_provider_config(provider: LLMProvider, settings: AppSettings) -> None:
+    """Fail fast if the selected LLM provider is missing its API key.
+
+    Raises ``typer.Exit(1)`` with a helpful error message instead of silently
+    falling back to data-driven mode when the provider can't actually run.
+    """
+    import os  # noqa: PLC0415
+
+    if provider == LLMProvider.ANTHROPIC:
+        has_key = (
+            settings.debate.anthropic_api_key is not None
+            or os.environ.get("ANTHROPIC_API_KEY") is not None
+        )
+        if not has_key:
+            err_console.print(
+                "[red]Anthropic provider requires an API key. "
+                "Set ANTHROPIC_API_KEY or ARENA_DEBATE__ANTHROPIC_API_KEY.[/red]"
+            )
+            raise typer.Exit(code=1)
+    elif provider == LLMProvider.GROQ:
+        has_key = settings.debate.api_key is not None or os.environ.get("GROQ_API_KEY") is not None
+        if not has_key:
+            err_console.print(
+                "[red]Groq provider requires an API key. "
+                "Set GROQ_API_KEY or ARENA_DEBATE__API_KEY.[/red]"
+            )
+            raise typer.Exit(code=1)
+
 
 # Resolve data directory from project root (src/options_arena/cli/commands.py → parents[3])
 _DATA_DIR = Path(__file__).resolve().parents[3] / "data"
@@ -412,6 +443,9 @@ def debate(
     export_dir: str = typer.Option("./reports", "--export-dir", help="Export output directory"),
     no_openbb: bool = typer.Option(False, "--no-openbb", help="Skip OpenBB enrichment"),
     no_recon: bool = typer.Option(False, "--no-recon", help="Skip intelligence fetching"),
+    provider: LLMProvider = typer.Option(  # noqa: B008
+        LLMProvider.GROQ, "--provider", help="LLM provider: groq (free) or anthropic"
+    ),
 ) -> None:
     """Run AI debate on a scored ticker."""
     if batch and ticker is not None:
@@ -427,9 +461,19 @@ def debate(
         err_console.print("[red]--export must be 'md'.[/red]")
         raise typer.Exit(code=1)
 
+    if not fallback_only:
+        settings = AppSettings()
+        _validate_provider_config(provider, settings)
+
     if batch:
         asyncio.run(
-            _batch_async(batch_limit, fallback_only, no_openbb=no_openbb, no_recon=no_recon)
+            _batch_async(
+                batch_limit,
+                fallback_only,
+                no_openbb=no_openbb,
+                no_recon=no_recon,
+                provider=provider,
+            )
         )
     else:
         assert ticker is not None  # validated above
@@ -442,6 +486,7 @@ def debate(
                 export_dir,
                 no_openbb=no_openbb,
                 no_recon=no_recon,
+                provider=provider,
             )
         )
 
@@ -452,9 +497,12 @@ async def _batch_async(
     *,
     no_openbb: bool = False,
     no_recon: bool = False,
+    provider: LLMProvider = LLMProvider.GROQ,
 ) -> None:
     """Batch debate: run debates for top-scored tickers from the latest scan."""
     settings = AppSettings()
+    if provider != settings.debate.provider:
+        settings.debate = settings.debate.model_copy(update={"provider": provider})
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
     cache = ServiceCache(settings.service)
     limiter = RateLimiter(
@@ -762,9 +810,12 @@ async def _debate_async(
     *,
     no_openbb: bool = False,
     no_recon: bool = False,
+    provider: LLMProvider = LLMProvider.GROQ,
 ) -> None:
     """Run AI debate with full service lifecycle management."""
     settings = AppSettings()
+    if provider != settings.debate.provider:
+        settings.debate = settings.debate.model_copy(update={"provider": provider})
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
     cache = ServiceCache(settings.service)
     limiter = RateLimiter(
