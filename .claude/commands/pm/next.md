@@ -34,23 +34,43 @@ Phase 2 begins AFTER the user answers all questions.
 
 Use the user's answers from Phase 1 (Mode, Area, Scope) to filter and rank below.
 
-Silently gather project state — no progress updates to the user.
+Spawn an Explore agent to gather project state silently. Pass the user's Mode, Area, and Scope answers in the prompt so the agent can tag candidates.
 
-Run in parallel:
-```bash
-git log master --oneline --merges -15
-git log master --oneline -20 --no-merges
-git branch -a --no-merged master
-git log master --oneline --since="14 days ago" --no-merges
-```
+Use the Agent tool with these parameters:
+- description: "Context sweep for /pm:next"
+- subagent_type: "Explore"
+- prompt: Include ALL of the instructions below verbatim, plus the user's interview answers.
 
-For each unmerged branch: `git log master..<branch> --oneline`
+Agent instructions (include in prompt):
 
-**Backlog discovery** (cross-reference against git ground truth):
-1. Scan `.claude/prds/` frontmatter (first 10-15 lines). A PRD is **done** if its epic appears in the merge log or `.claude/epics/archived/`.
-2. Read `progress.md` "Future Work" section ONLY for idea discovery. Derive actual state from git.
-3. For unmerged epics, check branch commit content (not task file statuses).
-4. Check `web/src/views/` and glob/grep to confirm whether suggested capabilities already exist.
+> Gather project state for development targeting. Return a compact summary under 30 lines.
+>
+> 1. Run: `git log master --oneline -10` (recent commits)
+> 2. Run: `git branch --no-merged master` (in-flight work)
+> 3. Read first 10 lines of each file in `.claude/prds/` (frontmatter only — name, status)
+> 4. Read `.claude/context/progress.md` — extract "Recently Completed" and "Future Work" sections
+> 5. List directories in `.claude/epics/archived/` (shipped epics)
+> 6. For each PRD candidate not yet shipped: glob/grep to check if the feature already exists in the codebase (check `src/options_arena/`, `web/src/views/`, `web/src/components/`)
+>
+> Cross-reference rule — a feature is SHIPPED if ANY of these is true:
+> - Its epic name appears in `.claude/epics/archived/`
+> - It appears in progress.md "Recently Completed"
+> - Its key components already exist in the codebase (confirmed by glob/grep)
+>
+> Also identify 1-2 strategic opportunities:
+> - What does the current architecture enable that isn't built yet?
+> - What capabilities exist that could be extended to new use cases?
+> - What do comparable options analytics tools have that this project lacks?
+>
+> Return your summary in this exact format:
+> - SHIPPED: [list of shipped feature names]
+> - BACKLOG: [list of unshipped PRD names with effort estimate]
+> - IN-FLIGHT: [unmerged branches, if any]
+> - FUTURE IDEAS: [items from progress.md "Future Work"]
+> - STRATEGIC: [1-2 novel opportunities grounded in specific codebase capabilities]
+> - RECENT THEMES: [2-3 word summary of last 2 weeks of commits]
+
+After the agent returns its summary, apply ranking in the main context.
 
 **Tag each candidate** with: Area (Backend/Frontend/AI agents/Infrastructure), Effort (S/M/L/XL), Momentum signal (yes/no + which recent work).
 
