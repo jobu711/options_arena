@@ -178,14 +178,17 @@ class OutcomeCollector:
         exit_date: date,
         collected_at: datetime,
     ) -> ContractOutcome | None:
-        """Handle an expired contract — use intrinsic value or mark as worthless."""
-        # We need the current stock price to compute intrinsic value
-        try:
-            quote = await self._market_data.fetch_quote(contract.ticker)
-            exit_stock_price = quote.price
-        except Exception:
+        """Handle an expired contract — use intrinsic value or mark as worthless.
+
+        Uses historical OHLCV close on or before the expiration date so that
+        intrinsic value reflects the stock price at expiry, not the current
+        market price.  Falls back to ``fetch_quote()`` with a WARNING when
+        OHLCV data is unavailable.
+        """
+        exit_stock_price = await self._fetch_expiration_close(contract.ticker, contract.expiration)
+        if exit_stock_price is None:
             logger.warning(
-                "Cannot fetch quote for expired contract id=%s ticker=%s, skipping",
+                "Cannot determine stock price for expired contract id=%s ticker=%s, skipping",
                 contract.id,
                 contract.ticker,
             )
@@ -254,7 +257,7 @@ class OutcomeCollector:
             return None
 
         stock_return = self._compute_stock_return(contract.entry_stock_price, exit_stock_price)
-        dte_at_exit = (contract.expiration - exit_date).days
+        dte_at_exit = max(0, (contract.expiration - exit_date).days)
 
         # Attempt to fetch live option chain for contract-level P&L
         exit_contract_mid: Decimal | None = None
@@ -322,6 +325,59 @@ class OutcomeCollector:
             collection_method=OutcomeCollectionMethod.MARKET,
             collected_at=collected_at,
         )
+
+    async def _fetch_expiration_close(
+        self,
+        ticker: str,
+        expiration: date,
+    ) -> Decimal | None:
+        """Fetch the stock close price on or before the expiration date.
+
+        Uses ``fetch_ohlcv(ticker, period="5d")`` to get recent historical
+        bars, then selects the bar whose date is on or before *expiration*.
+        This handles weekend/holiday expirations by using the last trading
+        day before expiration.
+
+        Falls back to ``fetch_quote()`` with a WARNING log when OHLCV data
+        is unavailable.  Returns ``None`` if both sources fail.
+        """
+        try:
+            bars = await self._market_data.fetch_ohlcv(ticker, period="5d")
+            if bars:
+                # Bars are sorted ascending by date.  Find the last bar
+                # on or before the expiration date.
+                eligible = [b for b in bars if b.date <= expiration]
+                if eligible:
+                    return eligible[-1].close
+                # All bars are after expiration — unexpected, but fall through
+                logger.warning(
+                    "All OHLCV bars are after expiration %s for %s, falling back to quote",
+                    expiration,
+                    ticker,
+                )
+            else:
+                logger.warning(
+                    "Empty OHLCV data for %s, falling back to quote",
+                    ticker,
+                )
+        except Exception:
+            logger.warning(
+                "Failed to fetch OHLCV for %s, falling back to quote",
+                ticker,
+                exc_info=True,
+            )
+
+        # Fallback: use current quote price
+        try:
+            quote = await self._market_data.fetch_quote(ticker)
+            return quote.price
+        except Exception:
+            logger.warning(
+                "Fallback fetch_quote also failed for %s",
+                ticker,
+                exc_info=True,
+            )
+            return None
 
     def _compute_stock_return(
         self,
