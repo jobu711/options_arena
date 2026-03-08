@@ -33,6 +33,7 @@ from options_arena.models.config import (
     AppSettings,
     DataConfig,
     DebateConfig,
+    FinancialDatasetsConfig,
     IntelligenceConfig,
     LogConfig,
     OpenBBConfig,
@@ -67,6 +68,12 @@ from options_arena.models.enums import (
     SpreadType,
     VolAssessment,
     VolRegime,
+)
+from options_arena.models.financial_datasets import (
+    BalanceSheetData,
+    FinancialDatasetsPackage,
+    FinancialMetricsData,
+    IncomeStatementData,
 )
 from options_arena.models.health import HealthStatus
 from options_arena.models.history import HistoryPoint, TrendingTicker
@@ -166,6 +173,7 @@ __all__ = [
     "AppSettings",
     "DataConfig",
     "DebateConfig",
+    "FinancialDatasetsConfig",
     "IntelligenceConfig",
     "LogConfig",
     "OpenBBConfig",
@@ -173,6 +181,11 @@ __all__ = [
     "ScanConfig",
     "ServiceConfig",
     "TICKER_RE",
+    # Financial Datasets
+    "BalanceSheetData",
+    "FinancialDatasetsPackage",
+    "FinancialMetricsData",
+    "IncomeStatementData",
     # History
     "HistoryPoint",
     "TrendingTicker",
