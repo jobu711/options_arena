@@ -7,8 +7,11 @@ NOT exported in ``__init__.py`` — internal use only.
 import asyncio
 import logging
 import math
+import os
 import random
+import sqlite3
 from collections.abc import Awaitable, Callable
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from options_arena.services.rate_limiter import RateLimiter
@@ -74,6 +77,7 @@ async def fetch_with_limiter_retry[T](
     max_attempts: int = 3,
     base_delay: float = 1.0,
     max_delay: float = 16.0,
+    retryable: tuple[type[Exception], ...] = (DataSourceUnavailableError,),
     **kwargs: object,
 ) -> T:
     """Retry with rate limiter — releases semaphore during backoff sleep.
@@ -90,21 +94,25 @@ async def fetch_with_limiter_retry[T](
         max_attempts: Maximum number of attempts before raising.
         base_delay: Initial delay in seconds before first retry.
         max_delay: Upper bound on delay between retries.
+        retryable: Tuple of exception types that trigger a retry.
         **kwargs: Keyword arguments forwarded to ``fn``.
 
     Returns:
         The result of ``fn(*args, **kwargs)``.
 
     Raises:
-        The last exception encountered after all attempts are exhausted.
+        The last exception encountered after all attempts are exhausted,
+        or immediately for non-retryable exceptions.
     """
     last_error: Exception | None = None
     for attempt in range(max_attempts):
         async with limiter:  # acquire per attempt
             try:
                 return await fn(*args, **kwargs)
-            except Exception as exc:
+            except tuple(retryable) as exc:
                 last_error = exc
+            except Exception:
+                raise  # Non-retryable — propagate immediately
         # Limiter released before sleeping
         if attempt < max_attempts - 1:
             delay = min(base_delay * (2**attempt), max_delay)
@@ -176,3 +184,62 @@ def safe_float(value: object) -> float | None:
     except (TypeError, ValueError, OverflowError) as exc:
         logger.debug("safe_float: failed to convert %r — %s", value, exc)
         return None
+
+
+# ---------------------------------------------------------------------------
+# yfinance cookie hygiene
+# ---------------------------------------------------------------------------
+
+_yf_cookies_checked: bool = False
+
+
+def clear_stale_yf_cookies(max_age_hours: float = 4.0) -> int:
+    """Delete stale cookies from yfinance's persistent cookie cache.
+
+    yfinance stores authentication cookies/crumbs in a SQLite DB managed by
+    peewee. When Yahoo invalidates a crumb server-side before the cookie
+    technically expires, yfinance loads the stale cookie and gets HTTP 401.
+    This function proactively clears cookies older than *max_age_hours* so
+    yfinance fetches fresh ones on its next request.
+
+    Runs at most once per process (guarded by ``_yf_cookies_checked``).
+    Best-effort: swallows all exceptions and logs at DEBUG on failure.
+
+    Returns:
+        Number of deleted cookie rows (0 if no-op or on error).
+    """
+    global _yf_cookies_checked  # noqa: PLW0603
+    if _yf_cookies_checked:
+        return 0
+    _yf_cookies_checked = True
+
+    try:
+        import platformdirs  # transitive dep of yfinance — not a direct dependency
+    except ImportError:
+        logger.debug("platformdirs not available — skipping yfinance cookie cleanup")
+        return 0
+
+    db_path = os.path.join(platformdirs.user_cache_dir(), "py-yfinance", "cookies.db")
+    if not os.path.exists(db_path):
+        logger.debug("yfinance cookie DB not found at %s", db_path)
+        return 0
+
+    try:
+        cutoff = datetime.now() - timedelta(hours=max_age_hours)  # noqa: DTZ005 — matches yfinance's naive storage
+        conn = sqlite3.connect(db_path, timeout=2.0)
+        try:
+            cursor = conn.execute(
+                "DELETE FROM _cookieschema WHERE fetch_date < ?",
+                (cutoff,),
+            )
+            deleted = cursor.rowcount
+            conn.commit()
+        finally:
+            conn.close()
+
+        if deleted > 0:
+            logger.warning("Cleared %d stale yfinance cookie(s) from %s", deleted, db_path)
+        return deleted
+    except Exception:
+        logger.debug("Failed to clear yfinance cookies", exc_info=True)
+        return 0

@@ -35,6 +35,7 @@ from options_arena.services.cache import (
     ServiceCache,
 )
 from options_arena.services.helpers import (
+    clear_stale_yf_cookies,
     fetch_with_limiter_retry,
     safe_decimal,
     safe_float,
@@ -131,15 +132,24 @@ class BatchQuote(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     ticker: str
-    price: float
+    price: Decimal
     change_pct: float | None
     volume: int
 
+    @field_validator("price", mode="before")
+    @classmethod
+    def _validate_price(cls, v: object) -> object:
+        if isinstance(v, float):
+            if not math.isfinite(v):
+                raise ValueError("price must be finite")
+            return Decimal(str(v))
+        if isinstance(v, Decimal) and (v.is_nan() or v.is_infinite()):
+            raise ValueError("price must be finite")
+        return v
+
     @field_validator("price")
     @classmethod
-    def _validate_price(cls, v: float) -> float:
-        if not math.isfinite(v):
-            raise ValueError("price must be finite")
+    def _validate_price_positive(cls, v: Decimal) -> Decimal:
         if v <= 0:
             raise ValueError("price must be positive")
         return v
@@ -279,6 +289,7 @@ class MarketDataService:
         self._config = config
         self._cache = cache
         self._limiter = limiter
+        clear_stale_yf_cookies()
 
     async def _yf_call[T](
         self,
@@ -850,7 +861,7 @@ class MarketDataService:
                     quotes.append(
                         BatchQuote(
                             ticker=ticker,
-                            price=latest_close,
+                            price=Decimal(str(latest_close)),
                             change_pct=change_pct,
                             volume=volume,
                         )
