@@ -968,3 +968,129 @@ class TestCompletenessRatio:
         ctx = self._make_context(max_pain_distance=2.5)
         # Only max_pain_distance populated out of 13 base fields
         assert ctx.completeness_ratio() == pytest.approx(1.0 / 13.0)
+
+
+# ---------------------------------------------------------------------------
+# MarketContext Financial Datasets (fd_*) Fields Tests
+# ---------------------------------------------------------------------------
+
+
+class TestMarketContextFDFields:
+    """Tests for the 16 fd_* fields and financial_datasets_ratio() method."""
+
+    _FD_FIELD_NAMES: list[str] = [
+        "fd_revenue",
+        "fd_net_income",
+        "fd_gross_profit",
+        "fd_operating_income",
+        "fd_eps_diluted",
+        "fd_gross_margin",
+        "fd_operating_margin",
+        "fd_net_margin",
+        "fd_total_debt",
+        "fd_total_cash",
+        "fd_total_assets",
+        "fd_current_ratio",
+        "fd_revenue_growth",
+        "fd_earnings_growth",
+        "fd_ev_to_ebitda",
+        "fd_free_cash_flow_yield",
+    ]
+
+    def _make_context(self, **overrides: object) -> MarketContext:
+        """Build a MarketContext with minimal required fields and optional overrides."""
+        defaults: dict[str, object] = {
+            "ticker": "AAPL",
+            "current_price": Decimal("185.50"),
+            "price_52w_high": Decimal("199.62"),
+            "price_52w_low": Decimal("164.08"),
+            "rsi_14": 50.0,
+            "macd_signal": MacdSignal.NEUTRAL,
+            "next_earnings": None,
+            "dte_target": 45,
+            "target_strike": Decimal("185.00"),
+            "target_delta": 0.35,
+            "sector": "Technology",
+            "dividend_yield": 0.005,
+            "exercise_style": ExerciseStyle.AMERICAN,
+            "data_timestamp": datetime(2026, 2, 25, 14, 0, 0, tzinfo=UTC),
+        }
+        defaults.update(overrides)
+        return MarketContext(**defaults)  # type: ignore[arg-type]
+
+    def test_fd_fields_default_none(self) -> None:
+        """All 16 fd_* fields default to None."""
+        ctx = self._make_context()
+        for name in self._FD_FIELD_NAMES:
+            assert getattr(ctx, name) is None, f"{name} should default to None"
+
+    def test_fd_fields_accept_valid_floats(self) -> None:
+        """All 16 fd_* fields accept valid float values (including negatives)."""
+        fd_values: dict[str, float] = {
+            "fd_revenue": 394_328_000_000.0,
+            "fd_net_income": 96_995_000_000.0,
+            "fd_gross_profit": 170_782_000_000.0,
+            "fd_operating_income": 114_301_000_000.0,
+            "fd_eps_diluted": 6.42,
+            "fd_gross_margin": 0.433,
+            "fd_operating_margin": 0.290,
+            "fd_net_margin": 0.246,
+            "fd_total_debt": 111_088_000_000.0,
+            "fd_total_cash": 29_965_000_000.0,
+            "fd_total_assets": 352_583_000_000.0,
+            "fd_current_ratio": 0.988,
+            "fd_revenue_growth": 0.079,
+            "fd_earnings_growth": -0.034,  # negative is valid
+            "fd_ev_to_ebitda": 21.5,
+            "fd_free_cash_flow_yield": 0.035,
+        }
+        ctx = self._make_context(**fd_values)
+        for name, expected in fd_values.items():
+            assert getattr(ctx, name) == pytest.approx(expected), f"{name} mismatch"
+
+    def test_fd_fields_reject_nan(self) -> None:
+        """NaN rejected on fd_* fields by validate_optional_finite."""
+        for name in self._FD_FIELD_NAMES:
+            with pytest.raises(ValidationError, match="finite"):
+                self._make_context(**{name: float("nan")})
+
+    def test_fd_fields_reject_inf(self) -> None:
+        """Inf rejected on fd_* fields by validate_optional_finite."""
+        for name in self._FD_FIELD_NAMES:
+            with pytest.raises(ValidationError, match="finite"):
+                self._make_context(**{name: float("inf")})
+
+    def test_financial_datasets_ratio_all_none(self) -> None:
+        """financial_datasets_ratio() returns 0.0 when no fd_* fields populated."""
+        ctx = self._make_context()
+        assert ctx.financial_datasets_ratio() == pytest.approx(0.0)
+
+    def test_financial_datasets_ratio_all_populated(self) -> None:
+        """financial_datasets_ratio() returns 1.0 when all 16 fd_* fields populated."""
+        fd_values = {name: 1.0 for name in self._FD_FIELD_NAMES}
+        ctx = self._make_context(**fd_values)
+        assert ctx.financial_datasets_ratio() == pytest.approx(1.0)
+
+    def test_financial_datasets_ratio_partial(self) -> None:
+        """financial_datasets_ratio() returns correct fraction for partial population."""
+        # Populate 4 of 16 fields
+        ctx = self._make_context(
+            fd_revenue=394_328_000_000.0,
+            fd_net_income=96_995_000_000.0,
+            fd_gross_margin=0.433,
+            fd_eps_diluted=6.42,
+        )
+        assert ctx.financial_datasets_ratio() == pytest.approx(4.0 / 16.0)
+
+    def test_completeness_ratio_unaffected(self) -> None:
+        """completeness_ratio() is unchanged by fd_* field presence."""
+        # Build context without any fd_* fields
+        ctx_without = self._make_context(iv_rank=45.0, iv_percentile=52.0)
+        ratio_without = ctx_without.completeness_ratio()
+
+        # Build context with all fd_* fields populated
+        fd_values = {name: 1.0 for name in self._FD_FIELD_NAMES}
+        ctx_with = self._make_context(iv_rank=45.0, iv_percentile=52.0, **fd_values)
+        ratio_with = ctx_with.completeness_ratio()
+
+        assert ratio_with == pytest.approx(ratio_without)

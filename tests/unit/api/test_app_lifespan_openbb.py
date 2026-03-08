@@ -36,9 +36,11 @@ async def test_lifespan_creates_openbb_when_enabled(tmp_path: Path) -> None:
         patch("options_arena.api.app.UniverseService", svc_patches["UniverseService"]),
         patch("options_arena.api.app.ServiceCache") as mock_cache_cls,
         patch("options_arena.api.app.RateLimiter"),
+        patch("options_arena.api.app.FinancialDatasetsService"),
     ):
         mock_settings = MagicMock()
         mock_settings.openbb = OpenBBConfig(enabled=True)
+        mock_settings.financial_datasets.enabled = False
         mock_settings.data.db_path = str(tmp_path / "test.db")
         mock_settings_cls.return_value = mock_settings
 
@@ -74,9 +76,11 @@ async def test_lifespan_stores_none_when_disabled(tmp_path: Path) -> None:
         patch("options_arena.api.app.UniverseService", svc_patches["UniverseService"]),
         patch("options_arena.api.app.ServiceCache") as mock_cache_cls,
         patch("options_arena.api.app.RateLimiter"),
+        patch("options_arena.api.app.FinancialDatasetsService"),
     ):
         mock_settings = MagicMock()
         mock_settings.openbb = OpenBBConfig(enabled=False)
+        mock_settings.financial_datasets.enabled = False
         mock_settings.data.db_path = str(tmp_path / "test.db")
         mock_settings_cls.return_value = mock_settings
 
@@ -109,9 +113,11 @@ async def test_lifespan_closes_openbb_at_shutdown(tmp_path: Path) -> None:
         patch("options_arena.api.app.UniverseService", svc_patches["UniverseService"]),
         patch("options_arena.api.app.ServiceCache") as mock_cache_cls,
         patch("options_arena.api.app.RateLimiter"),
+        patch("options_arena.api.app.FinancialDatasetsService"),
     ):
         mock_settings = MagicMock()
         mock_settings.openbb = OpenBBConfig(enabled=True)
+        mock_settings.financial_datasets.enabled = False
         mock_settings.data.db_path = str(tmp_path / "test.db")
         mock_settings_cls.return_value = mock_settings
 

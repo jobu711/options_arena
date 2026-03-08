@@ -39,6 +39,7 @@ from options_arena.models import (
     RiskAssessment,
     TradeThesis,
 )
+from options_arena.models.financial_datasets import FinancialDatasetsPackage
 from options_arena.models.intelligence import IntelligencePackage
 from options_arena.models.openbb import (
     FundamentalSnapshot,
@@ -48,6 +49,7 @@ from options_arena.models.openbb import (
 from options_arena.scoring import compute_dimensional_scores
 from options_arena.scoring.normalization import normalize_single_ticker
 from options_arena.services import MarketDataService, OptionsDataService
+from options_arena.services.financial_datasets import FinancialDatasetsService
 from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.openbb_service import OpenBBService
 
@@ -180,6 +182,14 @@ async def _run_debate_background(
         if intelligence_svc is not None:
             intel = await intelligence_svc.fetch_intelligence(ticker, float(quote.price))
 
+        # Fetch Financial Datasets enrichment (never raises — returns None on error)
+        fd_svc: FinancialDatasetsService | None = getattr(
+            request.app.state, "financial_datasets", None
+        )
+        fd_package: FinancialDatasetsPackage | None = None
+        if fd_svc is not None:
+            fd_package = await fd_svc.fetch_package(ticker)
+
         result: DebateResult = await run_debate(
             ticker_score=score_match,
             contracts=contracts,
@@ -193,6 +203,7 @@ async def _run_debate_background(
             flow=flow,
             sentiment=sentiment,
             intelligence=intel,
+            fd_package=fd_package,
         )
 
         # Persist debate to DB
@@ -440,6 +451,14 @@ async def _run_batch_debate_background(
                         ticker, float(ticker_info.current_price)
                     )
 
+                # Fetch Financial Datasets enrichment (never raises — returns None)
+                batch_fd_svc: FinancialDatasetsService | None = getattr(
+                    request.app.state, "financial_datasets", None
+                )
+                batch_fd_package: FinancialDatasetsPackage | None = None
+                if batch_fd_svc is not None:
+                    batch_fd_package = await batch_fd_svc.fetch_package(ticker)
+
                 # Create a per-ticker agent bridge that forwards to the batch bridge
                 agent_bridge = bridge.agent_bridge(ticker)
 
@@ -456,6 +475,7 @@ async def _run_batch_debate_background(
                     flow=batch_flow,
                     sentiment=batch_sentiment,
                     intelligence=batch_intel,
+                    fd_package=batch_fd_package,
                 )
 
                 total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens

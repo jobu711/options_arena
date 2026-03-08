@@ -75,6 +75,7 @@ from options_arena.models import (
     UnusualFlowSnapshot,
     VolatilityThesis,
 )
+from options_arena.models.financial_datasets import FinancialDatasetsPackage
 from options_arena.models.intelligence import IntelligencePackage
 
 logger = logging.getLogger(__name__)
@@ -115,6 +116,7 @@ def build_market_context(
     flow: UnusualFlowSnapshot | None = None,
     sentiment: NewsSentimentSnapshot | None = None,
     intelligence: IntelligencePackage | None = None,
+    fd_package: FinancialDatasetsPackage | None = None,
 ) -> MarketContext:
     """Map scan pipeline output to ``MarketContext`` for agent consumption.
 
@@ -210,14 +212,42 @@ def build_market_context(
         # Short interest
         short_ratio=ticker_info.short_ratio,
         short_pct_of_float=ticker_info.short_pct_of_float,
-        # OpenBB enrichment — fundamentals
-        pe_ratio=fundamentals.pe_ratio if fundamentals else None,
-        forward_pe=fundamentals.forward_pe if fundamentals else None,
-        peg_ratio=fundamentals.peg_ratio if fundamentals else None,
-        price_to_book=fundamentals.price_to_book if fundamentals else None,
-        debt_to_equity=fundamentals.debt_to_equity if fundamentals else None,
-        revenue_growth=fundamentals.revenue_growth if fundamentals else None,
-        profit_margin=fundamentals.profit_margin if fundamentals else None,
+        # Fundamental ratios — FD > OpenBB > None priority for 7 overlapping fields
+        pe_ratio=(
+            fd_package.metrics.pe_ratio
+            if fd_package and fd_package.metrics and fd_package.metrics.pe_ratio is not None
+            else (fundamentals.pe_ratio if fundamentals else None)
+        ),
+        forward_pe=(
+            fd_package.metrics.forward_pe
+            if fd_package and fd_package.metrics and fd_package.metrics.forward_pe is not None
+            else (fundamentals.forward_pe if fundamentals else None)
+        ),
+        peg_ratio=(
+            fd_package.metrics.peg_ratio
+            if fd_package and fd_package.metrics and fd_package.metrics.peg_ratio is not None
+            else (fundamentals.peg_ratio if fundamentals else None)
+        ),
+        price_to_book=(
+            fd_package.metrics.price_to_book
+            if fd_package and fd_package.metrics and fd_package.metrics.price_to_book is not None
+            else (fundamentals.price_to_book if fundamentals else None)
+        ),
+        debt_to_equity=(
+            fd_package.metrics.debt_to_equity
+            if fd_package and fd_package.metrics and fd_package.metrics.debt_to_equity is not None
+            else (fundamentals.debt_to_equity if fundamentals else None)
+        ),
+        revenue_growth=(
+            fd_package.metrics.revenue_growth
+            if fd_package and fd_package.metrics and fd_package.metrics.revenue_growth is not None
+            else (fundamentals.revenue_growth if fundamentals else None)
+        ),
+        profit_margin=(
+            fd_package.metrics.profit_margin
+            if fd_package and fd_package.metrics and fd_package.metrics.profit_margin is not None
+            else (fundamentals.profit_margin if fundamentals else None)
+        ),
         # OpenBB enrichment — unusual flow
         net_call_premium=flow.net_call_premium if flow else None,
         net_put_premium=flow.net_put_premium if flow else None,
@@ -313,6 +343,117 @@ def build_market_context(
         target_vomma=signals.vomma,
         # --- DSE: Direction confidence ---
         direction_confidence=ticker_score.direction_confidence,
+        # --- Financial Datasets enrichment (fd_* fields) ---
+        fd_revenue=(
+            fd_package.income.revenue
+            if fd_package and fd_package.income and fd_package.income.revenue is not None
+            else None
+        ),
+        fd_net_income=(
+            fd_package.income.net_income
+            if fd_package and fd_package.income and fd_package.income.net_income is not None
+            else None
+        ),
+        fd_gross_profit=(
+            fd_package.income.gross_profit
+            if fd_package and fd_package.income and fd_package.income.gross_profit is not None
+            else None
+        ),
+        fd_operating_income=(
+            fd_package.income.operating_income
+            if fd_package and fd_package.income and fd_package.income.operating_income is not None
+            else None
+        ),
+        fd_eps_diluted=(
+            fd_package.income.eps_diluted
+            if fd_package and fd_package.income and fd_package.income.eps_diluted is not None
+            else (
+                fd_package.metrics.eps_diluted
+                if fd_package and fd_package.metrics and fd_package.metrics.eps_diluted is not None
+                else None
+            )
+        ),
+        fd_gross_margin=(
+            fd_package.income.gross_margin
+            if fd_package and fd_package.income and fd_package.income.gross_margin is not None
+            else (
+                fd_package.metrics.gross_margin
+                if fd_package
+                and fd_package.metrics
+                and fd_package.metrics.gross_margin is not None
+                else None
+            )
+        ),
+        fd_operating_margin=(
+            fd_package.income.operating_margin
+            if fd_package and fd_package.income and fd_package.income.operating_margin is not None
+            else (
+                fd_package.metrics.operating_margin
+                if fd_package
+                and fd_package.metrics
+                and fd_package.metrics.operating_margin is not None
+                else None
+            )
+        ),
+        fd_net_margin=(
+            fd_package.income.net_margin
+            if fd_package and fd_package.income and fd_package.income.net_margin is not None
+            else (
+                fd_package.metrics.net_margin
+                if fd_package and fd_package.metrics and fd_package.metrics.net_margin is not None
+                else None
+            )
+        ),
+        fd_total_debt=(
+            fd_package.balance_sheet.total_debt
+            if fd_package
+            and fd_package.balance_sheet
+            and fd_package.balance_sheet.total_debt is not None
+            else None
+        ),
+        fd_total_cash=(
+            fd_package.balance_sheet.total_cash
+            if fd_package
+            and fd_package.balance_sheet
+            and fd_package.balance_sheet.total_cash is not None
+            else None
+        ),
+        fd_total_assets=(
+            fd_package.balance_sheet.total_assets
+            if fd_package
+            and fd_package.balance_sheet
+            and fd_package.balance_sheet.total_assets is not None
+            else None
+        ),
+        fd_current_ratio=(
+            fd_package.metrics.current_ratio
+            if fd_package and fd_package.metrics and fd_package.metrics.current_ratio is not None
+            else None
+        ),
+        fd_revenue_growth=(
+            fd_package.metrics.revenue_growth
+            if fd_package and fd_package.metrics and fd_package.metrics.revenue_growth is not None
+            else None
+        ),
+        fd_earnings_growth=(
+            fd_package.metrics.earnings_growth
+            if fd_package and fd_package.metrics and fd_package.metrics.earnings_growth is not None
+            else None
+        ),
+        fd_ev_to_ebitda=(
+            fd_package.metrics.enterprise_value_to_ebitda
+            if fd_package
+            and fd_package.metrics
+            and fd_package.metrics.enterprise_value_to_ebitda is not None
+            else None
+        ),
+        fd_free_cash_flow_yield=(
+            fd_package.metrics.free_cash_flow_yield
+            if fd_package
+            and fd_package.metrics
+            and fd_package.metrics.free_cash_flow_yield is not None
+            else None
+        ),
     )
 
 
@@ -1127,6 +1268,7 @@ async def run_debate(
     flow: UnusualFlowSnapshot | None = None,
     sentiment: NewsSentimentSnapshot | None = None,
     intelligence: IntelligencePackage | None = None,
+    fd_package: FinancialDatasetsPackage | None = None,
 ) -> DebateResult:
     """Run 6-agent debate protocol. Falls back to data-driven on failure — never raises.
 
@@ -1179,6 +1321,7 @@ async def run_debate(
         flow=flow,
         sentiment=sentiment,
         intelligence=intelligence,
+        fd_package=fd_package,
     )
 
     completeness = context.completeness_ratio()

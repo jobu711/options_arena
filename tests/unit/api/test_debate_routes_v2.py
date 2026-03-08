@@ -278,6 +278,7 @@ def _make_mock_request() -> MagicMock:
     request = MagicMock()
     request.app.state.openbb = None
     request.app.state.intelligence = None
+    request.app.state.financial_datasets = None
     request.app.state.debate_queues = {}
     return request
 

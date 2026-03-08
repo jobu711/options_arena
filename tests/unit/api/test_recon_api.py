@@ -175,6 +175,7 @@ def _make_mock_request(
     request = MagicMock()
     request.app.state.openbb = openbb_svc
     request.app.state.intelligence = intelligence_svc
+    request.app.state.financial_datasets = None
     request.app.state.debate_queues = {}
     request.app.state.batch_queues = {}
     return request
@@ -213,9 +214,11 @@ class TestAPILifespanIntelligence:
             ),
             patch("options_arena.api.app.ServiceCache") as mock_cache_cls,
             patch("options_arena.api.app.RateLimiter"),
+            patch("options_arena.api.app.FinancialDatasetsService"),
         ):
             mock_settings = MagicMock()
             mock_settings.openbb.enabled = True
+            mock_settings.financial_datasets.enabled = False
             mock_settings.intelligence = IntelligenceConfig(enabled=True)
             mock_settings.data.db_path = str(tmp_path / "test.db")
             mock_settings_cls.return_value = mock_settings
@@ -262,9 +265,11 @@ class TestAPILifespanIntelligence:
             ),
             patch("options_arena.api.app.ServiceCache") as mock_cache_cls,
             patch("options_arena.api.app.RateLimiter"),
+            patch("options_arena.api.app.FinancialDatasetsService"),
         ):
             mock_settings = MagicMock()
             mock_settings.openbb.enabled = True
+            mock_settings.financial_datasets.enabled = False
             mock_settings.intelligence = IntelligenceConfig(enabled=False)
             mock_settings.data.db_path = str(tmp_path / "test.db")
             mock_settings_cls.return_value = mock_settings
@@ -308,9 +313,11 @@ class TestAPILifespanIntelligence:
             ),
             patch("options_arena.api.app.ServiceCache") as mock_cache_cls,
             patch("options_arena.api.app.RateLimiter"),
+            patch("options_arena.api.app.FinancialDatasetsService"),
         ):
             mock_settings = MagicMock()
             mock_settings.openbb.enabled = True
+            mock_settings.financial_datasets.enabled = False
             mock_settings.intelligence = IntelligenceConfig(enabled=True)
             mock_settings.data.db_path = str(tmp_path / "test.db")
             mock_settings_cls.return_value = mock_settings

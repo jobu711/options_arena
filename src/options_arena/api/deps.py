@@ -12,6 +12,7 @@ from fastapi import Request
 
 from options_arena.data import Repository
 from options_arena.models.config import AppSettings
+from options_arena.services.financial_datasets import FinancialDatasetsService
 from options_arena.services.fred import FredService
 from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.market_data import MarketDataService
@@ -59,6 +60,11 @@ def get_openbb(request: Request) -> OpenBBService | None:
 def get_intelligence(request: Request) -> IntelligenceService | None:
     """Inject the intelligence service (``None`` when disabled)."""
     return getattr(request.app.state, "intelligence", None)
+
+
+def get_financial_datasets(request: Request) -> FinancialDatasetsService | None:
+    """Inject the Financial Datasets service (``None`` when disabled or no API key)."""
+    return getattr(request.app.state, "financial_datasets", None)
 
 
 def get_operation_lock(request: Request) -> asyncio.Lock:

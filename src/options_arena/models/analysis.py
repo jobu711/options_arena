@@ -169,6 +169,24 @@ class MarketContext(BaseModel):
     # --- DSE: Direction Confidence ---
     direction_confidence: float | None = None  # [0.0, 1.0]
 
+    # --- Financial Datasets enrichment (fd_* prefix) ---
+    fd_revenue: float | None = None
+    fd_net_income: float | None = None
+    fd_gross_profit: float | None = None
+    fd_operating_income: float | None = None
+    fd_eps_diluted: float | None = None
+    fd_gross_margin: float | None = None
+    fd_operating_margin: float | None = None
+    fd_net_margin: float | None = None
+    fd_total_debt: float | None = None
+    fd_total_cash: float | None = None
+    fd_total_assets: float | None = None
+    fd_current_ratio: float | None = None
+    fd_revenue_growth: float | None = None
+    fd_earnings_growth: float | None = None
+    fd_ev_to_ebitda: float | None = None
+    fd_free_cash_flow_yield: float | None = None
+
     def completeness_ratio(self) -> float:
         """Fraction of optional context fields that are populated (not None).
 
@@ -290,6 +308,33 @@ class MarketContext(BaseModel):
         populated = sum(1 for f in dse_fields if f is not None)
         return populated / len(dse_fields)
 
+    def financial_datasets_ratio(self) -> float:
+        """Fraction of fd_* fields populated (0.0 to 1.0).
+
+        Separate from ``completeness_ratio()`` so that Financial Datasets data
+        doesn't penalise debates when the service is disabled or unavailable.
+        """
+        fd_fields: list[float | None] = [
+            self.fd_revenue,
+            self.fd_net_income,
+            self.fd_gross_profit,
+            self.fd_operating_income,
+            self.fd_eps_diluted,
+            self.fd_gross_margin,
+            self.fd_operating_margin,
+            self.fd_net_margin,
+            self.fd_total_debt,
+            self.fd_total_cash,
+            self.fd_total_assets,
+            self.fd_current_ratio,
+            self.fd_revenue_growth,
+            self.fd_earnings_growth,
+            self.fd_ev_to_ebitda,
+            self.fd_free_cash_flow_yield,
+        ]
+        populated = sum(1 for f in fd_fields if f is not None)
+        return populated / len(fd_fields)
+
     @field_validator("rsi_14", "target_delta", "dividend_yield", "composite_score")
     @classmethod
     def validate_required_finite(cls, v: float) -> float:
@@ -361,6 +406,23 @@ class MarketContext(BaseModel):
         "target_vomma",
         # DSE direction confidence
         "direction_confidence",
+        # Financial Datasets enrichment
+        "fd_revenue",
+        "fd_net_income",
+        "fd_gross_profit",
+        "fd_operating_income",
+        "fd_eps_diluted",
+        "fd_gross_margin",
+        "fd_operating_margin",
+        "fd_net_margin",
+        "fd_total_debt",
+        "fd_total_cash",
+        "fd_total_assets",
+        "fd_current_ratio",
+        "fd_revenue_growth",
+        "fd_earnings_growth",
+        "fd_ev_to_ebitda",
+        "fd_free_cash_flow_yield",
     )
     @classmethod
     def validate_optional_finite(cls, v: float | None) -> float | None:

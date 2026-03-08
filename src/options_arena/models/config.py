@@ -509,6 +509,48 @@ class AnalyticsConfig(BaseModel):
         return v
 
 
+class FinancialDatasetsConfig(BaseModel):
+    """Financial Datasets AI configuration — controls optional fundamental data enrichment.
+
+    When ``enabled`` is ``False``, the entire financialdatasets.ai integration is
+    skipped. ``api_key`` is required for authenticated requests; ``None`` means
+    unauthenticated (rate-limited). ``cache_ttl`` controls how long responses are
+    cached (in seconds).
+    """
+
+    enabled: bool = True
+    api_key: SecretStr | None = None
+    base_url: str = "https://api.financialdatasets.ai"
+    request_timeout: float = 10.0
+    cache_ttl: int = 3600
+
+    @field_validator("api_key", mode="before")
+    @classmethod
+    def normalize_blank_api_key(cls, v: object) -> object:
+        """Treat blank or whitespace-only API keys as unset (None)."""
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
+    @field_validator("request_timeout")
+    @classmethod
+    def validate_request_timeout(cls, v: float) -> float:
+        """Ensure request_timeout is finite and positive."""
+        if not math.isfinite(v):
+            raise ValueError(f"request_timeout must be finite, got {v}")
+        if v <= 0.0:
+            raise ValueError(f"request_timeout must be > 0, got {v}")
+        return v
+
+    @model_validator(mode="after")
+    def validate_all_finite(self) -> Self:
+        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
+        for name, value in self.__dict__.items():
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+        return self
+
+
 class OpenBBConfig(BaseModel):
     """OpenBB Platform SDK configuration — controls optional enrichment data.
 
@@ -555,3 +597,4 @@ class AppSettings(BaseSettings):
     openbb: OpenBBConfig = OpenBBConfig()
     intelligence: IntelligenceConfig = IntelligenceConfig()
     analytics: AnalyticsConfig = AnalyticsConfig()
+    financial_datasets: FinancialDatasetsConfig = FinancialDatasetsConfig()
