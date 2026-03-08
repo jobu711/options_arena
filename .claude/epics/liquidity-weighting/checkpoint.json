@@ -1,12 +1,12 @@
 {
   "epic": "liquidity-weighting",
-  "phase": "synced",
-  "last_command": "/pm:epic-sync liquidity-weighting",
-  "last_updated": "2026-03-08T15:05:06Z",
-  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
+  "phase": "executing",
+  "last_command": "/pm:epic-start liquidity-weighting",
+  "last_updated": "2026-03-08T16:00:00Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced", "executing"],
   "current_task": null,
-  "tasks_completed": [],
+  "tasks_completed": [376, 377, 378, 379, 380, 381, 382, 383],
   "tasks_in_progress": [],
   "blockers": [],
-  "notes": ""
+  "notes": "All 8 tasks completed. 7 production files modified, 6 test files created. 4132 unit tests pass (0 failures). Ready for merge."
 }
