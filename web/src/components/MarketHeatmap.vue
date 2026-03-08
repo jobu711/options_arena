@@ -29,7 +29,7 @@ watch(containerRef, (el) => {
     })
     resizeObserver.observe(el)
   }
-})
+}, { flush: 'post' })
 
 // ---------------------------------------------------------------------------
 // Squarify algorithm (standard Bruls-Huizing-van Wijk 2000)
@@ -374,8 +374,8 @@ onUnmounted(() => {
       />
     </div>
 
-    <!-- Loading -->
-    <div v-if="store.loading && store.tickers.length === 0" class="heatmap-skeleton">
+    <!-- Loading (show skeleton until the first fetch completes) -->
+    <div v-if="!store.initialized || (store.loading && store.tickers.length === 0)" class="heatmap-skeleton">
       <Skeleton width="100%" height="500px" />
     </div>
 
