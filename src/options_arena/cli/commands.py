@@ -41,6 +41,7 @@ from options_arena.models.enums import (
     SECTOR_ALIASES,
     GICSIndustryGroup,
     GICSSector,
+    LLMProvider,
     MarketCapTier,
     ScanPreset,
     SignalDirection,
@@ -412,6 +413,9 @@ def debate(
     export_dir: str = typer.Option("./reports", "--export-dir", help="Export output directory"),
     no_openbb: bool = typer.Option(False, "--no-openbb", help="Skip OpenBB enrichment"),
     no_recon: bool = typer.Option(False, "--no-recon", help="Skip intelligence fetching"),
+    provider: LLMProvider = typer.Option(  # noqa: B008
+        LLMProvider.GROQ, "--provider", help="LLM provider: groq (free) or anthropic"
+    ),
 ) -> None:
     """Run AI debate on a scored ticker."""
     if batch and ticker is not None:
@@ -429,7 +433,13 @@ def debate(
 
     if batch:
         asyncio.run(
-            _batch_async(batch_limit, fallback_only, no_openbb=no_openbb, no_recon=no_recon)
+            _batch_async(
+                batch_limit,
+                fallback_only,
+                no_openbb=no_openbb,
+                no_recon=no_recon,
+                provider=provider,
+            )
         )
     else:
         assert ticker is not None  # validated above
@@ -442,6 +452,7 @@ def debate(
                 export_dir,
                 no_openbb=no_openbb,
                 no_recon=no_recon,
+                provider=provider,
             )
         )
 
@@ -452,9 +463,12 @@ async def _batch_async(
     *,
     no_openbb: bool = False,
     no_recon: bool = False,
+    provider: LLMProvider = LLMProvider.GROQ,
 ) -> None:
     """Batch debate: run debates for top-scored tickers from the latest scan."""
     settings = AppSettings()
+    if provider != settings.debate.provider:
+        settings.debate = settings.debate.model_copy(update={"provider": provider})
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
     cache = ServiceCache(settings.service)
     limiter = RateLimiter(
@@ -762,9 +776,12 @@ async def _debate_async(
     *,
     no_openbb: bool = False,
     no_recon: bool = False,
+    provider: LLMProvider = LLMProvider.GROQ,
 ) -> None:
     """Run AI debate with full service lifecycle management."""
     settings = AppSettings()
+    if provider != settings.debate.provider:
+        settings.debate = settings.debate.model_copy(update={"provider": provider})
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
     cache = ServiceCache(settings.service)
     limiter = RateLimiter(

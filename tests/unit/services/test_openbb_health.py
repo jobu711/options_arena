@@ -142,9 +142,12 @@ class TestCheckAllIncludesOpenBB:
         health_service.check_cboe = AsyncMock(  # type: ignore[method-assign]
             return_value=_make_status("cboe")
         )
+        health_service.check_anthropic = AsyncMock(  # type: ignore[method-assign]
+            return_value=_make_status("anthropic", available=False)
+        )
 
         results = await health_service.check_all()
-        assert len(results) == 7
+        assert len(results) == 8
 
 
 def _make_status(name: str, available: bool = True) -> object:
