@@ -1,8 +1,9 @@
 ---
 name: anthropic-api
-status: backlog
+status: completed
 created: 2026-03-03T10:25:40Z
-progress: 0%
+completed: 2026-03-08T22:00:00Z
+progress: 100%
 prd: .claude/prds/anthropic-api.md
 github: https://github.com/jobu711/options_arena/issues/214
 ---
@@ -79,11 +80,11 @@ All tasks are additive (no breaking changes) and follow a bottom-up dependency o
 
 ## Tasks Created
 
-- [ ] #215 - Add LLMProvider enum and extend DebateConfig/ServiceConfig (parallel: false)
-- [ ] #216 - Refactor build_debate_model() into multi-provider dispatcher (parallel: true)
-- [ ] #217 - Add conditional ModelSettings for extended thinking in orchestrator (parallel: true)
-- [ ] #218 - Add check_anthropic() health check to HealthService (parallel: true)
-- [ ] #219 - Add --provider CLI flag and anthropic dependency (parallel: false)
+- [x] #215 - Add LLMProvider enum and extend DebateConfig/ServiceConfig (parallel: false)
+- [x] #216 - Refactor build_debate_model() into multi-provider dispatcher (parallel: true)
+- [x] #217 - Add conditional ModelSettings for extended thinking in orchestrator (parallel: true)
+- [x] #218 - Add check_anthropic() health check to HealthService (parallel: true)
+- [x] #219 - Add --provider CLI flag and anthropic dependency (parallel: false)
 
 Total tasks: 5
 Parallel tasks: 3 (#216, #217, #218 — after #215 completes)
