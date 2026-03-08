@@ -74,6 +74,36 @@ err_console = Console(stderr=True)
 # Near-zero timeout that forces the data-driven fallback path (skips AI agents)
 _FALLBACK_ONLY_TIMEOUT_SEC = 0.001
 
+
+def _validate_provider_config(provider: LLMProvider, settings: AppSettings) -> None:
+    """Fail fast if the selected LLM provider is missing its API key.
+
+    Raises ``typer.Exit(1)`` with a helpful error message instead of silently
+    falling back to data-driven mode when the provider can't actually run.
+    """
+    import os  # noqa: PLC0415
+
+    if provider == LLMProvider.ANTHROPIC:
+        has_key = (
+            settings.debate.anthropic_api_key is not None
+            or os.environ.get("ANTHROPIC_API_KEY") is not None
+        )
+        if not has_key:
+            err_console.print(
+                "[red]Anthropic provider requires an API key. "
+                "Set ANTHROPIC_API_KEY or ARENA_DEBATE__ANTHROPIC_API_KEY.[/red]"
+            )
+            raise typer.Exit(code=1)
+    elif provider == LLMProvider.GROQ:
+        has_key = settings.debate.api_key is not None or os.environ.get("GROQ_API_KEY") is not None
+        if not has_key:
+            err_console.print(
+                "[red]Groq provider requires an API key. "
+                "Set GROQ_API_KEY or ARENA_DEBATE__API_KEY.[/red]"
+            )
+            raise typer.Exit(code=1)
+
+
 # Resolve data directory from project root (src/options_arena/cli/commands.py → parents[3])
 _DATA_DIR = Path(__file__).resolve().parents[3] / "data"
 
@@ -430,6 +460,10 @@ def debate(
     if export is not None and export != "md":
         err_console.print("[red]--export must be 'md'.[/red]")
         raise typer.Exit(code=1)
+
+    if not fallback_only:
+        settings = AppSettings()
+        _validate_provider_config(provider, settings)
 
     if batch:
         asyncio.run(

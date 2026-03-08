@@ -311,6 +311,48 @@ class TestCheckAnthropic:
         assert result.error == "HTTP 500"
 
     @pytest.mark.asyncio
+    async def test_forbidden_403(self, service: HealthService) -> None:
+        """Anthropic returning 403 marks service as unavailable."""
+        config = ServiceConfig(
+            anthropic_api_key="sk-ant-test-key",
+            groq_api_key="gsk_test_key_for_health",
+        )
+        svc = HealthService(config)
+        mock_response = httpx.Response(
+            status_code=403,
+            request=httpx.Request("GET", "test"),
+        )
+        svc._client.get = AsyncMock(return_value=mock_response)  # type: ignore[method-assign]
+
+        result = await svc.check_anthropic()
+
+        assert result.service_name == "anthropic"
+        assert result.available is False
+        assert result.error is not None
+        assert "403" in result.error
+
+    @pytest.mark.asyncio
+    async def test_rate_limited_429(self, service: HealthService) -> None:
+        """Anthropic returning 429 marks service as available but rate-limited."""
+        config = ServiceConfig(
+            anthropic_api_key="sk-ant-test-key",
+            groq_api_key="gsk_test_key_for_health",
+        )
+        svc = HealthService(config)
+        mock_response = httpx.Response(
+            status_code=429,
+            request=httpx.Request("GET", "test"),
+        )
+        svc._client.get = AsyncMock(return_value=mock_response)  # type: ignore[method-assign]
+
+        result = await svc.check_anthropic()
+
+        assert result.service_name == "anthropic"
+        assert result.available is True
+        assert result.error is not None
+        assert "429" in result.error
+
+    @pytest.mark.asyncio
     async def test_network_exception(self, service: HealthService) -> None:
         """Anthropic connection error returns available=False with error."""
         config = ServiceConfig(

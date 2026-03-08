@@ -701,7 +701,9 @@ async def _persist_result(
     """Persist debate result to the database. Never raises -- logs on failure."""
     try:
         total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens
-        model_name = config.model
+        model_name = (
+            config.anthropic_model if config.provider == LLMProvider.ANTHROPIC else config.model
+        )
 
         # Compute debate_mode for A/B logging
         if result.is_fallback:

@@ -284,6 +284,15 @@ class ServiceConfig(BaseModel):
                 raise ValueError(f"{name} must be finite, got {value}")
         return self
 
+    @model_validator(mode="after")
+    def validate_timeouts_positive(self) -> Self:
+        """Ensure all timeout fields are strictly positive."""
+        for name in ("yfinance_timeout", "fred_timeout", "cboe_timeout", "health_check_timeout"):
+            value = getattr(self, name)
+            if value <= 0.0:
+                raise ValueError(f"{name} must be > 0, got {value}")
+        return self
+
 
 class LogConfig(BaseModel):
     """Logging configuration — controls JSON mode for structured logging."""
