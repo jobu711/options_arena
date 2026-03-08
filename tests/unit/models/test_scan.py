@@ -124,7 +124,7 @@ class TestIndicatorSignals:
         assert partial_signals.max_pain_distance is None
 
     def test_exactly_61_model_fields(self) -> None:
-        """IndicatorSignals has exactly 61 model fields (18 original + 1 MACD + 40 DSE + 2 liquidity)."""
+        """IndicatorSignals has exactly 61 model fields (18 orig + 1 MACD + 40 DSE + 2 liq)."""
         assert len(IndicatorSignals.model_fields) == 61
 
     def test_not_frozen_can_reassign(self, empty_signals: IndicatorSignals) -> None:

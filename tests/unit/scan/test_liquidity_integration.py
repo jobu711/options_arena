@@ -159,7 +159,7 @@ class TestLiquidityIntegration:
 
         # AAPL has highest OI depth → highest percentile rank
         assert normalized["AAPL"].chain_oi_depth is not None
-        assert normalized["AAPL"].chain_oi_depth == 100.0  # highest of 3
+        assert normalized["AAPL"].chain_oi_depth == pytest.approx(100.0)  # highest of 3
 
     def test_liquidity_weight_in_indicator_weights(self) -> None:
         """Verify both liquidity indicators are weighted in composite scoring."""

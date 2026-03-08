@@ -315,7 +315,9 @@ def _compute_liquidity_score(
     Floor of 0.01 prevents division-by-zero in effective distance.
     """
     mid = float(contract.mid)
-    if mid > 0:
+    if not math.isfinite(max_spread_pct) or max_spread_pct <= 0.0:
+        spread_component = 0.0
+    elif mid > 0:
         spread_pct = float(contract.spread) / mid
         spread_component = max(1.0 - spread_pct / max_spread_pct, 0.0)
     else:

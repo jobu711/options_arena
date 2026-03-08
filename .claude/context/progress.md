@@ -13,7 +13,7 @@
 
 ## In Progress
 
-- Liquidity weighting PRD drafted (`.claude/prds/liquidity-weighting.md`), epic scaffolded but not started
+- **Liquidity weighting epic** near complete (12/13 tasks, ~50 tests). PR #384 open.
 
 ## Recently Completed
 

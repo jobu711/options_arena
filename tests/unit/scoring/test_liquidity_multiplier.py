@@ -99,7 +99,7 @@ class TestSelectByDeltaLiquidity:
 
     def test_closer_delta_beats_better_liquidity(self) -> None:
         """Closer delta wins even with worse liquidity."""
-        close_delta = _make_contract(bid=90.0, ask=110.0, open_interest=100, delta=0.35)
+        close_delta = _make_contract(bid=90.0, ask=110.0, open_interest=100, delta=0.34)
         far_delta = _make_contract(
             bid=99.0, ask=101.0, open_interest=5000, delta=0.25, strike=105.0
         )

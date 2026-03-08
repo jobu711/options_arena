@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 #
 # NOTE: ``relative_volume`` is intentionally NOT inverted.  High relative volume
 # signals institutional attention and better options liquidity — desirable traits
-# for an options scanner.  Only volatility-width indicators are inverted (wider
-# bands = more uncertainty = less favorable).
+# for an options scanner.  Volatility-width and liquidity-spread indicators are
+# inverted because wider ranges/spreads are less favorable.
 INVERTED_INDICATORS: frozenset[str] = frozenset(
     {
         "bb_width",

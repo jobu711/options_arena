@@ -680,20 +680,22 @@ def compute_phase3_indicators(
     # Reuses chain_df built at line 536 for flow analytics (same contracts input).
     try:
         if not chain_df.empty:
-            bid = chain_df["bid"]
-            ask = chain_df["ask"]
-            oi = chain_df["openInterest"]
-            mid = (ask + bid) / 2.0
+            bid_arr = chain_df["bid"].to_numpy(dtype=float)
+            ask_arr = chain_df["ask"].to_numpy(dtype=float)
+            oi_arr = chain_df["openInterest"].to_numpy(dtype=float)
+            mid_arr = (ask_arr + bid_arr) / 2.0
 
             # chain_spread_pct: OI-weighted avg spread as percentage points
-            valid = mid > 0
-            if valid.any():
-                spread = ask[valid] - bid[valid]
-                spread_pct = (spread / mid[valid]) * 100.0
-                oi_valid = oi[valid]
-                total_oi = oi_valid.sum()
-                if total_oi > 0:
-                    weighted_spread = max(0.0, float((spread_pct * oi_valid).sum() / total_oi))
+            valid_mask = mid_arr > 0
+            if valid_mask.any():
+                spread_arr = ask_arr[valid_mask] - bid_arr[valid_mask]
+                spread_pct_arr = (spread_arr / mid_arr[valid_mask]) * 100.0
+                oi_valid_arr = oi_arr[valid_mask]
+                total_oi_f = float(oi_valid_arr.sum())
+                if total_oi_f > 0:
+                    weighted_spread = max(
+                        0.0, float((spread_pct_arr * oi_valid_arr).sum() / total_oi_f)
+                    )
                     if math.isfinite(weighted_spread):
                         signals.chain_spread_pct = weighted_spread
     except Exception:
@@ -704,9 +706,8 @@ def compute_phase3_indicators(
 
     try:
         if not chain_df.empty:
-            oi = chain_df["openInterest"]
             # chain_oi_depth: log10(total_oi + 1)
-            total_oi_all = int(oi.sum())
+            total_oi_all = int(chain_df["openInterest"].sum())
             depth = math.log10(total_oi_all + 1)
             if math.isfinite(depth):
                 signals.chain_oi_depth = depth
