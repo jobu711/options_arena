@@ -677,8 +677,8 @@ def compute_phase3_indicators(
         )
 
     # --- Liquidity (chain-wide spread and depth) ---
+    # Reuses chain_df built at line 536 for flow analytics (same contracts input).
     try:
-        chain_df = _contracts_to_dataframe(contracts)
         if not chain_df.empty:
             bid = chain_df["bid"]
             ask = chain_df["ask"]
@@ -693,10 +693,18 @@ def compute_phase3_indicators(
                 oi_valid = oi[valid]
                 total_oi = oi_valid.sum()
                 if total_oi > 0:
-                    weighted_spread = float((spread_pct * oi_valid).sum() / total_oi)
+                    weighted_spread = max(0.0, float((spread_pct * oi_valid).sum() / total_oi))
                     if math.isfinite(weighted_spread):
                         signals.chain_spread_pct = weighted_spread
+    except Exception:
+        logger.warning(
+            "Indicator chain_spread_pct failed; setting to None",
+            exc_info=True,
+        )
 
+    try:
+        if not chain_df.empty:
+            oi = chain_df["openInterest"]
             # chain_oi_depth: log10(total_oi + 1)
             total_oi_all = int(oi.sum())
             depth = math.log10(total_oi_all + 1)
@@ -704,7 +712,7 @@ def compute_phase3_indicators(
                 signals.chain_oi_depth = depth
     except Exception:
         logger.warning(
-            "Indicator chain_spread_pct/chain_oi_depth failed; setting to None",
+            "Indicator chain_oi_depth failed; setting to None",
             exc_info=True,
         )
 
