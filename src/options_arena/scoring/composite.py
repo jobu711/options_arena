@@ -63,7 +63,8 @@ if abs(sum(w for w, _ in INDICATOR_WEIGHTS.values()) - 1.0) >= 1e-9:
     raise ValueError("Indicator weights must sum to 1.0")
 
 # Floor value substituted for percentile ranks <= 0 to avoid log(0).
-_FLOOR_VALUE: float = 1.0
+# ln(0.5) ≈ -0.693 — bottom-ranked tickers contribute negative signal
+_FLOOR_VALUE: float = 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +78,7 @@ def composite_score(
 ) -> float:
     """Compute a weighted geometric mean composite score for a single ticker.
 
-    The score is ``exp(sum(w_i * ln(max(x_i, 1.0))) / sum(w_i))`` where
+    The score is ``exp(sum(w_i * ln(max(x_i, 0.5))) / sum(w_i))`` where
     *w_i* is the weight for indicator *i* and *x_i* is the percentile rank.
 
     Indicators that are ``None`` on *signals*, not present in

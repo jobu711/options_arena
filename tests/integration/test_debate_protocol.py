@@ -677,28 +677,33 @@ class TestRunDebateV2:
 class TestAgentVoteWeights:
     """Tests for AGENT_VOTE_WEIGHTS constant."""
 
-    def test_weights_sum_positive(self) -> None:
-        """Voting agent weights should be positive.
+    def test_directional_weights_sum(self) -> None:
+        """Directional agent weights (excluding risk) sum to 0.85.
 
         Note: log-odds pooling does NOT require weights to sum to 1.0.
         Each weight scales how much the agent shifts the pooled log-odds.
-        Risk was removed from AGENT_VOTE_WEIGHTS (Phase 2 non-voting agent).
+        Risk has weight 0.0 (advisory-only, no directional vote).
         """
         total = sum(AGENT_VOTE_WEIGHTS.values())
         assert total == pytest.approx(0.85)
-        assert all(w > 0 for w in AGENT_VOTE_WEIGHTS.values())
+        assert all(w >= 0 for w in AGENT_VOTE_WEIGHTS.values())
 
     def test_all_agents_have_weights(self) -> None:
-        """All 5 voting agents have weight entries (risk is Phase 2, non-voting)."""
-        expected = {"trend", "volatility", "flow", "fundamental", "contrarian"}
+        """All 6 agents have weight entries (risk is advisory-only at 0.0)."""
+        expected = {"trend", "volatility", "flow", "fundamental", "contrarian", "risk"}
         assert set(AGENT_VOTE_WEIGHTS.keys()) == expected
+
+    def test_risk_weight_is_zero(self) -> None:
+        """Risk agent is advisory-only and has zero vote weight."""
+        assert AGENT_VOTE_WEIGHTS["risk"] == pytest.approx(0.0)
 
     def test_trend_has_highest_weight(self) -> None:
         """Trend agent has the highest individual weight."""
         max_name = max(AGENT_VOTE_WEIGHTS, key=AGENT_VOTE_WEIGHTS.get)  # type: ignore[arg-type]
         assert max_name == "trend"
 
-    def test_contrarian_has_lowest_weight(self) -> None:
-        """Contrarian agent has the lowest individual weight."""
-        min_name = min(AGENT_VOTE_WEIGHTS, key=AGENT_VOTE_WEIGHTS.get)  # type: ignore[arg-type]
+    def test_contrarian_has_lowest_positive_weight(self) -> None:
+        """Contrarian agent has the lowest positive (non-zero) weight."""
+        positive_weights = {k: v for k, v in AGENT_VOTE_WEIGHTS.items() if v > 0}
+        min_name = min(positive_weights, key=positive_weights.get)  # type: ignore[arg-type]
         assert min_name == "contrarian"

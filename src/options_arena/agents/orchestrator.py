@@ -768,14 +768,15 @@ async def _persist_result(
 # ---------------------------------------------------------------------------
 
 # Agent vote weights for verdict synthesis.
-# Sum is intentionally < 1.0 (0.85) — risk agent has no directional vote so it
-# is excluded. Unnormalized weights are correct for Bordley 1982 log-odds pooling.
+# Directional weights sum to 0.85 — unnormalized weights are correct for
+# Bordley 1982 log-odds pooling.
 AGENT_VOTE_WEIGHTS: dict[str, float] = {
     "trend": 0.25,
     "volatility": 0.20,
     "flow": 0.20,
     "fundamental": 0.15,
     "contrarian": 0.05,
+    "risk": 0.0,  # Risk agent is advisory-only — informs but doesn't vote on direction
 }
 
 
