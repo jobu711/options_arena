@@ -11,6 +11,7 @@ from options_arena.services.health import HealthService
 from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.market_data import (
     BatchOHLCVResult,
+    BatchQuote,
     MarketDataService,
     TickerOHLCVResult,
 )
@@ -36,6 +37,7 @@ from options_arena.services.universe import (
 
 __all__ = [
     "BatchOHLCVResult",
+    "BatchQuote",
     "CBOEChainProvider",
     "ChainProvider",
     "ExpirationChain",

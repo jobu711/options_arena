@@ -8,12 +8,14 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
+from pydantic import ValidationError
 
 from options_arena.models.config import ServiceConfig
 from options_arena.models.enums import DividendSource, MarketCapTier
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
 from options_arena.services.cache import ServiceCache
 from options_arena.services.market_data import (
+    BatchQuote,
     MarketDataService,
     _classify_market_cap,
     _extract_dividend_yield,
@@ -869,3 +871,204 @@ class TestTimeout:
             mock_yf.Ticker.return_value = mock_ticker
             with pytest.raises(DataSourceUnavailableError, match="connection reset"):
                 await service.fetch_ohlcv("ERR")
+
+
+# ---------------------------------------------------------------------------
+# Helpers for yf.download() MultiIndex DataFrames
+# ---------------------------------------------------------------------------
+
+
+def _make_multi_ticker_df(
+    ticker_data: dict[str, dict[str, list[float]]],
+) -> pd.DataFrame:
+    """Build a yf.download(group_by='ticker') style MultiIndex DataFrame."""
+    arrays: dict[tuple[str, str], list[float]] = {}
+    for ticker, cols in ticker_data.items():
+        for col_name, values in cols.items():
+            arrays[(ticker, col_name)] = values
+
+    columns = pd.MultiIndex.from_tuples(list(arrays.keys()))
+    row_count = len(next(iter(next(iter(ticker_data.values())).values())))
+    idx = pd.DatetimeIndex([f"2025-01-0{i + 1}" for i in range(row_count)])
+    return pd.DataFrame(arrays, index=idx, columns=columns)
+
+
+def _make_single_ticker_df(
+    close: list[float],
+    volume: list[int],
+) -> pd.DataFrame:
+    """Build a yf.download() DataFrame for a single ticker (no MultiIndex)."""
+    idx = pd.DatetimeIndex([f"2025-01-0{i + 1}" for i in range(len(close))])
+    return pd.DataFrame({"Close": close, "Volume": volume}, index=idx)
+
+
+# ---------------------------------------------------------------------------
+# TestBatchQuoteModel
+# ---------------------------------------------------------------------------
+
+
+class TestBatchQuoteModel:
+    """Validation tests for the BatchQuote frozen Pydantic model."""
+
+    def test_frozen_model(self) -> None:
+        """Verify BatchQuote is immutable."""
+        q = BatchQuote(ticker="AAPL", price=185.0, change_pct=1.5, volume=1_000_000)
+        with pytest.raises(ValidationError):
+            q.price = 200.0  # type: ignore[misc]
+
+    def test_isfinite_rejects_nan_price(self) -> None:
+        """Verify NaN price raises ValidationError."""
+        with pytest.raises(ValidationError, match="finite"):
+            BatchQuote(ticker="AAPL", price=float("nan"), change_pct=1.0, volume=100)
+
+    def test_isfinite_rejects_inf_price(self) -> None:
+        """Verify Inf price raises ValidationError."""
+        with pytest.raises(ValidationError, match="finite"):
+            BatchQuote(ticker="AAPL", price=float("inf"), change_pct=1.0, volume=100)
+
+    def test_price_must_be_positive(self) -> None:
+        """Verify zero/negative price raises ValidationError."""
+        with pytest.raises(ValidationError, match="positive"):
+            BatchQuote(ticker="AAPL", price=0.0, change_pct=1.0, volume=100)
+
+    def test_isfinite_rejects_inf_change_pct(self) -> None:
+        """Verify Inf change_pct raises ValidationError."""
+        with pytest.raises(ValidationError, match="finite"):
+            BatchQuote(ticker="AAPL", price=185.0, change_pct=float("inf"), volume=100)
+
+    def test_none_change_pct_allowed(self) -> None:
+        """Verify None change_pct passes validation."""
+        q = BatchQuote(ticker="AAPL", price=185.0, change_pct=None, volume=100)
+        assert q.change_pct is None
+
+    def test_valid_construction(self) -> None:
+        """Verify valid data constructs a BatchQuote with correct fields."""
+        q = BatchQuote(ticker="MSFT", price=400.0, change_pct=-2.5, volume=5_000_000)
+        assert q.ticker == "MSFT"
+        assert q.price == pytest.approx(400.0)
+        assert q.change_pct == pytest.approx(-2.5)
+        assert q.volume == 5_000_000
+
+    def test_json_roundtrip(self) -> None:
+        """Verify model_dump_json + model_validate_json roundtrip."""
+        q = BatchQuote(ticker="AAPL", price=185.50, change_pct=1.23, volume=100)
+        restored = BatchQuote.model_validate_json(q.model_dump_json())
+        assert restored == q
+
+
+# ---------------------------------------------------------------------------
+# TestFetchBatchDailyChanges
+# ---------------------------------------------------------------------------
+
+
+class TestFetchBatchDailyChanges:
+    """Tests for MarketDataService.fetch_batch_daily_changes."""
+
+    async def test_basic_batch_download(self, service: MarketDataService) -> None:
+        """Verify batch download returns BatchQuote for each ticker."""
+        df = _make_multi_ticker_df(
+            {
+                "AAPL": {"Close": [180.0, 185.0], "Volume": [1_000_000, 1_200_000]},
+                "MSFT": {"Close": [390.0, 400.0], "Volume": [500_000, 600_000]},
+            }
+        )
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.download.return_value = df
+            result = await service.fetch_batch_daily_changes(["AAPL", "MSFT"])
+        assert len(result) == 2
+        assert all(isinstance(q, BatchQuote) for q in result)
+        assert {q.ticker for q in result} == {"AAPL", "MSFT"}
+
+    async def test_change_pct_computation(self, service: MarketDataService) -> None:
+        """Verify (today - prev) / prev * 100 is correct."""
+        df = _make_multi_ticker_df(
+            {
+                "AAPL": {"Close": [180.0, 185.0], "Volume": [1_000_000, 1_200_000]},
+                "MSFT": {"Close": [390.0, 400.0], "Volume": [500_000, 600_000]},
+            }
+        )
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.download.return_value = df
+            result = await service.fetch_batch_daily_changes(["AAPL", "MSFT"])
+        aapl = next(q for q in result if q.ticker == "AAPL")
+        msft = next(q for q in result if q.ticker == "MSFT")
+        assert aapl.change_pct == pytest.approx(2.7778, rel=1e-3)
+        assert msft.change_pct == pytest.approx(2.5641, rel=1e-3)
+
+    async def test_partial_failure_skips_bad_tickers(self, service: MarketDataService) -> None:
+        """Verify tickers with missing data are omitted."""
+        df = _make_multi_ticker_df(
+            {
+                "AAPL": {"Close": [180.0, 185.0], "Volume": [1_000_000, 1_200_000]},
+                "BADTK": {"Close": [float("nan"), float("nan")], "Volume": [0, 0]},
+            }
+        )
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.download.return_value = df
+            result = await service.fetch_batch_daily_changes(["AAPL", "BADTK"])
+        assert len(result) == 1
+        assert result[0].ticker == "AAPL"
+
+    async def test_zero_prev_close_gives_none_change(self, service: MarketDataService) -> None:
+        """Verify zero prev_close results in None change_pct (not Inf)."""
+        df = _make_multi_ticker_df({"ZERP": {"Close": [0.0, 100.0], "Volume": [100, 200]}})
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.download.return_value = df
+            result = await service.fetch_batch_daily_changes(["ZERP"])
+        if result:
+            assert result[0].change_pct is None
+
+    async def test_cache_hit_returns_cached(self, service: MarketDataService) -> None:
+        """Verify second call returns cached result without yf.download()."""
+        df = _make_single_ticker_df(close=[180.0, 185.0], volume=[1_000_000, 1_200_000])
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.download.return_value = df
+            result1 = await service.fetch_batch_daily_changes(["AAPL"])
+            result2 = await service.fetch_batch_daily_changes(["AAPL"])
+            assert mock_yf.download.call_count == 1
+        assert len(result1) == 1
+        assert len(result2) == 1
+        assert result1[0].ticker == result2[0].ticker
+
+    async def test_empty_ticker_list(self, service: MarketDataService) -> None:
+        """Verify empty input returns empty list."""
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            result = await service.fetch_batch_daily_changes([])
+            mock_yf.download.assert_not_called()
+        assert result == []
+
+    async def test_single_ticker_non_multiindex(self, service: MarketDataService) -> None:
+        """Verify single-ticker case handles non-MultiIndex columns."""
+        df = _make_single_ticker_df(close=[180.0, 185.0], volume=[1_000_000, 1_200_000])
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.download.return_value = df
+            result = await service.fetch_batch_daily_changes(["AAPL"])
+        assert len(result) == 1
+        assert result[0].ticker == "AAPL"
+        assert result[0].price == pytest.approx(185.0)
+        assert result[0].change_pct == pytest.approx(2.7778, rel=1e-3)
+        assert result[0].volume == 1_200_000
+
+    async def test_download_failure_returns_empty(self, service: MarketDataService) -> None:
+        """Verify yf.download failure returns empty list."""
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.download.side_effect = RuntimeError("network error")
+            result = await service.fetch_batch_daily_changes(["AAPL"])
+        assert result == []
+
+    async def test_empty_dataframe_returns_empty(self, service: MarketDataService) -> None:
+        """Verify empty DataFrame from yf.download returns empty list."""
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.download.return_value = pd.DataFrame()
+            result = await service.fetch_batch_daily_changes(["AAPL"])
+        assert result == []
+
+    async def test_only_one_day_of_data(self, service: MarketDataService) -> None:
+        """Verify single day of data produces BatchQuote with None change_pct."""
+        df = _make_single_ticker_df(close=[185.0], volume=[1_000_000])
+        with patch("options_arena.services.market_data.yf") as mock_yf:
+            mock_yf.download.return_value = df
+            result = await service.fetch_batch_daily_changes(["AAPL"])
+        assert len(result) == 1
+        assert result[0].change_pct is None
+        assert result[0].price == pytest.approx(185.0)
