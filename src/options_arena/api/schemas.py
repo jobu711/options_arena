@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import math
 from datetime import datetime
+from decimal import Decimal
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -488,7 +489,7 @@ class HeatmapTicker(BaseModel):
     industry_group: str
     market_cap_weight: float
     change_pct: float | None
-    price: float
+    price: Decimal
     volume: int
 
     @field_validator("market_cap_weight")
@@ -502,8 +503,8 @@ class HeatmapTicker(BaseModel):
 
     @field_validator("price")
     @classmethod
-    def _validate_price(cls, v: float) -> float:
-        if not math.isfinite(v):
+    def _validate_price(cls, v: Decimal) -> Decimal:
+        if not math.isfinite(float(v)):
             raise ValueError("price must be finite")
         if v <= 0:
             raise ValueError("price must be positive")

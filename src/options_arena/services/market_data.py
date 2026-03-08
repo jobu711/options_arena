@@ -30,7 +30,6 @@ from options_arena.models.market_data import OHLCV, Quote, TickerInfo
 from options_arena.services.cache import (
     TTL_EARNINGS,
     TTL_FUNDAMENTALS,
-    TTL_HEATMAP,
     TTL_OHLCV,
     TTL_REFERENCE,
     ServiceCache,
@@ -750,7 +749,7 @@ class MarketDataService:
 
         Uses ``yf.download()`` to fetch 2 days of data for all tickers at once,
         then computes the daily percent change. Results are cached with a 5-minute
-        TTL (``TTL_HEATMAP``).
+        heatmap TTL via ``cache.ttl_for("heatmap")``.
         """
         if not tickers:
             return []
@@ -763,18 +762,19 @@ class MarketDataService:
             return _deserialize_batch_quotes(cached)
 
         try:
-            df: pd.DataFrame = await asyncio.wait_for(
-                asyncio.to_thread(
-                    yf.download,
-                    tickers=" ".join(tickers),
-                    period="2d",
-                    group_by="ticker",
-                    progress=False,
-                    threads=True,
-                    timeout=30,
-                ),
-                timeout=30,
-            )
+            async with self._limiter:
+                df: pd.DataFrame = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        yf.download,
+                        tickers=" ".join(tickers),
+                        period="2d",
+                        group_by="ticker",
+                        progress=False,
+                        threads=True,
+                        timeout=self._config.yfinance_timeout,
+                    ),
+                    timeout=self._config.yfinance_timeout,
+                )
         except Exception:
             logger.warning("yf.download batch fetch failed", exc_info=True)
             return []
@@ -827,7 +827,7 @@ class MarketDataService:
                 continue
 
         serialized = _serialize_batch_quotes(quotes)
-        await self._cache.set(cache_key, serialized, ttl=TTL_HEATMAP)
+        await self._cache.set(cache_key, serialized, ttl=self._cache.ttl_for("heatmap"))
 
         logger.debug(
             "Fetched batch daily changes: %d/%d tickers succeeded",

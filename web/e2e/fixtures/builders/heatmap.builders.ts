@@ -11,7 +11,7 @@ export function buildHeatmapTicker(
     industry_group: 'Software & Services',
     market_cap_weight: 100,
     change_pct: 1.5,
-    price: 175.5,
+    price: '175.50',
     volume: 5_000_000,
     ...overrides,
   }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Request
 
@@ -11,7 +12,10 @@ from options_arena.api.deps import get_market_data, get_repo, get_universe
 from options_arena.api.schemas import HeatmapTicker
 from options_arena.data import Repository
 from options_arena.models.enums import MarketCapTier
+from options_arena.models.metadata import TickerMetadata
 from options_arena.services import MarketDataService, UniverseService
+from options_arena.services.market_data import BatchQuote
+from options_arena.services.universe import SP500Constituent
 
 logger = logging.getLogger(__name__)
 
@@ -30,50 +34,27 @@ MARKET_CAP_WEIGHTS: dict[MarketCapTier, float] = {
 _DEFAULT_WEIGHT: float = 10.0
 
 
-@router.get("/heatmap")
-@limiter.limit("10/minute")
-async def get_heatmap(
-    request: Request,
-    market_data: MarketDataService = Depends(get_market_data),
-    universe: UniverseService = Depends(get_universe),
-    repo: Repository = Depends(get_repo),
+def build_heatmap_tickers(
+    constituents: list[SP500Constituent],
+    quotes: list[BatchQuote],
+    metadata: list[TickerMetadata],
 ) -> list[HeatmapTicker]:
-    """Return S&P 500 heatmap data: daily changes joined with metadata.
-
-    The endpoint is a thin join — no business logic:
-    1. Fetch S&P 500 constituents (source of truth for ticker list).
-    2. Fetch batch daily changes for those tickers.
-    3. Fetch cached ticker metadata for enrichment.
-    4. Join into ``HeatmapTicker`` response models.
+    """Join constituents, quotes, and metadata into heatmap ticker entries.
 
     Tickers without a ``BatchQuote`` are omitted. Missing metadata
     falls back to ``sector="Unknown"``, ``company_name=ticker``, ``weight=10``.
     """
-    # 1. Get S&P 500 tickers
-    constituents = await universe.fetch_sp500_constituents()
-    if not constituents:
-        return []
-
-    tickers = [c.ticker for c in constituents]
-    constituent_map = {c.ticker: c for c in constituents}
-
-    # 2. Fetch batch daily changes
-    quotes = await market_data.fetch_batch_daily_changes(tickers)
     quote_map = {q.ticker: q for q in quotes}
+    meta_map = {m.ticker: m for m in metadata}
 
-    # 3. Fetch metadata for enrichment
-    all_metadata = await repo.get_all_ticker_metadata()
-    meta_map = {m.ticker: m for m in all_metadata}
-
-    # 4. Join — only include tickers that have a quote
     result: list[HeatmapTicker] = []
-    for ticker in tickers:
+    for constituent in constituents:
+        ticker = constituent.ticker
         quote = quote_map.get(ticker)
         if quote is None:
             continue
 
         meta = meta_map.get(ticker)
-        constituent = constituent_map[ticker]
 
         # Determine sector: metadata > constituent > fallback
         if meta and meta.sector is not None:
@@ -104,9 +85,29 @@ async def get_heatmap(
                 industry_group=industry_group,
                 market_cap_weight=weight,
                 change_pct=quote.change_pct,
-                price=quote.price,
+                price=Decimal(str(quote.price)),
                 volume=quote.volume,
             )
         )
 
     return result
+
+
+@router.get("/heatmap")
+@limiter.limit("10/minute")
+async def get_heatmap(
+    request: Request,
+    market_data: MarketDataService = Depends(get_market_data),
+    universe: UniverseService = Depends(get_universe),
+    repo: Repository = Depends(get_repo),
+) -> list[HeatmapTicker]:
+    """Return S&P 500 heatmap data: daily changes joined with metadata."""
+    constituents = await universe.fetch_sp500_constituents()
+    if not constituents:
+        return []
+
+    tickers = [c.ticker for c in constituents]
+    quotes = await market_data.fetch_batch_daily_changes(tickers)
+    all_metadata = await repo.get_all_ticker_metadata()
+
+    return build_heatmap_tickers(constituents, quotes, all_metadata)

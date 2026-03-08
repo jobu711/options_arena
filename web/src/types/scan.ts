@@ -158,7 +158,7 @@ export interface HeatmapTicker {
   industry_group: string
   market_cap_weight: number
   change_pct: number | null
-  price: number
+  price: string
   volume: number
 }
 

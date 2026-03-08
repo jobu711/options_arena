@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from datetime import UTC, datetime
+from decimal import Decimal
 from unittest.mock import AsyncMock
 
 import pytest
@@ -72,7 +73,7 @@ class TestHeatmapTickerSchema:
             volume=5_000_000,
         )
         assert ht.ticker == "AAPL"
-        assert ht.price == pytest.approx(175.0)
+        assert ht.price == Decimal("175")
         assert ht.change_pct == pytest.approx(2.5)
 
     def test_frozen_model(self) -> None:
@@ -134,7 +135,7 @@ class TestHeatmapTickerSchema:
 
     def test_isfinite_rejects_nan_price(self) -> None:
         """Verify NaN price raises ValidationError."""
-        with pytest.raises(ValidationError, match="price must be finite"):
+        with pytest.raises(ValidationError, match="finite"):
             HeatmapTicker(
                 ticker="BAD",
                 company_name="Bad Corp",
@@ -162,7 +163,7 @@ class TestHeatmapTickerSchema:
 
     def test_isfinite_rejects_inf_price(self) -> None:
         """Verify infinite price raises ValidationError."""
-        with pytest.raises(ValidationError, match="price must be finite"):
+        with pytest.raises(ValidationError, match="finite"):
             HeatmapTicker(
                 ticker="BAD",
                 company_name="Bad Corp",

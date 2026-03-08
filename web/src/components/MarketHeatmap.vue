@@ -263,8 +263,14 @@ const TOOLTIP_MARGIN = 8
 function onCellMouseMove(event: MouseEvent, ticker: HeatmapTicker): void {
   tooltip.value = {
     visible: true,
-    x: Math.min(event.clientX + 12, window.innerWidth - TOOLTIP_WIDTH - TOOLTIP_MARGIN),
-    y: Math.min(event.clientY + 12, window.innerHeight - TOOLTIP_HEIGHT - TOOLTIP_MARGIN),
+    x: Math.max(
+      TOOLTIP_MARGIN,
+      Math.min(event.clientX + 12, window.innerWidth - TOOLTIP_WIDTH - TOOLTIP_MARGIN),
+    ),
+    y: Math.max(
+      TOOLTIP_MARGIN,
+      Math.min(event.clientY + 12, window.innerHeight - TOOLTIP_HEIGHT - TOOLTIP_MARGIN),
+    ),
     ticker,
   }
 }
@@ -277,26 +283,59 @@ function onCellClick(ticker: string): void {
   void router.push(`/ticker/${ticker}`)
 }
 
+// ---------------------------------------------------------------------------
+// Locale-aware formatters (Intl.NumberFormat)
+// ---------------------------------------------------------------------------
+
+const priceFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+const volumeFormatter = new Intl.NumberFormat('en-US', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+})
+
+const percentFormatter = new Intl.NumberFormat('en-US', {
+  signDisplay: 'always',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+function formatPrice(price: string | number): string {
+  return priceFormatter.format(Number(price))
+}
+
 function formatVolume(vol: number): string {
-  if (vol >= 1_000_000) return `${(vol / 1_000_000).toFixed(1)}M`
-  if (vol >= 1_000) return `${(vol / 1_000).toFixed(1)}K`
-  return String(vol)
+  return volumeFormatter.format(vol)
 }
 
 function formatChange(pct: number | null): string {
   if (pct === null) return '--'
-  return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
+  return `${percentFormatter.format(pct)}%`
 }
 
-function timeSince(date: Date | null): string {
+// ---------------------------------------------------------------------------
+// Reactive "last updated" timer
+// ---------------------------------------------------------------------------
+
+const now = ref(Date.now())
+let nowInterval: ReturnType<typeof setInterval> | null = null
+
+function timeSince(date: Date | null, _now: number): string {
   if (!date) return ''
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
+  const seconds = Math.floor((_now - date.getTime()) / 1000)
   if (seconds < 60) return 'just now'
   const minutes = Math.floor(seconds / 60)
   if (minutes < 60) return `${minutes}m ago`
   const hours = Math.floor(minutes / 60)
   return `${hours}h ago`
 }
+
+const lastUpdatedText = computed(() => timeSince(store.lastUpdated, now.value))
 
 // ---------------------------------------------------------------------------
 // Lifecycle
@@ -305,11 +344,13 @@ function timeSince(date: Date | null): string {
 onMounted(() => {
   void store.fetchHeatmap()
   store.startAutoRefresh()
+  nowInterval = setInterval(() => { now.value = Date.now() }, 30_000)
 })
 
 onUnmounted(() => {
   store.stopAutoRefresh()
   resizeObserver?.disconnect()
+  if (nowInterval) clearInterval(nowInterval)
 })
 </script>
 
@@ -320,7 +361,7 @@ onUnmounted(() => {
       <div class="heatmap-title">
         <h3>Market Overview</h3>
         <span v-if="store.lastUpdated" class="heatmap-updated">
-          Last updated: {{ timeSince(store.lastUpdated) }}
+          Last updated: {{ lastUpdatedText }}
         </span>
       </div>
       <Button
@@ -374,6 +415,9 @@ onUnmounted(() => {
         v-for="cell in layout.cells"
         :key="cell.ticker.ticker"
         class="heatmap-cell"
+        role="link"
+        tabindex="0"
+        :aria-label="`${cell.ticker.ticker} ${formatChange(cell.ticker.change_pct)}`"
         :style="{
           left: `${cell.rect.x}px`,
           top: `${cell.rect.y}px`,
@@ -385,6 +429,8 @@ onUnmounted(() => {
         @mousemove="(e) => onCellMouseMove(e, cell.ticker)"
         @mouseleave="onCellMouseLeave"
         @click="onCellClick(cell.ticker.ticker)"
+        @keydown.enter.prevent="onCellClick(cell.ticker.ticker)"
+        @keydown.space.prevent="onCellClick(cell.ticker.ticker)"
       >
         <span v-if="cell.showTicker" class="cell-ticker">{{ cell.ticker.ticker }}</span>
         <span v-if="cell.showChange" class="cell-change">
@@ -413,7 +459,7 @@ onUnmounted(() => {
       </div>
       <div class="tooltip-row">
         <span>Price:</span>
-        <span>${{ tooltip.ticker.price.toFixed(2) }}</span>
+        <span>{{ formatPrice(tooltip.ticker.price) }}</span>
       </div>
       <div class="tooltip-row">
         <span>Volume:</span>
@@ -487,9 +533,15 @@ onUnmounted(() => {
   user-select: none;
 }
 
-.heatmap-cell:hover {
+.heatmap-cell:hover,
+.heatmap-cell:focus-visible {
   filter: brightness(1.2);
   z-index: 10;
+}
+
+.heatmap-cell:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
 }
 
 .cell-ticker {
