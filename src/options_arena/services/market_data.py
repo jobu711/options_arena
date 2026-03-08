@@ -803,8 +803,7 @@ class MarketDataService:
 
         # Download in parallel chunks — partial failure is tolerated
         chunks = [
-            tickers[i : i + _BATCH_CHUNK_SIZE]
-            for i in range(0, len(tickers), _BATCH_CHUNK_SIZE)
+            tickers[i : i + _BATCH_CHUNK_SIZE] for i in range(0, len(tickers), _BATCH_CHUNK_SIZE)
         ]
         results = await asyncio.gather(
             *(self._download_chunk(chunk) for chunk in chunks),
@@ -813,10 +812,8 @@ class MarketDataService:
 
         quotes: list[BatchQuote] = []
         for chunk, result in zip(chunks, results, strict=True):
-            if isinstance(result, Exception):
-                logger.warning(
-                    "Chunk download failed (%d tickers): %s", len(chunk), result
-                )
+            if isinstance(result, BaseException):
+                logger.warning("Chunk download failed (%d tickers): %s", len(chunk), result)
                 continue
             if result.empty:
                 continue
