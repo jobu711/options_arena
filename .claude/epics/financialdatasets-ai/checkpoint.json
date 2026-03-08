@@ -1,9 +1,9 @@
 {
   "epic": "financialdatasets-ai",
-  "phase": "decomposition",
-  "last_command": "/pm:epic-decompose financialdatasets-ai",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync financialdatasets-ai",
   "last_updated": "2026-03-08T18:10:38Z",
-  "completed_phases": ["prd-created", "research", "planning", "decomposition"],
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
   "current_task": null,
   "tasks_completed": [],
   "tasks_in_progress": [],

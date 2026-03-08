@@ -4,7 +4,8 @@ status: backlog
 created: 2026-03-08T18:06:12Z
 progress: 0%
 prd: .claude/prds/financialdatasets-ai.md
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/390
+updated: 2026-03-08T18:10:38Z
 ---
 
 # Epic: financialdatasets-ai
@@ -124,16 +125,16 @@ Wave 5 ─── Task 6: Tests            (depends on all above)
 - **Risk**: Low — all patterns proven, backward compatible, config-gated
 
 ## Tasks Created
-- [ ] 001.md - Models + Config — FD response models and FinancialDatasetsConfig (parallel: false)
-- [ ] 002.md - FinancialDatasetsService — httpx service with cache and rate limiting (parallel: true)
-- [ ] 003.md - MarketContext extension — 16 fd_* fields and financial_datasets_ratio() (parallel: true)
-- [ ] 004.md - Context rendering + Fundamental agent prompt v3.0 (parallel: false)
-- [ ] 005.md - Integration wiring — orchestrator, API, CLI, health check (parallel: false)
-- [ ] 006.md - Comprehensive test suite — model, service, and integration tests (parallel: false)
+- [ ] #394 - Models + Config — FD response models and FinancialDatasetsConfig (parallel: false)
+- [ ] #395 - FinancialDatasetsService — httpx service with cache and rate limiting (parallel: true)
+- [ ] #396 - MarketContext extension — 16 fd_* fields and financial_datasets_ratio() (parallel: true)
+- [ ] #397 - Context rendering + Fundamental agent prompt v3.0 (parallel: false)
+- [ ] #398 - Integration wiring — orchestrator, API, CLI, health check (parallel: false)
+- [ ] #399 - Comprehensive test suite — model, service, and integration tests (parallel: false)
 
 Total tasks: 6
-Parallel tasks: 2 (Tasks 002 + 003 in Wave 2)
-Sequential tasks: 4 (Tasks 001, 004, 005, 006)
+Parallel tasks: 2 (#395 + #396 in Wave 2)
+Sequential tasks: 4 (#394, #397, #398, #399)
 Estimated total effort: 20-27 hours
 
 ## Test Coverage Plan
