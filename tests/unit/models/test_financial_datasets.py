@@ -435,7 +435,8 @@ class TestFinancialDatasetsConfig:
             cache_ttl=7200,
         )
         assert config.enabled is False
-        assert config.api_key == "fd_test_key_123"
+        assert config.api_key is not None
+        assert config.api_key.get_secret_value() == "fd_test_key_123"
         assert config.base_url == "https://custom.api.example.com"
         assert config.request_timeout == pytest.approx(30.0)
         assert config.cache_ttl == 7200
@@ -468,3 +469,13 @@ class TestFinancialDatasetsConfig:
         """FinancialDatasetsConfig rejects Inf request_timeout."""
         with pytest.raises(ValidationError, match="finite"):
             FinancialDatasetsConfig(request_timeout=float("inf"))
+
+    def test_rejects_zero_request_timeout(self) -> None:
+        """FinancialDatasetsConfig rejects zero request_timeout."""
+        with pytest.raises(ValidationError, match="must be > 0"):
+            FinancialDatasetsConfig(request_timeout=0.0)
+
+    def test_rejects_negative_request_timeout(self) -> None:
+        """FinancialDatasetsConfig rejects negative request_timeout."""
+        with pytest.raises(ValidationError, match="must be > 0"):
+            FinancialDatasetsConfig(request_timeout=-5.0)

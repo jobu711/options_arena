@@ -884,20 +884,22 @@ class TestCheckFinancialDatasets:
         svc = HealthService(svc_config, fd_config=fd_config)
 
         # Mock ALL check methods to avoid real API calls
-        for method_name in [
-            "check_yfinance",
-            "check_fred",
-            "check_groq",
-            "check_anthropic",
-            "check_cboe",
-            "check_openbb",
-            "check_cboe_chains",
-            "check_intelligence",
-            "check_financial_datasets",
-        ]:
+        # Map method names to production service_name values
+        method_service_map = {
+            "check_yfinance": "check_yfinance",
+            "check_fred": "check_fred",
+            "check_groq": "check_groq",
+            "check_anthropic": "check_anthropic",
+            "check_cboe": "check_cboe",
+            "check_openbb": "check_openbb",
+            "check_cboe_chains": "check_cboe_chains",
+            "check_intelligence": "check_intelligence",
+            "check_financial_datasets": "financial_datasets",
+        }
+        for method_name, service_name in method_service_map.items():
             mock = AsyncMock(
                 return_value=HealthStatus(
-                    service_name=method_name,
+                    service_name=service_name,
                     available=True,
                     checked_at=_utc_now(),
                 )
@@ -906,7 +908,7 @@ class TestCheckFinancialDatasets:
 
         results = await svc.check_all()
         service_names = [r.service_name for r in results]
-        assert "check_financial_datasets" in service_names
+        assert "financial_datasets" in service_names
 
     @pytest.mark.asyncio
     async def test_check_all_omits_fd_when_disabled(self) -> None:

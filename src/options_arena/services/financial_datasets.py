@@ -59,7 +59,9 @@ class FinancialDatasetsService:
         self._limiter = limiter
         self._client = httpx.AsyncClient(
             base_url=config.base_url,
-            headers={"X-API-KEY": config.api_key or ""},
+            headers={
+                "X-API-KEY": config.api_key.get_secret_value() if config.api_key else "",
+            },
             timeout=httpx.Timeout(config.request_timeout),
         )
 
@@ -73,7 +75,7 @@ class FinancialDatasetsService:
             return None
 
         try:
-            cache_key = f"{_CACHE_PREFIX_METRICS}:{ticker}"
+            cache_key = f"{_CACHE_PREFIX_METRICS}:{ticker}:ttm"
             cached = await self._cache.get(cache_key)
             if cached is not None:
                 logger.debug("Financial Datasets metrics cache hit for %s", ticker)
@@ -142,7 +144,7 @@ class FinancialDatasetsService:
             return None
 
         try:
-            cache_key = f"{_CACHE_PREFIX_INCOME}:{ticker}"
+            cache_key = f"{_CACHE_PREFIX_INCOME}:{ticker}:ttm"
             cached = await self._cache.get(cache_key)
             if cached is not None:
                 logger.debug("Financial Datasets income cache hit for %s", ticker)
@@ -198,7 +200,7 @@ class FinancialDatasetsService:
             return None
 
         try:
-            cache_key = f"{_CACHE_PREFIX_BALANCE}:{ticker}"
+            cache_key = f"{_CACHE_PREFIX_BALANCE}:{ticker}:ttm"
             cached = await self._cache.get(cache_key)
             if cached is not None:
                 logger.debug("Financial Datasets balance sheet cache hit for %s", ticker)

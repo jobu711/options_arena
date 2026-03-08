@@ -209,7 +209,7 @@ class TestFetchFinancialMetrics:
 
         mock_cache.set.assert_called_once()
         call_args = mock_cache.set.call_args
-        assert call_args[0][0] == "fd:metrics:AAPL"
+        assert call_args[0][0] == "fd:metrics:AAPL:ttm"
         assert call_args[1]["ttl"] == config.cache_ttl
         await service.close()
 

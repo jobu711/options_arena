@@ -87,7 +87,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     # Financial Datasets service — created only when enabled and API key set
     fd_svc: FinancialDatasetsService | None = None
-    if settings.financial_datasets.enabled and settings.financial_datasets.api_key:
+    if settings.financial_datasets.enabled and settings.financial_datasets.api_key is not None:
         fd_svc = FinancialDatasetsService(
             config=settings.financial_datasets,
             cache=cache,

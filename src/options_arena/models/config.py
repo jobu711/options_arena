@@ -519,10 +519,20 @@ class FinancialDatasetsConfig(BaseModel):
     """
 
     enabled: bool = True
-    api_key: str | None = None
+    api_key: SecretStr | None = None
     base_url: str = "https://api.financialdatasets.ai"
     request_timeout: float = 10.0
     cache_ttl: int = 3600
+
+    @field_validator("request_timeout")
+    @classmethod
+    def validate_request_timeout(cls, v: float) -> float:
+        """Ensure request_timeout is finite and positive."""
+        if not math.isfinite(v):
+            raise ValueError(f"request_timeout must be finite, got {v}")
+        if v <= 0.0:
+            raise ValueError(f"request_timeout must be > 0, got {v}")
+        return v
 
     @model_validator(mode="after")
     def validate_all_finite(self) -> Self:

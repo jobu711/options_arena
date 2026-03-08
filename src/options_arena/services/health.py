@@ -477,7 +477,7 @@ class HealthService:
                 error="Financial Datasets disabled",
                 checked_at=datetime.now(UTC),
             )
-        if not self._fd_config.api_key:
+        if self._fd_config.api_key is None:
             return HealthStatus(
                 service_name="financial_datasets",
                 available=False,

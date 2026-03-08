@@ -554,7 +554,7 @@ async def _batch_async(
         if not no_recon and settings.intelligence.enabled:
             intelligence_svc = IntelligenceService(settings.intelligence, cache, limiter)
 
-        if settings.financial_datasets.enabled and settings.financial_datasets.api_key:
+        if settings.financial_datasets.enabled and settings.financial_datasets.api_key is not None:
             fd_svc = FinancialDatasetsService(
                 config=settings.financial_datasets,
                 cache=cache,
@@ -900,7 +900,7 @@ async def _debate_async(
         if not no_recon and settings.intelligence.enabled:
             intelligence_svc = IntelligenceService(settings.intelligence, cache, limiter)
 
-        if settings.financial_datasets.enabled and settings.financial_datasets.api_key:
+        if settings.financial_datasets.enabled and settings.financial_datasets.api_key is not None:
             fd_svc = FinancialDatasetsService(
                 config=settings.financial_datasets,
                 cache=cache,
