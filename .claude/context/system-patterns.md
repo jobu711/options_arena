@@ -49,6 +49,10 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **Score-confidence clamping**: `TradeThesis` model_validator clamps confidence <=0.5 when scores contradict direction
 - **Citation density**: `compute_citation_density()` measures fraction of context labels cited in agent output
 - Orchestrator never raises: catches errors -> data-driven fallback (confidence=0.3)
+- **Domain context partitioning**: Phase 1 agents receive only domain-specific context via `render_trend_context()`, `render_volatility_context()`, `render_flow_context()`, `render_fundamental_context()` — no composite score or direction anchoring
+- **Log-odds pooling**: Bordley 1982 weighted confidence compounding replaces naive averaging. `AGENT_VOTE_WEIGHTS` sum intentionally < 1.0 (risk excluded from directional voting)
+- **Ensemble diversity**: `_vote_entropy()` (Shannon entropy of direction votes), `compute_agreement_score()` (fraction agreeing with majority). Confidence capped at 0.4 when agreement < 0.4
+- **Agent prediction persistence**: `AgentPrediction` model + migration 025 + `extract_agent_predictions()`. In v2, "bull" field holds trend output; bear is skipped (static fallback)
 
 ### Scan Pipeline & Debate Flow — See `scan/CLAUDE.md` and `agents/CLAUDE.md`
 

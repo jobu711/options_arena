@@ -2,10 +2,10 @@
 
 ## Current State
 
-- **Version**: 2.9.0 — Data Completeness (MACD, short interest, v1 elimination)
-- **All 9 phases + 21 epics**: Complete and merged to master
-- **Tests**: 3,921 Python + 38 E2E
-- **GitHub issues**: 2 open, 280+ closed
+- **Version**: 2.10.0 — Debate Calibration (domain context, log-odds pooling, ensemble diversity)
+- **All 9 phases + 22 epics**: Complete and merged to master
+- **Tests**: ~3,960 Python + 38 E2E
+- **GitHub issues**: 9 open (algo-audit epic), 290+ closed
 - **CI**: GitHub Actions (4 gates: lint, typecheck, tests, frontend)
 - **CLI**: `options-arena scan`, `health`, `universe` (+ `index`), `debate` (+ `--batch`, `--export`), `serve`, `watchlist`, `outcomes` (collect, summary)
 - **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
@@ -13,18 +13,17 @@
 
 ## In Progress
 
-- **Data Completeness epic** (active): `.claude/epics/data-completeness/` — branch `epic/data-completeness`. Issues #319-#322. Short interest e2e (#319), active-contract P&L (#320), indicator signal labels (#321) done. Issue #322 (verification) pending.
+- **Algo Audit epic** (planning): `.claude/epics/algo-audit/` — Issues #354-#363. Fixes 13 algorithmic correctness findings (isfinite guards, citation matching, NEUTRAL exclusion, retry jitter, etc.).
 
 ## Recently Completed
 
-- **MACD integration** (2026-03-06): feat(#312-#317) — real `macd()` in indicators/trend.py, registered in INDICATOR_REGISTRY, `IndicatorSignals.macd` field, `classify_macd_signal()` replaces fake derivation. 4 commits.
-- **V1 debate elimination** (2026-03-06): `run_debate_v2` → `run_debate`, removed v1 code path, cleaned up orchestrator (~500 lines removed).
-- **UI polish v29** (2026-03-06): Merge of formatter consolidation, timezone date fixes, NaN guards, recommended contracts in TickerDrawer, score filter fix, View All debates link.
-- **UI cosmetic fixes** (2026-03-05): fix(#266) — visual polish across AgentCard, DirectionBadge, RegimeBanner, TickerDrawer, DashboardPage, HealthPage, ScanResultsPage.
-- **Epic 21** (2026-03-05): Metadata Index — persistent SQLite ticker classification cache. PR #278.
+- **Debate Calibration epic** (2026-03-08): PR #353, issues #345-#351. Domain context partitioning (agents see only their domain data), Bordley 1982 log-odds pooling, ensemble diversity metrics (entropy, vol direction, agreement score), agent prediction persistence (migration 025), v2 prediction extraction fix.
+- **Collect Outcomes epic** (2026-03-07): PR #352. Auto-collect outcomes after scan, outcome collection improvements.
+- **Data Completeness epic** (2026-03-07): Issues #319-#322. Short interest e2e, active-contract P&L, indicator signal labels, MACD integration.
 
 ## Future Work
 
+- Algo audit: 8 algorithmic correctness fixes (#356-#363)
 - Additional LLM providers (Anthropic Claude, OpenAI)
 - Options liquidity weighting in composite scoring
 - Real-time market data streaming

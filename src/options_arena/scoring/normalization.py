@@ -4,6 +4,10 @@ Transforms raw indicator values into percentile ranks (0--100) so that
 indicators with different scales become comparable.  Inverted indicators
 (where higher raw value = worse signal) are flipped after normalization.
 
+Also provides :func:`normalize_single_ticker` for ad-hoc single-ticker
+normalization via domain-bound linear scaling (used by the debate route
+when no scan universe is available for percentile ranking).
+
 All inputs and outputs use :class:`~options_arena.models.scan.IndicatorSignals`
 typed model -- never ``dict[str, float]``.
 """
@@ -31,6 +35,32 @@ logger = logging.getLogger(__name__)
 # for an options scanner.  Only volatility-width indicators are inverted (wider
 # bands = more uncertainty = less favorable).
 INVERTED_INDICATORS: frozenset[str] = frozenset({"bb_width", "atr_pct", "keltner_width"})
+
+# Domain bounds for single-ticker linear scaling.
+# Each entry maps an ``IndicatorSignals`` field name to its
+# ``(min_domain, max_domain)`` natural range.  Values outside these bounds
+# are clamped to [0, 100] after scaling.
+DOMAIN_BOUNDS: dict[str, tuple[float, float]] = {
+    "rsi": (0.0, 100.0),
+    "stochastic_rsi": (0.0, 100.0),
+    "williams_r": (-100.0, 0.0),
+    "adx": (0.0, 100.0),
+    "roc": (-50.0, 50.0),
+    "supertrend": (-1.0, 1.0),
+    "macd": (-5.0, 5.0),
+    "bb_width": (0.0, 0.5),
+    "atr_pct": (0.0, 0.1),
+    "keltner_width": (0.0, 0.5),
+    "obv": (-10.0, 10.0),
+    "ad": (-10.0, 10.0),
+    "relative_volume": (0.0, 5.0),
+    "sma_alignment": (-1.0, 1.0),
+    "vwap_deviation": (-0.1, 0.1),
+    "iv_rank": (0.0, 100.0),
+    "iv_percentile": (0.0, 100.0),
+    "put_call_ratio": (0.0, 3.0),
+    "max_pain_distance": (-0.2, 0.2),
+}
 
 # All indicator field names from IndicatorSignals, cached once at import time.
 _ALL_FIELDS: tuple[str, ...] = tuple(IndicatorSignals.model_fields.keys())
@@ -157,15 +187,57 @@ def invert_indicators(
     """
     result: dict[str, IndicatorSignals] = {}
     for ticker, signals in normalized.items():
-        kwargs: dict[str, float | None] = {}
-        for field in _ALL_FIELDS:
-            value: float | None = getattr(signals, field)
-            if value is not None and field in INVERTED_INDICATORS:
-                kwargs[field] = 100.0 - value
-            else:
-                kwargs[field] = value
-        result[ticker] = IndicatorSignals(**kwargs)
+        result[ticker] = _invert_single(signals)
     return result
+
+
+def _invert_single(signals: IndicatorSignals) -> IndicatorSignals:
+    """Flip inverted indicators on a single ``IndicatorSignals`` instance.
+
+    Shared by :func:`invert_indicators` (universe) and
+    :func:`normalize_single_ticker` (ad-hoc single ticker).
+    """
+    kwargs: dict[str, float | None] = {}
+    for field in _ALL_FIELDS:
+        value: float | None = getattr(signals, field)
+        if value is not None and field in INVERTED_INDICATORS:
+            kwargs[field] = 100.0 - value
+        else:
+            kwargs[field] = value
+    return IndicatorSignals(**kwargs)
+
+
+def normalize_single_ticker(signals: IndicatorSignals) -> IndicatorSignals:
+    """Normalize raw indicator signals to 0--100 via domain-bound linear scaling.
+
+    Used for ad-hoc single-ticker debates where no universe exists for
+    percentile ranking.  Each indicator with a known domain range in
+    :data:`DOMAIN_BOUNDS` is linearly scaled:
+
+    .. math::
+
+        normalized = \\frac{value - lo}{hi - lo} \\times 100
+
+    Values outside ``[lo, hi]`` are clamped to ``[0, 100]``.  ``None`` and
+    non-finite values are passed through unchanged.  After scaling, inverted
+    indicators (from :data:`INVERTED_INDICATORS`) are flipped via
+    :func:`_invert_single`.
+
+    Args:
+        signals: Raw ``IndicatorSignals`` from indicator computation.
+
+    Returns:
+        New ``IndicatorSignals`` with domain-scaled values in ``[0, 100]``.
+    """
+    update: dict[str, float | None] = {}
+    for field, (lo, hi) in DOMAIN_BOUNDS.items():
+        value: float | None = getattr(signals, field, None)
+        if value is not None and math.isfinite(value):
+            update[field] = max(0.0, min(100.0, (value - lo) / (hi - lo) * 100.0))
+        else:
+            update[field] = value
+    result = signals.model_copy(update=update)
+    return _invert_single(result)
 
 
 def compute_normalization_stats(

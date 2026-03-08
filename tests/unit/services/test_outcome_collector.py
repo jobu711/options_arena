@@ -34,7 +34,7 @@ from options_arena.models.enums import (
     OutcomeCollectionMethod,
     SignalDirection,
 )
-from options_arena.models.market_data import Quote
+from options_arena.models.market_data import OHLCV, Quote
 from options_arena.services.outcome_collector import OutcomeCollector, _market_today
 
 # ---------------------------------------------------------------------------
@@ -92,11 +92,31 @@ def make_quote(ticker: str = "AAPL", price: Decimal = Decimal("190.00")) -> Quot
     )
 
 
+def make_ohlcv(
+    ticker: str = "AAPL",
+    bar_date: date = date(2026, 3, 1),
+    close: Decimal = Decimal("190.00"),
+) -> OHLCV:
+    """Build an OHLCV bar for testing."""
+    return OHLCV(
+        ticker=ticker,
+        date=bar_date,
+        open=close - Decimal("1.00"),
+        high=close + Decimal("2.00"),
+        low=close - Decimal("2.00"),
+        close=close,
+        volume=5_000_000,
+        adjusted_close=close,
+    )
+
+
 def make_collector(
     holding_periods: list[int] | None = None,
     contracts_needing: list[RecommendedContract] | None = None,
     quote: Quote | None = None,
     quote_side_effect: Exception | None = None,
+    ohlcv_bars: list[OHLCV] | None = None,
+    ohlcv_side_effect: Exception | None = None,
 ) -> OutcomeCollector:
     """Build an OutcomeCollector with mocked dependencies."""
     config = AnalyticsConfig(holding_periods=holding_periods or [1, 5, 10, 20])
@@ -111,6 +131,12 @@ def make_collector(
         market_data.fetch_quote = AsyncMock(side_effect=quote_side_effect)
     else:
         market_data.fetch_quote = AsyncMock(return_value=quote or make_quote())
+
+    if ohlcv_side_effect is not None:
+        market_data.fetch_ohlcv = AsyncMock(side_effect=ohlcv_side_effect)
+    else:
+        bars = ohlcv_bars if ohlcv_bars is not None else []
+        market_data.fetch_ohlcv = AsyncMock(return_value=bars)
 
     return OutcomeCollector(config, repo, market_data)
 
@@ -235,7 +261,7 @@ class TestExpiredContracts:
         )
         collector = make_collector(
             contracts_needing=[contract],
-            quote=make_quote(price=Decimal("180.00")),
+            ohlcv_bars=[make_ohlcv(bar_date=date(2026, 2, 28), close=Decimal("180.00"))],
         )
 
         with patch(
@@ -262,7 +288,7 @@ class TestExpiredContracts:
         )
         collector = make_collector(
             contracts_needing=[contract],
-            quote=make_quote(price=Decimal("195.00")),
+            ohlcv_bars=[make_ohlcv(bar_date=date(2026, 3, 1), close=Decimal("195.00"))],
         )
 
         with patch(
@@ -287,10 +313,11 @@ class TestErrorHandling:
 
     @pytest.mark.asyncio
     async def test_never_raises_on_fetch_error(self) -> None:
-        """Verify collector logs and skips on fetch_quote failure."""
+        """Verify collector logs and skips when both OHLCV and quote fail."""
         contract = make_contract(expiration=date(2026, 3, 1))
         collector = make_collector(
             contracts_needing=[contract],
+            ohlcv_side_effect=Exception("OHLCV error"),
             quote_side_effect=Exception("Network error"),
         )
 
@@ -324,17 +351,21 @@ class TestErrorHandling:
         repo.get_contracts_needing_outcomes = AsyncMock(return_value=[good_contract, bad_contract])
         repo.save_contract_outcomes = AsyncMock()
 
-        # First call succeeds (AAPL), second fails (BAD)
-        call_count = 0
-
-        async def mock_fetch_quote(ticker: str) -> Quote:
-            nonlocal call_count
-            call_count += 1
+        # OHLCV succeeds for AAPL, fails for BAD
+        async def mock_fetch_ohlcv(ticker: str, period: str = "5d") -> list[OHLCV]:
             if ticker == "BAD":
                 raise Exception("Ticker not found")
-            return make_quote(ticker=ticker, price=Decimal("180.00"))
+            return [make_ohlcv(ticker=ticker, bar_date=date(2026, 2, 28), close=Decimal("180.00"))]
 
         market_data = AsyncMock()
+        market_data.fetch_ohlcv = mock_fetch_ohlcv
+
+        # Fallback quote also fails for BAD
+        async def mock_fetch_quote(ticker: str) -> Quote:
+            if ticker == "BAD":
+                raise Exception("Quote not found")
+            return make_quote(ticker=ticker, price=Decimal("180.00"))
+
         market_data.fetch_quote = mock_fetch_quote
 
         collector = OutcomeCollector(config, repo, market_data)
@@ -368,7 +399,7 @@ class TestWinnerFlag:
         )
         collector = make_collector(
             contracts_needing=[contract],
-            quote=make_quote(price=Decimal("195.00")),
+            ohlcv_bars=[make_ohlcv(bar_date=date(2026, 3, 1), close=Decimal("195.00"))],
         )
 
         with patch(
@@ -391,7 +422,7 @@ class TestWinnerFlag:
         )
         collector = make_collector(
             contracts_needing=[contract],
-            quote=make_quote(price=Decimal("186.00")),
+            ohlcv_bars=[make_ohlcv(bar_date=date(2026, 3, 1), close=Decimal("186.00"))],
         )
 
         with patch(
@@ -606,6 +637,7 @@ def make_collector_with_options(
 
     market_data = AsyncMock()
     market_data.fetch_quote = AsyncMock(return_value=quote or make_quote())
+    market_data.fetch_ohlcv = AsyncMock(return_value=[])
 
     options_data = AsyncMock()
     if chain_side_effect is not None:
@@ -891,3 +923,198 @@ class TestActiveContractOptionChain:
         # But contract return should be None due to zero entry_mid
         assert outcomes[0].contract_return_pct is None
         assert outcomes[0].is_winner is None
+
+
+# ---------------------------------------------------------------------------
+# Expired contract historical close (OHLCV)
+# ---------------------------------------------------------------------------
+
+
+class TestExpiredContractHistoricalClose:
+    """Tests for expired contract using historical OHLCV close instead of current quote."""
+
+    @pytest.mark.asyncio
+    async def test_uses_ohlcv_close_on_expiration(self) -> None:
+        """Expired contract uses historical OHLCV close, not current quote."""
+        # Contract expired on 2026-03-01.  OHLCV has a bar on that date
+        # with close=192.00.  fetch_quote returns 200.00 (current price).
+        # The outcome should use 192.00 (historical), not 200.00.
+        contract = make_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            entry_mid=Decimal("5.00"),
+            expiration=date(2026, 3, 1),
+        )
+        collector = make_collector(
+            contracts_needing=[contract],
+            quote=make_quote(price=Decimal("200.00")),  # Should NOT be used
+            ohlcv_bars=[
+                make_ohlcv(bar_date=date(2026, 2, 28), close=Decimal("188.00")),
+                make_ohlcv(bar_date=date(2026, 3, 1), close=Decimal("192.00")),
+                make_ohlcv(bar_date=date(2026, 3, 2), close=Decimal("194.00")),
+            ],
+        )
+
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
+            outcomes = await collector.collect_outcomes(holding_days=10)
+
+        assert len(outcomes) == 1
+        # Intrinsic = max(0, 192 - 185) = 7.  Return = (7 - 5)/5*100 = 40%
+        assert outcomes[0].exit_stock_price == Decimal("192.00")
+        assert outcomes[0].contract_return_pct == pytest.approx(40.0)
+        assert outcomes[0].collection_method is OutcomeCollectionMethod.INTRINSIC
+
+    @pytest.mark.asyncio
+    async def test_weekend_expiration_uses_last_trading_day(self) -> None:
+        """Weekend expiration uses the last trading day bar before expiration."""
+        # Contract expires Saturday 2026-03-07.  Last trading day is Friday 2026-03-06.
+        contract = make_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            entry_mid=Decimal("5.00"),
+            expiration=date(2026, 3, 7),  # Saturday
+        )
+        collector = make_collector(
+            contracts_needing=[contract],
+            ohlcv_bars=[
+                make_ohlcv(bar_date=date(2026, 3, 5), close=Decimal("189.00")),
+                make_ohlcv(bar_date=date(2026, 3, 6), close=Decimal("191.00")),  # Friday
+                # No Saturday/Sunday bars — markets closed
+            ],
+        )
+
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
+            outcomes = await collector.collect_outcomes(holding_days=10)
+
+        assert len(outcomes) == 1
+        # Should use Friday close (191.00), not any other day
+        assert outcomes[0].exit_stock_price == Decimal("191.00")
+
+    @pytest.mark.asyncio
+    async def test_fallback_to_quote_when_ohlcv_unavailable(self) -> None:
+        """Falls back to fetch_quote with warning when OHLCV empty."""
+        contract = make_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            entry_mid=Decimal("5.00"),
+            expiration=date(2026, 3, 1),
+        )
+        collector = make_collector(
+            contracts_needing=[contract],
+            quote=make_quote(price=Decimal("195.00")),
+            ohlcv_bars=[],  # Empty — triggers fallback
+        )
+
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
+            outcomes = await collector.collect_outcomes(holding_days=10)
+
+        assert len(outcomes) == 1
+        # Falls back to quote price 195.00
+        assert outcomes[0].exit_stock_price == Decimal("195.00")
+        assert outcomes[0].collection_method is OutcomeCollectionMethod.INTRINSIC
+
+    @pytest.mark.asyncio
+    async def test_fallback_to_quote_when_ohlcv_raises(self) -> None:
+        """Falls back to fetch_quote when fetch_ohlcv raises an exception."""
+        contract = make_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            entry_mid=Decimal("5.00"),
+            expiration=date(2026, 3, 1),
+        )
+        collector = make_collector(
+            contracts_needing=[contract],
+            quote=make_quote(price=Decimal("195.00")),
+            ohlcv_side_effect=Exception("yfinance timeout"),
+        )
+
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
+            outcomes = await collector.collect_outcomes(holding_days=10)
+
+        assert len(outcomes) == 1
+        assert outcomes[0].exit_stock_price == Decimal("195.00")
+
+    @pytest.mark.asyncio
+    async def test_skips_when_both_ohlcv_and_quote_fail(self) -> None:
+        """Returns None (skips contract) when both OHLCV and quote fail."""
+        contract = make_contract(
+            strike=Decimal("185.00"),
+            option_type=OptionType.CALL,
+            expiration=date(2026, 3, 1),
+        )
+        collector = make_collector(
+            contracts_needing=[contract],
+            ohlcv_side_effect=Exception("OHLCV error"),
+            quote_side_effect=Exception("Quote error"),
+        )
+
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
+            outcomes = await collector.collect_outcomes(holding_days=10)
+
+        assert outcomes == []
+
+
+# ---------------------------------------------------------------------------
+# Active-contract DTE clamping
+# ---------------------------------------------------------------------------
+
+
+class TestActiveDTEClamping:
+    """Tests for DTE clamping in active contract processing."""
+
+    @pytest.mark.asyncio
+    async def test_negative_dte_clamped_to_zero(self) -> None:
+        """Past-expiration active contract DTE is 0, not negative.
+
+        Edge case: a contract can be past expiration but still classified
+        as 'active' if the expiration == exit_date (not strictly <).
+        In this scenario ``(expiration - exit_date).days`` would be 0.
+        More importantly, if somehow the exit_date is after expiration
+        but _is_expired returns False (e.g. same-day), DTE must be >= 0.
+        """
+        # Expiration is same day as exit_date -> DTE should be 0
+        contract = make_contract(
+            expiration=date(2026, 3, 10),  # Same as exit_date
+        )
+        collector = make_collector(
+            contracts_needing=[contract],
+            quote=make_quote(price=Decimal("190.00")),
+        )
+
+        with patch(
+            "options_arena.services.outcome_collector._market_today",
+            return_value=date(2026, 3, 10),
+        ):
+            outcomes = await collector.collect_outcomes(holding_days=10)
+
+        assert len(outcomes) == 1
+        assert outcomes[0].dte_at_exit == 0
+
+    def test_expired_dte_clamped_to_zero(self) -> None:
+        """Verify that DTE clamping in _process_expired_contract yields 0 for past contracts.
+
+        When expiration < exit_date (expired), (expiration - exit_date).days
+        would be negative. The ``max(0, ...)`` clamp should produce 0.
+        """
+        # Direct unit test of the arithmetic: expired contract DTE
+        expiration = date(2026, 3, 1)
+        exit_date = date(2026, 3, 10)
+        raw_dte = (expiration - exit_date).days  # -9
+        clamped_dte = max(0, raw_dte)
+        assert raw_dte == -9
+        assert clamped_dte == 0

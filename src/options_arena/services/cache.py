@@ -155,6 +155,11 @@ class ServiceCache:
                 return value
 
         # --- SQLite tier ---
+        # FR-11/L8: There is a small TOCTOU window between reading expires_at and
+        # the subsequent DELETE — another coroutine could set() the same key in between.
+        # This is accepted because: (1) cache is best-effort, (2) the worst outcome is
+        # serving a just-expired entry or re-fetching a just-cached one, and (3) adding
+        # a transaction lock here would hurt throughput for negligible correctness gain.
         if self._db is not None:
             async with self._db.execute(
                 "SELECT value, expires_at FROM service_cache WHERE key = ?", (key,)

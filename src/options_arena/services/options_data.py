@@ -35,7 +35,12 @@ from options_arena.models.enums import ExerciseStyle, OptionType
 from options_arena.models.options import OptionContract
 from options_arena.services.cache import ServiceCache
 from options_arena.services.cboe_provider import CBOEChainProvider
-from options_arena.services.helpers import fetch_with_retry, safe_decimal, safe_float, safe_int
+from options_arena.services.helpers import (
+    fetch_with_limiter_retry,
+    safe_decimal,
+    safe_float,
+    safe_int,
+)
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.utils.exceptions import DataFetchError, DataSourceUnavailableError
 
@@ -258,11 +263,10 @@ class YFinanceChainProvider:
             raw_dates: list[str] = json.loads(cached.decode("utf-8"))
             return [datetime.strptime(d, "%Y-%m-%d").date() for d in raw_dates]
 
-        async with self._limiter:
-            ticker_obj = yf.Ticker(ticker)
-            raw_expirations: tuple[str, ...] = await fetch_with_retry(
-                lambda: self._yf_call(getattr, ticker_obj, "options")
-            )
+        ticker_obj = yf.Ticker(ticker)
+        raw_expirations: tuple[str, ...] = await fetch_with_limiter_retry(
+            self._yf_call, getattr, ticker_obj, "options", limiter=self._limiter
+        )
 
         expirations = sorted(datetime.strptime(s, "%Y-%m-%d").date() for s in raw_expirations)
 
@@ -302,11 +306,13 @@ class YFinanceChainProvider:
         if cached is not None:
             return _cache_bytes_to_contracts(cached)
 
-        async with self._limiter:
-            ticker_obj = yf.Ticker(ticker)
-            chain_data = await fetch_with_retry(
-                lambda: self._yf_call(ticker_obj.option_chain, expiration.isoformat())
-            )
+        ticker_obj = yf.Ticker(ticker)
+        chain_data = await fetch_with_limiter_retry(
+            self._yf_call,
+            ticker_obj.option_chain,
+            expiration.isoformat(),
+            limiter=self._limiter,
+        )
 
         contracts: list[OptionContract] = []
 

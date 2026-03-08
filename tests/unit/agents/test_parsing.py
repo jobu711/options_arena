@@ -529,6 +529,33 @@ class TestComputeCitationDensity:
 
 
 # ---------------------------------------------------------------------------
+# compute_citation_density — word-boundary matching (#360)
+# ---------------------------------------------------------------------------
+
+
+class TestCitationDensityWordBoundary:
+    """Tests for word-boundary regex in citation density matching."""
+
+    def test_exact_match_detected(self) -> None:
+        """'rsi' matches 'RSI is at 72'."""
+        context = "RSI: 72.0"
+        text = "RSI is at 72, indicating overbought conditions."
+        assert compute_citation_density(context, text) == pytest.approx(1.0)
+
+    def test_substring_false_positive_rejected(self) -> None:
+        """'rsi' does NOT match 'surprised by the move'."""
+        context = "RSI: 72.0"
+        text = "I was surprised by the move in the stock price."
+        assert compute_citation_density(context, text) == pytest.approx(0.0)
+
+    def test_special_chars_in_label_escaped(self) -> None:
+        """Labels with regex special chars (e.g., 'ATR %') are escaped properly."""
+        context = "ATR %: 15.0\nRSI(14): 62.3"
+        text = "The ATR % is 15.0 and RSI(14) is 62.3."
+        assert compute_citation_density(context, text) == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
 # render_context_block — None field handling
 # ---------------------------------------------------------------------------
 

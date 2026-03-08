@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from decimal import Decimal
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -67,10 +67,13 @@ class TestFetchWithRetry:
         )
         loop = asyncio.get_event_loop()
         start = loop.time()
-        with pytest.raises(DataSourceUnavailableError):
+        with (
+            pytest.raises(DataSourceUnavailableError),
+            patch("options_arena.services.helpers.random.random", return_value=1.0),
+        ):
             await fetch_with_retry(factory, max_retries=3, base_delay=0.05, max_delay=1.0)
         elapsed = loop.time() - start
-        # Expected delays: 0.05 (attempt 0→1) + 0.10 (attempt 1→2) = 0.15s
+        # With jitter=1.0: delays are 0.05 (attempt 0→1) + 0.10 (attempt 1→2) = 0.15s
         assert elapsed >= 0.10  # at least most of the expected delay
         assert elapsed < 1.0  # upper sanity bound
 
@@ -177,3 +180,92 @@ class TestSafeFloat:
 
     def test_none_returns_none(self) -> None:
         assert safe_float(None) is None
+
+
+# ---------------------------------------------------------------------------
+# fetch_with_retry jitter
+# ---------------------------------------------------------------------------
+
+
+class TestFetchWithRetryJitter:
+    """Tests for jitter on the exponential backoff delay."""
+
+    @pytest.mark.asyncio
+    async def test_jitter_within_bounds(self) -> None:
+        """Verify delay is between 50% and 100% of base delay."""
+        recorded_delays: list[float] = []
+        original_sleep = asyncio.sleep
+
+        async def capture_sleep(delay: float) -> None:
+            recorded_delays.append(delay)
+            await original_sleep(0)  # don't actually wait
+
+        factory = AsyncMock(
+            side_effect=[
+                DataSourceUnavailableError("src: e1"),
+                DataSourceUnavailableError("src: e2"),
+                DataSourceUnavailableError("src: e3"),
+            ]
+        )
+        with (
+            patch("asyncio.sleep", side_effect=capture_sleep),
+            pytest.raises(DataSourceUnavailableError),
+        ):
+            await fetch_with_retry(factory, max_retries=3, base_delay=1.0, max_delay=16.0)
+
+        # Two retries expected (attempt 0->1 and 1->2)
+        assert len(recorded_delays) == 2
+        # Attempt 0: base_delay=1.0 * 2^0 = 1.0, jitter range [0.5, 1.0]
+        assert 0.5 <= recorded_delays[0] <= 1.0
+        # Attempt 1: base_delay=1.0 * 2^1 = 2.0, jitter range [1.0, 2.0]
+        assert 1.0 <= recorded_delays[1] <= 2.0
+
+    @pytest.mark.asyncio
+    async def test_jitter_randomness(self) -> None:
+        """Verify multiple calls produce different delays (mock random)."""
+        recorded_delays_run1: list[float] = []
+        recorded_delays_run2: list[float] = []
+        original_sleep = asyncio.sleep
+
+        async def capture_sleep_1(delay: float) -> None:
+            recorded_delays_run1.append(delay)
+            await original_sleep(0)
+
+        async def capture_sleep_2(delay: float) -> None:
+            recorded_delays_run2.append(delay)
+            await original_sleep(0)
+
+        # Run 1: random.random() returns 0.0 -> jitter = 0.5
+        factory1 = AsyncMock(
+            side_effect=[
+                DataSourceUnavailableError("src: e1"),
+                DataSourceUnavailableError("src: e2"),
+            ]
+        )
+        with (
+            patch("options_arena.services.helpers.random.random", return_value=0.0),
+            patch("asyncio.sleep", side_effect=capture_sleep_1),
+            pytest.raises(DataSourceUnavailableError),
+        ):
+            await fetch_with_retry(factory1, max_retries=2, base_delay=4.0, max_delay=16.0)
+
+        # Run 2: random.random() returns 1.0 -> jitter = 1.0
+        factory2 = AsyncMock(
+            side_effect=[
+                DataSourceUnavailableError("src: e1"),
+                DataSourceUnavailableError("src: e2"),
+            ]
+        )
+        with (
+            patch("options_arena.services.helpers.random.random", return_value=1.0),
+            patch("asyncio.sleep", side_effect=capture_sleep_2),
+            pytest.raises(DataSourceUnavailableError),
+        ):
+            await fetch_with_retry(factory2, max_retries=2, base_delay=4.0, max_delay=16.0)
+
+        # Run 1: delay = 4.0 * 0.5 = 2.0
+        assert recorded_delays_run1[0] == pytest.approx(2.0)
+        # Run 2: delay = 4.0 * 1.0 = 4.0
+        assert recorded_delays_run2[0] == pytest.approx(4.0)
+        # They must differ
+        assert recorded_delays_run1[0] != pytest.approx(recorded_delays_run2[0])

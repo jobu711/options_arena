@@ -56,15 +56,15 @@ class TestCompositeScore:
         assert total == pytest.approx(1.0, abs=1e-9)
 
     def test_floor_substitution_zero_value(self) -> None:
-        """Indicator value at 0.0 is treated as _FLOOR_VALUE (1.0) in log.
+        """Indicator value at 0.0 is treated as _FLOOR_VALUE (0.5) in log.
 
-        rsi=0.0 -> floored to 1.0, ln(1.0) = 0.
-        Score = exp(0.08*ln(1) / 0.08) = exp(0) = 1.0.
+        rsi=0.0 -> floored to 0.5, ln(0.5) ≈ -0.693.
+        Score = exp(0.07*ln(0.5) / 0.07) = exp(ln(0.5)) = 0.5.
         """
         signals = IndicatorSignals(rsi=0.0)
         result = composite_score(signals)
-        # exp(0.08 * ln(1.0) / 0.08) = exp(0) = 1.0
-        assert result == pytest.approx(1.0, rel=1e-6)
+        # exp(0.07 * ln(0.5) / 0.07) = exp(ln(0.5)) = 0.5
+        assert result == pytest.approx(0.5, rel=1e-6)
 
     def test_all_perfect_score(self) -> None:
         """All indicators at 100.0 produces composite = 100.0."""
@@ -73,10 +73,10 @@ class TestCompositeScore:
         assert result == pytest.approx(100.0, rel=1e-6)
 
     def test_all_minimum_score(self) -> None:
-        """All indicators at _FLOOR_VALUE (1.0) produces composite ~= 1.0."""
+        """All indicators at _FLOOR_VALUE (0.5) produces composite ~= 0.5."""
         signals = _make_uniform_signals(_FLOOR_VALUE)
         result = composite_score(signals)
-        assert result == pytest.approx(1.0, rel=1e-6)
+        assert result == pytest.approx(0.5, rel=1e-6)
 
     def test_missing_indicators_renormalized(self) -> None:
         """When some fields are None, only present fields contribute.
@@ -118,7 +118,7 @@ class TestCompositeScore:
     def test_clamping_lower_bound(self) -> None:
         """Result never goes below 0.0.
 
-        With floor at 1.0, minimum possible = exp(ln(1.0)) = 1.0 > 0.0.
+        With floor at 0.5, minimum possible = exp(ln(0.5)) = 0.5 > 0.0.
         But the clamp should still work logically.
         """
         signals = _make_uniform_signals(0.0)
@@ -135,12 +135,16 @@ class TestCompositeScore:
         result = composite_score(signals)
         assert result == pytest.approx(50.0, rel=1e-6)
 
-    def test_negative_value_floors_to_one(self) -> None:
-        """A negative indicator value is floored to _FLOOR_VALUE = 1.0."""
+    def test_negative_value_floors_to_half(self) -> None:
+        """A negative indicator value is floored to _FLOOR_VALUE = 0.5."""
         signals = IndicatorSignals(rsi=-5.0)
         result = composite_score(signals)
-        # exp(0.08 * ln(1.0) / 0.08) = exp(0) = 1.0
-        assert result == pytest.approx(1.0, rel=1e-6)
+        # exp(0.07 * ln(0.5) / 0.07) = exp(ln(0.5)) = 0.5
+        assert result == pytest.approx(0.5, rel=1e-6)
+
+    def test_floor_value_is_half(self) -> None:
+        """_FLOOR_VALUE is 0.5 so bottom-ranked tickers contribute negative signal."""
+        assert pytest.approx(0.5) == _FLOOR_VALUE
 
     def test_all_weights_map_to_model_fields(self) -> None:
         """Every key in INDICATOR_WEIGHTS is a valid IndicatorSignals field."""

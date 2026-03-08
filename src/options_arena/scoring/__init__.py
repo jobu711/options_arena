@@ -29,10 +29,12 @@ from options_arena.scoring.dimensional import (
 )
 from options_arena.scoring.direction import determine_direction
 from options_arena.scoring.normalization import (
+    DOMAIN_BOUNDS,
     INVERTED_INDICATORS,
     compute_normalization_stats,
     get_active_indicators,
     invert_indicators,
+    normalize_single_ticker,
     percentile_rank_normalize,
 )
 
@@ -40,9 +42,11 @@ __all__: list[str] = [
     # normalization
     "percentile_rank_normalize",
     "invert_indicators",
+    "normalize_single_ticker",
     "get_active_indicators",
     "compute_normalization_stats",
     "INVERTED_INDICATORS",
+    "DOMAIN_BOUNDS",
     # composite
     "composite_score",
     "score_universe",

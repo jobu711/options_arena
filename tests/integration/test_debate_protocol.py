@@ -233,15 +233,26 @@ class TestComputeAgreementScore:
         directions = {"trend": SignalDirection.BULLISH}
         assert compute_agreement_score(directions) == pytest.approx(1.0)
 
-    def test_neutral_not_counted_as_majority(self) -> None:
-        """Neutral agents don't count toward majority bullish/bearish."""
+    def test_neutral_excluded_from_denominator(self) -> None:
+        """Neutral agents are excluded from the denominator.
+
+        1 BULL, 0 BEAR, 2 NEUTRAL -> directional = 1 -> 1/1 = 1.0.
+        """
         directions = {
             "trend": SignalDirection.NEUTRAL,
             "flow": SignalDirection.NEUTRAL,
             "fundamental": SignalDirection.BULLISH,
         }
-        # 1 bullish, 0 bearish, 2 neutral -> majority = max(1,0)/3 = 0.333
-        assert compute_agreement_score(directions) == pytest.approx(1.0 / 3.0)
+        assert compute_agreement_score(directions) == pytest.approx(1.0)
+
+    def test_all_neutral_returns_zero(self) -> None:
+        """All-neutral inputs return 0.0 agreement (no directional agents)."""
+        directions = {
+            "trend": SignalDirection.NEUTRAL,
+            "flow": SignalDirection.NEUTRAL,
+            "fundamental": SignalDirection.NEUTRAL,
+        }
+        assert compute_agreement_score(directions) == pytest.approx(0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -302,31 +313,34 @@ class TestSynthesizeVerdict:
         assert 0.0 <= verdict.agent_agreement_score <= 1.0
 
     def test_low_agreement_caps_confidence(self) -> None:
-        """When agreement < 0.4, confidence is capped at 0.4."""
-        # 2 bullish, 2 bearish, 1 neutral -> agreement = 2/5 = 0.4
-        # Actually need < 0.4 so make it 1 bull 1 bear 1 neutral
+        """When agreement < 0.4 (all NEUTRAL), confidence is capped at 0.4.
+
+        With NEUTRAL exclusion from denominator, agreement is 0.0 when all
+        agents are NEUTRAL -- the only scenario where agreement < 0.4, since
+        the minimum directional agreement is 0.5 (equal split).
+        """
         agents: dict[
             str,
             AgentResponse | FlowThesis | FundamentalThesis | VolatilityThesis,
         ] = {
             "trend": AgentResponse(
                 agent_name="trend",
-                direction=SignalDirection.BULLISH,
-                confidence=0.9,
-                argument="Strong bull.",
+                direction=SignalDirection.NEUTRAL,
+                confidence=0.5,
+                argument="No clear trend.",
                 key_points=["Point A"],
                 risks_cited=["Risk A"],
                 contracts_referenced=["AAPL $190 CALL"],
                 model_used="test",
             ),
             "flow": FlowThesis(
-                direction=SignalDirection.BEARISH,
-                confidence=0.8,
-                gex_interpretation="Negative GEX.",
-                smart_money_signal="Distribution.",
-                oi_analysis="Put OI dominant.",
-                volume_confirmation="Volume declining.",
-                key_flow_factors=["Negative GEX"],
+                direction=SignalDirection.NEUTRAL,
+                confidence=0.5,
+                gex_interpretation="Flat GEX.",
+                smart_money_signal="No signal.",
+                oi_analysis="Balanced OI.",
+                volume_confirmation="Average volume.",
+                key_flow_factors=["No signal"],
                 model_used="test",
             ),
             "fundamental": FundamentalThesis(
@@ -347,9 +361,9 @@ class TestSynthesizeVerdict:
             ticker="AAPL",
             config=_make_config(),
         )
-        # agreement = max(1 bull, 1 bear) / 3 = 0.333 < 0.4
+        # All NEUTRAL -> directional_count = 0 -> agreement = 0.0 < 0.4
         assert verdict.agent_agreement_score is not None
-        assert verdict.agent_agreement_score < 0.4
+        assert verdict.agent_agreement_score == pytest.approx(0.0)
         assert verdict.confidence <= 0.4
 
     def test_contrarian_dissent_included(self) -> None:
@@ -677,28 +691,33 @@ class TestRunDebateV2:
 class TestAgentVoteWeights:
     """Tests for AGENT_VOTE_WEIGHTS constant."""
 
-    def test_weights_sum_positive(self) -> None:
-        """Voting agent weights should be positive.
+    def test_directional_weights_sum(self) -> None:
+        """Directional agent weights (excluding risk) sum to 0.85.
 
         Note: log-odds pooling does NOT require weights to sum to 1.0.
         Each weight scales how much the agent shifts the pooled log-odds.
-        Risk was removed from AGENT_VOTE_WEIGHTS (Phase 2 non-voting agent).
+        Risk has weight 0.0 (advisory-only, no directional vote).
         """
         total = sum(AGENT_VOTE_WEIGHTS.values())
         assert total == pytest.approx(0.85)
-        assert all(w > 0 for w in AGENT_VOTE_WEIGHTS.values())
+        assert all(w >= 0 for w in AGENT_VOTE_WEIGHTS.values())
 
     def test_all_agents_have_weights(self) -> None:
-        """All 5 voting agents have weight entries (risk is Phase 2, non-voting)."""
-        expected = {"trend", "volatility", "flow", "fundamental", "contrarian"}
+        """All 6 agents have weight entries (risk is advisory-only at 0.0)."""
+        expected = {"trend", "volatility", "flow", "fundamental", "contrarian", "risk"}
         assert set(AGENT_VOTE_WEIGHTS.keys()) == expected
+
+    def test_risk_weight_is_zero(self) -> None:
+        """Risk agent is advisory-only and has zero vote weight."""
+        assert AGENT_VOTE_WEIGHTS["risk"] == pytest.approx(0.0)
 
     def test_trend_has_highest_weight(self) -> None:
         """Trend agent has the highest individual weight."""
         max_name = max(AGENT_VOTE_WEIGHTS, key=AGENT_VOTE_WEIGHTS.get)  # type: ignore[arg-type]
         assert max_name == "trend"
 
-    def test_contrarian_has_lowest_weight(self) -> None:
-        """Contrarian agent has the lowest individual weight."""
-        min_name = min(AGENT_VOTE_WEIGHTS, key=AGENT_VOTE_WEIGHTS.get)  # type: ignore[arg-type]
+    def test_contrarian_has_lowest_positive_weight(self) -> None:
+        """Contrarian agent has the lowest positive (non-zero) weight."""
+        positive_weights = {k: v for k, v in AGENT_VOTE_WEIGHTS.items() if v > 0}
+        min_name = min(positive_weights, key=positive_weights.get)  # type: ignore[arg-type]
         assert min_name == "contrarian"
