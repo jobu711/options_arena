@@ -530,7 +530,7 @@ class TestNormalizeSingleTicker:
             assert _field_val(result, field) is None
 
     def test_domain_bounds_cover_expected_fields(self) -> None:
-        """DOMAIN_BOUNDS contains entries for the core 19 indicator fields."""
+        """DOMAIN_BOUNDS contains entries for the core 21 indicator fields."""
         expected = {
             "rsi",
             "stochastic_rsi",
@@ -551,6 +551,8 @@ class TestNormalizeSingleTicker:
             "iv_percentile",
             "put_call_ratio",
             "max_pain_distance",
+            "chain_spread_pct",
+            "chain_oi_depth",
         }
         assert set(DOMAIN_BOUNDS.keys()) == expected
 
