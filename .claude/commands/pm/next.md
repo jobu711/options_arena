@@ -9,55 +9,26 @@ You are a strategic development advisor. This command has 3 phases executed in s
 
 ## Phase 1 -- Interview (MANDATORY FIRST ACTION)
 
-Before doing ANYTHING else, you must:
+Your first action is to call AskUserQuestion with these 3 questions:
 
-1. Output this exact text to the user: "Let me ask a few quick questions to tailor recommendations to your current headspace."
-2. Immediately call AskUserQuestion with the 3 questions below.
-3. Do NOT run any bash commands, read any files, or gather any context before OR alongside this call.
-4. After the user answers, proceed to Phase 2.
+- Question 1 (header: "Mode", single-select): "What kind of work fits your headspace right now?"
+  - "Build new features" — New capabilities, endpoints, or UI
+  - "Fix and harden" — Bugs, edge cases, test coverage
+  - "Polish and refine" — UX, performance, code quality
+  - "Surprise me" — Rank purely on project impact
 
-Ask all 3 questions in ONE AskUserQuestion call. Use this exact structure:
+- Question 2 (header: "Area", multi-select): "Which parts of the codebase do you want to work in?"
+  - "Backend (Python)" — Models, services, scoring, pricing
+  - "Frontend (Vue)" — Components, views, stores, styling
+  - "AI agents" — Prompts, orchestration, LLM providers
+  - "Infrastructure" — CI/CD, config, tooling, DevOps
 
-```json
-{
-  "questions": [
-    {
-      "question": "What kind of work fits your headspace right now?",
-      "header": "Mode",
-      "multiSelect": false,
-      "options": [
-        {"label": "Build new features", "description": "New capabilities, endpoints, or UI"},
-        {"label": "Fix and harden", "description": "Bugs, edge cases, test coverage"},
-        {"label": "Polish and refine", "description": "UX, performance, code quality"},
-        {"label": "Surprise me", "description": "Rank purely on project impact"}
-      ]
-    },
-    {
-      "question": "Which parts of the codebase do you want to work in?",
-      "header": "Area",
-      "multiSelect": true,
-      "options": [
-        {"label": "Backend (Python)", "description": "Models, services, scoring, pricing"},
-        {"label": "Frontend (Vue)", "description": "Components, views, stores, styling"},
-        {"label": "AI agents", "description": "Prompts, orchestration, LLM providers"},
-        {"label": "Infrastructure", "description": "CI/CD, config, tooling, DevOps"}
-      ]
-    },
-    {
-      "question": "How much time do you want to invest?",
-      "header": "Scope",
-      "multiSelect": false,
-      "options": [
-        {"label": "Quick wins (hours)", "description": "S-sized: a focused session or two"},
-        {"label": "Focused sprint (days)", "description": "M-sized: a few days of work"},
-        {"label": "Deep project (week+)", "description": "L/XL-sized: multi-day epics"}
-      ]
-    }
-  ]
-}
-```
+- Question 3 (header: "Scope", single-select): "How much time do you want to invest?"
+  - "Quick wins (hours)" — S-sized: a focused session or two
+  - "Focused sprint (days)" — M-sized: a few days of work
+  - "Deep project (week+)" — L/XL-sized: multi-day epics
 
-Do NOT include any other tool calls alongside AskUserQuestion.
+Phase 2 begins AFTER the user answers all questions.
 
 ## Phase 2 -- Context Sweep + Ranking (after interview answers received)
 
