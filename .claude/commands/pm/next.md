@@ -9,26 +9,32 @@ You are a strategic development advisor. This command has 3 phases executed in s
 
 ## Phase 1 -- Interview (MANDATORY FIRST ACTION)
 
-Your first action is to call AskUserQuestion with these 3 questions:
+IMMEDIATELY call AskUserQuestion with all 3 questions below in a single tool call.
 
-- Question 1 (header: "Mode", single-select): "What kind of work fits your headspace right now?"
-  - "Build new features" — New capabilities, endpoints, or UI
-  - "Fix and harden" — Bugs, edge cases, test coverage
-  - "Polish and refine" — UX, performance, code quality
-  - "Surprise me" — Rank purely on project impact
+Question 1 — header: "Mode", multiSelect: false
+  question: "What kind of work fits your headspace right now?"
+  options:
+    label: "Build new features" → description: "New capabilities, endpoints, or UI"
+    label: "Fix and harden" → description: "Bugs, edge cases, test coverage"
+    label: "Polish and refine" → description: "UX, performance, code quality"
+    label: "Surprise me" → description: "Rank purely on project impact"
 
-- Question 2 (header: "Area", multi-select): "Which parts of the codebase do you want to work in?"
-  - "Backend (Python)" — Models, services, scoring, pricing
-  - "Frontend (Vue)" — Components, views, stores, styling
-  - "AI agents" — Prompts, orchestration, LLM providers
-  - "Infrastructure" — CI/CD, config, tooling, DevOps
+Question 2 — header: "Area", multiSelect: true
+  question: "Which parts of the codebase do you want to work in?"
+  options:
+    label: "Backend (Python)" → description: "Models, services, scoring, pricing"
+    label: "Frontend (Vue)" → description: "Components, views, stores, styling"
+    label: "AI agents" → description: "Prompts, orchestration, LLM providers"
+    label: "Infrastructure" → description: "CI/CD, config, tooling, DevOps"
 
-- Question 3 (header: "Scope", single-select): "How much time do you want to invest?"
-  - "Quick wins (hours)" — S-sized: a focused session or two
-  - "Focused sprint (days)" — M-sized: a few days of work
-  - "Deep project (week+)" — L/XL-sized: multi-day epics
+Question 3 — header: "Scope", multiSelect: false
+  question: "How much time do you want to invest?"
+  options:
+    label: "Quick wins (hours)" → description: "S-sized: a focused session or two"
+    label: "Focused sprint (days)" → description: "M-sized: a few days of work"
+    label: "Deep project (week+)" → description: "L/XL-sized: multi-day epics"
 
-Phase 2 begins AFTER the user answers all questions.
+WAIT for the user's actual responses. Phase 2 uses answers from Phase 1.
 
 ## Phase 2 -- Context Sweep + Ranking (after interview answers received)
 
@@ -55,19 +61,14 @@ Agent instructions (include in prompt):
 > Cross-reference rule — a feature is SHIPPED if ANY of these is true:
 > - Its epic name appears in `.claude/epics/archived/`
 > - It appears in progress.md "Recently Completed"
+> - Its PRD frontmatter has `status: done` or `status: archived`
 > - Its key components already exist in the codebase (confirmed by glob/grep)
->
-> Also identify 1-2 strategic opportunities:
-> - What does the current architecture enable that isn't built yet?
-> - What capabilities exist that could be extended to new use cases?
-> - What do comparable options analytics tools have that this project lacks?
 >
 > Return your summary in this exact format:
 > - SHIPPED: [list of shipped feature names]
 > - BACKLOG: [list of unshipped PRD names with effort estimate]
 > - IN-FLIGHT: [unmerged branches, if any]
 > - FUTURE IDEAS: [items from progress.md "Future Work"]
-> - STRATEGIC: [1-2 novel opportunities grounded in specific codebase capabilities]
 > - RECENT THEMES: [2-3 word summary of last 2 weeks of commits]
 
 After the agent returns its summary, apply ranking in the main context.
@@ -99,7 +100,7 @@ Scope multipliers:
 Additional rules:
 - Avoid duplicating or conflicting with in-progress efforts
 - Prefer targets with existing PRDs (less overhead). Flag if a target needs a PRD first.
-- If user answered "Other", interpret their free text and apply closest matching multipliers.
+- If the user provided free text instead of selecting a preset, interpret their intent and apply closest matching multipliers.
 
 ## Phase 3 -- Tailored Output
 

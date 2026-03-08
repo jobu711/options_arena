@@ -4,7 +4,7 @@
   "last_command": "/pm:epic-start next-command-redesign",
   "last_updated": "2026-03-08T19:00:00Z",
   "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced", "executing"],
-  "current_task": null,
+  "current_task": "389",
   "tasks_completed": ["386", "387", "388"],
   "tasks_in_progress": ["389"],
   "blockers": [],
