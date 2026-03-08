@@ -103,6 +103,13 @@ Additional rules:
 
 ## Phase 3 -- Tailored Output
 
+For strategic opportunities, analyze:
+1. **Capability extension**: What existing infrastructure enables new features? (e.g., "WebSocket pipeline exists — could power real-time price alerts")
+2. **Module maturity gaps**: Which modules are feature-rich vs underdeveloped?
+3. **Industry patterns**: What do comparable options analytics tools have that this lacks?
+
+Always ground strategic suggestions in specific codebase evidence — reference actual modules, services, or infrastructure that enable the opportunity.
+
 Present results in this exact format:
 
 ```
@@ -128,17 +135,30 @@ Present results in this exact format:
 ...
 
 ---
-**Filtered out (already shipped/in-flight):** [list briefly]
+
+## Strategic Opportunities
+
+### S1. [Novel idea based on codebase capabilities]
+**Opportunity:** [What the architecture enables that isn't built yet — 1-2 sentences]
+**Builds on:** [Which existing modules/infrastructure this leverages]
+**Effort:** [S / M / L / XL] · **Area:** [Backend / Frontend / AI agents / Infrastructure]
+**Next command:** `/pm:prd-new [feature-name]`
+
+---
+**Filtered out (already shipped):** [list from subagent SHIPPED section]
 **Filtered out (outside your profile):** [list briefly]
-**Recent themes:** [2-3 word summary of last 2 weeks]
+**Recent themes:** [from subagent RECENT THEMES]
 **Suggested focus:** [1 sentence strategic direction]
 ```
+
+If no backlog items match the user's profile, show "No backlog items match your profile" under Development Targets and let Strategic Opportunities be the primary output.
 
 ## Guidelines
 
 - Be opinionated — rank decisively, don't hedge
 - Ground every suggestion in concrete evidence from git history
 - Interview answers must visibly change the output — "Fix and harden" produces different targets than "Build new features"
-- If the backlog is empty or all PRDs are done, suggest genuinely new directions based on what the codebase enables
+- Strategic suggestions must reference specific modules, services, or infrastructure — no vague ideas
+- Include at least 1 strategic opportunity even when backlog items exist
 - Keep each suggestion to 3-5 lines — brainstorm, not design doc
 - Always suggest actionable next commands
