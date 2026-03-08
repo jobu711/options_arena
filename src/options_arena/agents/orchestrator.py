@@ -1118,7 +1118,7 @@ async def run_debate(
     Protocol flow:
       Phase 1 (parallel): trend, volatility, [flow, fundamental if enrichment exists]
       Phase 2 (sequential): risk agent with all Phase 1 outputs
-      Phase 3 (sequential): contrarian with all prior outputs (skip if >= 2 failures)
+      Phase 3 (sequential): contrarian with all prior outputs (skip if >= 3 failures)
       Phase 4 (algorithmic): synthesize_verdict -> ExtendedTradeThesis
 
     Flow and Fundamental agents run locally in Phase 1 when enrichment data

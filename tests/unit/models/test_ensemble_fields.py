@@ -70,13 +70,19 @@ class TestExtendedTradeThesisEntropy:
         with pytest.raises(ValidationError, match="ensemble_entropy must be finite"):
             _make_extended_thesis(ensemble_entropy=float("-inf"))
 
+    def test_rejects_negative(self) -> None:
+        """Verify negative entropy rejected — Shannon entropy is non-negative."""
+        with pytest.raises(ValidationError, match="ensemble_entropy must be >= 0.0"):
+            _make_extended_thesis(ensemble_entropy=-0.1)
+
     def test_backward_compat_deserialization(self) -> None:
         """Verify existing JSON without ensemble_entropy deserializes."""
         thesis = _make_extended_thesis(agent_agreement_score=0.8)
-        json_data = thesis.model_dump_json()
-        # Remove ensemble_entropy from JSON to simulate old data
-        restored = ExtendedTradeThesis.model_validate_json(json_data)
-        assert restored.ensemble_entropy is None or math.isfinite(restored.ensemble_entropy)
+        data = thesis.model_dump()
+        # Remove ensemble_entropy key entirely to simulate old schema data
+        del data["ensemble_entropy"]
+        restored = ExtendedTradeThesis.model_validate(data)
+        assert restored.ensemble_entropy is None
 
     def test_roundtrip_with_entropy(self) -> None:
         """Verify ensemble_entropy survives JSON roundtrip."""

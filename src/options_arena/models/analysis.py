@@ -742,9 +742,12 @@ class ExtendedTradeThesis(TradeThesis):
     @field_validator("ensemble_entropy")
     @classmethod
     def validate_ensemble_entropy(cls, v: float | None) -> float | None:
-        """Ensure ensemble_entropy is finite when provided."""
-        if v is not None and not math.isfinite(v):
-            raise ValueError(f"ensemble_entropy must be finite, got {v}")
+        """Ensure ensemble_entropy is finite and non-negative when provided."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"ensemble_entropy must be finite, got {v}")
+            if v < 0.0:
+                raise ValueError(f"ensemble_entropy must be >= 0.0, got {v}")
         return v
 
 
