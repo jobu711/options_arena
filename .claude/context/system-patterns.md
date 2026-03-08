@@ -43,7 +43,7 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - `retries=2`, `model_settings=ModelSettings(extra_body={"num_ctx": 8192})`
 - `@agent.output_validator` delegates to shared helpers: `build_cleaned_agent_response()` (bull/bear) and `build_cleaned_trade_thesis()` (risk) — strips `<think>` tags without costly retries
 - **Shared prompt appendix**: `PROMPT_RULES_APPENDIX` appended to bull/bear/risk. `RISK_STRATEGY_TREE` appended to risk only.
-- **Groq-only**: `build_debate_model()` builds `GroqModel` directly (no provider abstraction)
+- **Multi-provider dispatch**: `build_debate_model()` in `model_config.py` dispatches on `LLMProvider` enum — `GroqModel` (default) or `AnthropicModel`. Conditional `ModelSettings` for extended thinking on Anthropic. `--provider` CLI flag selects at runtime.
 - **Single debate path**: `run_debate()` (v1 eliminated, v2 renamed). No legacy code paths.
 - **Bull rebuttal** (optional): bull runs a second time with `bear_counter_argument` set. Uses string concatenation, NOT `str.format()` — safe for LLM text with curly braces.
 - **Score-confidence clamping**: `TradeThesis` model_validator clamps confidence <=0.5 when scores contradict direction

@@ -27,6 +27,10 @@ logger = logging.getLogger(__name__)
 _ZERO = Decimal("0")
 _DAYS_PER_YEAR = 365.0
 
+# Liquidity multiplier calibration — internal constants, NOT config.
+_SPREAD_WEIGHT: float = 0.7
+_OI_WEIGHT: float = 0.3
+
 
 def _default_config(config: PricingConfig | None) -> PricingConfig:
     """Return *config* if provided, otherwise a fresh ``PricingConfig`` with defaults."""
@@ -301,6 +305,30 @@ def compute_greeks(
     return result
 
 
+def _compute_liquidity_score(
+    contract: OptionContract,
+    max_spread_pct: float,
+) -> float:
+    """Compute 0-1 liquidity score for a contract. Higher = more liquid.
+
+    Blends bid-ask tightness (70%) with open interest depth (30%).
+    Floor of 0.01 prevents division-by-zero in effective distance.
+    """
+    mid = float(contract.mid)
+    if not math.isfinite(max_spread_pct) or max_spread_pct <= 0.0:
+        spread_component = 0.0
+    elif mid > 0:
+        spread_pct = float(contract.spread) / mid
+        spread_component = max(1.0 - spread_pct / max_spread_pct, 0.0)
+    else:
+        spread_component = 0.0
+
+    oi_component = min(math.log10(contract.open_interest + 1) / 4.0, 1.0)
+    score = spread_component * _SPREAD_WEIGHT + oi_component * _OI_WEIGHT
+
+    return score if math.isfinite(score) else 0.0
+
+
 def select_by_delta(
     contracts: list[OptionContract],
     config: PricingConfig | None = None,
@@ -340,8 +368,14 @@ def select_by_delta(
             fallback.append((contract, distance))
 
     if primary:
-        # Sort by distance, then by strike (ascending) for deterministic tiebreaker
-        primary.sort(key=lambda t: (t[1], t[0].strike))
+        # Sort by effective distance (delta_distance / liquidity), then by strike
+        def _sort_key(pair: tuple[OptionContract, float]) -> tuple[float, Decimal]:
+            c, delta_dist = pair
+            liq = _compute_liquidity_score(c, cfg.max_spread_pct)
+            effective = delta_dist / max(liq, 0.01)
+            return (effective, c.strike)
+
+        primary.sort(key=_sort_key)
         best, best_distance = primary[0]
         logger.debug(
             "select_by_delta: primary — strike=%s, |delta|=%.4f (distance=%.4f)",
@@ -352,7 +386,14 @@ def select_by_delta(
         return best
 
     if fallback:
-        fallback.sort(key=lambda t: (t[1], t[0].strike))
+
+        def _sort_key_fb(pair: tuple[OptionContract, float]) -> tuple[float, Decimal]:
+            c, delta_dist = pair
+            liq = _compute_liquidity_score(c, cfg.max_spread_pct)
+            effective = delta_dist / max(liq, 0.01)
+            return (effective, c.strike)
+
+        fallback.sort(key=_sort_key_fb)
         best_fb, best_fb_distance = fallback[0]
         logger.info(
             "select_by_delta: fallback — strike=%s, distance=%.4f",

@@ -1,7 +1,7 @@
 """Scan pipeline models for Options Arena.
 
 Three models for the scan pipeline:
-  IndicatorSignals -- 59 named indicator fields replacing ``dict[str, float]``.
+  IndicatorSignals -- 61 named indicator fields replacing ``dict[str, float]``.
   ScanRun          -- metadata for a completed scan run (frozen).
   TickerScore      -- scored ticker with typed indicator signals.
 
@@ -29,7 +29,7 @@ from options_arena.models.scoring import DimensionalScores
 
 
 class IndicatorSignals(BaseModel):
-    """59 named indicator fields (18 original + 1 MACD + 40 DSE).
+    """61 named indicator fields (18 original + 1 MACD + 40 DSE + 2 liquidity).
 
     Replaces ``dict[str, float]`` on TickerScore.
 
@@ -126,8 +126,10 @@ class IndicatorSignals(BaseModel):
     sector_relative_momentum: float | None = None
     correlation_regime_shift: float | None = None
 
-    # --- DSE: Microstructure (1 new) ---
+    # --- DSE: Microstructure (3 new) ---
     volume_profile_skew: float | None = None
+    chain_spread_pct: float | None = None  # OI-weighted avg spread as % points (0.0–30.0)
+    chain_oi_depth: float | None = None  # log10(total_oi + 1), range 0.0–6.0
 
     @model_validator(mode="before")
     @classmethod

@@ -530,7 +530,7 @@ class TestNormalizeSingleTicker:
             assert _field_val(result, field) is None
 
     def test_domain_bounds_cover_expected_fields(self) -> None:
-        """DOMAIN_BOUNDS contains entries for the core 19 indicator fields."""
+        """DOMAIN_BOUNDS contains entries for the core 21 indicator fields."""
         expected = {
             "rsi",
             "stochastic_rsi",
@@ -551,8 +551,24 @@ class TestNormalizeSingleTicker:
             "iv_percentile",
             "put_call_ratio",
             "max_pain_distance",
+            "chain_spread_pct",
+            "chain_oi_depth",
         }
         assert set(DOMAIN_BOUNDS.keys()) == expected
+
+    def test_liquidity_fields_scale_and_invert(self) -> None:
+        """Liquidity fields use the expected domain scaling and inversion."""
+        # chain_spread_pct=0.0 → scaled to 0, then inverted → 100
+        # chain_oi_depth=3.0 → mid-range of (0, 6) → 50, NOT inverted
+        signals = IndicatorSignals(chain_spread_pct=0.0, chain_oi_depth=3.0)
+        result = normalize_single_ticker(signals)
+
+        assert _field_val(result, "chain_spread_pct") == pytest.approx(100.0)
+        assert _field_val(result, "chain_oi_depth") == pytest.approx(50.0)
+
+        # Worst spread (30%) → scaled to 100, then inverted → 0
+        worst_spread = normalize_single_ticker(IndicatorSignals(chain_spread_pct=30.0))
+        assert _field_val(worst_spread, "chain_spread_pct") == pytest.approx(0.0)
 
     def test_fields_not_in_domain_bounds_unchanged(self) -> None:
         """DSE fields not in DOMAIN_BOUNDS pass through without scaling."""

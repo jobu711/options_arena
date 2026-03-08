@@ -32,9 +32,16 @@ logger = logging.getLogger(__name__)
 #
 # NOTE: ``relative_volume`` is intentionally NOT inverted.  High relative volume
 # signals institutional attention and better options liquidity — desirable traits
-# for an options scanner.  Only volatility-width indicators are inverted (wider
-# bands = more uncertainty = less favorable).
-INVERTED_INDICATORS: frozenset[str] = frozenset({"bb_width", "atr_pct", "keltner_width"})
+# for an options scanner.  Volatility-width and liquidity-spread indicators are
+# inverted because wider ranges/spreads are less favorable.
+INVERTED_INDICATORS: frozenset[str] = frozenset(
+    {
+        "bb_width",
+        "atr_pct",
+        "keltner_width",
+        "chain_spread_pct",
+    }
+)
 
 # Domain bounds for single-ticker linear scaling.
 # Each entry maps an ``IndicatorSignals`` field name to its
@@ -60,6 +67,8 @@ DOMAIN_BOUNDS: dict[str, tuple[float, float]] = {
     "iv_percentile": (0.0, 100.0),
     "put_call_ratio": (0.0, 3.0),
     "max_pain_distance": (-0.2, 0.2),
+    "chain_spread_pct": (0.0, 30.0),
+    "chain_oi_depth": (0.0, 6.0),
 }
 
 # All indicator field names from IndicatorSignals, cached once at import time.

@@ -1164,6 +1164,9 @@ _PHASE3_FIELDS: tuple[str, ...] = (
     "vix_term_structure",
     "risk_on_off_score",
     "sector_relative_momentum",
+    # Liquidity
+    "chain_spread_pct",
+    "chain_oi_depth",
 )
 
 

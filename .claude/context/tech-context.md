@@ -20,6 +20,7 @@
 | typer | >=0.24.0 | CLI framework with subcommands |
 | rich | >=14.3.2 | Terminal output formatting (tables, colors, progress) |
 | pydantic-settings | >=2.13.0 | Configuration management |
+| anthropic | >=0.83.0 | Anthropic API client for Claude debate agents |
 
 | fastapi | >=0.133.1 | REST API + WebSocket backend |
 | uvicorn[standard] | >=0.41.0 | ASGI server for FastAPI |
@@ -35,6 +36,7 @@ For web/optional/dev deps, build system, and tool config: `.claude/guides/depend
 | CBOE | `universe.py`, `cboe_provider.py` | httpx CSV + OpenBB SDK | Optionable universe + option chains (primary) | Cached list (24h TTL) / yfinance fallback |
 | GitHub CSV | `universe.py` | httpx + `pd.read_csv` via `asyncio.to_thread` | S&P 500 constituents + GICS sectors | Cached list (24h TTL) |
 | Groq | `agents/orchestrator.py`, `health.py` | PydanticAI + GroqProvider (cloud API) | LLM debate agents (llama-3.3-70b-versatile) | Data-driven verdict |
+| Anthropic | `agents/model_config.py`, `health.py` | PydanticAI + AnthropicModel (cloud API) | LLM debate agents (Claude, `--provider anthropic`) | Groq (default) |
 | OpenBB | `openbb_service.py`, `health.py` | OpenBB SDK (guarded import) | Fundamentals, unusual flow, news sentiment | `None` (optional enrichment) |
 
 ## Database
@@ -44,7 +46,7 @@ For web/optional/dev deps, build system, and tool config: `.claude/guides/depend
 ## CLI Entry Point
 
 - **Command**: `options-arena` — entry point `options_arena.cli:app` (Typer)
-- **Commands**: `scan` (`--sector`), `health`, `universe`, `debate` (`--batch`, `--export md|pdf`), `serve`, `watchlist`, `outcomes`
+- **Commands**: `scan` (`--sector`), `health`, `universe`, `debate` (`--batch`, `--export md|pdf`, `--provider`), `serve`, `watchlist`, `outcomes`
 - **Logging**: Dual-handler (RichHandler stderr + RotatingFileHandler `logs/options_arena.log`)
 - **SIGINT**: `signal.signal()` double-press pattern (graceful then force)
 

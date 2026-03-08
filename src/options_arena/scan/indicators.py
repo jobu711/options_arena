@@ -676,6 +676,47 @@ def compute_phase3_indicators(
             exc_info=True,
         )
 
+    # --- Liquidity (chain-wide spread and depth) ---
+    # Reuses chain_df built at line 536 for flow analytics (same contracts input).
+    try:
+        if not chain_df.empty:
+            bid_arr = chain_df["bid"].to_numpy(dtype=float)
+            ask_arr = chain_df["ask"].to_numpy(dtype=float)
+            oi_arr = chain_df["openInterest"].to_numpy(dtype=float)
+            mid_arr = (ask_arr + bid_arr) / 2.0
+
+            # chain_spread_pct: OI-weighted avg spread as percentage points
+            valid_mask = mid_arr > 0
+            if valid_mask.any():
+                spread_arr = ask_arr[valid_mask] - bid_arr[valid_mask]
+                spread_pct_arr = (spread_arr / mid_arr[valid_mask]) * 100.0
+                oi_valid_arr = oi_arr[valid_mask]
+                total_oi_f = float(oi_valid_arr.sum())
+                if total_oi_f > 0:
+                    weighted_spread = max(
+                        0.0, float((spread_pct_arr * oi_valid_arr).sum() / total_oi_f)
+                    )
+                    if math.isfinite(weighted_spread):
+                        signals.chain_spread_pct = weighted_spread
+    except Exception:
+        logger.warning(
+            "Indicator chain_spread_pct failed; setting to None",
+            exc_info=True,
+        )
+
+    try:
+        if not chain_df.empty:
+            # chain_oi_depth: log10(total_oi + 1)
+            total_oi_all = int(chain_df["openInterest"].sum())
+            depth = math.log10(total_oi_all + 1)
+            if math.isfinite(depth):
+                signals.chain_oi_depth = depth
+    except Exception:
+        logger.warning(
+            "Indicator chain_oi_depth failed; setting to None",
+            exc_info=True,
+        )
+
     return signals
 
 
