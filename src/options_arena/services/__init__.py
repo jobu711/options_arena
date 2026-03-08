@@ -6,6 +6,7 @@ All public functions return typed Pydantic models.
 
 from options_arena.services.cache import ServiceCache
 from options_arena.services.cboe_provider import CBOEChainProvider
+from options_arena.services.financial_datasets import FinancialDatasetsService
 from options_arena.services.fred import FredService
 from options_arena.services.health import HealthService
 from options_arena.services.intelligence import IntelligenceService
@@ -41,6 +42,7 @@ __all__ = [
     "CBOEChainProvider",
     "ChainProvider",
     "ExpirationChain",
+    "FinancialDatasetsService",
     "FredService",
     "HealthService",
     "IntelligenceService",
