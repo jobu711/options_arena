@@ -28,6 +28,7 @@ from datetime import UTC, date, datetime
 from enum import StrEnum
 
 from pydantic_ai import AgentRunResult
+from pydantic_ai.models.anthropic import AnthropicModelSettings
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RunUsage
 
@@ -60,6 +61,7 @@ from options_arena.models import (
     FlowThesis,
     FundamentalSnapshot,
     FundamentalThesis,
+    LLMProvider,
     MacdSignal,
     MarketContext,
     NewsSentimentSnapshot,
@@ -1229,6 +1231,27 @@ async def run_debate(
     return result
 
 
+def _build_model_settings(config: DebateConfig) -> ModelSettings:
+    """Build provider-appropriate ``ModelSettings`` for agent runs.
+
+    When provider is Anthropic and extended thinking is enabled, returns
+    ``AnthropicModelSettings`` with ``anthropic_thinking`` configured and
+    temperature forced to ``1.0`` (required by the Anthropic thinking API).
+    Otherwise returns standard ``ModelSettings`` with the configured temperature.
+
+    Groq ignores ``enable_extended_thinking`` — thinking is Anthropic-only.
+    """
+    if config.provider == LLMProvider.ANTHROPIC and config.enable_extended_thinking:
+        return AnthropicModelSettings(
+            temperature=1.0,
+            anthropic_thinking={
+                "type": "enabled",
+                "budget_tokens": config.thinking_budget_tokens,
+            },
+        )
+    return ModelSettings(temperature=config.temperature)
+
+
 async def _run_v2_agents(
     context: MarketContext,
     ticker_score: TickerScore,
@@ -1242,7 +1265,7 @@ async def _run_v2_agents(
 ) -> DebateResult:
     """Run the 6-agent pipeline. Raises on total failure."""
     model = build_debate_model(config)
-    settings = ModelSettings(temperature=config.temperature)
+    settings = _build_model_settings(config)
     per_agent_timeout = config.agent_timeout
 
     # Partitioned context: each Phase 1 agent sees only domain-specific fields.
