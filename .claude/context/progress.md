@@ -13,10 +13,12 @@
 
 ## In Progress
 
-- Uncommitted changes across orchestrator, scoring, services, tests — likely follow-up refinements
+- 18 stale PRD files deleted from working tree (housekeeping cleanup, not yet staged)
+- `anthropic-api` epic exists in `.claude/epics/` but not actively in progress
 
 ## Recently Completed
 
+- **Housekeeping** (2026-03-08): Archived completed epics, pruned stale branches/stashes, removed cruft, synced docs. Added `daily-audit` command, `tach.toml` boundary enforcement, `tools/bootstrap-dev-env.py`, ast-grep rules.
 - **S&P 500 Heatmap epic** (2026-03-08): Issues #366-#372. BatchQuote model, `fetch_batch_daily_changes()`, `GET /api/market/heatmap`, `MarketHeatmap.vue` squarify treemap, Pinia heatmap store, chunked batch download, E2E tests.
 - **Algo Audit epic** (2026-03-08): PR #364, issues #354-#363. 13 algorithmic correctness fixes: isfinite guards, citation matching, NEUTRAL exclusion from agreement, retry jitter, composite floor, expired P&L with historical close, single-ticker normalization, rate-limiter slot starvation fix, ETF 404 retry waste elimination.
 - **Debate Calibration epic** (2026-03-08): PR #353, issues #345-#351. Domain context partitioning, Bordley 1982 log-odds pooling, ensemble diversity metrics, agent prediction persistence (migration 025).
