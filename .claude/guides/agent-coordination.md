@@ -1,224 +1,374 @@
-# Agent Coordination
+# Agent Coordination & Orchestration
 
-Rules for multiple agents working in parallel within the same epic worktree.
+Comprehensive guide for orchestrating Claude Code's multi-agent system. Covers agent
+selection, quality sweeps, parallel execution, context budget management, and workflow
+templates for all task types.
 
-## Parallel Execution Principles
+Load this guide when: planning multi-agent work, designing quality gates, coordinating
+parallel execution, or choosing between agents.
 
-1. **File-level parallelism** - Agents working on different files never conflict
-2. **Explicit coordination** - When same file needed, coordinate explicitly
-3. **Fail fast** - Surface conflicts immediately, don't try to be clever
-4. **Human resolution** - Conflicts are resolved by humans, not agents
+## Agent Tiers
 
-## Work Stream Assignment
+### T1 — Auditors (6 agents, all read-only, all parallelizable)
 
-Each agent is assigned a work stream from the issue analysis:
-```yaml
-# From {issue}-analysis.md
-Stream A: Database Layer
-  Files: src/db/*, migrations/*
-  Agent: backend-specialist
+These agents have **non-overlapping scopes** by design. Run any combination in parallel.
 
-Stream B: API Layer
-  Files: src/api/*
-  Agent: api-specialist
+| Agent | IN Scope | OUT of Scope | Model |
+|-------|----------|-------------|-------|
+| `architect-reviewer` | Module boundaries, coupling, API design, data model changes, dependency direction | Bugs, security, performance, DB | opus |
+| `code-reviewer` | Style, patterns, types, NaN defense, clean code, interface misuse | Security, async races, DB queries, deps | opus |
+| `security-auditor` | OWASP Top 10, injection, secrets, env vars, WebSocket security, input validation | Code quality, async, DB, deps | opus |
+| `bug-auditor` | Async races, resource leaks, timeouts, error handling, concurrency, floating tasks | Security, style, DB, deps | opus |
+| `db-auditor` | SQL injection, commit discipline, migrations, serialization, connection lifecycle | API logic, async, security, deps | opus |
+| `dep-auditor` | CVEs, unused deps, licenses, optional import guards, version constraints | App code, async, security, DB | sonnet |
+
+**Non-overlap guarantee**: Each auditor's IN scope is every other auditor's OUT scope. No
+two auditors will flag the same issue type. This makes parallel execution safe and
+non-redundant.
+
+### T2 — Analysts (3 agents, read-only)
+
+| Agent | Use When | Model |
+|-------|----------|-------|
+| `research-analyst` | Pre-implementation research, API evaluation, data source assessment | opus |
+| `code-analyzer` | Deep logic tracing, bug investigation, change impact analysis | opus |
+| `file-analyzer` | Summarizing verbose output (logs, test results) to save parent context | haiku |
+
+### T3 — Domain Specialists (3 agents, write-capable)
+
+| Agent | Domain | Model |
+|-------|--------|-------|
+| `quant-analyst` | `pricing/`, `scoring/`, `indicators/` — derivatives pricing, volatility, statistics | opus |
+| `risk-manager` | VaR, stress testing, position sizing, hedging, portfolio risk | opus |
+| `prompt-engineer` | `agents/prompts/` — debate agent prompts, template design, token optimization | opus |
+
+### T4 — Execution Engines (4 agents)
+
+| Agent | Purpose | Model |
+|-------|---------|-------|
+| `tdd-orchestrator` | Red-green-refactor TDD cycles (pytest + pytest-asyncio) | opus |
+| `parallel-worker` | Worktree-isolated parallel write streams | inherit |
+| `test-runner` | Test execution + log analysis + failure diagnosis | inherit |
+| `multi-agent-coordinator` | Dependency graphs, workflow design, parallel execution planning | opus |
+
+### T5 — General (3 built-in agents)
+
+| Agent | Purpose | Model |
+|-------|---------|-------|
+| `Explore` | Fast codebase search, file patterns, structure understanding | inherit |
+| `Plan` | Architecture design, implementation strategy | inherit |
+| `general-purpose` | Fallback for tasks that don't fit any specialist | inherit |
+
+## Module-to-Agent Mapping
+
+Every project directory has a primary agent for implementation and required auditors for
+validation. This table aligns with CLAUDE.md's module boundary table.
+
+| Module | Primary Agent | Required Auditors | Notes |
+|--------|--------------|-------------------|-------|
+| `models/` | Main thread | `code-reviewer` | Data shapes only — no logic |
+| `services/` | Main thread | `bug-auditor`, `security-auditor` | External API access, async patterns |
+| `indicators/` | `quant-analyst` | `code-reviewer` | Pure math, pandas in/out |
+| `pricing/` | `quant-analyst` | `code-reviewer` | BSM + BAW, scipy |
+| `scoring/` | `quant-analyst` | `code-reviewer` | Normalization, composite scoring |
+| `data/` | Main thread | `db-auditor` | SQLite persistence |
+| `data/migrations/` | Main thread | `db-auditor` | Sequential SQL migration files |
+| `scan/` | Main thread | `bug-auditor`, `architect-reviewer` | 4-phase async pipeline |
+| `agents/` | Main thread | `bug-auditor`, `architect-reviewer` | PydanticAI debate orchestration |
+| `agents/prompts/` | `prompt-engineer` | `bug-auditor` | Prompt templates & versioning |
+| `api/` | Main thread | `security-auditor`, `bug-auditor` | FastAPI REST + WebSocket |
+| `cli/` | Main thread | `code-reviewer` | Typer + Rich entry point |
+| `reporting/` | Main thread | `code-reviewer` | Export generation |
+| `utils/` | Main thread | `code-reviewer` | Exception hierarchy |
+| `web/` | Main thread | `security-auditor` | Vue 3 SPA |
+
+## Quality Sweeps
+
+### Full Sweep — All 6 T1 Auditors
+
+When: Epic merges, releases, major refactors, or any change touching 4+ modules.
+
+```
+Launch in parallel (all BG):
+  architect-reviewer  → boundary violations, coupling
+  code-reviewer       → style, patterns, types, NaN
+  security-auditor    → OWASP, secrets, injection
+  bug-auditor         → async, leaks, timeouts
+  db-auditor          → queries, commits, migrations
+  dep-auditor         → CVEs, unused deps, licenses
 ```
 
-Agents should only modify files in their assigned patterns.
+All 6 run simultaneously. Non-overlapping scopes mean no duplicated findings.
+Expect ~2-4 minutes for full sweep across the codebase.
 
-## File Access Coordination
+### Targeted Sweep — 2-4 Auditors by Module
 
-### Check Before Modify
-Before modifying a shared file:
-```bash
-# Check if file is being modified
-git status {file}
+When: Multi-module commits, feature additions, most PRs.
 
-# If modified by another agent, wait
-if [[ $(git status --porcelain {file}) ]]; then
-  echo "Waiting for {file} to be available..."
-  sleep 30
-  # Retry
-fi
+Select auditors from the module-to-auditor matrix. Examples:
+
+| Modules Changed | Auditors |
+|----------------|----------|
+| `services/` + `api/` | `bug-auditor`, `security-auditor` |
+| `pricing/` + `scoring/` | `code-reviewer`, `architect-reviewer` |
+| `data/` + `scan/` | `db-auditor`, `bug-auditor`, `architect-reviewer` |
+| `agents/prompts/` | `bug-auditor` |
+| `models/` + `services/` + `api/` | `code-reviewer`, `security-auditor`, `bug-auditor` |
+
+### Spot Check — Single Auditor
+
+When: Small changes in a single module, focused validation.
+
+Pick the single most relevant auditor for the change type:
+- Changed async code → `bug-auditor`
+- Changed API endpoint → `security-auditor`
+- Changed query/migration → `db-auditor`
+- Changed model/types → `code-reviewer`
+- Changed module imports → `architect-reviewer`
+- Added dependency → `dep-auditor`
+
+## Foreground vs Background vs Worktree
+
+### Foreground (default)
+
+Use when the agent's result determines your next step.
+
+- Research phase (need findings before designing)
+- Architecture review (need approval before implementing)
+- Test execution when debugging (need results to fix)
+- Any blocking decision point
+
+### Background
+
+Use when the agent validates independently while you continue.
+
+- All T1 auditors during quality sweeps
+- Regression test suite after implementation
+- Documentation generation
+- Any non-blocking validation
+
+### Worktree Isolation
+
+Use when 3+ independent write streams touch different modules.
+
+- Epic with parallel implementation issues
+- Multi-module refactor with independent extraction tasks
+- Different agents writing to different module directories
+
+**Rule**: Never use worktree for read-only work. Worktrees have overhead — only justified
+when multiple agents need to write simultaneously.
+
+## Context Budget Management
+
+The main thread's context window is the scarcest resource. Protect it.
+
+### Delegation Thresholds
+
+| Situation | Threshold | Delegate To |
+|-----------|-----------|-------------|
+| File to read | >200 lines | `file-analyzer` (returns summary) |
+| Test output to analyze | >100 lines | `test-runner` (returns diagnosis) |
+| Codebase search | >3 queries likely | `Explore` or `code-analyzer` |
+| Web/API research | >2 searches needed | `research-analyst` |
+| Log file analysis | Any size | `file-analyzer` |
+
+### What Stays on Main Thread
+
+- Direct Glob/Grep for targeted, single-query lookups
+- Reading files you're about to edit (need exact content)
+- Writing/editing code (main thread is the primary implementer)
+- Decision-making between alternatives
+- Coordinating wave transitions
+
+### What Gets Delegated
+
+- Open-ended codebase exploration
+- Test execution and result analysis
+- Quality sweeps (always delegated to auditors)
+- Research that might require multiple web searches
+- Verbose output processing (logs, large test suites)
+
+## Model Tier Selection
+
+Choose the cheapest model that can do the job well.
+
+| Tier | Cost | Speed | Use For |
+|------|------|-------|---------|
+| **Opus** | High | Slow | Architecture decisions, security audits, complex bug analysis, quant modeling, multi-module coordination, any task requiring deep reasoning |
+| **Sonnet** | Medium | Fast | Dependency checks, structured checklists with explicit criteria |
+| **Inherit** | Lowest | Fastest | Test execution, file summarization, parallel workers, command-running tasks that don't need deep reasoning |
+
+**Default rule**: If the agent mostly runs commands and summarizes output → inherit.
+If it follows a checklist → sonnet. If it reasons about architecture, correctness, or
+security → opus.
+
+## Workflow Templates
+
+### Bug Fix (2-3 waves)
+
+```
+Wave 0 — Investigate (FG)
+  Direct Glob/Grep for the bug location
+  Direct Read of affected files
+  [If complex] code-analyzer to trace logic flow
+
+Wave 1 — Fix + Validate (mixed)
+  Main thread implements fix
+  test-runner: run affected test file (FG)
+  Targeted sweep: 1-2 auditors from module matrix (BG)
 ```
 
-### Atomic Commits
-Make commits atomic and focused:
-```bash
-# Good - Single purpose commit
-git add src/api/users.ts src/api/users.test.ts
-git commit -m "Issue #1234: Add user CRUD endpoints"
+### New Feature (4-5 waves)
 
-# Bad - Mixed concerns
-git add src/api/* src/db/* src/ui/*
-git commit -m "Issue #1234: Multiple changes"
+```
+Wave 0 — Research (parallel, FG)
+  research-analyst: evaluate external APIs/approaches
+  Explore: find existing patterns to follow
+  architect-reviewer: validate proposed boundaries
+
+Wave 1 — Foundation (main thread)
+  Add models, config, types
+  /pm:epic-checkpoint
+
+Wave 2 — Implementation (main thread or domain specialist)
+  Build core logic
+  test-runner: run new tests (BG)
+
+Wave 3 — Integration (main thread)
+  Wire into orchestrator/CLI/API
+  test-runner: full suite (FG)
+
+Wave 4 — Quality Sweep (parallel, BG)
+  Full or targeted sweep based on module count
 ```
 
-## Communication Between Agents
+### Refactor (3 waves)
 
-### Through Commits
-Agents see each other's work through commits:
-```bash
-# Agent checks what others have done
-git log --oneline -10
+```
+Wave 0 — Analyze (parallel, FG)
+  Explore: map current structure
+  architect-reviewer: validate target design
 
-# Agent pulls latest changes
-git pull origin epic/{name}
+Wave 1 — Execute (main thread)
+  Implement refactoring
+  test-runner: verify no regressions (FG)
+
+Wave 2 — Triple Audit (parallel, BG)
+  architect-reviewer: boundaries post-refactor
+  code-reviewer: extraction quality
+  bug-auditor: no async/resource regressions
 ```
 
-### Through Progress Files
-Each stream maintains progress:
-```markdown
-# .claude/epics/{epic}/updates/{issue}/stream-A.md
----
-stream: Database Layer
-agent: backend-specialist
-started: {datetime}
-status: in_progress
----
+### Epic (5+ waves)
 
-## Completed
-- Created user table schema
-- Added migration files
+```
+Wave 0 — Research (parallel, FG)
+  research-analyst + Explore + architect-reviewer
 
-## Working On
-- Adding indexes
+Wave 1 — Foundation (main thread)
+  Models, config, types (low risk)
+  /pm:epic-checkpoint
 
-## Blocked
-- None
+Waves 2-N — Per-issue implementation
+  /pm:issue-start per issue
+  Main thread or domain specialist
+  test-runner after each issue (BG)
+  /pm:epic-checkpoint between waves
+
+Wave N+1 — Full Quality Sweep (parallel, BG)
+  All 6 T1 auditors
+  Full test suite
 ```
 
-### Through Analysis Files
-The analysis file is the contract:
-```yaml
-# Agents read this to understand boundaries
-Stream A:
-  Files: src/db/*  # Agent A only touches these
-Stream B:
-  Files: src/api/* # Agent B only touches these
+### Investigation (2 waves)
+
+```
+Wave 0 — Search (parallel, FG)
+  Explore: find relevant code
+  code-analyzer: trace execution flow
+
+Wave 1 — Deep Dive (FG)
+  bug-auditor or domain specialist for targeted analysis
+
+Output: Report with findings. No code changes without user approval.
 ```
 
-## Handling Conflicts
+## The Elegant Solution Principle
 
-### Conflict Detection
-```bash
-# If commit fails due to conflict
-git commit -m "Issue #1234: Update"
-# Error: conflicts exist
+When encountering diverging methods — multiple agents proposing conflicting approaches,
+competing implementation patterns, or escalating complexity from layered workarounds —
+**stop and find the elegant solution**.
 
-# Agent should report and wait
-echo "❌ Conflict detected in {files}"
-echo "Human intervention needed"
-```
+1. **Step back**: Don't patch conflicts between approaches. Identify the root constraint
+   causing divergence.
+2. **Simplify**: Reframe what you're actually trying to achieve. Often 2 diverging
+   50-line approaches share a 10-line core that solves both.
+3. **Prefer deletion**: When two methods conflict, the one that removes complexity is
+   almost always correct.
+4. **One clean path**: If agents disagree on approach, don't merge both — pick the one
+   that's simpler to reason about, even if the other has marginal advantages.
+5. **Escalate early**: If you've spent 2+ attempts reconciling divergent approaches,
+   stop and ask the user. The elegant solution often requires domain knowledge the
+   agents don't have.
 
-### Conflict Resolution
-Always defer to humans:
-1. Agent detects conflict
-2. Agent reports issue
-3. Agent pauses work
-4. Human resolves
-5. Agent continues
+This applies at every level: agent selection (don't stack when one suffices),
+implementation (don't layer abstractions when a direct solution exists), and debugging
+(don't add workarounds when the root cause is fixable).
 
-Never attempt automatic merge resolution.
+## Anti-Patterns
 
-## Synchronization Points
+### 1. Agent Bloat
+**Wrong**: Spawning 6 agents for a 3-file change.
+**Right**: Use module-to-agent mapping. If one agent covers it, use one agent.
 
-### Natural Sync Points
-- After each commit
-- Before starting new file
-- When switching work streams
-- Every 30 minutes of work
+### 2. Auditor Overlap
+**Wrong**: Running `code-reviewer` + `security-auditor` for a style issue.
+**Right**: Each auditor has defined scope. Pick by issue type, not "more is safer."
 
-### Explicit Sync
-```bash
-# Pull latest changes
-git pull --rebase origin epic/{name}
+### 3. Premature Sweep
+**Wrong**: Full sweep after every small commit.
+**Right**: Spot check for small changes. Full sweep only at epic merge / release.
 
-# If conflicts, stop and report
-if [[ $? -ne 0 ]]; then
-  echo "❌ Sync failed - human help needed"
-  exit 1
-fi
-```
+### 4. Opus for Execution
+**Wrong**: Using opus model for `test-runner` or `file-analyzer`.
+**Right**: Inherit for command execution. Opus for reasoning tasks.
 
-## Agent Communication Protocol
+### 5. Foreground for Validation
+**Wrong**: Blocking on auditors while you could be implementing the next wave.
+**Right**: Auditors run BG unless their finding would change your approach.
 
-### Status Updates
-Agents should update their status regularly:
-```bash
-# Update progress file every significant step
-echo "✅ Completed: Database schema" >> stream-A.md
-git add stream-A.md
-git commit -m "Progress: Stream A - schema complete"
-```
+### 6. Skipping Architect Review
+**Wrong**: Implementing multi-module changes and reviewing architecture after.
+**Right**: `architect-reviewer` in Wave 0, before any code is written.
 
-### Coordination Requests
-When agents need to coordinate:
-```markdown
-# In stream-A.md
-## Coordination Needed
-- Need to update src/types/index.ts
-- Will modify after Stream B commits
-- ETA: 10 minutes
-```
+### 7. Main Thread File Reads
+**Wrong**: Reading 500-line files on the main thread "just to check."
+**Right**: Delegate to `file-analyzer` for summary, or use targeted Read with offset/limit.
 
-## Parallel Commit Strategy
+### 8. General-Purpose Default
+**Wrong**: Using `general-purpose` because you're not sure which specialist to pick.
+**Right**: Check the module-to-agent map. If truly nothing fits, then `general-purpose`.
 
-### No Conflicts Possible
-When working on completely different files:
-```bash
-# These can happen simultaneously
-Agent-A: git commit -m "Issue #1234: Update database"
-Agent-B: git commit -m "Issue #1235: Update UI"
-Agent-C: git commit -m "Issue #1236: Add tests"
-```
+### 9. Brute-Forcing Divergence
+**Wrong**: Stacking workarounds when two approaches conflict. Adding more agents to
+resolve disagreement. Merging both approaches "to be safe."
+**Right**: Apply the elegant solution principle. Step back, simplify, pick one clean path.
+Escalate to user after 2 failed attempts.
 
-### Sequential When Needed
-When touching shared resources:
-```bash
-# Agent A commits first
-git add src/types/index.ts
-git commit -m "Issue #1234: Update type definitions"
+## Parallel Execution Rules
 
-# Agent B waits, then proceeds
-# (After A's commit)
-git pull
-git add src/api/users.ts
-git commit -m "Issue #1235: Use new types"
-```
+1. **T1 auditors always parallelize** — non-overlapping scopes by design.
+2. **Read-only agents (T1 + T2) parallelize freely** with any other agent.
+3. **Write agents serialize by file** — two agents writing the same file will conflict.
+4. **Write agents in different modules parallelize safely** — module boundaries prevent overlap.
+5. **Worktree for 3+ write streams** — overhead only justified at scale.
+6. **One scan/debate at a time** — the application's `asyncio.Lock` enforces this.
 
-## Best Practices
+## File Ownership Protocol
 
-1. **Commit early and often** - Smaller commits = fewer conflicts
-2. **Stay in your lane** - Only modify assigned files
-3. **Communicate changes** - Update progress files
-4. **Pull frequently** - Stay synchronized with other agents
-5. **Fail loudly** - Report issues immediately
-6. **Never force** - No `--force` flags ever
+When multiple agents write code in the same wave:
 
-## Common Patterns
-
-### Starting Work
-```bash
-1. cd ../epic-{name}
-2. git pull
-3. Check {issue}-analysis.md for assignment
-4. Update stream-{X}.md with "started"
-5. Begin work on assigned files
-```
-
-### During Work
-```bash
-1. Make changes to assigned files
-2. Commit with clear message
-3. Update progress file
-4. Check for new commits from others
-5. Continue or coordinate as needed
-```
-
-### Completing Work
-```bash
-1. Final commit for stream
-2. Update stream-{X}.md with "completed"
-3. Check if other streams need help
-4. Report completion
-```
+1. Assign each agent explicit file patterns (e.g., Agent A owns `services/*.py`, Agent B owns `api/*.py`).
+2. Shared files (e.g., `__init__.py` re-exports) are owned by the main thread — no agent writes to them.
+3. If agents discover they need to modify the same file, serialize: one completes first, the other follows.
+4. Never have two agents edit the same file in parallel — even in worktrees, merge conflicts are expensive.
