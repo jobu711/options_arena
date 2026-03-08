@@ -123,8 +123,8 @@ def gen_claude_md() -> str:
     ## Tech Stack
 
     - **Python 3.13+** — use modern syntax: `match`, `type X = ...`, `X | None` unions, `StrEnum`
-    - **Package manager**: `uv` — always `uv add <pkg>`, never `pip install` or manual pyproject.toml edits
-    - **Linter/Formatter**: `ruff` (target `py313`, line-length 99, rules: E, F, I, UP, B, SIM, ANN)
+    - **Package manager**: `uv` — always `uv add <pkg>`, never `pip install`
+    - **Linter/Formatter**: `ruff` (target `py313`, line-length 99)
     - **Type checker**: `mypy --strict` — full annotations on every function, no exceptions
     - **Async**: `asyncio` + `httpx` — async operations use these
     - **Models**: Pydantic v2 — all structured data crosses module boundaries as typed models, never raw dicts
