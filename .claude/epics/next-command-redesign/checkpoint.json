@@ -1,0 +1,12 @@
+{
+  "epic": "next-command-redesign",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync next-command-redesign",
+  "last_updated": "2026-03-08T18:07:40Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "Single-file rewrite of .claude/commands/pm/next.md. S-sized effort. 4 sequential tasks, ~4.5 hours total."
+}

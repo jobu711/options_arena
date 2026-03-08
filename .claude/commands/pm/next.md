@@ -1,112 +1,153 @@
 ---
-allowed-tools: Bash, Read, Glob, Grep
+description: Interview-driven development targeting — recommends 3-5 next tasks
+allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion, Agent
 ---
 
-# Next: Development Target Brainstorm
+# Next: Interview-Driven Development Targeting
 
-Analyze recent project momentum and suggest the highest-alpha development targets.
+You are a strategic development advisor. This command has 3 phases executed in strict order.
 
-## Usage
+## Phase 1 -- Interview (MANDATORY FIRST ACTION)
+
+Before doing ANYTHING else, you must:
+
+1. Output this exact text to the user: "Let me ask a few quick questions to tailor recommendations to your current headspace."
+2. Immediately call AskUserQuestion with the 3 questions below.
+3. Do NOT run any bash commands, read any files, or gather any context before OR alongside this call.
+4. After the user answers, proceed to Phase 2.
+
+Ask all 3 questions in ONE AskUserQuestion call. Use this exact structure:
+
+```json
+{
+  "questions": [
+    {
+      "question": "What kind of work fits your headspace right now?",
+      "header": "Mode",
+      "multiSelect": false,
+      "options": [
+        {"label": "Build new features", "description": "New capabilities, endpoints, or UI"},
+        {"label": "Fix and harden", "description": "Bugs, edge cases, test coverage"},
+        {"label": "Polish and refine", "description": "UX, performance, code quality"},
+        {"label": "Surprise me", "description": "Rank purely on project impact"}
+      ]
+    },
+    {
+      "question": "Which parts of the codebase do you want to work in?",
+      "header": "Area",
+      "multiSelect": true,
+      "options": [
+        {"label": "Backend (Python)", "description": "Models, services, scoring, pricing"},
+        {"label": "Frontend (Vue)", "description": "Components, views, stores, styling"},
+        {"label": "AI agents", "description": "Prompts, orchestration, LLM providers"},
+        {"label": "Infrastructure", "description": "CI/CD, config, tooling, DevOps"}
+      ]
+    },
+    {
+      "question": "How much time do you want to invest?",
+      "header": "Scope",
+      "multiSelect": false,
+      "options": [
+        {"label": "Quick wins (hours)", "description": "S-sized: a focused session or two"},
+        {"label": "Focused sprint (days)", "description": "M-sized: a few days of work"},
+        {"label": "Deep project (week+)", "description": "L/XL-sized: multi-day epics"}
+      ]
+    }
+  ]
+}
 ```
-/pm:next
-```
 
-## Instructions
+Do NOT include any other tool calls alongside AskUserQuestion.
 
-You are a strategic development advisor. Analyze the project's recent history, current state, and backlog to recommend the top 3-5 highest-value things to build next.
+## Phase 2 -- Context Sweep + Ranking (after interview answers received)
 
-Do not bother the user with progress updates for each step. Gather context silently, then present the final ranked output.
+Use the user's answers from Phase 1 (Mode, Area, Scope) to filter and rank below.
 
-### Step 1 — Git as Source of Truth
+Silently gather project state — no progress updates to the user.
 
-Git merge history is the ground truth for what's done. Run these bash commands:
-
+Run in parallel:
 ```bash
-# What epics/PRs actually shipped (ground truth for "done")
 git log master --oneline --merges -15
-```
-```bash
-# Recent commit themes on master
 git log master --oneline -20 --no-merges
-```
-```bash
-# What's actively in flight (unmerged branches)
 git branch -a --no-merged master
-```
-```bash
-# Recent velocity/themes (last 14 days)
 git log master --oneline --since="14 days ago" --no-merges
 ```
 
-For each unmerged branch found above, run:
-```bash
-git log master..<branch> --oneline
+For each unmerged branch: `git log master..<branch> --oneline`
+
+**Backlog discovery** (cross-reference against git ground truth):
+1. Scan `.claude/prds/` frontmatter (first 10-15 lines). A PRD is **done** if its epic appears in the merge log or `.claude/epics/archived/`.
+2. Read `progress.md` "Future Work" section ONLY for idea discovery. Derive actual state from git.
+3. For unmerged epics, check branch commit content (not task file statuses).
+4. Check `web/src/views/` and glob/grep to confirm whether suggested capabilities already exist.
+
+**Tag each candidate** with: Area (Backend/Frontend/AI agents/Infrastructure), Effort (S/M/L/XL), Momentum signal (yes/no + which recent work).
+
+**Apply weighted ranking using interview answers:**
+
+Base criteria: Momentum, Unblocking potential, Impact/Effort ratio, Freshness, Risk reduction, User-facing value.
+
+Mode multipliers:
+
+| Criterion | Build | Fix/Harden | Polish | Surprise me |
+|-----------|-------|------------|--------|-------------|
+| Momentum | 2x | 1x | 1x | 1x |
+| Unblocking | 2x | 1x | 0.5x | 1x |
+| Impact/Effort | 1x | 1x | 1.5x | 1x |
+| Freshness | 1x | 1.5x | 1x | 1x |
+| Risk reduction | 0.5x | 2x | 1x | 1x |
+| User-facing value | 1x | 0.5x | 2x | 1x |
+
+Area filter: Exclude candidates outside selected areas unless fewer than 3 remain (then include highest-ranked cross-area candidates tagged "(outside selected area)").
+
+Scope multipliers:
+- Quick wins → S: 2x, M: 1x, L/XL: 0.5x
+- Focused sprint → S: 0.5x, M: 2x, L/XL: 1x
+- Deep project → S: 0.5x, M: 1x, L/XL: 2x
+
+Additional rules:
+- Avoid duplicating or conflicting with in-progress efforts
+- Prefer targets with existing PRDs (less overhead). Flag if a target needs a PRD first.
+- If user answered "Other", interpret their free text and apply closest matching multipliers.
+
+## Phase 3 -- Tailored Output
+
+Present results in this exact format:
+
 ```
+## Your Profile
 
-Build a "shipped" list from merge commits (epic names, PR titles) and an "in-flight" list from unmerged branches.
+**Mode:** [their answer] → [which criteria got boosted]
+**Area:** [their answer(s)] → [filter applied]
+**Scope:** [their answer] → [effort sizes boosted]
 
-### Step 2 — Backlog Discovery (Cross-Referenced Against Git)
+---
 
-Discover what could be built next, but **cross-reference everything against the merge log from Step 1**.
-
-1. Scan `.claude/prds/` — read frontmatter (first 10-15 lines) of each file. BUT: if an epic with the same name appears in the Step 1 merge log or in `.claude/epics/archived/`, that PRD is **done** regardless of its `status` field.
-2. Read `.claude/context/progress.md` — use ONLY the "Future Work" section for idea discovery. Do NOT trust "Current State" or "In Progress" sections (derive those from git).
-3. For active (unmerged) epics from Step 1, check actual commit content on the branch rather than task file statuses.
-4. Check `web/src/views/` — verify whether suggested frontend features already exist as implemented pages.
-5. Grep/glob the codebase briefly if needed to confirm whether a suggested capability already exists.
-
-### Step 3 — Analyze & Rank (with Staleness Guard)
-
-**Staleness guard — apply before ranking each target:**
-- Check if the target's epic name appears in `git log --merges` from Step 1
-- Check if related code/pages already exist (grep/glob the codebase)
-- If already done, exclude it and note it in the "Filtered out" section of the output
-
-Cross-reference git history against project state. Score potential targets on these criteria:
-
-- **Momentum** (high weight): Does this build naturally on what was just completed? Is the team already in the right mental context?
-- **Unblocking potential** (high weight): Does this open the door for multiple downstream features or remove a bottleneck?
-- **Impact/Effort ratio** (medium weight): High user value relative to engineering cost? Prefer S/M efforts that deliver outsized value.
-- **Freshness** (medium weight): Does recent work reveal gaps, bugs, or opportunities that weren't visible before?
-- **Risk reduction** (lower weight): Does this fix correctness or reliability issues that should be addressed before adding new features?
-- **User-facing value** (lower weight): Does this improve what end-users directly see and interact with?
-
-Also consider:
-- Avoid suggesting work that duplicates or conflicts with in-progress efforts
-- Prefer targets with existing PRDs (less planning overhead)
-- Flag if a target needs a PRD first vs. can start immediately
-
-### Step 4 — Present Results
-
-Output a ranked list of 3-5 development targets in this format:
-
-```
-## Development Targets (ranked by estimated alpha)
+## Development Targets (ranked for your profile)
 
 ### 1. [One-line description]
+**Alignment:** [Why this matches their mode + area + scope — 1 sentence]
 **Why now:** [What recent work makes this timely — reference specific commits/PRs/epics]
-**Effort:** [S / M / L / XL]
+**Effort:** [S / M / L / XL] · **Area:** [Backend / Frontend / AI agents / Infrastructure]
 **Unblocks:** [What downstream work this enables]
 **Reference:** [PRD/epic link if exists, or "Needs PRD"]
 **Next command:** [e.g., `/pm:prd-new feature-name` or `/pm:epic-start feature-name`]
 
 ### 2. [One-line description]
 ...
-```
 
-After the ranked list, add:
-
-```
 ---
-**Filtered out (already shipped/in-flight):** [List targets you considered but excluded because git merge history or codebase grep confirmed they're done or actively in progress. This lets the user catch false positives.]
-**Recent themes:** [2-3 word summary of what the last 2 weeks focused on]
-**Suggested focus:** [1 sentence on what strategic direction these targets collectively point toward]
+**Filtered out (already shipped/in-flight):** [list briefly]
+**Filtered out (outside your profile):** [list briefly]
+**Recent themes:** [2-3 word summary of last 2 weeks]
+**Suggested focus:** [1 sentence strategic direction]
 ```
 
-### Guidelines
+## Guidelines
 
-- Be opinionated — rank decisively, don't hedge with "it depends"
-- Ground every suggestion in concrete evidence from git history and project state
+- Be opinionated — rank decisively, don't hedge
+- Ground every suggestion in concrete evidence from git history
+- Interview answers must visibly change the output — "Fix and harden" produces different targets than "Build new features"
 - If the backlog is empty or all PRDs are done, suggest genuinely new directions based on what the codebase enables
-- Keep each suggestion to 3-5 lines — this is a brainstorm, not a design doc
-- Always suggest actionable next commands so the user can immediately act on a choice
+- Keep each suggestion to 3-5 lines — brainstorm, not design doc
+- Always suggest actionable next commands

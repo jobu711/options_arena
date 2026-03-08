@@ -18,6 +18,15 @@
             "command": "python C:/Users/nicho/Desktop/Options_Arena/.claude/hooks/planning-lock.py"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python C:/Users/nicho/Desktop/Options_Arena/.claude/hooks/dangerous-command-guard.py"
+          }
+        ]
       }
     ]
   }
