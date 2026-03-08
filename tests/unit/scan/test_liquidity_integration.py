@@ -167,7 +167,6 @@ class TestLiquidityIntegration:
         assert "chain_oi_depth" in INDICATOR_WEIGHTS
 
         total_liquidity_weight = (
-            INDICATOR_WEIGHTS["chain_spread_pct"][0]
-            + INDICATOR_WEIGHTS["chain_oi_depth"][0]
+            INDICATOR_WEIGHTS["chain_spread_pct"][0] + INDICATOR_WEIGHTS["chain_oi_depth"][0]
         )
         assert total_liquidity_weight == pytest.approx(0.06, abs=1e-9)
