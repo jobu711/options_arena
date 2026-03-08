@@ -376,6 +376,16 @@ def _render_regime_label(label: str, value: float | None, labels: dict[float, st
     return f"{label}: {name}"
 
 
+def _format_dollars(value: float) -> str:
+    """Format a dollar amount as $X.XB or $X.XM, with sign for negatives."""
+    abs_val = abs(value)
+    if abs_val >= 1e9:
+        return f"${value / 1e9:.1f}B"
+    if abs_val >= 1e6:
+        return f"${value / 1e6:.1f}M"
+    return f"${value:,.0f}"
+
+
 def _render_identity_block(ctx: MarketContext) -> list[str]:
     """Shared identity fields for all domain-specific renderers.
 
@@ -607,6 +617,57 @@ def render_fundamental_context(ctx: MarketContext) -> str:
         lines.append("## Fundamental Profile")
         lines.extend(fundamental_lines)
 
+    # --- Income Statement (TTM) — Financial Datasets enrichment ---
+    income_lines: list[str] = []
+    if ctx.fd_revenue is not None:
+        income_lines.append(f"Revenue: {_format_dollars(ctx.fd_revenue)}")
+    if ctx.fd_net_income is not None:
+        income_lines.append(f"Net Income: {_format_dollars(ctx.fd_net_income)}")
+    if ctx.fd_operating_income is not None:
+        income_lines.append(f"Operating Income: {_format_dollars(ctx.fd_operating_income)}")
+    if ctx.fd_eps_diluted is not None:
+        income_lines.append(f"EPS (Diluted): ${ctx.fd_eps_diluted:.2f}")
+    if ctx.fd_gross_margin is not None:
+        income_lines.append(f"Gross Margin: {ctx.fd_gross_margin * 100:.1f}%")
+    if ctx.fd_operating_margin is not None:
+        income_lines.append(f"Operating Margin: {ctx.fd_operating_margin * 100:.1f}%")
+    if ctx.fd_net_margin is not None:
+        income_lines.append(f"Net Margin: {ctx.fd_net_margin * 100:.1f}%")
+    if income_lines:
+        lines.append("")
+        lines.append("## Income Statement (TTM)")
+        lines.extend(income_lines)
+
+    # --- Balance Sheet — Financial Datasets enrichment ---
+    balance_lines: list[str] = []
+    if ctx.fd_total_debt is not None:
+        balance_lines.append(f"Total Debt: {_format_dollars(ctx.fd_total_debt)}")
+    if ctx.fd_total_cash is not None:
+        balance_lines.append(f"Total Cash: {_format_dollars(ctx.fd_total_cash)}")
+    if ctx.fd_total_assets is not None:
+        balance_lines.append(f"Total Assets: {_format_dollars(ctx.fd_total_assets)}")
+    if ctx.fd_current_ratio is not None:
+        balance_lines.append(f"Current Ratio: {ctx.fd_current_ratio:.1f}x")
+    if balance_lines:
+        lines.append("")
+        lines.append("## Balance Sheet")
+        lines.extend(balance_lines)
+
+    # --- Growth & Valuation — Financial Datasets enrichment ---
+    growth_lines: list[str] = []
+    if ctx.fd_revenue_growth is not None:
+        growth_lines.append(f"Revenue Growth: {ctx.fd_revenue_growth * 100:.1f}%")
+    if ctx.fd_earnings_growth is not None:
+        growth_lines.append(f"Earnings Growth: {ctx.fd_earnings_growth * 100:.1f}%")
+    if ctx.fd_ev_to_ebitda is not None:
+        growth_lines.append(f"EV/EBITDA: {ctx.fd_ev_to_ebitda:.1f}x")
+    if ctx.fd_free_cash_flow_yield is not None:
+        growth_lines.append(f"FCF Yield: {ctx.fd_free_cash_flow_yield * 100:.1f}%")
+    if growth_lines:
+        lines.append("")
+        lines.append("## Growth & Valuation")
+        lines.extend(growth_lines)
+
     # --- Analyst Intelligence ---
     analyst_lines: list[str | None] = [
         _render_optional("ANALYST TARGET MEAN", ctx.analyst_target_mean, ",.2f"),
@@ -744,6 +805,57 @@ def render_context_block(ctx: MarketContext) -> str:
         lines.append("")
         lines.append("## Fundamental Profile")
         lines.extend(filtered_fund)
+
+    # --- Income Statement (TTM) — Financial Datasets enrichment ---
+    fd_income_lines: list[str] = []
+    if ctx.fd_revenue is not None:
+        fd_income_lines.append(f"Revenue: {_format_dollars(ctx.fd_revenue)}")
+    if ctx.fd_net_income is not None:
+        fd_income_lines.append(f"Net Income: {_format_dollars(ctx.fd_net_income)}")
+    if ctx.fd_operating_income is not None:
+        fd_income_lines.append(f"Operating Income: {_format_dollars(ctx.fd_operating_income)}")
+    if ctx.fd_eps_diluted is not None:
+        fd_income_lines.append(f"EPS (Diluted): ${ctx.fd_eps_diluted:.2f}")
+    if ctx.fd_gross_margin is not None:
+        fd_income_lines.append(f"Gross Margin: {ctx.fd_gross_margin * 100:.1f}%")
+    if ctx.fd_operating_margin is not None:
+        fd_income_lines.append(f"Operating Margin: {ctx.fd_operating_margin * 100:.1f}%")
+    if ctx.fd_net_margin is not None:
+        fd_income_lines.append(f"Net Margin: {ctx.fd_net_margin * 100:.1f}%")
+    if fd_income_lines:
+        lines.append("")
+        lines.append("## Income Statement (TTM)")
+        lines.extend(fd_income_lines)
+
+    # --- Balance Sheet — Financial Datasets enrichment ---
+    fd_balance_lines: list[str] = []
+    if ctx.fd_total_debt is not None:
+        fd_balance_lines.append(f"Total Debt: {_format_dollars(ctx.fd_total_debt)}")
+    if ctx.fd_total_cash is not None:
+        fd_balance_lines.append(f"Total Cash: {_format_dollars(ctx.fd_total_cash)}")
+    if ctx.fd_total_assets is not None:
+        fd_balance_lines.append(f"Total Assets: {_format_dollars(ctx.fd_total_assets)}")
+    if ctx.fd_current_ratio is not None:
+        fd_balance_lines.append(f"Current Ratio: {ctx.fd_current_ratio:.1f}x")
+    if fd_balance_lines:
+        lines.append("")
+        lines.append("## Balance Sheet")
+        lines.extend(fd_balance_lines)
+
+    # --- Growth & Valuation — Financial Datasets enrichment ---
+    fd_growth_lines: list[str] = []
+    if ctx.fd_revenue_growth is not None:
+        fd_growth_lines.append(f"Revenue Growth: {ctx.fd_revenue_growth * 100:.1f}%")
+    if ctx.fd_earnings_growth is not None:
+        fd_growth_lines.append(f"Earnings Growth: {ctx.fd_earnings_growth * 100:.1f}%")
+    if ctx.fd_ev_to_ebitda is not None:
+        fd_growth_lines.append(f"EV/EBITDA: {ctx.fd_ev_to_ebitda:.1f}x")
+    if ctx.fd_free_cash_flow_yield is not None:
+        fd_growth_lines.append(f"FCF Yield: {ctx.fd_free_cash_flow_yield * 100:.1f}%")
+    if fd_growth_lines:
+        lines.append("")
+        lines.append("## Growth & Valuation")
+        lines.extend(fd_growth_lines)
 
     # --- Unusual Options Flow (OpenBB enrichment) ---
     flow_lines = [

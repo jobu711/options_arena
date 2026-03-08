@@ -15,7 +15,9 @@ from decimal import Decimal
 
 from options_arena.agents._parsing import (
     PROMPT_RULES_APPENDIX,
+    _format_dollars,
     _render_identity_block,
+    render_context_block,
     render_flow_context,
     render_fundamental_context,
     render_trend_context,
@@ -646,3 +648,141 @@ class TestNoDomainRendererHasScanConclusions:
                 if stripped.startswith("DIRECTION CONFIDENCE:"):
                     msg = f"{renderer.__name__} contains DIRECTION CONFIDENCE: line"
                     raise AssertionError(msg)
+
+
+# ---------------------------------------------------------------------------
+# Financial Datasets (fd_*) context rendering
+# ---------------------------------------------------------------------------
+
+
+class TestFDContextRendering:
+    """Tests for Financial Datasets context sections in renderers."""
+
+    def test_income_statement_section_rendered(self) -> None:
+        """Verify Income Statement section appears when fd_revenue set."""
+        ctx = _make_context(fd_revenue=50_000_000_000.0)
+        text = render_fundamental_context(ctx)
+
+        assert "## Income Statement (TTM)" in text
+        assert "Revenue: $50.0B" in text
+
+    def test_balance_sheet_section_rendered(self) -> None:
+        """Verify Balance Sheet section appears when fd_total_debt set."""
+        ctx = _make_context(fd_total_debt=25_000_000_000.0)
+        text = render_fundamental_context(ctx)
+
+        assert "## Balance Sheet" in text
+        assert "Total Debt: $25.0B" in text
+
+    def test_growth_valuation_section_rendered(self) -> None:
+        """Verify Growth & Valuation section appears when fd_revenue_growth set."""
+        ctx = _make_context(fd_revenue_growth=0.15)
+        text = render_fundamental_context(ctx)
+
+        assert "## Growth & Valuation" in text
+        assert "Revenue Growth: 15.0%" in text
+
+    def test_sections_omitted_when_all_none(self) -> None:
+        """Verify no FD sections when all fd_* fields are None."""
+        ctx = _make_context()
+        text = render_fundamental_context(ctx)
+
+        assert "## Income Statement (TTM)" not in text
+        assert "## Balance Sheet" not in text
+        assert "## Growth & Valuation" not in text
+
+    def test_partial_fields_render_only_populated(self) -> None:
+        """Verify only non-None fields appear within a section."""
+        ctx = _make_context(
+            fd_revenue=100_000_000_000.0,
+            fd_gross_margin=0.45,
+            # fd_net_income, fd_operating_income, fd_eps_diluted, etc. are None
+        )
+        text = render_fundamental_context(ctx)
+
+        assert "## Income Statement (TTM)" in text
+        assert "Revenue: $100.0B" in text
+        assert "Gross Margin: 45.0%" in text
+        # Fields not set should not appear
+        assert "Net Income:" not in text
+        assert "Operating Income:" not in text
+        assert "EPS (Diluted):" not in text
+
+    def test_dollar_formatting(self) -> None:
+        """Verify revenue/income formatted as $X.XB or $X.XM."""
+        # Test billions
+        assert _format_dollars(50_000_000_000.0) == "$50.0B"
+        assert _format_dollars(1_500_000_000.0) == "$1.5B"
+        # Test millions
+        assert _format_dollars(750_000_000.0) == "$750.0M"
+        assert _format_dollars(5_000_000.0) == "$5.0M"
+        # Test sub-million
+        assert _format_dollars(500_000.0) == "$500,000"
+        # Test negative
+        assert _format_dollars(-2_000_000_000.0) == "$-2.0B"
+        assert _format_dollars(-100_000_000.0) == "$-100.0M"
+
+    def test_percentage_formatting(self) -> None:
+        """Verify margin/growth fields formatted with %."""
+        ctx = _make_context(
+            fd_gross_margin=0.45,
+            fd_operating_margin=0.30,
+            fd_net_margin=0.25,
+            fd_revenue_growth=0.12,
+            fd_earnings_growth=-0.05,
+            fd_free_cash_flow_yield=0.035,
+        )
+        text = render_fundamental_context(ctx)
+
+        assert "Gross Margin: 45.0%" in text
+        assert "Operating Margin: 30.0%" in text
+        assert "Net Margin: 25.0%" in text
+        assert "Revenue Growth: 12.0%" in text
+        assert "Earnings Growth: -5.0%" in text
+        assert "FCF Yield: 3.5%" in text
+
+    def test_context_block_includes_fd_sections(self) -> None:
+        """Verify render_context_block() also renders FD sections."""
+        ctx = _make_context(
+            fd_revenue=50_000_000_000.0,
+            fd_net_income=12_000_000_000.0,
+            fd_total_debt=30_000_000_000.0,
+            fd_current_ratio=1.5,
+            fd_revenue_growth=0.08,
+            fd_ev_to_ebitda=18.5,
+        )
+        text = render_context_block(ctx)
+
+        # Income Statement
+        assert "## Income Statement (TTM)" in text
+        assert "Revenue: $50.0B" in text
+        assert "Net Income: $12.0B" in text
+        # Balance Sheet
+        assert "## Balance Sheet" in text
+        assert "Total Debt: $30.0B" in text
+        assert "Current Ratio: 1.5x" in text
+        # Growth & Valuation
+        assert "## Growth & Valuation" in text
+        assert "Revenue Growth: 8.0%" in text
+        assert "EV/EBITDA: 18.5x" in text
+
+    def test_ev_to_ebitda_formatting(self) -> None:
+        """Verify EV/EBITDA formatted as ratio with x suffix."""
+        ctx = _make_context(fd_ev_to_ebitda=12.5)
+        text = render_fundamental_context(ctx)
+
+        assert "EV/EBITDA: 12.5x" in text
+
+    def test_current_ratio_formatting(self) -> None:
+        """Verify current ratio formatted with x suffix."""
+        ctx = _make_context(fd_current_ratio=2.3)
+        text = render_fundamental_context(ctx)
+
+        assert "Current Ratio: 2.3x" in text
+
+    def test_eps_formatting(self) -> None:
+        """Verify EPS formatted with dollar sign and 2 decimals."""
+        ctx = _make_context(fd_eps_diluted=6.42)
+        text = render_fundamental_context(ctx)
+
+        assert "EPS (Diluted): $6.42" in text
