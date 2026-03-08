@@ -73,6 +73,8 @@ FAMILY_INDICATOR_MAP: dict[str, list[str]] = {
         "vwap_deviation",
         "spread_quality",
         "volume_profile_skew",
+        "chain_spread_pct",
+        "chain_oi_depth",
     ],
     "fundamental": [
         "earnings_em_ratio",

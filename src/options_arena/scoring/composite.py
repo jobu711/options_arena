@@ -31,30 +31,33 @@ logger = logging.getLogger(__name__)
 # Individual weights sum to 1.0.
 INDICATOR_WEIGHTS: dict[str, tuple[float, str]] = {
     # Oscillators
-    "rsi": (0.07, "oscillators"),
+    "rsi": (0.065, "oscillators"),
     "stochastic_rsi": (0.05, "oscillators"),
     "williams_r": (0.05, "oscillators"),
     # Trend
-    "adx": (0.07, "trend"),
+    "adx": (0.065, "trend"),
     "roc": (0.03, "trend"),
     "supertrend": (0.05, "trend"),
     "macd": (0.05, "trend"),
     # Volatility
-    "atr_pct": (0.05, "volatility"),
+    "atr_pct": (0.045, "volatility"),
     "bb_width": (0.05, "volatility"),
     "keltner_width": (0.04, "volatility"),
     # Volume
-    "obv": (0.05, "volume"),
+    "obv": (0.045, "volume"),
     "ad": (0.05, "volume"),
     "relative_volume": (0.05, "volume"),
     # Moving Averages
     "sma_alignment": (0.07, "moving_averages"),
     "vwap_deviation": (0.05, "moving_averages"),
     # Options
-    "iv_rank": (0.06, "options"),
-    "iv_percentile": (0.06, "options"),
-    "put_call_ratio": (0.05, "options"),
-    "max_pain_distance": (0.05, "options"),
+    "iv_rank": (0.05, "options"),
+    "iv_percentile": (0.05, "options"),
+    "put_call_ratio": (0.04, "options"),
+    "max_pain_distance": (0.04, "options"),
+    # Liquidity
+    "chain_spread_pct": (0.04, "liquidity"),
+    "chain_oi_depth": (0.02, "liquidity"),
 }
 
 # Validate weights sum to 1.0 at import time — catches drift before any scoring runs.
