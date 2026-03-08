@@ -676,6 +676,38 @@ def compute_phase3_indicators(
             exc_info=True,
         )
 
+    # --- Liquidity (chain-wide spread and depth) ---
+    try:
+        chain_df = _contracts_to_dataframe(contracts)
+        if not chain_df.empty:
+            bid = chain_df["bid"]
+            ask = chain_df["ask"]
+            oi = chain_df["openInterest"]
+            mid = (ask + bid) / 2.0
+
+            # chain_spread_pct: OI-weighted avg spread as percentage points
+            valid = mid > 0
+            if valid.any():
+                spread = ask[valid] - bid[valid]
+                spread_pct = (spread / mid[valid]) * 100.0
+                oi_valid = oi[valid]
+                total_oi = oi_valid.sum()
+                if total_oi > 0:
+                    weighted_spread = float((spread_pct * oi_valid).sum() / total_oi)
+                    if math.isfinite(weighted_spread):
+                        signals.chain_spread_pct = weighted_spread
+
+            # chain_oi_depth: log10(total_oi + 1)
+            total_oi_all = int(oi.sum())
+            depth = math.log10(total_oi_all + 1)
+            if math.isfinite(depth):
+                signals.chain_oi_depth = depth
+    except Exception:
+        logger.warning(
+            "Indicator chain_spread_pct/chain_oi_depth failed; setting to None",
+            exc_info=True,
+        )
+
     return signals
 
 
