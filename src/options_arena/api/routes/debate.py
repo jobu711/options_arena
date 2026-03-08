@@ -46,6 +46,7 @@ from options_arena.models.openbb import (
     UnusualFlowSnapshot,
 )
 from options_arena.scoring import compute_dimensional_scores
+from options_arena.scoring.normalization import normalize_single_ticker
 from options_arena.services import MarketDataService, OptionsDataService
 from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.openbb_service import OpenBBService
@@ -112,10 +113,6 @@ async def _run_debate_background(
             # Single-ticker normalization: scale raw indicators to 0-100 via
             # domain bounds so composite scoring receives comparable values
             # even without a universe for percentile ranking.
-            from options_arena.scoring.normalization import (  # noqa: PLC0415
-                normalize_single_ticker,
-            )
-
             raw_signals = normalize_single_ticker(raw_signals)
             logger.info("single-ticker normalization applied for %s", ticker)
 
@@ -364,10 +361,6 @@ async def _run_batch_debate_background(
                         batch_raw_signals = IndicatorSignals()
 
                     # Single-ticker normalization for batch ad-hoc tickers
-                    from options_arena.scoring.normalization import (  # noqa: PLC0415
-                        normalize_single_ticker,
-                    )
-
                     batch_raw_signals = normalize_single_ticker(batch_raw_signals)
                     logger.info("single-ticker normalization applied for %s", ticker)
 

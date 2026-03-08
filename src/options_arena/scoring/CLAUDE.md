@@ -98,5 +98,5 @@ attention and better options liquidity, which is desirable for an options scanne
 - Don't forget the zero-bid exemption in contract filtering
 - Don't compute Greeks locally in contracts.py — dispatch handles BAW vs BSM routing
 - Don't use `Optional[X]` — use `X | None`
-- Don't skip the floor value (1.0) in composite scoring — `log(0)` is undefined
+- Don't skip the floor value (0.5) in composite scoring — `log(0)` is undefined
 - Don't mix up `ScanConfig` (direction thresholds) and `PricingConfig` (contract thresholds)

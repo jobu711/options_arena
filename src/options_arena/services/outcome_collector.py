@@ -333,16 +333,18 @@ class OutcomeCollector:
     ) -> Decimal | None:
         """Fetch the stock close price on or before the expiration date.
 
-        Uses ``fetch_ohlcv(ticker, period="5d")`` to get recent historical
-        bars, then selects the bar whose date is on or before *expiration*.
-        This handles weekend/holiday expirations by using the last trading
-        day before expiration.
+        Uses ``fetch_ohlcv()`` with a dynamically sized period to get
+        historical bars, then selects the bar whose date is on or before
+        *expiration*.  This handles weekend/holiday expirations by using
+        the last trading day before expiration.
 
         Falls back to ``fetch_quote()`` with a WARNING log when OHLCV data
         is unavailable.  Returns ``None`` if both sources fail.
         """
         try:
-            bars = await self._market_data.fetch_ohlcv(ticker, period="5d")
+            days_since = (date.today() - expiration).days
+            period = "5d" if days_since <= 7 else "1mo" if days_since <= 35 else "3mo"
+            bars = await self._market_data.fetch_ohlcv(ticker, period=period)
             if bars:
                 # Bars are sorted ascending by date.  Find the last bar
                 # on or before the expiration date.

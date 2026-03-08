@@ -898,7 +898,7 @@ def compute_citation_density(context_block: str, *texts: str) -> float:
     labels = _CONTEXT_LABEL_RE.findall(context_block)
     if not labels:
         return 0.0
-    combined = " ".join(texts).upper()
+    combined = " ".join(texts)
     cited = sum(
         1
         for label in labels
