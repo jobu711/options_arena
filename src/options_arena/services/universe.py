@@ -17,7 +17,7 @@ from typing import Any
 
 import httpx
 import pandas as pd
-import yfinance as yf  # type: ignore[import-untyped]
+import yfinance as yf
 from pydantic import BaseModel
 
 from options_arena.models.config import ServiceConfig

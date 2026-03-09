@@ -294,7 +294,7 @@ class ServiceCache:
         """Evict oldest-accessed entries when memory cache exceeds max_size."""
         while len(self._memory) > self._max_size:
             # Find the key with the smallest (oldest) access time
-            oldest_key = min(self._access_order, key=self._access_order.get)  # type: ignore[arg-type]
+            oldest_key = min(self._access_order, key=self._access_order.__getitem__)
             del self._memory[oldest_key]
             del self._access_order[oldest_key]
             logger.debug("LRU eviction: %s", oldest_key)

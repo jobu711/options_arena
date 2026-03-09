@@ -385,7 +385,7 @@ def _safe_float(value: object) -> float | None:
     if value is None:
         return None
     try:
-        f = float(value)  # type: ignore[arg-type]
+        f = float(value) if isinstance(value, (int, float, str)) else float(str(value))
         return f if math.isfinite(f) else None
     except (ValueError, TypeError):
         return None
@@ -396,6 +396,6 @@ def _safe_int(value: object) -> int | None:
     if value is None:
         return None
     try:
-        return int(value)  # type: ignore[call-overload, no-any-return]
+        return int(value) if isinstance(value, (int, float, str)) else int(str(value))
     except (ValueError, TypeError):
         return None

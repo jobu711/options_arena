@@ -173,10 +173,10 @@ def compute_rs_vs_spx(
     ticker_tail = ticker_returns.iloc[-period:]
     spx_tail = spx_returns.iloc[-period:]
 
-    ticker_prod: float = (1.0 + ticker_tail).prod()  # type: ignore[assignment]
-    spx_prod: float = (1.0 + spx_tail).prod()  # type: ignore[assignment]
-    ticker_cum = float(ticker_prod) - 1.0
-    spx_cum = float(spx_prod) - 1.0
+    ticker_prod = float(np.prod(1.0 + ticker_tail.to_numpy()))
+    spx_prod = float(np.prod(1.0 + spx_tail.to_numpy()))
+    ticker_cum = ticker_prod - 1.0
+    spx_cum = spx_prod - 1.0
 
     if not math.isfinite(ticker_cum) or not math.isfinite(spx_cum):
         return None

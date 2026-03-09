@@ -13,7 +13,7 @@ import json
 import logging
 from datetime import UTC, date, datetime, timedelta
 
-import yfinance as yf  # type: ignore[import-untyped]
+import yfinance as yf
 
 from options_arena.models.config import IntelligenceConfig
 from options_arena.models.intelligence import (

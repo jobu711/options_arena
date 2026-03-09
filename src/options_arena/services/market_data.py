@@ -20,7 +20,7 @@ from decimal import Decimal
 from typing import Any, cast
 
 import pandas as pd
-import yfinance as yf  # type: ignore[import-untyped]
+import yfinance as yf
 from pydantic import BaseModel, ConfigDict, field_validator
 from pydantic import ValidationError as PydanticValidationError
 

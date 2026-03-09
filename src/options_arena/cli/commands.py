@@ -530,7 +530,8 @@ async def _batch_async(
             )
             raise typer.Exit(code=1)
 
-        scores = await repo.get_scores_for_scan(latest_scan.id)  # type: ignore[arg-type]
+        assert latest_scan.id is not None
+        scores = await repo.get_scores_for_scan(latest_scan.id)
         top_scores = sorted(scores, key=lambda s: s.composite_score, reverse=True)[:batch_limit]
 
         if not top_scores:
@@ -875,7 +876,8 @@ async def _debate_async(
             )
             raise typer.Exit(code=1)
 
-        scores = await repo.get_scores_for_scan(latest_scan.id)  # type: ignore[arg-type]
+        assert latest_scan.id is not None
+        scores = await repo.get_scores_for_scan(latest_scan.id)
         ticker_score = next((s for s in scores if s.ticker == ticker), None)
         if ticker_score is None:
             err_console.print(

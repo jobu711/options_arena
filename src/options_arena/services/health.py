@@ -9,13 +9,16 @@ import logging
 import os
 import time
 from datetime import UTC, datetime
+from typing import cast
 
 import httpx
-import yfinance as yf  # type: ignore[import-untyped]
+import yfinance as yf
 
 from options_arena.models.config import FinancialDatasetsConfig, OpenBBConfig, ServiceConfig
 from options_arena.models.health import HealthStatus
+from options_arena.services.cache import ServiceCache
 from options_arena.services.financial_datasets import FinancialDatasetsService
+from options_arena.services.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -431,8 +434,8 @@ class HealthService:
 
         provider = CBOEChainProvider(
             config=self._openbb_config,
-            cache=self._cache,  # type: ignore[arg-type]
-            limiter=self._limiter,  # type: ignore[arg-type]
+            cache=cast(ServiceCache, self._cache),
+            limiter=cast(RateLimiter, self._limiter),
         )
         if not provider.available:
             return HealthStatus(

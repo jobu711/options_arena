@@ -143,7 +143,9 @@ def safe_decimal(value: object) -> Decimal | None:
                 logger.debug("safe_decimal: non-finite float %r", value)
                 return None
             return Decimal(str(value))
-        return Decimal(value)  # type: ignore[arg-type]
+        if isinstance(value, (str, int, Decimal)):
+            return Decimal(value)
+        return Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError, ArithmeticError) as exc:
         logger.debug("safe_decimal: failed to convert %r — %s", value, exc)
         return None
@@ -157,7 +159,7 @@ def safe_int(value: object) -> int | None:
     if value is None:
         return None
     try:
-        as_float = float(value)  # type: ignore[arg-type]
+        as_float = float(value) if isinstance(value, (int, float, str)) else float(str(value))
         if not math.isfinite(as_float):
             logger.debug("safe_int: non-finite value %r", value)
             return None
@@ -176,7 +178,7 @@ def safe_float(value: object) -> float | None:
     if value is None:
         return None
     try:
-        result = float(value)  # type: ignore[arg-type]
+        result = float(value) if isinstance(value, (int, float, str)) else float(str(value))
         if not math.isfinite(result):
             logger.debug("safe_float: non-finite result %r from %r", result, value)
             return None

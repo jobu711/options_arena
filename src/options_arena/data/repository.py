@@ -137,7 +137,8 @@ class Repository:
         )
         if commit:
             await conn.commit()
-        row_id: int = cursor.lastrowid  # type: ignore[assignment]
+        assert cursor.lastrowid is not None
+        row_id: int = cursor.lastrowid
         logger.debug("Saved scan run id=%d", row_id)
         return row_id
 
@@ -340,7 +341,8 @@ class Repository:
             ),
         )
         await conn.commit()
-        row_id: int = cursor.lastrowid  # type: ignore[assignment]
+        assert cursor.lastrowid is not None
+        row_id: int = cursor.lastrowid
         logger.debug("Saved debate id=%d for ticker=%s", row_id, ticker)
         return row_id
 

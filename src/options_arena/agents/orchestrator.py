@@ -26,6 +26,7 @@ import time
 from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime
 from enum import StrEnum
+from typing import cast
 
 from pydantic_ai import AgentRunResult
 from pydantic_ai.models.anthropic import AnthropicModelSettings
@@ -1534,11 +1535,12 @@ async def _run_v2_agents(
 
     # Respect phase1_parallelism — batch if needed
     parallelism = config.phase1_parallelism
+    phase1_results: list[object | BaseException]
     if parallelism >= len(phase1_coros):
-        phase1_results = await asyncio.gather(*phase1_coros, return_exceptions=True)
+        phase1_results = list(await asyncio.gather(*phase1_coros, return_exceptions=True))
     else:
         # Run in batches with optional inter-batch delay for rate-limit avoidance
-        phase1_results: list[object | BaseException] = []  # type: ignore[no-redef]
+        phase1_results = []
         for i in range(0, len(phase1_coros), parallelism):
             if i > 0 and config.phase1_batch_delay > 0:
                 logger.debug(
@@ -1563,7 +1565,7 @@ async def _run_v2_agents(
         logger.warning("Trend agent failed for %s: %s", context.ticker, trend_raw)
         phase1_failures += 1
     else:
-        trend_run: AgentRunResult[AgentResponse] = trend_raw  # type: ignore[assignment]
+        trend_run = cast(AgentRunResult[AgentResponse], trend_raw)
         trend_output = trend_run.output
         total_usage = total_usage + trend_run.usage()
         logger.info(
@@ -1579,7 +1581,7 @@ async def _run_v2_agents(
         logger.warning("Volatility agent failed for %s: %s", context.ticker, vol_raw)
         phase1_failures += 1
     else:
-        vol_run: AgentRunResult[VolatilityThesis] = vol_raw  # type: ignore[assignment]
+        vol_run = cast(AgentRunResult[VolatilityThesis], vol_raw)
         vol_thesis = vol_run.output
         total_usage = total_usage + vol_run.usage()
         logger.info(
@@ -1597,7 +1599,7 @@ async def _run_v2_agents(
             logger.warning("Flow agent failed for %s: %s", context.ticker, flow_raw)
             phase1_failures += 1
         else:
-            flow_run: AgentRunResult[FlowThesis] = flow_raw  # type: ignore[assignment]
+            flow_run = cast(AgentRunResult[FlowThesis], flow_raw)
             flow_output = flow_run.output
             total_usage = total_usage + flow_run.usage()
             logger.info(
@@ -1617,7 +1619,7 @@ async def _run_v2_agents(
             logger.warning("Fundamental agent failed for %s: %s", context.ticker, fund_raw)
             phase1_failures += 1
         else:
-            fund_run: AgentRunResult[FundamentalThesis] = fund_raw  # type: ignore[assignment]
+            fund_run = cast(AgentRunResult[FundamentalThesis], fund_raw)
             fundamental_output = fund_run.output
             total_usage = total_usage + fund_run.usage()
             logger.info(

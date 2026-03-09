@@ -7,6 +7,7 @@ and adds type information at the injection site.
 from __future__ import annotations
 
 import asyncio
+from typing import cast
 
 from fastapi import Request
 
@@ -24,37 +25,37 @@ from options_arena.services.universe import UniverseService
 
 def get_repo(request: Request) -> Repository:
     """Inject the typed CRUD repository."""
-    return request.app.state.repo  # type: ignore[no-any-return]
+    return cast(Repository, request.app.state.repo)
 
 
 def get_market_data(request: Request) -> MarketDataService:
     """Inject the market data service."""
-    return request.app.state.market_data  # type: ignore[no-any-return]
+    return cast(MarketDataService, request.app.state.market_data)
 
 
 def get_options_data(request: Request) -> OptionsDataService:
     """Inject the options data service."""
-    return request.app.state.options_data  # type: ignore[no-any-return]
+    return cast(OptionsDataService, request.app.state.options_data)
 
 
 def get_fred(request: Request) -> FredService:
     """Inject the FRED service."""
-    return request.app.state.fred  # type: ignore[no-any-return]
+    return cast(FredService, request.app.state.fred)
 
 
 def get_universe(request: Request) -> UniverseService:
     """Inject the universe service."""
-    return request.app.state.universe  # type: ignore[no-any-return]
+    return cast(UniverseService, request.app.state.universe)
 
 
 def get_settings(request: Request) -> AppSettings:
     """Inject the application settings."""
-    return request.app.state.settings  # type: ignore[no-any-return]
+    return cast(AppSettings, request.app.state.settings)
 
 
 def get_openbb(request: Request) -> OpenBBService | None:
     """Inject the OpenBB enrichment service (``None`` when disabled)."""
-    return request.app.state.openbb  # type: ignore[no-any-return]
+    return cast(OpenBBService | None, request.app.state.openbb)
 
 
 def get_intelligence(request: Request) -> IntelligenceService | None:
@@ -69,7 +70,7 @@ def get_financial_datasets(request: Request) -> FinancialDatasetsService | None:
 
 def get_operation_lock(request: Request) -> asyncio.Lock:
     """Inject the global operation mutex."""
-    return request.app.state.operation_lock  # type: ignore[no-any-return]
+    return cast(asyncio.Lock, request.app.state.operation_lock)
 
 
 def get_outcome_collector(request: Request) -> OutcomeCollector:

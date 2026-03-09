@@ -321,7 +321,8 @@ class FinancialDatasetsService:
                     timeout=self._config.request_timeout,
                 )
             response.raise_for_status()
-            return response.json()  # type: ignore[no-any-return]
+            result: dict[str, Any] = response.json()
+            return result
         except TimeoutError:
             logger.warning("Financial Datasets API timeout for %s", path)
             return None

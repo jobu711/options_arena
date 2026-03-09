@@ -161,6 +161,7 @@ class OutcomeCollector:
         chain_cache: dict[tuple[str, date], list[OptionContract] | None] | None = None,
     ) -> ContractOutcome | None:
         """Process a single contract and return its outcome, or None on error."""
+        assert contract.id is not None, "Contract must be persisted before outcome collection"
         expired = self._is_expired(contract.expiration, exit_date)
 
         if expired:
@@ -185,6 +186,8 @@ class OutcomeCollector:
         market price.  Falls back to ``fetch_quote()`` with a WARNING when
         OHLCV data is unavailable.
         """
+        contract_id = contract.id
+        assert contract_id is not None, "Contract must be persisted before outcome collection"
         exit_stock_price = await self._fetch_expiration_close(contract.ticker, contract.expiration)
         if exit_stock_price is None:
             logger.warning(
@@ -203,7 +206,7 @@ class OutcomeCollector:
         if intrinsic == Decimal("0"):
             # Expired worthless — OTM at expiry
             return ContractOutcome(
-                recommended_contract_id=contract.id,  # type: ignore[arg-type]
+                recommended_contract_id=contract_id,
                 exit_stock_price=exit_stock_price,
                 exit_contract_mid=Decimal("0"),
                 exit_date=exit_date,
@@ -222,7 +225,7 @@ class OutcomeCollector:
         is_winner = contract_return > 0.0 if contract_return is not None else None
 
         return ContractOutcome(
-            recommended_contract_id=contract.id,  # type: ignore[arg-type]
+            recommended_contract_id=contract_id,
             exit_stock_price=exit_stock_price,
             exit_contract_mid=intrinsic,
             exit_date=exit_date,
@@ -245,6 +248,8 @@ class OutcomeCollector:
         chain_cache: dict[tuple[str, date], list[OptionContract] | None] | None = None,
     ) -> ContractOutcome | None:
         """Handle an active (non-expired) contract — fetch current market data."""
+        contract_id = contract.id
+        assert contract_id is not None, "Contract must be persisted before outcome collection"
         try:
             quote = await self._market_data.fetch_quote(contract.ticker)
             exit_stock_price = quote.price
@@ -311,7 +316,7 @@ class OutcomeCollector:
                         is_winner = contract_return > 0
 
         return ContractOutcome(
-            recommended_contract_id=contract.id,  # type: ignore[arg-type]
+            recommended_contract_id=contract_id,
             exit_stock_price=exit_stock_price,
             exit_contract_mid=exit_contract_mid,
             exit_contract_bid=exit_contract_bid,
