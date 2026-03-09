@@ -11,11 +11,8 @@ import json
 import re
 import sys
 
-
 # Patterns that should be blocked
-_SQL_DESTRUCTIVE = re.compile(
-    r"\b(DROP\s+TABLE|DELETE\s+FROM|TRUNCATE)\b", re.IGNORECASE
-)
+_SQL_DESTRUCTIVE = re.compile(r"\b(DROP\s+TABLE|DELETE\s+FROM|TRUNCATE)\b", re.IGNORECASE)
 _RM_RF_CRITICAL = re.compile(
     r"\brm\s+.*-[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*\s+.*\b(src|data)[/\\]?"
     r"|\brm\s+.*-[a-zA-Z]*f[a-zA-Z]*r[a-zA-Z]*\s+.*\b(src|data)[/\\]?",

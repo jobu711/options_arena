@@ -1,0 +1,12 @@
+{
+  "epic": "backtesting-engine",
+  "phase": "planning",
+  "last_command": "/pm:prd-parse backtesting-engine",
+  "last_updated": "2026-03-08T23:37:36Z",
+  "completed_phases": ["prd-created", "research", "planning"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}

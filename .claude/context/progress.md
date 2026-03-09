@@ -23,10 +23,7 @@
 - **S&P 500 Heatmap epic** (2026-03-08): Issues #366-#372. BatchQuote model, `fetch_batch_daily_changes()`, `GET /api/market/heatmap`, `MarketHeatmap.vue` squarify treemap, Pinia heatmap store, chunked batch download, E2E tests.
 
 ## Future Work
-
-- Additional LLM providers (OpenAI) — Groq + Anthropic done
-- Options liquidity weighting refinements (config params, delta dominance tuning)
-- Real-time market data streaming
+ Real-time market data streaming
 - Frontend unit testing (Vitest + Vue Test Utils) — E2E covered by Playwright
 
 ## Blockers
