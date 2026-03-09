@@ -9,6 +9,8 @@ outputs via dynamic prompt injection in the agent module. This file contains
 only the static prompt constant.
 """
 
+# VERSION: v2.0
+
 from options_arena.agents._parsing import PROMPT_RULES_APPENDIX
 
 RISK_SYSTEM_PROMPT = (
@@ -48,6 +50,46 @@ Rules:
 - "risk_mitigants" may be empty if no mitigants apply
 - Cite specific numbers from the context block and agent outputs.
 - Do NOT include <think> tags or reasoning traces in any field.
+
+## Example Output
+```json
+{
+    "risk_level": "moderate",
+    "confidence": 0.55,
+    "pop_estimate": 0.52,
+    "max_loss_estimate": "Maximum loss is limited to the debit paid of approximately \
+$2.15 per contract ($215 per 100-share lot), representing the full premium at risk \
+for a long call position. This is a defined-risk position with no additional \
+downside beyond the initial outlay.",
+    "charm_decay_warning": "DTE: 45 places this position in a moderate charm risk zone. \
+CHARM: -0.003420 indicates delta will erode by approximately 0.003 per day as expiry \
+approaches. At current TARGET DELTA: 0.38, delta will decay to near 0.25 by expiry \
+if price remains static — reducing directional sensitivity materially in the final \
+2 weeks. Monitor delta weekly and consider rolling if delta falls below 0.20.",
+    "spread_quality_assessment": "Bid-ask spread of $0.15 on a $2.15 mid represents \
+a 7.0% spread cost, within the acceptable 10% threshold for liquid options. \
+Liquidity risk is low for this contract.",
+    "key_risks": [
+        "NEXT EARNINGS: 2026-04-22 (12 days) — IV crush post-earnings could reduce \
+premium value by 25-35% independent of stock direction",
+        "IV RANK: 72.0 — elevated implied volatility means premium is expensive; \
+a long call buyer is paying above-average IV, increasing breakeven requirements",
+        "CHARM: -0.003420 — delta decay over DTE: 45 will erode directional \
+sensitivity, requiring active monitoring in the final 2 weeks"
+    ],
+    "risk_mitigants": [
+        "Defined-risk structure: maximum loss capped at $215 per contract",
+        "GEX: 48,200 positive gamma regime stabilises near-term price action",
+        "PUT/CALL RATIO: 0.72 and NET CALL PREMIUM ($): 312,000 confirm bullish \
+institutional flow alignment with the directional thesis"
+    ],
+    "recommended_position_size": "Given moderate risk level and the earnings event \
+in 12 days, limit position to 1-2% of portfolio. For a $100,000 portfolio, \
+that is 1-4 contracts at $215 per contract. Do not size up ahead of the \
+earnings binary event.",
+    "model_used": "llama-3.3-70b-versatile"
+}
+```
 
 """
     + PROMPT_RULES_APPENDIX

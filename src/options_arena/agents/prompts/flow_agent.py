@@ -12,6 +12,8 @@ Shared signals (also used by other agents):
   Put/call ratio, volume confirmation, directional conviction
 """
 
+# VERSION: v2.0
+
 from options_arena.agents._parsing import PROMPT_RULES_APPENDIX
 
 FLOW_SYSTEM_PROMPT = (
@@ -59,6 +61,35 @@ Rules:
 - Do NOT include <think> tags or reasoning traces in any field.
 - If the Unusual Options Flow section is absent from the context block, focus your analysis \
 on put/call ratio, OI concentration from listed contracts, and volume indicators.
+
+## Example Output
+```json
+{
+    "direction": "bullish",
+    "confidence": 0.50,
+    "gex_interpretation": "GEX: 48,200 is positive, placing dealers in a long-gamma regime. \
+This stabilises near-term price action and suppresses intraday volatility, supporting \
+a controlled upside move rather than a sharp squeeze.",
+    "smart_money_signal": "UNUSUAL ACTIVITY SCORE: 7.2 is above the 6.0 threshold, indicating \
+elevated institutional interest. NET CALL PREMIUM ($): 312,000 significantly exceeds \
+NET PUT PREMIUM ($): 89,000, a 3.5x call-to-put premium ratio that signals directional \
+conviction on the upside. OPTIONS PUT/CALL RATIO: 0.68 confirms call-heavy positioning.",
+    "oi_analysis": "OI concentration at the 150 strike shows call accumulation over 5 sessions, \
+consistent with institutional positioning for upside. MAX PAIN DISTANCE %: 2.1 places \
+max pain slightly below current price at $147.80, suggesting limited max-pain headwind \
+within the DTE window.",
+    "volume_confirmation": "REL VOLUME: 1.8 confirms above-average participation, lending \
+credibility to the directional flow signal. Call volume at the 150 and 155 strikes \
+accounts for 68% of total flow, consistent with a targeted upside thesis rather \
+than broad hedging activity.",
+    "key_flow_factors": [
+        "GEX: 48,200 positive — long-gamma regime suppresses volatility, supports orderly upside",
+        "NET CALL PREMIUM ($): 312,000 vs NET PUT PREMIUM ($): 89,000 — 3.5x call premium ratio",
+        "UNUSUAL ACTIVITY SCORE: 7.2 flags institutional accumulation above routine activity"
+    ],
+    "model_used": "llama-3.3-70b-versatile"
+}
+```
 
 """
     + PROMPT_RULES_APPENDIX

@@ -16,6 +16,8 @@ Shared signals (also used by other agents):
   DTE, earnings dates, sector context
 """
 
+# VERSION: v2.0
+
 from options_arena.agents._parsing import PROMPT_RULES_APPENDIX
 
 FUNDAMENTAL_SYSTEM_PROMPT = (
@@ -81,6 +83,38 @@ Rules:
 calendar proximity, dividend impact, and IV crush risk assessment.
 - When Income Statement, Balance Sheet, or Growth & Valuation sections are present, \
 integrate their data into your analysis and cite specific values.
+
+## Example Output
+```json
+{
+    "direction": "bullish",
+    "confidence": 0.45,
+    "catalyst_impact": "moderate",
+    "earnings_assessment": "NEXT EARNINGS: 2026-04-22 (12 days). DTE: 45 means the \
+options position spans the earnings event, introducing binary event risk. Historical \
+IV crush post-earnings averages 28% for this sector (Technology), meaning a long \
+call holder could lose 25-35% of premium from IV contraction alone even on a \
+positive earnings outcome. Catalyst impact is moderate — not imminent enough to \
+warrant a high rating, but material enough to reduce confidence.",
+    "iv_crush_risk": "IV crush risk is elevated due to earnings in 12 days. With \
+ATM IV 30D at an implied elevated level, post-earnings IV contraction is likely. \
+Long premium positions (long calls, debit spreads) face an adverse vega environment. \
+Consider reducing position size or using a defined-risk spread to cap vega exposure.",
+    "short_interest_analysis": "SHORT RATIO: 3.8 days-to-cover is below the 5.0 \
+squeeze threshold. SHORT % OF FLOAT: 4.2% is modest and does not indicate \
+material short-squeeze risk. Short interest is not a directional catalyst here.",
+    "dividend_impact": "DIV YIELD: 2.10% annualised. Ex-dividend date falls \
+outside the DTE: 45 window, so early exercise risk for in-the-money calls is \
+immaterial for this specific contract. Dividend yield provides a marginal \
+downside cushion for the underlying thesis.",
+    "key_fundamental_factors": [
+        "P/E: 18.2 represents a 15% discount to sector median 21.4 — relative undervaluation",
+        "NEXT EARNINGS: 2026-04-22 (12 days) — binary event within option life, moderate catalyst",
+        "REVENUE GROWTH (YOY): 8.3% exceeds sector average of 5.1%, supporting bullish direction"
+    ],
+    "model_used": "llama-3.3-70b-versatile"
+}
+```
 
 """
     + PROMPT_RULES_APPENDIX
