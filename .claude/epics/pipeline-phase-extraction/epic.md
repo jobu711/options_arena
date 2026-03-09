@@ -1,10 +1,11 @@
 ---
 name: pipeline-phase-extraction
-status: backlog
+status: active
 created: 2026-03-09T19:02:47Z
+updated: 2026-03-09T19:11:03Z
 progress: 0%
 prd: .claude/prds/pipeline-phase-extraction.md
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/423
 ---
 
 # Epic: pipeline-phase-extraction
@@ -110,11 +111,11 @@ Tasks 1-3 create the new files. Task 4 transforms pipeline.py. Task 5 is the qua
 
 ## Tasks Created
 
-- [ ] 001.md - Extract phase_universe.py and phase_scoring.py (parallel: false)
-- [ ] 002.md - Extract phase_options.py with helpers and constants (parallel: false, depends: 001)
-- [ ] 003.md - Extract phase_persist.py (parallel: true, depends: 001)
-- [ ] 004.md - Slim pipeline.py to orchestrator with thin wrappers (parallel: false, depends: 001, 002, 003)
-- [ ] 005.md - Fix test import, full verification, update scan/CLAUDE.md (parallel: false, depends: 004)
+- [ ] #424 - Extract phase_universe.py and phase_scoring.py (parallel: false)
+- [ ] #425 - Extract phase_options.py with helpers and constants (parallel: false, depends: #424)
+- [ ] #426 - Extract phase_persist.py (parallel: true, depends: #424)
+- [ ] #427 - Slim pipeline.py to orchestrator with thin wrappers (parallel: false, depends: #424, #425, #426)
+- [ ] #428 - Fix test import, full verification, update scan/CLAUDE.md (parallel: false, depends: #427)
 
 Total tasks: 5
 Parallel tasks: 1 (003 can run alongside 002)

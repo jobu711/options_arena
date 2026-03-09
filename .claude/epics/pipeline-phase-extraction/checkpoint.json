@@ -1,12 +1,12 @@
 {
   "epic": "pipeline-phase-extraction",
-  "phase": "decomposition",
-  "last_command": "/pm:epic-decompose pipeline-phase-extraction",
-  "last_updated": "2026-03-09T19:11:03Z",
-  "completed_phases": ["prd-created", "research", "planning", "decomposition"],
+  "phase": "synced",
+  "last_command": "/pm:epic-sync pipeline-phase-extraction",
+  "last_updated": "2026-03-09T19:12:00Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
   "current_task": null,
   "tasks_completed": [],
   "tasks_in_progress": [],
   "blockers": [],
-  "notes": "5 tasks created. Tasks 002+003 can run in parallel."
+  "notes": "Epic #423, tasks #424-#428. Sub-issues linked via gh-sub-issue."
 }
