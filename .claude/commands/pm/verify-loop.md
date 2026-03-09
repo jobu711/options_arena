@@ -4,7 +4,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent, AskUserQuestion, Skil
 
 # Verify Loop
 
-Orchestrator: runs epic-verify, epic-merge, and epic-retro in sequence.
+Orchestrator: runs epic-verify and epic-retro in sequence.
 
 ## Usage
 ```
@@ -46,7 +46,7 @@ Execute the full `/pm:epic-verify` flow:
 
 Display summary:
 ```
-Step 1/3 — Verification: {pass}/{total} PASS, {warn} WARN, {fail} FAIL
+Step 1/2 — Verification: {pass}/{total} PASS, {warn} WARN, {fail} FAIL
 ```
 
 ### Step 2: Gate Decision
@@ -56,35 +56,15 @@ If any FAIL items remain after overrides:
 Ask the user:
 - **"Review & override"**: Go back to interactive override for remaining FAILs
 - **"Abort"**: Stop here. Print: "Verify loop aborted. Fix issues and re-run."
-- **"Continue anyway"**: Proceed to merge despite failures
+- **"Continue anyway"**: Proceed to retro despite failures
 
 If no FAIL items (only PASS/WARN/SKIP), proceed automatically.
 
-### Step 3: Merge
-
-Execute the full `/pm:epic-merge` flow:
-
-1. Pre-merge validation (includes soft verification gate — will see the report we just wrote)
-2. Run tests if recommended
-3. Update epic documentation (status: completed)
-4. Merge branch to main with `--no-ff`
-5. Handle conflicts if any (abort loop if unresolvable)
-6. Post-merge cleanup (worktree, branch, archive)
-7. Close GitHub issues
-
-Display summary:
-```
-Step 2/3 — Merge: epic/$ARGUMENTS merged to main
-```
-
-**If merge fails**: preserve verification report, display conflict details, and stop.
-User can resolve conflicts manually and re-run `/pm:epic-merge` + `/pm:epic-retro` separately.
-
-### Step 4: Retro
+### Step 3: Retro
 
 Execute the full `/pm:epic-retro` flow:
 
-1. Gather all epic data (now in archived location)
+1. Gather all epic data
 2. Compute proxy hours per task from git history
 3. Analyze scope delta (planned vs delivered)
 4. Assess quality (test coverage, post-merge fixes)
@@ -95,25 +75,24 @@ Execute the full `/pm:epic-retro` flow:
 
 Display summary:
 ```
-Step 3/3 — Retro: {proxy_hours}h actual vs {planned_hours}h planned ({ratio}x)
+Step 2/2 — Retro: {proxy_hours}h actual vs {planned_hours}h planned ({ratio}x)
 ```
 
-### Step 5: Final Output
+### Step 4: Final Output
 
 ```
 Verify loop complete: $ARGUMENTS
 
   Verification: {pass}/{total} PASS ({coverage}%)
-  Merge: epic/$ARGUMENTS -> main ({commits} commits, {files} files)
   Effort: {proxy_hours}h actual vs {planned_hours}h planned
   Quality: {post_merge_fixes} post-merge fixes
 
 Reports:
-  - .claude/epics/archived/$ARGUMENTS/verification-report.md
-  - .claude/epics/archived/$ARGUMENTS/retro.md
+  - .claude/epics/$ARGUMENTS/verification-report.md
+  - .claude/epics/$ARGUMENTS/retro.md
   - .claude/metrics/velocity.jsonl
 
-Next: /pm:next
+Next: /pm:epic-merge $ARGUMENTS
 ```
 
 ## Recovery
@@ -121,7 +100,6 @@ Next: /pm:next
 Each step is independently recoverable:
 
 - **Verification fails to complete**: report is still written (partial). User can fix and re-run `/pm:epic-verify`.
-- **Merge fails (conflicts)**: verification report is preserved. User resolves conflicts, then runs `/pm:epic-merge` + `/pm:epic-retro` separately.
-- **Retro fails**: merge is already done. User can run `/pm:epic-retro` independently.
+- **Retro fails**: verification is already done. User can run `/pm:epic-retro` independently.
 
 The verify loop never leaves the repository in an inconsistent state — each step either completes fully or aborts cleanly.
