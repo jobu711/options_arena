@@ -24,6 +24,18 @@ Merge completed epic from worktree back to main branch.
 
 ## Instructions
 
+### 0. Check for Verification Report (soft gate)
+
+Before proceeding, check if a verification report exists:
+- If `.claude/epics/$ARGUMENTS/verification-report.md` does NOT exist:
+  - Display: "No verification report found. Consider running /pm:epic-verify $ARGUMENTS first."
+  - Ask user: "Continue without verification? (yes/no)"
+  - If no: stop and suggest running `/pm:epic-verify $ARGUMENTS`
+- If it DOES exist:
+  - Read the frontmatter to extract `passed`, `warned`, `failed`, `coverage`
+  - Display: "Verification: {passed}/{total} PASS, {warned} WARN, {failed} FAIL ({coverage}% coverage)"
+  - If `failed > 0`: warn "There are FAIL items in verification. Review report before merging."
+
 ### 1. Pre-Merge Validation
 
 Navigate to worktree and check status:

@@ -18,6 +18,7 @@ dimensions resolved from arguments vs which remain unresolved.
 **Mode** (first match wins):
 - `build` / `new` / `feature` → Build new features
 - `fix` / `harden` / `bug` / `test` → Fix and harden
+- `refactor` / `cleanup` / `debt` / `simplify` → Refactor and simplify
 - `polish` / `refine` / `ux` / `perf` → Polish and refine
 - `surprise` / `random` → Surprise me
 - No match → **unresolved**
@@ -46,6 +47,7 @@ Use these question definitions for each unresolved dimension:
 **Mode** (single-select, header: "Mode"):
 - "Build new features" — description: "New capabilities, integrations, or modules"
 - "Fix and harden" — description: "Bug fixes, test coverage, reliability improvements"
+- "Refactor and simplify" — description: "Code restructuring, tech debt reduction, architecture cleanup"
 - "Polish and refine" — description: "UX improvements, performance tuning, code quality"
 - "Surprise me" — description: "Best overall pick regardless of category"
 
@@ -122,14 +124,14 @@ Base criteria: Momentum, Unblocking potential, Impact/Effort ratio, Freshness, R
 
 Mode multipliers:
 
-| Criterion | Build | Fix/Harden | Polish | Surprise me |
-|-----------|-------|------------|--------|-------------|
-| Momentum | 2x | 1x | 1x | 1x |
-| Unblocking | 2x | 1x | 0.5x | 1x |
-| Impact/Effort | 1x | 1x | 1.5x | 1x |
-| Freshness | 1x | 1.5x | 1x | 1x |
-| Risk reduction | 0.5x | 2x | 1x | 1x |
-| User-facing value | 1x | 0.5x | 2x | 1x |
+| Criterion | Build | Fix/Harden | Polish | Refactor | Surprise me |
+|-----------|-------|------------|--------|----------|-------------|
+| Momentum | 2x | 1x | 1x | 1x | 1x |
+| Unblocking | 2x | 1x | 0.5x | 1.5x | 1x |
+| Impact/Effort | 1x | 1x | 1.5x | 1.5x | 1x |
+| Freshness | 1x | 1.5x | 1x | 1x | 1x |
+| Risk reduction | 0.5x | 2x | 1x | 2x | 1x |
+| User-facing value | 1x | 0.5x | 2x | 0.5x | 1x |
 
 Area filter: Exclude candidates outside selected areas unless fewer than 3 remain (then include highest-ranked cross-area candidates tagged "(outside selected area)").
 
@@ -199,7 +201,7 @@ If no backlog items match the user's profile, show "No backlog items match your 
 
 - Be opinionated — rank decisively, don't hedge
 - Ground every suggestion in concrete evidence from git history
-- Dimension choices must visibly change the output — "Fix and harden" produces different targets than "Build new features"
+- Dimension choices must visibly change the output — each mode produces visibly different targets ("Refactor" surfaces tech debt, "Build" surfaces features)
 - Strategic suggestions must reference specific modules, services, or infrastructure — no vague ideas
 - Include at least 1 strategic opportunity even when backlog items exist
 - Keep each suggestion to 3-5 lines — brainstorm, not design doc

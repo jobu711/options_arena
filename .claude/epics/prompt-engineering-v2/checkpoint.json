@@ -1,0 +1,12 @@
+{
+  "epic": "prompt-engineering-v2",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync prompt-engineering-v2",
+  "last_updated": "2026-03-09T17:10:48Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}

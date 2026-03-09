@@ -58,8 +58,8 @@ If user confirms:
 
 **Archive Epics:**
 ```bash
-mkdir -p .claude/epics/.archived
-mv .claude/epics/{completed_epic} .claude/epics/.archived/
+mkdir -p .claude/epics/archived
+mv .claude/epics/{completed_epic} .claude/epics/archived/
 ```
 
 **Remove Stale Files:**
@@ -68,7 +68,7 @@ mv .claude/epics/{completed_epic} .claude/epics/.archived/
 - Clean up orphaned files
 
 **Create Archive Log:**
-Create `.claude/epics/.archived/archive-log.md`:
+Create `.claude/epics/archived/archive-log.md`:
 ```markdown
 # Archive Log
 

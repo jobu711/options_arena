@@ -1,0 +1,12 @@
+{
+  "epic": "agent-calibration",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync agent-calibration",
+  "last_updated": "2026-03-09T17:10:35Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}

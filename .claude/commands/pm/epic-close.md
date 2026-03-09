@@ -47,7 +47,7 @@ gh issue close {epic_issue_number} --comment "✅ Epic completed - all tasks don
 Ask user: "Archive completed epic? (yes/no)"
 
 If yes:
-- Move epic directory to `.claude/epics/.archived/{epic_name}/`
+- Move epic directory to `.claude/epics/archived/{epic_name}/`
 - Create archive summary with completion date
 
 ### 6. Output
@@ -57,7 +57,7 @@ If yes:
   Tasks completed: {count}
   Duration: {days_from_created_to_completed}
   
-{If archived}: Archived to .claude/epics/.archived/
+{If archived}: Archived to .claude/epics/archived/
 
 Next epic: Run /pm:next to see priority work
 ```
