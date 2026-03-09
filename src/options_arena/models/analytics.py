@@ -644,3 +644,168 @@ class PerformanceSummary(BaseModel):
         if v is not None and not math.isfinite(v):
             raise ValueError(f"must be finite, got {v}")
         return v
+
+
+# ---------------------------------------------------------------------------
+# Agent calibration models
+# ---------------------------------------------------------------------------
+
+
+class AgentAccuracyReport(BaseModel):
+    """Per-agent direction accuracy and Brier score."""
+
+    model_config = ConfigDict(frozen=True)
+
+    agent_name: str
+    direction_hit_rate: float  # 0.0-1.0
+    mean_confidence: float  # 0.0-1.0
+    brier_score: float  # 0.0-1.0 (lower = better)
+    sample_size: int
+
+    @field_validator("direction_hit_rate")
+    @classmethod
+    def validate_direction_hit_rate(cls, v: float) -> float:
+        """Ensure direction_hit_rate is finite and in [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"direction_hit_rate must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"direction_hit_rate must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("mean_confidence")
+    @classmethod
+    def validate_mean_confidence(cls, v: float) -> float:
+        """Ensure mean_confidence is finite and in [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"mean_confidence must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"mean_confidence must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("brier_score")
+    @classmethod
+    def validate_brier_score(cls, v: float) -> float:
+        """Ensure brier_score is finite and in [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"brier_score must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"brier_score must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("sample_size")
+    @classmethod
+    def validate_sample_size(cls, v: int) -> int:
+        """Ensure sample_size is non-negative."""
+        if v < 0:
+            raise ValueError(f"sample_size must be >= 0, got {v}")
+        return v
+
+
+class CalibrationBucket(BaseModel):
+    """Single confidence calibration bucket."""
+
+    model_config = ConfigDict(frozen=True)
+
+    bucket_label: str  # e.g. "0.0-0.2"
+    bucket_low: float
+    bucket_high: float
+    mean_confidence: float
+    actual_hit_rate: float
+    count: int
+
+    @field_validator("bucket_low", "bucket_high")
+    @classmethod
+    def validate_bucket_bounds(cls, v: float) -> float:
+        """Ensure bucket bounds are finite and in [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"bucket bound must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"bucket bound must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("mean_confidence")
+    @classmethod
+    def validate_mean_confidence(cls, v: float) -> float:
+        """Ensure mean_confidence is finite and in [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"mean_confidence must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"mean_confidence must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("actual_hit_rate")
+    @classmethod
+    def validate_actual_hit_rate(cls, v: float) -> float:
+        """Ensure actual_hit_rate is finite and in [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"actual_hit_rate must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"actual_hit_rate must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("count")
+    @classmethod
+    def validate_count(cls, v: int) -> int:
+        """Ensure count is non-negative."""
+        if v < 0:
+            raise ValueError(f"count must be >= 0, got {v}")
+        return v
+
+
+class AgentCalibrationData(BaseModel):
+    """Per-agent or aggregate confidence calibration data."""
+
+    model_config = ConfigDict(frozen=True)
+
+    agent_name: str | None  # None = aggregate across all agents
+    buckets: list[CalibrationBucket]
+    sample_size: int
+
+    @field_validator("sample_size")
+    @classmethod
+    def validate_sample_size(cls, v: int) -> int:
+        """Ensure sample_size is non-negative."""
+        if v < 0:
+            raise ValueError(f"sample_size must be >= 0, got {v}")
+        return v
+
+
+class AgentWeightsComparison(BaseModel):
+    """Manual vs auto-tuned weight comparison for a single agent."""
+
+    model_config = ConfigDict(frozen=True)
+
+    agent_name: str
+    manual_weight: float
+    auto_weight: float
+    brier_score: float | None  # None if < 10 samples
+    sample_size: int
+
+    @field_validator("manual_weight", "auto_weight")
+    @classmethod
+    def validate_weight(cls, v: float) -> float:
+        """Ensure weight is finite and non-negative."""
+        if not math.isfinite(v):
+            raise ValueError(f"weight must be finite, got {v}")
+        if v < 0.0:
+            raise ValueError(f"weight must be >= 0.0, got {v}")
+        return v
+
+    @field_validator("brier_score")
+    @classmethod
+    def validate_brier_score(cls, v: float | None) -> float | None:
+        """Ensure brier_score is finite and in [0.0, 1.0] when provided."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"brier_score must be finite, got {v}")
+            if not 0.0 <= v <= 1.0:
+                raise ValueError(f"brier_score must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("sample_size")
+    @classmethod
+    def validate_sample_size(cls, v: int) -> int:
+        """Ensure sample_size is non-negative."""
+        if v < 0:
+            raise ValueError(f"sample_size must be >= 0, got {v}")
+        return v

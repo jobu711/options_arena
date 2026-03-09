@@ -17,6 +17,10 @@ from options_arena.models.analysis import (
     VolatilityThesis,
 )
 from options_arena.models.analytics import (
+    AgentAccuracyReport,
+    AgentCalibrationData,
+    AgentWeightsComparison,
+    CalibrationBucket,
     ContractOutcome,
     DeltaPerformanceResult,
     HoldingPeriodResult,
@@ -149,6 +153,10 @@ __all__ = [
     "TradeThesis",
     "VolatilityThesis",
     # Analytics
+    "AgentAccuracyReport",
+    "AgentCalibrationData",
+    "AgentWeightsComparison",
+    "CalibrationBucket",
     "ContractOutcome",
     "DeltaPerformanceResult",
     "HoldingPeriodResult",
