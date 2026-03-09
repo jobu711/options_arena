@@ -164,8 +164,8 @@ def _render_fundamental_section(fund: FundamentalThesis) -> str:
     return "\n".join(lines)
 
 
-def _render_risk_v2_section(risk: RiskAssessment) -> str:
-    """Render the v2 risk assessment section as Markdown.
+def _render_risk_section(risk: RiskAssessment) -> str:
+    """Render the risk assessment section as Markdown.
 
     Args:
         risk: The expanded risk assessment from the risk agent.
@@ -311,48 +311,26 @@ def export_debate_markdown(result: DebateResult) -> str:
     if result.context is not None:
         sections.append(_render_market_snapshot(result.context))
 
-    if result.debate_protocol == "v2":
-        # V2 order: Trend Analysis -> Flow -> Fundamental -> Volatility
-        #           -> Risk Assessment -> Contrarian Challenge -> Verdict
-        sections.append(
-            _render_agent_section("Trend Analysis", result.bull_response),
-        )
+    # 6-agent layout: Trend -> Flow -> Fundamental -> Volatility
+    #                  -> Risk Assessment -> Contrarian Challenge -> Verdict
+    sections.append(
+        _render_agent_section("Trend Analysis", result.bull_response),
+    )
 
-        if result.flow_response is not None:
-            sections.append(_render_flow_section(result.flow_response))
+    if result.flow_response is not None:
+        sections.append(_render_flow_section(result.flow_response))
 
-        if result.fundamental_response is not None:
-            sections.append(_render_fundamental_section(result.fundamental_response))
+    if result.fundamental_response is not None:
+        sections.append(_render_fundamental_section(result.fundamental_response))
 
-        if result.vol_response is not None:
-            sections.append(_render_vol_section(result.vol_response))
+    if result.vol_response is not None:
+        sections.append(_render_vol_section(result.vol_response))
 
-        if result.risk_v2_response is not None:
-            sections.append(_render_risk_v2_section(result.risk_v2_response))
+    if result.risk_response is not None:
+        sections.append(_render_risk_section(result.risk_response))
 
-        if result.contrarian_response is not None:
-            sections.append(_render_contrarian_section(result.contrarian_response))
-    else:
-        # V1 layout — unchanged
-        sections.append(
-            _render_agent_section("Bull Case", result.bull_response),
-        )
-
-        sections.append(
-            _render_agent_section("Bear Case", result.bear_response),
-        )
-
-        if result.vol_response is not None:
-            sections.append(_render_vol_section(result.vol_response))
-
-        if result.bull_rebuttal is not None:
-            sections.append(
-                _render_agent_section(
-                    "Bull Rebuttal",
-                    result.bull_rebuttal,
-                    include_risks=False,
-                ),
-            )
+    if result.contrarian_response is not None:
+        sections.append(_render_contrarian_section(result.contrarian_response))
 
     # --- Verdict ---
     thesis = result.thesis
@@ -364,7 +342,7 @@ def export_debate_markdown(result: DebateResult) -> str:
         f"**Strategy**: {strategy_str}",
     ]
 
-    # Extended fields from 6-agent protocol (v2)
+    # Extended fields from 6-agent protocol
     from options_arena.models import ExtendedTradeThesis  # noqa: PLC0415
 
     if isinstance(thesis, ExtendedTradeThesis):

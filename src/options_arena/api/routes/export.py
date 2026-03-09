@@ -129,10 +129,10 @@ async def export_debate(
         if row.fundamental_json:
             fundamental_response = FundamentalThesis.model_validate_json(row.fundamental_json)
 
-    risk_v2_response: RiskAssessment | None = None
+    risk_response: RiskAssessment | None = None
     with contextlib.suppress(Exception):
-        if row.risk_v2_json:
-            risk_v2_response = RiskAssessment.model_validate_json(row.risk_v2_json)
+        if row.risk_assessment_json:
+            risk_response = RiskAssessment.model_validate_json(row.risk_assessment_json)
 
     contrarian_response: ContrarianThesis | None = None
     with contextlib.suppress(Exception):
@@ -171,9 +171,8 @@ async def export_debate(
         bull_rebuttal=bull_rebuttal,
         flow_response=flow_response,
         fundamental_response=fundamental_response,
-        risk_v2_response=risk_v2_response,
+        risk_response=risk_response,
         contrarian_response=contrarian_response,
-        debate_protocol=row.debate_protocol,
     )
 
     md_content = export_debate_markdown(debate_result)

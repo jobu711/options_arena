@@ -1,10 +1,9 @@
-"""Tests for v2 agent output wiring through orchestrator to persistence.
+"""Tests for agent output wiring through orchestrator to persistence.
 
 Tests cover:
-  - run_debate populates all 4 v2 fields on DebateResult
-    (flow, fundamental, risk_v2, contrarian)
-  - run_debate sets debate_protocol to "v2"
-  - _persist_result serializes v2 fields to save_debate
+  - run_debate populates all 4 agent fields on DebateResult
+    (flow, fundamental, risk, contrarian)
+  - _persist_result serializes agent fields to save_debate
   - run_debate partial agent failure produces DebateResult with None for failed agent
 """
 
@@ -19,7 +18,7 @@ from pydantic_ai.models.test import TestModel
 from options_arena.agents._parsing import DebateResult
 from options_arena.agents.contrarian_agent import contrarian_agent
 from options_arena.agents.orchestrator import run_debate
-from options_arena.agents.risk import risk_agent_v2
+from options_arena.agents.risk import risk_agent
 from options_arena.agents.trend_agent import trend_agent
 from options_arena.agents.volatility import volatility_agent
 from options_arena.models import (
@@ -42,7 +41,7 @@ models.ALLOW_MODEL_REQUESTS = False
 
 
 # ---------------------------------------------------------------------------
-# Helpers — build v2 model fixtures
+# Helpers — build model fixtures
 # ---------------------------------------------------------------------------
 
 
@@ -99,22 +98,22 @@ def _make_contrarian_thesis() -> ContrarianThesis:
 
 
 # ---------------------------------------------------------------------------
-# TestRunDebateV2Populates — v2 fields on DebateResult
+# TestRunDebatePopulates — agent fields on DebateResult
 # ---------------------------------------------------------------------------
 
 
-class TestRunDebateV2Populates:
-    """run_debate populates v2 agent output fields on DebateResult."""
+class TestRunDebatePopulates:
+    """run_debate populates agent output fields on DebateResult."""
 
     @pytest.mark.asyncio
-    async def test_v2_debate_populates_all_fields(
+    async def test_debate_populates_all_fields(
         self,
         mock_ticker_score: TickerScore,
         mock_option_contract: OptionContract,
         mock_quote: Quote,
         mock_ticker_info: TickerInfo,
     ) -> None:
-        """All 4 v2 outputs are populated when all agents succeed.
+        """All 4 agent outputs are populated when all agents succeed.
 
         Provides pre-computed flow_output and fundamental_output to bypass
         the enrichment_ratio gate (no OpenBB data in test fixtures). This
@@ -128,7 +127,7 @@ class TestRunDebateV2Populates:
         with (
             trend_agent.override(model=TestModel()),
             volatility_agent.override(model=TestModel()),
-            risk_agent_v2.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
             result = await run_debate(
@@ -146,60 +145,29 @@ class TestRunDebateV2Populates:
         assert isinstance(result.flow_response, FlowThesis)
         assert result.fundamental_response is not None
         assert isinstance(result.fundamental_response, FundamentalThesis)
-        assert result.risk_v2_response is not None
-        assert isinstance(result.risk_v2_response, RiskAssessment)
+        assert result.risk_response is not None
+        assert isinstance(result.risk_response, RiskAssessment)
         assert result.contrarian_response is not None
         assert isinstance(result.contrarian_response, ContrarianThesis)
 
+
+# ---------------------------------------------------------------------------
+# TestPersistResult — serialization to save_debate
+# ---------------------------------------------------------------------------
+
+
+class TestPersistResult:
+    """_persist_result serializes agent fields to save_debate."""
+
     @pytest.mark.asyncio
-    async def test_v2_debate_protocol_set(
+    async def test_persist_result_serializes(
         self,
         mock_ticker_score: TickerScore,
         mock_option_contract: OptionContract,
         mock_quote: Quote,
         mock_ticker_info: TickerInfo,
     ) -> None:
-        """debate_protocol is set to 'v2' for v2 debates."""
-        config = DebateConfig(
-            api_key="test-key-not-used-with-TestModel",
-            agent_timeout=10.0,
-            max_total_duration=30.0,
-        )
-        with (
-            trend_agent.override(model=TestModel()),
-            volatility_agent.override(model=TestModel()),
-            risk_agent_v2.override(model=TestModel()),
-            contrarian_agent.override(model=TestModel()),
-        ):
-            result = await run_debate(
-                ticker_score=mock_ticker_score,
-                contracts=[mock_option_contract],
-                quote=mock_quote,
-                ticker_info=mock_ticker_info,
-                config=config,
-                flow_output=_make_flow_thesis(),
-                fundamental_output=_make_fundamental_thesis(),
-            )
-        assert result.debate_protocol == "v2"
-
-
-# ---------------------------------------------------------------------------
-# TestPersistResultV2 — v2 serialization to save_debate
-# ---------------------------------------------------------------------------
-
-
-class TestPersistResultV2:
-    """_persist_result serializes v2 fields to save_debate."""
-
-    @pytest.mark.asyncio
-    async def test_persist_result_serializes_v2(
-        self,
-        mock_ticker_score: TickerScore,
-        mock_option_contract: OptionContract,
-        mock_quote: Quote,
-        mock_ticker_info: TickerInfo,
-    ) -> None:
-        """save_debate receives v2 model objects when v2 debate is persisted.
+        """save_debate receives model objects when debate is persisted.
 
         Provides pre-computed flow/fundamental to bypass enrichment gate.
         """
@@ -214,7 +182,7 @@ class TestPersistResultV2:
         with (
             trend_agent.override(model=TestModel()),
             volatility_agent.override(model=TestModel()),
-            risk_agent_v2.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
             await run_debate(
@@ -231,28 +199,27 @@ class TestPersistResultV2:
         mock_repo.save_debate.assert_awaited_once()
         call_kwargs = mock_repo.save_debate.call_args.kwargs
 
-        # v2 fields are passed as model objects (not JSON strings)
-        assert call_kwargs["debate_protocol"] == "v2"
+        # Agent fields are passed as model objects (not JSON strings)
         assert call_kwargs["flow_thesis"] is not None
         assert isinstance(call_kwargs["flow_thesis"], FlowThesis)
         assert call_kwargs["fundamental_thesis"] is not None
         assert isinstance(call_kwargs["fundamental_thesis"], FundamentalThesis)
-        assert call_kwargs["risk_v2_assessment"] is not None
-        assert isinstance(call_kwargs["risk_v2_assessment"], RiskAssessment)
+        assert call_kwargs["risk_assessment"] is not None
+        assert isinstance(call_kwargs["risk_assessment"], RiskAssessment)
         assert call_kwargs["contrarian_thesis"] is not None
         assert isinstance(call_kwargs["contrarian_thesis"], ContrarianThesis)
 
 
 # ---------------------------------------------------------------------------
-# TestV2FallbackOnAgentFailure — partial failure
+# TestFallbackOnAgentFailure — partial failure
 # ---------------------------------------------------------------------------
 
 
-class TestV2FallbackOnAgentFailure:
-    """Partial v2 agent failure produces DebateResult with None for failed agents."""
+class TestFallbackOnAgentFailure:
+    """Partial agent failure produces DebateResult with None for failed agents."""
 
     @pytest.mark.asyncio
-    async def test_v2_fallback_on_agent_failure(
+    async def test_fallback_on_agent_failure(
         self,
         monkeypatch: pytest.MonkeyPatch,
         mock_ticker_score: TickerScore,
@@ -260,16 +227,19 @@ class TestV2FallbackOnAgentFailure:
         mock_quote: Quote,
         mock_ticker_info: TickerInfo,
     ) -> None:
-        """When all Phase 1 agents fail, result is data-driven fallback with v2 fields None."""
+        """When all Phase 1 agents fail, result is data-driven fallback with agent fields None."""
         config = DebateConfig(
             agent_timeout=10.0,
             max_total_duration=30.0,
         )
 
-        async def fake_run_v2_agents(*args: object, **kwargs: object) -> None:
+        async def fake_run_pipeline(*args: object, **kwargs: object) -> None:
             raise RuntimeError("All agents failed")
 
-        monkeypatch.setattr("options_arena.agents.orchestrator._run_v2_agents", fake_run_v2_agents)
+        monkeypatch.setattr(
+            "options_arena.agents.orchestrator._run_debate_pipeline",
+            fake_run_pipeline,
+        )
         result = await run_debate(
             ticker_score=mock_ticker_score,
             contracts=[mock_option_contract],
@@ -278,10 +248,8 @@ class TestV2FallbackOnAgentFailure:
             config=config,
         )
         assert result.is_fallback is True
-        # Fallback results should NOT populate v2 fields
+        # Fallback results should NOT populate agent fields
         assert result.flow_response is None
         assert result.fundamental_response is None
-        assert result.risk_v2_response is None
+        assert result.risk_response is None
         assert result.contrarian_response is None
-        # Fallback defaults to "v2" protocol (v1 removed)
-        assert result.debate_protocol == "v2"

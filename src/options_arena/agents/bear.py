@@ -25,7 +25,6 @@ from options_arena.models import AgentResponse
 
 logger = logging.getLogger(__name__)
 
-# VERSION: v2.0
 BEAR_SYSTEM_PROMPT = (
     """You are a bearish options analyst. Your job is to make the strongest \
 possible case AGAINST entering a long options position on the given ticker.

@@ -47,7 +47,7 @@ from options_arena.agents.contrarian_agent import contrarian_agent
 from options_arena.agents.flow_agent import flow_agent
 from options_arena.agents.fundamental_agent import fundamental_agent
 from options_arena.agents.model_config import build_debate_model
-from options_arena.agents.risk import risk_agent_v2
+from options_arena.agents.risk import risk_agent
 from options_arena.agents.trend_agent import trend_agent
 from options_arena.agents.volatility import volatility_agent
 from options_arena.data.repository import Repository
@@ -733,40 +733,23 @@ def extract_agent_predictions(
     field names for direction and confidence (e.g. ``dissent_direction`` on
     ``ContrarianThesis``, no direction on ``RiskAssessment``).
 
-    In v2 protocol, ``bull_response`` actually holds the trend agent output and
-    ``bear_response`` is a static fallback — extract "trend" instead of "bull"
-    and skip the fake "bear".
+    ``bull_response`` holds the trend agent output (backward-compat shim).
+    Extract as "trend" to avoid conflating with the retired bull agent.
+    ``bear_response`` is a static fallback — skip it to avoid misleading data.
 
     Returns a list of ``AgentPrediction`` — empty if all agents failed.
     """
     now = datetime.now(UTC)
     predictions: list[AgentPrediction] = []
-    is_v2 = result.debate_protocol == "v2"
 
-    # In v2, bull_response holds the trend agent output (backward-compat shim).
-    # Extract as "trend" to avoid conflating with the retired bull agent.
-    # In v1 (legacy), extract as "bull" for backward compatibility.
+    # bull_response holds the trend agent output (backward-compat shim).
     if result.bull_response is not None:
-        agent_name = "trend" if is_v2 else "bull"
         predictions.append(
             AgentPrediction(
                 debate_id=debate_id,
-                agent_name=agent_name,
+                agent_name="trend",
                 direction=result.bull_response.direction,
                 confidence=result.bull_response.confidence,
-                created_at=now,
-            )
-        )
-
-    # Bear response — only extract in v1. In v2, bear_response is a static
-    # fallback (not a real agent output) so skip it to avoid misleading data.
-    if result.bear_response is not None and not is_v2:
-        predictions.append(
-            AgentPrediction(
-                debate_id=debate_id,
-                agent_name="bear",
-                direction=result.bear_response.direction,
-                confidence=result.bear_response.confidence,
                 created_at=now,
             )
         )
@@ -807,14 +790,14 @@ def extract_agent_predictions(
             )
         )
 
-    # Risk v2 response (RiskAssessment — has confidence, no direction field)
-    if result.risk_v2_response is not None:
+    # Risk response (RiskAssessment — has confidence, no direction field)
+    if result.risk_response is not None:
         predictions.append(
             AgentPrediction(
                 debate_id=debate_id,
                 agent_name="risk",
                 direction=None,
-                confidence=result.risk_v2_response.confidence,
+                confidence=result.risk_response.confidence,
                 created_at=now,
             )
         )
@@ -883,9 +866,8 @@ async def _persist_result(
             market_context_json=result.context.model_dump_json(),
             flow_thesis=result.flow_response,
             fundamental_thesis=result.fundamental_response,
-            risk_v2_assessment=result.risk_v2_response,
+            risk_assessment=result.risk_response,
             contrarian_thesis=result.contrarian_response,
-            debate_protocol=result.debate_protocol,
         )
 
         # Persist per-agent predictions for accuracy tracking (FR-8)
@@ -1349,7 +1331,7 @@ async def run_debate(
 
     try:
         result = await asyncio.wait_for(
-            _run_v2_agents(
+            _run_debate_pipeline(
                 context,
                 ticker_score,
                 contracts,
@@ -1417,7 +1399,7 @@ def _effective_agent_timeout(config: DebateConfig) -> float:
     return config.agent_timeout * _ANTHROPIC_TIMEOUT_MULTIPLIER
 
 
-async def _run_v2_agents(
+async def _run_debate_pipeline(
     context: MarketContext,
     ticker_score: TickerScore,
     contracts: list[OptionContract],
@@ -1646,10 +1628,10 @@ async def _run_v2_agents(
         return _build_fallback_result(context, ticker_score, contracts, config, start_time)
 
     # ---------------------------------------------------------------
-    # Phase 2: Risk agent v2 (sequential, receives Phase 1 outputs)
+    # Phase 2: Risk agent (sequential, receives Phase 1 outputs)
     # ---------------------------------------------------------------
-    logger.info("Phase 2: running risk agent v2 for %s", context.ticker)
-    risk_v2_output: RiskAssessment | None = None
+    logger.info("Phase 2: running risk agent for %s", context.ticker)
+    risk_output: RiskAssessment | None = None
     try:
         risk_deps = DebateDeps(
             context=context,
@@ -1661,7 +1643,7 @@ async def _run_v2_agents(
             fundamental_thesis=fundamental_output,
         )
         risk_result = await asyncio.wait_for(
-            risk_agent_v2.run(
+            risk_agent.run(
                 f"Assess risk for {context.ticker} based on all agent outputs.\n\n{full_context}",
                 model=model,
                 deps=risk_deps,
@@ -1669,16 +1651,16 @@ async def _run_v2_agents(
             ),
             timeout=per_agent_timeout,
         )
-        risk_v2_output = risk_result.output
+        risk_output = risk_result.output
         total_usage = total_usage + risk_result.usage()
         logger.info(
-            "Risk agent v2 complete for %s: level=%s, confidence=%.2f",
+            "Risk agent complete for %s: level=%s, confidence=%.2f",
             context.ticker,
-            risk_v2_output.risk_level.value,
-            risk_v2_output.confidence,
+            risk_output.risk_level.value,
+            risk_output.confidence,
         )
     except Exception as e:
-        logger.warning("Risk agent v2 failed for %s: %s", context.ticker, e)
+        logger.warning("Risk agent failed for %s: %s", context.ticker, e)
 
     # ---------------------------------------------------------------
     # Phase 3: Contrarian (sequential, skip if >= 3 Phase 1 failures)
@@ -1692,7 +1674,7 @@ async def _run_v2_agents(
                 vol_thesis,
                 flow_output,
                 fundamental_output,
-                risk_v2_output,
+                risk_output,
             )
             contrarian_deps = DebateDeps(
                 context=context,
@@ -1702,7 +1684,7 @@ async def _run_v2_agents(
                 volatility_thesis=vol_thesis,
                 flow_thesis=flow_output,
                 fundamental_thesis=fundamental_output,
-                risk_assessment=risk_v2_output,
+                risk_assessment=risk_output,
                 all_prior_outputs=prior_text,
             )
             contrarian_result = await asyncio.wait_for(
@@ -1749,7 +1731,7 @@ async def _run_v2_agents(
 
     thesis = synthesize_verdict(
         agent_outputs=agent_outputs,
-        risk_assessment=risk_v2_output,
+        risk_assessment=risk_output,
         contrarian=contrarian_output,
         dimensional_scores=dimensional_scores,
         ticker=context.ticker,
@@ -1802,9 +1784,8 @@ async def _run_v2_agents(
         citation_density=density,
         flow_response=flow_output,
         fundamental_response=fundamental_output,
-        risk_v2_response=risk_v2_output,
+        risk_response=risk_output,
         contrarian_response=contrarian_output,
-        debate_protocol="v2",
     )
 
 
@@ -1829,7 +1810,7 @@ def _build_fallback_agent_response(
             f"Composite: {ticker_score.composite_score:.1f}/100."
         ),
         key_points=key_points[:3] if key_points else ["Composite score available"],
-        risks_cited=["Placeholder for v2 protocol"],
+        risks_cited=["Placeholder for protocol compat"],
         contracts_referenced=contract_refs[:3],
-        model_used="v2-protocol-compat",
+        model_used="protocol-compat",
     )

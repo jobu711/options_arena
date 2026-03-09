@@ -1,11 +1,10 @@
-"""Tests for v2 agent fields on DebateResult.
+"""Tests for agent fields on DebateResult.
 
 Tests cover:
-  - v2 fields default to None when not provided (backward-compatible)
-  - v2 fields can be populated with typed agent outputs
-  - JSON roundtrip preserves v2 fields
-  - debate_protocol defaults to "v2"
-  - frozen immutability preserved with v2 fields
+  - Agent fields default to None when not provided (backward-compatible)
+  - Agent fields can be populated with typed agent outputs
+  - JSON roundtrip preserves agent fields
+  - Frozen immutability preserved with agent fields
 """
 
 from __future__ import annotations
@@ -29,20 +28,20 @@ from options_arena.models import (
 )
 
 # ---------------------------------------------------------------------------
-# v2 field defaults
+# Agent field defaults
 # ---------------------------------------------------------------------------
 
 
 class TestV2FieldDefaults:
-    """DebateResult v2 fields default to None / 'v1' for backward compat."""
+    """DebateResult agent fields default to None for backward compat."""
 
-    def test_v2_fields_default_to_none(
+    def test_agent_fields_default_to_none(
         self,
         mock_market_context: MarketContext,
         mock_agent_response: AgentResponse,
         mock_trade_thesis: TradeThesis,
     ) -> None:
-        """Constructing DebateResult without v2 fields gives None defaults."""
+        """Constructing DebateResult without agent fields gives None defaults."""
         result = DebateResult(
             context=mock_market_context,
             bull_response=mock_agent_response,
@@ -54,35 +53,17 @@ class TestV2FieldDefaults:
         )
         assert result.flow_response is None
         assert result.fundamental_response is None
-        assert result.risk_v2_response is None
+        assert result.risk_response is None
         assert result.contrarian_response is None
-
-    def test_debate_protocol_defaults_to_v2(
-        self,
-        mock_market_context: MarketContext,
-        mock_agent_response: AgentResponse,
-        mock_trade_thesis: TradeThesis,
-    ) -> None:
-        """debate_protocol defaults to 'v2' (v1 removed)."""
-        result = DebateResult(
-            context=mock_market_context,
-            bull_response=mock_agent_response,
-            bear_response=mock_agent_response,
-            thesis=mock_trade_thesis,
-            total_usage=RunUsage(),
-            duration_ms=1000,
-            is_fallback=False,
-        )
-        assert result.debate_protocol == "v2"
 
 
 # ---------------------------------------------------------------------------
-# v2 fields populated
+# Agent fields populated
 # ---------------------------------------------------------------------------
 
 
 class TestV2FieldsPopulated:
-    """DebateResult v2 fields can be populated with typed agent outputs."""
+    """DebateResult agent fields can be populated with typed agent outputs."""
 
     @pytest.fixture()
     def mock_flow_thesis(self) -> FlowThesis:
@@ -137,7 +118,7 @@ class TestV2FieldsPopulated:
             model_used="llama-3.3-70b-versatile",
         )
 
-    def test_v2_fields_populated(
+    def test_agent_fields_populated(
         self,
         mock_market_context: MarketContext,
         mock_agent_response: AgentResponse,
@@ -147,7 +128,7 @@ class TestV2FieldsPopulated:
         mock_risk_assessment: RiskAssessment,
         mock_contrarian_thesis: ContrarianThesis,
     ) -> None:
-        """DebateResult can be constructed with all 4 v2 agent outputs + protocol."""
+        """DebateResult can be constructed with all 4 agent outputs."""
         result = DebateResult(
             context=mock_market_context,
             bull_response=mock_agent_response,
@@ -158,9 +139,8 @@ class TestV2FieldsPopulated:
             is_fallback=False,
             flow_response=mock_flow_thesis,
             fundamental_response=mock_fundamental_thesis,
-            risk_v2_response=mock_risk_assessment,
+            risk_response=mock_risk_assessment,
             contrarian_response=mock_contrarian_thesis,
-            debate_protocol="v2",
         )
         assert result.flow_response is not None
         assert isinstance(result.flow_response, FlowThesis)
@@ -170,17 +150,15 @@ class TestV2FieldsPopulated:
         assert isinstance(result.fundamental_response, FundamentalThesis)
         assert result.fundamental_response.catalyst_impact == CatalystImpact.HIGH
 
-        assert result.risk_v2_response is not None
-        assert isinstance(result.risk_v2_response, RiskAssessment)
-        assert result.risk_v2_response.risk_level == RiskLevel.MODERATE
+        assert result.risk_response is not None
+        assert isinstance(result.risk_response, RiskAssessment)
+        assert result.risk_response.risk_level == RiskLevel.MODERATE
 
         assert result.contrarian_response is not None
         assert isinstance(result.contrarian_response, ContrarianThesis)
         assert result.contrarian_response.dissent_direction == SignalDirection.BEARISH
 
-        assert result.debate_protocol == "v2"
-
-    def test_json_roundtrip_with_v2_fields(
+    def test_json_roundtrip_with_agent_fields(
         self,
         mock_market_context: MarketContext,
         mock_agent_response: AgentResponse,
@@ -190,7 +168,7 @@ class TestV2FieldsPopulated:
         mock_risk_assessment: RiskAssessment,
         mock_contrarian_thesis: ContrarianThesis,
     ) -> None:
-        """model_validate_json(model_dump_json()) preserves v2 fields."""
+        """JSON roundtrip preserves agent fields."""
         original = DebateResult(
             context=mock_market_context,
             bull_response=mock_agent_response,
@@ -201,15 +179,11 @@ class TestV2FieldsPopulated:
             is_fallback=False,
             flow_response=mock_flow_thesis,
             fundamental_response=mock_fundamental_thesis,
-            risk_v2_response=mock_risk_assessment,
+            risk_response=mock_risk_assessment,
             contrarian_response=mock_contrarian_thesis,
-            debate_protocol="v2",
         )
         json_str = original.model_dump_json()
         restored = DebateResult.model_validate_json(json_str)
-
-        # Verify v2 fields round-tripped
-        assert restored.debate_protocol == "v2"
 
         assert restored.flow_response is not None
         assert restored.flow_response.direction == SignalDirection.BULLISH
@@ -218,21 +192,21 @@ class TestV2FieldsPopulated:
         assert restored.fundamental_response is not None
         assert restored.fundamental_response.catalyst_impact == CatalystImpact.HIGH
 
-        assert restored.risk_v2_response is not None
-        assert restored.risk_v2_response.risk_level == RiskLevel.MODERATE
-        assert restored.risk_v2_response.pop_estimate == pytest.approx(0.55)
+        assert restored.risk_response is not None
+        assert restored.risk_response.risk_level == RiskLevel.MODERATE
+        assert restored.risk_response.pop_estimate == pytest.approx(0.55)
 
         assert restored.contrarian_response is not None
         assert restored.contrarian_response.dissent_direction == SignalDirection.BEARISH
         assert restored.contrarian_response.dissent_confidence == pytest.approx(0.4)
 
-    def test_json_roundtrip_with_v2_fields_none(
+    def test_json_roundtrip_with_fields_none(
         self,
         mock_market_context: MarketContext,
         mock_agent_response: AgentResponse,
         mock_trade_thesis: TradeThesis,
     ) -> None:
-        """JSON roundtrip preserves None v2 fields and 'v1' protocol."""
+        """JSON roundtrip preserves None agent fields."""
         original = DebateResult(
             context=mock_market_context,
             bull_response=mock_agent_response,
@@ -247,9 +221,8 @@ class TestV2FieldsPopulated:
 
         assert restored.flow_response is None
         assert restored.fundamental_response is None
-        assert restored.risk_v2_response is None
+        assert restored.risk_response is None
         assert restored.contrarian_response is None
-        assert restored.debate_protocol == "v2"
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +231,7 @@ class TestV2FieldsPopulated:
 
 
 class TestV2FrozenImmutability:
-    """DebateResult with v2 fields remains frozen (immutable)."""
+    """DebateResult with agent fields remains frozen (immutable)."""
 
     def test_frozen_immutability_preserved(
         self,
@@ -266,7 +239,7 @@ class TestV2FrozenImmutability:
         mock_agent_response: AgentResponse,
         mock_trade_thesis: TradeThesis,
     ) -> None:
-        """DebateResult with v2 fields rejects attribute mutation."""
+        """DebateResult rejects attribute mutation."""
         result = DebateResult(
             context=mock_market_context,
             bull_response=mock_agent_response,
@@ -275,20 +248,17 @@ class TestV2FrozenImmutability:
             total_usage=RunUsage(),
             duration_ms=1000,
             is_fallback=False,
-            debate_protocol="v2",
         )
         with pytest.raises(ValidationError):
             result.flow_response = None  # type: ignore[misc]
-        with pytest.raises(ValidationError):
-            result.debate_protocol = "v3"  # type: ignore[misc]
 
-    def test_model_dump_includes_v2_fields(
+    def test_model_dump_includes_agent_fields(
         self,
         mock_market_context: MarketContext,
         mock_agent_response: AgentResponse,
         mock_trade_thesis: TradeThesis,
     ) -> None:
-        """model_dump() includes all v2 fields."""
+        """model_dump() includes all agent fields."""
         result = DebateResult(
             context=mock_market_context,
             bull_response=mock_agent_response,
@@ -301,7 +271,5 @@ class TestV2FrozenImmutability:
         dump = result.model_dump()
         assert "flow_response" in dump
         assert "fundamental_response" in dump
-        assert "risk_v2_response" in dump
+        assert "risk_response" in dump
         assert "contrarian_response" in dump
-        assert "debate_protocol" in dump
-        assert dump["debate_protocol"] == "v2"

@@ -23,10 +23,7 @@ const debateId = Number(route.params.id)
 /** Shorthand for the current debate result. */
 const debate = computed(() => debateStore.currentDebate)
 
-/** True when this debate used the v2 protocol. */
-const isV2 = computed(() => debate.value?.debate_protocol === 'v2')
-
-/** Parsed volatility agent response (used in both v1 and v2 layouts). */
+/** Parsed volatility agent response. */
 const parsedVolResponse = computed(() => tryParseAgent(debate.value?.vol_response))
 
 function tryParseAgent(json: string | undefined): AgentResponse | null {
@@ -181,7 +178,7 @@ onMounted(() => void debateStore.fetchDebate(debateId))
         <p class="thesis-risk">{{ debateStore.currentDebate.thesis.risk_assessment }}</p>
       </div>
 
-      <!-- Consensus Panel (v2 only) -->
+      <!-- Consensus Panel -->
       <ConsensusPanel
         v-if="debate?.agent_agreement_score != null"
         :agreement-score="debate?.agent_agreement_score ?? null"
@@ -190,8 +187,8 @@ onMounted(() => void debateStore.fetchDebate(debateId))
         :contrarian-dissent="debate?.contrarian_dissent ?? null"
       />
 
-      <!-- V2 Agent Cards Grid (6-card layout) -->
-      <div v-if="isV2" class="agents-grid" data-testid="v2-agents-grid">
+      <!-- Agent Cards Grid -->
+      <div class="agents-grid" data-testid="agents-grid">
         <!-- Trend (bull agent re-labeled) -->
         <AgentCard
           v-if="debateStore.currentDebate.bull_response"
@@ -222,48 +219,16 @@ onMounted(() => void debateStore.fetchDebate(debateId))
           data-testid="agent-card-volatility"
         />
 
-        <!-- Risk V2 -->
+        <!-- Risk -->
         <RiskAgentCard
-          v-if="debateStore.currentDebate.risk_v2_response"
-          :response="debateStore.currentDebate.risk_v2_response"
+          v-if="debateStore.currentDebate.risk_response"
+          :response="debateStore.currentDebate.risk_response"
         />
 
         <!-- Contrarian -->
         <ContrarianAgentCard
           v-if="debateStore.currentDebate.contrarian_response"
           :response="debateStore.currentDebate.contrarian_response"
-        />
-      </div>
-
-      <!-- V1 Agent Cards Grid (original layout) -->
-      <div v-else class="agents-grid" data-testid="v1-agents-grid">
-        <AgentCard
-          v-if="debateStore.currentDebate.bull_response"
-          agent-name="Bull Agent"
-          :response="debateStore.currentDebate.bull_response"
-          color="#22c55e"
-          data-testid="agent-card-bull"
-        />
-        <AgentCard
-          v-if="debateStore.currentDebate.bear_response"
-          agent-name="Bear Agent"
-          :response="debateStore.currentDebate.bear_response"
-          color="#ef4444"
-          data-testid="agent-card-bear"
-        />
-        <AgentCard
-          v-if="tryParseAgent(debateStore.currentDebate.bull_rebuttal)"
-          agent-name="Bull Rebuttal"
-          :response="tryParseAgent(debateStore.currentDebate.bull_rebuttal)!"
-          color="#86efac"
-          data-testid="agent-card-rebuttal"
-        />
-        <AgentCard
-          v-if="parsedVolResponse"
-          agent-name="Volatility Agent"
-          :response="parsedVolResponse"
-          color="#a855f7"
-          data-testid="agent-card-volatility"
         />
       </div>
 
@@ -363,10 +328,6 @@ onMounted(() => void debateStore.fetchDebate(debateId))
         <div v-if="debateStore.currentDebate.debate_mode" class="meta-item">
           <span class="meta-label">Mode</span>
           <span class="meta-value">{{ debateStore.currentDebate.debate_mode }}</span>
-        </div>
-        <div v-if="debateStore.currentDebate.debate_protocol" class="meta-item">
-          <span class="meta-label">Protocol</span>
-          <span class="meta-value">{{ debateStore.currentDebate.debate_protocol }}</span>
         </div>
         <div class="meta-item">
           <span class="meta-label">Date</span>

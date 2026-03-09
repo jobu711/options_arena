@@ -3,7 +3,7 @@
 Tests cover:
   - Full 6-agent protocol flow (all agents succeed via TestModel)
   - Phase 1 parallel execution (trend + volatility)
-  - Phase 2 sequential (risk_agent_v2 with Phase 1 outputs)
+  - Phase 2 sequential (risk_agent with Phase 1 outputs)
   - Phase 3 sequential (contrarian with all outputs)
   - Phase 4 verdict synthesis (algorithmic, no LLM)
   - Graceful degradation: 0, 1, 2, 3, 4 Phase 1 failures
@@ -32,7 +32,7 @@ from options_arena.agents.orchestrator import (
     run_debate,
     synthesize_verdict,
 )
-from options_arena.agents.risk import risk_agent_v2
+from options_arena.agents.risk import risk_agent
 from options_arena.agents.trend_agent import trend_agent
 from options_arena.agents.volatility import volatility_agent
 from options_arena.models import (
@@ -473,7 +473,7 @@ class TestSynthesizeVerdict:
 # ---------------------------------------------------------------------------
 
 
-class TestRunDebateV2:
+class TestRunDebate:
     """Integration tests for run_debate()."""
 
     @pytest.mark.asyncio
@@ -486,7 +486,7 @@ class TestRunDebateV2:
         with (
             trend_agent.override(model=TestModel()),
             volatility_agent.override(model=TestModel()),
-            risk_agent_v2.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
             result = await run_debate(
@@ -514,7 +514,7 @@ class TestRunDebateV2:
         with (
             trend_agent.override(model=TestModel()),
             volatility_agent.override(model=TestModel()),
-            risk_agent_v2.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
             result = await run_debate(
@@ -558,7 +558,7 @@ class TestRunDebateV2:
         with (
             trend_agent.override(model=TestModel()),
             volatility_agent.override(model=TestModel()),
-            risk_agent_v2.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
             # No flow_output, no fundamental_output -> 2 failures already
@@ -591,7 +591,7 @@ class TestRunDebateV2:
                 new_callable=AsyncMock,
                 side_effect=TimeoutError("test"),
             ),
-            risk_agent_v2.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
             result = await run_debate(
@@ -640,7 +640,7 @@ class TestRunDebateV2:
                 new_callable=AsyncMock,
                 side_effect=TimeoutError("vol failed"),
             ),
-            risk_agent_v2.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
             result = await run_debate(
@@ -665,7 +665,7 @@ class TestRunDebateV2:
         with (
             trend_agent.override(model=TestModel()),
             volatility_agent.override(model=TestModel()),
-            risk_agent_v2.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
             result = await run_debate(

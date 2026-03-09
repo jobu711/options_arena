@@ -312,14 +312,14 @@ def render_fundamental_panel(fund: FundamentalThesis) -> Panel:
     )
 
 
-def render_risk_v2_panel(risk: RiskAssessment) -> Panel:
-    """Render Risk Agent v2 output as a bright_blue-bordered Rich Panel.
+def render_risk_panel(risk: RiskAssessment) -> Panel:
+    """Render Risk Agent output as a bright_blue-bordered Rich Panel.
 
     Uses ``Text()`` constructor (defaults to no markup) to prevent bracket
     interpretation from agent-generated content.
 
     Args:
-        risk: RiskAssessment from the Risk Agent (v2 protocol).
+        risk: RiskAssessment from the Risk Agent.
 
     Returns:
         Rich Panel with bright_blue border showing risk assessment.
@@ -407,14 +407,12 @@ def render_contrarian_panel(contra: ContrarianThesis) -> Panel:
 
 
 def render_debate_panels(console: Console, result: DebateResult) -> None:
-    """Render debate result as Rich panels: Bull (green), Bear (red), Verdict (blue).
+    """Render debate result as Rich panels for the 6-agent protocol.
 
     Agent argument text is rendered with ``markup=False`` to prevent Rich from
     interpreting ``[brackets]`` (e.g., ``[RSI]``, ``[AAPL]``) as style tags.
 
-    Protocol-aware: when ``result.debate_protocol == "v2"``, renders the
-    6-agent layout (Trend, Flow, Fundamental, Volatility, Risk v2, Contrarian)
-    instead of the classic Bull/Bear/Rebuttal layout.
+    Layout: Trend -> Flow -> Fundamental -> Volatility -> Risk -> Contrarian -> Verdict.
 
     Args:
         console: Rich Console instance for stdout output.
@@ -434,92 +432,6 @@ def render_debate_panels(console: Console, result: DebateResult) -> None:
         )
         console.print()
 
-    if result.debate_protocol == "v2":
-        _render_v2_panels(console, result)
-    else:
-        _render_v1_panels(console, result)
-
-    # --- Verdict panel (shared across protocols) ---
-    thesis = result.thesis
-    verdict_body = _build_verdict_panel_text(thesis)
-    console.print(
-        Panel(
-            verdict_body,
-            border_style="blue",
-            title=f"VERDICT: {thesis.ticker}",
-            title_align="left",
-        )
-    )
-
-
-def _render_v1_panels(console: Console, result: DebateResult) -> None:
-    """Render classic v1 debate panels: Bull, Bear, optional Rebuttal, optional Volatility."""
-    # --- Bull panel ---
-    bull = result.bull_response
-    bull_body = _build_agent_panel_text(
-        direction=bull.direction.value.upper(),
-        confidence=bull.confidence,
-        argument=bull.argument,
-        key_points=bull.key_points,
-        risks=bull.risks_cited,
-    )
-    console.print(
-        Panel(
-            bull_body,
-            border_style="green",
-            title="BULL",
-            title_align="left",
-        )
-    )
-    console.print()
-
-    # --- Bear panel ---
-    bear = result.bear_response
-    bear_body = _build_agent_panel_text(
-        direction=bear.direction.value.upper(),
-        confidence=bear.confidence,
-        argument=bear.argument,
-        key_points=bear.key_points,
-        risks=bear.risks_cited,
-    )
-    console.print(
-        Panel(
-            bear_body,
-            border_style="red",
-            title="BEAR",
-            title_align="left",
-        )
-    )
-    console.print()
-
-    # --- Bull rebuttal panel (optional) ---
-    if result.bull_rebuttal is not None:
-        rebuttal = result.bull_rebuttal
-        rebuttal_body = _build_agent_panel_text(
-            direction=rebuttal.direction.value.upper(),
-            confidence=rebuttal.confidence,
-            argument=rebuttal.argument,
-            key_points=rebuttal.key_points,
-            risks=rebuttal.risks_cited,
-        )
-        console.print(
-            Panel(rebuttal_body, border_style="green", title="BULL REBUTTAL", title_align="left")
-        )
-        console.print()
-
-    # --- Volatility panel (optional) ---
-    if result.vol_response is not None:
-        console.print(render_volatility_panel(result.vol_response))
-        console.print()
-
-
-def _render_v2_panels(console: Console, result: DebateResult) -> None:
-    """Render 6-agent v2 debate panels.
-
-    Layout order: Trend (green) -> Flow -> Fundamental -> Volatility -> Risk v2 -> Contrarian.
-    The trend agent's output is stored in ``bull_response`` but rendered with the
-    'TREND ANALYSIS' title instead of 'BULL'.
-    """
     # --- Trend panel (uses bull_response with TREND ANALYSIS title) ---
     trend = result.bull_response
     trend_body = _build_agent_panel_text(
@@ -554,15 +466,27 @@ def _render_v2_panels(console: Console, result: DebateResult) -> None:
         console.print(render_volatility_panel(result.vol_response))
         console.print()
 
-    # --- Risk v2 panel (optional) ---
-    if result.risk_v2_response is not None:
-        console.print(render_risk_v2_panel(result.risk_v2_response))
+    # --- Risk panel (optional) ---
+    if result.risk_response is not None:
+        console.print(render_risk_panel(result.risk_response))
         console.print()
 
     # --- Contrarian panel (optional) ---
     if result.contrarian_response is not None:
         console.print(render_contrarian_panel(result.contrarian_response))
         console.print()
+
+    # --- Verdict panel ---
+    thesis = result.thesis
+    verdict_body = _build_verdict_panel_text(thesis)
+    console.print(
+        Panel(
+            verdict_body,
+            border_style="blue",
+            title=f"VERDICT: {thesis.ticker}",
+            title_align="left",
+        )
+    )
 
 
 def _build_agent_panel_text(
@@ -770,7 +694,7 @@ def render_debate_history(debates: list[DebateRow], ticker: str) -> Table:
 
         if debate.verdict_json is not None:
             try:
-                # Try ExtendedTradeThesis first (v2 protocol), fall back to TradeThesis
+                # Try ExtendedTradeThesis first (6-agent protocol), fall back to TradeThesis
                 parsed_thesis: TradeThesis
                 try:
                     parsed_thesis = ExtendedTradeThesis.model_validate_json(debate.verdict_json)

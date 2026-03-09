@@ -63,7 +63,6 @@ def strip_think_tags(text: str) -> str:
     return cleaned
 
 
-# VERSION: v3.0
 PROMPT_RULES_APPENDIX = """Confidence calibration (MUST follow these guidelines):
 - 0.0-0.2: Extremely weak case, minimal data support
 - 0.2-0.4: Weak case, some data but significant contradictions
@@ -324,7 +323,7 @@ class DebateDeps:
     bear_response: AgentResponse | None = None  # For risk agent
     bull_rebuttal: AgentResponse | None = None  # For risk agent (bull's rebuttal)
     vol_response: VolatilityThesis | None = None  # For risk agent (vol context)
-    # --- 6-agent protocol fields (v2) ---
+    # --- 6-agent protocol fields ---
     trend_response: AgentResponse | None = None  # Phase 1 trend output
     volatility_thesis: VolatilityThesis | None = None  # Phase 1 vol output
     flow_thesis: FlowThesis | None = None  # Phase 1 flow output
@@ -353,12 +352,10 @@ class DebateResult(BaseModel):
     bull_rebuttal: AgentResponse | None = None  # None when rebuttal disabled/skipped
     vol_response: VolatilityThesis | None = None  # None when vol agent disabled/skipped
     citation_density: float = 0.0  # fraction of context labels cited in agent text
-    # --- v2 agent outputs (6-agent protocol) ---
     flow_response: FlowThesis | None = None
     fundamental_response: FundamentalThesis | None = None
-    risk_v2_response: RiskAssessment | None = None
+    risk_response: RiskAssessment | None = None
     contrarian_response: ContrarianThesis | None = None
-    debate_protocol: str = "v2"
 
 
 def _render_optional(label: str, value: float | None, fmt: str = ".1f") -> str | None:

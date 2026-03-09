@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 
 
 class MarketContext(BaseModel):
-    """Snapshot of ticker state for analysis and (v2) debate agents.
+    """Snapshot of ticker state for analysis and debate agents.
 
     Keep flat -- agents parse flat text better than nested objects.
     NOT frozen: mutable so fields can be populated incrementally.

@@ -24,7 +24,6 @@ from options_arena.models import VolatilityThesis
 
 logger = logging.getLogger(__name__)
 
-# VERSION: v3.0
 VOLATILITY_SYSTEM_PROMPT = (
     """You are a volatility analyst specializing in options implied volatility assessment. \
 Your job is to determine whether implied volatility is overpriced, underpriced, or \

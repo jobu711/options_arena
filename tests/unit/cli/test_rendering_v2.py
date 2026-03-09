@@ -1,8 +1,8 @@
-"""Tests for v2 agent panel rendering in CLI.
+"""Tests for agent panel rendering in CLI.
 
-Tests verify panel structure and content for the 4 new v2 agent panels
-(Flow, Fundamental, Risk v2, Contrarian) and the protocol-aware
-render_debate_panels() branching.
+Tests verify panel structure and content for the 4 agent panels
+(Flow, Fundamental, Risk, Contrarian) and render_debate_panels()
+6-agent layout.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from options_arena.cli.rendering import (
     render_debate_panels,
     render_flow_panel,
     render_fundamental_panel,
-    render_risk_v2_panel,
+    render_risk_panel,
 )
 from options_arena.models import (
     AgentResponse,
@@ -44,7 +44,7 @@ from options_arena.models.enums import (
 )
 
 # ---------------------------------------------------------------------------
-# Helpers to build v2 test fixtures
+# Helpers to build test fixtures
 # ---------------------------------------------------------------------------
 
 
@@ -148,10 +148,10 @@ def _make_agent_response(
     )
 
 
-def _make_v2_debate_result() -> DebateResult:
-    """Build a full v2 DebateResult with all 6-agent fields populated."""
+def _make_debate_result() -> DebateResult:
+    """Build a full DebateResult with all 6-agent fields populated."""
     trend = _make_agent_response("trend", SignalDirection.BULLISH, 0.72)
-    # v2 uses trend as the bull_response; bear is a synthetic placeholder
+    # trend is the bull_response; bear is a synthetic placeholder
     bear = _make_agent_response("bear", SignalDirection.BEARISH, 0.50)
     thesis = TradeThesis(
         ticker="AAPL",
@@ -187,36 +187,8 @@ def _make_v2_debate_result() -> DebateResult:
         vol_response=vol,
         flow_response=_make_flow_thesis(),
         fundamental_response=_make_fundamental_thesis(),
-        risk_v2_response=_make_risk_assessment(),
+        risk_response=_make_risk_assessment(),
         contrarian_response=_make_contrarian_thesis(),
-        debate_protocol="v2",
-    )
-
-
-def _make_v1_debate_result() -> DebateResult:
-    """Build a classic v1 DebateResult (no v2 fields)."""
-    bull = _make_agent_response("bull", SignalDirection.BULLISH, 0.72)
-    bear = _make_agent_response("bear", SignalDirection.BEARISH, 0.55)
-    thesis = TradeThesis(
-        ticker="AAPL",
-        direction=SignalDirection.BULLISH,
-        confidence=0.65,
-        summary="Moderate bullish case.",
-        bull_score=7.2,
-        bear_score=4.5,
-        key_factors=["Momentum"],
-        risk_assessment="Moderate risk.",
-        recommended_strategy=None,
-    )
-    return DebateResult(
-        context=_make_market_context(),
-        bull_response=bull,
-        bear_response=bear,
-        thesis=thesis,
-        total_usage=RunUsage(),
-        duration_ms=1000,
-        is_fallback=False,
-        debate_protocol="v1",
     )
 
 
@@ -264,13 +236,13 @@ class TestRenderFundamentalPanel:
         assert "Short interest" in text_str  # optional field present
 
 
-class TestRenderRiskV2Panel:
-    """Tests for render_risk_v2_panel()."""
+class TestRenderRiskPanel:
+    """Tests for render_risk_panel()."""
 
-    def test_render_risk_v2_panel(self) -> None:
+    def test_render_risk_panel(self) -> None:
         """Panel contains risk level, PoP, max loss, and mitigants."""
         risk = _make_risk_assessment()
-        panel = render_risk_v2_panel(risk)
+        panel = render_risk_panel(risk)
 
         assert isinstance(panel, Panel)
         assert panel.border_style == "bright_blue"  # type: ignore[union-attr]
@@ -302,19 +274,19 @@ class TestRenderContrarianPanel:
 
 
 # ---------------------------------------------------------------------------
-# Protocol-aware debate panel rendering
+# Debate panel rendering (6-agent layout)
 # ---------------------------------------------------------------------------
 
 
-class TestV2DebateRendering:
-    """Tests for render_debate_panels() with v2 protocol."""
+class TestDebateRendering:
+    """Tests for render_debate_panels() with 6-agent layout."""
 
-    def test_v2_debate_renders_6_panels(
+    def test_debate_renders_6_panels(
         self,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """V2 debate renders 6 agent panels + verdict."""
-        result = _make_v2_debate_result()
+        """Debate renders 6 agent panels + verdict."""
+        result = _make_debate_result()
         console = Console(force_terminal=True, width=120)
         render_debate_panels(console, result)
         output = capsys.readouterr().out
@@ -328,12 +300,12 @@ class TestV2DebateRendering:
         assert "CONTRARIAN ANALYSIS" in output
         assert "VERDICT" in output
 
-    def test_v2_uses_trend_label(
+    def test_uses_trend_label(
         self,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """V2 renders 'TREND ANALYSIS' instead of 'BULL'."""
-        result = _make_v2_debate_result()
+        """Renders 'TREND ANALYSIS' instead of 'BULL'."""
+        result = _make_debate_result()
         console = Console(force_terminal=True, width=120)
         render_debate_panels(console, result)
         output = capsys.readouterr().out
@@ -344,45 +316,23 @@ class TestV2DebateRendering:
         # panel title pattern -- Rich wraps titles in the border
         lines = output.split("\n")
         bull_panel_titles = [ln for ln in lines if "BULL" in ln and "REBUTTAL" not in ln]
-        # In v2, "BULL" should not appear as a standalone panel title
+        # "BULL" should not appear as a standalone panel title
         for line in bull_panel_titles:
             assert "TREND ANALYSIS" in line or "bull" in line.lower()
 
-    def test_v2_omits_bear_placeholder(
+    def test_omits_bear_placeholder(
         self,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """V2 does NOT render a synthetic BEAR panel."""
-        result = _make_v2_debate_result()
+        """Does NOT render a synthetic BEAR panel."""
+        result = _make_debate_result()
         console = Console(force_terminal=True, width=120)
         render_debate_panels(console, result)
         output = capsys.readouterr().out
 
-        # No standalone "BEAR" panel title should appear in v2
+        # No standalone "BEAR" panel title should appear
         lines = output.split("\n")
         bear_title_lines = [
             ln for ln in lines if " BEAR " in ln and "BULL" not in ln and "REBUTTAL" not in ln
         ]
         assert len(bear_title_lines) == 0, f"Found unexpected BEAR panel: {bear_title_lines}"
-
-    def test_v1_debate_renders_unchanged(
-        self,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """V1 layout is identical -- regression test."""
-        result = _make_v1_debate_result()
-        console = Console(force_terminal=True, width=120)
-        render_debate_panels(console, result)
-        output = capsys.readouterr().out
-
-        # V1 should have BULL and BEAR panels
-        assert "BULL" in output
-        assert "BEAR" in output
-        assert "VERDICT" in output
-
-        # V1 should NOT have v2-specific panels
-        assert "TREND ANALYSIS" not in output
-        assert "FLOW ANALYSIS" not in output
-        assert "FUNDAMENTAL ANALYSIS" not in output
-        assert "RISK ASSESSMENT" not in output
-        assert "CONTRARIAN ANALYSIS" not in output

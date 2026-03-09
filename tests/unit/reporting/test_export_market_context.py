@@ -104,7 +104,6 @@ def _make_debate_result(
         total_usage=RunUsage(),
         duration_ms=1500,
         is_fallback=False,
-        debate_protocol="v1",
     )
 
 
@@ -179,8 +178,7 @@ def test_export_still_has_all_sections() -> None:
     md = export_debate_markdown(result)
 
     assert "## Market Snapshot" in md
-    assert "## Bull Case" in md
-    assert "## Bear Case" in md
+    assert "## Trend Analysis" in md
     assert "## Verdict" in md
     assert "DISCLAIMER" not in md
 

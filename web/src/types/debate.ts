@@ -52,7 +52,7 @@ export interface DebateResult {
   vol_response?: string // Raw JSON string (parsed on demand)
   bull_rebuttal?: string // Raw JSON string (parsed on demand)
 
-  // V2 consensus fields
+  // Consensus fields
   contrarian_dissent?: string | null
   agent_agreement_score?: number | null
   dissenting_agents?: string[]
@@ -60,12 +60,11 @@ export interface DebateResult {
   // Scan linkage
   scan_run_id?: number | null
 
-  // V2 agent outputs (optional, present when debate_protocol === 'v2')
+  // Agent structured outputs (6-agent protocol)
   flow_response?: FlowThesis | null
   fundamental_response?: FundamentalThesis | null
-  risk_v2_response?: RiskAssessmentThesis | null
+  risk_response?: RiskAssessmentThesis | null
   contrarian_response?: ContrarianThesis | null
-  debate_protocol?: string | null
 
   // OpenBB enrichment (optional, from MarketContext)
   pe_ratio?: number | null

@@ -25,7 +25,6 @@ from options_arena.models import FlowThesis
 
 logger = logging.getLogger(__name__)
 
-# VERSION: v2.0
 FLOW_SYSTEM_PROMPT = (
     """You are an options flow analyst specialising in institutional positioning and \
 smart money activity. Your job is to interpret options flow data -- gamma exposure, \

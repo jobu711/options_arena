@@ -84,9 +84,8 @@ class DebateRow:
     market_context: MarketContext | None = None
     flow_json: str | None = None
     fundamental_json: str | None = None
-    risk_v2_json: str | None = None
+    risk_assessment_json: str | None = None
     contrarian_json: str | None = None
-    debate_protocol: str = "v1"
 
 
 class Repository:
@@ -295,18 +294,17 @@ class Repository:
         market_context_json: str | None = None,
         flow_thesis: FlowThesis | None = None,
         fundamental_thesis: FundamentalThesis | None = None,
-        risk_v2_assessment: RiskAssessment | None = None,
+        risk_assessment: RiskAssessment | None = None,
         contrarian_thesis: ContrarianThesis | None = None,
-        debate_protocol: str = "v1",
     ) -> int:
         """Persist a debate result.  Returns the database-assigned ID."""
         conn = self._db.conn
         created_at = datetime.now(UTC).isoformat()
 
-        # Serialize v2 agent models to JSON strings
+        # Serialize agent models to JSON strings
         flow_json = flow_thesis.model_dump_json() if flow_thesis else None
         fundamental_json = fundamental_thesis.model_dump_json() if fundamental_thesis else None
-        risk_v2_json = risk_v2_assessment.model_dump_json() if risk_v2_assessment else None
+        risk_assessment_json = risk_assessment.model_dump_json() if risk_assessment else None
         contrarian_json = contrarian_thesis.model_dump_json() if contrarian_thesis else None
 
         cursor = await conn.execute(
@@ -314,7 +312,8 @@ class Repository:
             "(scan_run_id, ticker, bull_json, bear_json, risk_json, verdict_json, "
             "vol_json, rebuttal_json, total_tokens, model_name, duration_ms, is_fallback, "
             "created_at, debate_mode, citation_density, market_context_json, "
-            "flow_json, fundamental_json, risk_v2_json, contrarian_json, debate_protocol) "
+            "flow_json, fundamental_json, risk_assessment_json, contrarian_json, "
+            "debate_protocol) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 scan_run_id,
@@ -335,9 +334,9 @@ class Repository:
                 market_context_json,
                 flow_json,
                 fundamental_json,
-                risk_v2_json,
+                risk_assessment_json,
                 contrarian_json,
-                debate_protocol,
+                "current",
             ),
         )
         await conn.commit()
@@ -440,9 +439,8 @@ class Repository:
             ),
             flow_json=row["flow_json"],
             fundamental_json=row["fundamental_json"],
-            risk_v2_json=row["risk_v2_json"],
+            risk_assessment_json=row["risk_assessment_json"],
             contrarian_json=row["contrarian_json"],
-            debate_protocol=row["debate_protocol"] or "v1",
         )
 
     # ------------------------------------------------------------------

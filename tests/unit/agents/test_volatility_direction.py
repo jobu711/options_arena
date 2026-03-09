@@ -179,11 +179,3 @@ class TestIVRegimeCalibrationInPrompt:
         assert '"bullish"' in VOLATILITY_SYSTEM_PROMPT
         assert '"bearish"' in VOLATILITY_SYSTEM_PROMPT
         assert '"neutral"' in VOLATILITY_SYSTEM_PROMPT
-
-    def test_prompt_version_updated(self) -> None:
-        """Verify the prompt version was bumped."""
-        # The VERSION comment should be at v3.0 or higher
-        from options_arena.agents import volatility
-
-        source = open(volatility.__file__).read()  # noqa: SIM115
-        assert "# VERSION: v3.0" in source

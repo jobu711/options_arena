@@ -155,7 +155,7 @@ async def _run_debate_background(
             if options_signals.max_pain_distance is not None:
                 score_match.signals.max_pain_distance = options_signals.max_pain_distance
 
-        # Compute dimensional scores for the v2 protocol
+        # Compute dimensional scores for the 6-agent protocol
         dim_scores = None
         try:
             dim_scores = compute_dimensional_scores(score_match.signals)
@@ -232,9 +232,8 @@ async def _run_debate_background(
             market_context_json=result.context.model_dump_json(),
             flow_thesis=result.flow_response,
             fundamental_thesis=result.fundamental_response,
-            risk_v2_assessment=result.risk_v2_response,
+            risk_assessment=result.risk_response,
             contrarian_thesis=result.contrarian_response,
-            debate_protocol=result.debate_protocol,
         )
 
         # Persist per-agent predictions for accuracy tracking (FR-8)
@@ -420,7 +419,7 @@ async def _run_batch_debate_background(
                     if options_signals.max_pain_distance is not None:
                         score_match.signals.max_pain_distance = options_signals.max_pain_distance
 
-                # Compute dimensional scores for the v2 protocol
+                # Compute dimensional scores for the 6-agent protocol
                 batch_dim_scores = None
                 try:
                     batch_dim_scores = compute_dimensional_scores(score_match.signals)
@@ -505,9 +504,8 @@ async def _run_batch_debate_background(
                     market_context_json=result.context.model_dump_json(),
                     flow_thesis=result.flow_response,
                     fundamental_thesis=result.fundamental_response,
-                    risk_v2_assessment=result.risk_v2_response,
+                    risk_assessment=result.risk_response,
                     contrarian_thesis=result.contrarian_response,
-                    debate_protocol=result.debate_protocol,
                 )
 
                 # Persist per-agent predictions for accuracy tracking (FR-8)
@@ -650,13 +648,13 @@ async def list_debates(
     return summaries
 
 
-def _parse_v2_json[T: BaseModel](
+def _parse_agent_json[T: BaseModel](
     model_cls: type[T],
     raw_json: str | None,
     field_name: str,
     debate_id: int,
 ) -> T | None:
-    """Parse V2 agent JSON with graceful degradation.
+    """Parse agent JSON with graceful degradation.
 
     Returns ``None`` and logs a warning if the stored JSON is malformed,
     matching the export route's ``contextlib.suppress`` pattern.
@@ -685,7 +683,7 @@ async def get_debate(
     bull = AgentResponse.model_validate_json(row.bull_json) if row.bull_json else None
     bear = AgentResponse.model_validate_json(row.bear_json) if row.bear_json else None
 
-    # Try ExtendedTradeThesis first (v2 protocol), fall back to TradeThesis
+    # Try ExtendedTradeThesis first (6-agent protocol), fall back to TradeThesis
     thesis: TradeThesis | None = None
     contrarian_dissent: str | None = None
     agent_agreement_score: float | None = None
@@ -733,18 +731,17 @@ async def get_debate(
         agent_agreement_score=agent_agreement_score,
         dissenting_agents=dissenting_agents,
         agents_completed=agents_completed,
-        # v2 agent structured outputs — graceful degradation for malformed JSON
-        flow_response=_parse_v2_json(FlowThesis, row.flow_json, "flow_json", debate_id),
-        fundamental_response=_parse_v2_json(
+        # Agent structured outputs — graceful degradation for malformed JSON
+        flow_response=_parse_agent_json(FlowThesis, row.flow_json, "flow_json", debate_id),
+        fundamental_response=_parse_agent_json(
             FundamentalThesis, row.fundamental_json, "fundamental_json", debate_id
         ),
-        risk_v2_response=_parse_v2_json(
-            RiskAssessment, row.risk_v2_json, "risk_v2_json", debate_id
+        risk_response=_parse_agent_json(
+            RiskAssessment, row.risk_assessment_json, "risk_assessment_json", debate_id
         ),
-        contrarian_response=_parse_v2_json(
+        contrarian_response=_parse_agent_json(
             ContrarianThesis, row.contrarian_json, "contrarian_json", debate_id
         ),
-        debate_protocol=row.debate_protocol,
         scan_run_id=row.scan_run_id,
         # OpenBB enrichment fields
         pe_ratio=mc.pe_ratio if mc else None,

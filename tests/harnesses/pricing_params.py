@@ -48,7 +48,12 @@ def generate_property_grid() -> list[PricingParams]:
 
     grid: list[PricingParams] = []
     for moneyness, sigma, T, r, q, opt_type in itertools.product(
-        moneyness_ratios, sigmas, times, rates, dividends, option_types,
+        moneyness_ratios,
+        sigmas,
+        times,
+        rates,
+        dividends,
+        option_types,
     ):
         K = spot / moneyness  # S/K = moneyness → K = S/moneyness
         grid.append(PricingParams(S=spot, K=K, T=T, r=r, q=q, sigma=sigma, option_type=opt_type))
@@ -75,7 +80,10 @@ def generate_stress_grid() -> list[PricingParams]:
     # Use every combo but skip some rate/dividend combos
     grid: list[PricingParams] = []
     for moneyness, sigma, T, opt_type in itertools.product(
-        moneyness_ratios, sigmas, times, option_types,
+        moneyness_ratios,
+        sigmas,
+        times,
+        option_types,
     ):
         # Pick a representative subset of (r, q) pairs
         rq_pairs = [(0.02, 0.0), (0.05, 0.0), (0.05, 0.02)]

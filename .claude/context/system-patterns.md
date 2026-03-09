@@ -42,9 +42,9 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - `@dataclass` deps (`DebateDeps`), `output_type=PydanticModel` for structured JSON output
 - `retries=2`, `model_settings=ModelSettings(extra_body={"num_ctx": 8192})`
 - `@agent.output_validator` delegates to shared helpers: `build_cleaned_agent_response()` (bull/bear) and `build_cleaned_trade_thesis()` (risk) — strips `<think>` tags without costly retries
-- **Shared prompt appendix**: `PROMPT_RULES_APPENDIX` appended to bull/bear/risk. `RISK_STRATEGY_TREE` appended to risk only.
+- **Shared prompt appendix**: `PROMPT_RULES_APPENDIX` appended to all agent prompts.
 - **Multi-provider dispatch**: `build_debate_model()` in `model_config.py` dispatches on `LLMProvider` enum — `GroqModel` (default) or `AnthropicModel`. Conditional `ModelSettings` for extended thinking on Anthropic. `--provider` CLI flag selects at runtime.
-- **Single debate path**: `run_debate()` (v1 eliminated, v2 renamed). No legacy code paths.
+- **Single debate path**: `run_debate()` — 6-agent pipeline, no legacy code paths.
 - **Bull rebuttal** (optional): bull runs a second time with `bear_counter_argument` set. Uses string concatenation, NOT `str.format()` — safe for LLM text with curly braces.
 - **Score-confidence clamping**: `TradeThesis` model_validator clamps confidence <=0.5 when scores contradict direction
 - **Citation density**: `compute_citation_density()` measures fraction of context labels cited in agent output
@@ -52,7 +52,7 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **Domain context partitioning**: Phase 1 agents receive only domain-specific context via `render_trend_context()`, `render_volatility_context()`, `render_flow_context()`, `render_fundamental_context()` — no composite score or direction anchoring
 - **Log-odds pooling**: Bordley 1982 weighted confidence compounding replaces naive averaging. `AGENT_VOTE_WEIGHTS` sum intentionally < 1.0 (risk excluded from directional voting)
 - **Ensemble diversity**: `_vote_entropy()` (Shannon entropy of direction votes), `compute_agreement_score()` (fraction agreeing with majority). Confidence capped at 0.4 when agreement < 0.4
-- **Agent prediction persistence**: `AgentPrediction` model + migration 025 + `extract_agent_predictions()`. In v2, "bull" field holds trend output; bear is skipped (static fallback)
+- **Agent prediction persistence**: `AgentPrediction` model + migration 025 + `extract_agent_predictions()`. "bull" field holds trend output; bear is skipped (static fallback)
 
 ### Scan Pipeline & Debate Flow — See `scan/CLAUDE.md` and `agents/CLAUDE.md`
 

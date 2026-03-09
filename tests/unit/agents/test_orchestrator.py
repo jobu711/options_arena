@@ -1,4 +1,4 @@
-"""Tests for the debate orchestrator — run_debate (v2 6-agent), build_market_context, helpers.
+"""Tests for the debate orchestrator — run_debate (6-agent), build_market_context, helpers.
 
 Tests cover:
   - build_market_context field mapping with full data
@@ -43,7 +43,7 @@ from options_arena.agents.orchestrator import (
     run_debate,
     should_debate,
 )
-from options_arena.agents.risk import risk_agent_v2
+from options_arena.agents.risk import risk_agent
 from options_arena.agents.trend_agent import trend_agent
 from options_arena.agents.volatility import volatility_agent
 from options_arena.models import (
@@ -60,6 +60,8 @@ from options_arena.models import (
 
 # Prevent accidental real API calls
 models.ALLOW_MODEL_REQUESTS = False
+
+_PIPELINE = "options_arena.agents.orchestrator._run_debate_pipeline"
 
 
 # ---------------------------------------------------------------------------
@@ -397,7 +399,7 @@ class TestRunDebateFallback:
         async def fake_run_agents(*args: object, **kwargs: object) -> None:
             raise httpx.ConnectError("Connection refused")
 
-        monkeypatch.setattr("options_arena.agents.orchestrator._run_v2_agents", fake_run_agents)
+        monkeypatch.setattr(_PIPELINE, fake_run_agents)
         result = await run_debate(
             ticker_score=mock_ticker_score,
             contracts=[mock_option_contract],
@@ -422,7 +424,7 @@ class TestRunDebateFallback:
         async def fake_run_agents(*args: object, **kwargs: object) -> None:
             await asyncio.sleep(100)
 
-        monkeypatch.setattr("options_arena.agents.orchestrator._run_v2_agents", fake_run_agents)
+        monkeypatch.setattr(_PIPELINE, fake_run_agents)
         result = await run_debate(
             ticker_score=mock_ticker_score,
             contracts=[mock_option_contract],
@@ -447,7 +449,7 @@ class TestRunDebateFallback:
         async def fake_run_agents(*args: object, **kwargs: object) -> None:
             raise RuntimeError("Unexpected failure")
 
-        monkeypatch.setattr("options_arena.agents.orchestrator._run_v2_agents", fake_run_agents)
+        monkeypatch.setattr(_PIPELINE, fake_run_agents)
         result = await run_debate(
             ticker_score=mock_ticker_score,
             contracts=[mock_option_contract],
@@ -472,7 +474,7 @@ class TestRunDebateFallback:
         async def fake_run_agents(*args: object, **kwargs: object) -> None:
             raise httpx.ConnectError("refused")
 
-        monkeypatch.setattr("options_arena.agents.orchestrator._run_v2_agents", fake_run_agents)
+        monkeypatch.setattr(_PIPELINE, fake_run_agents)
         result = await run_debate(
             ticker_score=mock_ticker_score,
             contracts=[mock_option_contract],
@@ -497,7 +499,7 @@ class TestRunDebateFallback:
         async def fake_run_agents(*args: object, **kwargs: object) -> None:
             raise httpx.ConnectError("refused")
 
-        monkeypatch.setattr("options_arena.agents.orchestrator._run_v2_agents", fake_run_agents)
+        monkeypatch.setattr(_PIPELINE, fake_run_agents)
         result = await run_debate(
             ticker_score=mock_ticker_score,
             contracts=[mock_option_contract],
@@ -523,7 +525,7 @@ class TestRunDebateFallback:
         async def fake_run_agents(*args: object, **kwargs: object) -> None:
             raise httpx.ConnectError("refused")
 
-        monkeypatch.setattr("options_arena.agents.orchestrator._run_v2_agents", fake_run_agents)
+        monkeypatch.setattr(_PIPELINE, fake_run_agents)
         result = await run_debate(
             ticker_score=mock_ticker_score,
             contracts=[mock_option_contract],
@@ -560,7 +562,7 @@ class TestRunDebatePersistence:
         async def fake_run_agents(*args: object, **kwargs: object) -> None:
             raise httpx.ConnectError("refused")
 
-        monkeypatch.setattr("options_arena.agents.orchestrator._run_v2_agents", fake_run_agents)
+        monkeypatch.setattr(_PIPELINE, fake_run_agents)
         await run_debate(
             ticker_score=mock_ticker_score,
             contracts=[mock_option_contract],
@@ -588,7 +590,7 @@ class TestRunDebatePersistence:
         async def fake_run_agents(*args: object, **kwargs: object) -> None:
             raise httpx.ConnectError("refused")
 
-        monkeypatch.setattr("options_arena.agents.orchestrator._run_v2_agents", fake_run_agents)
+        monkeypatch.setattr(_PIPELINE, fake_run_agents)
         # Should not raise
         result = await run_debate(
             ticker_score=mock_ticker_score,
@@ -615,7 +617,7 @@ class TestRunDebatePersistence:
         async def fake_run_agents(*args: object, **kwargs: object) -> None:
             raise httpx.ConnectError("refused")
 
-        monkeypatch.setattr("options_arena.agents.orchestrator._run_v2_agents", fake_run_agents)
+        monkeypatch.setattr(_PIPELINE, fake_run_agents)
         # Should not raise — no repo to call save_debate on
         result = await run_debate(
             ticker_score=mock_ticker_score,
@@ -655,7 +657,7 @@ class TestGroqModelConfig:
             volatility_agent.override(model=TestModel()),
             flow_agent.override(model=TestModel()),
             fundamental_agent.override(model=TestModel()),
-            risk_agent_v2.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
             result = await run_debate(
@@ -684,7 +686,7 @@ class TestGroqModelConfig:
         async def fake_run_agents(*args: object, **kwargs: object) -> None:
             raise httpx.ConnectError("refused")
 
-        monkeypatch.setattr("options_arena.agents.orchestrator._run_v2_agents", fake_run_agents)
+        monkeypatch.setattr(_PIPELINE, fake_run_agents)
         config = DebateConfig(
             api_key="gsk_test_key",
             model="llama-3.3-70b-versatile",
@@ -881,7 +883,7 @@ class TestQualityGate:
             scan_run_id=1,
         )
         run_agents_mock = AsyncMock()
-        monkeypatch.setattr("options_arena.agents.orchestrator._run_v2_agents", run_agents_mock)
+        monkeypatch.setattr(_PIPELINE, run_agents_mock)
         result = await run_debate(
             ticker_score=score,
             contracts=[mock_option_contract],
@@ -910,7 +912,7 @@ class TestQualityGate:
             volatility_agent.override(model=TestModel()),
             flow_agent.override(model=TestModel()),
             fundamental_agent.override(model=TestModel()),
-            risk_agent_v2.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
             result = await run_debate(
@@ -953,7 +955,7 @@ class TestQualityGate:
             volatility_agent.override(model=TestModel()),
             flow_agent.override(model=TestModel()),
             fundamental_agent.override(model=TestModel()),
-            risk_agent_v2.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
         ):
             result = await run_debate(

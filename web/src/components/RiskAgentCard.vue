@@ -16,11 +16,11 @@ const popDisplay = computed(() => {
 </script>
 
 <template>
-  <div class="agent-card" data-testid="agent-card-risk-v2">
+  <div class="agent-card" data-testid="agent-card-risk">
     <div class="agent-header">
       <span class="agent-icon pi pi-shield" />
       <span class="agent-name">Risk Assessment</span>
-      <ConfidenceBadge :value="response.confidence" data-testid="agent-confidence-risk-v2" />
+      <ConfidenceBadge :value="response.confidence" data-testid="agent-confidence-risk" />
     </div>
 
     <div class="agent-field">

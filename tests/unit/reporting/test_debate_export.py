@@ -3,13 +3,11 @@
 Tests cover:
   - Markdown output contains all required section headers
   - Volatility section appears when vol_response is present
-  - Bull rebuttal section appears when bull_rebuttal is present
   - Fallback warning displayed when is_fallback=True
   - File write creates a valid markdown file at the target path
   - Export directory is created automatically when it does not exist
   - Unsupported format raises ValueError
   - Disclaimer is NOT present in output (removed per AUDIT-010)
-  - Rebuttal section omits risks subsection
 """
 
 from __future__ import annotations
@@ -113,26 +111,11 @@ def _make_volatility_thesis() -> VolatilityThesis:
     )
 
 
-def _make_rebuttal_response() -> AgentResponse:
-    """Build a realistic bull rebuttal AgentResponse."""
-    return AgentResponse(
-        agent_name="bull",
-        direction=SignalDirection.BULLISH,
-        confidence=0.68,
-        argument="Bear overstates sector rotation risk; AAPL outperforms sector.",
-        key_points=["AAPL relative strength vs sector", "Buyback support"],
-        risks_cited=["Earnings miss could invalidate thesis"],
-        contracts_referenced=["AAPL $190 CALL 2026-04-10"],
-        model_used="llama3.1:8b",
-    )
-
-
 def _make_debate_result(
     *,
     vol_response: VolatilityThesis | None = None,
     bull_rebuttal: AgentResponse | None = None,
     is_fallback: bool = False,
-    debate_protocol: str = "v1",
 ) -> DebateResult:
     """Build a complete DebateResult with optional vol and rebuttal sections."""
     return DebateResult(
@@ -145,7 +128,6 @@ def _make_debate_result(
         is_fallback=is_fallback,
         vol_response=vol_response,
         bull_rebuttal=bull_rebuttal,
-        debate_protocol=debate_protocol,
     )
 
 
@@ -155,12 +137,11 @@ def _make_debate_result(
 
 
 def test_markdown_contains_all_headers() -> None:
-    """Exported markdown must contain Bull Case, Bear Case, and Verdict headers."""
+    """Exported markdown must contain Trend Analysis and Verdict headers."""
     result = _make_debate_result()
     md = export_debate_markdown(result)
 
-    assert "## Bull Case" in md
-    assert "## Bear Case" in md
+    assert "## Trend Analysis" in md
     assert "## Verdict" in md
 
 
@@ -180,41 +161,6 @@ def test_markdown_excludes_vol_when_absent() -> None:
     md = export_debate_markdown(result)
 
     assert "## Volatility Assessment" not in md
-
-
-def test_markdown_includes_rebuttal_when_present() -> None:
-    """When bull_rebuttal is set, the Bull Rebuttal section appears."""
-    result = _make_debate_result(bull_rebuttal=_make_rebuttal_response())
-    md = export_debate_markdown(result)
-
-    assert "## Bull Rebuttal" in md
-    assert "Bear overstates sector rotation risk" in md
-
-
-def test_markdown_excludes_rebuttal_when_absent() -> None:
-    """When bull_rebuttal is None, no Bull Rebuttal section appears."""
-    result = _make_debate_result(bull_rebuttal=None)
-    md = export_debate_markdown(result)
-
-    assert "## Bull Rebuttal" not in md
-
-
-def test_markdown_rebuttal_omits_risks_subsection() -> None:
-    """The Bull Rebuttal section does not include a Risks Cited subsection.
-
-    The rebuttal uses ``include_risks=False``, so even though the AgentResponse
-    has ``risks_cited`` populated, they should not appear in the rebuttal section.
-    """
-    rebuttal = _make_rebuttal_response()
-    result = _make_debate_result(bull_rebuttal=rebuttal)
-    md = export_debate_markdown(result)
-
-    # Split output at the rebuttal heading to inspect only that section
-    rebuttal_start = md.index("## Bull Rebuttal")
-    # Find the next section heading after rebuttal (## Verdict)
-    rebuttal_section = md[rebuttal_start : md.index("## Verdict")]
-
-    assert "### Risks Cited" not in rebuttal_section
 
 
 def test_markdown_fallback_warning_when_true() -> None:
@@ -265,8 +211,7 @@ def test_export_to_file_writes_markdown(tmp_path: Path) -> None:
     assert returned_path == dest
     assert dest.exists()
     content = dest.read_text(encoding="utf-8")
-    assert "## Bull Case" in content
-    assert "## Bear Case" in content
+    assert "## Trend Analysis" in content
     assert "## Verdict" in content
     assert "DISCLAIMER" not in content
 

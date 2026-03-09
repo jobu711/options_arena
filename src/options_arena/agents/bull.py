@@ -24,7 +24,6 @@ from options_arena.models import AgentResponse
 
 logger = logging.getLogger(__name__)
 
-# VERSION: v2.1
 BULL_SYSTEM_PROMPT = (
     """You are a bullish options analyst. Your job is to make the strongest \
 possible case FOR entering a long options position on the given ticker.

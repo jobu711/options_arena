@@ -1,10 +1,9 @@
-"""Tests for v2 agent persistence — DebateRow with v2 JSON fields.
+"""Tests for agent persistence — DebateRow with structured JSON fields.
 
 Tests cover:
-  - save_debate with all 4 v2 JSON fields + debate_protocol persisted correctly
-  - load DebateRow with v2 JSON round-trippable via model_validate_json
-  - backward compat: save_debate without v2 fields → None v2 columns, protocol='v1'
-  - debate_protocol values 'v1' and 'v2' survive round-trip
+  - save_debate with all 4 JSON fields persisted correctly
+  - load DebateRow with JSON round-trippable via model_validate_json
+  - backward compat: save_debate without structured fields → None columns
   - FlowThesis / FundamentalThesis / RiskAssessment / ContrarianThesis JSON round-trip
 """
 
@@ -48,7 +47,7 @@ async def repo(db: Database) -> Repository:
 
 
 # ---------------------------------------------------------------------------
-# Helpers — build realistic v2 models
+# Helpers — build realistic agent models
 # ---------------------------------------------------------------------------
 
 
@@ -107,16 +106,16 @@ def _make_contrarian_thesis() -> ContrarianThesis:
 
 
 # ---------------------------------------------------------------------------
-# Test: save_debate with v2 fields
+# Test: save_debate with structured agent fields
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_save_debate_with_v2_fields(repo: Repository) -> None:
-    """save_debate persists all 4 v2 JSON columns + debate_protocol='v2'."""
+async def test_save_debate_with_structured_fields(repo: Repository) -> None:
+    """save_debate persists all 4 structured JSON columns."""
     flow = _make_flow_thesis()
     fundamental = _make_fundamental_thesis()
-    risk_v2 = _make_risk_assessment()
+    risk_assess = _make_risk_assessment()
     contrarian = _make_contrarian_thesis()
 
     debate_id = await repo.save_debate(
@@ -132,25 +131,24 @@ async def test_save_debate_with_v2_fields(repo: Repository) -> None:
         is_fallback=False,
         flow_thesis=flow,
         fundamental_thesis=fundamental,
-        risk_v2_assessment=risk_v2,
+        risk_assessment=risk_assess,
         contrarian_thesis=contrarian,
-        debate_protocol="v2",
     )
     assert isinstance(debate_id, int)
     assert debate_id > 0
 
 
 # ---------------------------------------------------------------------------
-# Test: load DebateRow with v2 fields round-trip
+# Test: load DebateRow with structured fields round-trip
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_load_debate_with_v2_fields(repo: Repository) -> None:
-    """Loaded DebateRow has v2 JSON fields round-trippable via model_validate_json."""
+async def test_load_debate_with_structured_fields(repo: Repository) -> None:
+    """Loaded DebateRow has structured JSON fields round-trippable via model_validate_json."""
     flow = _make_flow_thesis()
     fundamental = _make_fundamental_thesis()
-    risk_v2 = _make_risk_assessment()
+    risk_assess = _make_risk_assessment()
     contrarian = _make_contrarian_thesis()
 
     debate_id = await repo.save_debate(
@@ -166,31 +164,29 @@ async def test_load_debate_with_v2_fields(repo: Repository) -> None:
         is_fallback=False,
         flow_thesis=flow,
         fundamental_thesis=fundamental,
-        risk_v2_assessment=risk_v2,
+        risk_assessment=risk_assess,
         contrarian_thesis=contrarian,
-        debate_protocol="v2",
     )
 
     loaded = await repo.get_debate_by_id(debate_id)
     assert loaded is not None
     assert isinstance(loaded, DebateRow)
 
-    # All 4 v2 JSON fields are non-None strings
+    # All 4 structured JSON fields are non-None strings
     assert loaded.flow_json is not None
     assert loaded.fundamental_json is not None
-    assert loaded.risk_v2_json is not None
+    assert loaded.risk_assessment_json is not None
     assert loaded.contrarian_json is not None
-    assert loaded.debate_protocol == "v2"
 
 
 # ---------------------------------------------------------------------------
-# Test: save_debate without v2 fields — backward compat
+# Test: save_debate without structured fields — backward compat
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_save_debate_without_v2_fields(repo: Repository) -> None:
-    """v1 backward compat: save_debate without v2 params → None v2 columns, protocol='v1'."""
+async def test_save_debate_without_structured_fields(repo: Repository) -> None:
+    """Backward compat: save_debate without structured params → None columns."""
     debate_id = await repo.save_debate(
         scan_run_id=None,
         ticker="MSFT",
@@ -208,66 +204,21 @@ async def test_save_debate_without_v2_fields(repo: Repository) -> None:
     assert loaded is not None
     assert loaded.flow_json is None
     assert loaded.fundamental_json is None
-    assert loaded.risk_v2_json is None
+    assert loaded.risk_assessment_json is None
     assert loaded.contrarian_json is None
-    assert loaded.debate_protocol == "v1"
 
 
 # ---------------------------------------------------------------------------
-# Test: debate_protocol persists both 'v1' and 'v2'
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_debate_protocol_persists(repo: Repository) -> None:
-    """debate_protocol stores and retrieves 'v1' and 'v2' correctly."""
-    id_v1 = await repo.save_debate(
-        scan_run_id=None,
-        ticker="SPY",
-        bull_json=None,
-        bear_json=None,
-        risk_json=None,
-        verdict_json=None,
-        total_tokens=0,
-        model_name="test",
-        duration_ms=0,
-        is_fallback=True,
-        debate_protocol="v1",
-    )
-    id_v2 = await repo.save_debate(
-        scan_run_id=None,
-        ticker="QQQ",
-        bull_json=None,
-        bear_json=None,
-        risk_json=None,
-        verdict_json=None,
-        total_tokens=0,
-        model_name="test",
-        duration_ms=0,
-        is_fallback=True,
-        debate_protocol="v2",
-    )
-
-    row_v1 = await repo.get_debate_by_id(id_v1)
-    row_v2 = await repo.get_debate_by_id(id_v2)
-
-    assert row_v1 is not None
-    assert row_v1.debate_protocol == "v1"
-    assert row_v2 is not None
-    assert row_v2.debate_protocol == "v2"
-
-
-# ---------------------------------------------------------------------------
-# Test: v2 JSON model roundtrip (validate_json on loaded row)
+# Test: JSON model roundtrip (validate_json on loaded row)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_v2_json_model_roundtrip(repo: Repository) -> None:
+async def test_json_model_roundtrip(repo: Repository) -> None:
     """FlowThesis/FundamentalThesis/RiskAssessment/ContrarianThesis survive JSON round-trip."""
     flow = _make_flow_thesis()
     fundamental = _make_fundamental_thesis()
-    risk_v2 = _make_risk_assessment()
+    risk_assess = _make_risk_assessment()
     contrarian = _make_contrarian_thesis()
 
     debate_id = await repo.save_debate(
@@ -283,9 +234,8 @@ async def test_v2_json_model_roundtrip(repo: Repository) -> None:
         is_fallback=False,
         flow_thesis=flow,
         fundamental_thesis=fundamental,
-        risk_v2_assessment=risk_v2,
+        risk_assessment=risk_assess,
         contrarian_thesis=contrarian,
-        debate_protocol="v2",
     )
 
     loaded = await repo.get_debate_by_id(debate_id)
@@ -305,9 +255,9 @@ async def test_v2_json_model_roundtrip(repo: Repository) -> None:
     assert loaded_fundamental.catalyst_impact == CatalystImpact.MODERATE
     assert loaded_fundamental.confidence == pytest.approx(0.65)
 
-    assert loaded.risk_v2_json is not None
-    loaded_risk = RiskAssessment.model_validate_json(loaded.risk_v2_json)
-    assert loaded_risk == risk_v2
+    assert loaded.risk_assessment_json is not None
+    loaded_risk = RiskAssessment.model_validate_json(loaded.risk_assessment_json)
+    assert loaded_risk == risk_assess
     assert loaded_risk.risk_level == RiskLevel.MODERATE
     assert loaded_risk.pop_estimate == pytest.approx(0.55)
     assert loaded_risk.key_risks == ["Earnings in 7 days", "IV crush post-earnings"]
@@ -324,13 +274,13 @@ async def test_v2_json_model_roundtrip(repo: Repository) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test: partial v2 fields (some None, some populated)
+# Test: partial structured fields (some None, some populated)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_partial_v2_fields(repo: Repository) -> None:
-    """Only some v2 fields provided — others stay None."""
+async def test_partial_structured_fields(repo: Repository) -> None:
+    """Only some structured fields provided — others stay None."""
     flow = _make_flow_thesis()
 
     debate_id = await repo.save_debate(
@@ -345,16 +295,14 @@ async def test_partial_v2_fields(repo: Repository) -> None:
         duration_ms=1000,
         is_fallback=False,
         flow_thesis=flow,
-        debate_protocol="v2",
     )
 
     loaded = await repo.get_debate_by_id(debate_id)
     assert loaded is not None
     assert loaded.flow_json is not None
     assert loaded.fundamental_json is None
-    assert loaded.risk_v2_json is None
+    assert loaded.risk_assessment_json is None
     assert loaded.contrarian_json is None
-    assert loaded.debate_protocol == "v2"
 
     # Flow still round-trips
     loaded_flow = FlowThesis.model_validate_json(loaded.flow_json)
@@ -362,13 +310,13 @@ async def test_partial_v2_fields(repo: Repository) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test: v2 fields accessible via get_recent_debates and get_debates_for_ticker
+# Test: structured fields accessible via get_recent_debates and get_debates_for_ticker
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_v2_fields_via_get_recent_debates(repo: Repository) -> None:
-    """get_recent_debates returns v2 fields correctly."""
+async def test_structured_fields_via_get_recent_debates(repo: Repository) -> None:
+    """get_recent_debates returns structured fields correctly."""
     flow = _make_flow_thesis()
     await repo.save_debate(
         scan_run_id=None,
@@ -382,21 +330,19 @@ async def test_v2_fields_via_get_recent_debates(repo: Repository) -> None:
         duration_ms=500,
         is_fallback=False,
         flow_thesis=flow,
-        debate_protocol="v2",
     )
 
     debates = await repo.get_recent_debates(limit=5)
     assert len(debates) == 1
     row = debates[0]
     assert row.flow_json is not None
-    assert row.debate_protocol == "v2"
     loaded_flow = FlowThesis.model_validate_json(row.flow_json)
     assert loaded_flow.direction == SignalDirection.BULLISH
 
 
 @pytest.mark.asyncio
-async def test_v2_fields_via_get_debates_for_ticker(repo: Repository) -> None:
-    """get_debates_for_ticker returns v2 fields correctly."""
+async def test_structured_fields_via_get_debates_for_ticker(repo: Repository) -> None:
+    """get_debates_for_ticker returns structured fields correctly."""
     contrarian = _make_contrarian_thesis()
     await repo.save_debate(
         scan_run_id=None,
@@ -410,13 +356,11 @@ async def test_v2_fields_via_get_debates_for_ticker(repo: Repository) -> None:
         duration_ms=400,
         is_fallback=False,
         contrarian_thesis=contrarian,
-        debate_protocol="v2",
     )
 
     debates = await repo.get_debates_for_ticker("GOOGL")
     assert len(debates) == 1
     row = debates[0]
     assert row.contrarian_json is not None
-    assert row.debate_protocol == "v2"
     loaded_contrarian = ContrarianThesis.model_validate_json(row.contrarian_json)
     assert loaded_contrarian.dissent_direction == SignalDirection.BEARISH

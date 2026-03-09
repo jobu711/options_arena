@@ -805,7 +805,7 @@ async def _debate_single(
             }
         )
 
-    # Compute dimensional scores from the debate signals for the v2 protocol
+    # Compute dimensional scores from the debate signals for the 6-agent protocol
     dim_scores: DimensionalScores | None = None
     try:
         dim_scores = compute_dimensional_scores(debate_score.signals)

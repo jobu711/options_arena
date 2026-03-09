@@ -21,7 +21,7 @@ from options_arena.agents.orchestrator import (
     AGENT_VOTE_WEIGHTS,
     run_debate,
 )
-from options_arena.agents.risk import risk_agent_v2
+from options_arena.agents.risk import risk_agent
 from options_arena.agents.trend_agent import trend_agent
 from options_arena.agents.volatility import volatility_agent
 from options_arena.models import (
@@ -73,7 +73,7 @@ class TestOrchestratorWiring:
         original_vol_run = volatility_agent.run
         original_flow_run = flow_agent.run
         original_fund_run = fundamental_agent.run
-        original_risk_run = risk_agent_v2.run
+        original_risk_run = risk_agent.run
         original_contrarian_run = contrarian_agent.run
 
         async def capture_trend(*args: object, **kwargs: object) -> object:
@@ -111,13 +111,13 @@ class TestOrchestratorWiring:
             volatility_agent.override(model=TestModel()),
             flow_agent.override(model=TestModel()),
             fundamental_agent.override(model=TestModel()),
-            risk_agent_v2.override(model=TestModel()),
+            risk_agent.override(model=TestModel()),
             contrarian_agent.override(model=TestModel()),
             patch.object(trend_agent, "run", side_effect=capture_trend),
             patch.object(volatility_agent, "run", side_effect=capture_vol),
             patch.object(flow_agent, "run", side_effect=capture_flow),
             patch.object(fundamental_agent, "run", side_effect=capture_fund),
-            patch.object(risk_agent_v2, "run", side_effect=capture_risk),
+            patch.object(risk_agent, "run", side_effect=capture_risk),
             patch.object(contrarian_agent, "run", side_effect=capture_contrarian),
         ):
             await run_debate(

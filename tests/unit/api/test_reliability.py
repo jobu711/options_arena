@@ -220,7 +220,6 @@ def test_export_markdown_no_disclaimer() -> None:
         total_usage=RunUsage(),
         duration_ms=1500,
         is_fallback=False,
-        debate_protocol="v1",
     )
 
     md = export_debate_markdown(result)
@@ -229,8 +228,7 @@ def test_export_markdown_no_disclaimer() -> None:
     assert "does not constitute" not in md.lower()
     assert "investment advice" not in md.lower()
     # Ensure the report still has meaningful content
-    assert "## Bull Case" in md
-    assert "## Bear Case" in md
+    assert "## Trend Analysis" in md
     assert "## Verdict" in md
 
 

@@ -307,23 +307,13 @@ def _make_mock_debate_result(*, with_rebuttal: bool = False) -> DebateResult:
         duration_ms=1000,
         is_fallback=False,
         bull_rebuttal=rebuttal,
-        debate_protocol="v1",
     )
 
 
-def test_render_debate_panels_with_rebuttal(capsys: pytest.CaptureFixture[str]) -> None:
-    """render_debate_panels renders BULL REBUTTAL panel when bull_rebuttal is set."""
-    result = _make_mock_debate_result(with_rebuttal=True)
-    console = Console(force_terminal=True, width=120)
-    render_debate_panels(console, result)
-    output = capsys.readouterr().out
-    assert "BULL REBUTTAL" in output
-
-
-def test_render_debate_panels_without_rebuttal(capsys: pytest.CaptureFixture[str]) -> None:
-    """render_debate_panels omits BULL REBUTTAL panel when bull_rebuttal is None."""
+def test_render_debate_panels_trend_heading(capsys: pytest.CaptureFixture[str]) -> None:
+    """render_debate_panels renders TREND ANALYSIS panel."""
     result = _make_mock_debate_result(with_rebuttal=False)
     console = Console(force_terminal=True, width=120)
     render_debate_panels(console, result)
     output = capsys.readouterr().out
-    assert "BULL REBUTTAL" not in output
+    assert "TREND ANALYSIS" in output

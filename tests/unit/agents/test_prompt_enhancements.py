@@ -2,24 +2,17 @@
 
 Tests cover:
   - PROMPT_RULES_APPENDIX is present in all three agent system prompts
-  - RISK_STRATEGY_TREE is present in risk prompt only (not bull/bear)
   - build_cleaned_agent_response() strips <think> tags from all text fields
   - build_cleaned_trade_thesis() strips <think> tags from all text fields
   - build_cleaned_agent_response() returns original when no tags (identity)
   - build_cleaned_trade_thesis() returns original when no tags (identity)
-  - Version headers are v2.0 on all three agent prompts
 """
 
 from __future__ import annotations
 
-import inspect
-
 import pytest
 from pydantic_ai import models
 
-import options_arena.agents.bear as bear_module
-import options_arena.agents.bull as bull_module
-import options_arena.agents.risk as risk_module
 from options_arena.agents._parsing import (
     PROMPT_RULES_APPENDIX,
     build_cleaned_agent_response,
@@ -28,7 +21,7 @@ from options_arena.agents._parsing import (
 )
 from options_arena.agents.bear import BEAR_SYSTEM_PROMPT
 from options_arena.agents.bull import BULL_SYSTEM_PROMPT
-from options_arena.agents.risk import RISK_STRATEGY_TREE, RISK_SYSTEM_PROMPT
+from options_arena.agents.risk import RISK_SYSTEM_PROMPT
 from options_arena.models import (
     AgentResponse,
     SignalDirection,
@@ -133,47 +126,11 @@ class TestPromptAppendixIntegration:
         assert "Data citation rules" in RISK_SYSTEM_PROMPT
         assert "Domain-specific calibration" in RISK_SYSTEM_PROMPT
 
-    def test_risk_prompt_contains_strategy_tree(self) -> None:
-        assert "Strategy selection decision tree" in RISK_SYSTEM_PROMPT
-        assert "iron_condor" in RISK_SYSTEM_PROMPT
-        assert "straddle" in RISK_SYSTEM_PROMPT
-        assert "vertical" in RISK_SYSTEM_PROMPT
-        assert "calendar" in RISK_SYSTEM_PROMPT
-        assert "strangle" in RISK_SYSTEM_PROMPT
-
-    def test_strategy_tree_not_in_bull_prompt(self) -> None:
-        assert "Strategy selection decision tree" not in BULL_SYSTEM_PROMPT
-
-    def test_strategy_tree_not_in_bear_prompt(self) -> None:
-        assert "Strategy selection decision tree" not in BEAR_SYSTEM_PROMPT
-
     def test_appendix_content_matches_constant(self) -> None:
         """All three prompts contain the same appendix text."""
         assert PROMPT_RULES_APPENDIX in BULL_SYSTEM_PROMPT
         assert PROMPT_RULES_APPENDIX in BEAR_SYSTEM_PROMPT
         assert PROMPT_RULES_APPENDIX in RISK_SYSTEM_PROMPT
-
-    def test_risk_strategy_tree_matches_constant(self) -> None:
-        assert RISK_STRATEGY_TREE in RISK_SYSTEM_PROMPT
-
-
-# --- Version header tests ---
-
-
-class TestVersionHeaders:
-    """Verify all agent modules have version header source comments."""
-
-    def test_bull_source_has_v2_1_header(self) -> None:
-        source = inspect.getsource(bull_module)
-        assert "# VERSION: v2.1" in source
-
-    def test_bear_source_has_v2_header(self) -> None:
-        source = inspect.getsource(bear_module)
-        assert "# VERSION: v2.0" in source
-
-    def test_risk_source_has_v2_header(self) -> None:
-        source = inspect.getsource(risk_module)
-        assert "# VERSION: v2.1" in source
 
 
 # --- build_cleaned_agent_response tests ---

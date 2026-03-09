@@ -14,7 +14,6 @@ to adjust final confidence via the agreement score mechanism.
 
 from options_arena.agents._parsing import PROMPT_RULES_APPENDIX
 
-# VERSION: v1.0
 CONTRARIAN_SYSTEM_PROMPT = (
     """You are a contrarian analyst who stress-tests the consensus view of the other \
 agents. You have received outputs from up to 5 prior agents (trend, volatility, flow, \

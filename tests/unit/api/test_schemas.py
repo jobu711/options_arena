@@ -234,12 +234,12 @@ def test_sector_info_json_roundtrip() -> None:
 
 
 # ---------------------------------------------------------------------------
-# DebateResultDetail V2 typed fields (#258)
+# DebateResultDetail typed agent fields (#258)
 # ---------------------------------------------------------------------------
 
 
-def test_debate_result_detail_v2_fields_accept_typed_models() -> None:
-    """DebateResultDetail V2 fields accept typed Pydantic models directly."""
+def test_debate_result_detail_fields_accept_typed_models() -> None:
+    """DebateResultDetail agent fields accept typed Pydantic models directly."""
     from options_arena.api.schemas import DebateResultDetail
     from options_arena.models import (
         ContrarianThesis,
@@ -268,7 +268,7 @@ def test_debate_result_detail_v2_fields_accept_typed_models() -> None:
         key_fundamental_factors=["Strong earnings"],
         model_used="test",
     )
-    risk_v2 = RiskAssessment(
+    risk = RiskAssessment(
         risk_level=RiskLevel.MODERATE,
         confidence=0.65,
         max_loss_estimate="$190 per contract.",
@@ -296,19 +296,19 @@ def test_debate_result_detail_v2_fields_accept_typed_models() -> None:
         created_at=datetime(2026, 2, 26, tzinfo=UTC),
         flow_response=flow,
         fundamental_response=fundamental,
-        risk_v2_response=risk_v2,
+        risk_response=risk,
         contrarian_response=contrarian,
     )
 
     # Typed model instances are preserved
     assert isinstance(detail.flow_response, FlowThesis)
     assert isinstance(detail.fundamental_response, FundamentalThesis)
-    assert isinstance(detail.risk_v2_response, RiskAssessment)
+    assert isinstance(detail.risk_response, RiskAssessment)
     assert isinstance(detail.contrarian_response, ContrarianThesis)
 
 
-def test_debate_result_detail_v2_fields_default_none() -> None:
-    """DebateResultDetail V2 fields default to None when not provided."""
+def test_debate_result_detail_fields_default_none() -> None:
+    """DebateResultDetail agent fields default to None when not provided."""
     from options_arena.api.schemas import DebateResultDetail
 
     detail = DebateResultDetail(
@@ -323,5 +323,5 @@ def test_debate_result_detail_v2_fields_default_none() -> None:
 
     assert detail.flow_response is None
     assert detail.fundamental_response is None
-    assert detail.risk_v2_response is None
+    assert detail.risk_response is None
     assert detail.contrarian_response is None

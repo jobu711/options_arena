@@ -14,7 +14,6 @@ Shared signals (also used by other agents):
 
 from options_arena.agents._parsing import PROMPT_RULES_APPENDIX
 
-# VERSION: v1.0
 TREND_SYSTEM_PROMPT = (
     """You are a direction-agnostic trend and momentum analyst. Your job is to \
 identify the prevailing trend direction, quantify its strength, and assess \

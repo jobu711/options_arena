@@ -20,7 +20,7 @@ The orchestrator does **not fetch data** — the caller (CLI/API) provides all i
 | `_parsing.py` | `DebateDeps`, `DebateResult`, `strip_think_tags()`, `PROMPT_RULES_APPENDIX`, `build_cleaned_agent_response()`, `build_cleaned_trade_thesis()`, `render_context_block()` | Internal |
 | `bull.py` | Bull agent + system prompt + output validator | PydanticAI Agent |
 | `bear.py` | Bear agent + dynamic prompt (receives bull argument) | PydanticAI Agent |
-| `risk.py` | `risk_agent` (v1 fallback) + `risk_agent_v2` (active — portfolio risk, position sizing, hedging) | PydanticAI Agent |
+| `risk.py` | `risk_agent` — portfolio risk, position sizing, hedging | PydanticAI Agent |
 | `trend_agent.py` | Trend agent — ADX, SuperTrend, SMA, RSI momentum analysis | PydanticAI Agent |
 | `volatility.py` | Volatility agent — IV rank/percentile, term structure, regime | PydanticAI Agent |
 | `flow_agent.py` | Flow agent — put/call ratio, volume, unusual activity | PydanticAI Agent |
@@ -250,11 +250,11 @@ API key priority: `config.api_key` > `GROQ_API_KEY` env > ValueError.
 2. Check completeness: <0.4 → data-driven fallback; <0.6 → warning; >=0.6 → proceed
 3. Build GroqModel from DebateConfig
 4. Phase 1 (parallel): Trend + Volatility + [Flow + Fundamental if intelligence data]
-5. Phase 2: Risk v2 agent (receives all Phase 1 outputs)
+5. Phase 2: Risk agent (receives all Phase 1 outputs)
 6. Phase 3: Contrarian agent (challenges consensus from Phase 1+2)
 7. Phase 4: Algorithmic verdict synthesis (compute_agreement_score, synthesize_verdict)
 8. Compute citation density, accumulate RunUsage
-9. Persist to ai_theses (incl. debate_mode, citation_density, v2 agent outputs)
+9. Persist to ai_theses (incl. debate_mode, citation_density, agent outputs)
 10. Return DebateResult
 ```
 
@@ -288,7 +288,7 @@ async def run_debate(
 
 **Timeout strategy**:
 - Per-agent: `asyncio.wait_for(agent.run(...), timeout=config.agent_timeout)` (60s default)
-- Total debate: `asyncio.wait_for(_run_v2_agents(...), timeout=config.max_total_duration)` (1800s default)
+- Total debate: `asyncio.wait_for(_run_debate_pipeline(...), timeout=config.max_total_duration)` (1800s default)
 - Fallback computation: < 1s (no LLM, pure string formatting)
 
 ### `build_market_context()` Mapping
@@ -337,19 +337,15 @@ When Groq is unreachable or any agent fails:
 Each agent module has an inline string constant concatenated with shared appendices.
 
 ```python
-# VERSION: v2.0
 BULL_SYSTEM_PROMPT = """You are a bullish options analyst. ...\n\n""" + PROMPT_RULES_APPENDIX
 ```
 
 **Shared constants** (defined in `_parsing.py`, imported by each agent):
 - `PROMPT_RULES_APPENDIX` — confidence calibration scale, data anchors, citation rules.
-  Appended to all three agent prompts.
-- `RISK_STRATEGY_TREE` — strategy selection decision tree. Defined in `risk.py`,
-  appended to the risk prompt only.
+  Appended to all agent prompts.
 
 ### Requirements
 
-- **Version header**: every prompt constant has `# VERSION: v2.0` comment above it
 - **Token budget**: system prompts < 1500 tokens, context block adds ~300-500 tokens
 - **Flat context**: `MarketContext` rendered as key-value text block, not JSON blob
 - **Options-specific**: agents MUST cite specific strikes, expirations, Greeks, indicators

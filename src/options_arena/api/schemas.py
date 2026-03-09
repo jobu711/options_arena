@@ -271,8 +271,8 @@ class DebateResultSummary(BaseModel):
 class DebateResultDetail(BaseModel):
     """Full debate result returned by ``GET /api/debate/{id}``.
 
-    Includes DSE fields from 6-agent protocol (v2). These are None/empty
-    for legacy 4-agent debates.
+    Includes DSE fields from 6-agent protocol. These are None/empty
+    for legacy debates.
     """
 
     id: int
@@ -289,17 +289,16 @@ class DebateResultDetail(BaseModel):
     thesis: TradeThesis | None = None
     vol_response: str | None = None
     bull_rebuttal: str | None = None
-    # DSE fields from 6-agent protocol (v2)
+    # DSE fields from 6-agent protocol
     contrarian_dissent: str | None = None
     agent_agreement_score: float | None = None
     dissenting_agents: list[str] = Field(default_factory=list)
     agents_completed: int | None = None
-    # v2 agent structured outputs (6-agent protocol)
+    # Agent structured outputs (6-agent protocol)
     flow_response: FlowThesis | None = None
     fundamental_response: FundamentalThesis | None = None
-    risk_v2_response: RiskAssessment | None = None
+    risk_response: RiskAssessment | None = None
     contrarian_response: ContrarianThesis | None = None
-    debate_protocol: str | None = None
     # Scan linkage
     scan_run_id: int | None = None
     # OpenBB enrichment (extracted from MarketContext)

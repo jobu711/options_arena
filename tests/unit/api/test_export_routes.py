@@ -1,8 +1,8 @@
-"""Tests for export endpoint V2 field population (#259).
+"""Tests for export endpoint agent field population (#259).
 
-Validates that the export endpoint correctly deserializes V2 agent JSON fields
+Validates that the export endpoint correctly deserializes agent JSON fields
 from DebateRow and passes them to the DebateResult constructor, producing
-markdown exports that include V2 section renderers.
+markdown exports that include section renderers.
 """
 
 from __future__ import annotations
@@ -145,13 +145,13 @@ def _make_market_context() -> MarketContext:
     )
 
 
-def _make_debate_row_v2(debate_id: int = 1) -> DebateRow:
-    """Create a DebateRow with v2 agent output fields populated."""
+def _make_debate_row(debate_id: int = 1) -> DebateRow:
+    """Create a DebateRow with agent output fields populated."""
     bull = _make_bull_response()
     thesis = _make_thesis()
     flow = _make_flow_thesis()
     fundamental = _make_fundamental_thesis()
-    risk_v2 = _make_risk_assessment()
+    risk_assessment = _make_risk_assessment()
     contrarian = _make_contrarian_thesis()
     mc = _make_market_context()
 
@@ -173,14 +173,13 @@ def _make_debate_row_v2(debate_id: int = 1) -> DebateRow:
         market_context=mc,
         flow_json=flow.model_dump_json(),
         fundamental_json=fundamental.model_dump_json(),
-        risk_v2_json=risk_v2.model_dump_json(),
+        risk_assessment_json=risk_assessment.model_dump_json(),
         contrarian_json=contrarian.model_dump_json(),
-        debate_protocol="v2",
     )
 
 
 def _make_debate_row_v1(debate_id: int = 2) -> DebateRow:
-    """Create a DebateRow WITHOUT v2 fields (legacy v1 debate)."""
+    """Create a DebateRow WITHOUT extended agent fields."""
     bull = _make_bull_response()
     thesis = _make_thesis()
 
@@ -199,33 +198,32 @@ def _make_debate_row_v1(debate_id: int = 2) -> DebateRow:
         duration_ms=3000,
         is_fallback=False,
         created_at=datetime(2026, 3, 4, 12, 0, 0, tzinfo=UTC),
-        # No v2 fields — all default to None / "v1"
     )
 
 
 # ---------------------------------------------------------------------------
-# Test 1: V2 debate export includes all V2 section headers
+# Test 1: Debate export includes all agent section headers
 # ---------------------------------------------------------------------------
 
 
-async def test_v2_debate_export_includes_all_sections(
+async def test_debate_export_includes_all_sections(
     client: AsyncClient,
     mock_repo: MagicMock,
 ) -> None:
-    """Export of V2 debate markdown includes all V2 agent section headers."""
-    mock_repo.get_debate_by_id = AsyncMock(return_value=_make_debate_row_v2())
+    """Export of debate markdown includes all agent section headers."""
+    mock_repo.get_debate_by_id = AsyncMock(return_value=_make_debate_row())
     response = await client.get("/api/debate/1/export?format=md")
     assert response.status_code == 200
 
     md_content = response.text
 
-    # V2 section headers from the export renderers
+    # Section headers from the export renderers
     assert "## Flow Analysis" in md_content
     assert "## Fundamental Analysis" in md_content
     assert "## Risk Assessment" in md_content
     assert "## Contrarian Challenge" in md_content
 
-    # Verify V2-specific content is present
+    # Verify agent-specific content is present
     assert "GEX Interpretation" in md_content
     assert "Catalyst Impact" in md_content
     assert "Risk Level" in md_content
@@ -233,44 +231,17 @@ async def test_v2_debate_export_includes_all_sections(
 
 
 # ---------------------------------------------------------------------------
-# Test 2: V1 debate export unchanged — no V2 sections
+# Test 2: Malformed agent JSON still exports successfully
 # ---------------------------------------------------------------------------
 
 
-async def test_v1_debate_export_unchanged(
+async def test_export_with_malformed_agent_json_still_succeeds(
     client: AsyncClient,
     mock_repo: MagicMock,
 ) -> None:
-    """Export of V1 debate produces V1 layout without V2 sections (no regression)."""
-    mock_repo.get_debate_by_id = AsyncMock(return_value=_make_debate_row_v1())
-    response = await client.get("/api/debate/2/export?format=md")
-    assert response.status_code == 200
-
-    md_content = response.text
-
-    # V1 sections should be present
-    assert "## Bull Case" in md_content
-    assert "## Bear Case" in md_content
-    assert "## Verdict" in md_content
-
-    # V2 sections should NOT be present
-    assert "## Flow Analysis" not in md_content
-    assert "## Fundamental Analysis" not in md_content
-    assert "## Contrarian Challenge" not in md_content
-
-
-# ---------------------------------------------------------------------------
-# Test 3: Malformed V2 JSON still exports successfully
-# ---------------------------------------------------------------------------
-
-
-async def test_export_with_malformed_v2_json_still_succeeds(
-    client: AsyncClient,
-    mock_repo: MagicMock,
-) -> None:
-    """Export succeeds when one V2 JSON field is malformed (graceful degradation)."""
-    row = _make_debate_row_v2()
-    # Corrupt the flow_json — other V2 fields remain valid
+    """Export succeeds when one agent JSON field is malformed (graceful degradation)."""
+    row = _make_debate_row()
+    # Corrupt the flow_json — other fields remain valid
     row.flow_json = '{"invalid": true, "not_a_flow_thesis": 1}'
     mock_repo.get_debate_by_id = AsyncMock(return_value=row)
 
@@ -284,33 +255,3 @@ async def test_export_with_malformed_v2_json_still_succeeds(
     assert "## Fundamental Analysis" in md_content
     assert "## Risk Assessment" in md_content
     assert "## Contrarian Challenge" in md_content
-
-
-# ---------------------------------------------------------------------------
-# Test 4: Export includes debate_protocol field
-# ---------------------------------------------------------------------------
-
-
-async def test_export_includes_debate_protocol(
-    client: AsyncClient,
-    mock_repo: MagicMock,
-) -> None:
-    """Exported DebateResult has debate_protocol field set from the row."""
-    # V2 debate — protocol is "v2", so V2 layout is used
-    mock_repo.get_debate_by_id = AsyncMock(return_value=_make_debate_row_v2())
-    response = await client.get("/api/debate/1/export?format=md")
-    assert response.status_code == 200
-
-    md_content = response.text
-    # V2 protocol leads to "Trend Analysis" section (not "Bull Case")
-    assert "## Trend Analysis" in md_content
-
-    # V1 debate — protocol is "v1" (default), so V1 layout is used
-    mock_repo.get_debate_by_id = AsyncMock(return_value=_make_debate_row_v1())
-    response = await client.get("/api/debate/2/export?format=md")
-    assert response.status_code == 200
-
-    md_content = response.text
-    # V1 protocol leads to "Bull Case" section (not "Trend Analysis")
-    assert "## Bull Case" in md_content
-    assert "## Trend Analysis" not in md_content

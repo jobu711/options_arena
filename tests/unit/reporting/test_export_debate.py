@@ -1,14 +1,13 @@
-"""Tests for v2 section renderers in debate export.
+"""Tests for section renderers in debate export.
 
 Tests cover:
   - _render_flow_section contains all flow fields
   - _render_fundamental_section contains all fields (required and optional)
-  - _render_risk_v2_section contains risk level, PoP, mitigants
+  - _render_risk_section contains risk level, PoP, mitigants
   - _render_contrarian_section contains dissent, challenge, alternative scenario
-  - V2 export includes all 6 agent sections + verdict
-  - V2 export uses 'Trend Analysis' heading instead of 'Bull Case'
-  - V2 export omits 'Bear Case' section
-  - V1 export is identical (regression)
+  - Full export includes all 6 agent sections + verdict
+  - Export uses 'Trend Analysis' heading instead of 'Bull Case'
+  - Export omits 'Bear Case' section
 """
 
 from __future__ import annotations
@@ -42,12 +41,12 @@ from options_arena.reporting.debate_export import (
     _render_contrarian_section,
     _render_flow_section,
     _render_fundamental_section,
-    _render_risk_v2_section,
+    _render_risk_section,
     export_debate_markdown,
 )
 
 # ---------------------------------------------------------------------------
-# Shared fixtures — build realistic v2 model instances
+# Shared fixtures — build realistic model instances
 # ---------------------------------------------------------------------------
 
 
@@ -104,7 +103,7 @@ def _make_bear_response() -> AgentResponse:
 
 
 def _make_trade_thesis() -> TradeThesis:
-    """Build a realistic TradeThesis for v1 results."""
+    """Build a realistic TradeThesis for minimal results."""
     return TradeThesis(
         ticker="AAPL",
         direction=SignalDirection.BULLISH,
@@ -119,7 +118,7 @@ def _make_trade_thesis() -> TradeThesis:
 
 
 def _make_extended_thesis() -> ExtendedTradeThesis:
-    """Build an ExtendedTradeThesis for v2 results."""
+    """Build an ExtendedTradeThesis for full debate results."""
     return ExtendedTradeThesis(
         ticker="AAPL",
         direction=SignalDirection.BULLISH,
@@ -128,7 +127,7 @@ def _make_extended_thesis() -> ExtendedTradeThesis:
         bull_score=7.2,
         bear_score=4.5,
         key_factors=["RSI trending up", "Sector strength", "Flow confirmation"],
-        risk_assessment="Moderate risk per v2 risk agent assessment.",
+        risk_assessment="Moderate risk per risk agent assessment.",
         recommended_strategy=SpreadType.VERTICAL,
         agent_agreement_score=0.75,
         dissenting_agents=["contrarian"],
@@ -224,8 +223,8 @@ def _make_volatility_thesis() -> VolatilityThesis:
     )
 
 
-def _make_v1_result() -> DebateResult:
-    """Build a complete v1 DebateResult."""
+def _make_minimal_result() -> DebateResult:
+    """Build a minimal DebateResult without optional agent responses."""
     return DebateResult(
         context=_make_market_context(),
         bull_response=_make_bull_response(),
@@ -234,12 +233,11 @@ def _make_v1_result() -> DebateResult:
         total_usage=RunUsage(),
         duration_ms=1500,
         is_fallback=False,
-        debate_protocol="v1",
     )
 
 
-def _make_v2_result() -> DebateResult:
-    """Build a complete v2 DebateResult with all 6-agent outputs populated."""
+def _make_debate_result() -> DebateResult:
+    """Build a complete DebateResult with all 6-agent outputs populated."""
     return DebateResult(
         context=_make_market_context(),
         bull_response=_make_bull_response(),
@@ -251,9 +249,8 @@ def _make_v2_result() -> DebateResult:
         vol_response=_make_volatility_thesis(),
         flow_response=_make_flow_thesis(),
         fundamental_response=_make_fundamental_thesis(),
-        risk_v2_response=_make_risk_assessment(),
+        risk_response=_make_risk_assessment(),
         contrarian_response=_make_contrarian_thesis(),
-        debate_protocol="v2",
     )
 
 
@@ -296,10 +293,10 @@ def test_render_fundamental_section() -> None:
         assert factor in md
 
 
-def test_render_risk_v2_section() -> None:
-    """Risk v2 section contains risk level, PoP, mitigants, and position size."""
+def test_render_risk_section() -> None:
+    """Risk section contains risk level, PoP, mitigants, and position size."""
     risk = _make_risk_assessment()
-    md = _render_risk_v2_section(risk)
+    md = _render_risk_section(risk)
 
     assert "## Risk Assessment" in md
     assert "Confidence: 72%" in md
@@ -332,13 +329,13 @@ def test_render_contrarian_section() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Full v2 export tests
+# Full export tests
 # ---------------------------------------------------------------------------
 
 
-def test_v2_export_includes_all_sections() -> None:
-    """V2 export has 6 agent sections plus verdict."""
-    result = _make_v2_result()
+def test_export_includes_all_sections() -> None:
+    """Export has 6 agent sections plus verdict."""
+    result = _make_debate_result()
     md = export_debate_markdown(result)
 
     # 6 agent sections
@@ -352,47 +349,18 @@ def test_v2_export_includes_all_sections() -> None:
     assert "## Verdict" in md
 
 
-def test_v2_export_uses_trend_heading() -> None:
-    """V2 export uses 'Trend Analysis' heading instead of 'Bull Case'."""
-    result = _make_v2_result()
+def test_export_uses_trend_heading() -> None:
+    """Export uses 'Trend Analysis' heading instead of 'Bull Case'."""
+    result = _make_debate_result()
     md = export_debate_markdown(result)
 
     assert "## Trend Analysis" in md
     assert "## Bull Case" not in md
 
 
-def test_v2_export_omits_bear() -> None:
-    """V2 export does not include a 'Bear Case' section."""
-    result = _make_v2_result()
+def test_export_omits_bear() -> None:
+    """Export does not include a 'Bear Case' section."""
+    result = _make_debate_result()
     md = export_debate_markdown(result)
 
     assert "## Bear Case" not in md
-
-
-def test_v1_export_unchanged() -> None:
-    """V1 export is identical to the existing layout (regression test).
-
-    Ensures the v2 changes do not alter v1 behavior: Bull Case, Bear Case,
-    and Verdict sections must be present, and no v2 sections appear.
-    """
-    result = _make_v1_result()
-    md = export_debate_markdown(result)
-
-    # V1 must have Bull Case and Bear Case
-    assert "## Bull Case" in md
-    assert "## Bear Case" in md
-    assert "## Verdict" in md
-
-    # V2-only sections must NOT appear for v1
-    assert "## Trend Analysis" not in md
-    assert "## Flow Analysis" not in md
-    assert "## Fundamental Analysis" not in md
-    assert "## Contrarian Challenge" not in md
-    # Risk Assessment appears inside Verdict as ### for v1, not as a ## section
-    # Check no top-level "## Risk Assessment" section exists
-    # (v1 has "### Risk Assessment" inside Verdict, which is fine)
-    lines = md.split("\n")
-    for line in lines:
-        if line.strip().startswith("## Risk Assessment"):
-            # This would mean v2 risk section leaked into v1 — fail
-            raise AssertionError("## Risk Assessment should not appear as top-level section in v1")
