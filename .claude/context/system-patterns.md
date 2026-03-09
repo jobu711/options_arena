@@ -5,9 +5,15 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 
 ## Unique Design Patterns
 
-### Repository Pattern (Persistence)
+### Repository Pattern (Persistence) — Mixin Decomposition
 - `Database` handles connection lifecycle, WAL mode, migrations
-- `Repository` provides typed CRUD operations (`save_scan_run()`, `get_latest_scan()`, etc.)
+- `Repository` composed from domain-specific mixins via multiple inheritance:
+  - `_base.py`: `BaseMixin` — connection helpers, `_fetchone`/`_fetchall`/`_execute`
+  - `_scan.py`: `ScanMixin` — scan runs, ticker scores, score history
+  - `_debate.py`: `DebateMixin` — debate results, agent predictions
+  - `_analytics.py`: `AnalyticsMixin` — outcomes, P&L tracking, analytics queries
+  - `_metadata.py`: `MetadataMixin` — ticker metadata, watchlist, universe index
+- `Repository(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin)` — single public class, same API
 - All queries return typed models, never raw dicts
 
 ### Immutable Models
