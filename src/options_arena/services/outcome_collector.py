@@ -192,7 +192,7 @@ class OutcomeCollector:
         if exit_stock_price is None:
             logger.warning(
                 "Cannot determine stock price for expired contract id=%s ticker=%s, skipping",
-                contract.id,
+                contract_id,
                 contract.ticker,
             )
             return None
@@ -256,7 +256,7 @@ class OutcomeCollector:
         except Exception:
             logger.warning(
                 "Cannot fetch quote for contract id=%s ticker=%s, skipping",
-                contract.id,
+                contract_id,
                 contract.ticker,
             )
             return None

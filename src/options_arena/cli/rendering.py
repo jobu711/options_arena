@@ -31,6 +31,35 @@ from options_arena.scan.models import ScanResult
 
 logger = logging.getLogger(__name__)
 
+# Windows cp1252 console cannot render many Unicode chars (√, →, etc.)
+# Replace common math/symbol chars with ASCII equivalents.
+_UNICODE_REPLACEMENTS: dict[str, str] = {
+    "\u221a": "sqrt",  # √
+    "\u2192": "->",  # →
+    "\u2190": "<-",  # ←
+    "\u2264": "<=",  # ≤
+    "\u2265": ">=",  # ≥
+    "\u2260": "!=",  # ≠
+    "\u00b1": "+/-",  # ±
+    "\u2014": "--",  # —
+    "\u2013": "-",  # –
+    "\u2018": "'",  # '
+    "\u2019": "'",  # '
+    "\u201c": '"',  # "
+    "\u201d": '"',  # "
+    "\u2026": "...",  # …
+    "\u03c3": "sigma",  # σ
+    "\u0394": "delta",  # Δ
+}
+
+
+def _safe_text(text: str) -> str:
+    """Replace Unicode chars that cp1252 cannot encode with ASCII equivalents."""
+    for char, replacement in _UNICODE_REPLACEMENTS.items():
+        text = text.replace(char, replacement)
+    # Fallback: replace any remaining non-cp1252 chars
+    return text.encode("cp1252", errors="replace").decode("cp1252")
+
 
 def render_health_table(statuses: list[HealthStatus]) -> Table:
     """Render health check results as a Rich table.
@@ -159,9 +188,9 @@ def render_volatility_panel(thesis: VolatilityThesis) -> Panel:
     lines: list[str] = [
         f"IV Assessment: {thesis.iv_assessment.upper()}",
         f"Confidence: {thesis.confidence * 100:.0f}%",
-        f"IV Rank Interpretation: {thesis.iv_rank_interpretation}",
+        f"IV Rank Interpretation: {_safe_text(thesis.iv_rank_interpretation)}",
         "",
-        thesis.strategy_rationale,
+        _safe_text(thesis.strategy_rationale),
     ]
 
     if thesis.recommended_strategy is not None:
@@ -183,7 +212,7 @@ def render_volatility_panel(thesis: VolatilityThesis) -> Panel:
         lines.append("")
         lines.append("Key Volatility Factors:")
         for factor in thesis.key_vol_factors:
-            lines.append(f"  * {factor}")
+            lines.append(f"  * {_safe_text(factor)}")
 
     # Text() defaults to no markup — prevents agent text with [brackets] from crashing Rich
     return Panel(
@@ -211,17 +240,17 @@ def render_flow_panel(flow: FlowThesis) -> Panel:
         f"Direction: {flow.direction.value.upper()}",
         f"Confidence: {flow.confidence * 100:.0f}%",
         "",
-        f"GEX Interpretation: {flow.gex_interpretation}",
-        f"Smart Money Signal: {flow.smart_money_signal}",
-        f"OI Analysis: {flow.oi_analysis}",
-        f"Volume Confirmation: {flow.volume_confirmation}",
+        f"GEX Interpretation: {_safe_text(flow.gex_interpretation)}",
+        f"Smart Money Signal: {_safe_text(flow.smart_money_signal)}",
+        f"OI Analysis: {_safe_text(flow.oi_analysis)}",
+        f"Volume Confirmation: {_safe_text(flow.volume_confirmation)}",
     ]
 
     if flow.key_flow_factors:
         lines.append("")
         lines.append("Key Flow Factors:")
         for factor in flow.key_flow_factors:
-            lines.append(f"  * {factor}")
+            lines.append(f"  * {_safe_text(factor)}")
 
     text = Text("\n".join(lines))
     if direction_style:
@@ -254,21 +283,21 @@ def render_fundamental_panel(fund: FundamentalThesis) -> Panel:
         f"Confidence: {fund.confidence * 100:.0f}%",
         "",
         f"Catalyst Impact: {fund.catalyst_impact.value.upper()}",
-        f"Earnings Assessment: {fund.earnings_assessment}",
-        f"IV Crush Risk: {fund.iv_crush_risk}",
+        f"Earnings Assessment: {_safe_text(fund.earnings_assessment)}",
+        f"IV Crush Risk: {_safe_text(fund.iv_crush_risk)}",
     ]
 
     if fund.short_interest_analysis is not None:
-        lines.append(f"Short Interest: {fund.short_interest_analysis}")
+        lines.append(f"Short Interest: {_safe_text(fund.short_interest_analysis)}")
 
     if fund.dividend_impact is not None:
-        lines.append(f"Dividend Impact: {fund.dividend_impact}")
+        lines.append(f"Dividend Impact: {_safe_text(fund.dividend_impact)}")
 
     if fund.key_fundamental_factors:
         lines.append("")
         lines.append("Key Fundamental Factors:")
         for factor in fund.key_fundamental_factors:
-            lines.append(f"  * {factor}")
+            lines.append(f"  * {_safe_text(factor)}")
 
     text = Text("\n".join(lines))
     if direction_style:
@@ -303,29 +332,29 @@ def render_risk_v2_panel(risk: RiskAssessment) -> Panel:
     if risk.pop_estimate is not None and math.isfinite(risk.pop_estimate):
         lines.append(f"Probability of Profit: {risk.pop_estimate * 100:.0f}%")
 
-    lines.append(f"Max Loss Estimate: {risk.max_loss_estimate}")
+    lines.append(f"Max Loss Estimate: {_safe_text(risk.max_loss_estimate)}")
 
     if risk.charm_decay_warning is not None:
-        lines.append(f"Charm Decay Warning: {risk.charm_decay_warning}")
+        lines.append(f"Charm Decay Warning: {_safe_text(risk.charm_decay_warning)}")
 
     if risk.spread_quality_assessment is not None:
-        lines.append(f"Spread Quality: {risk.spread_quality_assessment}")
+        lines.append(f"Spread Quality: {_safe_text(risk.spread_quality_assessment)}")
 
     if risk.key_risks:
         lines.append("")
         lines.append("Key Risks:")
         for r in risk.key_risks:
-            lines.append(f"  * {r}")
+            lines.append(f"  * {_safe_text(r)}")
 
     if risk.risk_mitigants:
         lines.append("")
         lines.append("Risk Mitigants:")
         for m in risk.risk_mitigants:
-            lines.append(f"  * {m}")
+            lines.append(f"  * {_safe_text(m)}")
 
     if risk.recommended_position_size is not None:
         lines.append("")
-        lines.append(f"Recommended Position Size: {risk.recommended_position_size}")
+        lines.append(f"Recommended Position Size: {_safe_text(risk.recommended_position_size)}")
 
     return Panel(
         Text("\n".join(lines)),
@@ -352,17 +381,17 @@ def render_contrarian_panel(contra: ContrarianThesis) -> Panel:
         f"Dissent Direction: {contra.dissent_direction.value.upper()}",
         f"Dissent Confidence: {contra.dissent_confidence * 100:.0f}%",
         "",
-        f"Primary Challenge: {contra.primary_challenge}",
-        f"Consensus Weakness: {contra.consensus_weakness}",
+        f"Primary Challenge: {_safe_text(contra.primary_challenge)}",
+        f"Consensus Weakness: {_safe_text(contra.consensus_weakness)}",
         "",
-        f"Alternative Scenario: {contra.alternative_scenario}",
+        f"Alternative Scenario: {_safe_text(contra.alternative_scenario)}",
     ]
 
     if contra.overlooked_risks:
         lines.append("")
         lines.append("Overlooked Risks:")
         for risk in contra.overlooked_risks:
-            lines.append(f"  * {risk}")
+            lines.append(f"  * {_safe_text(risk)}")
 
     text = Text("\n".join(lines))
     if direction_style:
@@ -552,20 +581,20 @@ def _build_agent_panel_text(
         f"Direction: {direction}",
         f"Confidence: {confidence * 100:.0f}%",
         "",
-        argument,
+        _safe_text(argument),
     ]
 
     if key_points:
         lines.append("")
         lines.append("Key Points:")
         for point in key_points:
-            lines.append(f"  * {point}")
+            lines.append(f"  * {_safe_text(point)}")
 
     if risks:
         lines.append("")
         lines.append("Risks:")
         for risk in risks:
-            lines.append(f"  * {risk}")
+            lines.append(f"  * {_safe_text(risk)}")
 
     # markup=False prevents [RSI], [AAPL], etc. from being parsed as Rich tags
     return Text("\n".join(lines))
@@ -603,17 +632,17 @@ def _build_verdict_panel_text(thesis: TradeThesis) -> Text:
             lines.append(f"Dissenting: {', '.join(thesis.dissenting_agents)}")
 
     lines.append("")
-    lines.append(thesis.summary)
+    lines.append(_safe_text(thesis.summary))
 
     if thesis.key_factors:
         lines.append("")
         lines.append("Key Factors:")
         for factor in thesis.key_factors:
-            lines.append(f"  * {factor}")
+            lines.append(f"  * {_safe_text(factor)}")
 
     lines.append("")
     lines.append("Risk Assessment:")
-    lines.append(f"  {thesis.risk_assessment}")
+    lines.append(f"  {_safe_text(thesis.risk_assessment)}")
 
     if thesis.recommended_strategy is not None:
         lines.append("")
@@ -623,7 +652,7 @@ def _build_verdict_panel_text(thesis: TradeThesis) -> Text:
     if isinstance(thesis, ExtendedTradeThesis) and thesis.contrarian_dissent:
         lines.append("")
         lines.append("Contrarian Challenge:")
-        lines.append(f"  {thesis.contrarian_dissent}")
+        lines.append(f"  {_safe_text(thesis.contrarian_dissent)}")
 
     # Extended: dimensional scores mini-table
     if isinstance(thesis, ExtendedTradeThesis) and thesis.dimensional_scores is not None:

@@ -1,7 +1,7 @@
 """Parameter grid generators for BSM/BAW pricing stress tests.
 
 Provides ``PricingParams`` dataclass and two grid generators:
-    - ``generate_property_grid()`` — ~200 combos for invariant testing (CI-fast).
+    - ``generate_property_grid()`` — ~640 combos for invariant testing (CI-fast).
     - ``generate_stress_grid()`` — ~2K combos for brute-force numerical stability.
 """
 
@@ -32,7 +32,7 @@ class PricingParams:
 
 
 def generate_property_grid() -> list[PricingParams]:
-    """Generate ~200 parameter combos for financial invariant testing.
+    """Generate ~640 parameter combos for financial invariant testing.
 
     Covers ATM, ITM, OTM, varied sigma, varied T, with and without dividends.
     Designed to complete in <30s for CI.

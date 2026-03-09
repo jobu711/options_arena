@@ -17,6 +17,7 @@ from decimal import Decimal
 import pytest
 
 from options_arena.models.config import PricingConfig
+from options_arena.models.enums import SignalDirection
 from options_arena.scoring.contracts import (
     _compute_liquidity_score,
     filter_contracts,
@@ -60,8 +61,6 @@ class TestZeroBidContracts:
         """Contracts with bid=0 AND ask=0 are filtered as truly dead."""
         spec = ChainSpec(num_strikes=3, base_bid=0.0, base_ask=0.0)
         # build_chain doesn't set ask=0 by default; build manually
-        from options_arena.models.enums import SignalDirection
-
         chain = build_chain(spec)
         # Override: set both bid and ask to 0 by rebuilding
         dead_chain = [
@@ -150,8 +149,6 @@ class TestWideSpread:
     should be filtered out by filter_contracts."""
 
     def test_all_wide_spread_filtered(self) -> None:
-        from options_arena.models.enums import SignalDirection
-
         spec = ChainSpec(
             num_strikes=5,
             wide_spread_indices=[0, 1, 2, 3, 4],
@@ -171,8 +168,6 @@ class TestZeroOI:
     """Contracts with open_interest < min_oi (default 100) are filtered."""
 
     def test_all_zero_oi_filtered(self) -> None:
-        from options_arena.models.enums import SignalDirection
-
         spec = ChainSpec(
             num_strikes=5,
             zero_oi_indices=[0, 1, 2, 3, 4],

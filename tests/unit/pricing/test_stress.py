@@ -216,9 +216,13 @@ def test_bsm_delta_bounds(p: PricingParams) -> None:
     ids=_param_id,
 )
 def test_american_delta_bounds(p: PricingParams) -> None:
-    """American delta must be in [-1, 1]."""
+    """American delta must be in [-1, 1] with correct sign."""
     greeks = american_greeks(p.S, p.K, p.T, p.r, p.q, p.sigma, p.option_type)
     assert -1.0 <= greeks.delta <= 1.0, f"Delta out of bounds: {greeks.delta}"
+    if p.option_type == OptionType.CALL:
+        assert greeks.delta >= 0.0, f"American call delta negative: {greeks.delta}"
+    else:
+        assert greeks.delta <= 0.0, f"American put delta positive: {greeks.delta}"
 
 
 # ---------------------------------------------------------------------------
