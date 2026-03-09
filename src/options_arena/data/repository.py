@@ -17,7 +17,11 @@ import numpy as np
 
 from options_arena.data.database import Database
 from options_arena.models import (
+    AgentAccuracyReport,
+    AgentCalibrationData,
     AgentPrediction,
+    AgentWeightsComparison,
+    CalibrationBucket,
     ContractOutcome,
     ContrarianThesis,
     DeltaPerformanceResult,
@@ -1503,6 +1507,243 @@ class Repository:
             with_sector=with_sector,
             with_industry_group=with_industry_group,
             coverage=coverage,
+        )
+
+    # ------------------------------------------------------------------
+    # Agent calibration queries
+    # ------------------------------------------------------------------
+
+    async def get_agent_accuracy(
+        self,
+        window_days: int | None = None,
+    ) -> list[AgentAccuracyReport]:
+        """Per-agent direction accuracy and Brier scores.
+
+        JOINs ``agent_predictions`` with ``contract_outcomes`` via
+        ``recommended_contract_id`` at T+10 (``holding_days=10``).
+        Agents with fewer than 10 matched outcomes are excluded.
+        """
+        conn = self._db.conn
+        where_clauses = [
+            "co.holding_days = 10",
+            "ap.direction IS NOT NULL",
+            "ap.recommended_contract_id IS NOT NULL",
+        ]
+        params: list[object] = []
+        if window_days is not None:
+            where_clauses.append("ap.created_at >= datetime('now', ?)")
+            params.append(f"-{window_days} days")
+
+        where_sql = " AND ".join(where_clauses)
+
+        sql = (
+            "SELECT "
+            "ap.agent_name, "
+            "AVG(CASE "
+            "  WHEN ap.direction = 'bullish' AND co.stock_return_pct > 0 "
+            "  THEN 1.0 "
+            "  WHEN ap.direction = 'bearish' AND co.stock_return_pct < 0 "
+            "  THEN 1.0 "
+            "  ELSE 0.0 "
+            "END) AS direction_hit_rate, "
+            "AVG(ap.confidence) AS mean_confidence, "
+            "AVG( "
+            "  (ap.confidence - CASE "
+            "    WHEN ap.direction = 'bullish' "
+            "      AND co.stock_return_pct > 0 THEN 1.0 "
+            "    WHEN ap.direction = 'bearish' "
+            "      AND co.stock_return_pct < 0 THEN 1.0 "
+            "    ELSE 0.0 "
+            "  END) * (ap.confidence - CASE "
+            "    WHEN ap.direction = 'bullish' "
+            "      AND co.stock_return_pct > 0 THEN 1.0 "
+            "    WHEN ap.direction = 'bearish' "
+            "      AND co.stock_return_pct < 0 THEN 1.0 "
+            "    ELSE 0.0 "
+            "  END) "
+            ") AS brier_score, "
+            "COUNT(*) AS sample_size "
+            "FROM agent_predictions ap "
+            "JOIN contract_outcomes co "
+            "  ON ap.recommended_contract_id = co.recommended_contract_id "
+            f"WHERE {where_sql} "
+            "GROUP BY ap.agent_name "
+            "HAVING COUNT(*) >= 10"
+        )
+
+        async with conn.execute(sql, params) as cursor:
+            rows = await cursor.fetchall()
+
+        results = [
+            AgentAccuracyReport(
+                agent_name=str(row["agent_name"]),
+                direction_hit_rate=float(row["direction_hit_rate"]),
+                mean_confidence=float(row["mean_confidence"]),
+                brier_score=float(row["brier_score"]),
+                sample_size=int(row["sample_size"]),
+            )
+            for row in rows
+        ]
+        logger.debug("Retrieved accuracy for %d agents", len(results))
+        return results
+
+    async def get_agent_calibration(
+        self,
+        agent_name: str | None = None,
+    ) -> AgentCalibrationData:
+        """Confidence calibration buckets.
+
+        Bins predictions into 5 confidence buckets and computes
+        mean confidence vs actual hit rate in each.
+        """
+        conn = self._db.conn
+
+        bucket_defs = [
+            ("0.0-0.2", 0.0, 0.2),
+            ("0.2-0.4", 0.2, 0.4),
+            ("0.4-0.6", 0.4, 0.6),
+            ("0.6-0.8", 0.6, 0.8),
+            ("0.8-1.0", 0.8, 1.01),  # inclusive upper for last bucket
+        ]
+
+        where_clauses = [
+            "co.holding_days = 10",
+            "ap.direction IS NOT NULL",
+            "ap.recommended_contract_id IS NOT NULL",
+        ]
+        params: list[object] = []
+        if agent_name is not None:
+            where_clauses.append("ap.agent_name = ?")
+            params.append(agent_name)
+
+        where_sql = " AND ".join(where_clauses)
+
+        sql = (
+            "SELECT "
+            "ap.confidence, "
+            "CASE "
+            "  WHEN ap.direction = 'bullish' AND co.stock_return_pct > 0 "
+            "  THEN 1.0 "
+            "  WHEN ap.direction = 'bearish' AND co.stock_return_pct < 0 "
+            "  THEN 1.0 "
+            "  ELSE 0.0 "
+            "END AS direction_correct "
+            "FROM agent_predictions ap "
+            "JOIN contract_outcomes co "
+            "  ON ap.recommended_contract_id = co.recommended_contract_id "
+            f"WHERE {where_sql}"
+        )
+
+        async with conn.execute(sql, params) as cursor:
+            rows = await cursor.fetchall()
+
+        # Bin rows into buckets in Python for clarity
+        buckets: list[CalibrationBucket] = []
+        total_count = 0
+        for label, low, high in bucket_defs:
+            bucket_rows = [r for r in rows if low <= float(r["confidence"]) < high]
+            count = len(bucket_rows)
+            total_count += count
+            if count > 0:
+                mean_conf = sum(float(r["confidence"]) for r in bucket_rows) / count
+                hit_rate = sum(float(r["direction_correct"]) for r in bucket_rows) / count
+            else:
+                mean_conf = (low + high) / 2
+                hit_rate = 0.0
+            buckets.append(
+                CalibrationBucket(
+                    bucket_label=label,
+                    bucket_low=low,
+                    bucket_high=min(high, 1.0),
+                    mean_confidence=mean_conf,
+                    actual_hit_rate=hit_rate,
+                    count=count,
+                )
+            )
+
+        logger.debug(
+            "Built calibration data for agent=%s (%d total rows)",
+            agent_name or "ALL",
+            total_count,
+        )
+        return AgentCalibrationData(
+            agent_name=agent_name,
+            buckets=buckets,
+            sample_size=total_count,
+        )
+
+    async def get_latest_auto_tune_weights(
+        self,
+    ) -> list[AgentWeightsComparison]:
+        """Retrieve the most recently saved auto-tune weight set."""
+        conn = self._db.conn
+
+        async with conn.execute(
+            "SELECT MAX(created_at) AS latest FROM auto_tune_weights"
+        ) as cursor:
+            row = await cursor.fetchone()
+
+        if row is None or row["latest"] is None:
+            return []
+
+        latest_ts = row["latest"]
+
+        async with conn.execute(
+            "SELECT agent_name, manual_weight, auto_weight, "
+            "brier_score, sample_size "
+            "FROM auto_tune_weights "
+            "WHERE created_at = ? "
+            "ORDER BY agent_name",
+            (latest_ts,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        results = [
+            AgentWeightsComparison(
+                agent_name=str(r["agent_name"]),
+                manual_weight=float(r["manual_weight"]),
+                auto_weight=float(r["auto_weight"]),
+                brier_score=(float(r["brier_score"]) if r["brier_score"] is not None else None),
+                sample_size=int(r["sample_size"]),
+            )
+            for r in rows
+        ]
+        logger.debug("Retrieved %d auto-tune weights (latest set)", len(results))
+        return results
+
+    async def save_auto_tune_weights(
+        self,
+        weights: list[AgentWeightsComparison],
+        window_days: int,
+    ) -> None:
+        """Persist a computed set of auto-tune weights."""
+        if not weights:
+            return
+        conn = self._db.conn
+        now_iso = datetime.now(UTC).isoformat()
+        await conn.executemany(
+            "INSERT INTO auto_tune_weights "
+            "(agent_name, manual_weight, auto_weight, brier_score, "
+            "sample_size, window_days, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    w.agent_name,
+                    w.manual_weight,
+                    w.auto_weight,
+                    w.brier_score,
+                    w.sample_size,
+                    window_days,
+                    now_iso,
+                )
+                for w in weights
+            ],
+        )
+        await conn.commit()
+        logger.debug(
+            "Saved %d auto-tune weights (window=%d days)",
+            len(weights),
+            window_days,
         )
 
     @staticmethod

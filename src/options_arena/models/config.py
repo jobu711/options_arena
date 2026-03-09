@@ -338,6 +338,7 @@ class DebateConfig(BaseModel):
     rate_limit_retries: int = 3  # max 429 retries at transport level (0 = disabled)
     rate_limit_max_wait: float = 30.0  # max single retry wait in seconds
     enable_regime_weights: bool = False  # opt-in regime-adjusted scoring weights
+    auto_tune_weights: bool = False  # opt-in auto-tuned agent vote weights from accuracy data
 
     @field_validator("thinking_budget_tokens")
     @classmethod

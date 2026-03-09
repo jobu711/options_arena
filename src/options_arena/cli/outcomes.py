@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from pathlib import Path
 
 import typer
@@ -237,4 +238,182 @@ async def _outcomes_summary_async(lookback_days: int) -> None:
         if market_data is not None:
             await market_data.close()
         await cache.close()
+        await db.close()
+
+
+# ---------------------------------------------------------------------------
+# Agent calibration commands
+# ---------------------------------------------------------------------------
+
+
+@outcomes_app.command("agent-accuracy")
+def agent_accuracy_cmd(
+    window: int | None = typer.Option(  # noqa: B008
+        None, "--window", help="Rolling window in days"
+    ),
+) -> None:
+    """Show per-agent direction accuracy and Brier scores."""
+    asyncio.run(_agent_accuracy_async(window))
+
+
+async def _agent_accuracy_async(window: int | None) -> None:
+    """Display agent accuracy table."""
+    settings = AppSettings()
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    if settings.data.db_path:
+        db_path = Path(settings.data.db_path)
+    else:
+        db_path = _DATA_DIR / "options_arena.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    db = Database(db_path)
+
+    try:
+        await db.connect()
+        repo = Repository(db)
+        results = await repo.get_agent_accuracy(window)
+
+        if not results:
+            console.print("[yellow]No agent accuracy data available (need 10+ outcomes).[/yellow]")
+            return
+
+        table = Table(title="Agent Accuracy")
+        table.add_column("Agent", style="cyan")
+        table.add_column("Hit Rate", justify="right")
+        table.add_column("Confidence", justify="right")
+        table.add_column("Brier", justify="right")
+        table.add_column("Samples", justify="right", style="dim")
+        for r in results:
+            table.add_row(
+                r.agent_name,
+                f"{r.direction_hit_rate:.1%}" if math.isfinite(r.direction_hit_rate) else "--",
+                f"{r.mean_confidence:.1%}" if math.isfinite(r.mean_confidence) else "--",
+                f"{r.brier_score:.3f}" if math.isfinite(r.brier_score) else "--",
+                str(r.sample_size),
+            )
+        console.print(table)
+    except Exception as exc:
+        logger.exception("Agent accuracy display failed")
+        err_console.print(
+            "[red]Agent accuracy failed. Check logs/options_arena.log for details.[/red]"
+        )
+        raise typer.Exit(code=1) from exc
+    finally:
+        await db.close()
+
+
+@outcomes_app.command("calibration")
+def calibration_cmd(
+    agent: str | None = typer.Option(  # noqa: B008
+        None, "--agent", help="Filter to a specific agent"
+    ),
+) -> None:
+    """Show confidence calibration buckets."""
+    asyncio.run(_calibration_async(agent))
+
+
+async def _calibration_async(agent: str | None) -> None:
+    """Display calibration table."""
+    settings = AppSettings()
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    if settings.data.db_path:
+        db_path = Path(settings.data.db_path)
+    else:
+        db_path = _DATA_DIR / "options_arena.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    db = Database(db_path)
+
+    try:
+        await db.connect()
+        repo = Repository(db)
+        data = await repo.get_agent_calibration(agent)
+
+        title = f"Calibration: {data.agent_name}" if data.agent_name else "Calibration: All Agents"
+        if data.sample_size == 0:
+            console.print(f"[yellow]No calibration data available for {title}.[/yellow]")
+            return
+
+        table = Table(title=title)
+        table.add_column("Bucket", style="cyan")
+        table.add_column("Predicted", justify="right")
+        table.add_column("Actual", justify="right")
+        table.add_column("Count", justify="right", style="dim")
+        for b in data.buckets:
+            table.add_row(
+                b.bucket_label,
+                (
+                    f"{b.mean_confidence:.1%}"
+                    if math.isfinite(b.mean_confidence)
+                    else "--"
+                ),
+                f"{b.actual_hit_rate:.1%}" if math.isfinite(b.actual_hit_rate) else "--",
+                str(b.count),
+            )
+        console.print(table)
+        console.print(f"\nTotal samples: {data.sample_size}")
+    except Exception as exc:
+        logger.exception("Calibration display failed")
+        err_console.print(
+            "[red]Calibration failed. Check logs/options_arena.log for details.[/red]"
+        )
+        raise typer.Exit(code=1) from exc
+    finally:
+        await db.close()
+
+
+@outcomes_app.command("agent-weights")
+def agent_weights_cmd() -> None:
+    """Show manual vs auto-tuned weight comparison."""
+    asyncio.run(_agent_weights_async())
+
+
+async def _agent_weights_async() -> None:
+    """Display weight comparison table."""
+    settings = AppSettings()
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    if settings.data.db_path:
+        db_path = Path(settings.data.db_path)
+    else:
+        db_path = _DATA_DIR / "options_arena.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    db = Database(db_path)
+
+    try:
+        await db.connect()
+        repo = Repository(db)
+        results = await repo.get_latest_auto_tune_weights()
+
+        if not results:
+            console.print("[yellow]No auto-tune weights available. Run auto-tune first.[/yellow]")
+            return
+
+        table = Table(title="Agent Weights Comparison")
+        table.add_column("Agent", style="cyan")
+        table.add_column("Manual", justify="right")
+        table.add_column("Auto-Tuned", justify="right")
+        table.add_column("Brier", justify="right")
+        table.add_column("Samples", justify="right", style="dim")
+        for r in results:
+            brier_str = (
+                f"{r.brier_score:.3f}"
+                if r.brier_score is not None and math.isfinite(r.brier_score)
+                else "--"
+            )
+            table.add_row(
+                r.agent_name,
+                f"{r.manual_weight:.3f}",
+                f"{r.auto_weight:.3f}",
+                brier_str,
+                str(r.sample_size),
+            )
+        console.print(table)
+    except Exception as exc:
+        logger.exception("Agent weights display failed")
+        err_console.print(
+            "[red]Agent weights failed. Check logs/options_arena.log for details.[/red]"
+        )
+        raise typer.Exit(code=1) from exc
+    finally:
         await db.close()

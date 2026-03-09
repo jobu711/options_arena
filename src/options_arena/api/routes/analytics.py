@@ -12,6 +12,9 @@ from options_arena.api.deps import get_operation_lock, get_outcome_collector, ge
 from options_arena.api.schemas import OutcomeCollectionResult
 from options_arena.data import Repository
 from options_arena.models import (
+    AgentAccuracyReport,
+    AgentCalibrationData,
+    AgentWeightsComparison,
     DeltaPerformanceResult,
     HoldingPeriodResult,
     IndicatorAttributionResult,
@@ -144,3 +147,35 @@ async def get_ticker_contracts(
 ) -> list[RecommendedContract]:
     """Get recommended contracts for a specific ticker."""
     return await repo.get_contracts_for_ticker(ticker, limit=limit)
+
+
+@router.get("/agent-accuracy")
+@limiter.limit("60/minute")
+async def get_agent_accuracy(
+    request: Request,
+    window: int | None = Query(default=None, ge=1),
+    repo: Repository = Depends(get_repo),
+) -> list[AgentAccuracyReport]:
+    """Get per-agent direction accuracy and Brier scores."""
+    return await repo.get_agent_accuracy(window)
+
+
+@router.get("/agent-calibration")
+@limiter.limit("60/minute")
+async def get_agent_calibration(
+    request: Request,
+    agent: str | None = Query(default=None),
+    repo: Repository = Depends(get_repo),
+) -> AgentCalibrationData:
+    """Get confidence calibration buckets for agents."""
+    return await repo.get_agent_calibration(agent)
+
+
+@router.get("/agent-weights")
+@limiter.limit("60/minute")
+async def get_agent_weights(
+    request: Request,
+    repo: Repository = Depends(get_repo),
+) -> list[AgentWeightsComparison]:
+    """Get manual vs auto-tuned weight comparison."""
+    return await repo.get_latest_auto_tune_weights()

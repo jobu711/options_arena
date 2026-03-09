@@ -25,6 +25,10 @@ from httpx import AsyncClient
 
 from options_arena.api.deps import get_outcome_collector
 from options_arena.models import (
+    AgentAccuracyReport,
+    AgentCalibrationData,
+    AgentWeightsComparison,
+    CalibrationBucket,
     DeltaPerformanceResult,
     ExerciseStyle,
     GreeksSource,
@@ -283,3 +287,143 @@ class TestAnalyticsRoutes:
         """Verify bucket_size < 1 returns 422."""
         response = await client.get("/api/analytics/score-calibration?bucket_size=0.5")
         assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Agent Calibration Endpoint Tests
+# ---------------------------------------------------------------------------
+
+
+def _make_accuracy_report() -> AgentAccuracyReport:
+    return AgentAccuracyReport(
+        agent_name="trend",
+        direction_hit_rate=0.75,
+        mean_confidence=0.70,
+        brier_score=0.18,
+        sample_size=50,
+    )
+
+
+def _make_calibration_data() -> AgentCalibrationData:
+    return AgentCalibrationData(
+        agent_name=None,
+        buckets=[
+            CalibrationBucket(
+                bucket_label="0.6-0.8",
+                bucket_low=0.6,
+                bucket_high=0.8,
+                mean_confidence=0.7,
+                actual_hit_rate=0.65,
+                count=20,
+            ),
+        ],
+        sample_size=20,
+    )
+
+
+def _make_weights_comparison() -> AgentWeightsComparison:
+    return AgentWeightsComparison(
+        agent_name="trend",
+        manual_weight=0.25,
+        auto_weight=0.22,
+        brier_score=0.18,
+        sample_size=50,
+    )
+
+
+class TestAgentCalibrationRoutes:
+    """Tests for agent calibration API endpoints."""
+
+    @pytest.mark.asyncio
+    async def test_get_agent_accuracy(self, client: AsyncClient, mock_repo: MagicMock) -> None:
+        """Verify GET /api/analytics/agent-accuracy returns 200 with list."""
+        mock_repo.get_agent_accuracy = AsyncMock(return_value=[_make_accuracy_report()])
+        response = await client.get("/api/analytics/agent-accuracy")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["agent_name"] == "trend"
+        assert data[0]["direction_hit_rate"] == pytest.approx(0.75)
+        assert data[0]["brier_score"] == pytest.approx(0.18)
+
+    @pytest.mark.asyncio
+    async def test_get_agent_accuracy_with_window(
+        self, client: AsyncClient, mock_repo: MagicMock
+    ) -> None:
+        """Verify window query param passes to repository."""
+        mock_repo.get_agent_accuracy = AsyncMock(return_value=[])
+        response = await client.get("/api/analytics/agent-accuracy?window=30")
+        assert response.status_code == 200
+        mock_repo.get_agent_accuracy.assert_called_once_with(30)
+
+    @pytest.mark.asyncio
+    async def test_get_agent_accuracy_no_window(
+        self, client: AsyncClient, mock_repo: MagicMock
+    ) -> None:
+        """Verify no window param passes None to repository."""
+        mock_repo.get_agent_accuracy = AsyncMock(return_value=[])
+        response = await client.get("/api/analytics/agent-accuracy")
+        assert response.status_code == 200
+        mock_repo.get_agent_accuracy.assert_called_once_with(None)
+
+    @pytest.mark.asyncio
+    async def test_get_agent_calibration(
+        self, client: AsyncClient, mock_repo: MagicMock
+    ) -> None:
+        """Verify GET /api/analytics/agent-calibration returns 200."""
+        mock_repo.get_agent_calibration = AsyncMock(return_value=_make_calibration_data())
+        response = await client.get("/api/analytics/agent-calibration")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["agent_name"] is None
+        assert len(data["buckets"]) == 1
+        assert data["buckets"][0]["bucket_label"] == "0.6-0.8"
+        assert data["sample_size"] == 20
+
+    @pytest.mark.asyncio
+    async def test_get_agent_calibration_with_agent(
+        self, client: AsyncClient, mock_repo: MagicMock
+    ) -> None:
+        """Verify agent query param passes to repository."""
+        mock_repo.get_agent_calibration = AsyncMock(
+            return_value=AgentCalibrationData(
+                agent_name="trend", buckets=[], sample_size=0
+            )
+        )
+        response = await client.get("/api/analytics/agent-calibration?agent=trend")
+        assert response.status_code == 200
+        mock_repo.get_agent_calibration.assert_called_once_with("trend")
+
+    @pytest.mark.asyncio
+    async def test_get_agent_weights(self, client: AsyncClient, mock_repo: MagicMock) -> None:
+        """Verify GET /api/analytics/agent-weights returns 200 with list."""
+        mock_repo.get_latest_auto_tune_weights = AsyncMock(
+            return_value=[_make_weights_comparison()]
+        )
+        response = await client.get("/api/analytics/agent-weights")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["agent_name"] == "trend"
+        assert data[0]["manual_weight"] == pytest.approx(0.25)
+        assert data[0]["auto_weight"] == pytest.approx(0.22)
+
+    @pytest.mark.asyncio
+    async def test_get_agent_weights_empty(
+        self, client: AsyncClient, mock_repo: MagicMock
+    ) -> None:
+        """Verify empty list when no auto-tune data exists."""
+        mock_repo.get_latest_auto_tune_weights = AsyncMock(return_value=[])
+        response = await client.get("/api/analytics/agent-weights")
+        assert response.status_code == 200
+        assert response.json() == []
+
+    @pytest.mark.asyncio
+    async def test_get_agent_accuracy_empty(
+        self, client: AsyncClient, mock_repo: MagicMock
+    ) -> None:
+        """Verify empty list when no accuracy data exists."""
+        mock_repo.get_agent_accuracy = AsyncMock(return_value=[])
+        response = await client.get("/api/analytics/agent-accuracy")
+        assert response.status_code == 200
+        assert response.json() == []

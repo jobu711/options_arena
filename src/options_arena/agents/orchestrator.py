@@ -52,6 +52,7 @@ from options_arena.agents.trend_agent import trend_agent
 from options_arena.agents.volatility import volatility_agent
 from options_arena.data.repository import Repository
 from options_arena.models import (
+    AgentAccuracyReport,
     AgentPrediction,
     AgentResponse,
     ContrarianThesis,
@@ -908,6 +909,41 @@ AGENT_VOTE_WEIGHTS: dict[str, float] = {
 }
 
 
+def compute_auto_tune_weights(
+    accuracy: list[AgentAccuracyReport],
+) -> dict[str, float]:
+    """Compute auto-tuned vote weights from agent accuracy data.
+
+    Uses inverse Brier score, clamped to [0.05, 0.35], normalized to sum=0.85.
+    Agents with <10 samples keep manual weights. Risk is always 0.0.
+    """
+    weights = dict(AGENT_VOTE_WEIGHTS)
+    agents_with_data = {r.agent_name: r for r in accuracy if r.sample_size >= 10}
+
+    for name in weights:
+        if name == "risk":
+            weights[name] = 0.0
+            continue
+        if name in agents_with_data:
+            raw = 1.0 - agents_with_data[name].brier_score
+            if not math.isfinite(raw):
+                continue
+            weights[name] = raw
+
+    for name in weights:
+        if name == "risk":
+            continue
+        weights[name] = max(0.05, min(0.35, weights[name]))
+
+    directional = {k: v for k, v in weights.items() if k != "risk"}
+    total = sum(directional.values())
+    if total > 0:
+        for name in directional:
+            weights[name] = (directional[name] / total) * 0.85
+
+    return weights
+
+
 def compute_agreement_score(agent_directions: dict[str, SignalDirection]) -> float:
     """Compute fraction of directional agents agreeing with the majority.
 
@@ -1095,6 +1131,7 @@ def synthesize_verdict(
     dimensional_scores: DimensionalScores | None,
     ticker: str,
     config: DebateConfig,
+    vote_weights: dict[str, float] | None = None,
 ) -> ExtendedTradeThesis:
     """Algorithmic verdict synthesis from all agent outputs.
 
@@ -1115,12 +1152,16 @@ def synthesize_verdict(
         Ticker symbol for the verdict.
     config
         Debate configuration.
+    vote_weights
+        Optional custom vote weights. When None, uses AGENT_VOTE_WEIGHTS.
 
     Returns
     -------
     ExtendedTradeThesis
         Synthesized verdict with agreement scoring and contrarian context.
     """
+    active_weights = vote_weights if vote_weights is not None else AGENT_VOTE_WEIGHTS
+
     # --- Collect agent directions ---
     agent_directions: dict[str, SignalDirection] = {}
     for name, output in agent_outputs.items():
@@ -1136,7 +1177,7 @@ def synthesize_verdict(
     probabilities: list[float] = []
     weights: list[float] = []
     for name, output in agent_outputs.items():
-        weight = AGENT_VOTE_WEIGHTS.get(name, 0.1)
+        weight = active_weights.get(name, 0.1)
         if hasattr(output, "confidence"):
             probabilities.append(output.confidence)
             weights.append(weight)
@@ -1329,6 +1370,17 @@ async def run_debate(
             context.ticker,
         )
 
+    # Load auto-tuned weights if enabled and repository available
+    vote_weights: dict[str, float] | None = None
+    if config.auto_tune_weights and repository is not None:
+        try:
+            weight_records = await repository.get_latest_auto_tune_weights()
+            if weight_records:
+                vote_weights = {r.agent_name: r.auto_weight for r in weight_records}
+                logger.info("Using auto-tuned vote weights for %s", context.ticker)
+        except Exception:
+            logger.warning("Failed to load auto-tuned weights, using manual")
+
     try:
         result = await asyncio.wait_for(
             _run_debate_pipeline(
@@ -1341,6 +1393,7 @@ async def run_debate(
                 dimensional_scores,
                 flow_output,
                 fundamental_output,
+                vote_weights=vote_weights,
             ),
             timeout=config.max_total_duration,
         )
@@ -1409,6 +1462,7 @@ async def _run_debate_pipeline(
     dimensional_scores: DimensionalScores | None,
     flow_output: FlowThesis | None,
     fundamental_output: FundamentalThesis | None,
+    vote_weights: dict[str, float] | None = None,
 ) -> DebateResult:
     """Run the 6-agent pipeline. Raises on total failure."""
     model = build_debate_model(config)
@@ -1736,6 +1790,7 @@ async def _run_debate_pipeline(
         dimensional_scores=dimensional_scores,
         ticker=context.ticker,
         config=config,
+        vote_weights=vote_weights,
     )
 
     elapsed_ms = int((time.monotonic() - start_time) * 1000)
