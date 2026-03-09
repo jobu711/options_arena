@@ -26,6 +26,8 @@ from options_arena.models.openbb import (
     UnusualFlowSnapshot,
 )
 from options_arena.services.cache import ServiceCache
+from options_arena.services.helpers import safe_float as _safe_float
+from options_arena.services.helpers import safe_int as _safe_int
 from options_arena.services.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
@@ -378,24 +380,3 @@ def _classify_sentiment(score: float) -> SentimentLabel:
     if score < -0.05:
         return SentimentLabel.BEARISH
     return SentimentLabel.NEUTRAL
-
-
-def _safe_float(value: object) -> float | None:
-    """Convert to float safely. Returns ``None`` for non-finite or unparseable."""
-    if value is None:
-        return None
-    try:
-        f = float(value) if isinstance(value, (int, float, str)) else float(str(value))
-        return f if math.isfinite(f) else None
-    except (ValueError, TypeError):
-        return None
-
-
-def _safe_int(value: object) -> int | None:
-    """Convert to int safely. Returns ``None`` for non-integer or unparseable."""
-    if value is None:
-        return None
-    try:
-        return int(value) if isinstance(value, (int, float, str)) else int(str(value))
-    except (ValueError, TypeError):
-        return None

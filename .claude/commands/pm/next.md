@@ -1,42 +1,83 @@
 ---
-description: Interview-driven development targeting — recommends 3-5 next tasks
-allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion, Agent
+description: Hybrid argument + interactive development targeting — recommends 3-5 next tasks
+allowed-tools: Bash, Read, Glob, Grep, Agent, AskUserQuestion
 ---
 
-# Next: Interview-Driven Development Targeting
+# Next: Hybrid Development Targeting
 
 You are a strategic development advisor. This command has 3 phases executed in strict order.
 
-## Phase 1 -- Interview (MANDATORY FIRST ACTION)
+## Phase 1 -- Resolve Dimensions (3 steps)
 
-IMMEDIATELY call AskUserQuestion with all 3 questions below in a single tool call.
+### Step 1 — Parse `$ARGUMENTS`
 
-Question 1 — header: "Mode", multiSelect: false
-  question: "What kind of work fits your headspace right now?"
-  options:
-    label: "Build new features" → description: "New capabilities, endpoints, or UI"
-    label: "Fix and harden" → description: "Bugs, edge cases, test coverage"
-    label: "Polish and refine" → description: "UX, performance, code quality"
-    label: "Surprise me" → description: "Rank purely on project impact"
+Parse `$ARGUMENTS` as flexible natural-language tokens (comma or space separated).
+Match each token against these keyword maps (case-insensitive). Track which
+dimensions resolved from arguments vs which remain unresolved.
 
-Question 2 — header: "Area", multiSelect: true
-  question: "Which parts of the codebase do you want to work in?"
-  options:
-    label: "Backend (Python)" → description: "Models, services, scoring, pricing"
-    label: "Frontend (Vue)" → description: "Components, views, stores, styling"
-    label: "AI agents" → description: "Prompts, orchestration, LLM providers"
-    label: "Infrastructure" → description: "CI/CD, config, tooling, DevOps"
+**Mode** (first match wins):
+- `build` / `new` / `feature` → Build new features
+- `fix` / `harden` / `bug` / `test` → Fix and harden
+- `polish` / `refine` / `ux` / `perf` → Polish and refine
+- `surprise` / `random` → Surprise me
+- No match → **unresolved**
 
-Question 3 — header: "Scope", multiSelect: false
-  question: "How much time do you want to invest?"
-  options:
-    label: "Quick wins (hours)" → description: "S-sized: a focused session or two"
-    label: "Focused sprint (days)" → description: "M-sized: a few days of work"
-    label: "Deep project (week+)" → description: "L/XL-sized: multi-day epics"
+**Area** (multi-match):
+- `backend` / `python` / `py` → Backend
+- `frontend` / `vue` / `web` / `ui` → Frontend
+- `agent` / `ai` / `llm` / `prompt` → AI agents
+- `infra` / `ci` / `devops` / `tool` → Infrastructure
+- No match → **unresolved**
 
-WAIT for the user's actual responses. Phase 2 uses answers from Phase 1.
+**Scope** (first match wins):
+- `quick` / `small` / `hour` / `s-size` → Quick wins (hours)
+- `sprint` / `days` / `medium` / `m-size` → Focused sprint (days)
+- `deep` / `week` / `large` / `xl` / `l-size` → Deep project (week+)
+- No match → **unresolved**
 
-## Phase 2 -- Context Sweep + Ranking (after interview answers received)
+### Step 2 — Ask for unresolved dimensions only
+
+- **All 3 resolved** → skip questions entirely (power-user fast path). Go to Step 3.
+- **Some resolved** → single `AskUserQuestion` call with only the unresolved questions.
+- **None resolved** (empty args or no matches) → single `AskUserQuestion` call with all 3 questions.
+
+Use these question definitions for each unresolved dimension:
+
+**Mode** (single-select, header: "Mode"):
+- "Build new features" — description: "New capabilities, integrations, or modules"
+- "Fix and harden" — description: "Bug fixes, test coverage, reliability improvements"
+- "Polish and refine" — description: "UX improvements, performance tuning, code quality"
+- "Surprise me" — description: "Best overall pick regardless of category"
+
+**Area** (multi-select, header: "Area"):
+- "Backend (Python)" — description: "Services, pricing, scoring, data, indicators"
+- "Frontend (Vue)" — description: "Web UI components, stores, API integration"
+- "AI agents" — description: "Debate agents, prompts, orchestrator, providers"
+- "Infrastructure" — description: "CI/CD, tooling, DevOps, configuration"
+Note: If the user selects all options, treat as "all areas" (no filter).
+
+**Scope** (single-select, header: "Scope"):
+- "Any size" — description: "No preference — rank all effort levels equally"
+- "Quick wins (hours)" — description: "Small, self-contained tasks completable in hours"
+- "Focused sprint (days)" — description: "Medium tasks requiring a few days of work"
+- "Deep project (week+)" — description: "Large epics spanning a week or more"
+
+### Step 3 — Confirm profile
+
+Report the resolved profile with source attribution:
+
+> **Profile:** Mode = [X], Area = [X], Scope = [X]
+> *(from arguments: [list] · interactive: [list])*
+
+If all 3 came from arguments: `*(all from arguments — power-user mode)*`
+If all 3 came from interactive: `*(all from interactive)*`
+
+Map interactive answers back to ranking values:
+- "Any size" → no scope boost (all sizes 1x)
+- "Surprise me" → Surprise me multipliers
+- All areas selected → no area filter
+
+## Phase 2 -- Context Sweep + Ranking (after dimensions resolved)
 
 Use the user's answers from Phase 1 (Mode, Area, Scope) to filter and rank below.
 
@@ -158,7 +199,7 @@ If no backlog items match the user's profile, show "No backlog items match your 
 
 - Be opinionated — rank decisively, don't hedge
 - Ground every suggestion in concrete evidence from git history
-- Interview answers must visibly change the output — "Fix and harden" produces different targets than "Build new features"
+- Dimension choices must visibly change the output — "Fix and harden" produces different targets than "Build new features"
 - Strategic suggestions must reference specific modules, services, or infrastructure — no vague ideas
 - Include at least 1 strategic opportunity even when backlog items exist
 - Keep each suggestion to 3-5 lines — brainstorm, not design doc

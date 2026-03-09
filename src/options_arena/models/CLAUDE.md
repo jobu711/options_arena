@@ -348,7 +348,7 @@ class PricingConfig(BaseModel):
     dte_max: int = 60
     min_oi: int = 100
     min_volume: int = 1
-    max_spread_pct: float = 0.10
+    max_spread_pct: float = 0.30
     iv_solver_tol: float = 1e-6
     iv_solver_max_iter: int = 50
 

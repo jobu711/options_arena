@@ -143,9 +143,11 @@ def safe_decimal(value: object) -> Decimal | None:
                 logger.debug("safe_decimal: non-finite float %r", value)
                 return None
             return Decimal(str(value))
-        if isinstance(value, (str, int, Decimal)):
-            return Decimal(value)
-        return Decimal(str(value))
+        result = Decimal(value) if isinstance(value, (str, int, Decimal)) else Decimal(str(value))
+        if not result.is_finite():
+            logger.debug("safe_decimal: non-finite decimal %r", value)
+            return None
+        return result
     except (InvalidOperation, TypeError, ValueError, ArithmeticError) as exc:
         logger.debug("safe_decimal: failed to convert %r — %s", value, exc)
         return None
