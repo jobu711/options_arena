@@ -9,7 +9,6 @@ import logging
 import os
 import time
 from datetime import UTC, datetime
-from typing import cast
 
 import httpx
 import yfinance as yf
@@ -432,10 +431,18 @@ class HealthService:
 
         from options_arena.services.cboe_provider import CBOEChainProvider  # noqa: PLC0415
 
+        if not isinstance(self._cache, ServiceCache) or not isinstance(self._limiter, RateLimiter):
+            return HealthStatus(
+                service_name="cboe_chains",
+                available=False,
+                error="Cache/limiter type mismatch for CBOE health check",
+                checked_at=datetime.now(UTC),
+            )
+
         provider = CBOEChainProvider(
             config=self._openbb_config,
-            cache=cast(ServiceCache, self._cache),
-            limiter=cast(RateLimiter, self._limiter),
+            cache=self._cache,
+            limiter=self._limiter,
         )
         if not provider.available:
             return HealthStatus(
@@ -488,9 +495,6 @@ class HealthService:
                 checked_at=datetime.now(UTC),
             )
 
-        from options_arena.services.cache import ServiceCache  # noqa: PLC0415
-        from options_arena.services.rate_limiter import RateLimiter  # noqa: PLC0415
-
         start = time.monotonic()
         svc: FinancialDatasetsService | None = None
         local_cache: ServiceCache | None = None
@@ -505,9 +509,7 @@ class HealthService:
             limiter = (
                 self._limiter
                 if isinstance(self._limiter, RateLimiter)
-                else RateLimiter(
-                    self._config.rate_limit_rps, self._config.max_concurrent_requests
-                )
+                else RateLimiter(self._config.rate_limit_rps, self._config.max_concurrent_requests)
             )
 
             svc = FinancialDatasetsService(
