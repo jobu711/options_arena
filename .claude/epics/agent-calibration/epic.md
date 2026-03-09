@@ -1,8 +1,8 @@
 ---
 name: agent-calibration
-status: backlog
+status: completed
 created: 2026-03-09T16:43:07Z
-progress: 0%
+progress: 100%
 prd: .claude/prds/agent-calibration.md
 github: https://github.com/jobu711/options_arena/issues/407
 ---
