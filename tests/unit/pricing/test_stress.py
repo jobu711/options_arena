@@ -17,6 +17,7 @@ Brute-force grid (@pytest.mark.slow):
 """
 
 import math
+from functools import lru_cache
 
 import pytest
 
@@ -30,11 +31,18 @@ from tests.harnesses.pricing_params import (
 )
 
 # ---------------------------------------------------------------------------
-# Fixtures
+# Lazy grid generation — deferred until first test from this file is collected
 # ---------------------------------------------------------------------------
 
-_PROPERTY_GRID = generate_property_grid()
-_STRESS_GRID = generate_stress_grid()
+
+@lru_cache(maxsize=1)
+def _get_property_grid() -> list[PricingParams]:
+    return generate_property_grid()
+
+
+@lru_cache(maxsize=1)
+def _get_stress_grid() -> list[PricingParams]:
+    return generate_stress_grid()
 
 
 def _param_id(p: PricingParams) -> str:
@@ -46,7 +54,7 @@ def _param_id(p: PricingParams) -> str:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("p", _PROPERTY_GRID, ids=_param_id)
+@pytest.mark.parametrize("p", _get_property_grid(), ids=_param_id)
 def test_bsm_price_non_negative(p: PricingParams) -> None:
     """BSM price must be >= 0 for all valid inputs."""
     price = bsm_price(p.S, p.K, p.T, p.r, p.q, p.sigma, p.option_type)
@@ -54,7 +62,7 @@ def test_bsm_price_non_negative(p: PricingParams) -> None:
     assert price >= -1e-10, f"BSM price negative: {price}"
 
 
-@pytest.mark.parametrize("p", _PROPERTY_GRID, ids=_param_id)
+@pytest.mark.parametrize("p", _get_property_grid(), ids=_param_id)
 def test_american_price_non_negative(p: PricingParams) -> None:
     """American price must be >= 0 for all valid inputs."""
     price = american_price(p.S, p.K, p.T, p.r, p.q, p.sigma, p.option_type)
@@ -69,7 +77,7 @@ def test_american_price_non_negative(p: PricingParams) -> None:
 
 @pytest.mark.parametrize(
     "p",
-    [p for p in _PROPERTY_GRID if p.option_type == OptionType.CALL],
+    [p for p in _get_property_grid() if p.option_type == OptionType.CALL],
     ids=_param_id,
 )
 def test_bsm_put_call_parity(p: PricingParams) -> None:
@@ -87,15 +95,13 @@ def test_bsm_put_call_parity(p: PricingParams) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("p", _PROPERTY_GRID, ids=_param_id)
+@pytest.mark.parametrize("p", _get_property_grid(), ids=_param_id)
 def test_american_ge_european(p: PricingParams) -> None:
     """American option price must be >= European for identical inputs."""
     eur = bsm_price(p.S, p.K, p.T, p.r, p.q, p.sigma, p.option_type)
     amer = american_price(p.S, p.K, p.T, p.r, p.q, p.sigma, p.option_type)
     # Allow small numerical tolerance (1e-8) for floating point
-    assert amer >= eur - 1e-8, (
-        f"American ({amer:.8f}) < European ({eur:.8f}) by {eur - amer:.2e}"
-    )
+    assert amer >= eur - 1e-8, f"American ({amer:.8f}) < European ({eur:.8f}) by {eur - amer:.2e}"
 
 
 # ---------------------------------------------------------------------------
@@ -103,30 +109,26 @@ def test_american_ge_european(p: PricingParams) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("p", _PROPERTY_GRID, ids=_param_id)
+@pytest.mark.parametrize("p", _get_property_grid(), ids=_param_id)
 def test_bsm_intrinsic_floor(p: PricingParams) -> None:
     """BSM price must be >= discounted intrinsic value."""
     price = bsm_price(p.S, p.K, p.T, p.r, p.q, p.sigma, p.option_type)
-    intrinsic = (
-        max(p.S - p.K, 0.0) if p.option_type == OptionType.CALL else max(p.K - p.S, 0.0)
-    )
-    # Price can be slightly below intrinsic due to discounting, use tolerance
-    assert price >= intrinsic - p.K * 0.1, (
-        f"BSM price {price:.6f} far below intrinsic {intrinsic:.6f}"
+    intrinsic = max(p.S - p.K, 0.0) if p.option_type == OptionType.CALL else max(p.K - p.S, 0.0)
+    # European price can be below intrinsic by at most the discount factor
+    discount_gap = p.K * (1.0 - math.exp(-p.r * p.T))
+    assert price >= intrinsic - discount_gap - 1e-8, (
+        f"BSM price {price:.6f} far below intrinsic {intrinsic:.6f} "
+        f"(discount_gap={discount_gap:.6f})"
     )
 
 
-@pytest.mark.parametrize("p", _PROPERTY_GRID, ids=_param_id)
+@pytest.mark.parametrize("p", _get_property_grid(), ids=_param_id)
 def test_american_intrinsic_floor(p: PricingParams) -> None:
     """American price must be >= intrinsic value (early exercise)."""
     price = american_price(p.S, p.K, p.T, p.r, p.q, p.sigma, p.option_type)
-    intrinsic = (
-        max(p.S - p.K, 0.0) if p.option_type == OptionType.CALL else max(p.K - p.S, 0.0)
-    )
+    intrinsic = max(p.S - p.K, 0.0) if p.option_type == OptionType.CALL else max(p.K - p.S, 0.0)
     # American can always be exercised, so price >= intrinsic
-    assert price >= intrinsic - 1e-6, (
-        f"American price {price:.6f} < intrinsic {intrinsic:.6f}"
-    )
+    assert price >= intrinsic - 1e-6, f"American price {price:.6f} < intrinsic {intrinsic:.6f}"
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +138,7 @@ def test_american_intrinsic_floor(p: PricingParams) -> None:
 
 @pytest.mark.parametrize(
     "p",
-    [p for p in _PROPERTY_GRID if p.T >= 0.01 and p.sigma >= 0.05],
+    [p for p in _get_property_grid() if p.T >= 0.01 and p.sigma >= 0.05],
     ids=_param_id,
 )
 def test_bsm_monotonic_in_spot(p: PricingParams) -> None:
@@ -157,7 +159,7 @@ def test_bsm_monotonic_in_spot(p: PricingParams) -> None:
 
 @pytest.mark.parametrize(
     "p",
-    [p for p in _PROPERTY_GRID if p.T >= 0.01 and p.sigma >= 0.05],
+    [p for p in _get_property_grid() if p.T >= 0.01 and p.sigma >= 0.05],
     ids=_param_id,
 )
 def test_bsm_monotonic_in_sigma(p: PricingParams) -> None:
@@ -175,7 +177,7 @@ def test_bsm_monotonic_in_sigma(p: PricingParams) -> None:
 
 @pytest.mark.parametrize(
     "p",
-    [p for p in _PROPERTY_GRID if p.q == 0.0 and p.T >= 0.05 and p.sigma >= 0.05],
+    [p for p in _get_property_grid() if p.q == 0.0 and p.T >= 0.05 and p.sigma >= 0.05],
     ids=_param_id,
 )
 def test_bsm_monotonic_in_time_no_div(p: PricingParams) -> None:
@@ -195,7 +197,7 @@ def test_bsm_monotonic_in_time_no_div(p: PricingParams) -> None:
 
 @pytest.mark.parametrize(
     "p",
-    [p for p in _PROPERTY_GRID if p.T >= 0.01 and p.sigma >= 0.01],
+    [p for p in _get_property_grid() if p.T >= 0.01 and p.sigma >= 0.01],
     ids=_param_id,
 )
 def test_bsm_delta_bounds(p: PricingParams) -> None:
@@ -210,7 +212,7 @@ def test_bsm_delta_bounds(p: PricingParams) -> None:
 
 @pytest.mark.parametrize(
     "p",
-    [p for p in _PROPERTY_GRID if p.T >= 0.01 and p.sigma >= 0.01],
+    [p for p in _get_property_grid() if p.T >= 0.01 and p.sigma >= 0.01],
     ids=_param_id,
 )
 def test_american_delta_bounds(p: PricingParams) -> None:
@@ -226,7 +228,7 @@ def test_american_delta_bounds(p: PricingParams) -> None:
 
 @pytest.mark.parametrize(
     "p",
-    [p for p in _PROPERTY_GRID if p.T >= 0.01 and p.sigma >= 0.05],
+    [p for p in _get_property_grid() if p.T >= 0.01 and p.sigma >= 0.05],
     ids=_param_id,
 )
 def test_bsm_gamma_non_negative(p: PricingParams) -> None:
@@ -237,7 +239,7 @@ def test_bsm_gamma_non_negative(p: PricingParams) -> None:
 
 @pytest.mark.parametrize(
     "p",
-    [p for p in _PROPERTY_GRID if p.T >= 0.01 and p.sigma >= 0.05],
+    [p for p in _get_property_grid() if p.T >= 0.01 and p.sigma >= 0.05],
     ids=_param_id,
 )
 def test_american_gamma_non_negative(p: PricingParams) -> None:
@@ -253,7 +255,7 @@ def test_american_gamma_non_negative(p: PricingParams) -> None:
 
 @pytest.mark.parametrize(
     "p",
-    [p for p in _PROPERTY_GRID if p.T >= 0.01 and p.sigma >= 0.05],
+    [p for p in _get_property_grid() if p.T >= 0.01 and p.sigma >= 0.05],
     ids=_param_id,
 )
 def test_bsm_vega_non_negative(p: PricingParams) -> None:
@@ -264,7 +266,7 @@ def test_bsm_vega_non_negative(p: PricingParams) -> None:
 
 @pytest.mark.parametrize(
     "p",
-    [p for p in _PROPERTY_GRID if p.T >= 0.01 and p.sigma >= 0.05],
+    [p for p in _get_property_grid() if p.T >= 0.01 and p.sigma >= 0.05],
     ids=_param_id,
 )
 def test_american_vega_non_negative(p: PricingParams) -> None:
@@ -279,7 +281,7 @@ def test_american_vega_non_negative(p: PricingParams) -> None:
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("p", _STRESS_GRID, ids=_param_id)
+@pytest.mark.parametrize("p", _get_stress_grid(), ids=_param_id)
 def test_bsm_stress_grid(p: PricingParams) -> None:
     """BSM must produce finite, non-negative prices for all stress inputs."""
     price = bsm_price(p.S, p.K, p.T, p.r, p.q, p.sigma, p.option_type)
@@ -288,7 +290,7 @@ def test_bsm_stress_grid(p: PricingParams) -> None:
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("p", _STRESS_GRID, ids=_param_id)
+@pytest.mark.parametrize("p", _get_stress_grid(), ids=_param_id)
 def test_american_stress_grid(p: PricingParams) -> None:
     """American must produce finite, non-negative prices for all stress inputs."""
     price = american_price(p.S, p.K, p.T, p.r, p.q, p.sigma, p.option_type)
@@ -299,7 +301,7 @@ def test_american_stress_grid(p: PricingParams) -> None:
 @pytest.mark.slow
 @pytest.mark.parametrize(
     "p",
-    [p for p in _STRESS_GRID if p.T >= 0.003 and p.sigma >= 0.01],
+    [p for p in _get_stress_grid() if p.T >= 0.003 and p.sigma >= 0.01],
     ids=_param_id,
 )
 def test_bsm_greeks_stress_grid(p: PricingParams) -> None:
@@ -316,7 +318,7 @@ def test_bsm_greeks_stress_grid(p: PricingParams) -> None:
 @pytest.mark.slow
 @pytest.mark.parametrize(
     "p",
-    [p for p in _STRESS_GRID if p.T >= 0.003 and p.sigma >= 0.01],
+    [p for p in _get_stress_grid() if p.T >= 0.003 and p.sigma >= 0.01],
     ids=_param_id,
 )
 def test_american_greeks_stress_grid(p: PricingParams) -> None:

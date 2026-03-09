@@ -319,7 +319,8 @@ def _compute_liquidity_score(
         spread_component = 0.0
     elif mid > 0:
         spread_pct = float(contract.spread) / mid
-        spread_component = max(min(1.0 - spread_pct / max_spread_pct, 1.0), 0.0)
+        # Stale quote (bid > ask) → penalize; normal → linear decay
+        spread_component = 0.0 if spread_pct < 0.0 else max(1.0 - spread_pct / max_spread_pct, 0.0)
     else:
         spread_component = 0.0
 

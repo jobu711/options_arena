@@ -95,18 +95,17 @@ class TestStaleBidGtAsk:
                 f"Liquidity score {score} out of [0,1] for bid={contract.bid}, ask={contract.ask}"
             )
 
-    def test_stale_quote_score_still_bounded(self) -> None:
-        """A stale-quote contract gets spread_component clamped to 1.0
-        (negative spread reads as zero), but the total score stays in [0,1].
-        Without the clamp fix, spread_component would exceed 1.0."""
+    def test_stale_quote_penalized(self) -> None:
+        """A stale-quote contract (bid > ask) gets spread_component = 0.0,
+        penalizing stale data. Score comes only from the OI component."""
         spec_stale = ChainSpec(num_strikes=1, stale_bid_gt_ask_indices=[0])
         stale = build_chain(spec_stale)[0]
         cfg = _default_config()
         score = _compute_liquidity_score(stale, cfg.max_spread_pct)
         assert 0.0 <= score <= 1.0, f"Score {score} out of [0,1] for stale quote"
-        # The spread_component is clamped to 1.0 max (the bug fix)
-        # so total score = 1.0 * 0.7 + oi_component * 0.3
-        assert score <= 1.0, "Score must not exceed 1.0 after clamp fix"
+        # spread_component is 0.0 (penalized), so total = 0.0 * 0.7 + oi * 0.3
+        # Score should be small — only the OI component contributes
+        assert score <= 0.3, f"Stale quote score {score} too high — spread_component should be 0.0"
 
 
 # ---------------------------------------------------------------------------
