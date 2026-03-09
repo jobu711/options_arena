@@ -1,5 +1,7 @@
 """Prompt template for the Bear Agent.
 
+# VERSION: v2.0
+
 The Bear Agent makes the strongest possible case AGAINST entering a long options
 position on the given ticker. It receives the bull agent's argument via
 ``DebateDeps.opponent_argument`` and counters its specific claims. Output is a

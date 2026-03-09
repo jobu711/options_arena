@@ -8,7 +8,7 @@ Tests cover:
   - Each prompt is str type
   - No raw f-string placeholders in static prompts
   - Risk-specific content appears only in the risk prompt
-  - VERSION header presence in source files (currently none exist)
+  - VERSION header presence in prompt source files
 """
 
 from __future__ import annotations
@@ -134,22 +134,23 @@ def test_no_raw_fstring_placeholders(prompt_name: str, prompt: str) -> None:
 class TestVersionHeaders:
     """Verify VERSION headers in prompt source files.
 
-    Currently no agent prompt source files contain VERSION headers.
-    These tests document that expectation so that when version headers
-    are added, they can be validated structurally.
+    Prompt template files in ``agents/prompts/`` must contain a
+    ``# VERSION: vX.Y`` header in their module docstring.
     """
 
-    # Source modules containing prompt constants
+    # Source modules containing prompt constants — point at prompts/ submodules
     _PROMPT_SOURCES = [
-        ("bull", "options_arena.agents.bull"),
-        ("bear", "options_arena.agents.bear"),
-        ("volatility", "options_arena.agents.volatility"),
-        ("flow", "options_arena.agents.flow_agent"),
-        ("fundamental", "options_arena.agents.fundamental_agent"),
-        ("risk", "options_arena.agents.risk"),
+        ("bull", "options_arena.agents.prompts.bull"),
+        ("bear", "options_arena.agents.prompts.bear"),
+        ("volatility", "options_arena.agents.prompts.volatility"),
+        ("flow", "options_arena.agents.prompts.flow_agent"),
+        ("fundamental", "options_arena.agents.prompts.fundamental_agent"),
+        ("risk", "options_arena.agents.prompts.risk"),
         ("trend", "options_arena.agents.prompts.trend_agent"),
         ("contrarian", "options_arena.agents.prompts.contrarian_agent"),
     ]
+
+    _VERSION_RE = re.compile(r"^# VERSION: v\d+\.\d+", re.MULTILINE)
 
     @pytest.mark.parametrize(
         ("agent_name", "module_path"),
@@ -157,12 +158,7 @@ class TestVersionHeaders:
         ids=[name for name, _ in _PROMPT_SOURCES],
     )
     def test_version_header_presence_documented(self, agent_name: str, module_path: str) -> None:
-        """Document which source files have VERSION headers.
-
-        Reads the source file via inspect and checks for ``# VERSION:``
-        comment. Currently none exist -- this test passes regardless but
-        logs which files have/lack headers for tracking.
-        """
+        """Each prompt source file contains a ``# VERSION: vX.Y`` header."""
         import importlib
         import inspect
 
@@ -171,12 +167,9 @@ class TestVersionHeaders:
         with open(source_file, encoding="utf-8") as f:
             source = f.read()
 
-        # This test documents the current state: no version headers exist.
-        # When they are added, this test verifies they are present.
-        has_version = "# VERSION:" in source
-        # We do NOT fail if absent -- version headers are not yet required.
-        # This is a documentation/tracking test.
-        assert isinstance(has_version, bool)  # always passes, records state
+        assert self._VERSION_RE.search(source), (
+            f"{agent_name} prompt source ({module_path}) is missing '# VERSION: vX.Y' header"
+        )
 
 
 class TestRiskSpecific:
@@ -209,12 +202,7 @@ class TestRiskSpecific:
 
     def test_risk_level_not_in_non_risk_prompts(self) -> None:
         """The risk_level schema field does not appear in non-risk prompts."""
-        non_risk_prompts = [
-            ("bull", BULL_SYSTEM_PROMPT),
-            ("bear", BEAR_SYSTEM_PROMPT),
-            ("trend", TREND_SYSTEM_PROMPT),
-            ("flow", FLOW_SYSTEM_PROMPT),
-        ]
+        non_risk_prompts = [(name, prompt) for name, prompt in ALL_PROMPTS if name != "risk"]
         for name, prompt in non_risk_prompts:
             # "risk_level" as a JSON key is risk-specific
             assert '"risk_level"' not in prompt, (

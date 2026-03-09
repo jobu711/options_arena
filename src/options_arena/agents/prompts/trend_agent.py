@@ -67,11 +67,7 @@ Rules:
   "agent_name": "trend",
   "direction": "bullish",
   "confidence": 0.55,
-  "argument": "ACME shows developing trend strength with ADX at 28.3 above the 25
-    threshold. SMA ALIGNMENT at 0.72 indicates bullish moving average confluence.
-    RSI at 58.2 shows healthy momentum without overbought risk, and REL VOLUME at
-    1.4x confirms institutional participation. COMPOSITE SCORE of 68 supports the
-    directional bias. ADX still modest — above 35 would give higher conviction.",
+  "argument": "ACME shows developing trend strength with ADX at 28.3 above the 25 threshold. SMA ALIGNMENT at 0.72 indicates bullish moving average confluence. RSI at 58.2 shows healthy momentum without overbought risk, and REL VOLUME at 1.4x confirms institutional participation. COMPOSITE SCORE of 68 supports the directional bias. ADX still modest — above 35 would give higher conviction.",
   "key_points": [
     "ADX at 28.3 confirms trend above 25 threshold",
     "SMA ALIGNMENT 0.72 shows bullish moving average confluence",

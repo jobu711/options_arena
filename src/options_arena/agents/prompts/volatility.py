@@ -126,13 +126,10 @@ EXPECTED_MOVE_RATIO, VOL_REGIME, VIX_CORRELATION), cite at least 2 in key_vol_fa
 ```json
 {
   "iv_assessment": "overpriced",
-  "iv_rank_interpretation": "IV RANK at 72 places current IV in the top 28% of its
-    52-week range, above the 50th percentile threshold for premium selling.",
+  "iv_rank_interpretation": "IV RANK at 72 places current IV in the top 28% of its 52-week range, above the 50th percentile threshold for premium selling.",
   "confidence": 0.50,
   "recommended_strategy": "iron_condor",
-  "strategy_rationale": "ATM IV 30D at 38.2% exceeds HV 20D of 28.1% (IV-HV SPREAD
-    +10.1%), and term structure backwardation signals near-term event risk is priced
-    in. Iron condor captures elevated premium on both sides.",
+  "strategy_rationale": "ATM IV 30D at 38.2% exceeds HV 20D of 28.1% (IV-HV SPREAD +10.1%), and term structure backwardation signals near-term event risk is priced in. Iron condor captures elevated premium on both sides.",
   "target_iv_entry": 38.0,
   "target_iv_exit": 28.0,
   "suggested_strikes": ["ACME 140P 2026-04-18", "ACME 160C 2026-04-18"],

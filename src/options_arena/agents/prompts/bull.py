@@ -1,5 +1,7 @@
 """Prompt template for the Bull Agent.
 
+# VERSION: v2.0
+
 The Bull Agent makes the strongest possible case FOR entering a long options
 position on the given ticker. It cites specific indicator values, strikes,
 expirations, and Greeks from the context block. Output is a structured
