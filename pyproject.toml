@@ -66,6 +66,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "ANN"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/options_arena/api/routes/*.py" = ["B008"]
+"src/options_arena/agents/prompts/*.py" = ["E501"]  # LLM prompt strings contain long prose lines
 
 [tool.mypy]
 strict = true

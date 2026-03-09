@@ -1,5 +1,7 @@
 """Prompt template for the Contrarian Agent.
 
+# VERSION: v2.0
+
 The Contrarian Agent is the adversarial stress-tester. It sees ALL prior agent
 outputs (trend, volatility, flow, fundamental, risk) and challenges the
 emerging consensus. Its job is to:
@@ -51,6 +53,22 @@ weaker support
 - "overlooked_risks" MUST have at least 1 item
 - Be specific. Cite numbers from the context. Do not hallucinate data.
 - Do NOT include <think> tags or reasoning traces in any field.
+
+## Example Output
+```json
+{
+  "dissent_direction": "bearish",
+  "dissent_confidence": 0.45,
+  "primary_challenge": "The bullish consensus overlooks that ADX at 28.3 is barely above the trend threshold and RSI at 58.2 is approaching the zone where rallies stall. The 0.72 SMA ALIGNMENT has been declining from 0.85 three weeks ago — momentum is fading, not building.",
+  "overlooked_risks": [
+    "IV RANK at 72nd percentile — options expensive, volatility crush could erode call premiums even if direction is correct",
+    "Earnings in 12 days creates binary event risk not captured by trend indicators"
+  ],
+  "consensus_weakness": "Trend agents relied on ADX crossing 25, but this threshold generates frequent false signals. COMPOSITE SCORE of 68 is moderate — does not justify the 0.55+ confidence levels seen in Phase 1 outputs.",
+  "alternative_scenario": "ACME could be in a bear flag. The recent bounce that triggered bullish ADX may be a counter-trend rally exhausting near 150 resistance, leading to a reversal that traps late bulls.",
+  "model_used": "llama-3.3-70b-versatile"
+}
+```
 
 """
     + PROMPT_RULES_APPENDIX
