@@ -1,0 +1,12 @@
+{
+  "epic": "agent-calibration",
+  "phase": "verified",
+  "last_command": "/pm:verify-loop agent-calibration",
+  "last_updated": "2026-03-09T20:30:00Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced", "verified"],
+  "current_task": null,
+  "tasks_completed": ["411", "413", "415", "410", "412", "414"],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "All 6 tasks complete. 84 tests passing. 25/25 requirements verified."
+}

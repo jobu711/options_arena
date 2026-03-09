@@ -1,0 +1,12 @@
+{
+  "epic": "repository-decomposition",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync repository-decomposition",
+  "last_updated": "2026-03-09T19:12:47Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}
