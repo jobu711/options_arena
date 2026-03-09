@@ -319,7 +319,7 @@ def _compute_liquidity_score(
         spread_component = 0.0
     elif mid > 0:
         spread_pct = float(contract.spread) / mid
-        spread_component = max(1.0 - spread_pct / max_spread_pct, 0.0)
+        spread_component = max(min(1.0 - spread_pct / max_spread_pct, 1.0), 0.0)
     else:
         spread_component = 0.0
 
@@ -360,6 +360,8 @@ def select_by_delta(
             continue
 
         abs_delta = abs(contract.greeks.delta)
+        if not math.isfinite(abs_delta):
+            continue
         distance = abs(abs_delta - cfg.delta_target)
 
         if cfg.delta_primary_min <= abs_delta <= cfg.delta_primary_max:
