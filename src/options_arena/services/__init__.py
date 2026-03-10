@@ -4,6 +4,7 @@ The services package is the sole layer that touches external APIs.
 All public functions return typed Pydantic models.
 """
 
+from options_arena.services.base import ServiceBase
 from options_arena.services.cache import ServiceCache
 from options_arena.services.cboe_provider import CBOEChainProvider
 from options_arena.services.financial_datasets import FinancialDatasetsService
@@ -52,6 +53,7 @@ __all__ = [
     "OutcomeCollector",
     "RateLimiter",
     "SP500Constituent",
+    "ServiceBase",
     "ServiceCache",
     "TickerOHLCVResult",
     "UniverseService",
