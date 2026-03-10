@@ -3,6 +3,9 @@
 Fetches analyst targets, recommendations, upgrades/downgrades, insider transactions,
 institutional holders, and news headlines from yfinance. Mirrors the OpenBB service
 pattern: class-based DI, never-raises contract, cache-first, rate-limited.
+
+Inherits from :class:`ServiceBase[IntelligenceConfig]` for standardised
+cache, limiter, and logging infrastructure.
 """
 
 from __future__ import annotations
@@ -10,7 +13,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
-import logging
 from datetime import UTC, date, datetime, timedelta
 
 import yfinance as yf
@@ -26,18 +28,20 @@ from options_arena.models.intelligence import (
     UpgradeDowngrade,
     parse_transaction_type,
 )
+from options_arena.services.base import ServiceBase
 from options_arena.services.cache import ServiceCache
 from options_arena.services.helpers import safe_float, safe_int
 from options_arena.services.rate_limiter import RateLimiter
 
-logger = logging.getLogger(__name__)
 
-
-class IntelligenceService:
+class IntelligenceService(ServiceBase[IntelligenceConfig]):
     """Fetches intelligence data from yfinance with caching and rate limiting.
 
     Never raises -- every method returns typed data or ``None`` on any error.
     Follows the same DI pattern as ``OpenBBService`` and ``MarketDataService``.
+
+    Inherits from :class:`ServiceBase[IntelligenceConfig]` for standardised
+    ``_config``, ``_cache``, ``_limiter``, ``_log``, and ``close()``.
 
     Args:
         config: Intelligence configuration (timeouts, TTLs, feature toggles).
@@ -51,12 +55,9 @@ class IntelligenceService:
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
-        self._config = config
-        self._cache = cache
-        self._limiter = limiter
-
-    async def close(self) -> None:
-        """Explicit cleanup -- no resources to release currently."""
+        super().__init__(config, cache, limiter)
+        # Narrow type: this service always requires a limiter (never None).
+        self._limiter: RateLimiter = limiter
 
     # ------------------------------------------------------------------
     # 1. Analyst Targets
@@ -80,7 +81,7 @@ class IntelligenceService:
             cache_key = f"intel:analyst:{ticker}"
             cached = await self._cache.get(cache_key)
             if cached is not None:
-                logger.debug("Intel analyst cache hit for %s", ticker)
+                self._log.debug("Intel analyst cache hit for %s", ticker)
                 return AnalystSnapshot.model_validate_json(cached)
 
             # Rate-limited yfinance calls
@@ -153,11 +154,11 @@ class IntelligenceService:
                 snapshot.model_dump_json().encode(),
                 ttl=self._config.analyst_cache_ttl,
             )
-            logger.debug("Fetched and cached intel analyst for %s", ticker)
+            self._log.debug("Fetched and cached intel analyst for %s", ticker)
             return snapshot
 
         except Exception:
-            logger.warning("Intel analyst fetch failed for %s", ticker, exc_info=True)
+            self._log.warning("Intel analyst fetch failed for %s", ticker, exc_info=True)
             return None
 
     # ------------------------------------------------------------------
@@ -181,7 +182,7 @@ class IntelligenceService:
             cache_key = f"intel:activity:{ticker}"
             cached = await self._cache.get(cache_key)
             if cached is not None:
-                logger.debug("Intel activity cache hit for %s", ticker)
+                self._log.debug("Intel activity cache hit for %s", ticker)
                 return AnalystActivitySnapshot.model_validate_json(cached)
 
             # Rate-limited yfinance call
@@ -248,11 +249,11 @@ class IntelligenceService:
                 snapshot.model_dump_json().encode(),
                 ttl=self._config.analyst_cache_ttl,
             )
-            logger.debug("Fetched and cached intel activity for %s", ticker)
+            self._log.debug("Fetched and cached intel activity for %s", ticker)
             return snapshot
 
         except Exception:
-            logger.warning("Intel activity fetch failed for %s", ticker, exc_info=True)
+            self._log.warning("Intel activity fetch failed for %s", ticker, exc_info=True)
             return None
 
     # ------------------------------------------------------------------
@@ -276,7 +277,7 @@ class IntelligenceService:
             cache_key = f"intel:insider:{ticker}"
             cached = await self._cache.get(cache_key)
             if cached is not None:
-                logger.debug("Intel insider cache hit for %s", ticker)
+                self._log.debug("Intel insider cache hit for %s", ticker)
                 return InsiderSnapshot.model_validate_json(cached)
 
             # Rate-limited yfinance call
@@ -358,11 +359,11 @@ class IntelligenceService:
                 snapshot.model_dump_json().encode(),
                 ttl=self._config.insider_cache_ttl,
             )
-            logger.debug("Fetched and cached intel insider for %s", ticker)
+            self._log.debug("Fetched and cached intel insider for %s", ticker)
             return snapshot
 
         except Exception:
-            logger.warning("Intel insider fetch failed for %s", ticker, exc_info=True)
+            self._log.warning("Intel insider fetch failed for %s", ticker, exc_info=True)
             return None
 
     # ------------------------------------------------------------------
@@ -386,7 +387,7 @@ class IntelligenceService:
             cache_key = f"intel:institutional:{ticker}"
             cached = await self._cache.get(cache_key)
             if cached is not None:
-                logger.debug("Intel institutional cache hit for %s", ticker)
+                self._log.debug("Intel institutional cache hit for %s", ticker)
                 return InstitutionalSnapshot.model_validate_json(cached)
 
             # Rate-limited yfinance calls
@@ -455,11 +456,11 @@ class IntelligenceService:
                 snapshot.model_dump_json().encode(),
                 ttl=self._config.institutional_cache_ttl,
             )
-            logger.debug("Fetched and cached intel institutional for %s", ticker)
+            self._log.debug("Fetched and cached intel institutional for %s", ticker)
             return snapshot
 
         except Exception:
-            logger.warning("Intel institutional fetch failed for %s", ticker, exc_info=True)
+            self._log.warning("Intel institutional fetch failed for %s", ticker, exc_info=True)
             return None
 
     # ------------------------------------------------------------------
@@ -483,7 +484,7 @@ class IntelligenceService:
             cache_key = f"intel:news:{ticker}"
             cached = await self._cache.get(cache_key)
             if cached is not None:
-                logger.debug("Intel news cache hit for %s", ticker)
+                self._log.debug("Intel news cache hit for %s", ticker)
                 data = json.loads(cached.decode())
                 return data if isinstance(data, list) else None
 
@@ -521,11 +522,11 @@ class IntelligenceService:
                 json.dumps(headlines).encode(),
                 ttl=self._config.news_cache_ttl,
             )
-            logger.debug("Fetched and cached intel news for %s", ticker)
+            self._log.debug("Fetched and cached intel news for %s", ticker)
             return headlines
 
         except Exception:
-            logger.warning("Intel news fetch failed for %s", ticker, exc_info=True)
+            self._log.warning("Intel news fetch failed for %s", ticker, exc_info=True)
             return None
 
     # ------------------------------------------------------------------
@@ -578,5 +579,5 @@ class IntelligenceService:
             )
 
         except Exception:
-            logger.exception("fetch_intelligence failed for %s", ticker)
+            self._log.exception("fetch_intelligence failed for %s", ticker)
             return None

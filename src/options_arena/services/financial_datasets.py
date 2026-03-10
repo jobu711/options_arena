@@ -5,14 +5,13 @@ financialdatasets.ai REST API. All methods follow the never-raises contract --
 errors are logged and ``None`` is returned. Uses cache-first strategy with
 configurable TTL and token-bucket rate limiting.
 
-Class-based DI with ``config``, ``cache``, ``limiter`` -- same pattern as
-``OpenBBService``, ``FredService``, etc.
+Inherits from :class:`ServiceBase[FinancialDatasetsConfig]` for standardised
+cache, limiter, and logging infrastructure.
 """
 
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -25,11 +24,10 @@ from options_arena.models.financial_datasets import (
     FinancialMetricsData,
     IncomeStatementData,
 )
+from options_arena.services.base import ServiceBase
 from options_arena.services.cache import ServiceCache
 from options_arena.services.helpers import safe_float, safe_int
 from options_arena.services.rate_limiter import RateLimiter
-
-logger = logging.getLogger(__name__)
 
 # Cache key prefixes
 _CACHE_PREFIX_METRICS: str = "fd:metrics"
@@ -37,11 +35,15 @@ _CACHE_PREFIX_INCOME: str = "fd:income"
 _CACHE_PREFIX_BALANCE: str = "fd:balance"
 
 
-class FinancialDatasetsService:
+class FinancialDatasetsService(ServiceBase[FinancialDatasetsConfig]):
     """Enrichment service fetching fundamental data from financialdatasets.ai.
 
     All public methods follow the never-raises contract: exceptions are
     caught, logged at WARNING, and ``None`` is returned.
+
+    Inherits from :class:`ServiceBase[FinancialDatasetsConfig]` for
+    standardised ``_config``, ``_cache``, ``_limiter``, ``_log``, and
+    ``close()``.
 
     Args:
         config: Financial Datasets configuration (timeouts, TTLs, API key).
@@ -55,9 +57,9 @@ class FinancialDatasetsService:
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
-        self._config = config
-        self._cache = cache
-        self._limiter = limiter
+        super().__init__(config, cache, limiter)
+        # Narrow type: this service always requires a limiter (never None).
+        self._limiter: RateLimiter = limiter
         self._client = httpx.AsyncClient(
             base_url=config.base_url,
             headers={
@@ -79,7 +81,7 @@ class FinancialDatasetsService:
             cache_key = f"{_CACHE_PREFIX_METRICS}:{ticker}:ttm"
             cached = await self._cache.get(cache_key)
             if cached is not None:
-                logger.debug("Financial Datasets metrics cache hit for %s", ticker)
+                self._log.debug("Financial Datasets metrics cache hit for %s", ticker)
                 return FinancialMetricsData.model_validate_json(cached)
 
             raw = await self._api_get(
@@ -91,7 +93,7 @@ class FinancialDatasetsService:
 
             items: list[dict[str, Any]] = raw.get("financial_metrics", [])
             if not items:
-                logger.warning("Financial Datasets returned empty metrics for %s", ticker)
+                self._log.warning("Financial Datasets returned empty metrics for %s", ticker)
                 return None
 
             data = items[0]
@@ -124,11 +126,11 @@ class FinancialDatasetsService:
                 result.model_dump_json().encode(),
                 ttl=self._config.cache_ttl,
             )
-            logger.debug("Fetched and cached Financial Datasets metrics for %s", ticker)
+            self._log.debug("Fetched and cached Financial Datasets metrics for %s", ticker)
             return result
 
         except Exception:
-            logger.warning(
+            self._log.warning(
                 "Financial Datasets metrics fetch failed for %s",
                 ticker,
                 exc_info=True,
@@ -148,7 +150,7 @@ class FinancialDatasetsService:
             cache_key = f"{_CACHE_PREFIX_INCOME}:{ticker}:ttm"
             cached = await self._cache.get(cache_key)
             if cached is not None:
-                logger.debug("Financial Datasets income cache hit for %s", ticker)
+                self._log.debug("Financial Datasets income cache hit for %s", ticker)
                 return IncomeStatementData.model_validate_json(cached)
 
             raw = await self._api_get(
@@ -160,7 +162,9 @@ class FinancialDatasetsService:
 
             items: list[dict[str, Any]] = raw.get("income_statements", [])
             if not items:
-                logger.warning("Financial Datasets returned empty income statement for %s", ticker)
+                self._log.warning(
+                    "Financial Datasets returned empty income statement for %s", ticker
+                )
                 return None
 
             data = items[0]
@@ -180,11 +184,13 @@ class FinancialDatasetsService:
                 result.model_dump_json().encode(),
                 ttl=self._config.cache_ttl,
             )
-            logger.debug("Fetched and cached Financial Datasets income statement for %s", ticker)
+            self._log.debug(
+                "Fetched and cached Financial Datasets income statement for %s", ticker
+            )
             return result
 
         except Exception:
-            logger.warning(
+            self._log.warning(
                 "Financial Datasets income statement fetch failed for %s",
                 ticker,
                 exc_info=True,
@@ -204,7 +210,7 @@ class FinancialDatasetsService:
             cache_key = f"{_CACHE_PREFIX_BALANCE}:{ticker}:ttm"
             cached = await self._cache.get(cache_key)
             if cached is not None:
-                logger.debug("Financial Datasets balance sheet cache hit for %s", ticker)
+                self._log.debug("Financial Datasets balance sheet cache hit for %s", ticker)
                 return BalanceSheetData.model_validate_json(cached)
 
             raw = await self._api_get(
@@ -216,7 +222,7 @@ class FinancialDatasetsService:
 
             items: list[dict[str, Any]] = raw.get("balance_sheets", [])
             if not items:
-                logger.warning("Financial Datasets returned empty balance sheet for %s", ticker)
+                self._log.warning("Financial Datasets returned empty balance sheet for %s", ticker)
                 return None
 
             data = items[0]
@@ -236,11 +242,11 @@ class FinancialDatasetsService:
                 result.model_dump_json().encode(),
                 ttl=self._config.cache_ttl,
             )
-            logger.debug("Fetched and cached Financial Datasets balance sheet for %s", ticker)
+            self._log.debug("Fetched and cached Financial Datasets balance sheet for %s", ticker)
             return result
 
         except Exception:
-            logger.warning(
+            self._log.warning(
                 "Financial Datasets balance sheet fetch failed for %s",
                 ticker,
                 exc_info=True,
@@ -278,7 +284,7 @@ class FinancialDatasetsService:
                 balance = results[2]
 
             if metrics is None and income is None and balance is None:
-                logger.warning("All Financial Datasets endpoints failed for %s", ticker)
+                self._log.warning("All Financial Datasets endpoints failed for %s", ticker)
                 return None
 
             return FinancialDatasetsPackage(
@@ -290,7 +296,7 @@ class FinancialDatasetsService:
             )
 
         except Exception:
-            logger.warning(
+            self._log.warning(
                 "Financial Datasets package fetch failed for %s",
                 ticker,
                 exc_info=True,
@@ -324,15 +330,15 @@ class FinancialDatasetsService:
             result: dict[str, Any] = response.json()
             return result
         except TimeoutError:
-            logger.warning("Financial Datasets API timeout for %s", path)
+            self._log.warning("Financial Datasets API timeout for %s", path)
             return None
         except httpx.HTTPStatusError as exc:
-            logger.warning(
+            self._log.warning(
                 "Financial Datasets API HTTP %d for %s",
                 exc.response.status_code,
                 path,
             )
             return None
         except Exception:
-            logger.warning("Financial Datasets API request failed for %s", path, exc_info=True)
+            self._log.warning("Financial Datasets API request failed for %s", path, exc_info=True)
             return None
