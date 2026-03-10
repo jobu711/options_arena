@@ -188,6 +188,7 @@ async def get_agent_weights(
 async def trigger_auto_tune(
     request: Request,
     repo: Repository = Depends(get_repo),
+    lock: asyncio.Lock = Depends(get_operation_lock),
     window: int = Query(90, ge=1, le=365),
     dry_run: bool = Query(False),
 ) -> list[AgentWeightsComparison]:
@@ -196,7 +197,10 @@ async def trigger_auto_tune(
     Computes optimal agent weights from historical accuracy data.
     When ``dry_run`` is ``True``, weights are computed but not persisted.
     """
-    return await auto_tune_weights(repo, window_days=window, dry_run=dry_run)
+    if lock.locked():
+        raise HTTPException(409, "Another operation is in progress")
+    async with lock:
+        return await auto_tune_weights(repo, window_days=window, dry_run=dry_run)
 
 
 @router.get("/weights/history")

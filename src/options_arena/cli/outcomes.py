@@ -492,7 +492,10 @@ async def _auto_tune_async(dry_run: bool, window: int) -> None:
         if dry_run:
             console.print("\n[yellow][DRY RUN] Weights not saved.[/yellow]")
         else:
-            console.print("\n[green]Weights saved. Next debate will use tuned weights.[/green]")
+            console.print(
+                "\n[green]Weights saved.[/green] "
+                "Set [bold]ARENA_DEBATE__AUTO_TUNE_WEIGHTS=true[/bold] to use in debates."
+            )
 
     except Exception as exc:
         logger.exception("Auto-tune failed")
