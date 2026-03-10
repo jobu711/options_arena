@@ -1,12 +1,12 @@
 {
   "epic": "backtesting-engine",
-  "phase": "planning",
-  "last_command": "/pm:prd-parse backtesting-engine",
-  "last_updated": "2026-03-08T23:37:36Z",
-  "completed_phases": ["prd-created", "research", "planning"],
+  "phase": "synced",
+  "last_command": "/pm:epic-sync backtesting-engine",
+  "last_updated": "2026-03-10T00:25:28Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
   "current_task": null,
   "tasks_completed": [],
   "tasks_in_progress": [],
   "blockers": [],
-  "notes": ""
+  "notes": "7 sub-issues created under epic #429. Issues #430-#436."
 }

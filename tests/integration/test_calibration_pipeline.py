@@ -100,9 +100,23 @@ async def _seed_scan_and_contract(repo: Repository) -> int:
         "risk_free_rate, created_at) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
-            scan_id, "AAPL", "call", "185.50", "2026-04-15",
-            "5.20", "5.60", 1200, 5000, 0.32, "american",
-            "182.30", "5.40", "bullish", 78.5, 0.045, NOW.isoformat(),
+            scan_id,
+            "AAPL",
+            "call",
+            "185.50",
+            "2026-04-15",
+            "5.20",
+            "5.60",
+            1200,
+            5000,
+            0.32,
+            "american",
+            "182.30",
+            "5.40",
+            "bullish",
+            78.5,
+            0.045,
+            NOW.isoformat(),
         ),
     )
     await conn.commit()
@@ -159,20 +173,40 @@ class TestCalibrationPipeline:
         # Seed 6 agents with varying accuracy
         # Good agents (high accuracy, low Brier)
         await _seed_agent_data(
-            repo, contract_id, "trend", 15,
-            direction="bullish", confidence=0.8, stock_return_pct=5.0,
+            repo,
+            contract_id,
+            "trend",
+            15,
+            direction="bullish",
+            confidence=0.8,
+            stock_return_pct=5.0,
         )
         await _seed_agent_data(
-            repo, contract_id, "volatility", 15,
-            direction="bullish", confidence=0.7, stock_return_pct=3.0,
+            repo,
+            contract_id,
+            "volatility",
+            15,
+            direction="bullish",
+            confidence=0.7,
+            stock_return_pct=3.0,
         )
         await _seed_agent_data(
-            repo, contract_id, "flow", 12,
-            direction="bullish", confidence=0.6, stock_return_pct=2.0,
+            repo,
+            contract_id,
+            "flow",
+            12,
+            direction="bullish",
+            confidence=0.6,
+            stock_return_pct=2.0,
         )
         await _seed_agent_data(
-            repo, contract_id, "fundamental", 15,
-            direction="bearish", confidence=0.9, stock_return_pct=5.0,
+            repo,
+            contract_id,
+            "fundamental",
+            15,
+            direction="bearish",
+            confidence=0.9,
+            stock_return_pct=5.0,
         )
 
         # Pipeline: accuracy → weights
@@ -246,13 +280,23 @@ class TestCalibrationPipeline:
 
         # Seed trend with 15 outcomes (above threshold)
         await _seed_agent_data(
-            repo, contract_id, "trend", 15,
-            direction="bullish", confidence=0.8, stock_return_pct=5.0,
+            repo,
+            contract_id,
+            "trend",
+            15,
+            direction="bullish",
+            confidence=0.8,
+            stock_return_pct=5.0,
         )
         # Seed contrarian with only 5 outcomes (below threshold)
         await _seed_agent_data(
-            repo, contract_id, "contrarian", 5,
-            direction="bearish", confidence=0.6, stock_return_pct=-2.0,
+            repo,
+            contract_id,
+            "contrarian",
+            5,
+            direction="bearish",
+            confidence=0.6,
+            stock_return_pct=-2.0,
         )
 
         accuracy = await repo.get_agent_accuracy()
@@ -262,16 +306,19 @@ class TestCalibrationPipeline:
 
         weights = compute_auto_tune_weights(accuracy)
         # contrarian keeps manual weight since no accuracy data
-        assert weights["contrarian"] == pytest.approx(
-            AGENT_VOTE_WEIGHTS["contrarian"], abs=0.01
-        )
+        assert weights["contrarian"] == pytest.approx(AGENT_VOTE_WEIGHTS["contrarian"], abs=0.01)
 
     async def test_accuracy_and_calibration_consistent(self, repo: Repository) -> None:
         """Accuracy and calibration queries agree on same seeded data."""
         contract_id = await _seed_scan_and_contract(repo)
         await _seed_agent_data(
-            repo, contract_id, "trend", 15,
-            direction="bullish", confidence=0.7, stock_return_pct=5.0,
+            repo,
+            contract_id,
+            "trend",
+            15,
+            direction="bullish",
+            confidence=0.7,
+            stock_return_pct=5.0,
         )
 
         accuracy = await repo.get_agent_accuracy()

@@ -1,157 +1,265 @@
 ---
 name: backtesting-engine
-status: backlog
+status: planned
 created: 2026-03-08T23:37:36Z
+updated: 2026-03-10T00:25:28Z
 progress: 0%
 prd: .claude/prds/backtesting-engine.md
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/429
 ---
 
 # Epic: backtesting-engine
 
 ## Overview
 
-Extend the existing analytics infrastructure (6 queries, OutcomeCollector, AgentPrediction
-persistence) into a complete performance measurement platform. Adds 9 new repository
-queries, auto-scheduled outcome collection, ~10 REST endpoints, 3 CLI subcommands, and a
-Vue dashboard with 5 tabs. All changes are additive — no breaking changes, no new tables,
-only a migration for performance indexes.
+Extend the existing analytics infrastructure into a complete performance measurement
+platform. Adds 7 new AnalyticsMixin queries (equity curves, drawdowns, sector/DTE/IV
+segmentation, Greeks decomposition, holding period comparison), auto-scheduled outcome
+collection, 7 REST endpoints under `/api/analytics/backtest/`, 2 CLI subcommands, and
+a Vue dashboard with 5 tabs.
 
-The existing infrastructure does ~60% of the work. This epic fills the remaining 40%:
-equity curves, drawdowns, agent accuracy, segment analysis, Greeks decomposition, and a
-visual dashboard.
+All changes are additive — no breaking changes, no new tables, only a migration (029)
+for performance indexes. Agent accuracy and calibration queries already exist in
+`_debate.py` (DebateMixin) and are reused, not duplicated.
+
+### What Already Exists (Not Duplicated)
+
+- `get_agent_accuracy()` in `_debate.py` (DebateMixin)
+- `get_agent_confidence_calibration()` in `_debate.py` (DebateMixin)
+- `/api/analytics/agent-accuracy` endpoint
+- `/api/analytics/agent-calibration` endpoint
+- `/api/analytics/agent-weights` endpoint
+- `outcomes agent-accuracy`, `outcomes calibration`, `outcomes agent-weights` CLI commands
+- `auto_tune_weights` migration (028)
 
 ## Architecture Decisions
 
-1. **Extend existing analytics router, don't create a new one.** New endpoints go under
-   `/api/analytics/backtest/` as a sub-router included in the existing analytics router.
-   This keeps rate limiting, dependency injection, and error handling consistent.
+1. **New router file `api/routes/backtest.py`** — cleaner separation from existing
+   `routes/analytics.py`. Registered under `/api/analytics/backtest/` prefix.
 
-2. **asyncio.sleep() scheduler, not APScheduler.** The project avoids external scheduler
-   deps. A simple `while True: sleep_until_next_run(); collect()` loop in a background
-   task is sufficient. Started in lifespan, cancelled on shutdown.
+2. **All new queries in `_analytics.py` (AnalyticsMixin)** — follows the repository
+   mixin decomposition pattern. Agent queries stay in `_debate.py`.
 
-3. **Greeks decomposition uses entry Greeks only.** `delta_pnl = stock_return × delta`
-   (negated for puts), `residual = total - delta`. No exit re-pricing. This is approximate
-   but requires zero new data fetching.
+3. **Migration 029** — indexes only, no schema changes. All queries use existing tables:
+   `recommended_contracts`, `contract_outcomes`, `agent_predictions`, `ticker_metadata`.
 
-4. **Chart.js via PrimeVue Chart wrapper.** PrimeVue already provides the Chart component
-   shell — just need `chart.js` as a peer dependency. Consistent dark theme styling.
+4. **asyncio.sleep() scheduler** — simple daily loop in OutcomeCollector, started in
+   FastAPI `lifespan()`. No external scheduler dependency.
 
-5. **All queries in repository.py, not a new service.** Analytics queries are pure SQL →
-   model mapping. No business logic warrants a separate service layer. Keeps the data
-   module boundary clean.
+5. **Greeks decomposition uses entry Greeks only** — `delta_pnl = stock_return * delta`
+   (negated for puts), `residual = total - delta`. Approximate but zero new data fetching.
 
-6. **Migration for indexes only.** All 9 queries use existing tables. Migration 026 adds
-   5 indexes to optimize GROUP BY and JOIN performance on analytics tables.
+6. **Chart.js via npm install** — PrimeVue Chart component wraps it. Must be added to
+   `web/package.json` (not currently present).
 
-## Technical Approach
+## Task Breakdown
 
-### Backend (Tasks 1-4)
+### Task 1: Analytics result models + migration 029
+**Status**: pending
+**Files**:
+- `src/options_arena/models/analytics.py` — ~7 new frozen result models
+- `data/migrations/029_backtest_indexes.sql` — performance indexes
+- `tests/unit/models/test_analytics.py` — model validation tests (extend)
 
-**Models** (`models/analytics.py`): ~10 new frozen result models following existing patterns.
-All have `math.isfinite()` validators, `frozen=True`, UTC datetime enforcement.
+**Details**:
+New models (all `frozen=True`, `math.isfinite()` validators, UTC datetime enforcement):
+- `EquityCurvePoint(date, cumulative_return_pct, trade_count)`
+- `DrawdownPoint(date, drawdown_pct, peak_value)`
+- `SectorPerformanceResult(sector, total, win_rate_pct, avg_return_pct)`
+- `DTEBucketResult(dte_min, dte_max, total, win_rate_pct, avg_return_pct)`
+- `IVRankBucketResult(iv_min, iv_max, total, win_rate_pct, avg_return_pct)`
+- `GreeksDecompositionResult(group_key, delta_pnl, residual_pnl, total_pnl, count)`
+- `HoldingPeriodComparison(holding_days, direction, avg_return, median_return, win_rate, sharpe_like, max_loss, count)`
 
-**Repository** (`data/repository.py`): 9 new query methods appended after existing analytics
-section (line 1339+). Pattern: parameterized SQL → `fetchall()` → list comprehension →
-frozen model. Median/Sharpe computed in Python (SQLite lacks these). Agent accuracy uses
-3-table JOIN: `agent_predictions` → `recommended_contracts` → `contract_outcomes`.
-
-**Scheduler** (`services/outcome_collector.py`): New `run_scheduler()` method — asyncio
-loop that sleeps until `auto_collect_hour_utc`, calls existing `collect_outcomes()`, logs
-results, repeats. Config: `auto_collect_enabled: bool = False` (opt-in).
-
-**API** (`api/routes/backtest.py`): New router file with ~10 GET endpoints. Registered in
-`app.py` under `/api/analytics/backtest`. Same `Depends(get_repo)` + `60/minute` rate limit.
-
-**CLI** (`cli/outcomes.py`): 3 new subcommands extending existing `outcomes` group. Same
-sync→async wrapper pattern with Rich table rendering.
-
-### Frontend (Tasks 5-6)
-
-**Store** (`web/src/stores/backtest.ts`): Pinia setup store with async fetchers for all
-backtest endpoints. Caches responses in refs. Filter state (direction, holding period,
-date range) as reactive refs.
-
-**Page** (`web/src/views/AnalyticsView.vue`): PrimeVue TabView with 5 tabs. Each tab
-lazy-loads its data on first activation. Chart.js for line/bar/scatter charts, PrimeVue
-DataTable for tabular data.
-
-**Components**: ~6 chart components in `web/src/components/analytics/`. Reuse existing
-patterns from `WinRateChart.vue`, `ScoreCalibrationChart.vue`, etc.
-
-## Implementation Strategy
-
-### Dependency Chain
-```
-Task 1 (Models + Migration)
-    ↓
-Task 2 (Repository Queries) ← depends on models
-    ↓
-Task 3 (Auto-Scheduler) ← independent, can parallel with Task 2
-    ↓
-Task 4 (API + CLI) ← depends on queries
-    ↓
-Task 5 (Vue Dashboard) ← depends on API
-    ↓
-Task 6 (E2E Tests) ← depends on dashboard
+Migration 029 indexes:
+```sql
+CREATE INDEX IF NOT EXISTS idx_co_holding_days ON contract_outcomes(holding_days);
+CREATE INDEX IF NOT EXISTS idx_co_collected_at ON contract_outcomes(collected_at);
+CREATE INDEX IF NOT EXISTS idx_ap_agent_direction ON agent_predictions(agent_name, direction);
+CREATE INDEX IF NOT EXISTS idx_rc_market_iv ON recommended_contracts(market_iv);
+CREATE INDEX IF NOT EXISTS idx_rc_direction_created ON recommended_contracts(direction, created_at);
 ```
 
-Tasks 2 and 3 can run in parallel (no dependency between queries and scheduler).
+**Depends on**: nothing
 
-### Risk Mitigation
-- **Agent data sparsity**: `agent_predictions.recommended_contract_id` may be nullable/sparse.
-  Query with LEFT JOIN, return 0 accuracy for agents with no linked outcomes. Documented in UI.
-- **Sector coverage**: Filter NULL sectors in `get_win_rate_by_sector()`. Show "N/A" count.
-- **Chart.js install**: Verify `web/package.json` in Task 5 preflight. If missing, `npm install chart.js`.
+---
 
-### Testing Approach
-Each task includes its own tests. No separate test-only task.
-- Tasks 1: Model validation tests (valid/invalid/roundtrip)
-- Task 2: Repository query tests (in-memory SQLite, 4-5 per query)
-- Task 3: Scheduler tests (mock `asyncio.sleep`, mock `datetime.now`)
-- Task 4: API endpoint tests (httpx AsyncClient) + CLI tests (CliRunner)
-- Task 5: Component rendering (if Vitest available)
-- Task 6: Playwright E2E for dashboard page
+### Task 2: 7 AnalyticsMixin queries + Greeks decomposition
+**Status**: pending
+**Files**:
+- `src/options_arena/data/_analytics.py` — 7 new query methods in AnalyticsMixin
+- `tests/unit/data/test_repository_analytics.py` — new file, 4-5 tests per query
 
-## Task Breakdown Preview
+**Details**:
+New methods in `_analytics.py` (AnalyticsMixin), all return frozen Pydantic models:
+1. `get_equity_curve(direction?, period?)` → `list[EquityCurvePoint]`
+2. `get_drawdown_series(period?)` → `list[DrawdownPoint]`
+3. `get_win_rate_by_sector(holding_days?)` → `list[SectorPerformanceResult]`
+4. `get_win_rate_by_dte_bucket(holding_days?)` → `list[DTEBucketResult]`
+5. `get_win_rate_by_iv_rank(holding_days?)` → `list[IVRankBucketResult]`
+6. `get_greeks_decomposition(holding_days?, groupby?)` → `list[GreeksDecompositionResult]`
+7. `get_holding_period_comparison()` → `list[HoldingPeriodComparison]`
 
-- [ ] **Task 1: Analytics result models + migration 026** — Define ~10 new frozen result models (EquityCurvePoint, DrawdownPoint, AgentAccuracyResult, ConfidenceCalibrationBucket, SectorPerformanceResult, DTEBucketResult, IVRankBucketResult, GreeksDecompositionResult, HoldingPeriodComparison) in `models/analytics.py`. Add migration 026 with 5 performance indexes. Model validation tests.
+Pattern: parameterized SQL → `_fetchall()` → list comprehension → frozen model.
+Median/Sharpe computed in Python (SQLite lacks built-ins).
+Greeks: `delta_pnl = stock_return_pct * entry_delta` (negated for puts).
 
-- [ ] **Task 2: Repository backtesting queries** — Implement 9 new query methods in `repository.py`: `get_equity_curve()`, `get_drawdown_series()`, `get_agent_accuracy()`, `get_agent_confidence_calibration()`, `get_win_rate_by_sector()`, `get_win_rate_by_dte_bucket()`, `get_win_rate_by_iv_rank()`, `get_greeks_decomposition()`, `get_holding_period_comparison()`. Query unit tests with in-memory SQLite.
+**Depends on**: Task 1
 
-- [ ] **Task 3: Auto-scheduled outcome collection** — Extend `AnalyticsConfig` with `auto_collect_enabled`/`auto_collect_hour_utc`. Add `run_scheduler()` to OutcomeCollector. Wire into FastAPI `lifespan()` and `serve` command. Scheduler tests.
+---
 
-- [ ] **Task 4: Backtest API endpoints + CLI subcommands** — Create `routes/backtest.py` with ~10 GET endpoints under `/api/analytics/backtest/`. Add 3 CLI subcommands (`outcomes backtest`, `outcomes agents`, `outcomes equity-curve`). API + CLI tests.
+### Task 3: Auto-scheduler + config
+**Status**: pending
+**Files**:
+- `src/options_arena/models/config.py` — extend `AnalyticsConfig` with scheduler fields
+- `src/options_arena/services/outcome_collector.py` — add `run_scheduler()` method
+- `src/options_arena/api/app.py` — start scheduler in `lifespan()`
+- `tests/unit/services/test_outcome_scheduler.py` — new file, scheduler tests
 
-- [ ] **Task 5: Vue analytics dashboard** — Install Chart.js. Create `useBacktestStore` Pinia store, `AnalyticsView.vue` with 5 PrimeVue tabs (Overview, Agents, Segments, Greeks, Holding), ~6 chart components, `/analytics` route + nav link.
+**Details**:
+Config additions to `AnalyticsConfig(BaseModel)`:
+- `auto_collect_enabled: bool = False`
+- `auto_collect_hour_utc: int = 6` (with validator: 0-23)
 
-- [ ] **Task 6: E2E tests + integration polish** — Playwright E2E tests for analytics dashboard. Verify all 5 tabs render with mock data. End-to-end flow: collect → query → display. Final lint/typecheck/test pass.
+Scheduler: `async def run_scheduler(self) -> None` — asyncio loop that calculates
+seconds until next `auto_collect_hour_utc`, sleeps, calls existing `collect_outcomes()`,
+logs results, repeats. Must NOT acquire operation mutex. Must handle `CancelledError`
+gracefully for clean shutdown.
+
+Lifespan wiring: `asyncio.create_task(collector.run_scheduler())` before `yield`,
+`task.cancel()` + `await task` after `yield`.
+
+**Depends on**: nothing (independent of Task 1/2)
+
+---
+
+### Task 4: CLI subcommands
+**Status**: pending
+**Files**:
+- `src/options_arena/cli/outcomes.py` — 2 new subcommands
+- `tests/unit/cli/test_outcomes.py` — extend with new subcommand tests
+
+**Details**:
+New subcommands (sync Typer + `asyncio.run()` pattern, Rich tables):
+- `outcomes backtest` — summary table with key performance metrics (total trades,
+  win rate, avg return, max drawdown, Sharpe-like ratio by holding period)
+- `outcomes equity-curve` — Rich sparkline/table of cumulative returns over time
+
+Both use the 7 new AnalyticsMixin queries from Task 2.
+
+**Depends on**: Task 2
+
+---
+
+### Task 5: API endpoints
+**Status**: pending
+**Files**:
+- `src/options_arena/api/routes/backtest.py` — NEW FILE, 7 GET endpoints
+- `src/options_arena/api/app.py` — router registration
+- `tests/unit/api/test_analytics_backtest.py` — new file, endpoint tests
+
+**Details**:
+New routes under `/api/analytics/backtest/`:
+- `GET /equity-curve?direction=&period=` → equity curve data
+- `GET /drawdown?period=` → drawdown series
+- `GET /sector-performance?holding_days=` → win rate by sector
+- `GET /dte-performance?holding_days=` → win rate by DTE bucket
+- `GET /iv-performance?holding_days=` → win rate by IV rank
+- `GET /greeks-decomposition?groupby=&holding_days=` → delta vs residual P&L
+- `GET /holding-comparison` → holding period optimizer data
+
+Same `Depends(get_repo)` + rate limiting pattern as existing analytics endpoints.
+
+**Depends on**: Task 2
+
+---
+
+### Task 6: Vue dashboard (store + view + charts)
+**Status**: pending
+**Files**:
+- `web/package.json` — add `chart.js` dependency
+- `web/src/stores/backtest.ts` — NEW FILE, Pinia setup store
+- `web/src/views/AnalyticsView.vue` — NEW FILE, 5-tab layout
+- `web/src/components/analytics/EquityCurveChart.vue` — NEW FILE
+- `web/src/components/analytics/DrawdownChart.vue` — NEW FILE
+- `web/src/components/analytics/SectorPerformanceChart.vue` — NEW FILE
+- `web/src/components/analytics/GreeksDecompositionChart.vue` — NEW FILE
+- `web/src/components/analytics/HoldingComparisonTable.vue` — NEW FILE
+- `web/src/components/analytics/AgentAccuracyHeatmap.vue` — NEW FILE
+- `web/src/router/index.ts` — add `/analytics` route
+- Navigation component — add Analytics link
+
+**Details**:
+Pinia store (`useBacktestStore`): async fetchers for all 7 backtest endpoints + existing
+agent accuracy/calibration endpoints. Caches responses in refs. Filter state (direction,
+holding period, date range) as reactive refs.
+
+AnalyticsView: PrimeVue TabView with 5 tabs:
+- **Overview**: Equity curve (Chart.js line), summary cards, drawdown chart
+- **Agents**: Accuracy heatmap, confidence calibration scatter, comparison table
+  (uses existing `/api/analytics/agent-accuracy` + `/api/analytics/agent-calibration`)
+- **Segments**: Sector bars, DTE buckets, IV rank quartiles
+- **Greeks**: Stacked bar (delta vs residual) by direction/sector
+- **Holding**: Period comparison table with highlighted best periods
+
+Chart.js installed via `cd web && npm install chart.js`.
+
+**Depends on**: Task 5
+
+---
+
+### Task 7: E2E tests
+**Status**: pending
+**Files**:
+- `tests/e2e/analytics-dashboard.spec.ts` — NEW FILE
+- Potentially seed data helpers
+
+**Details**:
+Playwright E2E tests for analytics dashboard:
+- Dashboard page loads at `/analytics`
+- All 5 tabs render without errors
+- Charts display with seeded data
+- Tab switching works correctly
+- Empty state handled gracefully (no data scenario)
+- Filter controls (direction, holding period) update charts
+
+**Depends on**: Task 6
+
+## Execution Waves
+
+```
+Wave 1: [Task 1, Task 3]  — Models + migration, Auto-scheduler (parallel, independent)
+Wave 2: [Task 2]          — 7 AnalyticsMixin queries (depends on Task 1 models)
+Wave 3: [Task 4, Task 5]  — CLI + API endpoints (parallel, both depend on Task 2)
+Wave 4: [Task 6]          — Vue dashboard (depends on Task 5 API)
+Wave 5: [Task 7]          — E2E tests (depends on Task 6 dashboard)
+```
 
 ## Dependencies
 
 ### Internal (files modified)
-- `src/options_arena/models/analytics.py` — ~10 new models
+- `src/options_arena/models/analytics.py` — ~7 new models
 - `src/options_arena/models/config.py` — AnalyticsConfig extension
-- `src/options_arena/data/repository.py` — 9 new query methods
+- `src/options_arena/data/_analytics.py` — 7 new query methods in AnalyticsMixin
 - `src/options_arena/services/outcome_collector.py` — scheduler loop
-- `src/options_arena/api/routes/backtest.py` — NEW FILE, ~10 endpoints
+- `src/options_arena/api/routes/backtest.py` — NEW FILE, 7 endpoints
 - `src/options_arena/api/app.py` — router registration + scheduler in lifespan
-- `src/options_arena/cli/outcomes.py` — 3 new subcommands
-- `data/migrations/026_backtest_indexes.sql` — NEW FILE, 5 indexes
+- `src/options_arena/cli/outcomes.py` — 2 new subcommands
+- `data/migrations/029_backtest_indexes.sql` — NEW FILE, 5 indexes
 - `web/src/stores/backtest.ts` — NEW FILE
 - `web/src/views/AnalyticsView.vue` — NEW FILE
 - `web/src/components/analytics/` — ~6 NEW chart component files
+- `web/src/router/index.ts` — route addition
 
 ### External
 - `chart.js` npm dependency (peer of PrimeVue Chart)
 - No new Python dependencies
 
-## Success Criteria (Technical)
+## Success Criteria
 
 | Criterion | Gate |
 |-----------|------|
-| All 9 new queries return typed models | `mypy --strict` passes |
+| All 7 new queries return typed models | `mypy --strict` passes |
 | Query p95 <500ms on 10K contracts | Benchmark in query tests |
 | Scheduler runs without blocking scans | No operation mutex contention |
 | Dashboard loads all 5 tabs | Playwright E2E passes |
@@ -162,12 +270,37 @@ Each task includes its own tests. No separate test-only task.
 ## Estimated Effort
 
 - **Task 1**: S (models + migration, ~half day)
-- **Task 2**: L (9 SQL queries with tests, ~3 days)
+- **Task 2**: L (7 SQL queries with tests, ~2-3 days)
 - **Task 3**: M (scheduler + lifespan wiring, ~1 day)
-- **Task 4**: M (thin REST + CLI layer, ~1-2 days)
-- **Task 5**: XL (5-tab dashboard with 6+ charts, ~4 days)
-- **Task 6**: S (E2E tests + polish, ~1 day)
+- **Task 4**: S (CLI subcommands, ~half day)
+- **Task 5**: M (thin REST layer, ~1 day)
+- **Task 6**: XL (5-tab dashboard with 6+ charts, ~4 days)
+- **Task 7**: S (E2E tests, ~1 day)
 - **Total: XL (~10-12 days)**
 
-Critical path: Task 1 → Task 2 → Task 4 → Task 5 (longest chain ~9 days).
-Task 3 is independent and can parallel with Task 2.
+Critical path: Task 1 → Task 2 → Task 5 → Task 6 → Task 7 (longest chain ~9 days).
+Tasks 1 and 3 are independent and can parallel. Tasks 4 and 5 can parallel.
+
+## Tasks Created
+- [ ] #430 - Analytics result models + migration 029 (parallel: true)
+- [ ] #431 - 7 AnalyticsMixin queries + Greeks decomposition (parallel: false)
+- [ ] #432 - Auto-scheduler + config (parallel: true)
+- [ ] #433 - CLI subcommands (parallel: true)
+- [ ] #434 - API endpoints (parallel: true)
+- [ ] #435 - Vue analytics dashboard (parallel: false)
+- [ ] #436 - E2E tests (parallel: false)
+
+Total tasks: 7
+Parallel tasks: 4 (#430, #432, #433, #434)
+Sequential tasks: 3 (#431, #435, #436)
+Estimated total effort: 84 hours
+
+## Test Coverage Plan
+Total test files planned: 6
+Total test cases planned: ~102
+- `tests/unit/models/test_analytics_backtest.py` — ~20 model validation tests
+- `tests/unit/data/test_repository_backtest.py` — ~35 query tests (5 per query)
+- `tests/unit/services/test_outcome_scheduler.py` — ~10 scheduler tests
+- `tests/unit/cli/test_outcomes_backtest.py` — ~8 CLI tests
+- `tests/unit/api/test_analytics_backtest.py` — ~18 endpoint tests
+- `tests/e2e/analytics-dashboard.spec.ts` — ~11 E2E tests
