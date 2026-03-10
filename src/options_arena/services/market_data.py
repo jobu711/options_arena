@@ -31,7 +31,6 @@ from options_arena.services.base import ServiceBase
 from options_arena.services.cache import (
     TTL_EARNINGS,
     TTL_FUNDAMENTALS,
-    TTL_OHLCV,
     TTL_REFERENCE,
     ServiceCache,
 )
@@ -384,7 +383,7 @@ class MarketDataService(ServiceBase[ServiceConfig]):
 
         # Cache result
         serialized = _serialize_ohlcv_list(records)
-        await self._cache.set(cache_key, serialized, ttl=TTL_OHLCV)
+        await self._cache.set(cache_key, serialized, ttl=self._cache.ttl_for("ohlcv"))
 
         self._log.debug("Fetched %d OHLCV bars for %s (period=%s)", len(records), ticker, period)
         return records

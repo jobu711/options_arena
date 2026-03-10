@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 # Named TTL constants (seconds) — never use magic numbers
 # ---------------------------------------------------------------------------
 
-TTL_OHLCV: int = 6 * 60 * 60  # 6 hrs — daily bars refresh between scan runs
+TTL_OHLCV_MARKET: int = 30 * 60  # 30 min — capture intraday movement between scans
+TTL_OHLCV_AFTER: int = 6 * 60 * 60  # 6 hrs — daily bars stable after close
 TTL_CHAIN_MARKET: int = 5 * 60  # 5 min during market hours
 TTL_CHAIN_AFTER: int = 60 * 60  # 1 hr after hours
 TTL_QUOTE_MARKET: int = 1 * 60  # 1 min during market hours
@@ -269,7 +270,7 @@ class ServiceCache:
 
         match data_type:
             case "ohlcv":
-                return TTL_OHLCV
+                return TTL_OHLCV_MARKET if market_open else TTL_OHLCV_AFTER
             case "chain":
                 return TTL_CHAIN_MARKET if market_open else TTL_CHAIN_AFTER
             case "quote":
