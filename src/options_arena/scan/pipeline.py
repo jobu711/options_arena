@@ -37,9 +37,6 @@ from options_arena.scan.models import (
     UniverseResult,
 )
 from options_arena.scan.phase_options import (
-    _PHASE3_FIELDS as _PHASE3_FIELDS,
-)
-from options_arena.scan.phase_options import (
     process_ticker_options,
     run_options_phase,
 )

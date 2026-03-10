@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from options_arena.models.scan import IndicatorSignals
-from options_arena.scan.pipeline import _PHASE3_FIELDS
+from options_arena.scan.phase_options import _PHASE3_FIELDS
 
 
 class TestPhase3FieldsLiquidity:
