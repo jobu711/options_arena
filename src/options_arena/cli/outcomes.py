@@ -10,6 +10,7 @@ import asyncio
 import logging
 import math
 from pathlib import Path
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -409,6 +410,179 @@ async def _agent_weights_async() -> None:
         logger.exception("Agent weights display failed")
         err_console.print(
             "[red]Agent weights failed. Check logs/options_arena.log for details.[/red]"
+        )
+        raise typer.Exit(code=1) from exc
+    finally:
+        await db.close()
+
+
+# ---------------------------------------------------------------------------
+# Backtesting commands
+# ---------------------------------------------------------------------------
+
+
+@outcomes_app.command("backtest")
+def backtest(
+    holding_days: Annotated[int, typer.Option(help="Filter by holding period")] = 20,
+) -> None:
+    """Show backtesting performance summary."""
+    asyncio.run(_backtest_async(holding_days))
+
+
+async def _backtest_async(holding_days: int) -> None:
+    """Display backtesting performance summary by holding period and direction."""
+    settings = AppSettings()
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    if settings.data.db_path:
+        db_path = Path(settings.data.db_path)
+    else:
+        db_path = _DATA_DIR / "options_arena.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    db = Database(db_path)
+
+    try:
+        await db.connect()
+        repo = Repository(db)
+
+        comparisons = await repo.get_holding_period_comparison()
+
+        if not comparisons:
+            console.print("[yellow]No outcome data found. Run 'outcomes collect' first.[/yellow]")
+            return
+
+        # Filter by holding_days
+        filtered = [c for c in comparisons if c.holding_days == holding_days]
+
+        if not filtered:
+            unique_periods = sorted({c.holding_days for c in comparisons})
+            periods_str = ", ".join(str(p) for p in unique_periods)
+            console.print(
+                f"[yellow]No data for {holding_days}-day holding period. "
+                f"Available periods: {periods_str}[/yellow]"
+            )
+            return
+
+        # Summary stats from equity curve and drawdowns
+        equity_curve = await repo.get_equity_curve()
+        drawdown_series = await repo.get_drawdown_series()
+
+        table = Table(title=f"Backtesting Summary (T+{holding_days})")
+        table.add_column("Direction", style="cyan")
+        table.add_column("Trades", justify="right")
+        table.add_column("Win Rate %", justify="right")
+        table.add_column("Avg Return %", justify="right")
+        table.add_column("Median Return %", justify="right")
+        table.add_column("Sharpe", justify="right")
+        table.add_column("Max Loss %", justify="right")
+
+        for c in filtered:
+            win_rate_str = f"{c.win_rate * 100:.1f}" if math.isfinite(c.win_rate) else "--"
+            avg_ret_str = f"{c.avg_return:+.2f}" if math.isfinite(c.avg_return) else "--"
+            med_ret_str = f"{c.median_return:+.2f}" if math.isfinite(c.median_return) else "--"
+            sharpe_str = f"{c.sharpe_like:.2f}" if math.isfinite(c.sharpe_like) else "--"
+            max_loss_str = f"{c.max_loss:+.2f}" if math.isfinite(c.max_loss) else "--"
+
+            table.add_row(
+                c.direction.upper(),
+                str(c.count),
+                win_rate_str,
+                avg_ret_str,
+                med_ret_str,
+                sharpe_str,
+                max_loss_str,
+            )
+
+        console.print(table)
+
+        # Print equity curve summary if available
+        if equity_curve:
+            latest = equity_curve[-1]
+            console.print(
+                f"\n[dim]Equity curve: {latest.cumulative_return_pct:+.2f}% cumulative "
+                f"over {latest.trade_count} trades[/dim]"
+            )
+
+        if drawdown_series:
+            max_dd = min(d.drawdown_pct for d in drawdown_series)
+            if math.isfinite(max_dd):
+                console.print(f"[dim]Max drawdown: {max_dd:+.2f}%[/dim]")
+
+    except Exception as exc:
+        logger.exception("Backtest display failed")
+        err_console.print("[red]Backtest failed. Check logs/options_arena.log for details.[/red]")
+        raise typer.Exit(code=1) from exc
+    finally:
+        await db.close()
+
+
+@outcomes_app.command(name="equity-curve")
+def equity_curve(
+    direction: Annotated[
+        str | None, typer.Option(help="Filter by direction (bullish/bearish)")
+    ] = None,
+    period: Annotated[int | None, typer.Option(help="Lookback period in days")] = None,
+) -> None:
+    """Show cumulative equity curve."""
+    asyncio.run(_equity_curve_async(direction, period))
+
+
+async def _equity_curve_async(direction: str | None, period: int | None) -> None:
+    """Display equity curve as a Rich table."""
+    settings = AppSettings()
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    if settings.data.db_path:
+        db_path = Path(settings.data.db_path)
+    else:
+        db_path = _DATA_DIR / "options_arena.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    db = Database(db_path)
+
+    try:
+        await db.connect()
+        repo = Repository(db)
+
+        points = await repo.get_equity_curve(direction=direction, period_days=period)
+
+        if not points:
+            msg = "No equity curve data found."
+            if direction or period:
+                msg += " Try adjusting filters or run 'outcomes collect' first."
+            else:
+                msg += " Run 'outcomes collect' first."
+            console.print(f"[yellow]{msg}[/yellow]")
+            return
+
+        title = "Equity Curve"
+        if direction:
+            title += f" ({direction.upper()})"
+        if period:
+            title += f" (last {period} days)"
+
+        table = Table(title=title)
+        table.add_column("Date", style="cyan")
+        table.add_column("Cumulative Return %", justify="right")
+        table.add_column("Trades", justify="right", style="dim")
+
+        for pt in points:
+            cum_ret_str = (
+                f"{pt.cumulative_return_pct:+.2f}"
+                if math.isfinite(pt.cumulative_return_pct)
+                else "--"
+            )
+            table.add_row(
+                str(pt.date),
+                cum_ret_str,
+                str(pt.trade_count),
+            )
+
+        console.print(table)
+
+    except Exception as exc:
+        logger.exception("Equity curve display failed")
+        err_console.print(
+            "[red]Equity curve failed. Check logs/options_arena.log for details.[/red]"
         )
         raise typer.Exit(code=1) from exc
     finally:
