@@ -342,11 +342,7 @@ async def _calibration_async(agent: str | None) -> None:
         for b in data.buckets:
             table.add_row(
                 b.bucket_label,
-                (
-                    f"{b.mean_confidence:.1%}"
-                    if math.isfinite(b.mean_confidence)
-                    else "--"
-                ),
+                (f"{b.mean_confidence:.1%}" if math.isfinite(b.mean_confidence) else "--"),
                 f"{b.actual_hit_rate:.1%}" if math.isfinite(b.actual_hit_rate) else "--",
                 str(b.count),
             )

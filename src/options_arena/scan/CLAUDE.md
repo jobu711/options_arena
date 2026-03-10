@@ -3,8 +3,12 @@
 ## Purpose
 
 Pipeline orchestration: ties together `services/`, `indicators/`, `scoring/`, and `data/` into
-a testable, cancellable, progress-reporting 4-phase async pipeline. Replaces v3's monolithic
-430-line `cli.py` scan function with a `ScanPipeline` class.
+a testable, cancellable, progress-reporting 4-phase async pipeline.
+
+The pipeline is decomposed into a thin `ScanPipeline` orchestrator (~352 LOC) that delegates
+to four standalone phase functions. Each phase is a module-level async function with explicit
+parameters — no class state, independently testable. Cross-phase concerns (cancellation,
+direction filter, earnings propagation) remain in the orchestrator.
 
 This is the most integration-heavy module in the project. Every type at every boundary was
 verified against the actual source before writing this document.
@@ -16,7 +20,11 @@ verified against the actual source before writing this document.
 | `progress.py` | `ScanPhase` enum, `CancellationToken`, `ProgressCallback` protocol |
 | `indicators.py` | `InputShape` enum, `IndicatorSpec`, `INDICATOR_REGISTRY` (15 entries), `ohlcv_to_dataframe()`, `compute_indicators()` |
 | `models.py` | Pipeline-internal typed models: `UniverseResult`, `ScoringResult`, `OptionsResult`, `ScanResult` |
-| `pipeline.py` | `ScanPipeline` class with 4 async phases |
+| `pipeline.py` | `ScanPipeline` orchestrator (~352 LOC): `__init__`, `run()`, thin wrappers, `_make_cancelled_result()` |
+| `phase_universe.py` | `run_universe_phase()` — Phase 1: fetch optionable universe + OHLCV data (~270 LOC) |
+| `phase_scoring.py` | `run_scoring_phase()` — Phase 2: indicators, scoring, direction (~159 LOC) |
+| `phase_options.py` | `run_options_phase()`, `process_ticker_options()` — Phase 3: options chains, contracts, Greeks (~752 LOC) |
+| `phase_persist.py` | `run_persist_phase()` — Phase 4: persist results to database (~211 LOC) |
 | `__init__.py` | Re-exports public API with `__all__` |
 
 ---
