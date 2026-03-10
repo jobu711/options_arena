@@ -16,6 +16,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from options_arena.agents import auto_tune_weights
 from options_arena.cli.app import app
 from options_arena.data import Database, Repository
 from options_arena.models.config import AppSettings
@@ -411,6 +412,91 @@ async def _agent_weights_async() -> None:
         err_console.print(
             "[red]Agent weights failed. Check logs/options_arena.log for details.[/red]"
         )
+        raise typer.Exit(code=1) from exc
+    finally:
+        await db.close()
+
+
+# ---------------------------------------------------------------------------
+# Auto-tune command
+# ---------------------------------------------------------------------------
+
+
+@outcomes_app.command("auto-tune")
+def auto_tune_cmd(
+    dry_run: bool = typer.Option(  # noqa: FBT001
+        False, "--dry-run", help="Show weights without persisting"
+    ),
+    window: int = typer.Option(90, "--window", help="Lookback window in days", min=1, max=365),
+) -> None:
+    """Compute auto-tuned agent vote weights from outcome accuracy data."""
+    asyncio.run(_auto_tune_async(dry_run, window))
+
+
+async def _auto_tune_async(dry_run: bool, window: int) -> None:
+    """Run auto-tune and display results as a Rich table."""
+    settings = AppSettings()
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    if settings.data.db_path:
+        db_path = Path(settings.data.db_path)
+    else:
+        db_path = _DATA_DIR / "options_arena.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    db = Database(db_path)
+
+    try:
+        await db.connect()
+        repo = Repository(db)
+
+        results = await auto_tune_weights(repo, window_days=window, dry_run=dry_run)
+
+        if not results:
+            console.print("[yellow]No outcome data available for auto-tuning.[/yellow]")
+            return
+
+        table = Table(title="Agent Vote Weights \u2014 Auto-Tune Results")
+        table.add_column("Agent", style="cyan")
+        table.add_column("Manual", justify="right")
+        table.add_column("Tuned", justify="right")
+        table.add_column("Delta", justify="right")
+        table.add_column("Brier", justify="right")
+        table.add_column("Samples", justify="right", style="dim")
+
+        for r in results:
+            delta = r.auto_weight - r.manual_weight
+            if delta > 0:
+                delta_str = f"[green]+{delta:.3f}[/green]"
+            elif delta < 0:
+                delta_str = f"[red]{delta:.3f}[/red]"
+            else:
+                delta_str = f"[dim]{delta:+.3f}[/dim]"
+
+            brier_str = (
+                f"{r.brier_score:.3f}"
+                if r.brier_score is not None and math.isfinite(r.brier_score)
+                else "--"
+            )
+
+            table.add_row(
+                r.agent_name,
+                f"{r.manual_weight:.3f}",
+                f"{r.auto_weight:.3f}",
+                delta_str,
+                brier_str,
+                str(r.sample_size),
+            )
+
+        console.print(table)
+
+        if dry_run:
+            console.print("\n[yellow][DRY RUN] Weights not saved.[/yellow]")
+        else:
+            console.print("\n[green]Weights saved. Next debate will use tuned weights.[/green]")
+
+    except Exception as exc:
+        logger.exception("Auto-tune failed")
+        err_console.print("[red]Auto-tune failed. Check logs/options_arena.log for details.[/red]")
         raise typer.Exit(code=1) from exc
     finally:
         await db.close()
