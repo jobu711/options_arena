@@ -356,9 +356,7 @@ class TestGreeksDecomposition:
     ) -> None:
         """Verify groupby=sector passes GreeksGroupBy.SECTOR to repository."""
         mock_repo.get_greeks_decomposition = AsyncMock(return_value=[])
-        response = await client.get(
-            "/api/analytics/backtest/greeks-decomposition?groupby=sector"
-        )
+        response = await client.get("/api/analytics/backtest/greeks-decomposition?groupby=sector")
         assert response.status_code == 200
         mock_repo.get_greeks_decomposition.assert_called_once_with(
             holding_days=20, groupby=GreeksGroupBy.SECTOR

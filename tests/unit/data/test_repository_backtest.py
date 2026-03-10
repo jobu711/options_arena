@@ -745,7 +745,9 @@ class TestGreeksDecomposition:
             ],
         )
 
-        results = await repo.get_greeks_decomposition(holding_days=20, groupby=GreeksGroupBy.SECTOR)
+        results = await repo.get_greeks_decomposition(
+            holding_days=20, groupby=GreeksGroupBy.SECTOR
+        )
         assert len(results) == 1
         assert results[0].group_key == "Information Technology"
 
@@ -771,7 +773,9 @@ class TestGreeksDecomposition:
                 },
             ],
         )
-        results = await repo.get_greeks_decomposition(holding_days=20, groupby=GreeksGroupBy.SECTOR)
+        results = await repo.get_greeks_decomposition(
+            holding_days=20, groupby=GreeksGroupBy.SECTOR
+        )
         assert results == []
 
     @pytest.mark.asyncio
