@@ -36,6 +36,7 @@ from options_arena.models.analytics import (
     RecommendedContract,
     ScoreCalibrationBucket,
     SectorPerformanceResult,
+    WeightSnapshot,
     WinRateResult,
 )
 from options_arena.models.config import (
@@ -181,6 +182,7 @@ __all__ = [
     "RecommendedContract",
     "ScoreCalibrationBucket",
     "SectorPerformanceResult",
+    "WeightSnapshot",
     "WinRateResult",
     # Scan
     "IndicatorSignals",
