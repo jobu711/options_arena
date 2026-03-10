@@ -15,6 +15,7 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           version: "latest"
+          enable-cache: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -30,10 +31,16 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           version: "latest"
+          enable-cache: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
       - run: uv sync --frozen
+      - uses: actions/cache@v4
+        with:
+          path: .mypy_cache
+          key: mypy-${{ hashFiles('uv.lock') }}-${{ hashFiles('src/**/*.py') }}
+          restore-keys: mypy-${{ hashFiles('uv.lock') }}-
       - run: uv run mypy src/ --strict
 
   tests:
@@ -44,6 +51,7 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           version: "latest"
+          enable-cache: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"

@@ -1,5 +1,7 @@
 """Shared fixtures for scoring unit tests."""
 
+from __future__ import annotations
+
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -9,6 +11,7 @@ from options_arena.models.config import PricingConfig, ScanConfig
 from options_arena.models.enums import ExerciseStyle, OptionType
 from options_arena.models.options import OptionContract
 from options_arena.models.scan import IndicatorSignals
+from tests.factories import make_option_contract
 
 
 @pytest.fixture()
@@ -108,25 +111,16 @@ def make_contract(
     exercise_style: ExerciseStyle = ExerciseStyle.AMERICAN,
     market_iv: float = 0.30,
 ) -> OptionContract:
-    """Factory for creating test OptionContract instances.
+    """Convenience adapter around :func:`tests.factories.make_option_contract`.
 
-    Args:
-        ticker: Underlying ticker symbol.
-        option_type: CALL or PUT.
-        strike: Strike price as string (Decimal).
-        dte_days: Days to expiration from today.
-        bid: Bid price as string (Decimal).
-        ask: Ask price as string (Decimal).
-        last: Last price as string (Decimal).
-        volume: Trading volume.
-        open_interest: Open interest.
-        exercise_style: AMERICAN or EUROPEAN.
-        market_iv: Implied volatility from yfinance.
+    Accepts string prices (auto-coerced to ``Decimal`` by Pydantic) and
+    ``dte_days`` (converted to an ``expiration`` date), keeping existing
+    scoring-test call sites unchanged.
 
-    Returns:
-        Frozen OptionContract instance.
+    .. deprecated::
+        Prefer ``make_option_contract`` from ``tests.factories`` for new tests.
     """
-    return OptionContract(
+    return make_option_contract(
         ticker=ticker,
         option_type=option_type,
         strike=Decimal(strike),
