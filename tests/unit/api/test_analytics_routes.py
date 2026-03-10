@@ -367,9 +367,7 @@ class TestAgentCalibrationRoutes:
         mock_repo.get_agent_accuracy.assert_called_once_with(None)
 
     @pytest.mark.asyncio
-    async def test_get_agent_calibration(
-        self, client: AsyncClient, mock_repo: MagicMock
-    ) -> None:
+    async def test_get_agent_calibration(self, client: AsyncClient, mock_repo: MagicMock) -> None:
         """Verify GET /api/analytics/agent-calibration returns 200."""
         mock_repo.get_agent_calibration = AsyncMock(return_value=_make_calibration_data())
         response = await client.get("/api/analytics/agent-calibration")
@@ -386,9 +384,7 @@ class TestAgentCalibrationRoutes:
     ) -> None:
         """Verify agent query param passes to repository."""
         mock_repo.get_agent_calibration = AsyncMock(
-            return_value=AgentCalibrationData(
-                agent_name="trend", buckets=[], sample_size=0
-            )
+            return_value=AgentCalibrationData(agent_name="trend", buckets=[], sample_size=0)
         )
         response = await client.get("/api/analytics/agent-calibration?agent=trend")
         assert response.status_code == 200

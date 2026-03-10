@@ -3,6 +3,7 @@ name: backtesting-engine
 description: Performance measurement engine with auto-scheduled outcome collection, basic Greeks decomposition, full analytics API, and web dashboard
 status: planned
 created: 2026-03-08T23:05:00Z
+updated: 2026-03-09T23:38:39Z
 ---
 
 # PRD: backtesting-engine
@@ -23,10 +24,9 @@ backtesting and calibration platform.
 
 Options Arena makes recommendations but has no systematic way to answer: "How good are
 these recommendations?" The data is being collected (OutcomeCollector, AgentPrediction,
-RecommendedContract) but analysis is limited to 6 basic queries. Users cannot:
+RecommendedContract) but analysis is limited to 6 analytics + 3 agent calibration queries. Users cannot:
 
 - See cumulative performance over time (no equity curve)
-- Understand which agents are accurate vs biased (no per-agent calibration)
 - Know which market conditions produce the best outcomes (no sector/DTE/IV segmentation)
 - Track drawdowns or identify when the system underperforms (no risk metrics)
 - Get results automatically — outcome collection requires manual CLI trigger
@@ -58,6 +58,10 @@ loop to improve scoring weights, agent prompts, or contract selection.
 - Confidence calibration curve: predicted confidence bucket vs actual win rate
 - Per-agent stats: total predictions, accuracy, avg confidence, overconfidence ratio
 - Agent comparison table sorted by accuracy
+
+> **Note:** Per-agent accuracy and calibration queries already exist in `_debate.py`
+> (`get_agent_accuracy()`, `get_agent_confidence_calibration()`). This story extends them
+> into the dashboard visualization (heatmap, calibration curve), not re-implementing the backend.
 
 ### US-3: Strategy segmentation analyst
 **As** a trader optimizing my use of Options Arena,
@@ -127,36 +131,38 @@ loop to improve scoring weights, agent prompts, or contract selection.
 - Aggregation functions: by direction, sector, time bucket
 
 #### FR-3: Extended Analytics Queries
-New repository methods (all return frozen Pydantic models):
+New methods in `_analytics.py` (AnalyticsMixin), all return frozen Pydantic models:
 - `get_win_rate_by_sector()` → `list[SectorPerformanceResult]`
 - `get_win_rate_by_dte_bucket()` → `list[DTEBucketResult]`
 - `get_win_rate_by_iv_rank()` → `list[IVRankBucketResult]`
-- `get_agent_accuracy()` → `list[AgentAccuracyResult]`
-- `get_agent_confidence_calibration()` → `list[ConfidenceCalibrationResult]`
 - `get_equity_curve(direction?)` → `list[EquityCurvePoint]`
 - `get_drawdown_series()` → `list[DrawdownPoint]`
 - `get_greeks_decomposition(groupby?)` → `list[GreeksDecompositionResult]`
 - `get_holding_period_comparison()` → `list[HoldingPeriodComparison]`
 
+> `get_agent_accuracy()` and `get_agent_confidence_calibration()` already exist in
+> `_debate.py` (DebateMixin) — not duplicated here.
+
 #### FR-4: REST API Endpoints
 New routes under `/api/analytics/backtest/`:
 - `GET /equity-curve?direction=&period=` → equity curve data
 - `GET /drawdown?period=` → drawdown series
-- `GET /agent-accuracy` → per-agent accuracy breakdown
-- `GET /agent-calibration` → confidence calibration buckets
 - `GET /sector-performance?holding_days=` → win rate by sector
 - `GET /dte-performance?holding_days=` → win rate by DTE bucket
 - `GET /iv-performance?holding_days=` → win rate by IV rank
 - `GET /greeks-decomposition?groupby=` → delta vs residual P&L
 - `GET /holding-comparison` → holding period optimizer data
-- `POST /collect-now` → manual trigger (existing, moved under backtest namespace)
+
+> Agent accuracy (`/api/analytics/agent-accuracy`), agent calibration
+> (`/api/analytics/agent-calibration`), and manual collection
+> (`/api/analytics/collect-outcomes`) are already live — not duplicated.
 
 #### FR-5: CLI Subcommands
 Extend `outcomes` command group:
 - `outcomes backtest` → summary table with key performance metrics
-- `outcomes agents` → per-agent accuracy table
 - `outcomes equity-curve` → ASCII sparkline or Rich chart of cumulative returns
-- Existing `outcomes collect` and `outcomes summary` unchanged
+- Existing `outcomes collect`, `outcomes summary`, `outcomes agent-accuracy`,
+  `outcomes calibration`, and `outcomes agent-weights` unchanged
 
 #### FR-6: Vue Dashboard Page
 New route `/analytics` with tabbed layout:
@@ -192,7 +198,7 @@ New route `/analytics` with tabbed layout:
 
 | Metric | Target |
 |--------|--------|
-| Analytics query count | 15+ (currently 6) |
+| Analytics query count | 16+ (currently 9) |
 | Query response time (p95) | <500ms for 10K contracts |
 | Dashboard chart types | 6+ (equity, drawdown, heatmap, bars, scatter, stacked bar) |
 | Agent accuracy tracking | All 8 debate agents individually measured |
@@ -231,15 +237,15 @@ New route `/analytics` with tabbed layout:
 ## Dependencies
 
 ### Internal
-- `data/repository.py` — new query methods (largest change surface)
-- `models/analytics.py` — new result models (~10 new frozen models)
+- `data/_analytics.py` — 7 new query methods in AnalyticsMixin
+- `models/analytics.py` — ~7 new frozen models
 - `models/config.py` — `AnalyticsConfig` extensions (scheduler fields)
 - `services/outcome_collector.py` — scheduler loop addition
 - `api/routes/analytics.py` — new endpoint registrations
 - `cli/outcomes.py` — new subcommands
 - `web/src/views/` — new `AnalyticsView.vue` page
 - `web/src/stores/` — new `backtest.ts` Pinia store
-- `data/migrations/` — possible index additions for query performance (no schema changes)
+- `data/migrations/029_backtest_indexes.sql` — performance indexes (no schema changes)
 
 ### External
 - Chart.js or PrimeVue Charts (likely already bundled with PrimeVue)
@@ -248,21 +254,23 @@ New route `/analytics` with tabbed layout:
 ## Implementation Phases
 
 ### Phase 1: Models & Queries (Backend foundation)
-- Define ~10 new analytics result models in `models/analytics.py`
-- Implement 9 new repository query methods with SQL window functions
-- Add database indexes for query performance
+- Define ~7 new analytics result models in `models/analytics.py`
+- Implement 7 new query methods in `_analytics.py` (AnalyticsMixin) with SQL window functions
+- Add database indexes for query performance (`029_backtest_indexes.sql`)
 - Add `GreeksDecomposition` computation logic
+- Agent accuracy/calibration models and queries already exist — not duplicated
 - Tests: unit tests for all models and queries (~100+ tests)
 
 ### Phase 2: Auto-Scheduler & CLI (Backend services)
 - Implement asyncio-based daily scheduler in `OutcomeCollector`
 - Extend `AnalyticsConfig` with scheduler settings
 - Wire scheduler into FastAPI `lifespan()` and `serve` command
-- Add CLI subcommands (`outcomes backtest`, `outcomes agents`, `outcomes equity-curve`)
+- Add CLI subcommands (`outcomes backtest`, `outcomes equity-curve`)
 - Tests: scheduler tests (mock time), CLI integration tests
 
 ### Phase 3: API Endpoints (REST layer)
-- Register ~10 new endpoints under `/api/analytics/backtest/`
+- Register 7 new endpoints under `/api/analytics/backtest/`
+- Agent accuracy/calibration endpoints already live under `/api/analytics/` — not duplicated
 - Rate limiting consistent with existing analytics endpoints
 - OpenAPI schema documentation
 - Tests: endpoint tests with test database
