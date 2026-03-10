@@ -133,7 +133,7 @@ class TestAppSettingsDefaults:
         assert settings.pricing.dte_max == 365
 
     def test_service_groq_api_key_default(self) -> None:
-        settings = AppSettings()
+        settings = AppSettings(_env_file=None)
         assert settings.service.groq_api_key is None
 
     def test_service_yfinance_timeout_default(self) -> None:
@@ -296,7 +296,7 @@ class TestDebateConfigDefaults:
 
     def test_debate_api_key_default_is_none(self) -> None:
         """Default api_key is None."""
-        settings = AppSettings()
+        settings = AppSettings(_env_file=None)
         assert settings.debate.api_key is None
 
     def test_debate_config_rejects_nan_temperature(self) -> None:
