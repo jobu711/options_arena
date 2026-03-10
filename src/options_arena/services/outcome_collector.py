@@ -65,6 +65,7 @@ class OutcomeCollector:
         self._repo = repository
         self._market_data = market_data
         self._options_data = options_data
+        self._auto_collect_hour_utc = config.auto_collect_hour_utc
 
     async def collect_outcomes(
         self,
@@ -440,6 +441,55 @@ class OutcomeCollector:
     def _is_expired(self, expiration: date, today: date) -> bool:
         """Check if a contract has expired (expiration date is before *today*)."""
         return expiration < today
+
+    def _seconds_until_next_run(self) -> float:
+        """Calculate seconds from now until the next scheduled collection hour.
+
+        If the target hour has already passed today (or is exactly now),
+        the next run is scheduled for tomorrow at that hour.
+        """
+        now = datetime.now(UTC)
+        target_today = now.replace(
+            hour=self._auto_collect_hour_utc,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        if target_today <= now:
+            # Already passed (or exactly now) — schedule for tomorrow
+            from datetime import timedelta  # noqa: PLC0415
+
+            target = target_today + timedelta(days=1)
+        else:
+            target = target_today
+        return (target - now).total_seconds()
+
+    async def run_scheduler(self) -> None:
+        """Run an infinite loop that collects outcomes daily at the configured hour.
+
+        Respects ``asyncio.CancelledError`` for clean shutdown. Catches all
+        other exceptions and continues (never-raises contract preserved).
+        """
+        logger.info(
+            "Outcome scheduler started (target hour=%d UTC)",
+            self._auto_collect_hour_utc,
+        )
+        while True:
+            try:
+                seconds = self._seconds_until_next_run()
+                logger.info("Next outcome collection in %.0f seconds", seconds)
+                await asyncio.sleep(seconds)
+
+                outcomes = await self.collect_outcomes()
+                logger.info(
+                    "Scheduled outcome collection complete: %d outcomes",
+                    len(outcomes),
+                )
+            except asyncio.CancelledError:
+                logger.info("Outcome scheduler cancelled, shutting down")
+                break
+            except Exception:
+                logger.exception("Outcome scheduler iteration failed, will retry next cycle")
 
     async def get_summary(
         self,

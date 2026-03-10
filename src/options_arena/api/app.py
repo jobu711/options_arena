@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -29,6 +29,7 @@ from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.market_data import MarketDataService
 from options_arena.services.openbb_service import OpenBBService
 from options_arena.services.options_data import OptionsDataService
+from options_arena.services.outcome_collector import OutcomeCollector
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.services.universe import UniverseService
 
@@ -109,6 +110,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.financial_datasets = fd_svc
     app.state.operation_lock = asyncio.Lock()
 
+    # Outcome collector — used by analytics routes and optional scheduler
+    outcome_collector = OutcomeCollector(
+        config=settings.analytics,
+        repository=repo,
+        market_data=market_data,
+        options_data=options_data,
+    )
+    app.state.outcome_collector = outcome_collector
+
+    # Auto-scheduled outcome collection — runs daily at configured UTC hour
+    scheduler_task: asyncio.Task[None] | None = None
+    if settings.analytics.auto_collect_enabled:
+        scheduler_task = asyncio.create_task(outcome_collector.run_scheduler())
+        logger.info("Outcome auto-collection scheduler enabled")
+
     # Initialize counters and mutable state eagerly so route handlers
     # never need lazy ``hasattr`` / ``getattr`` fallbacks.
     app.state.scan_counter = 0
@@ -123,7 +139,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     logger.info("API services started")
     yield
 
-    # Shutdown — close all services
+    # Shutdown — cancel scheduler first, then close all services
+    if scheduler_task is not None:
+        scheduler_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await scheduler_task
+
     if fd_svc is not None:
         await fd_svc.close()
     if intelligence_svc is not None:
