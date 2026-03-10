@@ -41,6 +41,11 @@ uv run pytest tests/ -m smoke -v                   # smoke only (<10s)
 `sample_prices` (DataFrame), `sample_option_chain`, `mock_debate_config`,
 `market_context` (fully populated). Keep fixtures small (~100-250 rows).
 
+Root conftest provides `sample_contract`, `sample_quote`, `sample_market_context` via
+`tests/factories.py`. Some test files define local fixtures with the same names but
+different values — local fixtures take precedence (pytest scoping). Use factories directly
+(`from tests.factories import make_option_contract`) when you need custom values.
+
 ## Parallel Safety (xdist)
 
 All 247 test files verified xdist-safe (`-n auto`), zero conflicts. Patterns that ensure this:
