@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
+
+import pandas as pd
 
 from options_arena.models import (
     IndicatorSignals,
@@ -17,6 +20,7 @@ from options_arena.models import (
 )
 from options_arena.scan.indicators import (
     INDICATOR_REGISTRY,
+    IndicatorSpec,
     compute_indicators,
     ohlcv_to_dataframe,
 )
@@ -30,7 +34,9 @@ from options_arena.scoring import (
     score_universe,
 )
 
-logger = logging.getLogger(__name__)
+# Use pipeline logger name so that tests filtering on "options_arena.scan.pipeline"
+# continue to capture phase log messages after extraction.
+logger = logging.getLogger("options_arena.scan.pipeline")
 
 
 async def run_scoring_phase(
@@ -38,6 +44,8 @@ async def run_scoring_phase(
     progress: ProgressCallback,
     *,
     scan_config: ScanConfig,
+    compute_indicators_fn: Callable[[pd.DataFrame, list[IndicatorSpec]], IndicatorSignals]
+    | None = None,
 ) -> ScoringResult:
     """Phase 2: Compute indicators, score universe, determine direction.
 
@@ -55,17 +63,21 @@ async def run_scoring_phase(
         universe_result: Phase 1 output with tickers, OHLCV map, and sector data.
         progress: Callback for reporting per-phase progress.
         scan_config: Scan pipeline configuration slice.
+        compute_indicators_fn: Optional override for ``compute_indicators`` (used by
+            ``ScanPipeline`` wrappers to preserve test-patching at the pipeline module
+            level).
 
     Returns:
         ``ScoringResult`` with scored tickers and raw signals retained.
     """
+    _compute = compute_indicators_fn or compute_indicators
     progress(ScanPhase.SCORING, 0, len(universe_result.ohlcv_map))
 
     # Step 1: Compute indicators for each ticker
     raw_signals: dict[str, IndicatorSignals] = {}
     for i, (ticker, ohlcv_list) in enumerate(universe_result.ohlcv_map.items()):
         df = ohlcv_to_dataframe(ohlcv_list)
-        raw_signals[ticker] = compute_indicators(df, INDICATOR_REGISTRY)
+        raw_signals[ticker] = _compute(df, INDICATOR_REGISTRY)
         # Yield to event loop periodically to avoid blocking on large universes
         if i % 100 == 99:
             await asyncio.sleep(0)

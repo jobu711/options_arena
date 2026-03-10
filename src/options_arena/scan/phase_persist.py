@@ -27,7 +27,9 @@ from options_arena.scan.models import (
 )
 from options_arena.scan.progress import ProgressCallback, ScanPhase
 
-logger = logging.getLogger(__name__)
+# Use pipeline logger name so that tests filtering on "options_arena.scan.pipeline"
+# continue to capture phase log messages after extraction.
+logger = logging.getLogger("options_arena.scan.pipeline")
 
 
 async def run_persist_phase(

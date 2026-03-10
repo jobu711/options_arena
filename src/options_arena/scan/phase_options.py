@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+from collections.abc import Awaitable, Callable
 from datetime import date, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -37,7 +38,8 @@ from options_arena.models import (
     ScanConfig,
     TickerScore,
 )
-from options_arena.models.market_data import OHLCV
+from options_arena.models.market_data import OHLCV, TickerInfo
+from options_arena.models.metadata import TickerMetadata
 from options_arena.scan.indicators import (
     compute_options_indicators,
     compute_phase3_indicators,
@@ -55,7 +57,29 @@ from options_arena.scoring import (
 from options_arena.services import FredService, MarketDataService, OptionsDataService
 from options_arena.services.universe import map_yfinance_to_metadata
 
-logger = logging.getLogger(__name__)
+# Use pipeline logger name so that tests filtering on "options_arena.scan.pipeline"
+# continue to capture phase log messages after extraction.
+logger = logging.getLogger("options_arena.scan.pipeline")
+
+
+# ---------------------------------------------------------------------------
+# Callable type aliases — used by ScanPipeline wrappers for test-patching
+# ---------------------------------------------------------------------------
+
+# (TickerInfo) -> TickerMetadata
+type MapYfinanceFn = Callable[[TickerInfo], TickerMetadata]
+
+# recommend_contracts signature
+type RecommendContractsFn = Callable[
+    ...,
+    list[OptionContract],
+]
+
+# process_ticker_options async callable (return type only; args via ...)
+type ProcessTickerFn = Callable[
+    ...,
+    Awaitable[tuple[str, list[OptionContract], date | None, Decimal | None]],
+]
 
 
 # ---------------------------------------------------------------------------
@@ -139,6 +163,7 @@ async def run_options_phase(
     repository: Repository,
     scan_config: ScanConfig,
     pricing_config: PricingConfig,
+    process_ticker_fn: ProcessTickerFn | None = None,
 ) -> OptionsResult:
     """Phase 3: Fetch options chains, compute Greeks, recommend contracts.
 
@@ -166,6 +191,9 @@ async def run_options_phase(
         repository: Data layer for metadata upserts.
         scan_config: Scan pipeline configuration slice.
         pricing_config: Pricing configuration for Greeks computation.
+        process_ticker_fn: Optional override for per-ticker processing (used by
+            ``ScanPipeline`` to route through ``self._process_ticker_options``
+            for test-patching compatibility).
 
     Returns:
         ``OptionsResult`` with recommendations and risk-free rate.
@@ -259,26 +287,35 @@ async def run_options_phase(
     entry_prices: dict[str, Decimal] = {}
     completed = 0
 
+    # Use override if provided (ScanPipeline routes through self._process_ticker_options)
+    _process_fn = process_ticker_fn
+
     async def _fetch_with_sem(
         ts: TickerScore,
     ) -> tuple[str, list[OptionContract], date | None, Decimal | None]:
         nonlocal completed
         async with sem:
             try:
-                result = await asyncio.wait_for(
-                    process_ticker_options(
-                        ticker_score=ts,
-                        risk_free_rate=risk_free_rate,
-                        ohlcv_map=ohlcv_map,
-                        spx_close=spx_close,
-                        market_data=market_data,
-                        options_data=options_data,
-                        repository=repository,
-                        scan_config=scan_config,
-                        pricing_config=pricing_config,
-                    ),
-                    timeout=per_ticker_timeout,
-                )
+                if _process_fn is not None:
+                    result = await asyncio.wait_for(
+                        _process_fn(ts, risk_free_rate, ohlcv_map, spx_close),
+                        timeout=per_ticker_timeout,
+                    )
+                else:
+                    result = await asyncio.wait_for(
+                        process_ticker_options(
+                            ticker_score=ts,
+                            risk_free_rate=risk_free_rate,
+                            ohlcv_map=ohlcv_map,
+                            spx_close=spx_close,
+                            market_data=market_data,
+                            options_data=options_data,
+                            repository=repository,
+                            scan_config=scan_config,
+                            pricing_config=pricing_config,
+                        ),
+                        timeout=per_ticker_timeout,
+                    )
                 return result
             finally:
                 completed += 1
@@ -349,6 +386,8 @@ async def process_ticker_options(
     repository: Repository,
     scan_config: ScanConfig,
     pricing_config: PricingConfig,
+    recommend_contracts_fn: RecommendContractsFn | None = None,
+    map_yfinance_fn: MapYfinanceFn | None = None,
 ) -> tuple[str, list[OptionContract], date | None, Decimal | None]:
     """Fetch chains + ticker info + earnings date for a single ticker.
 
@@ -369,11 +408,17 @@ async def process_ticker_options(
         repository: Data layer for metadata upserts.
         scan_config: Scan pipeline configuration slice.
         pricing_config: Pricing configuration for Greeks computation.
+        recommend_contracts_fn: Optional override for ``recommend_contracts`` (used
+            by ``ScanPipeline`` wrappers for test-patching compatibility).
+        map_yfinance_fn: Optional override for ``map_yfinance_to_metadata`` (used
+            by ``ScanPipeline`` wrappers for test-patching compatibility).
 
     Returns:
         Tuple of (ticker, recommended contracts, next_earnings_date | None,
         entry_stock_price | None).
     """
+    _recommend = recommend_contracts_fn or recommend_contracts
+    _map_yfinance = map_yfinance_fn or map_yfinance_to_metadata
     ticker = ticker_score.ticker
 
     # Fetch chains, ticker info, and earnings date concurrently
@@ -430,7 +475,7 @@ async def process_ticker_options(
 
     # Write back metadata for this ticker
     try:
-        metadata = map_yfinance_to_metadata(ticker_info)
+        metadata = _map_yfinance(ticker_info)
         if ticker_score.sector is None and metadata.sector is not None:
             ticker_score.sector = metadata.sector
         if ticker_score.industry_group is None and metadata.industry_group is not None:
@@ -505,7 +550,7 @@ async def process_ticker_options(
             )
             return (ticker, [], earnings_date, entry_stock_price)
 
-    recommended = recommend_contracts(
+    recommended = _recommend(
         contracts=all_contracts,
         direction=ticker_score.direction,
         spot=spot,

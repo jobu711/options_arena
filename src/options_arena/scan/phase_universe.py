@@ -21,7 +21,9 @@ from options_arena.scan.models import UniverseResult
 from options_arena.scan.progress import ProgressCallback, ScanPhase
 from options_arena.services import MarketDataService, UniverseService, build_industry_group_map
 
-logger = logging.getLogger(__name__)
+# Use pipeline logger name so that tests filtering on "options_arena.scan.pipeline"
+# continue to capture phase log messages after extraction.
+logger = logging.getLogger("options_arena.scan.pipeline")
 
 
 async def run_universe_phase(
