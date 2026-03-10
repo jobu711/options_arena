@@ -144,7 +144,7 @@ class TestServiceBaseInit:
     def test_logger_created(self, service_config: ServiceConfig, mock_cache: MagicMock) -> None:
         svc = _ConcreteService(service_config, mock_cache)
         assert isinstance(svc._log, logging.Logger)
-        assert svc._log.name == "_ConcreteService"
+        assert svc._log.name == type(svc).__module__
 
 
 # ===========================================================================

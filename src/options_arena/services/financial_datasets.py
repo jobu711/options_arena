@@ -306,6 +306,7 @@ class FinancialDatasetsService(ServiceBase[FinancialDatasetsConfig]):
     async def close(self) -> None:
         """Close the httpx client."""
         await self._client.aclose()
+        await super().close()
 
     # ------------------------------------------------------------------
     # Private helpers

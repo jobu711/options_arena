@@ -104,7 +104,7 @@ class OpenBBService(ServiceBase[OpenBBConfig]):
                 ttl=self._config.fundamentals_cache_ttl,
             )
         except Exception:
-            logger.warning("OpenBB fundamentals fetch failed for %s", ticker, exc_info=True)
+            self._log.warning("OpenBB fundamentals fetch failed for %s", ticker, exc_info=True)
             return None
 
     async def _fetch_fundamentals_from_sdk(self, ticker: str) -> FundamentalSnapshot:
@@ -150,7 +150,7 @@ class OpenBBService(ServiceBase[OpenBBConfig]):
             industry=industry_str,
             fetched_at=datetime.now(UTC),
         )
-        logger.debug("Fetched OpenBB fundamentals for %s", ticker)
+        self._log.debug("Fetched OpenBB fundamentals for %s", ticker)
         return snapshot
 
     async def fetch_unusual_flow(self, ticker: str) -> UnusualFlowSnapshot | None:
@@ -167,7 +167,7 @@ class OpenBBService(ServiceBase[OpenBBConfig]):
         # Guard against missing shorts router — the openbb-stockgrid extension
         # may not be loaded even when the package is installed.
         if not hasattr(self._obb.equity, "shorts"):
-            logger.warning(
+            self._log.warning(
                 "OpenBB equity.shorts router not available — stockgrid extension may not be loaded"
             )
             return None
@@ -180,7 +180,7 @@ class OpenBBService(ServiceBase[OpenBBConfig]):
                 ttl=self._config.flow_cache_ttl,
             )
         except Exception:
-            logger.warning("OpenBB flow fetch failed for %s", ticker, exc_info=True)
+            self._log.warning("OpenBB flow fetch failed for %s", ticker, exc_info=True)
             return None
 
     async def _fetch_flow_from_sdk(self, ticker: str) -> UnusualFlowSnapshot:
@@ -224,7 +224,7 @@ class OpenBBService(ServiceBase[OpenBBConfig]):
             ),
             fetched_at=datetime.now(UTC),
         )
-        logger.debug("Fetched OpenBB flow for %s", ticker)
+        self._log.debug("Fetched OpenBB flow for %s", ticker)
         return snapshot
 
     async def fetch_news_sentiment(
@@ -248,7 +248,7 @@ class OpenBBService(ServiceBase[OpenBBConfig]):
                 ttl=self._config.news_cache_ttl,
             )
         except Exception:
-            logger.warning("OpenBB news sentiment fetch failed for %s", ticker, exc_info=True)
+            self._log.warning("OpenBB news sentiment fetch failed for %s", ticker, exc_info=True)
             return None
 
     async def _fetch_news_from_sdk(self, ticker: str, limit: int) -> NewsSentimentSnapshot:
@@ -321,7 +321,7 @@ class OpenBBService(ServiceBase[OpenBBConfig]):
             article_count=len(headlines),
             fetched_at=datetime.now(UTC),
         )
-        logger.debug("Fetched OpenBB news sentiment for %s", ticker)
+        self._log.debug("Fetched OpenBB news sentiment for %s", ticker)
         return snapshot
 
     # ------------------------------------------------------------------

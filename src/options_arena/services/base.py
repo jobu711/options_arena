@@ -45,7 +45,7 @@ class ServiceBase[ConfigT]:
         self._config = config
         self._cache = cache
         self._limiter = limiter
-        self._log = logging.getLogger(type(self).__qualname__)
+        self._log = logging.getLogger(type(self).__module__)
 
     async def close(self) -> None:
         """Release resources. Default is a no-op; override in subclasses."""
