@@ -13,10 +13,17 @@ import numpy as np
 from options_arena.models import (
     ContractOutcome,
     DeltaPerformanceResult,
+    DrawdownPoint,
+    DTEBucketResult,
+    EquityCurvePoint,
     ExerciseStyle,
+    GreeksDecompositionResult,
+    GreeksGroupBy,
     GreeksSource,
+    HoldingPeriodComparison,
     HoldingPeriodResult,
     IndicatorAttributionResult,
+    IVRankBucketResult,
     NormalizationStats,
     OptionType,
     OutcomeCollectionMethod,
@@ -24,6 +31,7 @@ from options_arena.models import (
     PricingModel,
     RecommendedContract,
     ScoreCalibrationBucket,
+    SectorPerformanceResult,
     SignalDirection,
     WinRateResult,
 )
@@ -825,3 +833,455 @@ class AnalyticsMixin(RepositoryBase):
             overall_win_rate,
         )
         return summary
+
+    # ------------------------------------------------------------------
+    # Analytics: Backtesting Queries
+    # ------------------------------------------------------------------
+
+    async def get_equity_curve(
+        self,
+        direction: str | None = None,
+        period_days: int | None = None,
+    ) -> list[EquityCurvePoint]:
+        """Compute cumulative equity curve from contract outcomes.
+
+        Joins ``recommended_contracts`` with ``contract_outcomes``, optionally
+        filtered by direction and/or lookback period. Returns one
+        ``EquityCurvePoint`` per calendar date, with a running cumulative return
+        and trade count.
+
+        Args:
+            direction: Optional filter for signal direction (e.g. ``"bullish"``).
+            period_days: Optional lookback window in calendar days.
+
+        Returns:
+            List of ``EquityCurvePoint`` ordered chronologically. Empty list if
+            no outcomes exist.
+        """
+        conn = self._db.conn
+
+        cutoff: str | None = None
+        if period_days is not None:
+            cutoff = (datetime.now(UTC) - timedelta(days=period_days)).isoformat()
+
+        async with conn.execute(
+            "SELECT date(rc.created_at) AS trade_date, co.contract_return_pct "
+            "FROM recommended_contracts rc "
+            "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
+            "WHERE co.contract_return_pct IS NOT NULL "
+            "  AND (? IS NULL OR rc.direction = ?) "
+            "  AND (? IS NULL OR rc.created_at >= ?) "
+            "ORDER BY rc.created_at",
+            (direction, direction, cutoff, cutoff),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        if not rows:
+            return []
+
+        # Group by date, compute cumulative return using geometric compounding
+        date_returns: dict[str, list[float]] = {}
+        for row in rows:
+            d = str(row["trade_date"])
+            if d not in date_returns:
+                date_returns[d] = []
+            date_returns[d].append(float(row["contract_return_pct"]))
+
+        results: list[EquityCurvePoint] = []
+        cumulative_factor = 1.0  # multiplicative growth factor
+        total_trades = 0
+        for dt_str in sorted(date_returns.keys()):
+            rets = date_returns[dt_str]
+            # Average the day's returns, then compound
+            daily_avg = sum(rets) / len(rets)
+            cumulative_factor *= 1.0 + daily_avg / 100.0
+            total_trades += len(rets)
+            results.append(
+                EquityCurvePoint(
+                    date=date.fromisoformat(dt_str),
+                    cumulative_return_pct=(cumulative_factor - 1.0) * 100.0,
+                    trade_count=total_trades,
+                )
+            )
+
+        logger.debug("Equity curve: %d points", len(results))
+        return results
+
+    async def get_drawdown_series(
+        self,
+        direction: str | None = None,
+        period_days: int | None = None,
+    ) -> list[DrawdownPoint]:
+        """Compute drawdown series from the equity curve.
+
+        Tracks peak cumulative return and computes drawdown as percentage of
+        peak (standard financial definition). When the equity curve is at its
+        peak, drawdown is 0.0. Below peak, drawdown is a negative percentage
+        relative to the peak value.
+
+        Args:
+            direction: Optional direction filter (forwarded to equity curve).
+            period_days: Optional lookback window in calendar days.
+
+        Returns:
+            List of ``DrawdownPoint`` ordered chronologically. Empty list if
+            no equity curve data exists.
+        """
+        equity_curve = await self.get_equity_curve(direction=direction, period_days=period_days)
+        if not equity_curve:
+            return []
+
+        results: list[DrawdownPoint] = []
+        peak = 0.0
+        for point in equity_curve:
+            if point.cumulative_return_pct > peak:
+                peak = point.cumulative_return_pct
+            # Percentage-of-peak drawdown (standard definition)
+            if peak > 0.0:
+                drawdown = ((point.cumulative_return_pct - peak) / peak) * 100.0
+            else:
+                drawdown = point.cumulative_return_pct - peak
+            results.append(
+                DrawdownPoint(
+                    date=point.date,
+                    drawdown_pct=drawdown,
+                    peak_value=peak,
+                )
+            )
+
+        logger.debug("Drawdown series: %d points", len(results))
+        return results
+
+    async def get_win_rate_by_sector(
+        self, holding_days: int = 20
+    ) -> list[SectorPerformanceResult]:
+        """Compute win rate and average return grouped by GICS sector.
+
+        Joins ``recommended_contracts`` -> ``contract_outcomes`` -> ``ticker_metadata``
+        to group by sector. Only includes contracts with a known sector.
+
+        Args:
+            holding_days: Filter to outcomes with this holding period.
+
+        Returns:
+            List of ``SectorPerformanceResult`` ordered by sector. Empty list
+            if no matching outcomes exist.
+        """
+        conn = self._db.conn
+
+        async with conn.execute(
+            "SELECT tm.sector, "
+            "  COUNT(*) AS total, "
+            "  AVG(co.contract_return_pct) AS avg_return_pct, "
+            "  CAST(SUM(CASE WHEN co.is_winner = 1 THEN 1 ELSE 0 END) AS REAL) "
+            "    / COUNT(*) * 100.0 AS win_rate_pct "
+            "FROM recommended_contracts rc "
+            "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
+            "JOIN ticker_metadata tm ON tm.ticker = rc.ticker "
+            "WHERE co.holding_days = ? "
+            "  AND co.contract_return_pct IS NOT NULL "
+            "  AND co.is_winner IS NOT NULL "
+            "  AND tm.sector IS NOT NULL "
+            "GROUP BY tm.sector "
+            "ORDER BY tm.sector",
+            (holding_days,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        results = [
+            SectorPerformanceResult(
+                sector=str(row["sector"]),
+                total=int(row["total"]),
+                win_rate_pct=float(row["win_rate_pct"]),
+                avg_return_pct=float(row["avg_return_pct"]),
+            )
+            for row in rows
+        ]
+        logger.debug("Sector performance: %d sectors (hd=%d)", len(results), holding_days)
+        return results
+
+    async def get_win_rate_by_dte_bucket(self, holding_days: int = 20) -> list[DTEBucketResult]:
+        """Compute win rate and average return grouped by DTE buckets.
+
+        DTE is computed as ``julianday(expiration) - julianday(created_at)`` in SQL.
+        Buckets: 0-7, 7-14, 14-30, 30-60, 60+.
+
+        Args:
+            holding_days: Filter to outcomes with this holding period.
+
+        Returns:
+            List of ``DTEBucketResult`` ordered by DTE bucket. Empty list if
+            no matching outcomes exist.
+        """
+        conn = self._db.conn
+
+        async with conn.execute(
+            "SELECT "
+            "  CASE "
+            "    WHEN julianday(rc.expiration) - julianday(rc.created_at) < 7 THEN 0 "
+            "    WHEN julianday(rc.expiration) - julianday(rc.created_at) < 14 THEN 7 "
+            "    WHEN julianday(rc.expiration) - julianday(rc.created_at) < 30 THEN 14 "
+            "    WHEN julianday(rc.expiration) - julianday(rc.created_at) < 60 THEN 30 "
+            "    ELSE 60 "
+            "  END AS dte_min, "
+            "  CASE "
+            "    WHEN julianday(rc.expiration) - julianday(rc.created_at) < 7 THEN 7 "
+            "    WHEN julianday(rc.expiration) - julianday(rc.created_at) < 14 THEN 14 "
+            "    WHEN julianday(rc.expiration) - julianday(rc.created_at) < 30 THEN 30 "
+            "    WHEN julianday(rc.expiration) - julianday(rc.created_at) < 60 THEN 60 "
+            "    ELSE 999 "
+            "  END AS dte_max, "
+            "  COUNT(*) AS total, "
+            "  AVG(co.contract_return_pct) AS avg_return_pct, "
+            "  CAST(SUM(CASE WHEN co.is_winner = 1 THEN 1 ELSE 0 END) AS REAL) "
+            "    / COUNT(*) * 100.0 AS win_rate_pct "
+            "FROM recommended_contracts rc "
+            "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
+            "WHERE co.holding_days = ? "
+            "  AND co.contract_return_pct IS NOT NULL "
+            "  AND co.is_winner IS NOT NULL "
+            "GROUP BY dte_min "
+            "ORDER BY dte_min",
+            (holding_days,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        results = [
+            DTEBucketResult(
+                dte_min=int(row["dte_min"]),
+                dte_max=int(row["dte_max"]),
+                total=int(row["total"]),
+                win_rate_pct=float(row["win_rate_pct"]),
+                avg_return_pct=float(row["avg_return_pct"]),
+            )
+            for row in rows
+        ]
+        logger.debug("DTE bucket performance: %d buckets (hd=%d)", len(results), holding_days)
+        return results
+
+    async def get_win_rate_by_iv_rank(self, holding_days: int = 20) -> list[IVRankBucketResult]:
+        """Compute win rate and average return grouped by IV rank quartiles.
+
+        Buckets ``market_iv * 100`` into: 0-25, 25-50, 50-75, 75-100.
+        Only includes contracts where ``market_iv`` is not NULL.
+
+        Args:
+            holding_days: Filter to outcomes with this holding period.
+
+        Returns:
+            List of ``IVRankBucketResult`` ordered by IV bucket. Empty list if
+            no matching outcomes exist.
+        """
+        conn = self._db.conn
+
+        async with conn.execute(
+            "SELECT "
+            "  CASE "
+            "    WHEN rc.market_iv * 100 < 25 THEN 0.0 "
+            "    WHEN rc.market_iv * 100 < 50 THEN 25.0 "
+            "    WHEN rc.market_iv * 100 < 75 THEN 50.0 "
+            "    ELSE 75.0 "
+            "  END AS iv_min, "
+            "  CASE "
+            "    WHEN rc.market_iv * 100 < 25 THEN 25.0 "
+            "    WHEN rc.market_iv * 100 < 50 THEN 50.0 "
+            "    WHEN rc.market_iv * 100 < 75 THEN 75.0 "
+            "    ELSE 100.0 "
+            "  END AS iv_max, "
+            "  COUNT(*) AS total, "
+            "  AVG(co.contract_return_pct) AS avg_return_pct, "
+            "  CAST(SUM(CASE WHEN co.is_winner = 1 THEN 1 ELSE 0 END) AS REAL) "
+            "    / COUNT(*) * 100.0 AS win_rate_pct "
+            "FROM recommended_contracts rc "
+            "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
+            "WHERE co.holding_days = ? "
+            "  AND co.contract_return_pct IS NOT NULL "
+            "  AND co.is_winner IS NOT NULL "
+            "  AND rc.market_iv IS NOT NULL "
+            "GROUP BY iv_min "
+            "ORDER BY iv_min",
+            (holding_days,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        results = [
+            IVRankBucketResult(
+                iv_min=float(row["iv_min"]),
+                iv_max=float(row["iv_max"]),
+                total=int(row["total"]),
+                win_rate_pct=float(row["win_rate_pct"]),
+                avg_return_pct=float(row["avg_return_pct"]),
+            )
+            for row in rows
+        ]
+        logger.debug("IV rank bucket performance: %d buckets (hd=%d)", len(results), holding_days)
+        return results
+
+    async def get_greeks_decomposition(
+        self,
+        holding_days: int = 20,
+        groupby: GreeksGroupBy = GreeksGroupBy.DIRECTION,
+    ) -> list[GreeksDecompositionResult]:
+        """Decompose P&L into delta-attributable and residual components.
+
+        For each contract with a known ``delta`` and ``stock_return_pct``:
+          - Calls: ``delta_pnl = stock_return_pct * delta``
+          - Puts: ``delta_pnl = stock_return_pct * (-delta)``   (negate for puts)
+          - ``residual_pnl = contract_return_pct - delta_pnl``
+
+        Results are grouped by ``direction`` or ``sector`` (via ``groupby``).
+
+        Args:
+            holding_days: Filter to outcomes with this holding period.
+            groupby: Grouping column enum (DIRECTION or SECTOR).
+
+        Returns:
+            List of ``GreeksDecompositionResult`` ordered by group key.
+            Empty list if no matching data exists.
+        """
+        conn = self._db.conn
+
+        if groupby == GreeksGroupBy.SECTOR:
+            group_col_sql = "tm.sector"
+            join_clause = "JOIN ticker_metadata tm ON tm.ticker = rc.ticker "
+            where_extra = "AND tm.sector IS NOT NULL "
+        else:
+            group_col_sql = "rc.direction"
+            join_clause = ""
+            where_extra = ""
+
+        sql = (
+            "SELECT "
+            f"  {group_col_sql} AS group_key, "
+            "  rc.option_type, rc.delta, "
+            "  co.stock_return_pct, co.contract_return_pct "
+            "FROM recommended_contracts rc "
+            "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
+            f"{join_clause}"
+            "WHERE co.holding_days = ? "
+            "  AND co.contract_return_pct IS NOT NULL "
+            "  AND co.stock_return_pct IS NOT NULL "
+            "  AND rc.delta IS NOT NULL "
+            f"  {where_extra}"
+            "ORDER BY group_key"
+        )
+
+        async with conn.execute(sql, (holding_days,)) as cursor:
+            rows = await cursor.fetchall()
+
+        if not rows:
+            return []
+
+        # Group in Python and compute decomposition
+        groups: dict[str, list[tuple[float, float, float]]] = {}
+        for row in rows:
+            key = str(row["group_key"])
+            option_type = str(row["option_type"])
+            delta = float(row["delta"])
+            stock_ret = float(row["stock_return_pct"])
+            contract_ret = float(row["contract_return_pct"])
+
+            # For puts, negate delta in the decomposition
+            if option_type == OptionType.PUT.value:
+                delta_pnl = stock_ret * (-delta)
+            else:
+                delta_pnl = stock_ret * delta
+            residual_pnl = contract_ret - delta_pnl
+
+            if key not in groups:
+                groups[key] = []
+            groups[key].append((delta_pnl, residual_pnl, contract_ret))
+
+        results: list[GreeksDecompositionResult] = []
+        for group_key in sorted(groups.keys()):
+            entries = groups[group_key]
+            total_delta = sum(e[0] for e in entries)
+            total_residual = sum(e[1] for e in entries)
+            total_pnl = sum(e[2] for e in entries)
+            count = len(entries)
+            avg_delta = total_delta / count
+            avg_residual = total_residual / count
+            avg_pnl = total_pnl / count
+            results.append(
+                GreeksDecompositionResult(
+                    group_key=group_key,
+                    delta_pnl=avg_delta,
+                    residual_pnl=avg_residual,
+                    total_pnl=avg_pnl,
+                    count=count,
+                )
+            )
+
+        logger.debug(
+            "Greeks decomposition: %d groups (hd=%d, by=%s)",
+            len(results),
+            holding_days,
+            groupby,
+        )
+        return results
+
+    async def get_holding_period_comparison(self) -> list[HoldingPeriodComparison]:
+        """Compare performance across holding periods and directions.
+
+        Groups by ``holding_days`` and ``direction``, computing average return,
+        median return, win rate, max loss, and a Sharpe-like ratio
+        (``mean / std``, or ``0.0`` if ``std == 0``).
+
+        Returns:
+            List of ``HoldingPeriodComparison`` ordered by holding_days then
+            direction. Empty list if no outcomes exist.
+        """
+        conn = self._db.conn
+
+        async with conn.execute(
+            "SELECT co.holding_days, rc.direction, co.contract_return_pct "
+            "FROM recommended_contracts rc "
+            "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
+            "WHERE co.contract_return_pct IS NOT NULL "
+            "  AND co.holding_days IS NOT NULL "
+            "ORDER BY co.holding_days, rc.direction",
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        if not rows:
+            return []
+
+        # Group in Python for median and Sharpe computation
+        groups: dict[tuple[int, str], list[float]] = {}
+        for row in rows:
+            key = (int(row["holding_days"]), str(row["direction"]))
+            if key not in groups:
+                groups[key] = []
+            groups[key].append(float(row["contract_return_pct"]))
+
+        results: list[HoldingPeriodComparison] = []
+        for (hd, direction), returns_list in sorted(groups.items()):
+            count = len(returns_list)
+            avg_ret = sum(returns_list) / count
+            med_ret = statistics.median(returns_list)
+            winners = sum(1 for r in returns_list if r > 0)
+            win_rate = winners / count
+            max_loss = min(returns_list)
+
+            # Sharpe-like ratio: mean / std (0.0 if std == 0 or single observation)
+            if count >= 2:
+                std = statistics.stdev(returns_list)
+                sharpe = avg_ret / std if std > 0 else 0.0
+            else:
+                sharpe = 0.0
+
+            results.append(
+                HoldingPeriodComparison(
+                    holding_days=hd,
+                    direction=SignalDirection(direction),
+                    avg_return=avg_ret,
+                    median_return=med_ret,
+                    win_rate=win_rate,
+                    sharpe_like=sharpe,
+                    max_loss=max_loss,
+                    count=count,
+                )
+            )
+
+        logger.debug("Holding period comparison: %d groups", len(results))
+        return results

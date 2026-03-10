@@ -220,6 +220,17 @@ class OutcomeCollectionMethod(StrEnum):
     EXPIRED_WORTHLESS = "expired_worthless"
 
 
+class GreeksGroupBy(StrEnum):
+    """Grouping column for Greeks P&L decomposition.
+
+    DIRECTION — Group by signal direction (bullish/bearish/neutral).
+    SECTOR    — Group by GICS sector (requires ticker_metadata join).
+    """
+
+    DIRECTION = "direction"
+    SECTOR = "sector"
+
+
 class LLMProvider(StrEnum):
     """LLM provider for AI debate agents.
 

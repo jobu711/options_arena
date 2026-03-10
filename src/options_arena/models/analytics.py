@@ -809,3 +809,320 @@ class AgentWeightsComparison(BaseModel):
         if v < 0:
             raise ValueError(f"sample_size must be >= 0, got {v}")
         return v
+
+
+# ---------------------------------------------------------------------------
+# Backtesting analytics models
+# ---------------------------------------------------------------------------
+
+
+class EquityCurvePoint(BaseModel):
+    """A single data point on the backtesting equity curve.
+
+    Attributes:
+        date: Calendar date of the data point.
+        cumulative_return_pct: Cumulative return percentage at this date.
+        trade_count: Number of trades completed up to this date.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    date: date
+    cumulative_return_pct: float
+    trade_count: int
+
+    @field_validator("cumulative_return_pct")
+    @classmethod
+    def validate_cumulative_return_finite(cls, v: float) -> float:
+        """Ensure cumulative_return_pct is finite."""
+        if not math.isfinite(v):
+            raise ValueError(f"cumulative_return_pct must be finite, got {v}")
+        return v
+
+    @field_validator("trade_count")
+    @classmethod
+    def validate_trade_count_non_negative(cls, v: int) -> int:
+        """Ensure trade_count is non-negative."""
+        if v < 0:
+            raise ValueError(f"trade_count must be >= 0, got {v}")
+        return v
+
+
+class DrawdownPoint(BaseModel):
+    """A single data point on the backtesting drawdown curve.
+
+    Attributes:
+        date: Calendar date of the data point.
+        drawdown_pct: Drawdown percentage (non-positive, 0.0 = at peak).
+        peak_value: Peak cumulative value before this drawdown.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    date: date
+    drawdown_pct: float
+    peak_value: float
+
+    @field_validator("drawdown_pct")
+    @classmethod
+    def validate_drawdown_finite(cls, v: float) -> float:
+        """Ensure drawdown_pct is finite."""
+        if not math.isfinite(v):
+            raise ValueError(f"drawdown_pct must be finite, got {v}")
+        return v
+
+    @field_validator("peak_value")
+    @classmethod
+    def validate_peak_value_finite(cls, v: float) -> float:
+        """Ensure peak_value is finite."""
+        if not math.isfinite(v):
+            raise ValueError(f"peak_value must be finite, got {v}")
+        return v
+
+
+class SectorPerformanceResult(BaseModel):
+    """Backtesting performance analytics grouped by GICS sector.
+
+    Attributes:
+        sector: GICS sector name.
+        total: Total contracts in this sector.
+        win_rate_pct: Win rate as percentage in [0.0, 100.0].
+        avg_return_pct: Average return percentage.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    sector: str
+    total: int
+    win_rate_pct: float
+    avg_return_pct: float
+
+    @field_validator("total")
+    @classmethod
+    def validate_total_non_negative(cls, v: int) -> int:
+        """Ensure total is non-negative."""
+        if v < 0:
+            raise ValueError(f"total must be >= 0, got {v}")
+        return v
+
+    @field_validator("win_rate_pct")
+    @classmethod
+    def validate_win_rate_pct(cls, v: float) -> float:
+        """Ensure win_rate_pct is finite and in [0.0, 100.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"win_rate_pct must be finite, got {v}")
+        if not 0.0 <= v <= 100.0:
+            raise ValueError(f"win_rate_pct must be in [0.0, 100.0], got {v}")
+        return v
+
+    @field_validator("avg_return_pct")
+    @classmethod
+    def validate_avg_return_finite(cls, v: float) -> float:
+        """Ensure avg_return_pct is finite."""
+        if not math.isfinite(v):
+            raise ValueError(f"avg_return_pct must be finite, got {v}")
+        return v
+
+
+class DTEBucketResult(BaseModel):
+    """Backtesting performance analytics grouped by days-to-expiration range.
+
+    Attributes:
+        dte_min: Lower bound of DTE bucket (inclusive).
+        dte_max: Upper bound of DTE bucket (inclusive).
+        total: Total contracts in this bucket.
+        win_rate_pct: Win rate as percentage in [0.0, 100.0].
+        avg_return_pct: Average return percentage.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    dte_min: int
+    dte_max: int
+    total: int
+    win_rate_pct: float
+    avg_return_pct: float
+
+    @field_validator("dte_min", "dte_max")
+    @classmethod
+    def validate_dte_non_negative(cls, v: int) -> int:
+        """Ensure DTE bounds are non-negative."""
+        if v < 0:
+            raise ValueError(f"DTE must be >= 0, got {v}")
+        return v
+
+    @field_validator("total")
+    @classmethod
+    def validate_total_non_negative(cls, v: int) -> int:
+        """Ensure total is non-negative."""
+        if v < 0:
+            raise ValueError(f"total must be >= 0, got {v}")
+        return v
+
+    @field_validator("win_rate_pct")
+    @classmethod
+    def validate_win_rate_pct(cls, v: float) -> float:
+        """Ensure win_rate_pct is finite and in [0.0, 100.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"win_rate_pct must be finite, got {v}")
+        if not 0.0 <= v <= 100.0:
+            raise ValueError(f"win_rate_pct must be in [0.0, 100.0], got {v}")
+        return v
+
+    @field_validator("avg_return_pct")
+    @classmethod
+    def validate_avg_return_finite(cls, v: float) -> float:
+        """Ensure avg_return_pct is finite."""
+        if not math.isfinite(v):
+            raise ValueError(f"avg_return_pct must be finite, got {v}")
+        return v
+
+
+class IVRankBucketResult(BaseModel):
+    """Backtesting performance analytics grouped by implied volatility rank range.
+
+    Attributes:
+        iv_min: Lower bound of IV rank bucket.
+        iv_max: Upper bound of IV rank bucket.
+        total: Total contracts in this bucket.
+        win_rate_pct: Win rate as percentage in [0.0, 100.0].
+        avg_return_pct: Average return percentage.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    iv_min: float
+    iv_max: float
+    total: int
+    win_rate_pct: float
+    avg_return_pct: float
+
+    @field_validator("iv_min", "iv_max")
+    @classmethod
+    def validate_iv_bounds_finite(cls, v: float) -> float:
+        """Ensure IV rank bounds are finite."""
+        if not math.isfinite(v):
+            raise ValueError(f"IV bound must be finite, got {v}")
+        return v
+
+    @field_validator("total")
+    @classmethod
+    def validate_total_non_negative(cls, v: int) -> int:
+        """Ensure total is non-negative."""
+        if v < 0:
+            raise ValueError(f"total must be >= 0, got {v}")
+        return v
+
+    @field_validator("win_rate_pct")
+    @classmethod
+    def validate_win_rate_pct(cls, v: float) -> float:
+        """Ensure win_rate_pct is finite and in [0.0, 100.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"win_rate_pct must be finite, got {v}")
+        if not 0.0 <= v <= 100.0:
+            raise ValueError(f"win_rate_pct must be in [0.0, 100.0], got {v}")
+        return v
+
+    @field_validator("avg_return_pct")
+    @classmethod
+    def validate_avg_return_finite(cls, v: float) -> float:
+        """Ensure avg_return_pct is finite."""
+        if not math.isfinite(v):
+            raise ValueError(f"avg_return_pct must be finite, got {v}")
+        return v
+
+
+class GreeksDecompositionResult(BaseModel):
+    """Backtesting P&L decomposition by Greeks for a group of contracts.
+
+    Attributes:
+        group_key: Grouping label (e.g. "calls", "puts", "bullish", "30-45 DTE").
+        delta_pnl: P&L attributable to delta.
+        residual_pnl: Residual P&L not explained by delta.
+        total_pnl: Total P&L (delta_pnl + residual_pnl).
+        count: Number of contracts in this group.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    group_key: str
+    delta_pnl: float
+    residual_pnl: float
+    total_pnl: float
+    count: int
+
+    @field_validator("delta_pnl", "residual_pnl", "total_pnl")
+    @classmethod
+    def validate_pnl_finite(cls, v: float) -> float:
+        """Ensure P&L fields are finite."""
+        if not math.isfinite(v):
+            raise ValueError(f"P&L must be finite, got {v}")
+        return v
+
+    @field_validator("count")
+    @classmethod
+    def validate_count_non_negative(cls, v: int) -> int:
+        """Ensure count is non-negative."""
+        if v < 0:
+            raise ValueError(f"count must be >= 0, got {v}")
+        return v
+
+
+class HoldingPeriodComparison(BaseModel):
+    """Backtesting holding period comparison for a specific duration and direction.
+
+    Attributes:
+        holding_days: Number of trading days held.
+        direction: Signal direction enum (bullish/bearish/neutral).
+        avg_return: Average return percentage.
+        median_return: Median return percentage.
+        win_rate: Win rate as fraction in [0.0, 1.0].
+        sharpe_like: Sharpe-like ratio (mean / std, or 0.0 if std == 0).
+        max_loss: Maximum loss percentage (non-positive or zero).
+        count: Number of contracts in this comparison.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    holding_days: int
+    direction: SignalDirection
+    avg_return: float
+    median_return: float
+    win_rate: float
+    sharpe_like: float
+    max_loss: float
+    count: int
+
+    @field_validator("holding_days")
+    @classmethod
+    def validate_holding_days_positive(cls, v: int) -> int:
+        """Ensure holding_days is positive."""
+        if v < 1:
+            raise ValueError(f"holding_days must be >= 1, got {v}")
+        return v
+
+    @field_validator("avg_return", "median_return", "sharpe_like", "max_loss")
+    @classmethod
+    def validate_float_finite(cls, v: float) -> float:
+        """Ensure float fields are finite."""
+        if not math.isfinite(v):
+            raise ValueError(f"must be finite, got {v}")
+        return v
+
+    @field_validator("win_rate")
+    @classmethod
+    def validate_win_rate(cls, v: float) -> float:
+        """Ensure win_rate is finite and in [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"win_rate must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"win_rate must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("count")
+    @classmethod
+    def validate_count_non_negative(cls, v: int) -> int:
+        """Ensure count is non-negative."""
+        if v < 0:
+            raise ValueError(f"count must be >= 0, got {v}")
+        return v

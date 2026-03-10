@@ -486,11 +486,24 @@ class AnalyticsConfig(BaseModel):
     ``holding_periods`` defines which holding periods (in trading days) to evaluate
     contract outcomes for. ``batch_size`` controls how many contracts are processed per
     batch. Outcome collection runs automatically after every successful scan.
+
+    ``auto_collect_enabled`` activates a background scheduler that runs
+    ``collect_outcomes()`` once daily at ``auto_collect_hour_utc`` (0-23 UTC).
     """
 
     holding_periods: list[int] = [1, 5, 10, 20]
     batch_size: int = 50
     collection_timeout: float = 120.0
+    auto_collect_enabled: bool = False
+    auto_collect_hour_utc: int = 6
+
+    @field_validator("auto_collect_hour_utc")
+    @classmethod
+    def _validate_hour(cls, v: int) -> int:
+        """Ensure auto_collect_hour_utc is within [0, 23]."""
+        if not 0 <= v <= 23:
+            raise ValueError("must be 0-23")
+        return v
 
     @field_validator("batch_size")
     @classmethod
