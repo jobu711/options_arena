@@ -17,10 +17,10 @@
 
 ## Recently Completed
 
-- **Backtesting engine epic** (2026-03-10): Issues #430-#436. 7 backtest models (`BacktestResult`, `EquityCurve`, `DrawdownSeries`, etc.), 7 analytics queries in `AnalyticsMixin`, 7 API endpoints on `/api/analytics/backtest`, CLI `outcomes backtest` + `equity-curve` subcommands, Vue analytics dashboard with 5 tabs (Chart.js), E2E tests. Migration 029.
-- **Pipeline phase extraction epic** (2026-03-10): Issues #424-#428. Decomposed monolithic `pipeline.py` (1168→352 lines) into 4 phase modules: `phase_universe.py`, `phase_scoring.py`, `phase_options.py`, `phase_persist.py`. Pipeline.py now a thin orchestrator.
+- **Service layer unification epic** (2026-03-10): Issues #438-#444. `ServiceBase[ConfigT]` mixin in `base.py` — cache-first fetch, rate-limited retries, yfinance wrapping. All 7 data services migrated. Cleanup PR #450: consolidated dual-logger to `self._log` (`type(self).__module__`), added missing `super().close()`.
+- **Backtesting engine epic** (2026-03-10): Issues #430-#436. 7 backtest models, 7 analytics queries, 7 API endpoints, CLI subcommands, Vue analytics dashboard, E2E tests. Migration 029.
+- **Pipeline phase extraction epic** (2026-03-10): Issues #424-#428. Decomposed monolithic `pipeline.py` (1168→352 lines) into 4 phase modules.
 - **Repository decomposition epic** (2026-03-09): Issues #418-#422. Decomposed `Repository` monolith into domain-specific mixins.
-- **Prompt engineering v2 + agent calibration** (2026-03-09): Prompt extraction to `agents/prompts/`, few-shot golden examples, regression tests, per-agent accuracy tracking, auto-tune weights.
 
 ## Future Work
 

@@ -1,7 +1,7 @@
 ---
 name: polish-testing-infra
 description: Speed up CI pipeline, add model factories, improve test organization and parallel safety
-status: backlog
+status: planned
 created: 2026-03-10T14:22:09Z
 ---
 

@@ -34,6 +34,9 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **MarketContext completeness**: Optional fields are `float | None`. `completeness_ratio()` measures populated fields. <0.4 → data-driven fallback; <0.6 → warning (proceed with caution); >=0.6 → full debate.
 
 ### Service Layer Patterns
+- **`ServiceBase[ConfigT]` mixin**: Generic base in `base.py`. Stores `_config`, `_cache`, `_limiter`, `_log`. Provides `_cached_fetch()`, `_retried_fetch()`, `_yf_call()`. No abstract methods — opt-in helpers.
+- **Logger convention**: `self._log = logging.getLogger(type(self).__module__)` — matches standard `getLogger(__name__)`. All class methods use `self._log`, not module-level `logger`.
+- **`close()` chain**: Subclasses with resources override `close()` and call `await super().close()` at the end.
 - **Class-based DI**: `config`, `cache`, `limiter` via `__init__`. Explicit `close()`. Cache-first strategy.
 - **httpx**: one `AsyncClient` per service, closed via `aclose()`. Retry with exponential backoff (1s->16s).
 - **yfinance wrapping**: `_yf_call(fn, *args)` — `to_thread(fn, *args)` + `wait_for(timeout)`. CRITICAL: pass callable + args separately, NOT `to_thread(fn())`.

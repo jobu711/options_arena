@@ -2,3 +2,4 @@
 {"epic":"repository-decomposition","completed":"2026-03-09T20:45:00Z","tasks":5,"planned_hours":7,"proxy_hours":1.5,"ratio":0.21,"tests_passed":23815,"tests_failed":0,"post_merge_fixes":0}
 {"epic":"pipeline-phase-extraction","completed":"2026-03-09T21:00:00Z","tasks":5,"planned_hours":12,"proxy_hours":1.0,"ratio":0.08,"tests_passed":23815,"tests_failed":0,"post_merge_fixes":0}
 {"epic":"backtesting-engine","completed":"2026-03-10T01:20:00Z","tasks":7,"planned_hours":84,"proxy_hours":0.5,"ratio":0.006,"tests_added":150,"files_changed":29,"insertions":5736,"post_merge_fixes":0}
+{"epic":"service-layer-unification","completed":"2026-03-10T17:00:00Z","tasks":7,"planned_hours":21,"proxy_hours":0.6,"ratio":0.03,"tests_added":38,"files_changed":10,"insertions":1519,"post_merge_fixes":0}
