@@ -55,6 +55,7 @@ from options_arena.models import (
     AgentAccuracyReport,
     AgentPrediction,
     AgentResponse,
+    AgentWeightsComparison,
     ContrarianThesis,
     DebateConfig,
     DimensionalScores,
@@ -942,6 +943,70 @@ def compute_auto_tune_weights(
             weights[name] = (directional[name] / total) * 0.85
 
     return weights
+
+
+async def auto_tune_weights(
+    repo: Repository,
+    window_days: int = 90,
+    dry_run: bool = False,
+) -> list[AgentWeightsComparison]:
+    """Orchestrate end-to-end auto-tune: accuracy -> weights -> compare -> persist.
+
+    Connects existing primitives into a working flow:
+    1. Fetch per-agent accuracy from the repository.
+    2. Compute auto-tuned weights via ``compute_auto_tune_weights()``.
+    3. Build ``AgentWeightsComparison`` for each agent (manual vs auto).
+    4. Optionally persist the results (skipped when *dry_run* is ``True``).
+
+    Args:
+        repo: Repository instance for DB access.
+        window_days: Calendar-day lookback window passed to accuracy query.
+        dry_run: When ``True``, skip persistence and return comparisons only.
+
+    Returns:
+        List of ``AgentWeightsComparison`` — one per agent with tuned weights.
+        Empty list when no accuracy data meets the minimum sample threshold.
+    """
+    accuracy = await repo.get_agent_accuracy(window_days=window_days)
+
+    # Skip persistence when no agent has enough scored outcomes
+    has_eligible = any(
+        r.agent_name != "risk"
+        and r.sample_size >= 10
+        and r.brier_score is not None
+        and math.isfinite(r.brier_score)
+        for r in accuracy
+    )
+    if not has_eligible:
+        logger.info(
+            "Auto-tune skipped: no directional agent has enough scored outcomes (window=%d)",
+            window_days,
+        )
+        return []
+
+    tuned = compute_auto_tune_weights(accuracy)
+
+    comparisons = [
+        AgentWeightsComparison(
+            agent_name=name,
+            manual_weight=AGENT_VOTE_WEIGHTS.get(name, 0.0),
+            auto_weight=tuned.get(name, 0.0),
+            brier_score=next((a.brier_score for a in accuracy if a.agent_name == name), None),
+            sample_size=next((a.sample_size for a in accuracy if a.agent_name == name), 0),
+        )
+        for name in tuned
+    ]
+
+    if not dry_run:
+        await repo.save_auto_tune_weights(comparisons, window_days=window_days)
+
+    logger.info(
+        "Auto-tune weights computed for %d agents (window=%d, dry_run=%s)",
+        len(comparisons),
+        window_days,
+        dry_run,
+    )
+    return comparisons
 
 
 def compute_agreement_score(agent_directions: dict[str, SignalDirection]) -> float:

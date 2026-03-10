@@ -1126,3 +1126,54 @@ class HoldingPeriodComparison(BaseModel):
         if v < 0:
             raise ValueError(f"count must be >= 0, got {v}")
         return v
+
+
+# ---------------------------------------------------------------------------
+# Weight history model
+# ---------------------------------------------------------------------------
+
+
+class WeightSnapshot(BaseModel):
+    """A point-in-time snapshot of auto-tuned agent weights.
+
+    Groups all ``AgentWeightsComparison`` rows that share the same
+    ``created_at`` timestamp into a single immutable snapshot.
+
+    Attributes:
+        computed_at: UTC timestamp when these weights were computed.
+        window_days: Lookback window in calendar days (>= 1).
+        weights: Non-empty list of per-agent weight comparisons.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    computed_at: datetime
+    window_days: int
+    weights: list[AgentWeightsComparison]
+
+    @field_validator("computed_at")
+    @classmethod
+    def validate_utc(cls, v: datetime) -> datetime:
+        """Ensure computed_at is UTC."""
+        if v.tzinfo is None or v.utcoffset() != timedelta(0):
+            raise ValueError("computed_at must be UTC")
+        return v
+
+    @field_validator("window_days")
+    @classmethod
+    def validate_window_days_positive(cls, v: int) -> int:
+        """Ensure window_days is at least 1."""
+        if v < 1:
+            raise ValueError(f"window_days must be >= 1, got {v}")
+        return v
+
+    @field_validator("weights")
+    @classmethod
+    def validate_weights_non_empty(
+        cls,
+        v: list[AgentWeightsComparison],
+    ) -> list[AgentWeightsComparison]:
+        """Ensure weights list is non-empty."""
+        if len(v) == 0:
+            raise ValueError("weights must not be empty")
+        return v
