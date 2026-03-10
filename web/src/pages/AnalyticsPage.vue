@@ -36,6 +36,7 @@ import IVPerformanceChart from '@/components/analytics/IVPerformanceChart.vue'
 import GreeksDecompositionChart from '@/components/analytics/GreeksDecompositionChart.vue'
 import HoldingComparisonTable from '@/components/analytics/HoldingComparisonTable.vue'
 import AgentAccuracyHeatmap from '@/components/analytics/AgentAccuracyHeatmap.vue'
+import WeightTuningPanel from '@/components/analytics/WeightTuningPanel.vue'
 
 const router = useRouter()
 const toast = useToast()
@@ -156,6 +157,7 @@ async function onTabChange(value: string | number): Promise<void> {
   } else if (tabName === 'holding') {
     await backtestStore.loadHoldingTab()
   }
+  // 'weights' tab loads its own data via WeightTuningPanel's onMounted
 }
 
 // --- Watchers for existing analytics filters ---
@@ -280,6 +282,7 @@ onMounted(async () => {
           <Tab value="segments">Segments</Tab>
           <Tab value="greeks">Greeks</Tab>
           <Tab value="holding">Holding</Tab>
+          <Tab value="weights">Weight Tuning</Tab>
         </TabList>
         <TabPanels>
           <!-- Overview Tab -->
@@ -342,6 +345,13 @@ onMounted(async () => {
           <TabPanel value="holding">
             <div class="tab-content">
               <HoldingComparisonTable :data="backtestStore.holdingComparison" />
+            </div>
+          </TabPanel>
+
+          <!-- Weight Tuning Tab -->
+          <TabPanel value="weights">
+            <div class="tab-content">
+              <WeightTuningPanel />
             </div>
           </TabPanel>
         </TabPanels>
