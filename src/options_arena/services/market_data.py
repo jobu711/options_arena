@@ -3,7 +3,8 @@
 Fetches and normalizes yfinance market data into typed Pydantic models.
 Includes the 3-tier dividend yield waterfall (FR-M7.1), MarketCapTier
 classification, and cross-validation logic. All yfinance calls are
-wrapped with ``asyncio.to_thread`` + ``asyncio.wait_for`` for async safety.
+wrapped via inherited :meth:`ServiceBase._yf_call` (``asyncio.to_thread``
++ ``asyncio.wait_for``) for async safety.
 """
 
 from __future__ import annotations
@@ -13,7 +14,6 @@ import hashlib
 import json
 import logging
 import math
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -27,6 +27,7 @@ from pydantic import ValidationError as PydanticValidationError
 from options_arena.models.config import ServiceConfig
 from options_arena.models.enums import DividendSource, MarketCapTier
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
+from options_arena.services.base import ServiceBase
 from options_arena.services.cache import (
     TTL_EARNINGS,
     TTL_FUNDAMENTALS,
@@ -36,7 +37,6 @@ from options_arena.services.cache import (
 )
 from options_arena.services.helpers import (
     clear_stale_yf_cookies,
-    fetch_with_limiter_retry,
     safe_decimal,
     safe_float,
     safe_int,
@@ -268,11 +268,12 @@ def _classify_market_cap(market_cap: int | None) -> MarketCapTier | None:
     return MarketCapTier.MICRO
 
 
-class MarketDataService:
+class MarketDataService(ServiceBase[ServiceConfig]):
     """Fetches and normalises yfinance market data into typed Pydantic models.
 
-    All yfinance calls are wrapped via :meth:`_yf_call` which uses
-    ``asyncio.to_thread`` + ``asyncio.wait_for`` for async safety and timeout.
+    All yfinance calls are wrapped via inherited :meth:`ServiceBase._yf_call`
+    which uses ``asyncio.to_thread`` + ``asyncio.wait_for`` for async safety
+    and timeout.
 
     Args:
         config: Service configuration with timeouts and rate limits.
@@ -286,35 +287,8 @@ class MarketDataService:
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
-        self._config = config
-        self._cache = cache
-        self._limiter = limiter
+        super().__init__(config, cache, limiter)
         clear_stale_yf_cookies()
-
-    async def _yf_call[T](
-        self,
-        fn: Callable[..., T],
-        *args: object,
-        **kwargs: object,
-    ) -> T:
-        """Wrap a sync yfinance call with to_thread + wait_for + error mapping.
-
-        CRITICAL: Pass the callable and its args separately —
-        ``to_thread(fn, *args)``, NOT ``to_thread(fn())``.
-        """
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(fn, *args, **kwargs),
-                timeout=self._config.yfinance_timeout,
-            )
-        except TimeoutError as exc:
-            raise DataSourceUnavailableError(
-                f"yfinance: timeout after {self._config.yfinance_timeout}s"
-            ) from exc
-        except DataFetchError:
-            raise
-        except Exception as exc:
-            raise DataSourceUnavailableError(f"yfinance: {exc}") from exc
 
     @staticmethod
     def _build_info_from_fast_info(ticker_obj: yf.Ticker) -> dict[str, Any]:
@@ -357,8 +331,9 @@ class MarketDataService:
 
         # Fetch from yfinance (with retry on transient failures)
         ticker_obj = yf.Ticker(ticker)
-        df: pd.DataFrame = await fetch_with_limiter_retry(
-            self._yf_call, ticker_obj.history, period=period, limiter=self._limiter
+        timeout = self._config.yfinance_timeout
+        df: pd.DataFrame = await self._retried_fetch(
+            lambda: self._yf_call(ticker_obj.history, period=period, timeout=timeout),
         )
 
         if df.empty:
@@ -431,20 +406,21 @@ class MarketDataService:
             return _deserialize_quote(cached)
 
         ticker_obj = yf.Ticker(ticker)
+        timeout = self._config.yfinance_timeout
         try:
             # Single attempt — ETF 404s are permanent, retrying wastes ~31s.
-            info: dict[str, Any] = await fetch_with_limiter_retry(
-                self._yf_call, lambda: ticker_obj.info, limiter=self._limiter, max_attempts=1
+            info: dict[str, Any] = await self._retried_fetch(
+                lambda: self._yf_call(lambda: ticker_obj.info, timeout=timeout),
+                max_attempts=1,
             )
         except DataSourceUnavailableError:
             # ETFs (SPY, QQQ) lack quoteSummary fundamentals (Yahoo 404).
             # Fall back to fast_info for basic price data.
             logger.warning("%s: Ticker.info failed, using fast_info fallback", ticker)
-            info = await fetch_with_limiter_retry(
-                self._yf_call,
-                self._build_info_from_fast_info,
-                ticker_obj,
-                limiter=self._limiter,
+            info = await self._retried_fetch(
+                lambda: self._yf_call(
+                    self._build_info_from_fast_info, ticker_obj, timeout=timeout
+                ),
                 max_attempts=1,
             )
 
@@ -489,27 +465,28 @@ class MarketDataService:
             return _deserialize_ticker_info(cached)
 
         ticker_obj = yf.Ticker(ticker)
+        timeout = self._config.yfinance_timeout
         try:
             # Single attempt — ETF 404s are permanent, retrying wastes ~31s.
-            info: dict[str, Any] = await fetch_with_limiter_retry(
-                self._yf_call, lambda: ticker_obj.info, limiter=self._limiter, max_attempts=1
+            info: dict[str, Any] = await self._retried_fetch(
+                lambda: self._yf_call(lambda: ticker_obj.info, timeout=timeout),
+                max_attempts=1,
             )
         except DataSourceUnavailableError:
             # ETFs (SPY, QQQ) lack quoteSummary fundamentals (Yahoo 404).
             # Fall back to fast_info for basic price/market-cap data.
             logger.warning("%s: Ticker.info failed, using fast_info fallback", ticker)
-            info = await fetch_with_limiter_retry(
-                self._yf_call,
-                self._build_info_from_fast_info,
-                ticker_obj,
-                limiter=self._limiter,
+            info = await self._retried_fetch(
+                lambda: self._yf_call(
+                    self._build_info_from_fast_info, ticker_obj, timeout=timeout
+                ),
                 max_attempts=1,
             )
 
         # Fetch dividends for tier 3 of the waterfall
         try:
-            dividends_series: pd.Series[float] = await fetch_with_limiter_retry(
-                self._yf_call, ticker_obj.get_dividends, period="1y", limiter=self._limiter
+            dividends_series: pd.Series[float] = await self._retried_fetch(
+                lambda: self._yf_call(ticker_obj.get_dividends, period="1y", timeout=timeout),
             )
         except (DataSourceUnavailableError, DataFetchError):
             # ETFs or tickers without dividend data — fall through to tier 4 (0.0).
@@ -609,8 +586,9 @@ class MarketDataService:
 
         try:
             ticker_obj = yf.Ticker(ticker)
-            calendar: dict[str, Any] = await fetch_with_limiter_retry(
-                self._yf_call, lambda: ticker_obj.calendar, limiter=self._limiter
+            timeout = self._config.yfinance_timeout
+            calendar: dict[str, Any] = await self._retried_fetch(
+                lambda: self._yf_call(lambda: ticker_obj.calendar, timeout=timeout),
             )
         except Exception:
             logger.debug("No earnings calendar available for %s", ticker)
@@ -686,14 +664,13 @@ class MarketDataService:
         all_tickers = core_tickers + sector_tickers
 
         # Fetch all in parallel using _yf_call pattern
+        timeout = self._config.yfinance_timeout
+
         async def _fetch_one(symbol: str) -> tuple[str, pd.DataFrame | None]:
             try:
                 ticker_obj = yf.Ticker(symbol)
-                df: pd.DataFrame = await fetch_with_limiter_retry(
-                    self._yf_call,
-                    ticker_obj.history,
-                    period="3mo",
-                    limiter=self._limiter,
+                df: pd.DataFrame = await self._retried_fetch(
+                    lambda: self._yf_call(ticker_obj.history, period="3mo", timeout=timeout),
                 )
                 if df.empty:
                     logger.debug("Empty data for universe ticker %s", symbol)
@@ -776,6 +753,7 @@ class MarketDataService:
 
     async def _download_chunk(self, chunk: list[str]) -> pd.DataFrame:
         """Download a single chunk of tickers via ``yf.download``."""
+        assert self._limiter is not None  # noqa: S101 — guaranteed by __init__
         async with self._limiter:
             df: pd.DataFrame = await asyncio.wait_for(
                 asyncio.to_thread(
@@ -881,9 +859,7 @@ class MarketDataService:
         )
         return quotes
 
-    async def close(self) -> None:
-        """Release resources. Safe to call multiple times."""
-        logger.debug("MarketDataService closed")
+    # close() inherited from ServiceBase — no resources to release.
 
 
 # ---------------------------------------------------------------------------
