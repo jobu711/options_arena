@@ -7,6 +7,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+from options_arena.agents import auto_tune_weights
 from options_arena.api.app import limiter
 from options_arena.api.deps import get_operation_lock, get_outcome_collector, get_repo
 from options_arena.api.schemas import OutcomeCollectionResult
@@ -23,6 +24,7 @@ from options_arena.models import (
     RecommendedContract,
     ScoreCalibrationBucket,
     SignalDirection,
+    WeightSnapshot,
     WinRateResult,
 )
 from options_arena.services.outcome_collector import OutcomeCollector
@@ -179,3 +181,30 @@ async def get_agent_weights(
 ) -> list[AgentWeightsComparison]:
     """Get manual vs auto-tuned weight comparison."""
     return await repo.get_latest_auto_tune_weights()
+
+
+@router.post("/weights/auto-tune")
+@limiter.limit("5/minute")
+async def trigger_auto_tune(
+    request: Request,
+    repo: Repository = Depends(get_repo),
+    window: int = Query(90, ge=1, le=365),
+    dry_run: bool = Query(False),
+) -> list[AgentWeightsComparison]:
+    """Trigger auto-tune weight computation.
+
+    Computes optimal agent weights from historical accuracy data.
+    When ``dry_run`` is ``True``, weights are computed but not persisted.
+    """
+    return await auto_tune_weights(repo, window_days=window, dry_run=dry_run)
+
+
+@router.get("/weights/history")
+@limiter.limit("60/minute")
+async def get_weight_history(
+    request: Request,
+    repo: Repository = Depends(get_repo),
+    limit: int = Query(20, ge=1, le=100),
+) -> list[WeightSnapshot]:
+    """Retrieve historical auto-tune weight snapshots, newest first."""
+    return await repo.get_weight_history(limit=limit)
