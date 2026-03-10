@@ -2,6 +2,7 @@
 
 Verifies that asyncio.sleep is called between Phase 1 agent batches when
 parallelism < number of agents, and skipped when parallelism >= agents or delay=0.
+Also tests provider-aware rate limiting: Anthropic-safe substitutions and user overrides.
 """
 
 from __future__ import annotations
@@ -10,6 +11,13 @@ import asyncio
 from unittest.mock import patch
 
 import pytest
+
+from options_arena.agents.orchestrator import (
+    _effective_phase1_settings,
+    effective_batch_ticker_delay,
+)
+from options_arena.models import DebateConfig
+from options_arena.models.enums import LLMProvider
 
 
 class TestPhase1InterBatchDelay:
@@ -199,3 +207,70 @@ class TestBatchTickerDelay:
                     await asyncio.sleep(delay)
 
         assert len(sleep_calls) == 0
+
+
+class TestProviderAwareDefaults:
+    """Test provider-aware rate limiting helpers.
+
+    Anthropic Tier 1 limits (8K output tokens/min) require slower pacing than Groq.
+    Helpers substitute safe values when the config holds Groq defaults; user overrides
+    via env vars are respected.
+    """
+
+    # -- _effective_phase1_settings --
+
+    def test_groq_passes_through_defaults(self) -> None:
+        """Groq provider returns stored config values unchanged."""
+        config = DebateConfig(provider=LLMProvider.GROQ)
+        parallelism, delay = _effective_phase1_settings(config)
+        assert parallelism == 2
+        assert delay == pytest.approx(1.0)
+
+    def test_anthropic_substitutes_safe_defaults(self) -> None:
+        """Anthropic with Groq defaults -> safe substitution."""
+        config = DebateConfig(provider=LLMProvider.ANTHROPIC)
+        parallelism, delay = _effective_phase1_settings(config)
+        assert parallelism == 1
+        assert delay == pytest.approx(3.0)
+
+    def test_anthropic_respects_user_override_parallelism(self) -> None:
+        """Anthropic with user-overridden parallelism passes it through."""
+        config = DebateConfig(provider=LLMProvider.ANTHROPIC, phase1_parallelism=4)
+        parallelism, delay = _effective_phase1_settings(config)
+        assert parallelism == 4  # user override respected
+        assert delay == pytest.approx(3.0)  # still substituted (was default)
+
+    def test_anthropic_respects_user_override_batch_delay(self) -> None:
+        """Anthropic with user-overridden batch delay passes it through."""
+        config = DebateConfig(provider=LLMProvider.ANTHROPIC, phase1_batch_delay=0.5)
+        parallelism, delay = _effective_phase1_settings(config)
+        assert parallelism == 1  # still substituted (was default)
+        assert delay == pytest.approx(0.5)  # user override respected
+
+    def test_anthropic_respects_both_overrides(self) -> None:
+        """Anthropic with both fields overridden passes both through."""
+        config = DebateConfig(
+            provider=LLMProvider.ANTHROPIC,
+            phase1_parallelism=3,
+            phase1_batch_delay=2.0,
+        )
+        parallelism, delay = _effective_phase1_settings(config)
+        assert parallelism == 3
+        assert delay == pytest.approx(2.0)
+
+    # -- effective_batch_ticker_delay --
+
+    def test_groq_batch_ticker_delay_passthrough(self) -> None:
+        """Groq provider returns stored batch_ticker_delay unchanged."""
+        config = DebateConfig(provider=LLMProvider.GROQ)
+        assert effective_batch_ticker_delay(config) == pytest.approx(5.0)
+
+    def test_anthropic_batch_ticker_delay_substitution(self) -> None:
+        """Anthropic with Groq default -> 30s safe substitution."""
+        config = DebateConfig(provider=LLMProvider.ANTHROPIC)
+        assert effective_batch_ticker_delay(config) == pytest.approx(30.0)
+
+    def test_anthropic_batch_ticker_delay_user_override(self) -> None:
+        """Anthropic with user-overridden delay passes it through."""
+        config = DebateConfig(provider=LLMProvider.ANTHROPIC, batch_ticker_delay=15.0)
+        assert effective_batch_ticker_delay(config) == pytest.approx(15.0)

@@ -9,7 +9,12 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from options_arena.agents import DebateResult, extract_agent_predictions, run_debate
+from options_arena.agents import (
+    DebateResult,
+    effective_batch_ticker_delay,
+    extract_agent_predictions,
+    run_debate,
+)
 from options_arena.api.app import limiter
 from options_arena.api.deps import (
     get_market_data,
@@ -337,7 +342,7 @@ async def _run_batch_debate_background(
     results: list[BatchTickerResult] = []
     try:
         all_scores = await repo.get_scores_for_scan(scan_id)
-        batch_delay = settings.debate.batch_ticker_delay
+        batch_delay = effective_batch_ticker_delay(settings.debate)
         for idx, ticker in enumerate(tickers):
             if idx > 0 and batch_delay > 0:
                 logger.debug(

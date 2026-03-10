@@ -1437,6 +1437,70 @@ def _build_model_settings(config: DebateConfig) -> ModelSettings:
 _ANTHROPIC_TIMEOUT_MULTIPLIER = 2.0
 _ANTHROPIC_THINKING_TIMEOUT_MULTIPLIER = 3.0
 
+# Provider-aware rate limiting defaults.
+# Groq defaults (from DebateConfig) are too aggressive for Anthropic Tier 1 limits
+# (50 RPM, 30K input/min, 8K output/min).  Helpers below substitute safe values only
+# when the user hasn't explicitly overridden via env vars.
+_GROQ_DEFAULT_PHASE1_PARALLELISM = 2
+_GROQ_DEFAULT_PHASE1_BATCH_DELAY = 1.0
+_GROQ_DEFAULT_BATCH_TICKER_DELAY = 5.0
+_ANTHROPIC_SAFE_PHASE1_PARALLELISM = 1
+_ANTHROPIC_SAFE_PHASE1_BATCH_DELAY = 3.0
+_ANTHROPIC_SAFE_BATCH_TICKER_DELAY = 30.0
+
+
+def _effective_phase1_settings(config: DebateConfig) -> tuple[int, float]:
+    """Return ``(parallelism, batch_delay)`` auto-adjusted for Anthropic provider.
+
+    When the provider is Anthropic and the user has NOT overridden the Groq-tuned
+    defaults (via ``ARENA_DEBATE__PHASE1_PARALLELISM`` etc.), substitute Anthropic-safe
+    values that respect the 8K output-tokens/min rate limit.
+    """
+    parallelism = config.phase1_parallelism
+    batch_delay = config.phase1_batch_delay
+
+    if config.provider != LLMProvider.ANTHROPIC:
+        return parallelism, batch_delay
+
+    adjusted = False
+    if parallelism == _GROQ_DEFAULT_PHASE1_PARALLELISM:
+        parallelism = _ANTHROPIC_SAFE_PHASE1_PARALLELISM
+        adjusted = True
+    if batch_delay == _GROQ_DEFAULT_PHASE1_BATCH_DELAY:
+        batch_delay = _ANTHROPIC_SAFE_PHASE1_BATCH_DELAY
+        adjusted = True
+
+    if adjusted:
+        logger.info(
+            "Anthropic provider: phase1_parallelism=%d, phase1_batch_delay=%.1fs "
+            "(auto-adjusted for rate limits)",
+            parallelism,
+            batch_delay,
+        )
+    return parallelism, batch_delay
+
+
+def effective_batch_ticker_delay(config: DebateConfig) -> float:
+    """Return inter-ticker batch delay, auto-adjusted for Anthropic provider.
+
+    When the provider is Anthropic and the stored ``batch_ticker_delay`` is the
+    Groq default (5 s), substitute 30 s to stay within the 8K output-tokens/min
+    Tier 1 limit (~1.8 debates/min safe throughput).  User overrides via
+    ``ARENA_DEBATE__BATCH_TICKER_DELAY`` are respected.
+    """
+    delay = config.batch_ticker_delay
+
+    if config.provider != LLMProvider.ANTHROPIC:
+        return delay
+
+    if delay == _GROQ_DEFAULT_BATCH_TICKER_DELAY:
+        delay = _ANTHROPIC_SAFE_BATCH_TICKER_DELAY
+        logger.info(
+            "Anthropic provider: batch_ticker_delay=%.1fs (auto-adjusted for rate limits)",
+            delay,
+        )
+    return delay
+
 
 def _effective_agent_timeout(config: DebateConfig) -> float:
     """Return per-agent timeout, auto-adjusted for Anthropic provider.
@@ -1569,8 +1633,8 @@ async def _run_debate_pipeline(
         context.ticker,
     )
 
-    # Respect phase1_parallelism — batch if needed
-    parallelism = config.phase1_parallelism
+    # Respect phase1_parallelism — batch if needed (auto-adjusted for Anthropic)
+    parallelism, batch_delay = _effective_phase1_settings(config)
     phase1_results: list[object | BaseException]
     if parallelism >= len(phase1_coros):
         phase1_results = list(await asyncio.gather(*phase1_coros, return_exceptions=True))
@@ -1578,13 +1642,13 @@ async def _run_debate_pipeline(
         # Run in batches with optional inter-batch delay for rate-limit avoidance
         phase1_results = []
         for i in range(0, len(phase1_coros), parallelism):
-            if i > 0 and config.phase1_batch_delay > 0:
+            if i > 0 and batch_delay > 0:
                 logger.debug(
                     "Phase 1 inter-batch delay: %.1fs before batch %d",
-                    config.phase1_batch_delay,
+                    batch_delay,
                     i // parallelism + 1,
                 )
-                await asyncio.sleep(config.phase1_batch_delay)
+                await asyncio.sleep(batch_delay)
             batch = phase1_coros[i : i + parallelism]
             batch_results = await asyncio.gather(*batch, return_exceptions=True)
             phase1_results.extend(batch_results)
