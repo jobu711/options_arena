@@ -14,6 +14,8 @@ import type {
   HoldingPeriodComparison,
   AgentAccuracyReport,
   AgentCalibrationData,
+  AgentWeight,
+  WeightSnapshot,
 } from '../../../src/types'
 
 export function buildPerformanceSummary(
@@ -188,4 +190,25 @@ export function buildAgentCalibration(): AgentCalibrationData {
     ],
     sample_size: 98,
   }
+}
+
+// --- Weight tuning builders ---
+
+export function buildAgentWeights(): AgentWeight[] {
+  return [
+    { agent_name: 'trend', manual_weight: 0.20, auto_weight: 0.22, brier_score: 0.15, sample_size: 45 },
+    { agent_name: 'volatility', manual_weight: 0.15, auto_weight: 0.18, brier_score: 0.20, sample_size: 38 },
+    { agent_name: 'risk', manual_weight: 0.15, auto_weight: 0.12, brier_score: 0.25, sample_size: 42 },
+    { agent_name: 'flow', manual_weight: 0.10, auto_weight: 0.14, brier_score: 0.22, sample_size: 30 },
+    { agent_name: 'fundamental', manual_weight: 0.10, auto_weight: 0.08, brier_score: 0.28, sample_size: 25 },
+  ]
+}
+
+export function buildWeightHistory(): WeightSnapshot[] {
+  const weights = buildAgentWeights()
+  return [
+    { computed_at: '2026-03-01T00:00:00Z', window_days: 90, weights },
+    { computed_at: '2026-02-15T00:00:00Z', window_days: 90, weights },
+    { computed_at: '2026-02-01T00:00:00Z', window_days: 90, weights },
+  ]
 }

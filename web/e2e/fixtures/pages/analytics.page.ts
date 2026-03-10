@@ -21,6 +21,11 @@ export class AnalyticsPage {
   readonly holdingComparisonTable: Locator
   readonly agentAccuracyHeatmap: Locator
 
+  // Weight tuning panel
+  readonly weightTuningPanel: Locator
+  readonly autoTuneBtn: Locator
+  readonly windowDaysInput: Locator
+
   constructor(page: Page) {
     this.page = page
     this.pageRoot = page.locator('[data-testid="analytics-page"]')
@@ -41,6 +46,11 @@ export class AnalyticsPage {
     this.greeksDecompositionChart = page.locator('[data-testid="greeks-decomposition-chart"]')
     this.holdingComparisonTable = page.locator('[data-testid="holding-comparison-table"]')
     this.agentAccuracyHeatmap = page.locator('[data-testid="agent-accuracy-heatmap"]')
+
+    // Weight tuning locators
+    this.weightTuningPanel = page.locator('[data-testid="weight-tuning-panel"]')
+    this.autoTuneBtn = page.locator('[data-testid="btn-auto-tune"]')
+    this.windowDaysInput = page.locator('[data-testid="window-days-input"]')
   }
 
   async goto(): Promise<void> {
@@ -102,5 +112,10 @@ export class AnalyticsPage {
   /** Wait for the Holding tab content to be visible. */
   async expectHoldingTabVisible(): Promise<void> {
     await expect(this.holdingComparisonTable).toBeVisible()
+  }
+
+  /** Wait for the Weight Tuning tab content to be visible. */
+  async expectWeightTuningTabVisible(): Promise<void> {
+    await expect(this.weightTuningPanel).toBeVisible()
   }
 }
