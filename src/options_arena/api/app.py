@@ -195,6 +195,7 @@ def create_app() -> FastAPI:
 
     # Register API routes
     from options_arena.api.routes.analytics import router as analytics_router  # noqa: PLC0415
+    from options_arena.api.routes.backtest import router as backtest_router  # noqa: PLC0415
     from options_arena.api.routes.config import router as config_router  # noqa: PLC0415
     from options_arena.api.routes.debate import router as debate_router  # noqa: PLC0415
     from options_arena.api.routes.export import router as export_router  # noqa: PLC0415
@@ -214,6 +215,7 @@ def create_app() -> FastAPI:
     app.include_router(config_router)
     app.include_router(ticker_router)
     app.include_router(analytics_router)
+    app.include_router(backtest_router)
     app.include_router(ws_router)
 
     # Exception handlers for domain errors
