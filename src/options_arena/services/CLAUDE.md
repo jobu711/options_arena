@@ -11,6 +11,7 @@ and use class-based DI with explicit `close()` lifecycle.
 
 | File | Class / Purpose | Public? |
 |------|----------------|---------|
+| `base.py` | `ServiceBase[ConfigT]` — generic mixin with cache, retry, yfinance helpers | Yes |
 | `helpers.py` | `fetch_with_retry()`, `safe_decimal()`, `safe_int()`, `safe_float()` | **No** — internal |
 | `rate_limiter.py` | `RateLimiter` — token bucket + `asyncio.Semaphore` dual-layer | Yes |
 | `cache.py` | `ServiceCache` — in-memory LRU + SQLite two-tier cache | Yes |
@@ -19,7 +20,7 @@ and use class-based DI with explicit `close()` lifecycle.
 | `fred.py` | `FredService` — risk-free rate from FRED API | Yes |
 | `universe.py` | `UniverseService` — CBOE optionable tickers, S&P 500 constituents | Yes |
 | `health.py` | `HealthService` — pre-flight checks for all external dependencies | Yes |
-| `__init__.py` | Re-exports all 7 public classes with `__all__` | Yes |
+| `__init__.py` | Re-exports all public classes with `__all__` | Yes |
 
 ---
 
@@ -44,6 +45,38 @@ and use class-based DI with explicit `close()` lifecycle.
 | `helpers.py`, `rate_limiter.py`, `cache.py` (internal infra) | `scoring/` (services don't score) |
 | stdlib: `asyncio`, `logging`, `math`, `time`, `zoneinfo`, `decimal` | `agents/`, `reporting/`, `cli` |
 | External: `yfinance`, `httpx`, `aiosqlite`, `pandas` (read_csv for CSV sources) | |
+
+---
+
+## ServiceBase Mixin (`base.py`)
+
+`ServiceBase[ConfigT]` is a generic mixin that consolidates shared service infrastructure.
+Services subclass it to get cache-first fetching, rate-limited retries, and yfinance wrapping
+without duplicating boilerplate.
+
+### Constructor
+
+```python
+ServiceBase.__init__(config: ConfigT, cache: ServiceCache, limiter: RateLimiter | None = None)
+```
+Stores `self._config`, `self._cache`, `self._limiter`, `self._log`.
+
+### Helpers (opt-in, not abstract)
+
+| Method | Purpose |
+|--------|---------|
+| `close()` | Default no-op. Override in subclasses with httpx clients etc. |
+| `_cached_fetch[T: BaseModel](key, model_type, factory, ttl, *, deserializer?)` | Cache-first: deserializes on hit, calls factory on miss, stores result. |
+| `_retried_fetch[T](fn, *args, *, max_attempts=3)` | Delegates to `fetch_with_limiter_retry` with `self._limiter`. Raises `RuntimeError` if no limiter. |
+| `_yf_call[T](fn, *args, *, timeout, **kwargs)` | `to_thread` + `wait_for` + error mapping. Re-raises `DataFetchError` subclasses as-is. |
+
+### Key Design Decisions
+
+- **No `@abstractmethod`** — mixin pattern, not an interface. Services opt into helpers.
+- **Generic `ConfigT` with NO bound** — config types are heterogeneous `BaseModel` subclasses.
+- **`_cached_fetch` default serde** — `model_type.model_validate_json(cached)` / `model.model_dump_json().encode()`.
+- **`_cached_fetch` custom serde** — optional `deserializer: Callable[[bytes], T]` for non-standard deserialization.
+- **`_yf_call` does NOT double-wrap** — `DataFetchError` subclasses are re-raised as-is to avoid wrapping `TickerNotFoundError` in `DataSourceUnavailableError`.
 
 ---
 

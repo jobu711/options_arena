@@ -13,6 +13,7 @@ from typing import NamedTuple
 import httpx
 
 from options_arena.models.config import PricingConfig, ServiceConfig
+from options_arena.services.base import ServiceBase
 from options_arena.services.cache import TTL_REFERENCE, ServiceCache
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ class CachedRate(NamedTuple):
     fetched_at: datetime
 
 
-class FredService:
+class FredService(ServiceBase[ServiceConfig]):
     """Fetches the 10-year Treasury yield from FRED as a risk-free rate proxy.
 
     Never raises. Falls back to ``PricingConfig.risk_free_rate_fallback`` on
@@ -52,9 +53,8 @@ class FredService:
         pricing_config: PricingConfig,
         cache: ServiceCache,
     ) -> None:
-        self._config = config
+        super().__init__(config, cache, limiter=None)
         self._pricing_config = pricing_config
-        self._cache = cache
         self._cached_rate: CachedRate | None = None
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(
@@ -94,6 +94,7 @@ class FredService:
     async def close(self) -> None:
         """Close the httpx client."""
         await self._client.aclose()
+        await super().close()
 
     # ------------------------------------------------------------------
     # Private helpers

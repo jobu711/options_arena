@@ -30,6 +30,7 @@ from options_arena.models.enums import (
 )
 from options_arena.models.market_data import TickerInfo
 from options_arena.models.metadata import TickerMetadata
+from options_arena.services.base import ServiceBase
 from options_arena.services.cache import TTL_REFERENCE, ServiceCache
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.utils.exceptions import DataSourceUnavailableError, InsufficientDataError
@@ -483,11 +484,12 @@ class SP500Constituent(BaseModel):
     sub_industry: str | None = None
 
 
-class UniverseService:
+class UniverseService(ServiceBase[ServiceConfig]):
     """Fetches optionable ticker universe and S&P 500 classification data.
 
     Uses CBOE for the list of optionable tickers and a GitHub-hosted CSV for
-    S&P 500 constituency and GICS sector mapping.
+    S&P 500 constituency and GICS sector mapping. Inherits cache, config, and
+    rate-limiter management from :class:`ServiceBase`.
 
     Args:
         config: Service configuration with timeouts and rate limits.
@@ -495,15 +497,15 @@ class UniverseService:
         limiter: Rate limiter for external API calls.
     """
 
+    _limiter: RateLimiter  # Override: always non-None (required by constructor)
+
     def __init__(
         self,
         config: ServiceConfig,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
-        self._config = config
-        self._cache = cache
-        self._limiter = limiter
+        super().__init__(config, cache, limiter)
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(10.0, connect=5.0),
             follow_redirects=True,
@@ -536,7 +538,7 @@ class UniverseService:
         cached = await self._cache.get(_CACHE_KEY_CBOE)
         if cached is not None:
             tickers: list[str] = json.loads(cached.decode())
-            logger.debug("CBOE universe cache hit: %d tickers", len(tickers))
+            self._log.debug("CBOE universe cache hit: %d tickers", len(tickers))
             return tickers
 
         # Fetch from CBOE
@@ -562,7 +564,7 @@ class UniverseService:
         if not tickers:
             raise InsufficientDataError("No valid tickers found in CBOE CSV")
 
-        logger.info("CBOE universe fetched: %d optionable tickers", len(tickers))
+        self._log.info("CBOE universe fetched: %d optionable tickers", len(tickers))
 
         # Cache for 24 hours
         await self._cache.set(
@@ -593,7 +595,7 @@ class UniverseService:
         if cached is not None:
             raw: list[dict[str, str]] = json.loads(cached.decode())
             constituents = [SP500Constituent.model_validate(item) for item in raw]
-            logger.debug("S&P 500 cache hit: %d constituents", len(constituents))
+            self._log.debug("S&P 500 cache hit: %d constituents", len(constituents))
             return constituents
 
         # Fetch CSV from GitHub, parse with pd.read_csv
@@ -645,7 +647,7 @@ class UniverseService:
             for _, row in df.iterrows()
         ]
 
-        logger.info("S&P 500 constituents fetched: %d tickers", len(constituents))
+        self._log.info("S&P 500 constituents fetched: %d tickers", len(constituents))
 
         # Cache for 24 hours
         await self._cache.set(
@@ -698,7 +700,7 @@ class UniverseService:
         cached = await self._cache.get(_CACHE_KEY_ETFS)
         if cached is not None:
             etf_tickers: list[str] = json.loads(cached.decode())
-            logger.debug("ETF universe cache hit: %d tickers", len(etf_tickers))
+            self._log.debug("ETF universe cache hit: %d tickers", len(etf_tickers))
             return etf_tickers
 
         # Fetch CBOE optionable list (uses its own cache)
@@ -709,7 +711,7 @@ class UniverseService:
         candidates = sorted(_ETF_SEED_LIST & optionable_set)
 
         if not candidates:
-            logger.warning("No ETF seed tickers found in CBOE optionable list")
+            self._log.warning("No ETF seed tickers found in CBOE optionable list")
             await self._cache.set(
                 _CACHE_KEY_ETFS,
                 json.dumps([]).encode(),
@@ -724,7 +726,7 @@ class UniverseService:
         confirmed_etfs: list[str] = []
         for ticker, result in zip(candidates, results, strict=True):
             if isinstance(result, Exception):
-                logger.debug("ETF check failed for %s: %s", ticker, result)
+                self._log.debug("ETF check failed for %s: %s", ticker, result)
                 # Include seed tickers even on yfinance failure — seed list
                 # is curated and reliable
                 confirmed_etfs.append(ticker)
@@ -733,7 +735,7 @@ class UniverseService:
 
         confirmed_etfs.sort()
 
-        logger.info("ETF universe detected: %d tickers", len(confirmed_etfs))
+        self._log.info("ETF universe detected: %d tickers", len(confirmed_etfs))
 
         # Cache for 24 hours
         await self._cache.set(
@@ -763,10 +765,10 @@ class UniverseService:
             cached = await self._cache.get(_CACHE_KEY_NASDAQ100)
             if cached is not None:
                 tickers: list[str] = json.loads(cached.decode())
-                logger.debug("NASDAQ-100 cache hit: %d tickers", len(tickers))
+                self._log.debug("NASDAQ-100 cache hit: %d tickers", len(tickers))
                 return tickers
         except Exception:
-            logger.warning("NASDAQ-100 cache read failed, fetching fresh", exc_info=True)
+            self._log.warning("NASDAQ-100 cache read failed, fetching fresh", exc_info=True)
 
         raw_tickers: list[str] = []
         try:
@@ -794,14 +796,14 @@ class UniverseService:
             if ticker_col is not None:
                 raw_symbols = df[ticker_col].dropna().astype(str).str.strip().str.upper().tolist()
                 raw_tickers = UniverseService._filter_symbols(raw_symbols)
-                logger.info("NASDAQ-100 CSV fetched: %d raw tickers", len(raw_tickers))
+                self._log.info("NASDAQ-100 CSV fetched: %d raw tickers", len(raw_tickers))
         except Exception:
-            logger.warning("NASDAQ-100 CSV fetch failed, using curated fallback", exc_info=True)
+            self._log.warning("NASDAQ-100 CSV fetch failed, using curated fallback", exc_info=True)
 
         # Fallback to curated list if CSV failed or was empty
         if not raw_tickers:
             raw_tickers = sorted(_NASDAQ100_FALLBACK)
-            logger.info("NASDAQ-100 using curated fallback: %d tickers", len(raw_tickers))
+            self._log.info("NASDAQ-100 using curated fallback: %d tickers", len(raw_tickers))
 
         # CBOE cross-reference
         try:
@@ -809,10 +811,10 @@ class UniverseService:
             optionable_set = frozenset(optionable)
             tickers = sorted(t for t in raw_tickers if t in optionable_set)
         except Exception:
-            logger.warning("CBOE cross-ref failed for NASDAQ-100, returning raw list")
+            self._log.warning("CBOE cross-ref failed for NASDAQ-100, returning raw list")
             tickers = sorted(set(raw_tickers))
 
-        logger.info("NASDAQ-100 universe: %d optionable tickers", len(tickers))
+        self._log.info("NASDAQ-100 universe: %d optionable tickers", len(tickers))
 
         # Cache for 24 hours
         try:
@@ -822,7 +824,7 @@ class UniverseService:
                 ttl=TTL_REFERENCE,
             )
         except Exception:
-            logger.warning("NASDAQ-100 cache write failed", exc_info=True)
+            self._log.warning("NASDAQ-100 cache write failed", exc_info=True)
 
         return tickers
 
@@ -850,19 +852,19 @@ class UniverseService:
             cached = await self._cache.get(_CACHE_KEY_RUSSELL2000)
             if cached is not None:
                 tickers: list[str] = json.loads(cached.decode())
-                logger.debug("Russell 2000 cache hit: %d tickers", len(tickers))
+                self._log.debug("Russell 2000 cache hit: %d tickers", len(tickers))
                 return tickers
         except Exception:
-            logger.warning("Russell 2000 cache read failed, fetching fresh", exc_info=True)
+            self._log.warning("Russell 2000 cache read failed, fetching fresh", exc_info=True)
 
         if repo is None:
-            logger.warning("Russell 2000 fetch skipped: no Repository provided")
+            self._log.warning("Russell 2000 fetch skipped: no Repository provided")
             return []
 
         try:
             # Duck-type check: repo must have get_all_ticker_metadata()
             if not hasattr(repo, "get_all_ticker_metadata"):
-                logger.warning("Russell 2000 fetch skipped: repo lacks get_all_ticker_metadata")
+                self._log.warning("Russell 2000 fetch skipped: repo lacks get_all_ticker_metadata")
                 return []
 
             # hasattr guard above ensures get_all_ticker_metadata exists;
@@ -876,7 +878,7 @@ class UniverseService:
             )
 
             if not small_micro_tickers:
-                logger.info("Russell 2000: no small/micro-cap tickers in metadata index")
+                self._log.info("Russell 2000: no small/micro-cap tickers in metadata index")
                 try:
                     await self._cache.set(
                         _CACHE_KEY_RUSSELL2000,
@@ -884,7 +886,7 @@ class UniverseService:
                         ttl=TTL_REFERENCE,
                     )
                 except Exception:
-                    logger.warning("Russell 2000 cache write failed", exc_info=True)
+                    self._log.warning("Russell 2000 cache write failed", exc_info=True)
                 return []
 
             # CBOE cross-reference
@@ -893,10 +895,10 @@ class UniverseService:
                 optionable_set = frozenset(optionable)
                 tickers = sorted(t for t in small_micro_tickers if t in optionable_set)
             except Exception:
-                logger.warning("CBOE cross-ref failed for Russell 2000, returning raw list")
+                self._log.warning("CBOE cross-ref failed for Russell 2000, returning raw list")
                 tickers = small_micro_tickers
 
-            logger.info("Russell 2000 universe: %d optionable tickers", len(tickers))
+            self._log.info("Russell 2000 universe: %d optionable tickers", len(tickers))
 
             # Cache for 24 hours
             try:
@@ -906,12 +908,12 @@ class UniverseService:
                     ttl=TTL_REFERENCE,
                 )
             except Exception:
-                logger.warning("Russell 2000 cache write failed", exc_info=True)
+                self._log.warning("Russell 2000 cache write failed", exc_info=True)
 
             return tickers
 
         except Exception:
-            logger.warning("Russell 2000 fetch failed", exc_info=True)
+            self._log.warning("Russell 2000 fetch failed", exc_info=True)
             return []
 
     async def fetch_most_active(self) -> list[str]:
@@ -930,10 +932,10 @@ class UniverseService:
             cached = await self._cache.get(_CACHE_KEY_MOST_ACTIVE)
             if cached is not None:
                 tickers: list[str] = json.loads(cached.decode())
-                logger.debug("Most Active cache hit: %d tickers", len(tickers))
+                self._log.debug("Most Active cache hit: %d tickers", len(tickers))
                 return tickers
         except Exception:
-            logger.warning("Most Active cache read failed, fetching fresh", exc_info=True)
+            self._log.warning("Most Active cache read failed, fetching fresh", exc_info=True)
 
         try:
             # CBOE cross-reference
@@ -941,10 +943,10 @@ class UniverseService:
             optionable_set = frozenset(optionable)
             tickers = sorted(t for t in _MOST_ACTIVE_SEED if t in optionable_set)
         except Exception:
-            logger.warning("CBOE cross-ref failed for Most Active, returning seed list")
+            self._log.warning("CBOE cross-ref failed for Most Active, returning seed list")
             tickers = sorted(_MOST_ACTIVE_SEED)
 
-        logger.info("Most Active universe: %d tickers", len(tickers))
+        self._log.info("Most Active universe: %d tickers", len(tickers))
 
         # Cache for 24 hours
         try:
@@ -954,13 +956,14 @@ class UniverseService:
                 ttl=TTL_REFERENCE,
             )
         except Exception:
-            logger.warning("Most Active cache write failed", exc_info=True)
+            self._log.warning("Most Active cache write failed", exc_info=True)
 
         return tickers
 
     async def close(self) -> None:
-        """Close the shared httpx client."""
+        """Close the shared httpx client and release base resources."""
         await self._client.aclose()
+        await super().close()
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -983,10 +986,10 @@ class UniverseService:
             quote_type = info.get("quoteType", "")
             return str(quote_type).upper() == "ETF"
         except TimeoutError:
-            logger.debug("ETF check timeout for %s", ticker)
+            self._log.debug("ETF check timeout for %s", ticker)
             raise
         except Exception as exc:
-            logger.debug("ETF check error for %s: %s", ticker, exc)
+            self._log.debug("ETF check error for %s: %s", ticker, exc)
             raise
 
     @staticmethod

@@ -569,7 +569,10 @@ async def _batch_async(
 
         results: list[tuple[str, DebateResult | None, str | None]] = []
         start_time = time.monotonic()
-        batch_delay = settings.debate.batch_ticker_delay
+
+        from options_arena.agents import effective_batch_ticker_delay  # noqa: PLC0415
+
+        batch_delay = effective_batch_ticker_delay(settings.debate)
 
         for i, ticker_score in enumerate(top_scores, 1):
             ticker = ticker_score.ticker

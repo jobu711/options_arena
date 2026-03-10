@@ -33,6 +33,7 @@ from pydantic import BaseModel
 from options_arena.models.config import OpenBBConfig, PricingConfig, ServiceConfig
 from options_arena.models.enums import ExerciseStyle, OptionType
 from options_arena.models.options import OptionContract
+from options_arena.services.base import ServiceBase
 from options_arena.services.cache import ServiceCache
 from options_arena.services.cboe_provider import CBOEChainProvider
 from options_arena.services.helpers import (
@@ -43,9 +44,6 @@ from options_arena.services.helpers import (
 )
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.utils.exceptions import DataFetchError, DataSourceUnavailableError
-
-logger = logging.getLogger(__name__)
-
 
 # ---------------------------------------------------------------------------
 # Module-level helpers (pure functions, no state)
@@ -203,6 +201,7 @@ class YFinanceChainProvider:
         self._pricing_config = pricing_config
         self._cache = cache
         self._limiter = limiter
+        self._log = logging.getLogger(type(self).__module__)
 
     async def _yf_call[T](
         self,
@@ -275,7 +274,7 @@ class YFinanceChainProvider:
         ttl = self._cache.ttl_for("reference")
         await self._cache.set(cache_key, cache_bytes, ttl=ttl)
 
-        logger.debug("Fetched %d expirations for %s", len(expirations), ticker)
+        self._log.debug("Fetched %d expirations for %s", len(expirations), ticker)
         return expirations
 
     async def fetch_chain(
@@ -323,7 +322,7 @@ class YFinanceChainProvider:
                 try:
                     contracts.append(_row_to_contract(row, ticker, OptionType.CALL, expiration))
                 except ValueError:
-                    logger.debug("Skipping call with invalid strike for %s", ticker)
+                    self._log.debug("Skipping call with invalid strike for %s", ticker)
 
         # Process puts DataFrame
         puts_df: pd.DataFrame = chain_data.puts
@@ -332,13 +331,13 @@ class YFinanceChainProvider:
                 try:
                     contracts.append(_row_to_contract(row, ticker, OptionType.PUT, expiration))
                 except ValueError:
-                    logger.debug("Skipping put with invalid strike for %s", ticker)
+                    self._log.debug("Skipping put with invalid strike for %s", ticker)
 
         # Cache the result
         ttl = self._cache.ttl_for("chain")
         await self._cache.set(cache_key, _contracts_to_cache_bytes(contracts), ttl=ttl)
 
-        logger.debug(
+        self._log.debug(
             "Fetched chain for %s exp %s: %d contracts (after liquidity filter)",
             ticker,
             expiration.isoformat(),
@@ -364,8 +363,11 @@ class ExpirationChain(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class OptionsDataService:
+class OptionsDataService(ServiceBase[ServiceConfig]):
     """Fetches option chains with provider orchestration and fallback.
+
+    Inherits from :class:`ServiceBase[ServiceConfig]` for standardized
+    ``_config``, ``_cache``, ``_limiter``, and ``_log`` attributes.
 
     Builds a prioritized list of ``ChainProvider`` instances and iterates
     them with fallback on ``DataSourceUnavailableError``. When CBOE chains
@@ -397,17 +399,15 @@ class OptionsDataService:
         provider: ChainProvider | None = None,
         openbb_config: OpenBBConfig | None = None,
     ) -> None:
-        self._config = config
+        super().__init__(config, cache, limiter)
         self._pricing_config = pricing_config
-        self._cache = cache
-        self._limiter = limiter
         self._openbb_config = openbb_config
         self._validation_mode = openbb_config is not None and openbb_config.chain_validation_mode
 
         # When a custom provider is injected (tests), use it as the sole provider
         if provider is not None:
             self._providers: list[ChainProvider] = [provider]
-            logger.info("Using injected chain provider: %s", type(provider).__name__)
+            self._log.info("Using injected chain provider: %s", type(provider).__name__)
         else:
             self._providers = self._build_provider_list(openbb_config, cache, limiter)
 
@@ -453,9 +453,9 @@ class OptionsDataService:
             cboe = CBOEChainProvider(config=openbb_config, cache=cache, limiter=limiter)
             if cboe.available:
                 providers.append(cboe)
-                logger.info("Registered CBOE chain provider (primary)")
+                self._log.info("Registered CBOE chain provider (primary)")
             else:
-                logger.debug(
+                self._log.debug(
                     "CBOE chains enabled in config but OpenBB SDK not available — skipping"
                 )
 
@@ -466,7 +466,7 @@ class OptionsDataService:
             limiter=limiter,
         )
         providers.append(yfinance_provider)
-        logger.info("Registered YFinance chain provider (fallback)")
+        self._log.info("Registered YFinance chain provider (fallback)")
 
         return providers
 
@@ -493,7 +493,7 @@ class OptionsDataService:
                     timeout=self._config.yfinance_timeout,
                 )
             except TimeoutError:
-                logger.warning(
+                self._log.warning(
                     "Provider %s timed out in fetch_expirations for %s",
                     type(provider).__name__,
                     ticker,
@@ -503,7 +503,7 @@ class OptionsDataService:
                     f"timeout after {self._config.yfinance_timeout}s",
                 )
             except DataSourceUnavailableError as e:
-                logger.warning(
+                self._log.warning(
                     "Provider %s failed fetch_expirations for %s: %s",
                     type(provider).__name__,
                     ticker,
@@ -511,7 +511,7 @@ class OptionsDataService:
                 )
                 last_error = e
             except Exception as e:
-                logger.warning(
+                self._log.warning(
                     "Provider %s unexpected error in fetch_expirations for %s: %s",
                     type(provider).__name__,
                     ticker,
@@ -566,7 +566,7 @@ class OptionsDataService:
                     )
                 return primary_result
             except TimeoutError:
-                logger.warning(
+                self._log.warning(
                     "Provider %s timed out in fetch_chain for %s",
                     type(provider).__name__,
                     ticker,
@@ -576,7 +576,7 @@ class OptionsDataService:
                     f"timeout after {self._config.yfinance_timeout}s",
                 )
             except DataSourceUnavailableError as e:
-                logger.warning(
+                self._log.warning(
                     "Provider %s failed fetch_chain for %s: %s",
                     type(provider).__name__,
                     ticker,
@@ -584,7 +584,7 @@ class OptionsDataService:
                 )
                 last_error = e
             except Exception as e:
-                logger.warning(
+                self._log.warning(
                     "Provider %s unexpected error in fetch_chain for %s: %s",
                     type(provider).__name__,
                     ticker,
@@ -633,7 +633,7 @@ class OptionsDataService:
 
             avg_iv_diff = sum(iv_diffs) / len(iv_diffs) if iv_diffs else 0.0
 
-            logger.info(
+            self._log.info(
                 "Chain validation %s exp %s: "
                 "strikes overlap=%d, primary_only=%d, yf_only=%d, "
                 "avg IV diff=%.4f (%d comparisons)",
@@ -646,7 +646,7 @@ class OptionsDataService:
                 len(iv_diffs),
             )
         except Exception as exc:
-            logger.warning(
+            self._log.warning(
                 "Chain validation failed for %s exp %s: %s",
                 ticker,
                 expiration.isoformat(),
@@ -680,7 +680,7 @@ class OptionsDataService:
         succeeded = 0
         for exp, result in zip(expirations, results, strict=True):
             if isinstance(result, BaseException):
-                logger.warning(
+                self._log.warning(
                     "Failed to fetch chain for %s exp %s: %s",
                     ticker,
                     exp.isoformat(),
@@ -690,7 +690,7 @@ class OptionsDataService:
                 chains.append(ExpirationChain(expiration=exp, contracts=result))
                 succeeded += 1
 
-        logger.debug(
+        self._log.debug(
             "Fetched all chains for %s: %d/%d expirations succeeded",
             ticker,
             succeeded,
@@ -704,3 +704,4 @@ class OptionsDataService:
             close_fn = getattr(provider, "close", None)
             if close_fn is not None and callable(close_fn):
                 await close_fn()
+        await super().close()

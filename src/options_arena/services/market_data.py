@@ -3,7 +3,8 @@
 Fetches and normalizes yfinance market data into typed Pydantic models.
 Includes the 3-tier dividend yield waterfall (FR-M7.1), MarketCapTier
 classification, and cross-validation logic. All yfinance calls are
-wrapped with ``asyncio.to_thread`` + ``asyncio.wait_for`` for async safety.
+wrapped via inherited :meth:`ServiceBase._yf_call` (``asyncio.to_thread``
++ ``asyncio.wait_for``) for async safety.
 """
 
 from __future__ import annotations
@@ -13,7 +14,6 @@ import hashlib
 import json
 import logging
 import math
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -27,6 +27,7 @@ from pydantic import ValidationError as PydanticValidationError
 from options_arena.models.config import ServiceConfig
 from options_arena.models.enums import DividendSource, MarketCapTier
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
+from options_arena.services.base import ServiceBase
 from options_arena.services.cache import (
     TTL_EARNINGS,
     TTL_FUNDAMENTALS,
@@ -36,7 +37,6 @@ from options_arena.services.cache import (
 )
 from options_arena.services.helpers import (
     clear_stale_yf_cookies,
-    fetch_with_limiter_retry,
     safe_decimal,
     safe_float,
     safe_int,
@@ -268,11 +268,12 @@ def _classify_market_cap(market_cap: int | None) -> MarketCapTier | None:
     return MarketCapTier.MICRO
 
 
-class MarketDataService:
+class MarketDataService(ServiceBase[ServiceConfig]):
     """Fetches and normalises yfinance market data into typed Pydantic models.
 
-    All yfinance calls are wrapped via :meth:`_yf_call` which uses
-    ``asyncio.to_thread`` + ``asyncio.wait_for`` for async safety and timeout.
+    All yfinance calls are wrapped via inherited :meth:`ServiceBase._yf_call`
+    which uses ``asyncio.to_thread`` + ``asyncio.wait_for`` for async safety
+    and timeout.
 
     Args:
         config: Service configuration with timeouts and rate limits.
@@ -286,35 +287,8 @@ class MarketDataService:
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
-        self._config = config
-        self._cache = cache
-        self._limiter = limiter
+        super().__init__(config, cache, limiter)
         clear_stale_yf_cookies()
-
-    async def _yf_call[T](
-        self,
-        fn: Callable[..., T],
-        *args: object,
-        **kwargs: object,
-    ) -> T:
-        """Wrap a sync yfinance call with to_thread + wait_for + error mapping.
-
-        CRITICAL: Pass the callable and its args separately —
-        ``to_thread(fn, *args)``, NOT ``to_thread(fn())``.
-        """
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(fn, *args, **kwargs),
-                timeout=self._config.yfinance_timeout,
-            )
-        except TimeoutError as exc:
-            raise DataSourceUnavailableError(
-                f"yfinance: timeout after {self._config.yfinance_timeout}s"
-            ) from exc
-        except DataFetchError:
-            raise
-        except Exception as exc:
-            raise DataSourceUnavailableError(f"yfinance: {exc}") from exc
 
     @staticmethod
     def _build_info_from_fast_info(ticker_obj: yf.Ticker) -> dict[str, Any]:
@@ -352,13 +326,14 @@ class MarketDataService:
         # Cache-first
         cached = await self._cache.get(cache_key)
         if cached is not None:
-            logger.debug("Cache hit for %s", cache_key)
+            self._log.debug("Cache hit for %s", cache_key)
             return _deserialize_ohlcv_list(cached, ticker)
 
         # Fetch from yfinance (with retry on transient failures)
         ticker_obj = yf.Ticker(ticker)
-        df: pd.DataFrame = await fetch_with_limiter_retry(
-            self._yf_call, ticker_obj.history, period=period, limiter=self._limiter
+        timeout = self._config.yfinance_timeout
+        df: pd.DataFrame = await self._retried_fetch(
+            lambda: self._yf_call(ticker_obj.history, period=period, timeout=timeout),
         )
 
         if df.empty:
@@ -381,7 +356,7 @@ class MarketDataService:
             adj_close_d = safe_decimal(adj_close_raw) if adj_close_raw is not None else close_d
 
             if open_d is None or high_d is None or low_d is None or close_d is None:
-                logger.debug("Skipping row with None price for %s on %s", ticker, row_date)
+                self._log.debug("Skipping row with None price for %s on %s", ticker, row_date)
                 continue
 
             try:
@@ -398,7 +373,7 @@ class MarketDataService:
                     )
                 )
             except PydanticValidationError as exc:
-                logger.debug("Skipping invalid candle for %s on %s: %s", ticker, row_date, exc)
+                self._log.debug("Skipping invalid candle for %s on %s: %s", ticker, row_date, exc)
                 continue
 
         if not records:
@@ -411,7 +386,7 @@ class MarketDataService:
         serialized = _serialize_ohlcv_list(records)
         await self._cache.set(cache_key, serialized, ttl=TTL_OHLCV)
 
-        logger.debug("Fetched %d OHLCV bars for %s (period=%s)", len(records), ticker, period)
+        self._log.debug("Fetched %d OHLCV bars for %s (period=%s)", len(records), ticker, period)
         return records
 
     async def fetch_quote(self, ticker: str) -> Quote:
@@ -427,24 +402,25 @@ class MarketDataService:
 
         cached = await self._cache.get(cache_key)
         if cached is not None:
-            logger.debug("Cache hit for %s", cache_key)
+            self._log.debug("Cache hit for %s", cache_key)
             return _deserialize_quote(cached)
 
         ticker_obj = yf.Ticker(ticker)
+        timeout = self._config.yfinance_timeout
         try:
             # Single attempt — ETF 404s are permanent, retrying wastes ~31s.
-            info: dict[str, Any] = await fetch_with_limiter_retry(
-                self._yf_call, lambda: ticker_obj.info, limiter=self._limiter, max_attempts=1
+            info: dict[str, Any] = await self._retried_fetch(
+                lambda: self._yf_call(lambda: ticker_obj.info, timeout=timeout),
+                max_attempts=1,
             )
         except DataSourceUnavailableError:
             # ETFs (SPY, QQQ) lack quoteSummary fundamentals (Yahoo 404).
             # Fall back to fast_info for basic price data.
-            logger.warning("%s: Ticker.info failed, using fast_info fallback", ticker)
-            info = await fetch_with_limiter_retry(
-                self._yf_call,
-                self._build_info_from_fast_info,
-                ticker_obj,
-                limiter=self._limiter,
+            self._log.warning("%s: Ticker.info failed, using fast_info fallback", ticker)
+            info = await self._retried_fetch(
+                lambda: self._yf_call(
+                    self._build_info_from_fast_info, ticker_obj, timeout=timeout
+                ),
                 max_attempts=1,
             )
 
@@ -485,35 +461,36 @@ class MarketDataService:
 
         cached = await self._cache.get(cache_key)
         if cached is not None:
-            logger.debug("Cache hit for %s", cache_key)
+            self._log.debug("Cache hit for %s", cache_key)
             return _deserialize_ticker_info(cached)
 
         ticker_obj = yf.Ticker(ticker)
+        timeout = self._config.yfinance_timeout
         try:
             # Single attempt — ETF 404s are permanent, retrying wastes ~31s.
-            info: dict[str, Any] = await fetch_with_limiter_retry(
-                self._yf_call, lambda: ticker_obj.info, limiter=self._limiter, max_attempts=1
+            info: dict[str, Any] = await self._retried_fetch(
+                lambda: self._yf_call(lambda: ticker_obj.info, timeout=timeout),
+                max_attempts=1,
             )
         except DataSourceUnavailableError:
             # ETFs (SPY, QQQ) lack quoteSummary fundamentals (Yahoo 404).
             # Fall back to fast_info for basic price/market-cap data.
-            logger.warning("%s: Ticker.info failed, using fast_info fallback", ticker)
-            info = await fetch_with_limiter_retry(
-                self._yf_call,
-                self._build_info_from_fast_info,
-                ticker_obj,
-                limiter=self._limiter,
+            self._log.warning("%s: Ticker.info failed, using fast_info fallback", ticker)
+            info = await self._retried_fetch(
+                lambda: self._yf_call(
+                    self._build_info_from_fast_info, ticker_obj, timeout=timeout
+                ),
                 max_attempts=1,
             )
 
         # Fetch dividends for tier 3 of the waterfall
         try:
-            dividends_series: pd.Series[float] = await fetch_with_limiter_retry(
-                self._yf_call, ticker_obj.get_dividends, period="1y", limiter=self._limiter
+            dividends_series: pd.Series[float] = await self._retried_fetch(
+                lambda: self._yf_call(ticker_obj.get_dividends, period="1y", timeout=timeout),
             )
         except (DataSourceUnavailableError, DataFetchError):
             # ETFs or tickers without dividend data — fall through to tier 4 (0.0).
-            logger.warning("%s: get_dividends failed, using empty series", ticker)
+            self._log.warning("%s: get_dividends failed, using empty series", ticker)
             dividends_series = pd.Series(dtype=float)
 
         # Extract current price — prefer currentPrice, fall back to previousClose
@@ -604,16 +581,17 @@ class MarketDataService:
 
         cached = await self._cache.get(cache_key)
         if cached is not None:
-            logger.debug("Cache hit for %s", cache_key)
+            self._log.debug("Cache hit for %s", cache_key)
             return _deserialize_earnings_date(cached)
 
         try:
             ticker_obj = yf.Ticker(ticker)
-            calendar: dict[str, Any] = await fetch_with_limiter_retry(
-                self._yf_call, lambda: ticker_obj.calendar, limiter=self._limiter
+            timeout = self._config.yfinance_timeout
+            calendar: dict[str, Any] = await self._retried_fetch(
+                lambda: self._yf_call(lambda: ticker_obj.calendar, timeout=timeout),
             )
         except Exception:
-            logger.debug("No earnings calendar available for %s", ticker)
+            self._log.debug("No earnings calendar available for %s", ticker)
             # Cache the absence to avoid re-fetching on the same scan
             await self._cache.set(cache_key, b"null", ttl=TTL_EARNINGS)
             return None
@@ -630,7 +608,7 @@ class MarketDataService:
             earnings_dates_raw = calendar.get("earningsDate")
 
         if not earnings_dates_raw:
-            logger.debug("No earnings dates in calendar for %s", ticker)
+            self._log.debug("No earnings dates in calendar for %s", ticker)
             await self._cache.set(cache_key, b"null", ttl=TTL_EARNINGS)
             return None
 
@@ -650,7 +628,7 @@ class MarketDataService:
                 if d >= today and (earnings_date is None or d < earnings_date):
                     earnings_date = d
             except (ValueError, TypeError):
-                logger.debug("Unparseable earnings date for %s: %r", ticker, raw_date)
+                self._log.debug("Unparseable earnings date for %s: %r", ticker, raw_date)
                 continue
 
         # Cache result (even None → "null")
@@ -658,7 +636,7 @@ class MarketDataService:
         await self._cache.set(cache_key, serialized, ttl=TTL_EARNINGS)
 
         if earnings_date is not None:
-            logger.debug("Earnings date for %s: %s", ticker, earnings_date.isoformat())
+            self._log.debug("Earnings date for %s: %s", ticker, earnings_date.isoformat())
 
         return earnings_date
 
@@ -677,7 +655,7 @@ class MarketDataService:
 
         cached = await self._cache.get(cache_key)
         if cached is not None:
-            logger.debug("Cache hit for %s", cache_key)
+            self._log.debug("Cache hit for %s", cache_key)
             return _deserialize_universe_data(cached)
 
         # Define tickers to fetch
@@ -686,21 +664,20 @@ class MarketDataService:
         all_tickers = core_tickers + sector_tickers
 
         # Fetch all in parallel using _yf_call pattern
+        timeout = self._config.yfinance_timeout
+
         async def _fetch_one(symbol: str) -> tuple[str, pd.DataFrame | None]:
             try:
                 ticker_obj = yf.Ticker(symbol)
-                df: pd.DataFrame = await fetch_with_limiter_retry(
-                    self._yf_call,
-                    ticker_obj.history,
-                    period="3mo",
-                    limiter=self._limiter,
+                df: pd.DataFrame = await self._retried_fetch(
+                    lambda: self._yf_call(ticker_obj.history, period="3mo", timeout=timeout),
                 )
                 if df.empty:
-                    logger.debug("Empty data for universe ticker %s", symbol)
+                    self._log.debug("Empty data for universe ticker %s", symbol)
                     return (symbol, None)
                 return (symbol, df)
             except Exception:
-                logger.debug("Failed to fetch universe ticker %s", symbol, exc_info=True)
+                self._log.debug("Failed to fetch universe ticker %s", symbol, exc_info=True)
                 return (symbol, None)
 
         tasks = [_fetch_one(t) for t in all_tickers]
@@ -711,7 +688,7 @@ class MarketDataService:
         frames: dict[str, pd.DataFrame] = {}
         for ticker, result in zip(all_tickers, results, strict=True):
             if isinstance(result, BaseException):
-                logger.debug("Universe fetch exception for %s: %s", ticker, result)
+                self._log.debug("Universe fetch exception for %s: %s", ticker, result)
                 continue
             _symbol, df = result
             if df is not None:
@@ -766,7 +743,7 @@ class MarketDataService:
         serialized = _serialize_universe_data(universe)
         await self._cache.set(cache_key, serialized, ttl=TTL_REFERENCE)
 
-        logger.debug(
+        self._log.debug(
             "Fetched universe data: VIX=%s, VIX3M=%s, SPX_ret=%s",
             universe.vix_close,
             universe.vix3m_close,
@@ -776,6 +753,7 @@ class MarketDataService:
 
     async def _download_chunk(self, chunk: list[str]) -> pd.DataFrame:
         """Download a single chunk of tickers via ``yf.download``."""
+        assert self._limiter is not None  # noqa: S101 — guaranteed by __init__
         async with self._limiter:
             df: pd.DataFrame = await asyncio.wait_for(
                 asyncio.to_thread(
@@ -809,7 +787,7 @@ class MarketDataService:
         cache_key = f"yf:heatmap:{ticker_hash}"
         cached = await self._cache.get(cache_key)
         if cached is not None:
-            logger.debug("Cache hit for %s", cache_key)
+            self._log.debug("Cache hit for %s", cache_key)
             return _deserialize_batch_quotes(cached)
 
         # Download in parallel chunks — partial failure is tolerated
@@ -824,7 +802,7 @@ class MarketDataService:
         quotes: list[BatchQuote] = []
         for chunk, result in zip(chunks, results, strict=True):
             if isinstance(result, BaseException):
-                logger.warning("Chunk download failed (%d tickers): %s", len(chunk), result)
+                self._log.warning("Chunk download failed (%d tickers): %s", len(chunk), result)
                 continue
             if result.empty:
                 continue
@@ -867,13 +845,13 @@ class MarketDataService:
                         )
                     )
                 except (KeyError, IndexError, ValueError, TypeError):
-                    logger.debug("Skipping %s in batch daily changes", ticker)
+                    self._log.debug("Skipping %s in batch daily changes", ticker)
                     continue
 
         serialized = _serialize_batch_quotes(quotes)
         await self._cache.set(cache_key, serialized, ttl=self._cache.ttl_for("heatmap"))
 
-        logger.debug(
+        self._log.debug(
             "Fetched batch daily changes: %d/%d tickers succeeded (%d chunks)",
             len(quotes),
             len(tickers),
@@ -881,9 +859,7 @@ class MarketDataService:
         )
         return quotes
 
-    async def close(self) -> None:
-        """Release resources. Safe to call multiple times."""
-        logger.debug("MarketDataService closed")
+    # close() inherited from ServiceBase — no resources to release.
 
 
 # ---------------------------------------------------------------------------
