@@ -24,9 +24,9 @@ The `services/` module has 7 data-fetching service classes that each independent
 
 1. **DI constructor** (9-21 lines) — `config`, `cache`, `limiter` assignment + logger creation
 2. **`close()` lifecycle** (2-7 lines) — httpx `aclose()` or explicit no-op
-3. **Cache-first fetch** (8-15 lines, repeated 12+ times) — key format, cache get, deserialize,
+3. **Cache-first fetch** (8-15 lines, repeated 29 times) — key format, cache get, deserialize,
    fetch on miss, serialize, cache set with TTL
-4. **yfinance thread bridge** (17-24 lines, 2 full implementations + 15 inline) —
+4. **yfinance thread bridge** (17-24 lines, 2 nearly identical implementations) —
    `asyncio.to_thread()` + `wait_for()` + error mapping to `DataSourceUnavailableError`
 5. **Retry with rate limiting** (5-8 lines per call, 18+ invocations) — delegation to
    `fetch_with_limiter_retry()` with per-service defaults
@@ -57,7 +57,7 @@ This produces:
 ### US2: Maintainer fixes a caching bug
 **As** a maintainer debugging a cache serialization issue,
 **I want** cache-first fetch logic in one place,
-**So that** a fix applies to all 7 services without editing 12+ methods across 7 files.
+**So that** a fix applies to all 7 services without editing 29 methods across 7 files.
 
 **Acceptance criteria:**
 - Cache-first fetch logic lives in `ServiceBase._cached_fetch()`
@@ -101,6 +101,7 @@ class ServiceBase(Generic[ConfigT]):
         model_type: type[T],
         factory: Callable[[], Awaitable[T]],
         ttl: int,
+        deserializer: Callable[[bytes], T] | None = None,
     ) -> T: ...
 
     async def _retried_fetch[T](
@@ -115,7 +116,7 @@ class ServiceBase(Generic[ConfigT]):
         self,
         fn: Callable[..., T],
         *args: object,
-        timeout: float | None = None,
+        timeout: float,
         **kwargs: object,
     ) -> T: ...
 ```
@@ -126,18 +127,21 @@ class ServiceBase(Generic[ConfigT]):
 - **Mixin, not contract** — no `@abstractmethod`. Services opt into helpers they need.
 - `__init__` stores `self._config`, `self._cache`, `self._limiter`, `self._log`
 - `close()` is a default no-op. Services with httpx clients override it.
-- `_cached_fetch()` eliminates 12+ cache-first blocks. Takes a zero-arg async factory,
+- `_cached_fetch()` eliminates ~25 of 29 cache-first blocks. Takes a zero-arg async factory,
   handles cache key lookup, deserialization via `model_type.model_validate_json()`,
   serialization via `model.model_dump_json().encode()`, and TTL-based cache set.
+  Optional `deserializer` callback overrides default deserialization for custom patterns
+  (batch list decode, scalar values, legacy formats). When provided, `deserializer(cached)`
+  is called instead of `model_type.model_validate_json(cached)`.
 - `_retried_fetch()` delegates to existing `fetch_with_limiter_retry()` from `helpers.py`.
   Passes `self._limiter` automatically.
-- `_yf_call()` deduplicates the `asyncio.to_thread() + wait_for()` pattern. Uses
-  `self._config.yfinance_timeout` (or explicit timeout kwarg). Maps all exceptions to
-  `DataSourceUnavailableError`.
+- `_yf_call()` deduplicates the `asyncio.to_thread() + wait_for()` pattern. Takes an
+  explicit `timeout: float` parameter (required, not optional). Callers pass their config's
+  timeout value. Maps all exceptions to `DataSourceUnavailableError`.
 
 #### FR2: `_cached_fetch()` — Unified Cache-First Pattern
 
-Current pattern (repeated 12+ times):
+Current pattern (repeated 29 times across 8 files):
 ```python
 cache_key = f"yf:ohlcv:{ticker}:{period}"
 cached = await self._cache.get(cache_key)
@@ -148,7 +152,7 @@ await self._cache.set(cache_key, result.model_dump_json().encode(), ttl=TTL)
 return result
 ```
 
-Unified pattern:
+Unified pattern (default model serde):
 ```python
 return await self._cached_fetch(
     key=f"yf:ohlcv:{ticker}:{period}",
@@ -158,21 +162,34 @@ return await self._cached_fetch(
 )
 ```
 
+Unified pattern (custom deserializer for batch/list/scalar):
+```python
+return await self._cached_fetch(
+    key=f"yf:chain:{ticker}:{expiration.isoformat()}",
+    model_type=OptionContract,  # used for serialization only
+    factory=lambda: self._fetch_chain_raw(ticker, expiration),
+    ttl=TTL,
+    deserializer=lambda cached: _cache_bytes_to_contracts(cached),
+)
+```
+
 **Serialization handling:**
-- Single model: `model_type.model_validate_json(cached)` / `model.model_dump_json().encode()`
-- List of models: requires `list_model_type` overload or manual handling (deferred — services
-  that cache lists can keep inline serialization until a list-aware `_cached_fetch_list()`
-  is added in a follow-up)
+- **Default** (no `deserializer`): `model_type.model_validate_json(cached)` /
+  `model.model_dump_json().encode()` — covers ~15 blocks (direct single-model pattern)
+- **Custom `deserializer`**: caller-provided `Callable[[bytes], T]` for batch list decode,
+  scalar values, or legacy formats — covers ~10 additional blocks
+- **Remaining inline** (~4 blocks): FredService triple-tier cache and CBOE batch pre-cache
+  have unique enough patterns to stay inline
 
 #### FR3: `_yf_call()` — Unified yfinance Thread Bridge
 
-Current duplicated pattern (2 full implementations + 15 inline):
+Current duplicated pattern (2 nearly identical implementations in `MarketDataService` and `YFinanceChainProvider`):
 ```python
-async def _yf_call(self, fn, *args, **kwargs):
+async def _yf_call(self, fn, *args, timeout: float, **kwargs):
     try:
         return await asyncio.wait_for(
             asyncio.to_thread(fn, *args, **kwargs),
-            timeout=self._config.yfinance_timeout,
+            timeout=timeout,
         )
     except TimeoutError as exc:
         raise DataSourceUnavailableError(...) from exc
@@ -180,9 +197,12 @@ async def _yf_call(self, fn, *args, **kwargs):
         raise DataSourceUnavailableError(...) from exc
 ```
 
-Unified: single implementation in `ServiceBase`. Services that don't use yfinance simply
-don't call it. The `timeout` parameter defaults to `self._config.yfinance_timeout` if
-the config has it (duck-typed `getattr`), otherwise requires explicit timeout.
+Unified: single implementation in `ServiceBase` with explicit `timeout: float` parameter
+(required, not optional). Callers pass their config's timeout value directly, e.g.
+`self._yf_call(fn, *args, timeout=self._config.yfinance_timeout)`. This is type-safe
+across all config types — no duck-typed `getattr`. Services that don't use yfinance
+simply don't call it. `IntelligenceService`'s raw `asyncio.to_thread()` calls will be
+migrated to use `self._yf_call()` for consistent error mapping and timeout handling.
 
 #### FR4: Constructor Backward Compatibility
 
@@ -244,12 +264,12 @@ services/base.py (new file, ~120 lines)
 
 | Service | Config Type | Uses `_cached_fetch` | Uses `_yf_call` | Uses `_retried_fetch` | Overrides `close()` |
 |---------|------------|---------------------|-----------------|----------------------|-------------------|
-| `MarketDataService` | `ServiceConfig` | Yes (5 methods) | Yes | Yes | No (no-op) |
+| `MarketDataService` | `ServiceConfig` | Yes (6 methods) | Yes | Yes | No (log-only) |
 | `OptionsDataService` | `ServiceConfig` | Yes (2 methods) | Via providers | Yes | Yes (provider cleanup) |
 | `FredService` | `ServiceConfig` | Yes (1 method) | No (httpx) | No | Yes (httpx `aclose`) |
-| `UniverseService` | `ServiceConfig` | Yes (2+ methods) | No (httpx) | Yes | Yes (httpx `aclose`) |
-| `OpenBBService` | `OpenBBConfig` | Yes | No (SDK) | No | No (no-op) |
-| `IntelligenceService` | `IntelligenceConfig` | Yes | Yes | Yes | No (no-op) |
+| `UniverseService` | `ServiceConfig` | Yes (6 methods) | No (httpx) | Yes | Yes (httpx `aclose`) |
+| `OpenBBService` | `OpenBBConfig` | Yes (3 methods) | No (SDK) | No | No (no-op) |
+| `IntelligenceService` | `IntelligenceConfig` | Yes (5 methods) | Yes | Yes | No (no-op) |
 | `FinancialDatasetsService` | `FinancialDatasetsConfig` | Yes (3 methods) | No (httpx) | Yes | Yes (httpx `aclose`) |
 
 ### Out of Scope
@@ -313,8 +333,8 @@ class FredService(ServiceBase[ServiceConfig]):
 | Consumer changes | Zero | `git diff` on `commands.py`, `deps.py`, `pipeline.py` = empty |
 | Test pass rate | 100% existing tests pass without modification | `pytest tests/ -q` |
 | New test coverage | 30+ tests for `ServiceBase` itself | `pytest tests/unit/services/test_base.py` |
-| Cache-first dedup | 12+ inline cache blocks replaced by `_cached_fetch` calls | Grep count |
-| `_yf_call` dedup | 2 full implementations + 15 inline → 1 in base | Grep count |
+| Cache-first dedup | ~25 of 29 cache blocks replaced by `_cached_fetch` calls | Grep count |
+| `_yf_call` dedup | 2 implementations → 1 in base | Grep count |
 | Migration completeness | 7/7 services inherit `ServiceBase` | `grep "ServiceBase" services/*.py` |
 
 ## Constraints & Assumptions
@@ -323,8 +343,9 @@ class FredService(ServiceBase[ServiceConfig]):
 - **No `__aenter__`/`__aexit__`**: Explicit `close()` pattern preserved (project convention)
 - **httpx client stays per-service**: Client configs are too different (timeouts, limits, base URLs)
   to centralize. Only `close()` lifecycle and DI pattern are unified.
-- **List caching deferred**: `_cached_fetch` handles single-model serialization. Services that
-  cache `list[Model]` keep inline serialization until a `_cached_fetch_list()` variant is added.
+- **Custom serde via callback**: `_cached_fetch` default handles single-model serialization.
+  Services with custom patterns (list decode, scalar, legacy) pass a `deserializer` callback.
+  No separate `_cached_fetch_list()` needed.
 - **`helpers.py` unchanged**: `fetch_with_limiter_retry()` stays in `helpers.py`. `_retried_fetch`
   is a thin wrapper that passes `self._limiter` automatically.
 - **No behavioral changes**: This is a pure refactor. Every service method produces identical
@@ -337,7 +358,7 @@ class FredService(ServiceBase[ServiceConfig]):
 - **ChainProvider unification** — already has its own protocol pattern
 - **httpx client pooling** — configs too different across services
 - **`__aenter__`/`__aexit__` context manager** — project uses explicit `close()`
-- **List-model caching** — deferred to follow-up (minor optimization)
+- **List-model caching** — handled via `deserializer` callback, no separate method needed
 - **Cache key standardization** — keys stay service-defined (too many formats to unify safely)
 
 ## Dependencies
@@ -378,7 +399,7 @@ class FredService(ServiceBase[ServiceConfig]):
 12. **Integration test** — all 7 services instantiated together, verifying DI and close lifecycle
 13. **Remove dead code** — delete standalone `_yf_call` methods, inline cache blocks that
     were replaced
-14. *(Optional)* **`_cached_fetch_list()` variant** — for services caching `list[Model]`
+14. *(Optional)* **Migrate remaining inline cache blocks** — FredService triple-tier + CBOE batch
 
 ## Effort Estimate
 

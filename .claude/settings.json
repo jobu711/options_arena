@@ -25,6 +25,10 @@
           {
             "type": "command",
             "command": "python C:/Users/nicho/Desktop/Options_Arena/.claude/hooks/dangerous-command-guard.py"
+          },
+          {
+            "type": "command",
+            "command": "python C:/Users/nicho/Desktop/Options_Arena/.claude/hooks/version-sync.py"
           }
         ]
       }

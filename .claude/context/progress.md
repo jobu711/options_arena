@@ -2,29 +2,29 @@
 
 ## Current State
 
-- **Version**: 2.13.0 — Liquidity-weighted composite scoring
-- **All 9 phases + 27 epics**: Complete and merged to master
-- **Tests**: ~4,300 Python + 73 E2E
-- **GitHub issues**: 10+ open (pipeline-phase-extraction #424-#428, financialdatasets-ai #393-#399), 384+ closed
+- **Version**: 2.8.0 — Backtesting analytics + pipeline decomposition
+- **All 9 phases + 29 epics**: Complete and merged to master
+- **Tests**: ~4,400 Python (24K parametrized) + 92 E2E (15 spec files)
+- **GitHub issues**: 6+ open (financialdatasets-ai #393-#399), 390+ closed
 - **CI**: GitHub Actions (4 gates: lint, typecheck, tests, frontend)
-- **CLI**: `options-arena scan`, `health`, `universe` (+ `index`), `debate` (+ `--batch`, `--export`, `--provider`), `serve`, `watchlist`, `outcomes` (collect, summary)
+- **CLI**: `options-arena scan`, `health`, `universe` (+ `index`), `debate` (+ `--batch`, `--export`, `--provider`), `serve`, `watchlist`, `outcomes` (collect, summary, backtest, equity-curve)
 - **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
 - **AI providers**: Groq (default, `GROQ_API_KEY`) + Anthropic (`ANTHROPIC_API_KEY`, `--provider anthropic`)
 
 ## In Progress
 
-- **Pipeline phase extraction epic** (#423, issues #424-#428): Extract 4 pipeline phases from monolithic `pipeline.py` into `phase_universe.py`, `phase_scoring.py`, `phase_options.py`, `phase_persist.py`
 - **FinancialDatasets.ai epic** (#393, issues #394-#399): Integrate Financial Datasets MCP for fundamental data enrichment
 
 ## Recently Completed
 
-- **Repository decomposition epic** (2026-03-09): Issues #418-#422. Decomposed `Repository` monolith (1762 lines) into domain-specific mixins: `_base.py`, `_scan.py`, `_debate.py`, `_analytics.py`, `_metadata.py`. 114 new tests verifying mixin composition.
-- **Context7 upgrade** (2026-03-09): Upgraded `/context7` command to auto-detecting structural verification engine.
-- **Liquidity weighting epic** (2026-03-08): PR #384, issues #375-#383. `chain_spread_pct` and `chain_oi_depth` indicators, liquidity multiplier in `select_by_delta()`, weight redistribution (sum=1.0), 50+ tests across 7 files.
-- **Anthropic API epic** (2026-03-08): PR #374, issues #215-#219. `LLMProvider` StrEnum, multi-provider `build_debate_model()` dispatcher (Groq + Anthropic), `--provider` CLI flag, `check_anthropic()` health check, conditional `ModelSettings` for extended thinking, `anthropic>=0.83.0` dependency.
+- **Backtesting engine epic** (2026-03-10): Issues #430-#436. 7 backtest models (`BacktestResult`, `EquityCurve`, `DrawdownSeries`, etc.), 7 analytics queries in `AnalyticsMixin`, 7 API endpoints on `/api/analytics/backtest`, CLI `outcomes backtest` + `equity-curve` subcommands, Vue analytics dashboard with 5 tabs (Chart.js), E2E tests. Migration 029.
+- **Pipeline phase extraction epic** (2026-03-10): Issues #424-#428. Decomposed monolithic `pipeline.py` (1168→352 lines) into 4 phase modules: `phase_universe.py`, `phase_scoring.py`, `phase_options.py`, `phase_persist.py`. Pipeline.py now a thin orchestrator.
+- **Repository decomposition epic** (2026-03-09): Issues #418-#422. Decomposed `Repository` monolith into domain-specific mixins.
+- **Prompt engineering v2 + agent calibration** (2026-03-09): Prompt extraction to `agents/prompts/`, few-shot golden examples, regression tests, per-agent accuracy tracking, auto-tune weights.
 
 ## Future Work
- Real-time market data streaming
+
+- Real-time market data streaming
 - Frontend unit testing (Vitest + Vue Test Utils) — E2E covered by Playwright
 
 ## Blockers

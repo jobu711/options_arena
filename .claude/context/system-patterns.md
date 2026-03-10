@@ -106,11 +106,23 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - `IntelligenceService`: multi-source aggregation (OpenBB fundamentals, flow, sentiment)
 - Config-gated per source; never-raises contract; enrichment injected into debate agent prompts
 
+### Scan Pipeline Decomposition
+- **Thin orchestrator**: `pipeline.py` (352 lines) delegates to 4 phase modules
+- **Phase modules**: `phase_universe.py` (universe + sector filtering), `phase_scoring.py` (indicators + composite), `phase_options.py` (chain fetch + contract selection), `phase_persist.py` (SQLite persistence)
+- **Same public API**: `run_scan_pipeline()` signature unchanged; internal decomposition only
+
 ### Analytics Persistence Pattern (Outcome Tracking)
 - **Contract persistence**: Phase 3 captures `entry_stock_price`; Phase 4 persists `RecommendedContract` + `NormalizationStats`
-- **Outcome collection**: `OutcomeCollector` fetches quotes at T+1/T+5/T+10/T+20, computes P&L
+- **Outcome collection**: `OutcomeCollector` fetches quotes at T+1/T+5/T+10/T+20, computes P&L; auto-scheduled via `OutcomeScheduler`
 - **Expired handling**: ITM -> intrinsic value; OTM -> expired worthless (-100%)
-- **Analytics queries**: 6 typed results, 9 API endpoints on `/api/analytics`, CLI `outcomes` subcommand
+- **Analytics queries**: 6 typed results + 7 backtesting queries, 16 API endpoints on `/api/analytics`, CLI `outcomes` subcommand
+
+### Backtesting Analytics Pattern
+- **Models**: `BacktestResult`, `EquityCurve`, `DrawdownSeries`, `HoldingPeriodComparison`, `SectorBreakdown`, `DTEBucket`, `IVBucket` in `models/analytics.py`
+- **Queries**: `AnalyticsMixin` provides `get_equity_curve()`, `get_drawdown_series()`, `get_holding_comparison()`, `get_sector_breakdown()`, `get_dte_performance()`, `get_iv_performance()`, `get_agent_accuracy_heatmap()`
+- **API**: 7 endpoints under `/api/analytics/backtest/*`; `BacktestConfig` for geometric vs arithmetic compounding
+- **Frontend**: Vue `AnalyticsPage.vue` with 5 tabs (Equity Curve, Drawdown, Sector, DTE, IV) using Chart.js
+- **CLI**: `outcomes backtest` and `outcomes equity-curve` subcommands
 
 ### Metadata Index Pattern (Ticker Classification Cache)
 - **Persistent cache**: SQLite table `ticker_metadata` — GICS sector, industry group, market cap tier

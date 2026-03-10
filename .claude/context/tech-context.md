@@ -46,7 +46,7 @@ For web/optional/dev deps, build system, and tool config: `.claude/guides/depend
 ## CLI Entry Point
 
 - **Command**: `options-arena` — entry point `options_arena.cli:app` (Typer)
-- **Commands**: `scan` (`--sector`), `health`, `universe`, `debate` (`--batch`, `--export md|pdf`, `--provider`), `serve`, `watchlist`, `outcomes`
+- **Commands**: `scan` (`--sector`), `health`, `universe`, `debate` (`--batch`, `--export md|pdf`, `--provider`), `serve`, `watchlist`, `outcomes` (collect, summary, backtest, equity-curve)
 - **Logging**: Dual-handler (RichHandler stderr + RotatingFileHandler `logs/options_arena.log`)
 - **SIGINT**: `signal.signal()` double-press pattern (graceful then force)
 
@@ -57,6 +57,6 @@ For web/optional/dev deps, build system, and tool config: `.claude/guides/depend
 - **Launch**: `options-arena serve` (loopback-only, auto-opens browser)
 - **Dev mode**: Vite (:5173) proxies to FastAPI (:8000)
 - **Production**: FastAPI serves `web/dist/` via catch-all GET + `/assets` mount
-- **E2E tests**: Playwright (73 tests across 14 spec files, 4 parallel workers, isolated DBs)
+- **E2E tests**: Playwright (92 tests across 15 spec files, 4 parallel workers, isolated DBs)
 - **WebSocket**: Real-time progress for scans and debates
 - **Operation mutex**: `asyncio.Lock` — one scan or batch debate at a time (409 if busy)
