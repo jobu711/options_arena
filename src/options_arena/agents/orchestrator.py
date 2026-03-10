@@ -728,6 +728,7 @@ def _opposite_direction(direction: SignalDirection) -> SignalDirection:
 def extract_agent_predictions(
     debate_id: int,
     result: DebateResult,
+    recommended_contract_id: int | None = None,
 ) -> list[AgentPrediction]:
     """Extract per-agent predictions from a DebateResult for accuracy tracking.
 
@@ -739,6 +740,12 @@ def extract_agent_predictions(
     Extract as "trend" to avoid conflating with the retired bull agent.
     ``bear_response`` is a static fallback — skip it to avoid misleading data.
 
+    Args:
+        debate_id: Database ID of the persisted debate.
+        result: Completed debate result with agent responses.
+        recommended_contract_id: Matching contract from ``recommended_contracts``
+            table.  Needed for accuracy queries that JOIN predictions to outcomes.
+
     Returns a list of ``AgentPrediction`` — empty if all agents failed.
     """
     now = datetime.now(UTC)
@@ -749,6 +756,7 @@ def extract_agent_predictions(
         predictions.append(
             AgentPrediction(
                 debate_id=debate_id,
+                recommended_contract_id=recommended_contract_id,
                 agent_name="trend",
                 direction=result.bull_response.direction,
                 confidence=result.bull_response.confidence,
@@ -761,6 +769,7 @@ def extract_agent_predictions(
         predictions.append(
             AgentPrediction(
                 debate_id=debate_id,
+                recommended_contract_id=recommended_contract_id,
                 agent_name="flow",
                 direction=result.flow_response.direction,
                 confidence=result.flow_response.confidence,
@@ -773,6 +782,7 @@ def extract_agent_predictions(
         predictions.append(
             AgentPrediction(
                 debate_id=debate_id,
+                recommended_contract_id=recommended_contract_id,
                 agent_name="fundamental",
                 direction=result.fundamental_response.direction,
                 confidence=result.fundamental_response.confidence,
@@ -785,6 +795,7 @@ def extract_agent_predictions(
         predictions.append(
             AgentPrediction(
                 debate_id=debate_id,
+                recommended_contract_id=recommended_contract_id,
                 agent_name="volatility",
                 direction=result.vol_response.direction,
                 confidence=result.vol_response.confidence,
@@ -797,6 +808,7 @@ def extract_agent_predictions(
         predictions.append(
             AgentPrediction(
                 debate_id=debate_id,
+                recommended_contract_id=recommended_contract_id,
                 agent_name="risk",
                 direction=None,
                 confidence=result.risk_response.confidence,
@@ -809,6 +821,7 @@ def extract_agent_predictions(
         predictions.append(
             AgentPrediction(
                 debate_id=debate_id,
+                recommended_contract_id=recommended_contract_id,
                 agent_name="contrarian",
                 direction=result.contrarian_response.dissent_direction,
                 confidence=result.contrarian_response.dissent_confidence,
@@ -872,8 +885,15 @@ async def _persist_result(
             contrarian_thesis=result.contrarian_response,
         )
 
+        # Look up the recommended contract for this debate's scan+ticker pair.
+        # This links agent predictions to contract outcomes for accuracy tracking.
+        contract_id = await repository.get_recommended_contract_id(
+            ticker_score.scan_run_id,
+            result.context.ticker,
+        )
+
         # Persist per-agent predictions for accuracy tracking (FR-8)
-        predictions = extract_agent_predictions(debate_id, result)
+        predictions = extract_agent_predictions(debate_id, result, contract_id)
         if predictions:
             await repository.save_agent_predictions(predictions)
 

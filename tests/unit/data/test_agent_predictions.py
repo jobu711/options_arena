@@ -18,7 +18,7 @@ import pytest_asyncio
 
 from options_arena.data.database import Database
 from options_arena.data.repository import Repository
-from options_arena.models import AgentPrediction, SignalDirection
+from options_arena.models import AgentPrediction, ScanPreset, ScanRun, SignalDirection
 
 pytestmark = pytest.mark.db
 
@@ -280,3 +280,111 @@ async def test_created_at_persisted_as_iso(repo: Repository, db: Database) -> No
     # Should be a valid ISO 8601 string parseable back to datetime
     parsed = datetime.fromisoformat(row["created_at"])
     assert parsed.tzinfo is not None
+
+
+# ---------------------------------------------------------------------------
+# recommended_contract_id linkage tests
+# ---------------------------------------------------------------------------
+
+
+async def _create_scan_and_contract(repo: Repository) -> tuple[int, int]:
+    """Insert a scan run + recommended contract, return (scan_run_id, contract_id)."""
+    scan_run = ScanRun(
+        started_at=NOW,
+        completed_at=NOW,
+        preset=ScanPreset.SP500,
+        tickers_scanned=10,
+        tickers_scored=5,
+        recommendations=1,
+    )
+    scan_id = await repo.save_scan_run(scan_run)
+    conn = repo._db.conn  # noqa: SLF001
+    cursor = await conn.execute(
+        "INSERT INTO recommended_contracts "
+        "(scan_run_id, ticker, option_type, strike, bid, ask, expiration, "
+        "volume, open_interest, market_iv, exercise_style, entry_mid, direction, "
+        "composite_score, risk_free_rate, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            scan_id,
+            "AAPL",
+            "call",
+            "190.00",
+            "3.50",
+            "3.80",
+            "2026-04-18",
+            1000,
+            5000,
+            0.30,
+            "american",
+            "3.65",
+            "bullish",
+            78.5,
+            0.045,
+            NOW.isoformat(),
+        ),
+    )
+    await conn.commit()
+    assert cursor.lastrowid is not None
+    return scan_id, cursor.lastrowid
+
+
+@pytest.mark.asyncio
+async def test_save_predictions_with_contract_id(repo: Repository, db: Database) -> None:
+    """Verify recommended_contract_id is persisted when provided."""
+    scan_id, contract_id = await _create_scan_and_contract(repo)
+    debate_id = await repo.save_debate(
+        scan_run_id=scan_id,
+        ticker="AAPL",
+        bull_json="{}",
+        bear_json="{}",
+        risk_json=None,
+        verdict_json="{}",
+        total_tokens=100,
+        model_name="test",
+        duration_ms=500,
+        is_fallback=False,
+    )
+    predictions = [
+        AgentPrediction(
+            debate_id=debate_id,
+            recommended_contract_id=contract_id,
+            agent_name="trend",
+            direction=SignalDirection.BULLISH,
+            confidence=0.75,
+            created_at=NOW,
+        ),
+    ]
+    await repo.save_agent_predictions(predictions)
+
+    conn = db.conn
+    async with conn.execute(
+        "SELECT recommended_contract_id FROM agent_predictions WHERE debate_id = ?",
+        (debate_id,),
+    ) as cursor:
+        row = await cursor.fetchone()
+
+    assert row is not None
+    assert row["recommended_contract_id"] == contract_id
+
+
+@pytest.mark.asyncio
+async def test_get_recommended_contract_id(repo: Repository) -> None:
+    """Verify helper returns the correct contract ID for a scan+ticker pair."""
+    scan_id, contract_id = await _create_scan_and_contract(repo)
+    result = await repo.get_recommended_contract_id(scan_id, "AAPL")
+    assert result == contract_id
+
+
+@pytest.mark.asyncio
+async def test_get_recommended_contract_id_no_match(repo: Repository) -> None:
+    """Verify helper returns None when no matching contract exists."""
+    result = await repo.get_recommended_contract_id(999, "ZZZZZ")
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_recommended_contract_id_none_scan(repo: Repository) -> None:
+    """Verify helper returns None when scan_run_id is None (standalone debate)."""
+    result = await repo.get_recommended_contract_id(None, "AAPL")
+    assert result is None
