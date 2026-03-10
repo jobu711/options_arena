@@ -33,6 +33,7 @@ from pydantic import BaseModel
 from options_arena.models.config import OpenBBConfig, PricingConfig, ServiceConfig
 from options_arena.models.enums import ExerciseStyle, OptionType
 from options_arena.models.options import OptionContract
+from options_arena.services.base import ServiceBase
 from options_arena.services.cache import ServiceCache
 from options_arena.services.cboe_provider import CBOEChainProvider
 from options_arena.services.helpers import (
@@ -364,8 +365,11 @@ class ExpirationChain(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class OptionsDataService:
+class OptionsDataService(ServiceBase[ServiceConfig]):
     """Fetches option chains with provider orchestration and fallback.
+
+    Inherits from :class:`ServiceBase[ServiceConfig]` for standardized
+    ``_config``, ``_cache``, ``_limiter``, and ``_log`` attributes.
 
     Builds a prioritized list of ``ChainProvider`` instances and iterates
     them with fallback on ``DataSourceUnavailableError``. When CBOE chains
@@ -397,10 +401,8 @@ class OptionsDataService:
         provider: ChainProvider | None = None,
         openbb_config: OpenBBConfig | None = None,
     ) -> None:
-        self._config = config
+        super().__init__(config, cache, limiter)
         self._pricing_config = pricing_config
-        self._cache = cache
-        self._limiter = limiter
         self._openbb_config = openbb_config
         self._validation_mode = openbb_config is not None and openbb_config.chain_validation_mode
 
