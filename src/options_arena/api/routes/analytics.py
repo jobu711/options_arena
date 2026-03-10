@@ -197,10 +197,15 @@ async def trigger_auto_tune(
     Computes optimal agent weights from historical accuracy data.
     When ``dry_run`` is ``True``, weights are computed but not persisted.
     """
-    if lock.locked():
-        raise HTTPException(409, "Another operation is in progress")
-    async with lock:
+    try:
+        await asyncio.wait_for(lock.acquire(), timeout=0.01)
+    except TimeoutError:
+        raise HTTPException(409, "Another operation is in progress") from None
+
+    try:
         return await auto_tune_weights(repo, window_days=window, dry_run=dry_run)
+    finally:
+        lock.release()
 
 
 @router.get("/weights/history")

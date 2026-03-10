@@ -968,6 +968,22 @@ async def auto_tune_weights(
         Empty list when no accuracy data meets the minimum sample threshold.
     """
     accuracy = await repo.get_agent_accuracy(window_days=window_days)
+
+    # Skip persistence when no agent has enough scored outcomes
+    has_eligible = any(
+        r.agent_name != "risk"
+        and r.sample_size >= 10
+        and r.brier_score is not None
+        and math.isfinite(r.brier_score)
+        for r in accuracy
+    )
+    if not has_eligible:
+        logger.info(
+            "Auto-tune skipped: no directional agent has enough scored outcomes (window=%d)",
+            window_days,
+        )
+        return []
+
     tuned = compute_auto_tune_weights(accuracy)
 
     comparisons = [

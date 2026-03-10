@@ -104,6 +104,34 @@ class TestWeightSnapshot:
                 weights=[],
             )
 
+    @pytest.mark.parametrize(
+        ("manual_weight", "auto_weight", "brier_score"),
+        [
+            (float("nan"), 0.22, 0.18),
+            (0.17, float("inf"), 0.18),
+            (0.17, 0.22, float("-inf")),
+        ],
+        ids=["nan-manual", "inf-auto", "neginf-brier"],
+    )
+    def test_weights_reject_non_finite_values(
+        self, manual_weight: float, auto_weight: float, brier_score: float
+    ) -> None:
+        """Verify isfinite validators reject NaN/inf on weight fields."""
+        with pytest.raises(ValidationError):
+            WeightSnapshot(
+                computed_at=NOW_UTC,
+                window_days=90,
+                weights=[
+                    AgentWeightsComparison(
+                        agent_name="trend",
+                        manual_weight=manual_weight,
+                        auto_weight=auto_weight,
+                        brier_score=brier_score,
+                        sample_size=50,
+                    )
+                ],
+            )
+
     def test_json_roundtrip(self) -> None:
         """Verify JSON serialization/deserialization fidelity."""
         snap = WeightSnapshot(

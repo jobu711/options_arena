@@ -102,6 +102,26 @@ class TestAutoTuneEndpoint:
         response = await client.post("/api/analytics/weights/auto-tune?window=400")
         assert response.status_code == 422
 
+    @pytest.mark.asyncio
+    @patch("options_arena.api.routes.analytics.auto_tune_weights", new_callable=AsyncMock)
+    async def test_post_auto_tune_concurrent_returns_409(
+        self, mock_auto_tune: AsyncMock, test_app: object, client: AsyncClient
+    ) -> None:
+        """Returns 409 when operation mutex is already held."""
+        import asyncio
+
+        from options_arena.api.deps import get_operation_lock
+
+        lock = asyncio.Lock()
+        await lock.acquire()  # Pre-hold the lock
+        test_app.dependency_overrides[get_operation_lock] = lambda: lock  # type: ignore[union-attr]
+        try:
+            response = await client.post("/api/analytics/weights/auto-tune")
+            assert response.status_code == 409
+            mock_auto_tune.assert_not_called()
+        finally:
+            lock.release()
+
 
 # ---------------------------------------------------------------------------
 # GET /api/analytics/weights/history

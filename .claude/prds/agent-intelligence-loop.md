@@ -201,7 +201,7 @@ async def get_weight_history(
 
 **Modified files:**
 - `web/src/pages/AnalyticsPage.vue` -- add tab entry + lazy loading
-- `web/src/stores/backtest.ts` -- add weight state + fetch/trigger actions
+- `web/src/stores/weights.ts` -- add weight state + fetch/trigger actions
 
 **Panel layout:**
 

@@ -143,19 +143,12 @@ class TestAutoTuneWeights:
 
     @pytest.mark.asyncio
     async def test_empty_accuracy_returns_empty(self) -> None:
-        """Empty accuracy data returns empty list (compute_auto_tune_weights returns
-        manual weights but there's no accuracy match, so comparisons still have all
-        agents from tuned dict)."""
+        """Empty accuracy data returns empty list — no snapshot persisted."""
         repo = _mock_repo([])
 
         result = await auto_tune_weights(repo, window_days=90, dry_run=True)
 
-        # compute_auto_tune_weights([]) returns renormalized manual weights,
-        # so we still get comparisons for all agents, but with None brier scores
-        # and sample_size=0 for those without accuracy data.
-        for comp in result:
-            assert comp.brier_score is None
-            assert comp.sample_size == 0
+        assert result == []
 
     @pytest.mark.asyncio
     async def test_window_days_passed_to_accuracy(self) -> None:

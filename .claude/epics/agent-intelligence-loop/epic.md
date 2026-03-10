@@ -62,7 +62,7 @@ the already-implemented FinancialDatasets issues.
 | API tests | `tests/unit/api/` | +60 lines |
 | `WeightTuningPanel.vue` | `web/src/components/analytics/` | ~120 lines |
 | `weights.ts` types | `web/src/types/` | ~20 lines |
-| Store additions | `web/src/stores/backtest.ts` | +35 lines |
+| Store additions | `web/src/stores/weights.ts` | +35 lines |
 | Tab integration | `web/src/pages/AnalyticsPage.vue` | +8 lines |
 
 ### Housekeeping (Wave 3)
