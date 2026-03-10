@@ -23,6 +23,7 @@ from options_arena.data.repository import Repository
 from options_arena.models import (
     ContractOutcome,
     ExerciseStyle,
+    GreeksGroupBy,
     GreeksSource,
     OptionType,
     OutcomeCollectionMethod,
@@ -228,9 +229,11 @@ class TestEquityCurve:
         )
         results = await repo.get_equity_curve()
         assert len(results) == 2
+        # Day 1: single trade +10% → factor = 1.10 → cum = 10.0%
         assert results[0].cumulative_return_pct == pytest.approx(10.0, rel=1e-4)
         assert results[0].trade_count == 1
-        assert results[1].cumulative_return_pct == pytest.approx(5.0, rel=1e-4)
+        # Day 2: single trade -5% → factor = 1.10 * 0.95 = 1.045 → cum = 4.5%
+        assert results[1].cumulative_return_pct == pytest.approx(4.5, rel=1e-4)
         assert results[1].trade_count == 2
 
     @pytest.mark.asyncio
@@ -285,7 +288,8 @@ class TestEquityCurve:
         )
         results = await repo.get_equity_curve()
         assert len(results) == 1
-        assert results[0].cumulative_return_pct == pytest.approx(15.0, rel=1e-4)
+        # Same-day trades averaged: (10 + 5) / 2 = 7.5% → factor = 1.075 → cum = 7.5%
+        assert results[0].cumulative_return_pct == pytest.approx(7.5, rel=1e-4)
         assert results[0].trade_count == 2
 
 
@@ -363,16 +367,19 @@ class TestDrawdownSeries:
         results = await repo.get_drawdown_series()
         assert len(results) == 3
 
-        # Day 1: cum=20, peak=20, dd=0
+        # Geometric compounding:
+        # Day 1: factor=1.20, cum=20.0, peak=20.0, dd=0
         assert results[0].drawdown_pct == pytest.approx(0.0, abs=1e-8)
         assert results[0].peak_value == pytest.approx(20.0, rel=1e-4)
 
-        # Day 2: cum=5, peak=20, dd=-15
-        assert results[1].drawdown_pct == pytest.approx(-15.0, rel=1e-4)
+        # Day 2: factor=1.20*0.85=1.02, cum=2.0, peak=20.0
+        # dd = (2.0 - 20.0) / 20.0 * 100 = -90.0
+        assert results[1].drawdown_pct == pytest.approx(-90.0, rel=1e-4)
         assert results[1].peak_value == pytest.approx(20.0, rel=1e-4)
 
-        # Day 3: cum=8, peak=20, dd=-12
-        assert results[2].drawdown_pct == pytest.approx(-12.0, rel=1e-4)
+        # Day 3: factor=1.02*1.03=1.0506, cum=5.06, peak=20.0
+        # dd = (5.06 - 20.0) / 20.0 * 100 = -74.7
+        assert results[2].drawdown_pct == pytest.approx(-74.7, rel=1e-2)
         assert results[2].peak_value == pytest.approx(20.0, rel=1e-4)
 
 
@@ -406,9 +413,24 @@ class TestWinRateBySector:
                 {"ticker": "JPM", "strike": Decimal("200.00")},
             ],
             outcomes_data=[
-                {"_contract_index": 0, "contract_return_pct": 10.0, "holding_days": 20},
-                {"_contract_index": 1, "contract_return_pct": -5.0, "holding_days": 20},
-                {"_contract_index": 2, "contract_return_pct": 15.0, "holding_days": 20},
+                {
+                    "_contract_index": 0,
+                    "contract_return_pct": 10.0,
+                    "holding_days": 20,
+                    "is_winner": True,
+                },
+                {
+                    "_contract_index": 1,
+                    "contract_return_pct": -5.0,
+                    "holding_days": 20,
+                    "is_winner": False,
+                },
+                {
+                    "_contract_index": 2,
+                    "contract_return_pct": 15.0,
+                    "holding_days": 20,
+                    "is_winner": True,
+                },
             ],
         )
 
@@ -567,8 +589,18 @@ class TestWinRateByIVRank:
                 },
             ],
             outcomes_data=[
-                {"_contract_index": 0, "contract_return_pct": 10.0, "holding_days": 20},
-                {"_contract_index": 1, "contract_return_pct": -3.0, "holding_days": 20},
+                {
+                    "_contract_index": 0,
+                    "contract_return_pct": 10.0,
+                    "holding_days": 20,
+                    "is_winner": True,
+                },
+                {
+                    "_contract_index": 1,
+                    "contract_return_pct": -3.0,
+                    "holding_days": 20,
+                    "is_winner": False,
+                },
             ],
         )
 
@@ -713,7 +745,7 @@ class TestGreeksDecomposition:
             ],
         )
 
-        results = await repo.get_greeks_decomposition(holding_days=20, groupby="sector")
+        results = await repo.get_greeks_decomposition(holding_days=20, groupby=GreeksGroupBy.SECTOR)
         assert len(results) == 1
         assert results[0].group_key == "Information Technology"
 
@@ -739,7 +771,7 @@ class TestGreeksDecomposition:
                 },
             ],
         )
-        results = await repo.get_greeks_decomposition(holding_days=20, groupby="sector")
+        results = await repo.get_greeks_decomposition(holding_days=20, groupby=GreeksGroupBy.SECTOR)
         assert results == []
 
     @pytest.mark.asyncio

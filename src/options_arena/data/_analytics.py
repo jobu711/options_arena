@@ -18,6 +18,7 @@ from options_arena.models import (
     EquityCurvePoint,
     ExerciseStyle,
     GreeksDecompositionResult,
+    GreeksGroupBy,
     GreeksSource,
     HoldingPeriodComparison,
     HoldingPeriodResult,
@@ -878,7 +879,7 @@ class AnalyticsMixin(RepositoryBase):
         if not rows:
             return []
 
-        # Group by date, compute cumulative return
+        # Group by date, compute cumulative return using geometric compounding
         date_returns: dict[str, list[float]] = {}
         for row in rows:
             d = str(row["trade_date"])
@@ -887,16 +888,18 @@ class AnalyticsMixin(RepositoryBase):
             date_returns[d].append(float(row["contract_return_pct"]))
 
         results: list[EquityCurvePoint] = []
-        cumulative = 0.0
+        cumulative_factor = 1.0  # multiplicative growth factor
         total_trades = 0
         for dt_str in sorted(date_returns.keys()):
             rets = date_returns[dt_str]
-            cumulative += sum(rets)
+            # Average the day's returns, then compound
+            daily_avg = sum(rets) / len(rets)
+            cumulative_factor *= 1.0 + daily_avg / 100.0
             total_trades += len(rets)
             results.append(
                 EquityCurvePoint(
                     date=date.fromisoformat(dt_str),
-                    cumulative_return_pct=cumulative,
+                    cumulative_return_pct=(cumulative_factor - 1.0) * 100.0,
                     trade_count=total_trades,
                 )
             )
@@ -904,20 +907,27 @@ class AnalyticsMixin(RepositoryBase):
         logger.debug("Equity curve: %d points", len(results))
         return results
 
-    async def get_drawdown_series(self, period_days: int | None = None) -> list[DrawdownPoint]:
+    async def get_drawdown_series(
+        self,
+        direction: str | None = None,
+        period_days: int | None = None,
+    ) -> list[DrawdownPoint]:
         """Compute drawdown series from the equity curve.
 
-        Tracks peak cumulative return and computes drawdown at each point.
-        Drawdown is ``current - peak`` (non-positive when below peak).
+        Tracks peak cumulative return and computes drawdown as percentage of
+        peak (standard financial definition). When the equity curve is at its
+        peak, drawdown is 0.0. Below peak, drawdown is a negative percentage
+        relative to the peak value.
 
         Args:
+            direction: Optional direction filter (forwarded to equity curve).
             period_days: Optional lookback window in calendar days.
 
         Returns:
             List of ``DrawdownPoint`` ordered chronologically. Empty list if
             no equity curve data exists.
         """
-        equity_curve = await self.get_equity_curve(period_days=period_days)
+        equity_curve = await self.get_equity_curve(direction=direction, period_days=period_days)
         if not equity_curve:
             return []
 
@@ -926,7 +936,11 @@ class AnalyticsMixin(RepositoryBase):
         for point in equity_curve:
             if point.cumulative_return_pct > peak:
                 peak = point.cumulative_return_pct
-            drawdown = point.cumulative_return_pct - peak
+            # Percentage-of-peak drawdown (standard definition)
+            if peak > 0.0:
+                drawdown = ((point.cumulative_return_pct - peak) / peak) * 100.0
+            else:
+                drawdown = point.cumulative_return_pct - peak
             results.append(
                 DrawdownPoint(
                     date=point.date,
@@ -959,13 +973,14 @@ class AnalyticsMixin(RepositoryBase):
             "SELECT tm.sector, "
             "  COUNT(*) AS total, "
             "  AVG(co.contract_return_pct) AS avg_return_pct, "
-            "  CAST(SUM(CASE WHEN co.contract_return_pct > 0 THEN 1 ELSE 0 END) AS REAL) "
+            "  CAST(SUM(CASE WHEN co.is_winner = 1 THEN 1 ELSE 0 END) AS REAL) "
             "    / COUNT(*) * 100.0 AS win_rate_pct "
             "FROM recommended_contracts rc "
             "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
             "JOIN ticker_metadata tm ON tm.ticker = rc.ticker "
             "WHERE co.holding_days = ? "
             "  AND co.contract_return_pct IS NOT NULL "
+            "  AND co.is_winner IS NOT NULL "
             "  AND tm.sector IS NOT NULL "
             "GROUP BY tm.sector "
             "ORDER BY tm.sector",
@@ -1018,12 +1033,13 @@ class AnalyticsMixin(RepositoryBase):
             "  END AS dte_max, "
             "  COUNT(*) AS total, "
             "  AVG(co.contract_return_pct) AS avg_return_pct, "
-            "  CAST(SUM(CASE WHEN co.contract_return_pct > 0 THEN 1 ELSE 0 END) AS REAL) "
+            "  CAST(SUM(CASE WHEN co.is_winner = 1 THEN 1 ELSE 0 END) AS REAL) "
             "    / COUNT(*) * 100.0 AS win_rate_pct "
             "FROM recommended_contracts rc "
             "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
             "WHERE co.holding_days = ? "
             "  AND co.contract_return_pct IS NOT NULL "
+            "  AND co.is_winner IS NOT NULL "
             "GROUP BY dte_min "
             "ORDER BY dte_min",
             (holding_days,),
@@ -1074,12 +1090,13 @@ class AnalyticsMixin(RepositoryBase):
             "  END AS iv_max, "
             "  COUNT(*) AS total, "
             "  AVG(co.contract_return_pct) AS avg_return_pct, "
-            "  CAST(SUM(CASE WHEN co.contract_return_pct > 0 THEN 1 ELSE 0 END) AS REAL) "
+            "  CAST(SUM(CASE WHEN co.is_winner = 1 THEN 1 ELSE 0 END) AS REAL) "
             "    / COUNT(*) * 100.0 AS win_rate_pct "
             "FROM recommended_contracts rc "
             "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
             "WHERE co.holding_days = ? "
             "  AND co.contract_return_pct IS NOT NULL "
+            "  AND co.is_winner IS NOT NULL "
             "  AND rc.market_iv IS NOT NULL "
             "GROUP BY iv_min "
             "ORDER BY iv_min",
@@ -1101,7 +1118,9 @@ class AnalyticsMixin(RepositoryBase):
         return results
 
     async def get_greeks_decomposition(
-        self, holding_days: int = 20, groupby: str = "direction"
+        self,
+        holding_days: int = 20,
+        groupby: GreeksGroupBy = GreeksGroupBy.DIRECTION,
     ) -> list[GreeksDecompositionResult]:
         """Decompose P&L into delta-attributable and residual components.
 
@@ -1114,7 +1133,7 @@ class AnalyticsMixin(RepositoryBase):
 
         Args:
             holding_days: Filter to outcomes with this holding period.
-            groupby: Grouping column: ``"direction"`` or ``"sector"``.
+            groupby: Grouping column enum (DIRECTION or SECTOR).
 
         Returns:
             List of ``GreeksDecompositionResult`` ordered by group key.
@@ -1122,7 +1141,7 @@ class AnalyticsMixin(RepositoryBase):
         """
         conn = self._db.conn
 
-        if groupby == "sector":
+        if groupby == GreeksGroupBy.SECTOR:
             group_col_sql = "tm.sector"
             join_clause = "JOIN ticker_metadata tm ON tm.ticker = rc.ticker "
             where_extra = "AND tm.sector IS NOT NULL "
@@ -1254,7 +1273,7 @@ class AnalyticsMixin(RepositoryBase):
             results.append(
                 HoldingPeriodComparison(
                     holding_days=hd,
-                    direction=direction,
+                    direction=SignalDirection(direction),
                     avg_return=avg_ret,
                     median_return=med_ret,
                     win_rate=win_rate,

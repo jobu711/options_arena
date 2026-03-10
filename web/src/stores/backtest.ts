@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { api } from '@/composables/useApi'
 import type {
   EquityCurvePoint,
@@ -25,9 +25,18 @@ export const useBacktestStore = defineStore('backtest', () => {
   const agentAccuracy = ref<AgentAccuracyReport[]>([])
   const agentCalibration = ref<AgentCalibrationData | null>(null)
 
-  // Loading states
-  const loading = ref(false)
-  const error = ref<string | null>(null)
+  // Loading counter — incremented on fetch start, decremented on finish.
+  // loading is true when any fetch is in-flight.
+  const pendingRequests = ref(0)
+  const loading = computed(() => pendingRequests.value > 0)
+
+  // Per-dataset error tracking — errors accumulate and are not cleared by other fetches.
+  const errors = ref<Map<string, string>>(new Map())
+  /** First error message (for simple display) or null if no errors. */
+  const error = computed(() => {
+    const first = errors.value.values().next()
+    return first.done ? null : first.value
+  })
 
   // Filter state
   const direction = ref<string | null>(null)
@@ -37,11 +46,17 @@ export const useBacktestStore = defineStore('backtest', () => {
   // Track which tabs have been loaded
   const loadedTabs = ref<Set<string>>(new Set())
 
+  // --- Helpers ---
+
+  function clearErrors(): void {
+    errors.value = new Map()
+  }
+
   // --- Actions ---
 
   async function fetchEquityCurve(): Promise<void> {
-    loading.value = true
-    error.value = null
+    pendingRequests.value++
+    errors.value.delete('equityCurve')
     try {
       equityCurve.value = await api<EquityCurvePoint[]>(
         '/api/analytics/backtest/equity-curve',
@@ -53,130 +68,158 @@ export const useBacktestStore = defineStore('backtest', () => {
         },
       )
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to fetch equity curve'
+      errors.value.set(
+        'equityCurve',
+        e instanceof Error ? e.message : 'Failed to fetch equity curve',
+      )
     } finally {
-      loading.value = false
+      pendingRequests.value--
     }
   }
 
   async function fetchDrawdown(): Promise<void> {
-    loading.value = true
-    error.value = null
+    pendingRequests.value++
+    errors.value.delete('drawdown')
     try {
       drawdown.value = await api<DrawdownPoint[]>(
         '/api/analytics/backtest/drawdown',
         {
           params: {
+            direction: direction.value ?? undefined,
             period: period.value ?? undefined,
           },
         },
       )
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to fetch drawdown'
+      errors.value.set(
+        'drawdown',
+        e instanceof Error ? e.message : 'Failed to fetch drawdown',
+      )
     } finally {
-      loading.value = false
+      pendingRequests.value--
     }
   }
 
   async function fetchSectorPerformance(): Promise<void> {
-    loading.value = true
-    error.value = null
+    pendingRequests.value++
+    errors.value.delete('sectorPerformance')
     try {
       sectorPerformance.value = await api<SectorPerformanceResult[]>(
         '/api/analytics/backtest/sector-performance',
         { params: { holding_days: holdingDays.value } },
       )
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to fetch sector performance'
+      errors.value.set(
+        'sectorPerformance',
+        e instanceof Error ? e.message : 'Failed to fetch sector performance',
+      )
     } finally {
-      loading.value = false
+      pendingRequests.value--
     }
   }
 
   async function fetchDTEPerformance(): Promise<void> {
-    loading.value = true
-    error.value = null
+    pendingRequests.value++
+    errors.value.delete('dtePerformance')
     try {
       dtePerformance.value = await api<DTEBucketResult[]>(
         '/api/analytics/backtest/dte-performance',
         { params: { holding_days: holdingDays.value } },
       )
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to fetch DTE performance'
+      errors.value.set(
+        'dtePerformance',
+        e instanceof Error ? e.message : 'Failed to fetch DTE performance',
+      )
     } finally {
-      loading.value = false
+      pendingRequests.value--
     }
   }
 
   async function fetchIVPerformance(): Promise<void> {
-    loading.value = true
-    error.value = null
+    pendingRequests.value++
+    errors.value.delete('ivPerformance')
     try {
       ivPerformance.value = await api<IVRankBucketResult[]>(
         '/api/analytics/backtest/iv-performance',
         { params: { holding_days: holdingDays.value } },
       )
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to fetch IV performance'
+      errors.value.set(
+        'ivPerformance',
+        e instanceof Error ? e.message : 'Failed to fetch IV performance',
+      )
     } finally {
-      loading.value = false
+      pendingRequests.value--
     }
   }
 
   async function fetchGreeksDecomposition(): Promise<void> {
-    loading.value = true
-    error.value = null
+    pendingRequests.value++
+    errors.value.delete('greeksDecomposition')
     try {
       greeksDecomposition.value = await api<GreeksDecompositionResult[]>(
         '/api/analytics/backtest/greeks-decomposition',
         { params: { holding_days: holdingDays.value, groupby: 'direction' } },
       )
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to fetch Greeks decomposition'
+      errors.value.set(
+        'greeksDecomposition',
+        e instanceof Error ? e.message : 'Failed to fetch Greeks decomposition',
+      )
     } finally {
-      loading.value = false
+      pendingRequests.value--
     }
   }
 
   async function fetchHoldingComparison(): Promise<void> {
-    loading.value = true
-    error.value = null
+    pendingRequests.value++
+    errors.value.delete('holdingComparison')
     try {
       holdingComparison.value = await api<HoldingPeriodComparison[]>(
         '/api/analytics/backtest/holding-comparison',
       )
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to fetch holding comparison'
+      errors.value.set(
+        'holdingComparison',
+        e instanceof Error ? e.message : 'Failed to fetch holding comparison',
+      )
     } finally {
-      loading.value = false
+      pendingRequests.value--
     }
   }
 
   async function fetchAgentAccuracy(): Promise<void> {
-    loading.value = true
-    error.value = null
+    pendingRequests.value++
+    errors.value.delete('agentAccuracy')
     try {
       agentAccuracy.value = await api<AgentAccuracyReport[]>(
         '/api/analytics/agent-accuracy',
       )
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to fetch agent accuracy'
+      errors.value.set(
+        'agentAccuracy',
+        e instanceof Error ? e.message : 'Failed to fetch agent accuracy',
+      )
     } finally {
-      loading.value = false
+      pendingRequests.value--
     }
   }
 
   async function fetchAgentCalibration(): Promise<void> {
-    loading.value = true
-    error.value = null
+    pendingRequests.value++
+    errors.value.delete('agentCalibration')
     try {
       agentCalibration.value = await api<AgentCalibrationData>(
         '/api/analytics/agent-calibration',
       )
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to fetch agent calibration'
+      errors.value.set(
+        'agentCalibration',
+        e instanceof Error ? e.message : 'Failed to fetch agent calibration',
+      )
     } finally {
-      loading.value = false
+      pendingRequests.value--
     }
   }
 
@@ -222,6 +265,7 @@ export const useBacktestStore = defineStore('backtest', () => {
   /** Reset all loaded tabs (e.g. when filters change). */
   function resetLoadedTabs(): void {
     loadedTabs.value.clear()
+    clearErrors()
   }
 
   return {
@@ -237,6 +281,7 @@ export const useBacktestStore = defineStore('backtest', () => {
     agentCalibration,
     loading,
     error,
+    errors,
     direction,
     holdingDays,
     period,
@@ -260,5 +305,6 @@ export const useBacktestStore = defineStore('backtest', () => {
     loadGreeksTab,
     loadHoldingTab,
     resetLoadedTabs,
+    clearErrors,
   }
 })

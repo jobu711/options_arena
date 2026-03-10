@@ -25,9 +25,11 @@ from options_arena.models import (
     DTEBucketResult,
     EquityCurvePoint,
     GreeksDecompositionResult,
+    GreeksGroupBy,
     HoldingPeriodComparison,
     IVRankBucketResult,
     SectorPerformanceResult,
+    SignalDirection,
 )
 
 # ---------------------------------------------------------------------------
@@ -93,7 +95,7 @@ def _make_greeks_result() -> GreeksDecompositionResult:
 def _make_holding_comparison() -> HoldingPeriodComparison:
     return HoldingPeriodComparison(
         holding_days=5,
-        direction="bullish",
+        direction=SignalDirection.BULLISH,
         avg_return=10.5,
         median_return=8.0,
         win_rate=0.65,
@@ -186,7 +188,7 @@ class TestDrawdown:
         mock_repo.get_drawdown_series = AsyncMock(return_value=[])
         response = await client.get("/api/analytics/backtest/drawdown?period=60")
         assert response.status_code == 200
-        mock_repo.get_drawdown_series.assert_called_once_with(period_days=60)
+        mock_repo.get_drawdown_series.assert_called_once_with(direction=None, period_days=60)
 
 
 # ---------------------------------------------------------------------------
@@ -349,18 +351,28 @@ class TestGreeksDecomposition:
         assert data[0]["count"] == 12
 
     @pytest.mark.asyncio
-    async def test_greeks_decomposition_groupby_param(
+    async def test_greeks_decomposition_groupby_sector(
         self, client: AsyncClient, mock_repo: MagicMock
     ) -> None:
-        """Verify groupby query param passes to repository."""
+        """Verify groupby=sector passes GreeksGroupBy.SECTOR to repository."""
         mock_repo.get_greeks_decomposition = AsyncMock(return_value=[])
         response = await client.get(
-            "/api/analytics/backtest/greeks-decomposition?groupby=option_type"
+            "/api/analytics/backtest/greeks-decomposition?groupby=sector"
         )
         assert response.status_code == 200
         mock_repo.get_greeks_decomposition.assert_called_once_with(
-            holding_days=20, groupby="option_type"
+            holding_days=20, groupby=GreeksGroupBy.SECTOR
         )
+
+    @pytest.mark.asyncio
+    async def test_greeks_decomposition_invalid_groupby(
+        self, client: AsyncClient, mock_repo: MagicMock
+    ) -> None:
+        """Invalid groupby values are rejected with 422."""
+        response = await client.get(
+            "/api/analytics/backtest/greeks-decomposition?groupby=option_type"
+        )
+        assert response.status_code == 422
 
     @pytest.mark.asyncio
     async def test_greeks_decomposition_holding_days_param(
@@ -371,7 +383,7 @@ class TestGreeksDecomposition:
         response = await client.get("/api/analytics/backtest/greeks-decomposition?holding_days=5")
         assert response.status_code == 200
         mock_repo.get_greeks_decomposition.assert_called_once_with(
-            holding_days=5, groupby="direction"
+            holding_days=5, groupby=GreeksGroupBy.DIRECTION
         )
 
 

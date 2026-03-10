@@ -78,8 +78,8 @@ export interface GreeksDecompositionResult {
 export interface HoldingPeriodComparison {
   /** Number of trading days held. */
   holding_days: number
-  /** Signal direction. */
-  direction: string
+  /** Signal direction (matches SignalDirection enum). */
+  direction: 'bullish' | 'bearish' | 'neutral'
   /** Average return percentage. */
   avg_return: number
   /** Median return percentage. */

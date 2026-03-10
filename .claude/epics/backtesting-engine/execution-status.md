@@ -6,10 +6,10 @@ branch: epic/backtesting-engine
 # Execution Status
 
 ## Active Agents
-- Agent-7: Issue #436 (E2E tests) - Started 2026-03-10T01:15:00Z
+- (None — all tasks complete)
 
 ## Queued Issues
-- (None — final wave)
+- (None)
 
 ## Completed
 - #430 - Analytics result models + migration 029 (Wave 1)
@@ -18,3 +18,4 @@ branch: epic/backtesting-engine
 - #433 - CLI subcommands (Wave 3)
 - #434 - API endpoints (Wave 3)
 - #435 - Vue analytics dashboard (Wave 4)
+- #436 - E2E tests (Wave 5)

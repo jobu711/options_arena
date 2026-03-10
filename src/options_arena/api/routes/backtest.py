@@ -14,9 +14,11 @@ from options_arena.models import (
     DTEBucketResult,
     EquityCurvePoint,
     GreeksDecompositionResult,
+    GreeksGroupBy,
     HoldingPeriodComparison,
     IVRankBucketResult,
     SectorPerformanceResult,
+    SignalDirection,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,7 +30,7 @@ router = APIRouter(prefix="/api/analytics/backtest", tags=["backtest"])
 @limiter.limit("60/minute")
 async def get_equity_curve(
     request: Request,
-    direction: str | None = Query(default=None),
+    direction: SignalDirection | None = Query(default=None),
     period: int | None = Query(default=None, ge=1),
     repo: Repository = Depends(get_repo),
 ) -> list[EquityCurvePoint]:
@@ -40,11 +42,12 @@ async def get_equity_curve(
 @limiter.limit("60/minute")
 async def get_drawdown(
     request: Request,
+    direction: SignalDirection | None = Query(default=None),
     period: int | None = Query(default=None, ge=1),
     repo: Repository = Depends(get_repo),
 ) -> list[DrawdownPoint]:
     """Get drawdown series from the equity curve."""
-    return await repo.get_drawdown_series(period_days=period)
+    return await repo.get_drawdown_series(direction=direction, period_days=period)
 
 
 @router.get("/sector-performance")
@@ -84,7 +87,7 @@ async def get_iv_performance(
 @limiter.limit("60/minute")
 async def get_greeks_decomposition(
     request: Request,
-    groupby: str = Query(default="direction"),
+    groupby: GreeksGroupBy = Query(default=GreeksGroupBy.DIRECTION),
     holding_days: int = Query(default=20, ge=1),
     repo: Repository = Depends(get_repo),
 ) -> list[GreeksDecompositionResult]:

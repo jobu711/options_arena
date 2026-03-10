@@ -1073,7 +1073,7 @@ class HoldingPeriodComparison(BaseModel):
 
     Attributes:
         holding_days: Number of trading days held.
-        direction: Signal direction (bullish/bearish/neutral).
+        direction: Signal direction enum (bullish/bearish/neutral).
         avg_return: Average return percentage.
         median_return: Median return percentage.
         win_rate: Win rate as fraction in [0.0, 1.0].
@@ -1085,7 +1085,7 @@ class HoldingPeriodComparison(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     holding_days: int
-    direction: str
+    direction: SignalDirection
     avg_return: float
     median_return: float
     win_rate: float
