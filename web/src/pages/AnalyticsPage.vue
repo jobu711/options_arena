@@ -3,8 +3,14 @@ import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Select from 'primevue/select'
+import Tabs from 'primevue/tabs'
+import TabList from 'primevue/tablist'
+import Tab from 'primevue/tab'
+import TabPanels from 'primevue/tabpanels'
+import TabPanel from 'primevue/tabpanel'
 import { useToast } from 'primevue/usetoast'
 import { api, ApiError } from '@/composables/useApi'
+import { useBacktestStore } from '@/stores/backtest'
 import type {
   PerformanceSummary,
   WinRateResult,
@@ -13,15 +19,32 @@ import type {
   DeltaPerformanceResult,
   OutcomeCollectionResult,
 } from '@/types'
+
+// Existing analytics components
 import SummaryCard from '@/components/analytics/SummaryCard.vue'
 import WinRateChart from '@/components/analytics/WinRateChart.vue'
 import ScoreCalibrationChart from '@/components/analytics/ScoreCalibrationChart.vue'
 import HoldingPeriodTable from '@/components/analytics/HoldingPeriodTable.vue'
 import DeltaPerformanceChart from '@/components/analytics/DeltaPerformanceChart.vue'
 
+// Backtest chart components
+import EquityCurveChart from '@/components/analytics/EquityCurveChart.vue'
+import DrawdownChart from '@/components/analytics/DrawdownChart.vue'
+import SectorPerformanceChart from '@/components/analytics/SectorPerformanceChart.vue'
+import DTEPerformanceChart from '@/components/analytics/DTEPerformanceChart.vue'
+import IVPerformanceChart from '@/components/analytics/IVPerformanceChart.vue'
+import GreeksDecompositionChart from '@/components/analytics/GreeksDecompositionChart.vue'
+import HoldingComparisonTable from '@/components/analytics/HoldingComparisonTable.vue'
+import AgentAccuracyHeatmap from '@/components/analytics/AgentAccuracyHeatmap.vue'
+
 const router = useRouter()
 const toast = useToast()
+const backtestStore = useBacktestStore()
 
+// --- Tab state ---
+const activeTab = ref<string | number>('overview')
+
+// --- Existing analytics state ---
 const loading = ref(true)
 const collecting = ref(false)
 const lookbackDays = ref(30)
@@ -43,6 +66,7 @@ const lookbackOptions = [
   { label: '90 days', value: 90 },
 ]
 
+// --- Data loading ---
 async function loadSummary(): Promise<void> {
   summary.value = await api<PerformanceSummary>('/api/analytics/summary', {
     params: { lookback_days: lookbackDays.value },
@@ -94,6 +118,8 @@ async function collectOutcomes(): Promise<void> {
       life: 5000,
     })
     await loadAll()
+    // Reset backtest tabs so they reload fresh data
+    backtestStore.resetLoadedTabs()
   } catch (err: unknown) {
     if (err instanceof ApiError && err.status === 409) {
       toast.add({
@@ -115,25 +141,59 @@ async function collectOutcomes(): Promise<void> {
   }
 }
 
+// --- Tab change handler (lazy loading) ---
+async function onTabChange(value: string | number): Promise<void> {
+  activeTab.value = value
+  const tabName = String(value)
+  if (tabName === 'overview') {
+    await backtestStore.loadOverviewTab()
+  } else if (tabName === 'agents') {
+    await backtestStore.loadAgentsTab()
+  } else if (tabName === 'segments') {
+    await backtestStore.loadSegmentsTab()
+  } else if (tabName === 'greeks') {
+    await backtestStore.loadGreeksTab()
+  } else if (tabName === 'holding') {
+    await backtestStore.loadHoldingTab()
+  }
+}
+
+// --- Watchers for existing analytics filters ---
 watch(lookbackDays, () => void loadSummary())
 watch(bucketSize, () => {
   void api<ScoreCalibrationBucket[]>('/api/analytics/score-calibration', {
     params: { bucket_size: bucketSize.value },
-  }).then(d => { calibration.value = d }).catch(() => {})
+  })
+    .then(d => {
+      calibration.value = d
+    })
+    .catch(() => {})
 })
 watch(holdingDirection, () => {
   const dirParam = holdingDirection.value === 'all' ? undefined : holdingDirection.value
   void api<HoldingPeriodResult[]>('/api/analytics/holding-period', {
     params: { direction: dirParam },
-  }).then(d => { holdingPeriods.value = d }).catch(() => {})
+  })
+    .then(d => {
+      holdingPeriods.value = d
+    })
+    .catch(() => {})
 })
 watch(holdingDays, () => {
   void api<DeltaPerformanceResult[]>('/api/analytics/delta-performance', {
     params: { bucket_size: 0.1, holding_days: holdingDays.value },
-  }).then(d => { deltaPerformance.value = d }).catch(() => {})
+  })
+    .then(d => {
+      deltaPerformance.value = d
+    })
+    .catch(() => {})
 })
 
-onMounted(() => void loadAll())
+onMounted(async () => {
+  await loadAll()
+  // Also load the default Overview backtest tab
+  await backtestStore.loadOverviewTab()
+})
 </script>
 
 <template>
@@ -168,47 +228,124 @@ onMounted(() => void loadAll())
     </div>
 
     <!-- No contracts -->
-    <div v-else-if="summary && summary.total_contracts === 0" class="empty-state" data-testid="empty-no-contracts">
+    <div
+      v-else-if="summary && summary.total_contracts === 0"
+      class="empty-state"
+      data-testid="empty-no-contracts"
+    >
       <i class="pi pi-inbox empty-icon" />
       <p class="empty-text">No recommendations yet. Run a scan to start building analytics.</p>
-      <Button label="Go to Scan" icon="pi pi-play" severity="success" size="small" @click="router.push('/scan')" />
+      <Button
+        label="Go to Scan"
+        icon="pi pi-play"
+        severity="success"
+        size="small"
+        @click="router.push('/scan')"
+      />
     </div>
 
     <!-- Contracts but no outcomes -->
-    <div v-else-if="summary && summary.total_with_outcomes === 0" class="empty-state" data-testid="empty-no-outcomes">
+    <div
+      v-else-if="summary && summary.total_with_outcomes === 0"
+      class="empty-state"
+      data-testid="empty-no-outcomes"
+    >
       <i class="pi pi-chart-bar empty-icon" />
       <p class="empty-text">
-        {{ summary.total_contracts }} recommendation{{ summary.total_contracts !== 1 ? 's' : '' }}
-        but no outcomes yet. Click Collect Outcomes to fetch current prices.
+        {{ summary.total_contracts }}
+        recommendation{{ summary.total_contracts !== 1 ? 's' : '' }} but no outcomes yet. Click
+        Collect Outcomes to fetch current prices.
       </p>
-      <Button label="Collect Outcomes" icon="pi pi-refresh" severity="info" :loading="collecting" @click="collectOutcomes" />
+      <Button
+        label="Collect Outcomes"
+        icon="pi pi-refresh"
+        severity="info"
+        :loading="collecting"
+        @click="collectOutcomes"
+      />
     </div>
 
-    <!-- Data display -->
+    <!-- Data display with tabs -->
     <template v-else-if="summary">
       <SummaryCard
         :summary="summary"
         :lookback-days="lookbackDays"
         @update:lookback-days="lookbackDays = $event"
       />
-      <div class="analytics-grid">
-        <WinRateChart :data="winRates" />
-        <ScoreCalibrationChart
-          :data="calibration"
-          :bucket-size="bucketSize"
-          @update:bucket-size="bucketSize = $event"
-        />
-        <HoldingPeriodTable
-          :data="holdingPeriods"
-          :direction="holdingDirection"
-          @update:direction="holdingDirection = $event"
-        />
-        <DeltaPerformanceChart
-          :data="deltaPerformance"
-          :holding-days="holdingDays"
-          @update:holding-days="holdingDays = $event"
-        />
-      </div>
+
+      <Tabs :value="activeTab" @update:value="onTabChange" class="analytics-tabs">
+        <TabList>
+          <Tab value="overview">Overview</Tab>
+          <Tab value="agents">Agents</Tab>
+          <Tab value="segments">Segments</Tab>
+          <Tab value="greeks">Greeks</Tab>
+          <Tab value="holding">Holding</Tab>
+        </TabList>
+        <TabPanels>
+          <!-- Overview Tab -->
+          <TabPanel value="overview">
+            <div class="tab-content">
+              <div class="charts-row">
+                <EquityCurveChart :data="backtestStore.equityCurve" />
+                <DrawdownChart :data="backtestStore.drawdown" />
+              </div>
+              <div class="analytics-grid">
+                <WinRateChart :data="winRates" />
+                <ScoreCalibrationChart
+                  :data="calibration"
+                  :bucket-size="bucketSize"
+                  @update:bucket-size="bucketSize = $event"
+                />
+                <HoldingPeriodTable
+                  :data="holdingPeriods"
+                  :direction="holdingDirection"
+                  @update:direction="holdingDirection = $event"
+                />
+                <DeltaPerformanceChart
+                  :data="deltaPerformance"
+                  :holding-days="holdingDays"
+                  @update:holding-days="holdingDays = $event"
+                />
+              </div>
+            </div>
+          </TabPanel>
+
+          <!-- Agents Tab -->
+          <TabPanel value="agents">
+            <div class="tab-content">
+              <AgentAccuracyHeatmap
+                :accuracy="backtestStore.agentAccuracy"
+                :calibration="backtestStore.agentCalibration"
+              />
+            </div>
+          </TabPanel>
+
+          <!-- Segments Tab -->
+          <TabPanel value="segments">
+            <div class="tab-content">
+              <div class="analytics-grid">
+                <SectorPerformanceChart :data="backtestStore.sectorPerformance" />
+                <DTEPerformanceChart :data="backtestStore.dtePerformance" />
+                <IVPerformanceChart :data="backtestStore.ivPerformance" />
+              </div>
+            </div>
+          </TabPanel>
+
+          <!-- Greeks Tab -->
+          <TabPanel value="greeks">
+            <div class="tab-content">
+              <GreeksDecompositionChart :data="backtestStore.greeksDecomposition" />
+            </div>
+          </TabPanel>
+
+          <!-- Holding Tab -->
+          <TabPanel value="holding">
+            <div class="tab-content">
+              <HoldingComparisonTable :data="backtestStore.holdingComparison" />
+            </div>
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
     </template>
   </div>
 </template>
@@ -266,14 +403,32 @@ onMounted(() => void loadAll())
   max-width: 400px;
 }
 
+.analytics-tabs {
+  margin-top: 1.5rem;
+}
+
+.tab-content {
+  padding: 1rem 0;
+}
+
+.charts-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
 .analytics-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 1.5rem;
-  margin-top: 1.5rem;
 }
 
 @media (max-width: 768px) {
+  .charts-row {
+    grid-template-columns: 1fr;
+  }
+
   .analytics-grid {
     grid-template-columns: 1fr;
   }

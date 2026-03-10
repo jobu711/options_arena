@@ -15,6 +15,18 @@ export type { ConfigResponse } from './config'
 export type { WinRateResult, ScoreCalibrationBucket, IndicatorAttributionResult, HoldingPeriodResult, DeltaPerformanceResult, PerformanceSummary, OutcomeCollectionResult } from './analytics'
 export type { HistoryPoint, TrendingTicker } from './history'
 export type {
+  EquityCurvePoint,
+  DrawdownPoint,
+  SectorPerformanceResult,
+  DTEBucketResult,
+  IVRankBucketResult,
+  GreeksDecompositionResult,
+  HoldingPeriodComparison,
+  AgentAccuracyReport,
+  CalibrationBucket,
+  AgentCalibrationData,
+} from './backtest'
+export type {
   ScanProgressEvent,
   ScanErrorEvent,
   ScanCompleteEvent,
