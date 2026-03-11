@@ -917,10 +917,13 @@ async def _persist_result(
 # 6-Agent Debate Protocol
 # ---------------------------------------------------------------------------
 
+# Mapping from agent name to its directional vote weight.
+type VoteWeights = dict[str, float]
+
 # Agent vote weights for verdict synthesis.
 # Directional weights sum to 0.85 — unnormalized weights are correct for
 # Bordley 1982 log-odds pooling.
-AGENT_VOTE_WEIGHTS: dict[str, float] = {
+AGENT_VOTE_WEIGHTS: VoteWeights = {
     "trend": 0.25,
     "volatility": 0.20,
     "flow": 0.20,
@@ -932,7 +935,7 @@ AGENT_VOTE_WEIGHTS: dict[str, float] = {
 
 def compute_auto_tune_weights(
     accuracy: list[AgentAccuracyReport],
-) -> dict[str, float]:
+) -> VoteWeights:
     """Compute auto-tuned vote weights from agent accuracy data.
 
     Uses inverse Brier score, clamped to [0.05, 0.35], normalized to sum=0.85.
@@ -991,10 +994,7 @@ async def auto_tune_weights(
 
     # Skip persistence when no agent has enough scored outcomes
     has_eligible = any(
-        r.agent_name != "risk"
-        and r.sample_size >= 10
-        and r.brier_score is not None
-        and math.isfinite(r.brier_score)
+        r.agent_name != "risk" and r.sample_size >= 10 and math.isfinite(r.brier_score)
         for r in accuracy
     )
     if not has_eligible:
@@ -1216,7 +1216,7 @@ def synthesize_verdict(
     dimensional_scores: DimensionalScores | None,
     ticker: str,
     config: DebateConfig,
-    vote_weights: dict[str, float] | None = None,
+    vote_weights: VoteWeights | None = None,
 ) -> ExtendedTradeThesis:
     """Algorithmic verdict synthesis from all agent outputs.
 
@@ -1456,7 +1456,7 @@ async def run_debate(
         )
 
     # Load auto-tuned weights if enabled and repository available
-    vote_weights: dict[str, float] | None = None
+    vote_weights: VoteWeights | None = None
     if config.auto_tune_weights and repository is not None:
         try:
             weight_records = await repository.get_latest_auto_tune_weights()
@@ -1611,7 +1611,7 @@ async def _run_debate_pipeline(
     dimensional_scores: DimensionalScores | None,
     flow_output: FlowThesis | None,
     fundamental_output: FundamentalThesis | None,
-    vote_weights: dict[str, float] | None = None,
+    vote_weights: VoteWeights | None = None,
 ) -> DebateResult:
     """Run the 6-agent pipeline. Raises on total failure."""
     model = build_debate_model(config)

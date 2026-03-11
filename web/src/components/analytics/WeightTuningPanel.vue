@@ -5,7 +5,7 @@ import InputNumber from 'primevue/inputnumber'
 import Chart from 'primevue/chart'
 import { useToast } from 'primevue/usetoast'
 import { useWeightsStore } from '@/stores/weights'
-import type { AgentWeight } from '@/types'
+import type { AgentWeightsComparison } from '@/types'
 
 const toast = useToast()
 const store = useWeightsStore()
@@ -29,12 +29,12 @@ function agentColor(name: string): string {
 }
 
 /** Compute delta (auto - manual) for display. */
-function delta(w: AgentWeight): number {
+function delta(w: AgentWeightsComparison): number {
   return w.auto_weight - w.manual_weight
 }
 
 /** Format delta with sign and color class. */
-function deltaClass(w: AgentWeight): string {
+function deltaClass(w: AgentWeightsComparison): string {
   const d = delta(w)
   if (d > 0.001) return 'val-green'
   if (d < -0.001) return 'val-red'

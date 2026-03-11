@@ -1,7 +1,7 @@
 /** TypeScript interfaces matching Python weight-tuning models (models/analytics.py). */
 
 /** Manual vs auto-tuned weight comparison for a single agent. */
-export interface AgentWeight {
+export interface AgentWeightsComparison {
   agent_name: string
   manual_weight: number
   auto_weight: number
@@ -17,5 +17,5 @@ export interface WeightSnapshot {
   /** Lookback window in calendar days. */
   window_days: number
   /** Per-agent weight comparisons. */
-  weights: AgentWeight[]
+  weights: AgentWeightsComparison[]
 }

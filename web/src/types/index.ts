@@ -26,7 +26,7 @@ export type {
   CalibrationBucket,
   AgentCalibrationData,
 } from './backtest'
-export type { AgentWeight, WeightSnapshot } from './weights'
+export type { AgentWeightsComparison, WeightSnapshot } from './weights'
 export type {
   ScanProgressEvent,
   ScanErrorEvent,
