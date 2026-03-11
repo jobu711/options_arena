@@ -151,9 +151,16 @@ class FredService(ServiceBase[ServiceConfig]):
         try:
             fetched_rate = await self._fetch_from_fred(api_key)
         except Exception as exc:
+            # Log class name only — str(exc) can include the full request URL
+            # with the FRED API key as a query parameter.
+            safe_err = (
+                exc.response.status_code
+                if isinstance(exc, httpx.HTTPStatusError)
+                else type(exc).__name__
+            )
             self._log.warning(
                 "FRED fetch failed (%s), returning fallback rate %.4f",
-                exc,
+                safe_err,
                 fallback,
             )
             return fallback

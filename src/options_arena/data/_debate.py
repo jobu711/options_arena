@@ -352,7 +352,7 @@ class DebateMixin(RepositoryBase):
 
         where_clauses = [
             "co.holding_days = 10",
-            "ap.direction IS NOT NULL",
+            "ap.direction IN ('bullish', 'bearish')",
             "ap.recommended_contract_id IS NOT NULL",
         ]
         params: list[object] = []
