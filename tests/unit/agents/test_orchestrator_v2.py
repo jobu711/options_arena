@@ -173,6 +173,8 @@ class TestPersistResult:
         """
         mock_repo = MagicMock()
         mock_repo.save_debate = AsyncMock(return_value=1)
+        mock_repo.get_recommended_contract_id = AsyncMock(return_value=42)
+        mock_repo.save_agent_predictions = AsyncMock()
 
         config = DebateConfig(
             api_key="test-key-not-used-with-TestModel",
@@ -208,6 +210,14 @@ class TestPersistResult:
         assert isinstance(call_kwargs["risk_assessment"], RiskAssessment)
         assert call_kwargs["contrarian_thesis"] is not None
         assert isinstance(call_kwargs["contrarian_thesis"], ContrarianThesis)
+
+        # Agent predictions saved with recommended_contract_id populated
+        mock_repo.get_recommended_contract_id.assert_awaited_once()
+        mock_repo.save_agent_predictions.assert_awaited_once()
+        saved_predictions = mock_repo.save_agent_predictions.call_args[0][0]
+        assert len(saved_predictions) > 0
+        for pred in saved_predictions:
+            assert pred.recommended_contract_id == 42
 
 
 # ---------------------------------------------------------------------------

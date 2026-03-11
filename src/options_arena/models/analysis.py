@@ -825,6 +825,7 @@ class AgentPrediction(BaseModel):
 
     debate_id: int
     agent_name: str
+    recommended_contract_id: int | None = None
     direction: SignalDirection | None = None
     confidence: float
     created_at: datetime
