@@ -270,49 +270,55 @@ async def _scan_async(
     """Run the scan pipeline with full service lifecycle management."""
     start_time = time.monotonic()
 
-    # Config with CLI overrides (immutable copy pattern — same as API)
+    # Config with CLI overrides — route through ScanFilterSpec sub-models
     settings = AppSettings()
-    scan_overrides: dict[str, object] = {
-        "top_n": top_n,
-        "min_score": min_score,
-        "sectors": sectors,
-    }
-    if market_cap_tiers:
-        scan_overrides["market_cap_tiers"] = market_cap_tiers
-    if exclude_near_earnings_days is not None:
-        scan_overrides["exclude_near_earnings_days"] = exclude_near_earnings_days
-    if direction_filter is not None:
-        scan_overrides["direction_filter"] = direction_filter
-    if min_iv_rank is not None:
-        scan_overrides["min_iv_rank"] = min_iv_rank
-    if industry_groups:
-        scan_overrides["industry_groups"] = industry_groups
-    if min_price is not None:
-        scan_overrides["min_price"] = min_price
-    if max_price is not None:
-        scan_overrides["max_price"] = max_price
-    if min_dte is not None:
-        scan_overrides["min_dte"] = min_dte
-    if max_dte is not None:
-        scan_overrides["max_dte"] = max_dte
-    if custom_tickers:
-        scan_overrides["custom_tickers"] = custom_tickers
+    base_filters = settings.scan.filters
 
-    # DTE overrides also forward to PricingConfig for contract filtering
-    pricing_overrides: dict[str, object] = {}
+    # Universe filter overrides (Phase 1)
+    universe_overrides: dict[str, object] = {"preset": preset}
+    if sectors:
+        universe_overrides["sectors"] = sectors
+    if market_cap_tiers:
+        universe_overrides["market_cap_tiers"] = market_cap_tiers
+    if industry_groups:
+        universe_overrides["industry_groups"] = industry_groups
+    if custom_tickers:
+        universe_overrides["custom_tickers"] = custom_tickers
+    if min_price is not None:
+        universe_overrides["min_price"] = min_price
+    if max_price is not None:
+        universe_overrides["max_price"] = max_price
+
+    # Scoring filter overrides (post-Phase 2)
+    scoring_overrides: dict[str, object] = {}
+    if min_score > 0.0:
+        scoring_overrides["min_score"] = min_score
+    if direction_filter is not None:
+        scoring_overrides["direction_filter"] = direction_filter
+
+    # Options filter overrides (Phase 3)
+    options_overrides: dict[str, object] = {"top_n": top_n}
+    if exclude_near_earnings_days is not None:
+        options_overrides["exclude_near_earnings_days"] = exclude_near_earnings_days
+    if min_iv_rank is not None:
+        options_overrides["min_iv_rank"] = min_iv_rank
     if min_dte is not None:
-        pricing_overrides["dte_min"] = min_dte
+        options_overrides["min_dte"] = min_dte
     if max_dte is not None:
-        pricing_overrides["dte_max"] = max_dte
+        options_overrides["max_dte"] = max_dte
+
+    # Build filter spec from base + overrides (frozen models — use model_copy)
+    from options_arena.models.filters import ScanFilterSpec
+
+    filter_spec = ScanFilterSpec(
+        universe=base_filters.universe.model_copy(update=universe_overrides),
+        scoring=base_filters.scoring.model_copy(update=scoring_overrides),
+        options=base_filters.options.model_copy(update=options_overrides),
+    )
 
     settings = settings.model_copy(
         update={
-            "scan": settings.scan.model_copy(update=scan_overrides),
-            **(
-                {"pricing": settings.pricing.model_copy(update=pricing_overrides)}
-                if pricing_overrides
-                else {}
-            ),
+            "scan": settings.scan.model_copy(update={"filters": filter_spec}),
         }
     )
 
@@ -338,7 +344,7 @@ async def _scan_async(
         market_data = MarketDataService(settings.service, cache, limiter)
         options_data = OptionsDataService(
             settings.service,
-            settings.pricing,
+            settings.scan.filters.options,
             cache,
             limiter,
             openbb_config=settings.openbb,
@@ -371,7 +377,7 @@ async def _scan_async(
             transient=False,
         ) as progress:
             callback = RichProgressCallback(progress)
-            result = await pipeline.run(preset, token, callback)
+            result = await pipeline.run(token, callback)
 
         # Render results
         elapsed = time.monotonic() - start_time
@@ -545,7 +551,7 @@ async def _batch_async(
         market_data = MarketDataService(settings.service, cache, limiter)
         options_data = OptionsDataService(
             settings.service,
-            settings.pricing,
+            settings.scan.filters.options,
             cache,
             limiter,
             openbb_config=settings.openbb,
@@ -898,7 +904,7 @@ async def _debate_async(
         market_data = MarketDataService(settings.service, cache, limiter)
         options_data = OptionsDataService(
             settings.service,
-            settings.pricing,
+            settings.scan.filters.options,
             cache,
             limiter,
             openbb_config=settings.openbb,

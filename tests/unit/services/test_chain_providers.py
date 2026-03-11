@@ -10,8 +10,9 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from options_arena.models.config import PricingConfig, ServiceConfig
+from options_arena.models.config import ServiceConfig
 from options_arena.models.enums import ExerciseStyle, OptionType
+from options_arena.models.filters import OptionsFilters
 from options_arena.services.cache import ServiceCache
 from options_arena.services.options_data import (
     ChainProvider,
@@ -33,9 +34,9 @@ def config() -> ServiceConfig:
 
 
 @pytest.fixture
-def pricing_config() -> PricingConfig:
-    """Default PricingConfig with min_oi=100, min_volume=1."""
-    return PricingConfig()
+def options_filters() -> OptionsFilters:
+    """Default OptionsFilters with min_oi=100, min_volume=1."""
+    return OptionsFilters()
 
 
 @pytest.fixture
@@ -53,12 +54,12 @@ def limiter() -> RateLimiter:
 @pytest.fixture
 def provider(
     config: ServiceConfig,
-    pricing_config: PricingConfig,
+    options_filters: OptionsFilters,
     cache: ServiceCache,
     limiter: RateLimiter,
 ) -> YFinanceChainProvider:
     """Fully constructed YFinanceChainProvider for testing."""
-    return YFinanceChainProvider(config, pricing_config, cache, limiter)
+    return YFinanceChainProvider(config, options_filters, cache, limiter)
 
 
 def _make_chain_df(rows: list[dict[str, Any]]) -> pd.DataFrame:
@@ -119,12 +120,12 @@ class TestChainProviderProtocol:
     def test_yfinance_provider_satisfies_protocol(
         self,
         config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
         """YFinanceChainProvider is an instance of ChainProvider at runtime."""
-        provider = YFinanceChainProvider(config, pricing_config, cache, limiter)
+        provider = YFinanceChainProvider(config, options_filters, cache, limiter)
         assert isinstance(provider, ChainProvider)
 
     def test_protocol_has_required_methods(self) -> None:
@@ -239,13 +240,13 @@ class TestYFinanceChainProvider:
 
     async def test_fetch_chain_timeout(
         self,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
         """yfinance hang triggers DataSourceUnavailableError via timeout."""
         fast_config = ServiceConfig(yfinance_timeout=0.1)
-        prov = YFinanceChainProvider(fast_config, pricing_config, cache, limiter)
+        prov = YFinanceChainProvider(fast_config, options_filters, cache, limiter)
 
         mock_ticker = MagicMock()
 
@@ -352,7 +353,7 @@ class TestOptionsDataServiceDelegation:
     async def test_service_delegates_fetch_expirations(
         self,
         config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
@@ -360,7 +361,7 @@ class TestOptionsDataServiceDelegation:
         mock_ticker = MagicMock()
         mock_ticker.options = ("2099-04-18", "2099-03-21")
 
-        service = OptionsDataService(config, pricing_config, cache, limiter)
+        service = OptionsDataService(config, options_filters, cache, limiter)
 
         with patch("options_arena.services.options_data.yf") as mock_yf:
             mock_yf.Ticker.return_value = mock_ticker
@@ -371,7 +372,7 @@ class TestOptionsDataServiceDelegation:
     async def test_service_uses_injected_provider(
         self,
         config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
@@ -382,7 +383,7 @@ class TestOptionsDataServiceDelegation:
         mock_provider.fetch_chain.return_value = []
 
         service = OptionsDataService(
-            config, pricing_config, cache, limiter, provider=mock_provider
+            config, options_filters, cache, limiter, provider=mock_provider
         )
 
         expirations = await service.fetch_expirations("TEST")
@@ -396,11 +397,11 @@ class TestOptionsDataServiceDelegation:
     async def test_service_default_provider_is_yfinance(
         self,
         config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
         """When no provider is given, OptionsDataService defaults to YFinanceChainProvider."""
-        service = OptionsDataService(config, pricing_config, cache, limiter)
+        service = OptionsDataService(config, options_filters, cache, limiter)
         assert len(service._providers) == 1
         assert isinstance(service._providers[0], YFinanceChainProvider)

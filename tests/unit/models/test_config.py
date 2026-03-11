@@ -23,30 +23,26 @@ from options_arena.models import (
     ScanConfig,
     ServiceConfig,
 )
+from options_arena.models.filters import (
+    OptionsFilters,
+    ScanFilterSpec,
+    UniverseFilters,
+)
 
 # ---------------------------------------------------------------------------
 # Helper: list of all ARENA_* env var names we might need to clean
 # ---------------------------------------------------------------------------
 _ARENA_ENV_VARS = [
-    "ARENA_SCAN__TOP_N",
-    "ARENA_SCAN__MIN_SCORE",
-    "ARENA_SCAN__MIN_PRICE",
-    "ARENA_SCAN__MIN_DOLLAR_VOLUME",
-    "ARENA_SCAN__OHLCV_MIN_BARS",
+    "ARENA_SCAN__FILTERS__OPTIONS__TOP_N",
+    "ARENA_SCAN__FILTERS__SCORING__MIN_SCORE",
+    "ARENA_SCAN__FILTERS__UNIVERSE__MIN_PRICE",
+    "ARENA_SCAN__FILTERS__OPTIONS__MIN_DOLLAR_VOLUME",
+    "ARENA_SCAN__FILTERS__UNIVERSE__OHLCV_MIN_BARS",
     "ARENA_SCAN__ADX_TREND_THRESHOLD",
     "ARENA_SCAN__RSI_OVERBOUGHT",
     "ARENA_SCAN__RSI_OVERSOLD",
     "ARENA_PRICING__RISK_FREE_RATE_FALLBACK",
-    "ARENA_PRICING__DELTA_PRIMARY_MIN",
-    "ARENA_PRICING__DELTA_PRIMARY_MAX",
-    "ARENA_PRICING__DELTA_FALLBACK_MIN",
-    "ARENA_PRICING__DELTA_FALLBACK_MAX",
     "ARENA_PRICING__DELTA_TARGET",
-    "ARENA_PRICING__DTE_MIN",
-    "ARENA_PRICING__DTE_MAX",
-    "ARENA_PRICING__MIN_OI",
-    "ARENA_PRICING__MIN_VOLUME",
-    "ARENA_PRICING__MAX_SPREAD_PCT",
     "ARENA_PRICING__IV_SOLVER_TOL",
     "ARENA_PRICING__IV_SOLVER_MAX_ITER",
     "ARENA_SERVICE__YFINANCE_TIMEOUT",
@@ -73,9 +69,8 @@ _ARENA_ENV_VARS = [
     "ARENA_DEBATE__PROVIDER",
     "ARENA_DEBATE__ANTHROPIC_MODEL",
     "ARENA_DEBATE__ANTHROPIC_API_KEY",
-    "ARENA_DEBATE__ENABLE_EXTENDED_THINKING",
-    "ARENA_DEBATE__THINKING_BUDGET_TOKENS",
     "ARENA_SERVICE__ANTHROPIC_API_KEY",
+    "ARENA_SCAN__FILTERS__UNIVERSE__SECTORS",
 ]
 
 
@@ -98,23 +93,23 @@ class TestAppSettingsDefaults:
 
     def test_scan_top_n_default(self) -> None:
         settings = AppSettings()
-        assert settings.scan.top_n == 50
+        assert settings.scan.filters.options.top_n == 50
 
     def test_scan_min_score_default(self) -> None:
         settings = AppSettings()
-        assert settings.scan.min_score == pytest.approx(0.0)
+        assert settings.scan.filters.scoring.min_score == pytest.approx(0.0)
 
     def test_scan_min_price_default(self) -> None:
         settings = AppSettings()
-        assert settings.scan.min_price == pytest.approx(10.0)
+        assert settings.scan.filters.universe.min_price == pytest.approx(10.0)
 
     def test_scan_min_dollar_volume_default(self) -> None:
         settings = AppSettings()
-        assert settings.scan.min_dollar_volume == pytest.approx(10_000_000.0)
+        assert settings.scan.filters.options.min_dollar_volume == pytest.approx(10_000_000.0)
 
     def test_scan_ohlcv_min_bars_default(self) -> None:
         settings = AppSettings()
-        assert settings.scan.ohlcv_min_bars == 200
+        assert settings.scan.filters.universe.ohlcv_min_bars == 200
 
     def test_pricing_delta_target_default(self) -> None:
         settings = AppSettings()
@@ -124,13 +119,13 @@ class TestAppSettingsDefaults:
         settings = AppSettings()
         assert settings.pricing.risk_free_rate_fallback == pytest.approx(0.05)
 
-    def test_pricing_dte_min_default(self) -> None:
+    def test_options_filters_min_dte_default(self) -> None:
         settings = AppSettings()
-        assert settings.pricing.dte_min == 30
+        assert settings.scan.filters.options.min_dte == 30
 
-    def test_pricing_dte_max_default(self) -> None:
+    def test_options_filters_max_dte_default(self) -> None:
         settings = AppSettings()
-        assert settings.pricing.dte_max == 365
+        assert settings.scan.filters.options.max_dte == 365
 
     def test_service_groq_api_key_default(self) -> None:
         settings = AppSettings(_env_file=None)
@@ -152,9 +147,9 @@ class TestAppSettingsDefaults:
 
 class TestAppSettingsEnvOverrides:
     def test_env_override_scan_top_n(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("ARENA_SCAN__TOP_N", "30")
+        monkeypatch.setenv("ARENA_SCAN__FILTERS__OPTIONS__TOP_N", "30")
         settings = AppSettings()
-        assert settings.scan.top_n == 30
+        assert settings.scan.filters.options.top_n == 30
 
     def test_env_override_pricing_delta_target(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ARENA_PRICING__DELTA_TARGET", "0.40")
@@ -170,10 +165,10 @@ class TestAppSettingsEnvOverrides:
     def test_env_override_type_coercion_string_to_int(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setenv("ARENA_SCAN__TOP_N", "25")
+        monkeypatch.setenv("ARENA_SCAN__FILTERS__OPTIONS__TOP_N", "25")
         settings = AppSettings()
-        assert settings.scan.top_n == 25
-        assert isinstance(settings.scan.top_n, int)
+        assert settings.scan.filters.options.top_n == 25
+        assert isinstance(settings.scan.filters.options.top_n, int)
 
     def test_env_override_type_coercion_string_to_float(
         self, monkeypatch: pytest.MonkeyPatch
@@ -219,8 +214,10 @@ class TestConfigTypeHierarchy:
 
 class TestConfigConstructorOverrides:
     def test_constructor_override_scan_top_n(self) -> None:
-        settings = AppSettings(scan=ScanConfig(top_n=25))
-        assert settings.scan.top_n == 25
+        settings = AppSettings(
+            scan=ScanConfig(filters=ScanFilterSpec(options=OptionsFilters(top_n=25)))
+        )
+        assert settings.scan.filters.options.top_n == 25
 
     def test_constructor_override_pricing_delta_target(self) -> None:
         settings = AppSettings(pricing=PricingConfig(delta_target=0.40))
@@ -232,9 +229,11 @@ class TestConfigConstructorOverrides:
         assert settings.service.groq_api_key.get_secret_value() == "gsk_from_constructor"
 
     def test_constructor_takes_priority_over_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("ARENA_SCAN__TOP_N", "30")
-        settings = AppSettings(scan=ScanConfig(top_n=99))
-        assert settings.scan.top_n == 99
+        monkeypatch.setenv("ARENA_SCAN__FILTERS__OPTIONS__TOP_N", "30")
+        settings = AppSettings(
+            scan=ScanConfig(filters=ScanFilterSpec(options=OptionsFilters(top_n=99)))
+        )
+        assert settings.scan.filters.options.top_n == 99
 
 
 # ---------------------------------------------------------------------------
@@ -587,51 +586,84 @@ class TestDebateConfigRateLimit:
 
 
 # ---------------------------------------------------------------------------
-# ScanConfig.sectors field and alias validation
+# ScanConfig.filters.universe.sectors field and alias validation
 # ---------------------------------------------------------------------------
 
 
 class TestScanConfigSectors:
     def test_sectors_default_empty(self) -> None:
-        """ScanConfig.sectors defaults to empty list."""
+        """UniverseFilters.sectors defaults to empty list."""
         config = ScanConfig()
-        assert config.sectors == []
+        assert config.filters.universe.sectors == []
 
     def test_sectors_accepts_canonical_enum_values(self) -> None:
         """Canonical GICSSector enum instances pass through."""
-        config = ScanConfig(sectors=[GICSSector.INFORMATION_TECHNOLOGY, GICSSector.ENERGY])
-        assert config.sectors == [GICSSector.INFORMATION_TECHNOLOGY, GICSSector.ENERGY]
+        config = ScanConfig(
+            filters=ScanFilterSpec(
+                universe=UniverseFilters(
+                    sectors=[GICSSector.INFORMATION_TECHNOLOGY, GICSSector.ENERGY]
+                )
+            )
+        )
+        assert config.filters.universe.sectors == [
+            GICSSector.INFORMATION_TECHNOLOGY,
+            GICSSector.ENERGY,
+        ]
 
     def test_sectors_normalizes_short_names(self) -> None:
         """Short aliases like 'tech' resolve to canonical values."""
-        config = ScanConfig(sectors=["tech", "healthcare"])
-        assert config.sectors == [
+        config = ScanConfig(
+            filters=ScanFilterSpec(universe=UniverseFilters(sectors=["tech", "healthcare"]))
+        )
+        assert config.filters.universe.sectors == [
             GICSSector.INFORMATION_TECHNOLOGY,
             GICSSector.HEALTH_CARE,
         ]
 
     def test_sectors_normalizes_lowercase_canonical(self) -> None:
         """Lowercase canonical names resolve correctly."""
-        config = ScanConfig(sectors=["information technology", "energy"])
-        assert config.sectors == [
+        config = ScanConfig(
+            filters=ScanFilterSpec(
+                universe=UniverseFilters(sectors=["information technology", "energy"])
+            )
+        )
+        assert config.filters.universe.sectors == [
             GICSSector.INFORMATION_TECHNOLOGY,
             GICSSector.ENERGY,
         ]
 
     def test_sectors_normalizes_hyphenated(self) -> None:
         """Hyphenated variants resolve correctly."""
-        config = ScanConfig(sectors=["real-estate", "health-care"])
-        assert config.sectors == [GICSSector.REAL_ESTATE, GICSSector.HEALTH_CARE]
+        config = ScanConfig(
+            filters=ScanFilterSpec(
+                universe=UniverseFilters(sectors=["real-estate", "health-care"])
+            )
+        )
+        assert config.filters.universe.sectors == [
+            GICSSector.REAL_ESTATE,
+            GICSSector.HEALTH_CARE,
+        ]
 
     def test_sectors_normalizes_underscored(self) -> None:
         """Underscored variants resolve correctly."""
-        config = ScanConfig(sectors=["real_estate", "consumer_staples"])
-        assert config.sectors == [GICSSector.REAL_ESTATE, GICSSector.CONSUMER_STAPLES]
+        config = ScanConfig(
+            filters=ScanFilterSpec(
+                universe=UniverseFilters(sectors=["real_estate", "consumer_staples"])
+            )
+        )
+        assert config.filters.universe.sectors == [
+            GICSSector.REAL_ESTATE,
+            GICSSector.CONSUMER_STAPLES,
+        ]
 
     def test_sectors_accepts_canonical_string_values(self) -> None:
         """Canonical string values (mixed case) resolve via enum constructor."""
-        config = ScanConfig(sectors=["Information Technology", "Energy"])
-        assert config.sectors == [
+        config = ScanConfig(
+            filters=ScanFilterSpec(
+                universe=UniverseFilters(sectors=["Information Technology", "Energy"])
+            )
+        )
+        assert config.filters.universe.sectors == [
             GICSSector.INFORMATION_TECHNOLOGY,
             GICSSector.ENERGY,
         ]
@@ -639,18 +671,23 @@ class TestScanConfigSectors:
     def test_sectors_rejects_invalid_name(self) -> None:
         """Unknown sector string raises ValueError."""
         with pytest.raises(ValidationError, match="Unknown sector"):
-            ScanConfig(sectors=["nonexistent_sector"])
+            UniverseFilters(sectors=["nonexistent_sector"])
 
     def test_sectors_mixed_enum_and_string(self) -> None:
         """Mix of GICSSector enums and alias strings works."""
-        config = ScanConfig(sectors=[GICSSector.ENERGY, "tech"])
-        assert config.sectors == [GICSSector.ENERGY, GICSSector.INFORMATION_TECHNOLOGY]
+        config = ScanConfig(
+            filters=ScanFilterSpec(universe=UniverseFilters(sectors=[GICSSector.ENERGY, "tech"]))
+        )
+        assert config.filters.universe.sectors == [
+            GICSSector.ENERGY,
+            GICSSector.INFORMATION_TECHNOLOGY,
+        ]
 
     def test_sectors_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """ARENA_SCAN__SECTORS env var works via JSON string."""
-        monkeypatch.setenv("ARENA_SCAN__SECTORS", '["technology","energy"]')
+        """ARENA_SCAN__FILTERS__UNIVERSE__SECTORS env var works via JSON string."""
+        monkeypatch.setenv("ARENA_SCAN__FILTERS__UNIVERSE__SECTORS", '["technology","energy"]')
         settings = AppSettings()
-        assert settings.scan.sectors == [
+        assert settings.scan.filters.universe.sectors == [
             GICSSector.INFORMATION_TECHNOLOGY,
             GICSSector.ENERGY,
         ]

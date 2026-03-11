@@ -10,8 +10,9 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from options_arena.models.config import PricingConfig, ServiceConfig
+from options_arena.models.config import ServiceConfig
 from options_arena.models.enums import ExerciseStyle, OptionType
+from options_arena.models.filters import OptionsFilters
 from options_arena.services.cache import ServiceCache
 from options_arena.services.options_data import (
     OptionsDataService,
@@ -32,9 +33,9 @@ def config() -> ServiceConfig:
 
 
 @pytest.fixture
-def pricing_config() -> PricingConfig:
-    """Default PricingConfig with min_oi=100, min_volume=1."""
-    return PricingConfig()
+def options_filters() -> OptionsFilters:
+    """Default OptionsFilters with min_oi=100, min_volume=1."""
+    return OptionsFilters()
 
 
 @pytest.fixture
@@ -52,12 +53,12 @@ def limiter() -> RateLimiter:
 @pytest.fixture
 def service(
     config: ServiceConfig,
-    pricing_config: PricingConfig,
+    options_filters: OptionsFilters,
     cache: ServiceCache,
     limiter: RateLimiter,
 ) -> OptionsDataService:
     """Fully constructed OptionsDataService for testing."""
-    return OptionsDataService(config, pricing_config, cache, limiter)
+    return OptionsDataService(config, options_filters, cache, limiter)
 
 
 def _make_chain_df(rows: list[dict[str, Any]]) -> pd.DataFrame:
@@ -449,7 +450,7 @@ async def test_decimal_precision(service: OptionsDataService) -> None:
 
 def test_liquidity_filter_rejects_low_oi() -> None:
     """Contracts with OI below min_oi are rejected."""
-    config = PricingConfig(min_oi=100, min_volume=1)
+    filters = OptionsFilters(min_oi=100, min_volume=1)
     row = pd.Series(
         {
             "openInterest": 50,  # below 100
@@ -458,7 +459,7 @@ def test_liquidity_filter_rejects_low_oi() -> None:
             "ask": 2.0,
         }
     )
-    assert _passes_liquidity_filter(row, config) is False
+    assert _passes_liquidity_filter(row, filters) is False
 
 
 # ---------------------------------------------------------------------------
@@ -468,7 +469,7 @@ def test_liquidity_filter_rejects_low_oi() -> None:
 
 def test_liquidity_filter_rejects_low_volume() -> None:
     """Contracts with volume below min_volume are rejected."""
-    config = PricingConfig(min_oi=100, min_volume=5)
+    filters = OptionsFilters(min_oi=100, min_volume=5)
     row = pd.Series(
         {
             "openInterest": 200,
@@ -477,7 +478,7 @@ def test_liquidity_filter_rejects_low_volume() -> None:
             "ask": 2.0,
         }
     )
-    assert _passes_liquidity_filter(row, config) is False
+    assert _passes_liquidity_filter(row, filters) is False
 
 
 # ---------------------------------------------------------------------------
@@ -487,7 +488,7 @@ def test_liquidity_filter_rejects_low_volume() -> None:
 
 def test_liquidity_filter_rejects_both_zero_bid_ask() -> None:
     """Truly dead contracts (bid=0, ask=0) are rejected regardless of OI/volume."""
-    config = PricingConfig(min_oi=1, min_volume=1)
+    filters = OptionsFilters(min_oi=1, min_volume=1)
     row = pd.Series(
         {
             "openInterest": 5000,
@@ -496,7 +497,7 @@ def test_liquidity_filter_rejects_both_zero_bid_ask() -> None:
             "ask": 0.0,
         }
     )
-    assert _passes_liquidity_filter(row, config) is False
+    assert _passes_liquidity_filter(row, filters) is False
 
 
 # ---------------------------------------------------------------------------
@@ -506,7 +507,7 @@ def test_liquidity_filter_rejects_both_zero_bid_ask() -> None:
 
 def test_liquidity_filter_zero_bid_exemption() -> None:
     """Contracts with bid=0 but ask>0 pass through (zero-bid exemption)."""
-    config = PricingConfig(min_oi=100, min_volume=1)
+    filters = OptionsFilters(min_oi=100, min_volume=1)
     row = pd.Series(
         {
             "openInterest": 500,
@@ -515,7 +516,7 @@ def test_liquidity_filter_zero_bid_exemption() -> None:
             "ask": 5.0,
         }
     )
-    assert _passes_liquidity_filter(row, config) is True
+    assert _passes_liquidity_filter(row, filters) is True
 
 
 # ---------------------------------------------------------------------------
@@ -543,13 +544,13 @@ async def test_empty_chain_returns_empty_list(service: OptionsDataService) -> No
 
 
 async def test_timeout_raises_data_source_unavailable(
-    pricing_config: PricingConfig,
+    options_filters: OptionsFilters,
     cache: ServiceCache,
     limiter: RateLimiter,
 ) -> None:
     """yfinance hang triggers DataSourceUnavailableError via timeout."""
     fast_config = ServiceConfig(yfinance_timeout=0.1)
-    svc = OptionsDataService(fast_config, pricing_config, cache, limiter)
+    svc = OptionsDataService(fast_config, options_filters, cache, limiter)
 
     mock_ticker = MagicMock()
 

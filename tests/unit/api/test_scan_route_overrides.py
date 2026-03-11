@@ -88,68 +88,66 @@ class TestNoOverrideWhenNone:
         assert response.status_code == 202
 
 
-class TestDTEForwardingToPricingConfig:
-    """Tests that DTE overrides propagate to PricingConfig."""
+class TestDTEForwardingToOptionsFilters:
+    """Tests that DTE overrides propagate to OptionsFilters via ScanFilterSpec."""
 
-    def test_dte_override_builds_correct_pricing_config(self) -> None:
-        """Verify the override logic produces correct PricingConfig values.
+    def test_dte_override_builds_correct_options_filters(self) -> None:
+        """Verify the override logic produces correct OptionsFilters values.
 
         This tests the override pattern directly (unit test) rather than
         going through the full HTTP stack.
         """
         settings = AppSettings()
 
-        # Simulate the route override logic for DTE
-        scan_overrides: dict[str, object] = {"min_dte": 14, "max_dte": 45}
-        pricing_overrides: dict[str, object] = {"dte_min": 14, "dte_max": 45}
-
-        new_scan = settings.scan.model_copy(update=scan_overrides)
-        new_pricing = settings.pricing.model_copy(update=pricing_overrides)
-        effective = settings.model_copy(update={"scan": new_scan, "pricing": new_pricing})
-
-        # ScanConfig should have the new DTE fields
-        assert effective.scan.min_dte == 14
-        assert effective.scan.max_dte == 45
-
-        # PricingConfig.dte_min / dte_max should be forwarded
-        assert effective.pricing.dte_min == 14
-        assert effective.pricing.dte_max == 45
-
-    def test_no_dte_override_preserves_defaults(self) -> None:
-        """Without DTE overrides, PricingConfig retains defaults."""
-        settings = AppSettings()
-        assert settings.pricing.dte_min == 30
-        assert settings.pricing.dte_max == 365
-
-    def test_max_price_override_builds_correct_scan_config(self) -> None:
-        """Verify max_price override produces correct ScanConfig."""
-        settings = AppSettings()
-        scan_overrides: dict[str, object] = {"max_price": 250.0}
-        new_scan = settings.scan.model_copy(update=scan_overrides)
+        # Simulate the route override logic for DTE via nested filter spec
+        options_overrides: dict[str, object] = {"min_dte": 14, "max_dte": 45}
+        new_options = settings.scan.filters.options.model_copy(update=options_overrides)
+        new_filters = settings.scan.filters.model_copy(update={"options": new_options})
+        new_scan = settings.scan.model_copy(update={"filters": new_filters})
         effective = settings.model_copy(update={"scan": new_scan})
 
-        assert effective.scan.max_price == 250.0
+        # OptionsFilters should have the new DTE fields
+        assert effective.scan.filters.options.min_dte == 14
+        assert effective.scan.filters.options.max_dte == 45
+
+    def test_no_dte_override_preserves_defaults(self) -> None:
+        """Without DTE overrides, OptionsFilters retains defaults."""
+        settings = AppSettings()
+        assert settings.scan.filters.options.min_dte == 30
+        assert settings.scan.filters.options.max_dte == 365
+
+    def test_max_price_override_builds_correct_universe_filters(self) -> None:
+        """Verify max_price override produces correct UniverseFilters."""
+        settings = AppSettings()
+        universe_overrides: dict[str, object] = {"max_price": 250.0}
+        new_universe = settings.scan.filters.universe.model_copy(update=universe_overrides)
+        new_filters = settings.scan.filters.model_copy(update={"universe": new_universe})
+        new_scan = settings.scan.model_copy(update={"filters": new_filters})
+        effective = settings.model_copy(update={"scan": new_scan})
+
+        assert effective.scan.filters.universe.max_price == 250.0
         # Original settings unchanged
-        assert settings.scan.max_price is None
+        assert settings.scan.filters.universe.max_price is None
 
     def test_combined_overrides(self) -> None:
         """All new overrides applied together produce correct config."""
         settings = AppSettings()
-        scan_overrides: dict[str, object] = {
+
+        universe_overrides: dict[str, object] = {
             "min_price": 20.0,
             "max_price": 500.0,
-            "min_dte": 7,
-            "max_dte": 90,
         }
-        pricing_overrides: dict[str, object] = {"dte_min": 7, "dte_max": 90}
+        options_overrides: dict[str, object] = {"min_dte": 7, "max_dte": 90}
 
-        new_scan = settings.scan.model_copy(update=scan_overrides)
-        new_pricing = settings.pricing.model_copy(update=pricing_overrides)
-        effective = settings.model_copy(update={"scan": new_scan, "pricing": new_pricing})
+        new_universe = settings.scan.filters.universe.model_copy(update=universe_overrides)
+        new_options = settings.scan.filters.options.model_copy(update=options_overrides)
+        new_filters = settings.scan.filters.model_copy(
+            update={"universe": new_universe, "options": new_options}
+        )
+        new_scan = settings.scan.model_copy(update={"filters": new_filters})
+        effective = settings.model_copy(update={"scan": new_scan})
 
-        assert effective.scan.min_price == 20.0
-        assert effective.scan.max_price == 500.0
-        assert effective.scan.min_dte == 7
-        assert effective.scan.max_dte == 90
-        assert effective.pricing.dte_min == 7
-        assert effective.pricing.dte_max == 90
+        assert effective.scan.filters.universe.min_price == 20.0
+        assert effective.scan.filters.universe.max_price == 500.0
+        assert effective.scan.filters.options.min_dte == 7
+        assert effective.scan.filters.options.max_dte == 90

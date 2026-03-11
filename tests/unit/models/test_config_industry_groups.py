@@ -1,4 +1,4 @@
-"""Unit tests for ScanConfig.industry_groups.
+"""Unit tests for UniverseFilters.industry_groups.
 
 Tests:
   - Default empty list for industry_groups
@@ -15,18 +15,18 @@ from pydantic import ValidationError
 from options_arena.models import (
     AppSettings,
     GICSIndustryGroup,
-    ScanConfig,
     TickerScore,
 )
 from options_arena.models.enums import SignalDirection
+from options_arena.models.filters import UniverseFilters
 from options_arena.models.scan import IndicatorSignals
 
 # ---------------------------------------------------------------------------
 # Helper: list of ARENA_* env var names we might need to clean
 # ---------------------------------------------------------------------------
 _ARENA_ENV_VARS = [
-    "ARENA_SCAN__TOP_N",
-    "ARENA_SCAN__INDUSTRY_GROUPS",
+    "ARENA_SCAN__FILTERS__OPTIONS__TOP_N",
+    "ARENA_SCAN__FILTERS__UNIVERSE__INDUSTRY_GROUPS",
 ]
 
 
@@ -38,19 +38,19 @@ def _clean_arena_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # ---------------------------------------------------------------------------
-# ScanConfig.industry_groups
+# UniverseFilters.industry_groups
 # ---------------------------------------------------------------------------
 
 
 class TestScanConfigIndustryGroups:
     def test_default_empty(self) -> None:
         """Verify industry_groups defaults to empty list."""
-        config = ScanConfig()
+        config = UniverseFilters()
         assert config.industry_groups == []
 
     def test_accepts_canonical_enum_values(self) -> None:
         """Canonical GICSIndustryGroup enum instances pass through."""
-        config = ScanConfig(
+        config = UniverseFilters(
             industry_groups=[
                 GICSIndustryGroup.SOFTWARE_SERVICES,
                 GICSIndustryGroup.BANKS,
@@ -63,7 +63,7 @@ class TestScanConfigIndustryGroups:
 
     def test_normalize_from_strings(self) -> None:
         """Verify string inputs normalized via INDUSTRY_GROUP_ALIASES."""
-        config = ScanConfig(industry_groups=["software", "banks", "pharma"])
+        config = UniverseFilters(industry_groups=["software", "banks", "pharma"])
         assert config.industry_groups == [
             GICSIndustryGroup.SOFTWARE_SERVICES,
             GICSIndustryGroup.BANKS,
@@ -72,7 +72,7 @@ class TestScanConfigIndustryGroups:
 
     def test_normalize_lowercase_canonical(self) -> None:
         """Lowercase canonical names resolve correctly."""
-        config = ScanConfig(industry_groups=["software & services", "capital goods"])
+        config = UniverseFilters(industry_groups=["software & services", "capital goods"])
         assert config.industry_groups == [
             GICSIndustryGroup.SOFTWARE_SERVICES,
             GICSIndustryGroup.CAPITAL_GOODS,
@@ -80,7 +80,7 @@ class TestScanConfigIndustryGroups:
 
     def test_normalize_hyphenated(self) -> None:
         """Hyphenated variants resolve correctly."""
-        config = ScanConfig(industry_groups=["software-services", "semiconductors-equipment"])
+        config = UniverseFilters(industry_groups=["software-services", "semiconductors-equipment"])
         assert config.industry_groups == [
             GICSIndustryGroup.SOFTWARE_SERVICES,
             GICSIndustryGroup.SEMICONDUCTORS_EQUIPMENT,
@@ -88,7 +88,7 @@ class TestScanConfigIndustryGroups:
 
     def test_normalize_underscored(self) -> None:
         """Underscored variants resolve correctly."""
-        config = ScanConfig(industry_groups=["software_services", "capital_goods"])
+        config = UniverseFilters(industry_groups=["software_services", "capital_goods"])
         assert config.industry_groups == [
             GICSIndustryGroup.SOFTWARE_SERVICES,
             GICSIndustryGroup.CAPITAL_GOODS,
@@ -96,7 +96,7 @@ class TestScanConfigIndustryGroups:
 
     def test_accepts_canonical_string_values(self) -> None:
         """Canonical string values (mixed case) resolve via enum constructor."""
-        config = ScanConfig(industry_groups=["Software & Services", "Banks"])
+        config = UniverseFilters(industry_groups=["Software & Services", "Banks"])
         assert config.industry_groups == [
             GICSIndustryGroup.SOFTWARE_SERVICES,
             GICSIndustryGroup.BANKS,
@@ -104,14 +104,14 @@ class TestScanConfigIndustryGroups:
 
     def test_deduplication(self) -> None:
         """Verify duplicate groups removed after alias normalization."""
-        config = ScanConfig(
+        config = UniverseFilters(
             industry_groups=["software", "Software & Services", "software_services"]
         )
         assert config.industry_groups == [GICSIndustryGroup.SOFTWARE_SERVICES]
 
     def test_deduplication_preserves_order(self) -> None:
         """Verify deduplication keeps first occurrence order."""
-        config = ScanConfig(industry_groups=["banks", "software", "banks"])
+        config = UniverseFilters(industry_groups=["banks", "software", "banks"])
         assert config.industry_groups == [
             GICSIndustryGroup.BANKS,
             GICSIndustryGroup.SOFTWARE_SERVICES,
@@ -120,11 +120,11 @@ class TestScanConfigIndustryGroups:
     def test_invalid_group_raises(self) -> None:
         """Verify ValueError for unknown industry group."""
         with pytest.raises(ValidationError, match="Unknown industry group"):
-            ScanConfig(industry_groups=["nonexistent_industry_group"])
+            UniverseFilters(industry_groups=["nonexistent_industry_group"])
 
     def test_mixed_enum_and_string(self) -> None:
         """Mix of GICSIndustryGroup enums and alias strings works."""
-        config = ScanConfig(industry_groups=[GICSIndustryGroup.BANKS, "semiconductors"])
+        config = UniverseFilters(industry_groups=[GICSIndustryGroup.BANKS, "semiconductors"])
         assert config.industry_groups == [
             GICSIndustryGroup.BANKS,
             GICSIndustryGroup.SEMICONDUCTORS_EQUIPMENT,
@@ -132,17 +132,19 @@ class TestScanConfigIndustryGroups:
 
     def test_yfinance_industry_string(self) -> None:
         """Verify yfinance industry string resolves correctly."""
-        config = ScanConfig(industry_groups=["biotechnology", "auto manufacturers"])
+        config = UniverseFilters(industry_groups=["biotechnology", "auto manufacturers"])
         assert config.industry_groups == [
             GICSIndustryGroup.PHARMA_BIOTECH,
             GICSIndustryGroup.AUTOMOBILES_COMPONENTS,
         ]
 
     def test_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """ARENA_SCAN__INDUSTRY_GROUPS env var works via JSON string."""
-        monkeypatch.setenv("ARENA_SCAN__INDUSTRY_GROUPS", '["software","banks"]')
+        """ARENA_SCAN__FILTERS__UNIVERSE__INDUSTRY_GROUPS env var works via JSON string."""
+        monkeypatch.setenv(
+            "ARENA_SCAN__FILTERS__UNIVERSE__INDUSTRY_GROUPS", '["software","banks"]'
+        )
         settings = AppSettings()
-        assert settings.scan.industry_groups == [
+        assert settings.scan.filters.universe.industry_groups == [
             GICSIndustryGroup.SOFTWARE_SERVICES,
             GICSIndustryGroup.BANKS,
         ]

@@ -128,7 +128,6 @@ class TestScanBackgroundOutcomeCollection:
             await _run_scan_background(
                 mock_request,
                 1,
-                ScanPreset.SP500,
                 ScanSource.MANUAL,
                 MagicMock(),
                 bridge,
@@ -167,7 +166,6 @@ class TestScanBackgroundOutcomeCollection:
             await _run_scan_background(
                 mock_request,
                 1,
-                ScanPreset.SP500,
                 ScanSource.MANUAL,
                 MagicMock(),
                 bridge,
@@ -211,7 +209,6 @@ class TestScanBackgroundOutcomeCollection:
             await _run_scan_background(
                 mock_request,
                 1,
-                ScanPreset.SP500,
                 ScanSource.MANUAL,
                 MagicMock(),
                 bridge,
@@ -260,7 +257,6 @@ class TestScanBackgroundOutcomeCollection:
             await _run_scan_background(
                 mock_request,
                 1,
-                ScanPreset.SP500,
                 ScanSource.MANUAL,
                 MagicMock(),
                 bridge,
@@ -297,7 +293,6 @@ class TestScanBackgroundOutcomeCollection:
             await _run_scan_background(
                 mock_request,
                 1,
-                ScanPreset.SP500,
                 ScanSource.MANUAL,
                 MagicMock(),
                 bridge,
@@ -353,7 +348,6 @@ class TestScanBackgroundOutcomeCollection:
             await _run_scan_background(
                 mock_request,
                 1,
-                ScanPreset.SP500,
                 ScanSource.MANUAL,
                 MagicMock(),
                 bridge,

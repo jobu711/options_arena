@@ -24,7 +24,9 @@ from options_arena.models import (
     SignalDirection,
     TickerScore,
 )
+from options_arena.models.config import PricingConfig, ScanConfig
 from options_arena.models.enums import DividendSource, ExerciseStyle, OptionType
+from options_arena.models.filters import OptionsFilters, ScanFilterSpec, UniverseFilters
 from options_arena.models.market_data import OHLCV, TickerInfo
 from options_arena.scan.models import ScanResult
 from options_arena.scan.pipeline import ScanPipeline
@@ -176,10 +178,14 @@ def _make_full_pipeline(
     if settings is not None:
         _settings = settings
     else:
-        _settings = AppSettings()
-        # Relax filters so tickers pass by default (only when no explicit settings)
-        _settings.scan.min_dollar_volume = 1.0
-        _settings.scan.min_price = 1.0
+        _settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                    universe=UniverseFilters(preset=ScanPreset.FULL, min_price=1.0),
+                )
+            )
+        )
 
     mock_universe = AsyncMock()
     mock_universe.fetch_optionable_tickers = AsyncMock(return_value=_tickers)
@@ -244,7 +250,7 @@ class TestFullPipelineHappyPath:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[_make_option_contract("X")],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         assert result.phases_completed == 4
         assert result.cancelled is False
@@ -258,7 +264,7 @@ class TestFullPipelineHappyPath:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[_make_option_contract("AAPL")],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         assert result.scan_run.id == 99
 
@@ -271,7 +277,7 @@ class TestFullPipelineHappyPath:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[_make_option_contract("X")],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         assert len(result.scores) > 0
         for ts in result.scores:
@@ -287,7 +293,7 @@ class TestFullPipelineHappyPath:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         assert result.risk_free_rate == pytest.approx(0.042)
 
@@ -300,7 +306,7 @@ class TestFullPipelineHappyPath:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[_make_option_contract("AAPL")],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         assert isinstance(result.recommendations, dict)
         # With the patched recommend_contracts returning a contract, we should
@@ -319,7 +325,7 @@ class TestFullPipelineHappyPath:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         assert result.scan_run.preset == ScanPreset.FULL
         assert result.scan_run.tickers_scanned == 3
@@ -337,7 +343,7 @@ class TestFullPipelineHappyPath:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[],
         ):
-            await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            await pipeline.run(token, _noop_progress)
 
         mocks["universe"].fetch_optionable_tickers.assert_awaited_once()
         mocks["universe"].fetch_sp500_constituents.assert_awaited_once()
@@ -367,7 +373,7 @@ class TestCancelledBeforePhase1:
         token = CancellationToken()
         token.cancel()
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.cancelled is True
         assert result.phases_completed == 1
@@ -380,7 +386,7 @@ class TestCancelledBeforePhase1:
         token = CancellationToken()
         token.cancel()
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.scan_run.id is None
         mocks["repository"].save_scan_run.assert_not_awaited()
@@ -413,7 +419,7 @@ class TestCancelledBetweenPhase2And3:
 
         pipeline._phase_scoring = _scoring_then_cancel  # type: ignore[assignment]
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.cancelled is True
         assert result.phases_completed == 2
@@ -424,10 +430,15 @@ class TestCancelledBetweenPhase2And3:
 
     async def test_cancelled_after_phase2_uses_fallback_rate(self) -> None:
         """When cancelled before Phase 3, risk_free_rate uses fallback."""
-        settings = AppSettings()
-        settings.pricing.risk_free_rate_fallback = 0.05
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            pricing=PricingConfig(risk_free_rate_fallback=0.05),
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                    universe=UniverseFilters(min_price=1.0),
+                )
+            ),
+        )
 
         pipeline, _ = _make_full_pipeline(tickers=["AAPL"], settings=settings)
 
@@ -444,7 +455,7 @@ class TestCancelledBetweenPhase2And3:
 
         pipeline._phase_scoring = _scoring_then_cancel  # type: ignore[assignment]
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.risk_free_rate == pytest.approx(0.05)
 
@@ -465,7 +476,7 @@ class TestEmptyUniverse:
         )
         token = CancellationToken()
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.phases_completed == 4
         assert result.cancelled is False
@@ -484,7 +495,7 @@ class TestEmptyUniverse:
         )
         token = CancellationToken()
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         mocks["repository"].save_scan_run.assert_awaited_once()
         assert result.scan_run.id == 1
@@ -509,7 +520,7 @@ class TestAllTickersFailOHLCV:
         )
         token = CancellationToken()
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.phases_completed == 4
         assert result.cancelled is False
@@ -529,7 +540,7 @@ class TestAllTickersFailOHLCV:
         )
         token = CancellationToken()
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         # Pipeline completed without exception
         assert isinstance(result, ScanResult)
@@ -559,7 +570,7 @@ class TestProgressCallbackOrder:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[],
         ):
-            await pipeline.run(ScanPreset.FULL, token, recording_progress)
+            await pipeline.run(token, recording_progress)
 
         # Extract the unique phases in order of first appearance
         seen_phases: list[ScanPhase] = []
@@ -589,7 +600,7 @@ class TestProgressCallbackOrder:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[],
         ):
-            await pipeline.run(ScanPreset.FULL, token, recording_progress)
+            await pipeline.run(token, recording_progress)
 
         # Group calls by phase
         phase_calls: dict[ScanPhase, list[tuple[int, int]]] = {}
@@ -669,9 +680,14 @@ class TestAllFilteredByLiquidity:
 
     async def test_all_filtered_by_dollar_volume(self) -> None:
         """Tickers with low dollar volume produce empty recommendations."""
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 999_999_999_999.0  # Unreachably high
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=999_999_999_999.0),
+                    universe=UniverseFilters(min_price=1.0),
+                )
+            )
+        )
 
         pipeline, mocks = _make_full_pipeline(
             tickers=["AAPL", "MSFT"],
@@ -679,7 +695,7 @@ class TestAllFilteredByLiquidity:
         )
         token = CancellationToken()
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.phases_completed == 4
         assert result.cancelled is False
@@ -691,9 +707,14 @@ class TestAllFilteredByLiquidity:
 
     async def test_all_filtered_by_price(self) -> None:
         """Tickers with low price produce empty recommendations."""
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 999_999.0  # Unreachably high
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                    universe=UniverseFilters(min_price=999_999.0),
+                )
+            )
+        )
 
         pipeline, _ = _make_full_pipeline(
             tickers=["AAPL"],
@@ -701,7 +722,7 @@ class TestAllFilteredByLiquidity:
         )
         token = CancellationToken()
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.phases_completed == 4
         assert result.recommendations == {}
@@ -724,7 +745,7 @@ class TestFredFallbackRate:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         assert result.risk_free_rate == pytest.approx(0.0385)
 
@@ -737,7 +758,7 @@ class TestFredFallbackRate:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[],
         ):
-            await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            await pipeline.run(token, _noop_progress)
 
         mocks["fred"].fetch_risk_free_rate.assert_awaited_once()
 
@@ -759,7 +780,7 @@ class TestResultTypeValidation:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         assert isinstance(result, ScanResult)
 
@@ -769,7 +790,7 @@ class TestResultTypeValidation:
         token = CancellationToken()
         token.cancel()
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert isinstance(result, ScanResult)
         assert result.cancelled is True

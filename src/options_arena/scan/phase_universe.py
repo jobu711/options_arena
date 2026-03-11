@@ -13,9 +13,9 @@ from options_arena.models import (
     SECTOR_ALIASES,
     SECTOR_TO_INDUSTRY_GROUPS,
     GICSSector,
-    ScanConfig,
     ScanPreset,
 )
+from options_arena.models.filters import UniverseFilters
 from options_arena.models.market_data import OHLCV
 from options_arena.scan.models import UniverseResult
 from options_arena.scan.progress import ProgressCallback, ScanPhase
@@ -27,13 +27,12 @@ logger = logging.getLogger("options_arena.scan.pipeline")
 
 
 async def run_universe_phase(
-    preset: ScanPreset,
     progress: ProgressCallback,
     *,
     universe: UniverseService,
     market_data: MarketDataService,
     repository: Repository,
-    scan_config: ScanConfig,
+    universe_filters: UniverseFilters,
 ) -> UniverseResult:
     """Phase 1: Fetch optionable universe and OHLCV data.
 
@@ -46,12 +45,11 @@ async def run_universe_phase(
         6. Report progress.
 
     Args:
-        preset: Universe preset (FULL, SP500, ETFS, etc.).
         progress: Callback for reporting per-phase progress.
         universe: Universe service for optionable tickers and S&P 500 data.
         market_data: Market data service for OHLCV fetching.
         repository: Data layer for metadata enrichment.
-        scan_config: Scan pipeline configuration slice.
+        universe_filters: Universe selection filters (preset, sectors, custom tickers, etc.).
 
     Returns:
         ``UniverseResult`` with tickers, OHLCV map, sectors, and counts.
@@ -124,7 +122,7 @@ async def run_universe_phase(
         )
 
     # Step 3a: Custom tickers branch — bypass preset/sector/industry filters
-    custom = scan_config.custom_tickers
+    custom = universe_filters.custom_tickers
     tickers: list[str]
     if custom:
         optionable_set = frozenset(all_tickers)
@@ -136,6 +134,7 @@ async def run_universe_phase(
         tickers = valid
     else:
         # Preset filter
+        preset = universe_filters.preset
         if preset == ScanPreset.SP500:
             sp500_set = set(sp500_sectors.keys())
             tickers = [t for t in all_tickers if t in sp500_set]
@@ -186,7 +185,7 @@ async def run_universe_phase(
             tickers = all_tickers
 
         # Sector filter (OR logic) when sectors are configured
-        configured_sectors = scan_config.sectors
+        configured_sectors = universe_filters.sectors
         if configured_sectors:
             sector_set = frozenset(configured_sectors)
             before_count = len(tickers)
@@ -210,7 +209,7 @@ async def run_universe_phase(
                 )
 
         # Industry group filter (OR logic) when configured
-        configured_industry_groups = scan_config.industry_groups
+        configured_industry_groups = universe_filters.industry_groups
         if configured_industry_groups:
             ig_set = frozenset(configured_industry_groups)
             before_count = len(tickers)
@@ -227,7 +226,7 @@ async def run_universe_phase(
     batch_result = await market_data.fetch_batch_ohlcv(tickers, period="1y")
 
     # Step 5: Filter by minimum bar count
-    min_bars = scan_config.ohlcv_min_bars
+    min_bars = universe_filters.ohlcv_min_bars
     ohlcv_map: dict[str, list[OHLCV]] = {}
     failed_count = 0
     filtered_count = 0

@@ -4,13 +4,13 @@ from decimal import Decimal
 
 import pytest
 
-from options_arena.models.config import PricingConfig
 from options_arena.models.enums import (
     ExerciseStyle,
     OptionType,
     PricingModel,
     SignalDirection,
 )
+from options_arena.models.filters import OptionsFilters
 from options_arena.models.options import OptionContract, OptionGreeks
 from options_arena.scoring.contracts import (
     compute_greeks,
@@ -133,8 +133,8 @@ class TestFilterContracts:
         """Custom max_spread_pct=0.05 should be stricter."""
         # spread = 0.50, mid = 5.25, spread_pct = 0.50/5.25 = 0.0952 > 0.05
         contract = make_contract(bid="5.00", ask="5.50")
-        config = PricingConfig(max_spread_pct=0.05)
-        result = filter_contracts([contract], SignalDirection.BULLISH, config)
+        filters = OptionsFilters(max_spread_pct=0.05)
+        result = filter_contracts([contract], SignalDirection.BULLISH, filters)
         assert result == []
 
     def test_empty_input_returns_empty(self) -> None:
@@ -416,8 +416,7 @@ class TestSelectByDelta:
         c1 = _contract_with_greeks(delta=0.35, strike="145.00")
         c2 = _contract_with_greeks(delta=0.40, strike="150.00")
         c3 = _contract_with_greeks(delta=0.45, strike="155.00")
-        config = PricingConfig(delta_target=0.40)
-        result = select_by_delta([c1, c2, c3], config)
+        result = select_by_delta([c1, c2, c3], delta_target=0.40)
         assert result is not None
         assert result.greeks is not None
         assert result.greeks.delta == pytest.approx(0.40, abs=0.001)

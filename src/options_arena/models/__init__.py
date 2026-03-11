@@ -40,7 +40,6 @@ from options_arena.models.analytics import (
     WinRateResult,
 )
 from options_arena.models.config import (
-    TICKER_RE,
     AnalyticsConfig,
     AppSettings,
     DataConfig,
@@ -57,6 +56,7 @@ from options_arena.models.enums import (
     INDUSTRY_GROUP_ALIASES,
     SECTOR_ALIASES,
     SECTOR_TO_INDUSTRY_GROUPS,
+    TICKER_RE,
     CatalystImpact,
     DividendSource,
     ExerciseStyle,

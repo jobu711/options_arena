@@ -75,7 +75,8 @@ async def _outcomes_collect_async(holding_days: int | None) -> None:
         repo = Repository(db)
 
         market_data = MarketDataService(settings.service, cache, limiter)
-        options_data = OptionsDataService(settings.service, settings.pricing, cache, limiter)
+        opts_filters = settings.scan.filters.options
+        options_data = OptionsDataService(settings.service, opts_filters, cache, limiter)
         collector = OutcomeCollector(settings.analytics, repo, market_data, options_data)
 
         if holding_days is not None:

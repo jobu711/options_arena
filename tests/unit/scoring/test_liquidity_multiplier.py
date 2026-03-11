@@ -8,8 +8,8 @@ from decimal import Decimal
 
 import pytest
 
-from options_arena.models.config import PricingConfig
 from options_arena.models.enums import ExerciseStyle, GreeksSource, OptionType, PricingModel
+from options_arena.models.filters import OptionsFilters
 from options_arena.models.options import OptionContract, OptionGreeks
 from options_arena.scoring.contracts import _compute_liquidity_score, select_by_delta
 
@@ -92,8 +92,8 @@ class TestSelectByDeltaLiquidity:
         liquid = _make_contract(bid=99.0, ask=101.0, open_interest=5000, delta=0.36)
         illiquid = _make_contract(bid=90.0, ask=110.0, open_interest=100, delta=0.34, strike=105.0)
         # Both have delta distance of 0.01 from target 0.35
-        cfg = PricingConfig(max_spread_pct=0.30)
-        result = select_by_delta([liquid, illiquid], config=cfg)
+        filters = OptionsFilters(max_spread_pct=0.30)
+        result = select_by_delta([liquid, illiquid], filters=filters)
         assert result is not None
         assert result.strike == liquid.strike
 
@@ -103,8 +103,8 @@ class TestSelectByDeltaLiquidity:
         far_delta = _make_contract(
             bid=99.0, ask=101.0, open_interest=5000, delta=0.25, strike=105.0
         )
-        cfg = PricingConfig(max_spread_pct=0.30)
-        result = select_by_delta([close_delta, far_delta], config=cfg)
+        filters = OptionsFilters(max_spread_pct=0.30)
+        result = select_by_delta([close_delta, far_delta], filters=filters)
         assert result is not None
         assert result.strike == close_delta.strike
 

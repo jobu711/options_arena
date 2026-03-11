@@ -256,10 +256,10 @@ class TestCombinedPreScanFilters:
     def test_no_filters_runs_full_universe(self) -> None:
         """Verify empty/None filters don't exclude anything."""
         config = ScanConfig()
-        assert config.market_cap_tiers == []
-        assert config.exclude_near_earnings_days is None
-        assert config.direction_filter is None
-        assert config.min_iv_rank is None
+        assert config.filters.universe.market_cap_tiers == []
+        assert config.filters.options.exclude_near_earnings_days is None
+        assert config.filters.scoring.direction_filter is None
+        assert config.filters.options.min_iv_rank is None
 
     def test_all_filters_compose(self) -> None:
         """Verify market cap + earnings + direction compose correctly (AND logic)."""

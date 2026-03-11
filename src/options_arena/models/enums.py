@@ -4,7 +4,11 @@ All enums use Python 3.13+ ``enum.StrEnum`` with lowercase string values.
 No business logic — pure data definitions only.
 """
 
+import re
 from enum import StrEnum
+
+# Ticker: at least one alphanumeric required; allows caret prefix for indices
+TICKER_RE = re.compile(r"^(?=.*[A-Z0-9])[A-Z0-9^][A-Z0-9.\-^]{0,9}$")
 
 
 class OptionType(StrEnum):

@@ -17,8 +17,8 @@ import math
 from datetime import date
 from decimal import Decimal
 
-from options_arena.models.config import PricingConfig
 from options_arena.models.enums import GreeksSource, OptionType, SignalDirection
+from options_arena.models.filters import OptionsFilters
 from options_arena.models.options import OptionContract
 from options_arena.pricing.dispatch import option_greeks, option_iv
 
@@ -26,21 +26,22 @@ logger = logging.getLogger(__name__)
 
 _ZERO = Decimal("0")
 _DAYS_PER_YEAR = 365.0
+_DEFAULT_DELTA_TARGET: float = 0.35
 
 # Liquidity multiplier calibration — internal constants, NOT config.
 _SPREAD_WEIGHT: float = 0.7
 _OI_WEIGHT: float = 0.3
 
 
-def _default_config(config: PricingConfig | None) -> PricingConfig:
-    """Return *config* if provided, otherwise a fresh ``PricingConfig`` with defaults."""
-    return config if config is not None else PricingConfig()
+def _default_filters(filters: OptionsFilters | None) -> OptionsFilters:
+    """Return *filters* if provided, otherwise a fresh ``OptionsFilters`` with defaults."""
+    return filters if filters is not None else OptionsFilters()
 
 
 def filter_contracts(
     contracts: list[OptionContract],
     direction: SignalDirection,
-    config: PricingConfig | None = None,
+    filters: OptionsFilters | None = None,
 ) -> list[OptionContract]:
     """Filter contracts by liquidity, spread width, and directional type.
 
@@ -48,12 +49,12 @@ def filter_contracts(
         contracts: Raw list of option contracts to filter.
         direction: BULLISH selects calls, BEARISH selects puts,
             NEUTRAL keeps both types.
-        config: Pricing configuration. Uses ``PricingConfig()`` defaults if None.
+        filters: Options filter configuration. Uses ``OptionsFilters()`` defaults if None.
 
     Returns:
         Filtered contracts sorted by ``open_interest`` descending.
     """
-    cfg = _default_config(config)
+    cfg = _default_filters(filters)
 
     if direction == SignalDirection.BULLISH:
         desired_types = {OptionType.CALL}
@@ -104,13 +105,13 @@ def filter_contracts(
 
 def select_expiration(
     contracts: list[OptionContract],
-    config: PricingConfig | None = None,
+    filters: OptionsFilters | None = None,
 ) -> date | None:
     """Select the expiration closest to the midpoint of the DTE range.
 
     Args:
         contracts: Pre-filtered contracts with various expirations.
-        config: Pricing configuration. Uses ``PricingConfig()`` defaults if None.
+        filters: Options filter configuration. Uses ``OptionsFilters()`` defaults if None.
 
     Returns:
         Best expiration ``date``, or ``None`` if no contracts fall within the DTE range.
@@ -118,8 +119,8 @@ def select_expiration(
     if not contracts:
         return None
 
-    cfg = _default_config(config)
-    target_dte = (cfg.dte_min + cfg.dte_max) / 2.0
+    cfg = _default_filters(filters)
+    target_dte = (cfg.min_dte + cfg.max_dte) / 2.0
 
     # Collect unique expirations with their DTE values
     expiration_dte: dict[date, int] = {}
@@ -131,14 +132,14 @@ def select_expiration(
     valid: list[tuple[date, int]] = [
         (exp_date, dte)
         for exp_date, dte in expiration_dte.items()
-        if cfg.dte_min <= dte <= cfg.dte_max
+        if cfg.min_dte <= dte <= cfg.max_dte
     ]
 
     if not valid:
         logger.debug(
             "select_expiration: no expirations in [%d, %d] DTE range",
-            cfg.dte_min,
-            cfg.dte_max,
+            cfg.min_dte,
+            cfg.max_dte,
         )
         return None
 
@@ -332,7 +333,8 @@ def _compute_liquidity_score(
 
 def select_by_delta(
     contracts: list[OptionContract],
-    config: PricingConfig | None = None,
+    filters: OptionsFilters | None = None,
+    delta_target: float = _DEFAULT_DELTA_TARGET,
 ) -> OptionContract | None:
     """Select the contract with delta closest to the target.
 
@@ -341,7 +343,8 @@ def select_by_delta(
 
     Args:
         contracts: Contracts with greeks already computed.
-        config: Pricing configuration. Uses ``PricingConfig()`` defaults if None.
+        filters: Options filter configuration. Uses ``OptionsFilters()`` defaults if None.
+        delta_target: Target delta value (from ``PricingConfig``).
 
     Returns:
         Best contract by delta proximity, or ``None`` if no contract has
@@ -350,7 +353,7 @@ def select_by_delta(
     if not contracts:
         return None
 
-    cfg = _default_config(config)
+    cfg = _default_filters(filters)
 
     # Partition into primary and fallback candidate lists
     primary: list[tuple[OptionContract, float]] = []  # (contract, distance)
@@ -363,7 +366,7 @@ def select_by_delta(
         abs_delta = abs(contract.greeks.delta)
         if not math.isfinite(abs_delta):
             continue
-        distance = abs(abs_delta - cfg.delta_target)
+        distance = abs(abs_delta - delta_target)
 
         if cfg.delta_primary_min <= abs_delta <= cfg.delta_primary_max:
             primary.append((contract, distance))
@@ -415,7 +418,8 @@ def recommend_contracts(
     spot: float,
     risk_free_rate: float,
     dividend_yield: float,
-    config: PricingConfig | None = None,
+    filters: OptionsFilters | None = None,
+    delta_target: float = _DEFAULT_DELTA_TARGET,
 ) -> list[OptionContract]:
     """Run the full recommendation pipeline: filter -> expiration -> greeks -> delta.
 
@@ -425,12 +429,13 @@ def recommend_contracts(
         spot: Current underlying price.
         risk_free_rate: Annualized risk-free rate (decimal).
         dividend_yield: Continuous dividend yield (decimal).
-        config: Pricing configuration. Uses ``PricingConfig()`` defaults if None.
+        filters: Options filter configuration. Uses ``OptionsFilters()`` defaults if None.
+        delta_target: Target delta value (from ``PricingConfig``).
 
     Returns:
         List of 0 or 1 recommended contracts.
     """
-    cfg = _default_config(config)
+    cfg = _default_filters(filters)
 
     # Step 1: Filter by direction, liquidity, spread
     filtered = filter_contracts(contracts, direction, cfg)
@@ -454,7 +459,7 @@ def recommend_contracts(
         return []
 
     # Step 5: Select by delta
-    best = select_by_delta(with_greeks, cfg)
+    best = select_by_delta(with_greeks, cfg, delta_target)
     if best is None:
         logger.info("recommend_contracts: no contracts matched delta target")
         return []

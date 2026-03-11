@@ -14,34 +14,25 @@ AppSettings() with no args is a valid production config.
 """
 
 import math
-import re
 from typing import Self
 
 from pydantic import BaseModel, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from options_arena.models.enums import (
-    INDUSTRY_GROUP_ALIASES,
-    SECTOR_ALIASES,
-    GICSIndustryGroup,
-    GICSSector,
     LLMProvider,
-    MarketCapTier,
-    SignalDirection,
 )
-
-# Ticker: at least one alphanumeric required; allows caret prefix for indices
-TICKER_RE = re.compile(r"^(?=.*[A-Z0-9])[A-Z0-9^][A-Z0-9.\-^]{0,9}$")
+from options_arena.models.filters import ScanFilterSpec
 
 
 class ScanConfig(BaseModel):
-    """Scan pipeline configuration — controls universe filtering and scoring thresholds."""
+    """Scan pipeline configuration — scoring thresholds, timeouts, toggles, and filters.
 
-    top_n: int = 50
-    min_score: float = 0.0
-    min_price: float = 10.0
-    min_dollar_volume: float = 10_000_000.0
-    ohlcv_min_bars: int = 200
+    Filter fields that previously lived directly on ``ScanConfig`` and ``PricingConfig``
+    are now consolidated in ``filters: ScanFilterSpec``.  Scoring thresholds (ADX, RSI),
+    concurrency controls, and feature toggles remain here.
+    """
+
     # Direction threshold defaults are standard technical analysis values:
     # ADX < 15 = no trend (Wilder, 1978), RSI > 70 = overbought / < 30 = oversold
     # (Wilder, 1978). Widely accepted across quantitative finance (AUDIT-017).
@@ -49,65 +40,14 @@ class ScanConfig(BaseModel):
     rsi_overbought: float = 70.0
     rsi_oversold: float = 30.0
     options_per_ticker_timeout: float = 120.0
-    options_batch_size: int = 5
     options_concurrency: int = 5
     enable_iv_analytics: bool = True
     enable_flow_analytics: bool = True
     enable_fundamental: bool = True
     enable_regime: bool = True
-    sectors: list[GICSSector] = []
-    market_cap_tiers: list[MarketCapTier] = []
-    exclude_near_earnings_days: int | None = None
-    direction_filter: SignalDirection | None = None
-    min_iv_rank: float | None = None
-    industry_groups: list[GICSIndustryGroup] = []
-    custom_tickers: list[str] = []
-    # Pre-scan price/DTE filters
-    max_price: float | None = None
-    min_dte: int | None = None
-    max_dte: int | None = None
 
-    @field_validator("market_cap_tiers", mode="before")
-    @classmethod
-    def deduplicate_market_cap_tiers(
-        cls,
-        v: list[str | MarketCapTier],
-    ) -> list[MarketCapTier]:
-        """Deduplicate market cap tier inputs."""
-        result: list[MarketCapTier] = []
-        for item in v:
-            if isinstance(item, MarketCapTier):
-                result.append(item)
-            else:
-                result.append(MarketCapTier(str(item).strip().lower()))
-        return list(dict.fromkeys(result))
-
-    @field_validator("min_iv_rank")
-    @classmethod
-    def validate_min_iv_rank(cls, v: float | None) -> float | None:
-        """Ensure min_iv_rank is within [0, 100] if set."""
-        if v is not None:
-            if not math.isfinite(v):
-                raise ValueError(f"min_iv_rank must be finite, got {v}")
-            if not 0.0 <= v <= 100.0:
-                raise ValueError(f"min_iv_rank must be in [0, 100], got {v}")
-        return v
-
-    @field_validator("top_n")
-    @classmethod
-    def validate_top_n(cls, v: int) -> int:
-        """Ensure top_n is at least 1."""
-        if v < 1:
-            raise ValueError(f"top_n must be >= 1, got {v}")
-        return v
-
-    @field_validator("ohlcv_min_bars")
-    @classmethod
-    def validate_ohlcv_min_bars(cls, v: int) -> int:
-        """Ensure ohlcv_min_bars is at least 5."""
-        if v < 5:
-            raise ValueError(f"ohlcv_min_bars must be >= 5, got {v}")
-        return v
+    # Consolidated filter spec — all pre-scan filter fields
+    filters: ScanFilterSpec = ScanFilterSpec()
 
     @field_validator("options_concurrency")
     @classmethod
@@ -116,115 +56,6 @@ class ScanConfig(BaseModel):
         if v < 1:
             raise ValueError(f"options_concurrency must be >= 1, got {v}")
         return v
-
-    @field_validator("sectors", mode="before")
-    @classmethod
-    def normalize_sectors(cls, v: list[str | GICSSector]) -> list[GICSSector]:
-        """Normalize sector input strings via SECTOR_ALIASES.
-
-        Accepts canonical enum values, lowercase names, hyphenated, underscored,
-        and short-name variants. Raises ValueError for unrecognised inputs.
-        """
-        result: list[GICSSector] = []
-        for item in v:
-            if isinstance(item, GICSSector):
-                result.append(item)
-                continue
-            # Normalize: lowercase, strip whitespace
-            key = str(item).strip().lower()
-            if key in SECTOR_ALIASES:
-                result.append(SECTOR_ALIASES[key])
-            else:
-                # Try direct enum construction (handles canonical values)
-                try:
-                    result.append(GICSSector(str(item).strip()))
-                except ValueError:
-                    valid = sorted({s.value for s in GICSSector})
-                    raise ValueError(
-                        f"Unknown sector {item!r}. Valid sectors: {', '.join(valid)}"
-                    ) from None
-        return list(dict.fromkeys(result))
-
-    @field_validator("industry_groups", mode="before")
-    @classmethod
-    def normalize_industry_groups(
-        cls, v: list[str | GICSIndustryGroup]
-    ) -> list[GICSIndustryGroup]:
-        """Normalize industry group input strings via INDUSTRY_GROUP_ALIASES.
-
-        Accepts canonical enum values, lowercase names, hyphenated, underscored,
-        short-name, and yfinance industry variants. Raises ValueError for
-        unrecognised inputs.
-        """
-        result: list[GICSIndustryGroup] = []
-        for item in v:
-            if isinstance(item, GICSIndustryGroup):
-                result.append(item)
-                continue
-            # Normalize: lowercase, strip whitespace
-            key = str(item).strip().lower()
-            if key in INDUSTRY_GROUP_ALIASES:
-                result.append(INDUSTRY_GROUP_ALIASES[key])
-            else:
-                # Try direct enum construction (handles canonical values)
-                try:
-                    result.append(GICSIndustryGroup(str(item).strip()))
-                except ValueError:
-                    valid = sorted({g.value for g in GICSIndustryGroup})
-                    raise ValueError(
-                        f"Unknown industry group {item!r}. Valid groups: {', '.join(valid)}"
-                    ) from None
-        return list(dict.fromkeys(result))
-
-    @field_validator("custom_tickers", mode="before")
-    @classmethod
-    def validate_custom_tickers(cls, v: list[str]) -> list[str]:
-        """Uppercase, strip, validate format, deduplicate, and cap at 200."""
-        result: list[str] = []
-        for item in v:
-            if not isinstance(item, str):
-                raise ValueError(f"each custom ticker must be a string, got {type(item).__name__}")
-            normalized = item.upper().strip()
-            if not TICKER_RE.match(normalized):
-                raise ValueError(
-                    f"Invalid ticker format: {normalized!r}. "
-                    "Must be 1-10 characters: A-Z, 0-9, dots, hyphens, or caret."
-                )
-            result.append(normalized)
-        result = list(dict.fromkeys(result))
-        if len(result) > 200:
-            raise ValueError(f"custom_tickers exceeds 200 tickers ({len(result)})")
-        return result
-
-    @field_validator("max_price")
-    @classmethod
-    def validate_max_price(cls, v: float | None) -> float | None:
-        """Ensure max_price is finite and positive when set."""
-        if v is not None:
-            if not math.isfinite(v):
-                raise ValueError(f"max_price must be finite, got {v}")
-            if v <= 0.0:
-                raise ValueError(f"max_price must be positive, got {v}")
-        return v
-
-    @field_validator("min_dte", "max_dte")
-    @classmethod
-    def validate_dte_positive(cls, v: int | None) -> int | None:
-        """Ensure DTE values are positive when set."""
-        if v is not None and v <= 0:
-            raise ValueError(f"DTE must be positive, got {v}")
-        return v
-
-    @model_validator(mode="after")
-    def validate_cross_field_ranges(self) -> Self:
-        """Reject min > max for price and DTE when both are set."""
-        if self.min_dte is not None and self.max_dte is not None and self.min_dte > self.max_dte:
-            raise ValueError(f"min_dte ({self.min_dte}) must not exceed max_dte ({self.max_dte})")
-        if self.max_price is not None and self.min_price > self.max_price:
-            raise ValueError(
-                f"min_price ({self.min_price}) must not exceed max_price ({self.max_price})"
-            )
-        return self
 
     @model_validator(mode="after")
     def validate_all_finite(self) -> Self:
@@ -236,19 +67,15 @@ class ScanConfig(BaseModel):
 
 
 class PricingConfig(BaseModel):
-    """Options pricing configuration — delta targeting, DTE range, IV solver parameters."""
+    """Options pricing configuration — delta targeting and IV solver parameters.
+
+    Contract selection fields (delta ranges, DTE, OI, volume, spread) have moved
+    to ``OptionsFilters`` in ``ScanFilterSpec``.  This config retains pricing math
+    parameters only.
+    """
 
     risk_free_rate_fallback: float = 0.05
-    delta_primary_min: float = 0.20
-    delta_primary_max: float = 0.50
-    delta_fallback_min: float = 0.10
-    delta_fallback_max: float = 0.80
     delta_target: float = 0.35
-    dte_min: int = 30
-    dte_max: int = 365
-    min_oi: int = 100
-    min_volume: int = 1
-    max_spread_pct: float = 0.30
     iv_solver_tol: float = 1e-6
     iv_solver_max_iter: int = 50
 

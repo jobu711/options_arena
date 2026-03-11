@@ -32,7 +32,9 @@ from options_arena.models import (
     SignalDirection,
     TickerScore,
 )
+from options_arena.models.config import ScanConfig
 from options_arena.models.enums import DividendSource, ExerciseStyle, OptionType
+from options_arena.models.filters import OptionsFilters, ScanFilterSpec, UniverseFilters
 from options_arena.models.market_data import OHLCV, TickerInfo
 from options_arena.scan.models import OptionsResult, ScoringResult, UniverseResult
 from options_arena.scan.pipeline import ScanPipeline
@@ -172,7 +174,9 @@ def _make_pipeline(
     expiration_chains: dict[str, list[ExpirationChain]] | None = None,
 ) -> tuple[ScanPipeline, dict[str, AsyncMock]]:
     """Create a ScanPipeline with mocked services for Phase 3 testing."""
-    _settings = settings or AppSettings()
+    _settings = settings or AppSettings(
+        scan=ScanConfig(filters=ScanFilterSpec(universe=UniverseFilters(preset=ScanPreset.FULL)))
+    )
 
     mock_universe = AsyncMock()
     mock_market_data = AsyncMock()
@@ -242,9 +246,13 @@ class TestLiquidityPreFilter:
 
     async def test_rejects_low_dollar_volume(self) -> None:
         """Tickers with avg dollar volume below threshold are excluded."""
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 10_000_000.0
-        settings.scan.min_price = 1.0  # Don't filter by price in this test
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=10_000_000.0),
+                )
+            )
+        )
 
         # AAPL: close=100, volume=50_000 -> avg_dv = 5,000,000 (below 10M)
         # MSFT: close=100, volume=200_000 -> avg_dv = 20,000,000 (above 10M)
@@ -274,9 +282,14 @@ class TestLiquidityPreFilter:
 
     async def test_rejects_low_price(self) -> None:
         """Tickers with latest close below min_price are excluded."""
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0  # Don't filter by dollar volume
-        settings.scan.min_price = 10.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(min_price=10.0),
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         # PENNY: close=5.0 (below $10)
         # AAPL: close=150.0 (above $10)
@@ -304,8 +317,13 @@ class TestLiquidityPreFilter:
 
     async def test_all_filtered_produces_empty_recommendations(self) -> None:
         """When all tickers are filtered by liquidity, recommendations are empty."""
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 999_999_999.0  # Unreachably high
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=999_999_999.0),
+                )
+            )
+        )
 
         tickers = ["AAPL"]
         universe_result = _make_universe_result(tickers, close_price=100.0, volume=100)
@@ -323,10 +341,13 @@ class TestTopNSelection:
 
     async def test_limits_tickers_to_top_n(self) -> None:
         """Only top_n tickers by composite_score proceed to chain fetching."""
-        settings = AppSettings()
-        settings.scan.top_n = 2
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(top_n=2, min_dollar_volume=1.0),
+                )
+            )
+        )
 
         tickers = ["A", "B", "C", "D"]
         universe_result = _make_universe_result(tickers, close_price=100.0)
@@ -374,9 +395,13 @@ class TestPerTickerFetching:
 
     async def test_chains_fetched_for_each_ticker(self) -> None:
         """fetch_chain_all_expirations called for each top-N ticker."""
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         tickers = ["AAPL", "MSFT"]
         universe_result = _make_universe_result(tickers, close_price=100.0)
@@ -390,9 +415,13 @@ class TestPerTickerFetching:
 
     async def test_ticker_info_fetched_for_each_ticker(self) -> None:
         """fetch_ticker_info called for each top-N ticker."""
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         tickers = ["AAPL", "MSFT"]
         universe_result = _make_universe_result(tickers, close_price=100.0)
@@ -410,9 +439,13 @@ class TestRecommendContracts:
 
     async def test_recommend_contracts_args(self) -> None:
         """recommend_contracts receives correct spot, rate, yield, direction, config."""
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         tickers = ["AAPL"]
         universe_result = _make_universe_result(tickers, close_price=150.0)
@@ -439,13 +472,20 @@ class TestRecommendContracts:
             assert call_kwargs.kwargs["risk_free_rate"] == pytest.approx(0.045)
             assert call_kwargs.kwargs["dividend_yield"] == pytest.approx(0.01)
             assert call_kwargs.kwargs["direction"] == SignalDirection.BULLISH
-            assert call_kwargs.kwargs["config"] is settings.pricing
+            assert call_kwargs.kwargs["filters"] is settings.scan.filters.options
+            assert call_kwargs.kwargs["delta_target"] == pytest.approx(
+                settings.pricing.delta_target
+            )
 
     async def test_no_chains_returns_empty_recommendations(self) -> None:
         """Ticker with no option chains produces empty recommendation."""
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         tickers = ["AAPL"]
         universe_result = _make_universe_result(tickers, close_price=100.0)
@@ -466,9 +506,13 @@ class TestPerTickerErrorIsolation:
 
     async def test_failed_ticker_does_not_crash_scan(self) -> None:
         """If one ticker's chain fetch raises, others still succeed."""
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         tickers = ["AAPL", "MSFT"]
         universe_result = _make_universe_result(tickers, close_price=100.0)
@@ -501,9 +545,13 @@ class TestProgressCallback:
         def recording_progress(phase: ScanPhase, current: int, total: int) -> None:
             progress_calls.append((phase, current, total))
 
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         tickers = ["AAPL"]
         universe_result = _make_universe_result(tickers, close_price=100.0)
@@ -529,9 +577,13 @@ class TestPerTickerTimeout:
 
     async def test_slow_ticker_times_out_others_succeed(self) -> None:
         """A ticker that exceeds the per-ticker timeout is isolated as a failure."""
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
         settings.scan.options_per_ticker_timeout = 0.1  # 100ms
 
         tickers = ["SLOW", "FAST"]
@@ -608,7 +660,7 @@ class TestPhase3Cancellation:
 
         pipeline._phase_scoring = _scoring_then_cancel  # type: ignore[assignment]
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.cancelled is True
         assert result.phases_completed == 2

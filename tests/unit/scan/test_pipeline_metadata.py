@@ -32,7 +32,9 @@ from options_arena.models import (
     SignalDirection,
     TickerScore,
 )
+from options_arena.models.config import ScanConfig
 from options_arena.models.enums import DividendSource, ExerciseStyle, MarketCapTier, OptionType
+from options_arena.models.filters import ScanFilterSpec, UniverseFilters
 from options_arena.models.market_data import OHLCV, TickerInfo
 from options_arena.models.metadata import TickerMetadata
 from options_arena.models.options import OptionContract
@@ -226,7 +228,9 @@ def _make_pipeline_phase1(
     metadata_raises: bool = False,
 ) -> tuple[ScanPipeline, dict[str, AsyncMock]]:
     """Create a ScanPipeline with mocked services for Phase 1 metadata tests."""
-    _settings = settings or AppSettings()
+    _settings = settings or AppSettings(
+        scan=ScanConfig(filters=ScanFilterSpec(universe=UniverseFilters(preset=ScanPreset.FULL)))
+    )
     tickers = optionable_tickers if optionable_tickers is not None else ["AAPL", "MSFT", "GOOG"]
 
     mock_universe = AsyncMock()
@@ -281,7 +285,9 @@ def _make_pipeline_phase3(
     metadata_from_map: dict[str, TickerMetadata] | None = None,
 ) -> tuple[ScanPipeline, dict[str, AsyncMock]]:
     """Create a ScanPipeline with mocked services for Phase 3 metadata tests."""
-    _settings = settings or AppSettings()
+    _settings = settings or AppSettings(
+        scan=ScanConfig(filters=ScanFilterSpec(universe=UniverseFilters(preset=ScanPreset.FULL)))
+    )
 
     mock_universe = AsyncMock()
     mock_market_data = AsyncMock()
@@ -373,7 +379,7 @@ class TestPhase1MetadataEnrichment:
             metadata_list=metadata,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert "TSLA" in result.sector_map
         assert result.sector_map["TSLA"] == GICSSector.CONSUMER_DISCRETIONARY
@@ -396,7 +402,7 @@ class TestPhase1MetadataEnrichment:
             metadata_list=metadata,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         # S&P 500 sector should be preserved, NOT overwritten by metadata
         assert result.sector_map["AAPL"] == GICSSector.INFORMATION_TECHNOLOGY
@@ -417,7 +423,7 @@ class TestPhase1MetadataEnrichment:
             metadata_list=metadata,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert "TSLA" in result.industry_group_map
         assert result.industry_group_map["TSLA"] == GICSIndustryGroup.AUTOMOBILES_COMPONENTS
@@ -431,7 +437,7 @@ class TestPhase1MetadataEnrichment:
             metadata_list=[],
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         # Should complete without error — sector/industry maps stay empty
         assert result.sector_map == {}
@@ -449,7 +455,7 @@ class TestPhase1MetadataEnrichment:
         )
 
         # Should NOT raise — metadata failure is caught and logged
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         # S&P 500 data should still be intact
         assert "AAPL" in result.sector_map
@@ -473,7 +479,7 @@ class TestPhase1MetadataEnrichment:
         )
 
         with caplog.at_level(logging.INFO, logger="options_arena.scan.pipeline"):
-            await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+            await pipeline._phase_universe(_noop_progress)
 
         assert any("Metadata enrichment" in record.message for record in caplog.records)
 

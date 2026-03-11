@@ -29,7 +29,9 @@ from options_arena.models import (
     SignalDirection,
     TickerScore,
 )
+from options_arena.models.config import ScanConfig
 from options_arena.models.enums import DividendSource, ExerciseStyle, OptionType
+from options_arena.models.filters import OptionsFilters, ScanFilterSpec, UniverseFilters
 from options_arena.models.market_data import OHLCV, TickerInfo
 from options_arena.scan.models import (
     OptionsResult,
@@ -179,7 +181,9 @@ def _make_pipeline_for_persist(
     save_scan_run_return: int = 42,
 ) -> tuple[ScanPipeline, dict[str, AsyncMock]]:
     """Create a ScanPipeline with mocked services focused on Phase 4 testing."""
-    _settings = settings or AppSettings()
+    _settings = settings or AppSettings(
+        scan=ScanConfig(filters=ScanFilterSpec(universe=UniverseFilters(preset=ScanPreset.FULL)))
+    )
 
     mock_universe = AsyncMock()
     mock_market_data = AsyncMock()
@@ -231,7 +235,6 @@ class TestPhasePersist:
 
         result = await pipeline._phase_persist(
             started_at=started_at,
-            preset=ScanPreset.FULL,
             source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
@@ -257,7 +260,6 @@ class TestPhasePersist:
 
         await pipeline._phase_persist(
             started_at=started_at,
-            preset=ScanPreset.SP500,
             source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
@@ -267,7 +269,7 @@ class TestPhasePersist:
 
         mocks["repository"].save_scan_run.assert_awaited_once()
         saved_run = mocks["repository"].save_scan_run.call_args.args[0]
-        assert saved_run.preset == ScanPreset.SP500
+        assert saved_run.preset == ScanPreset.FULL
         assert saved_run.tickers_scanned == 2
         assert saved_run.tickers_scored == 2
         assert saved_run.recommendations == 1
@@ -283,7 +285,6 @@ class TestPhasePersist:
 
         await pipeline._phase_persist(
             started_at=started_at,
-            preset=ScanPreset.FULL,
             source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
@@ -306,7 +307,6 @@ class TestPhasePersist:
 
         result = await pipeline._phase_persist(
             started_at=started_at,
-            preset=ScanPreset.FULL,
             source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
@@ -332,7 +332,6 @@ class TestPhasePersist:
 
         result = await pipeline._phase_persist(
             started_at=started_at,
-            preset=ScanPreset.FULL,
             source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
@@ -353,7 +352,6 @@ class TestPhasePersist:
 
         result = await pipeline._phase_persist(
             started_at=started_at,
-            preset=ScanPreset.FULL,
             source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
@@ -380,7 +378,6 @@ class TestPhasePersist:
 
         await pipeline._phase_persist(
             started_at=started_at,
-            preset=ScanPreset.FULL,
             source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
@@ -409,7 +406,6 @@ class TestPhase4AtomicPersistence:
 
         await pipeline._phase_persist(
             started_at=started_at,
-            preset=ScanPreset.FULL,
             source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
@@ -440,7 +436,6 @@ class TestPhase4AtomicPersistence:
 
         await pipeline._phase_persist(
             started_at=started_at,
-            preset=ScanPreset.FULL,
             source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
@@ -471,7 +466,6 @@ class TestPhase4AtomicPersistence:
 
         await pipeline._phase_persist(
             started_at=started_at,
-            preset=ScanPreset.FULL,
             source=ScanSource.MANUAL,
             universe_result=universe_result,
             scoring_result=scoring_result,
@@ -498,9 +492,13 @@ class TestPhase4Cancellation:
             ]
         )
 
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         mock_universe = AsyncMock()
         mock_universe.fetch_optionable_tickers = AsyncMock(return_value=tickers)
@@ -552,7 +550,7 @@ class TestPhase4Cancellation:
 
         token = CancellationToken()
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.cancelled is True
         assert result.phases_completed == 3
@@ -580,9 +578,13 @@ class TestFullPipelineRun:
             ]
         )
 
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         mock_universe = AsyncMock()
         mock_universe.fetch_optionable_tickers = AsyncMock(return_value=tickers)
@@ -620,7 +622,7 @@ class TestFullPipelineRun:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[_make_option_contract("AAPL")],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         assert result.phases_completed == 4
         assert result.cancelled is False
@@ -646,9 +648,14 @@ class TestFullPipelineRun:
             ]
         )
 
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                    universe=UniverseFilters(preset=ScanPreset.FULL),
+                )
+            )
+        )
 
         mock_universe = AsyncMock()
         mock_universe.fetch_optionable_tickers = AsyncMock(return_value=tickers)
@@ -686,7 +693,7 @@ class TestFullPipelineRun:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[_make_option_contract("X")],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         assert result.scan_run.tickers_scanned == 2
         assert result.scan_run.tickers_scored > 0

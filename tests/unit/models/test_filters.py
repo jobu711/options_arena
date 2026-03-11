@@ -31,16 +31,16 @@ class TestUniverseFilters:
     """Tests for UniverseFilters (Phase 1 scan pipeline filters)."""
 
     def test_defaults_match_current_scan_config(self) -> None:
-        """Verify UniverseFilters defaults align with existing ScanConfig defaults."""
+        """Verify UniverseFilters defaults align with ScanConfig.filters.universe defaults."""
         uf = UniverseFilters()
         sc = ScanConfig()
         assert uf.preset == ScanPreset.SP500
-        assert uf.sectors == sc.sectors
-        assert uf.industry_groups == sc.industry_groups
-        assert uf.custom_tickers == sc.custom_tickers
-        assert uf.market_cap_tiers == sc.market_cap_tiers
-        assert uf.ohlcv_min_bars == sc.ohlcv_min_bars
-        assert uf.min_price == sc.min_price
+        assert uf.sectors == sc.filters.universe.sectors
+        assert uf.industry_groups == sc.filters.universe.industry_groups
+        assert uf.custom_tickers == sc.filters.universe.custom_tickers
+        assert uf.market_cap_tiers == sc.filters.universe.market_cap_tiers
+        assert uf.ohlcv_min_bars == sc.filters.universe.ohlcv_min_bars
+        assert uf.min_price == sc.filters.universe.min_price
 
     def test_frozen_rejects_mutation(self) -> None:
         """Frozen model must reject attribute reassignment."""
@@ -189,7 +189,7 @@ class TestOptionsFilters:
         assert of.max_dte == 365
         assert of.min_oi == 100
         assert of.min_volume == 1
-        assert of.max_spread_pct == 30.0
+        assert of.max_spread_pct == pytest.approx(0.30)
         assert of.delta_primary_min == 0.20
         assert of.delta_primary_max == 0.50
         assert of.delta_fallback_min == 0.10

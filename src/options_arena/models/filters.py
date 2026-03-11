@@ -15,10 +15,10 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from options_arena.models.config import TICKER_RE
 from options_arena.models.enums import (
     INDUSTRY_GROUP_ALIASES,
     SECTOR_ALIASES,
+    TICKER_RE,
     GICSIndustryGroup,
     GICSSector,
     MarketCapTier,
@@ -220,7 +220,7 @@ class OptionsFilters(BaseModel):
     min_iv_rank: float | None = None
     min_oi: int = 100
     min_volume: int = 1
-    max_spread_pct: float = 30.0
+    max_spread_pct: float = 0.30
     delta_primary_min: float = 0.20
     delta_primary_max: float = 0.50
     delta_fallback_min: float = 0.10
