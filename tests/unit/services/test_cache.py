@@ -14,7 +14,8 @@ from options_arena.services.cache import (
     TTL_CHAIN_MARKET,
     TTL_FAILURE,
     TTL_FUNDAMENTALS,
-    TTL_OHLCV,
+    TTL_OHLCV_AFTER,
+    TTL_OHLCV_MARKET,
     TTL_QUOTE_AFTER,
     TTL_QUOTE_MARKET,
     TTL_REFERENCE,
@@ -145,6 +146,18 @@ async def test_lru_evicts_oldest_entry(config: ServiceConfig) -> None:
 # ---------------------------------------------------------------------------
 
 
+async def test_ttl_for_ohlcv_market_hours(memory_cache: ServiceCache) -> None:
+    """During market hours, OHLCV TTL uses the shorter 30-min value."""
+    with patch("options_arena.services.cache.is_market_hours", return_value=True):
+        assert memory_cache.ttl_for("ohlcv") == TTL_OHLCV_MARKET
+
+
+async def test_ttl_for_ohlcv_after_hours(memory_cache: ServiceCache) -> None:
+    """After hours, OHLCV TTL uses the longer 6-hour value."""
+    with patch("options_arena.services.cache.is_market_hours", return_value=False):
+        assert memory_cache.ttl_for("ohlcv") == TTL_OHLCV_AFTER
+
+
 async def test_ttl_for_chain_market_hours(memory_cache: ServiceCache) -> None:
     """During market hours, chain TTL uses the shorter market-hours value."""
     with patch("options_arena.services.cache.is_market_hours", return_value=True):
@@ -160,7 +173,7 @@ async def test_ttl_for_chain_after_hours(memory_cache: ServiceCache) -> None:
 async def test_ttl_for_all_data_types(memory_cache: ServiceCache) -> None:
     """Verify correct TTL for each known data type during market hours."""
     with patch("options_arena.services.cache.is_market_hours", return_value=True):
-        assert memory_cache.ttl_for("ohlcv") == TTL_OHLCV
+        assert memory_cache.ttl_for("ohlcv") == TTL_OHLCV_MARKET
         assert memory_cache.ttl_for("chain") == TTL_CHAIN_MARKET
         assert memory_cache.ttl_for("quote") == TTL_QUOTE_MARKET
         assert memory_cache.ttl_for("fundamentals") == TTL_FUNDAMENTALS
@@ -360,7 +373,8 @@ async def test_get_nonexistent_returns_none(memory_cache: ServiceCache) -> None:
 
 def test_ttl_constants_values() -> None:
     """Verify named TTL constants have the expected values in seconds."""
-    assert TTL_OHLCV == 6 * 60 * 60
+    assert TTL_OHLCV_MARKET == 30 * 60
+    assert TTL_OHLCV_AFTER == 6 * 60 * 60
     assert TTL_CHAIN_MARKET == 300
     assert TTL_CHAIN_AFTER == 3600
     assert TTL_QUOTE_MARKET == 60
