@@ -433,14 +433,44 @@ async def process_ticker_options(
     _map_yfinance = map_yfinance_fn or map_yfinance_to_metadata
     ticker = ticker_score.ticker
 
-    # Fetch chains, ticker info, and earnings date concurrently
+    # Early earnings check — before expensive chain fetch (saves API calls)
+    earnings_date: date | None = None
+    if options_filters.exclude_near_earnings_days is not None:
+        try:
+            earnings_date = await market_data.fetch_earnings_date(ticker)
+        except Exception:
+            logger.warning("Earnings fetch failed for %s", ticker, exc_info=True)
+
+        if earnings_date is not None:
+            market_today = datetime.now(ZoneInfo("America/New_York")).date()
+            days_to_earnings = (earnings_date - market_today).days
+            if 0 <= days_to_earnings <= options_filters.exclude_near_earnings_days:
+                logger.info(
+                    "Filtered %s: earnings in %d days (<= %d)",
+                    ticker,
+                    days_to_earnings,
+                    options_filters.exclude_near_earnings_days,
+                )
+                return (ticker, [], earnings_date, None)
+
+    # Fetch chains, ticker info (and earnings if not already fetched) concurrently
     chain_task = options_data.fetch_chain_all_expirations(ticker)
     info_task = market_data.fetch_ticker_info(ticker)
-    earnings_task = market_data.fetch_earnings_date(ticker)
 
-    chain_results, ticker_info, earnings_result = await asyncio.gather(
-        chain_task, info_task, earnings_task, return_exceptions=True
-    )
+    if earnings_date is None and options_filters.exclude_near_earnings_days is None:
+        # Earnings not fetched yet — fetch concurrently with chains
+        earnings_task = market_data.fetch_earnings_date(ticker)
+        chain_results, ticker_info, earnings_result = await asyncio.gather(
+            chain_task, info_task, earnings_task, return_exceptions=True
+        )
+        if isinstance(earnings_result, BaseException):
+            logger.warning("Earnings fetch failed for %s: %s", ticker, earnings_result)
+        else:
+            earnings_date = earnings_result
+    else:
+        chain_results, ticker_info = await asyncio.gather(
+            chain_task, info_task, return_exceptions=True
+        )
 
     # Re-raise required data failures
     if isinstance(chain_results, BaseException):
@@ -448,15 +478,7 @@ async def process_ticker_options(
     if isinstance(ticker_info, BaseException):
         raise ticker_info
 
-    # Earnings is optional — log and continue on failure
-    earnings_date: date | None
-    if isinstance(earnings_result, BaseException):
-        logger.warning("Earnings fetch failed for %s: %s", ticker, earnings_result)
-        earnings_date = None
-    else:
-        earnings_date = earnings_result
-
-    # Pre-scan narrowing: check market cap tier + earnings proximity
+    # Pre-scan narrowing: check market cap tier
     if (
         universe_filters.market_cap_tiers
         and ticker_info.market_cap_tier is not None
@@ -469,18 +491,6 @@ async def process_ticker_options(
             [t.value for t in universe_filters.market_cap_tiers],
         )
         return (ticker, [], earnings_date, ticker_info.current_price)
-
-    if options_filters.exclude_near_earnings_days is not None and earnings_date is not None:
-        market_today = datetime.now(ZoneInfo("America/New_York")).date()
-        days_to_earnings = (earnings_date - market_today).days
-        if days_to_earnings < options_filters.exclude_near_earnings_days:
-            logger.info(
-                "Filtered %s: earnings in %d days (< %d)",
-                ticker,
-                days_to_earnings,
-                options_filters.exclude_near_earnings_days,
-            )
-            return (ticker, [], earnings_date, ticker_info.current_price)
 
     # Enrich ticker_score with company_name from ticker info
     ticker_score.company_name = ticker_info.company_name

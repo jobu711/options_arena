@@ -13,6 +13,7 @@ from options_arena.models import (
     SECTOR_ALIASES,
     SECTOR_TO_INDUSTRY_GROUPS,
     GICSSector,
+    MarketCapTier,
     ScanPreset,
 )
 from options_arena.models.filters import UniverseFilters
@@ -120,6 +121,32 @@ async def run_universe_phase(
             "Failed to load ticker metadata, continuing without enrichment",
             exc_info=True,
         )
+        all_metadata = []
+
+    # Step 4a: Market cap pre-filter — before OHLCV fetch (saves expensive API calls)
+    if universe_filters.market_cap_tiers:
+        metadata_by_ticker: dict[str, MarketCapTier | None] = {
+            m.ticker: m.market_cap_tier for m in all_metadata
+        }
+        if metadata_by_ticker:
+            allowed_tiers = frozenset(universe_filters.market_cap_tiers)
+            before_count = len(all_tickers)
+            all_tickers = [
+                t
+                for t in all_tickers
+                if t not in metadata_by_ticker  # keep tickers without metadata
+                or metadata_by_ticker[t] in allowed_tiers
+            ]
+            logger.info(
+                "Market cap filter (%s): %d -> %d tickers",
+                [t.value for t in universe_filters.market_cap_tiers],
+                before_count,
+                len(all_tickers),
+            )
+        else:
+            logger.warning(
+                "Market cap tiers requested but metadata cache is empty; skipping filter"
+            )
 
     # Step 3a: Custom tickers branch — bypass preset/sector/industry filters
     custom = universe_filters.custom_tickers
