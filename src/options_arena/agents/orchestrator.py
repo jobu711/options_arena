@@ -994,9 +994,7 @@ async def auto_tune_weights(
 
     # Skip persistence when no agent has enough scored outcomes
     has_eligible = any(
-        r.agent_name != "risk"
-        and r.sample_size >= 10
-        and math.isfinite(r.brier_score)
+        r.agent_name != "risk" and r.sample_size >= 10 and math.isfinite(r.brier_score)
         for r in accuracy
     )
     if not has_eligible:
