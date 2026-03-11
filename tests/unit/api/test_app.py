@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
+
 from options_arena.api.app import create_app
 
 
+@pytest.mark.critical
 def test_create_app_returns_fastapi_instance() -> None:
     """create_app() returns a configured FastAPI application."""
     app = create_app()

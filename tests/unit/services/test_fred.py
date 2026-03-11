@@ -136,6 +136,7 @@ def fred_service_no_key(
 class TestFredServiceSuccessfulFetch:
     """Tests for successful FRED API fetches."""
 
+    @pytest.mark.critical
     @pytest.mark.asyncio
     async def test_successful_fetch_converts_percentage_to_decimal(
         self, fred_service: FredService

@@ -95,6 +95,7 @@ def sample_trade_thesis() -> TradeThesis:
 class TestMarketContext:
     """Tests for the MarketContext model."""
 
+    @pytest.mark.critical
     def test_happy_path_all_fields(self, sample_market_context: MarketContext) -> None:
         """MarketContext constructs with all fields correctly assigned."""
         assert sample_market_context.ticker == "AAPL"

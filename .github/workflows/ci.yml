@@ -43,8 +43,8 @@ jobs:
           restore-keys: mypy-${{ hashFiles('uv.lock') }}-
       - run: uv run mypy src/ --strict
 
-  tests:
-    name: "Gate 3: Python Tests"
+  tests-fast:
+    name: "Gate 3: Python Tests (standard)"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,7 +58,7 @@ jobs:
       - run: uv sync --frozen
       - name: Dependency audit
         run: uv run pip-audit
-      - run: uv run pytest tests/ -n auto -x -q --tb=short
+      - run: uv run pytest -m "not exhaustive" -n auto -x -q --tb=short
 
   frontend:
     name: "Gate 4: Frontend"

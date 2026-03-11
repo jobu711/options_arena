@@ -23,7 +23,7 @@ from options_arena.utils.exceptions import InsufficientDataError
 class TestRSI:
     """Tests for Relative Strength Index."""
 
-    @pytest.mark.smoke
+    @pytest.mark.critical
     def test_known_value_investopedia(self) -> None:
         """Known-value test using Investopedia RSI example.
 

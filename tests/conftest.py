@@ -7,12 +7,34 @@ can declare them as fixture parameters without importing factories directly.
 
 from __future__ import annotations
 
+import warnings
+
 import pytest
 
 from options_arena.models.analysis import MarketContext
 from options_arena.models.market_data import Quote
 from options_arena.models.options import OptionContract
 from tests.factories import make_market_context, make_option_contract, make_quote
+
+_TIER_MARKERS = {"critical", "exhaustive"}
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Emit a warning for test items that have no tier marker (critical/exhaustive).
+
+    This is informational only — no tests are skipped or failed.
+    """
+    unmarked = []
+    for item in items:
+        own_markers = {m.name for m in item.iter_markers()}
+        if not own_markers & _TIER_MARKERS:
+            unmarked.append(item.nodeid)
+    if unmarked:
+        warnings.warn(
+            f"{len(unmarked)} test(s) have no tier marker (critical/exhaustive). "
+            "Consider adding @pytest.mark.critical for happy-path tests.",
+            stacklevel=1,
+        )
 
 
 @pytest.fixture()

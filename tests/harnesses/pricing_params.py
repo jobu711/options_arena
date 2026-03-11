@@ -65,7 +65,7 @@ def generate_stress_grid() -> list[PricingParams]:
     """Generate ~2K parameter combos for brute-force numerical stability.
 
     Includes extreme S/K ratios, solver-boundary sigma, near-zero T,
-    and varied rates/dividends. Intended for ``@pytest.mark.slow``.
+    and varied rates/dividends. Intended for ``@pytest.mark.exhaustive``.
     """
     spot = 100.0
     # 9 S/K ratios: very deep OTM to very deep ITM

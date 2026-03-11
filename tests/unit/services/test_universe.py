@@ -60,6 +60,7 @@ def _mock_httpx_response(text: str = "") -> MagicMock:
 
 
 @pytest.mark.asyncio
+@pytest.mark.critical
 async def test_sp500_happy_path(service: UniverseService) -> None:
     """Fetch S&P 500 constituents returns list of SP500Constituent models."""
     sectors = [

@@ -75,6 +75,7 @@ def _contract_with_greeks(
 class TestFilterContracts:
     """Tests for filter_contracts."""
 
+    @pytest.mark.critical
     def test_bullish_only_calls(self) -> None:
         """BULLISH direction should keep only calls."""
         call = make_contract(option_type=OptionType.CALL)

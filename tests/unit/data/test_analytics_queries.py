@@ -164,6 +164,7 @@ async def _seed_contracts_and_outcomes(
 class TestWinRateQuery:
     """Tests for ``get_win_rate_by_direction()``."""
 
+    @pytest.mark.critical
     @pytest.mark.asyncio
     async def test_win_rate_by_direction(self, repo: Repository, scan_id: int) -> None:
         """Verify win rate computed correctly per direction."""

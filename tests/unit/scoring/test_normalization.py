@@ -33,6 +33,7 @@ ALL_FIELDS: list[str] = list(IndicatorSignals.model_fields.keys())
 class TestPercentileRankNormalize:
     """Tests for percentile_rank_normalize()."""
 
+    @pytest.mark.critical
     def test_basic_ranking_three_tickers(self) -> None:
         """Three tickers with distinct RSI values produce correct percentile ranks."""
         universe = {

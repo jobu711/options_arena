@@ -136,6 +136,7 @@ def _make_debate_result(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.critical
 def test_markdown_contains_all_headers() -> None:
     """Exported markdown must contain Trend Analysis and Verdict headers."""
     result = _make_debate_result()

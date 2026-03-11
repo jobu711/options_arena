@@ -87,6 +87,7 @@ def _clean_arena_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class TestAppSettingsDefaults:
+    @pytest.mark.critical
     def test_app_settings_constructs_with_no_args(self) -> None:
         settings = AppSettings()
         assert settings is not None

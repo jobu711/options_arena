@@ -72,7 +72,7 @@ _PIPELINE = "options_arena.agents.orchestrator._run_debate_pipeline"
 class TestBuildMarketContext:
     """Tests for build_market_context field mapping."""
 
-    @pytest.mark.smoke
+    @pytest.mark.critical
     def test_maps_ticker_from_score(
         self,
         mock_ticker_score: TickerScore,

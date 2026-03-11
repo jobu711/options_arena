@@ -20,6 +20,7 @@ async def db() -> Database:
     await database.close()
 
 
+@pytest.mark.critical
 @pytest.mark.asyncio
 async def test_wal_mode_enabled(tmp_path: Path) -> None:
     """PRAGMA journal_mode returns 'wal' after connect (file-backed DB)."""

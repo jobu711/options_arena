@@ -82,8 +82,8 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "--durations=20 --timeout=60"
 markers = [
+    "critical: critical-path tests for <30s agent/pre-commit verification",
+    "exhaustive: stress grids and large parametrize matrices — nightly only",
     "integration: marks tests as integration tests (may require external services)",
-    "slow: marks tests expected to take >1s (deselect with -m 'not slow')",
     "db: marks tests that touch SQLite (even :memory:)",
-    "smoke: marks critical-path tests for fast pre-commit sanity checks",
 ]

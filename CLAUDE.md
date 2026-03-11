@@ -45,7 +45,7 @@ src/options_arena/
     utils/        # DataFetchError exception hierarchy
 data/migrations/  # Sequential SQL migration files
 web/              # Vue 3 SPA (TypeScript, Pinia, PrimeVue)  → has own CLAUDE.md
-tests/            # 3,959 tests (3,921 unit + 38 E2E)        → has own CLAUDE.md
+tests/            # 4,522 tests (24K parametrized) + 107 E2E  → has own CLAUDE.md
 ```
 
 Each module's CLAUDE.md has the detailed file listing. Read it before modifying that module.
@@ -225,9 +225,9 @@ lessons until mistake rates drop. Review `.claude/lessons.md` on session start.
 
 ```bash
 uv run ruff check . --fix && uv run ruff format .   # lint + format
-uv run pytest tests/ -n auto -q                      # all tests (parallel)
+uv run pytest -m critical -q                         # critical tier (<30s pre-commit)
+uv run pytest -m "not exhaustive" -n auto -q         # standard suite (CI-level)
 uv run pytest tests/ -v                              # all tests (verbose, for debugging)
-uv run pytest tests/ -m smoke                        # smoke only (<10s pre-commit)
 uv run mypy src/ --strict                            # type checking
 python tools/docgen.py                               # regenerate technical reference
 ```

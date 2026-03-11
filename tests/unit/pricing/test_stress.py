@@ -12,7 +12,7 @@ Property-based invariant tests (default marker, CI-fast < 30s):
     9. Gamma non-negative
    10. Vega non-negative
 
-Brute-force grid (@pytest.mark.slow):
+Brute-force grid (@pytest.mark.exhaustive):
     ~2K combos: finite price, non-negative price, finite Greeks, delta in bounds.
 """
 
@@ -280,11 +280,11 @@ def test_american_vega_non_negative(p: PricingParams) -> None:
 
 
 # ===========================================================================
-# Brute-force grid (slow marker)
+# Brute-force grid (exhaustive marker)
 # ===========================================================================
 
 
-@pytest.mark.slow
+@pytest.mark.exhaustive
 @pytest.mark.parametrize("p", _get_stress_grid(), ids=_param_id)
 def test_bsm_stress_grid(p: PricingParams) -> None:
     """BSM must produce finite, non-negative prices for all stress inputs."""
@@ -293,7 +293,7 @@ def test_bsm_stress_grid(p: PricingParams) -> None:
     assert price >= -1e-10, f"BSM price negative: {price}"
 
 
-@pytest.mark.slow
+@pytest.mark.exhaustive
 @pytest.mark.parametrize("p", _get_stress_grid(), ids=_param_id)
 def test_american_stress_grid(p: PricingParams) -> None:
     """American must produce finite, non-negative prices for all stress inputs."""
@@ -302,7 +302,7 @@ def test_american_stress_grid(p: PricingParams) -> None:
     assert price >= -1e-10, f"American price negative: {price}"
 
 
-@pytest.mark.slow
+@pytest.mark.exhaustive
 @pytest.mark.parametrize(
     "p",
     [p for p in _get_stress_grid() if p.T >= 0.003 and p.sigma >= 0.01],
@@ -319,7 +319,7 @@ def test_bsm_greeks_stress_grid(p: PricingParams) -> None:
     assert math.isfinite(greeks.rho), f"Rho not finite: {greeks.rho}"
 
 
-@pytest.mark.slow
+@pytest.mark.exhaustive
 @pytest.mark.parametrize(
     "p",
     [p for p in _get_stress_grid() if p.T >= 0.003 and p.sigma >= 0.01],

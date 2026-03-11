@@ -2,12 +2,25 @@
 
 ## Commands
 ```bash
-uv run pytest tests/unit -v                        # unit only
+uv run pytest -m critical -q                       # critical tier (<30s pre-commit)
+uv run pytest -m "not exhaustive" -n auto -q       # standard suite (CI-level)
+uv run pytest tests/unit -v                        # unit only (verbose)
 uv run pytest tests/integration -v                 # integration only
 uv run pytest tests/ -v --cov=src/options_arena     # full + coverage
-uv run pytest tests/ -n auto -q                    # parallel (~2x faster)
-uv run pytest tests/ -m smoke -v                   # smoke only (<10s)
+uv run pytest tests/ -n auto -q                    # full suite (parallel)
 ```
+
+## Test Tiers (Marker Taxonomy)
+
+| Marker | Purpose | When to run |
+|--------|---------|-------------|
+| `critical` | Happy-path tests, one per public surface (~50 tests, <30s) | Pre-commit, agent verification |
+| `exhaustive` | Stress grids, large parametrize matrices (12K+ cases) | Nightly CI only |
+| `integration` | Tests requiring external service mocks | Filter with `-m integration` |
+| `db` | Tests touching SQLite (even `:memory:`) | Filter with `-m db` |
+
+New tests should include `@pytest.mark.critical` if they cover a module's primary happy path.
+Use `@pytest.mark.exhaustive` for large parametrize grids (>100 cases).
 
 ## Absolute Rules
 1. **Never hit real APIs.** Mock Groq, yfinance, and all data sources. Every test

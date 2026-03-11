@@ -21,6 +21,7 @@ from options_arena.utils.exceptions import InsufficientDataError
 class TestMacd:
     """Tests for MACD histogram indicator."""
 
+    @pytest.mark.critical
     def test_known_values(self) -> None:
         """Verify MACD histogram against hand-calculated reference values.
 

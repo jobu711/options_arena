@@ -12,6 +12,8 @@ Verifies that all domain exceptions form the expected inheritance tree:
 Also tests isinstance behavior, message preservation, and catch-all patterns.
 """
 
+import pytest
+
 from options_arena.utils.exceptions import (
     DataFetchError,
     DataSourceUnavailableError,
@@ -25,6 +27,7 @@ from options_arena.utils.exceptions import (
 # --------------------------------------------------------------------------- #
 
 
+@pytest.mark.critical
 def test_data_fetch_error_is_exception() -> None:
     assert issubclass(DataFetchError, Exception)
 

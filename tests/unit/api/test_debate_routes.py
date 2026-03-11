@@ -58,6 +58,7 @@ def _make_debate_row(debate_id: int = 1) -> DebateRow:
     )
 
 
+@pytest.mark.critical
 async def test_list_debates_empty(client: AsyncClient) -> None:
     """GET /api/debate returns empty list."""
     response = await client.get("/api/debate")

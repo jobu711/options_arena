@@ -113,6 +113,7 @@ def sample_contract_outcome() -> ContractOutcome:
 class TestRecommendedContract:
     """Tests for the RecommendedContract frozen model."""
 
+    @pytest.mark.critical
     def test_construction_with_valid_data(
         self, sample_recommended_contract: RecommendedContract
     ) -> None:

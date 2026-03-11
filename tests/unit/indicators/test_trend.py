@@ -23,6 +23,7 @@ from options_arena.utils.exceptions import InsufficientDataError
 class TestROC:
     """Tests for Rate of Change indicator."""
 
+    @pytest.mark.critical
     def test_known_value(self) -> None:
         """Known-value test for ROC.
 

@@ -29,6 +29,7 @@ from options_arena.pricing.dispatch import option_greeks, option_price
 class TestInputValidation:
     """Verify that S <= 0 and K <= 0 raise clear ValueError."""
 
+    @pytest.mark.critical
     def test_bsm_price_s_zero(self) -> None:
         with pytest.raises(ValueError, match="S.*must be > 0"):
             bsm_price(0.0, 100.0, 1.0, 0.05, 0.0, 0.20, OptionType.CALL)

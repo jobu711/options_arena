@@ -10,6 +10,8 @@ Tests each of the 12 enums for:
 
 from enum import StrEnum
 
+import pytest
+
 from options_arena.models import (
     DividendSource,
     ExerciseStyle,
@@ -32,6 +34,7 @@ from options_arena.models.enums import SECTOR_ALIASES
 
 
 class TestOptionType:
+    @pytest.mark.critical
     def test_option_type_has_exactly_two_members(self) -> None:
         assert len(OptionType) == 2
 

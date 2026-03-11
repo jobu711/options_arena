@@ -6,6 +6,7 @@ import pytest
 from httpx import AsyncClient
 
 
+@pytest.mark.critical
 @pytest.mark.asyncio
 async def test_health_check_returns_ok(client: AsyncClient) -> None:
     """GET /api/health returns 200 with status ok."""

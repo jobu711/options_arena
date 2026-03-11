@@ -104,6 +104,7 @@ def _make_option_chain_result(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.critical
 async def test_fetch_expirations_happy_path(service: OptionsDataService) -> None:
     """fetch_expirations returns sorted list[date] from yfinance .options."""
     mock_ticker = MagicMock()

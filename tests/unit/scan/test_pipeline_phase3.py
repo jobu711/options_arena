@@ -244,6 +244,7 @@ def _noop_progress(phase: ScanPhase, current: int, total: int) -> None:
 class TestLiquidityPreFilter:
     """Liquidity pre-filter rejects tickers below dollar volume or price thresholds."""
 
+    @pytest.mark.critical
     async def test_rejects_low_dollar_volume(self) -> None:
         """Tickers with avg dollar volume below threshold are excluded."""
         settings = AppSettings(

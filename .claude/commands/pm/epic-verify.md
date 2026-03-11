@@ -84,9 +84,9 @@ Run tests for all discovered test files:
 uv run pytest {space_separated_test_files} -v --tb=short 2>&1 | tail -80
 ```
 
-If no test files found, run smoke tests:
+If no test files found, run critical-tier tests:
 ```bash
-uv run pytest tests/ -m smoke -q 2>&1 | tail -20
+uv run pytest -m critical -q 2>&1 | tail -20
 ```
 
 Record: total tests, passed, failed, errors, skipped.

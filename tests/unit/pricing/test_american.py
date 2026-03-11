@@ -174,7 +174,7 @@ class TestReferenceValues:
         baw_put = american_price(S, K, T, r, q, sigma, OptionType.PUT)
         assert baw_put - bsm_put >= 0.10
 
-    @pytest.mark.smoke
+    @pytest.mark.critical
     def test_call_identity_reference(self) -> None:
         """S=100, K=100, T=1.0, r=0.05, q=0.0, sigma=0.20: American call == BSM call."""
         S, K, T, r, q, sigma = 100.0, 100.0, 1.0, 0.05, 0.0, 0.20

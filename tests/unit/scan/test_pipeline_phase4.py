@@ -224,6 +224,7 @@ def _make_pipeline_for_persist(
 class TestPhasePersist:
     """Phase 4 persists scan results to the database."""
 
+    @pytest.mark.critical
     async def test_scan_run_has_utc_timestamps(self) -> None:
         """ScanRun built in Phase 4 has UTC timestamps."""
         pipeline, _mocks = _make_pipeline_for_persist(save_scan_run_return=1)

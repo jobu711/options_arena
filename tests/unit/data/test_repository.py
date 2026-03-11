@@ -115,7 +115,7 @@ async def test_get_latest_scan_returns_most_recent(repo: Repository) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.smoke
+@pytest.mark.critical
 @pytest.mark.asyncio
 async def test_round_trip_preserves_all_fields(repo: Repository) -> None:
     """save_scan_run → get_scan_by_id preserves all fields."""

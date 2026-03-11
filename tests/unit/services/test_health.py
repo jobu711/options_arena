@@ -36,6 +36,7 @@ def service(config: ServiceConfig) -> HealthService:
 class TestCheckYfinance:
     """Tests for yfinance health check."""
 
+    @pytest.mark.critical
     @pytest.mark.asyncio
     async def test_success(self, service: HealthService) -> None:
         """Successful yfinance check returns available=True with latency."""

@@ -23,6 +23,7 @@ from options_arena.utils.exceptions import InsufficientDataError
 class TestBBWidth:
     """Tests for Bollinger Band width indicator."""
 
+    @pytest.mark.critical
     def test_known_value(self) -> None:
         """Known-value test for Bollinger Band width.
 

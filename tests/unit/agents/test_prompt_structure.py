@@ -55,6 +55,7 @@ _FSTRING_PLACEHOLDER_RE = re.compile(
     ALL_PROMPTS,
     ids=[name for name, _ in ALL_PROMPTS],
 )
+@pytest.mark.critical
 def test_contains_appendix(prompt_name: str, prompt: str) -> None:
     """Each prompt contains the shared PROMPT_RULES_APPENDIX text."""
     # Check for a distinctive substring from the appendix

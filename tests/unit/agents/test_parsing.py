@@ -43,6 +43,7 @@ from options_arena.models import (
 class TestDebateDeps:
     """Tests for DebateDeps dataclass."""
 
+    @pytest.mark.critical
     def test_construction_with_required_fields(
         self,
         mock_market_context: MarketContext,

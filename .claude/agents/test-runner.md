@@ -60,6 +60,9 @@ The user needs test execution with failure analysis, so use the test-runner agen
 2. **Test Execution**:
 
    ```bash
+   # Critical tier — fast pre-commit verification (<30s)
+   uv run pytest -m critical -q
+
    # Standard execution with automatic log naming
    .claude/scripts/test-and-log.sh tests/[test_file].py
 

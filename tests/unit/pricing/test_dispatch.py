@@ -36,6 +36,7 @@ STD_SIGMA: float = 0.20
 class TestRoutingCorrectness:
     """Verify dispatch routes to the correct engine and returns identical results."""
 
+    @pytest.mark.critical
     def test_price_american_matches_american_price(self) -> None:
         """option_price(AMERICAN, ...) returns exactly american_price(...)."""
         dispatched = option_price(

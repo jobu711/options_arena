@@ -60,7 +60,7 @@ class TestBsmPricingCorrectness:
         ],
         ids=["Hull ATM reference"],
     )
-    @pytest.mark.smoke
+    @pytest.mark.critical
     def test_known_reference_values_hull(
         self,
         S: float,

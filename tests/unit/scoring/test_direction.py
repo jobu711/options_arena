@@ -1,5 +1,7 @@
 """Unit tests for options_arena.scoring.direction — signal classification."""
 
+import pytest
+
 from options_arena.models.config import ScanConfig
 from options_arena.models.enums import SignalDirection
 from options_arena.scoring.direction import (
@@ -16,6 +18,7 @@ from options_arena.scoring.direction import (
 class TestDetermineDirection:
     """Tests for determine_direction()."""
 
+    @pytest.mark.critical
     def test_strong_bullish_overbought_rsi_bullish_sma(self) -> None:
         """Strong trend + overbought RSI + bullish SMA -> BULLISH."""
         result = determine_direction(adx=30.0, rsi=80.0, sma_alignment=1.0)

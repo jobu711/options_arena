@@ -298,7 +298,7 @@ class TestFetchOHLCV:
 class TestFetchQuote:
     """Tests for MarketDataService.fetch_quote."""
 
-    @pytest.mark.smoke
+    @pytest.mark.critical
     async def test_happy_path(self, service: MarketDataService) -> None:
         """Successful fetch returns a Quote with correct fields."""
         info = _make_info_dict()

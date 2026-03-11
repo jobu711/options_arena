@@ -1,0 +1,22 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 4 * * *"  # Daily at 04:00 UTC
+  workflow_dispatch:       # Allow manual trigger
+
+jobs:
+  tests-exhaustive:
+    name: "Full Suite (including exhaustive)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --frozen
+      - run: uv run pytest -n auto -q --tb=short

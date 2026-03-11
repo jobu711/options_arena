@@ -152,6 +152,7 @@ def _make_contract() -> RecommendedContract:
 class TestAnalyticsRoutes:
     """Tests for analytics API endpoints."""
 
+    @pytest.mark.critical
     @pytest.mark.asyncio
     async def test_get_win_rate(self, client: AsyncClient, mock_repo: MagicMock) -> None:
         """Verify GET /api/analytics/win-rate returns 200 with list."""

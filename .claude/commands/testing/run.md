@@ -35,9 +35,10 @@ test -f "$ARGUMENTS" || echo "⚠️ Test file not found: $ARGUMENTS"
 ### 1. Determine Test Command
 
 Based on testing-config.md and target:
-- No arguments → Run full test suite from config
+- No arguments → Run critical tier (`-m critical`) for fast verification
 - File path → Run specific test file
 - Pattern → Run tests matching pattern
+- "all" → Run full standard suite (`-m "not exhaustive"`)
 
 ### 2. Execute Tests
 

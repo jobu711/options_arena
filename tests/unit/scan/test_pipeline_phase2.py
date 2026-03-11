@@ -149,6 +149,7 @@ def _make_universe_result(
 class TestPhaseScoring:
     """Phase 2 computes indicators, scores universe, and classifies direction."""
 
+    @pytest.mark.critical
     async def test_computes_indicators_for_each_ticker(self) -> None:
         """Phase 2 produces raw_signals for every ticker in ohlcv_map."""
         tickers = ["AAPL", "MSFT", "GOOG"]

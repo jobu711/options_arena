@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from typer.testing import CliRunner
 
 from options_arena.cli.app import app
@@ -41,6 +42,7 @@ def _make_health_status(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.critical
 @patch("options_arena.cli.commands._scan_async", new_callable=AsyncMock)
 def test_scan_command_default_args(mock_scan_async: AsyncMock) -> None:
     """Scan command with defaults invokes _scan_async with SP500 preset."""

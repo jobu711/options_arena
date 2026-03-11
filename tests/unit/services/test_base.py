@@ -117,6 +117,7 @@ def service_no_limiter(
 class TestServiceBaseInit:
     """Tests for ServiceBase.__init__ — attribute storage and defaults."""
 
+    @pytest.mark.critical
     def test_config_stored(
         self, service_config: ServiceConfig, mock_cache: MagicMock, limiter: RateLimiter
     ) -> None:
