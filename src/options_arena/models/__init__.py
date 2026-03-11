@@ -82,6 +82,12 @@ from options_arena.models.enums import (
     VolAssessment,
     VolRegime,
 )
+from options_arena.models.filters import (
+    OptionsFilters,
+    ScanFilterSpec,
+    ScoringFilters,
+    UniverseFilters,
+)
 from options_arena.models.financial_datasets import (
     BalanceSheetData,
     FinancialDatasetsPackage,
@@ -207,6 +213,11 @@ __all__ = [
     "ScanConfig",
     "ServiceConfig",
     "TICKER_RE",
+    # Filters
+    "OptionsFilters",
+    "ScanFilterSpec",
+    "ScoringFilters",
+    "UniverseFilters",
     # Financial Datasets
     "BalanceSheetData",
     "FinancialDatasetsPackage",
