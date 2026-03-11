@@ -220,6 +220,9 @@ def scan(
     max_dte: int | None = typer.Option(
         None, "--max-dte", help="Maximum days to expiration for option contracts"
     ),
+    min_confidence: float | None = typer.Option(
+        None, "--min-confidence", help="Minimum direction confidence (0.0-1.0)"
+    ),
     tickers: str | None = typer.Option(
         None, "--tickers", help="Comma-separated list of custom tickers to scan"
     ),
@@ -246,6 +249,7 @@ def scan(
             max_price=max_price,
             min_dte=min_dte,
             max_dte=max_dte,
+            min_confidence=min_confidence,
             custom_tickers=custom_tickers,
         )
     )
@@ -265,6 +269,7 @@ async def _scan_async(
     max_price: float | None = None,
     min_dte: int | None = None,
     max_dte: int | None = None,
+    min_confidence: float | None = None,
     custom_tickers: list[str] | None = None,
 ) -> None:
     """Run the scan pipeline with full service lifecycle management."""
@@ -295,6 +300,8 @@ async def _scan_async(
         scoring_overrides["min_score"] = min_score
     if direction_filter is not None:
         scoring_overrides["direction_filter"] = direction_filter
+    if min_confidence is not None:
+        scoring_overrides["min_direction_confidence"] = min_confidence
 
     # Options filter overrides (Phase 3)
     options_overrides: dict[str, object] = {"top_n": top_n}

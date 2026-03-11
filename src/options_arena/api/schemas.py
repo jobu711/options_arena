@@ -53,6 +53,7 @@ class ScanRequest(BaseModel):
     min_dte: int | None = None
     max_dte: int | None = None
     min_score: float | None = None
+    min_direction_confidence: float | None = None
     source: ScanSource = ScanSource.MANUAL
 
     @field_validator("min_price", "max_price")
@@ -75,6 +76,19 @@ class ScanRequest(BaseModel):
                 raise ValueError(f"min_score must be finite, got {v}")
             if v < 0.0:
                 raise ValueError(f"min_score must be non-negative, got {v}")
+        return v
+
+    @field_validator("min_direction_confidence")
+    @classmethod
+    def validate_min_direction_confidence(cls, v: float | None) -> float | None:
+        """Ensure min_direction_confidence is finite and in [0.0, 1.0] when set."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"min_direction_confidence must be finite, got {v}")
+            if not 0.0 <= v <= 1.0:
+                raise ValueError(
+                    f"min_direction_confidence must be in [0.0, 1.0], got {v}"
+                )
         return v
 
     @field_validator("min_dte", "max_dte")

@@ -161,6 +161,8 @@ async def start_scan(
         scoring_overrides["direction_filter"] = body.direction_filter
     if body.min_score is not None:
         scoring_overrides["min_score"] = body.min_score
+    if body.min_direction_confidence is not None:
+        scoring_overrides["min_direction_confidence"] = body.min_direction_confidence
 
     # Build options filter overrides
     options_overrides: dict[str, object] = {}

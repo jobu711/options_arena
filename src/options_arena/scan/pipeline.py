@@ -138,16 +138,48 @@ class ScanPipeline:
                 scoring_result=scoring_result,
             )
 
-        # Post-Phase 2: Apply direction filter if configured
-        direction_filter = self._settings.scan.filters.scoring.direction_filter
-        if direction_filter is not None:
+        # Post-Phase 2: Apply scoring filters (direction, min_score, min_confidence)
+        scoring_filters = self._settings.scan.filters.scoring
+
+        if scoring_filters.direction_filter is not None:
             before_count = len(scoring_result.scores)
             scoring_result.scores = [
-                ts for ts in scoring_result.scores if ts.direction == direction_filter
+                ts
+                for ts in scoring_result.scores
+                if ts.direction == scoring_filters.direction_filter
             ]
             logger.info(
                 "Direction filter (%s): %d -> %d tickers",
-                direction_filter.value,
+                scoring_filters.direction_filter.value,
+                before_count,
+                len(scoring_result.scores),
+            )
+
+        if scoring_filters.min_score > 0.0:
+            before_count = len(scoring_result.scores)
+            scoring_result.scores = [
+                ts
+                for ts in scoring_result.scores
+                if ts.composite_score >= scoring_filters.min_score
+            ]
+            logger.info(
+                "min_score cutoff (%.1f): %d -> %d tickers",
+                scoring_filters.min_score,
+                before_count,
+                len(scoring_result.scores),
+            )
+
+        if scoring_filters.min_direction_confidence > 0.0:
+            before_count = len(scoring_result.scores)
+            scoring_result.scores = [
+                ts
+                for ts in scoring_result.scores
+                if ts.direction_confidence is not None
+                and ts.direction_confidence >= scoring_filters.min_direction_confidence
+            ]
+            logger.info(
+                "min_confidence cutoff (%.2f): %d -> %d tickers",
+                scoring_filters.min_direction_confidence,
                 before_count,
                 len(scoring_result.scores),
             )
