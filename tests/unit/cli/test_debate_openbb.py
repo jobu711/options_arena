@@ -175,8 +175,11 @@ def _make_sentiment() -> NewsSentimentSnapshot:
 # ---------------------------------------------------------------------------
 
 
+@patch("options_arena.cli.commands._validate_provider_config")
 @patch("options_arena.cli.commands._debate_async", new_callable=AsyncMock)
-def test_debate_skips_openbb_when_no_openbb_flag(mock_debate_async: AsyncMock) -> None:
+def test_debate_skips_openbb_when_no_openbb_flag(
+    mock_debate_async: AsyncMock, _mock_validate: MagicMock
+) -> None:
     """Verify --no-openbb flag passes no_openbb=True to _debate_async."""
     mock_debate_async.return_value = None
     result = runner.invoke(app, ["debate", "AAPL", "--no-openbb"])

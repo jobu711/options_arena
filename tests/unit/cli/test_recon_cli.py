@@ -146,8 +146,11 @@ def _make_intelligence_package(ticker: str = "AAPL") -> IntelligencePackage:
 class TestDebateCommandReconFlag:
     """Tests for the --no-recon CLI flag routing."""
 
+    @patch("options_arena.cli.commands._validate_provider_config")
     @patch("options_arena.cli.commands._debate_async", new_callable=AsyncMock)
-    def test_no_recon_flag_passes_to_debate_async(self, mock_debate_async: AsyncMock) -> None:
+    def test_no_recon_flag_passes_to_debate_async(
+        self, mock_debate_async: AsyncMock, _mock_validate: MagicMock
+    ) -> None:
         """--no-recon flag passes no_recon=True to _debate_async."""
         mock_debate_async.return_value = None
         result = runner.invoke(app, ["debate", "AAPL", "--no-recon"])
@@ -156,8 +159,11 @@ class TestDebateCommandReconFlag:
         call_kwargs = mock_debate_async.call_args.kwargs
         assert call_kwargs["no_recon"] is True
 
+    @patch("options_arena.cli.commands._validate_provider_config")
     @patch("options_arena.cli.commands._debate_async", new_callable=AsyncMock)
-    def test_recon_enabled_by_default(self, mock_debate_async: AsyncMock) -> None:
+    def test_recon_enabled_by_default(
+        self, mock_debate_async: AsyncMock, _mock_validate: MagicMock
+    ) -> None:
         """Without --no-recon, no_recon defaults to False."""
         mock_debate_async.return_value = None
         result = runner.invoke(app, ["debate", "AAPL"])
@@ -165,8 +171,11 @@ class TestDebateCommandReconFlag:
         call_kwargs = mock_debate_async.call_args.kwargs
         assert call_kwargs["no_recon"] is False
 
+    @patch("options_arena.cli.commands._validate_provider_config")
     @patch("options_arena.cli.commands._batch_async", new_callable=AsyncMock)
-    def test_no_recon_flag_passes_to_batch_async(self, mock_batch_async: AsyncMock) -> None:
+    def test_no_recon_flag_passes_to_batch_async(
+        self, mock_batch_async: AsyncMock, _mock_validate: MagicMock
+    ) -> None:
         """--no-recon flag passes no_recon=True to _batch_async."""
         mock_batch_async.return_value = None
         result = runner.invoke(app, ["debate", "--batch", "--no-recon"])
