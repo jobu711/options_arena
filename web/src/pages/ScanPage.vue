@@ -53,6 +53,7 @@ async function runScan(): Promise<void> {
       preset: f.preset ?? 'sp500',
       sectors: f.sectors,
       industryGroups: f.industryGroups,
+      customTickers: f.custom_tickers,
       market_cap_tiers: f.market_cap_tiers,
       exclude_near_earnings_days: f.exclude_near_earnings_days,
       direction_filter: f.direction_filter,
@@ -62,6 +63,16 @@ async function runScan(): Promise<void> {
       min_dte: f.min_dte,
       max_dte: f.max_dte,
       min_score: f.min_score,
+      min_direction_confidence: f.min_direction_confidence,
+      top_n: f.top_n,
+      min_dollar_volume: f.min_dollar_volume,
+      min_oi: f.min_oi,
+      min_volume: f.min_volume,
+      max_spread_pct: f.max_spread_pct,
+      delta_primary_min: f.delta_primary_min,
+      delta_primary_max: f.delta_primary_max,
+      delta_fallback_min: f.delta_fallback_min,
+      delta_fallback_max: f.delta_fallback_max,
     })
 
     // Connect to WebSocket for progress updates

@@ -178,6 +178,24 @@ async def start_scan(
         options_overrides["min_dte"] = body.min_dte
     if body.max_dte is not None:
         options_overrides["max_dte"] = body.max_dte
+    if body.top_n is not None:
+        options_overrides["top_n"] = body.top_n
+    if body.min_dollar_volume is not None:
+        options_overrides["min_dollar_volume"] = body.min_dollar_volume
+    if body.min_oi is not None:
+        options_overrides["min_oi"] = body.min_oi
+    if body.min_volume is not None:
+        options_overrides["min_volume"] = body.min_volume
+    if body.max_spread_pct is not None:
+        options_overrides["max_spread_pct"] = body.max_spread_pct
+    if body.delta_primary_min is not None:
+        options_overrides["delta_primary_min"] = body.delta_primary_min
+    if body.delta_primary_max is not None:
+        options_overrides["delta_primary_max"] = body.delta_primary_max
+    if body.delta_fallback_min is not None:
+        options_overrides["delta_fallback_min"] = body.delta_fallback_min
+    if body.delta_fallback_max is not None:
+        options_overrides["delta_fallback_max"] = body.delta_fallback_max
 
     # Reconstruct via model constructor to trigger validators (model_copy bypasses them)
     filter_spec = ScanFilterSpec(

@@ -88,10 +88,7 @@ def _make_mocks(
 
     async def _dynamic_batch(tickers: list[str], **_: object) -> BatchOHLCVResult:
         return BatchOHLCVResult(
-            results=[
-                TickerOHLCVResult(ticker=t, data=all_bars.get(t, []))
-                for t in tickers
-            ]
+            results=[TickerOHLCVResult(ticker=t, data=all_bars.get(t, [])) for t in tickers]
         )
 
     mock_market_data = AsyncMock()

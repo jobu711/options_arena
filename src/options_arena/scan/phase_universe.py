@@ -20,7 +20,12 @@ from options_arena.models.filters import UniverseFilters
 from options_arena.models.market_data import OHLCV
 from options_arena.scan.models import UniverseResult
 from options_arena.scan.progress import ProgressCallback, ScanPhase
-from options_arena.services import MarketDataService, UniverseService, build_industry_group_map
+from options_arena.services import (
+    MarketDataService,
+    UniverseService,
+    build_industry_group_map,
+    index_tickers,
+)
 
 # Use pipeline logger name so that tests filtering on "options_arena.scan.pipeline"
 # continue to capture phase log messages after extraction.
@@ -247,6 +252,44 @@ async def run_universe_phase(
                 len(tickers),
                 ", ".join(ig.value for ig in configured_industry_groups),
             )
+
+    # Step 3c (auto-index): index scan tickers missing from metadata cache
+    try:
+        indexed_set = {m.ticker for m in all_metadata}
+        missing_tickers = [t for t in tickers if t not in indexed_set]
+        if missing_tickers:
+            logger.info(
+                "Auto-indexing %d missing tickers for metadata enrichment...",
+                len(missing_tickers),
+            )
+
+            def _auto_index_progress(completed: int, total: int) -> None:
+                progress(ScanPhase.UNIVERSE, completed, total)
+
+            success, fail = await index_tickers(
+                missing_tickers,
+                market_data,
+                repository,
+                concurrency=5,
+                on_progress=_auto_index_progress,
+            )
+            logger.info("Auto-index complete: %d succeeded, %d failed", success, fail)
+
+            # Re-enrich sector/industry maps from newly indexed metadata
+            new_metadata = await repository.get_all_ticker_metadata()
+            for meta in new_metadata:
+                if meta.ticker not in sector_map and meta.sector is not None:
+                    sector_map[meta.ticker] = meta.sector
+                if meta.ticker not in industry_group_map and meta.industry_group is not None:
+                    industry_group_map[meta.ticker] = meta.industry_group
+            all_metadata = new_metadata
+            logger.info(
+                "Post-auto-index enrichment: sector_map=%d, industry_group_map=%d",
+                len(sector_map),
+                len(industry_group_map),
+            )
+    except Exception:
+        logger.warning("Auto-index failed, continuing without", exc_info=True)
 
     # Step 4: Batch-fetch OHLCV
     progress(ScanPhase.UNIVERSE, 0, len(tickers))

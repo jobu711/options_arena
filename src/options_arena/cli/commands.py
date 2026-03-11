@@ -1265,23 +1265,7 @@ async def _index_async(*, force: bool, concurrency: int, max_age: int) -> None:
         )
 
         # 3. Process tickers with concurrency control
-        sem = asyncio.Semaphore(concurrency)
-        success_count = 0
-        fail_count = 0
-
-        from options_arena.services.universe import map_yfinance_to_metadata  # noqa: PLC0415
-
-        async def _process_ticker(ticker: str) -> bool:
-            """Fetch ticker info, map to metadata, persist. Returns True on success."""
-            async with sem:
-                try:
-                    ticker_info = await market_data.fetch_ticker_info(ticker)
-                    metadata = map_yfinance_to_metadata(ticker_info)
-                    await repo.upsert_ticker_metadata(metadata)
-                    return True
-                except Exception:
-                    logger.warning("Failed to index %s", ticker, exc_info=True)
-                    return False
+        from options_arena.services.universe import index_tickers  # noqa: PLC0415
 
         with Progress(
             SpinnerColumn(),
@@ -1294,22 +1278,16 @@ async def _index_async(*, force: bool, concurrency: int, max_age: int) -> None:
         ) as progress:
             task_id = progress.add_task("[cyan]Indexing tickers", total=len(tickers_to_index))
 
-            # Process in batches via gather for concurrency
-            tasks = []
-            for ticker in tickers_to_index:
-                tasks.append(_process_ticker(ticker))
+            def _on_progress(completed: int, total: int) -> None:
+                progress.update(task_id, completed=completed, total=total)
 
-            # Gather all tasks but update progress as each completes
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for result in results:
-                if isinstance(result, Exception):
-                    fail_count += 1
-                    logger.warning("Unexpected gather error: %s", result)
-                elif result:
-                    success_count += 1
-                else:
-                    fail_count += 1
-                progress.update(task_id, advance=1)
+            success_count, fail_count = await index_tickers(
+                tickers_to_index,
+                market_data,
+                repo,
+                concurrency=concurrency,
+                on_progress=_on_progress,
+            )
 
         # 4. Final coverage report
         final_coverage = await repo.get_metadata_coverage()

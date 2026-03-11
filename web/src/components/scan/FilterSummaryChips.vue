@@ -98,6 +98,56 @@ const chips = computed<FilterChip[]>(() => {
     })
   }
 
+  if (f.min_direction_confidence != null) {
+    result.push({
+      key: 'min_direction_confidence',
+      label: `Confidence > ${Math.round(f.min_direction_confidence * 100)}%`,
+    })
+  }
+
+  if (f.custom_tickers && f.custom_tickers.length > 0) {
+    result.push({
+      key: 'custom_tickers',
+      label: `${f.custom_tickers.length} Custom Ticker${f.custom_tickers.length !== 1 ? 's' : ''}`,
+    })
+  }
+
+  if (f.top_n != null) {
+    result.push({ key: 'top_n', label: `Top ${f.top_n}` })
+  }
+
+  if (f.min_dollar_volume != null) {
+    const millions = f.min_dollar_volume / 1_000_000
+    result.push({ key: 'min_dollar_volume', label: `$Vol > ${millions}M` })
+  }
+
+  if (f.min_oi != null) {
+    result.push({ key: 'min_oi', label: `OI > ${f.min_oi}` })
+  }
+
+  if (f.min_volume != null) {
+    result.push({ key: 'min_volume', label: `Vol > ${f.min_volume}` })
+  }
+
+  if (f.max_spread_pct != null) {
+    result.push({
+      key: 'max_spread_pct',
+      label: `Spread < ${Math.round(f.max_spread_pct * 100)}%`,
+    })
+  }
+
+  if (f.delta_primary_min != null || f.delta_primary_max != null) {
+    const min = f.delta_primary_min?.toFixed(2) ?? '0.00'
+    const max = f.delta_primary_max?.toFixed(2) ?? '1.00'
+    result.push({ key: 'delta_primary', label: `\u0394 Primary ${min}-${max}` })
+  }
+
+  if (f.delta_fallback_min != null || f.delta_fallback_max != null) {
+    const min = f.delta_fallback_min?.toFixed(2) ?? '0.00'
+    const max = f.delta_fallback_max?.toFixed(2) ?? '1.00'
+    result.push({ key: 'delta_fallback', label: `\u0394 Fallback ${min}-${max}` })
+  }
+
   return result
 })
 

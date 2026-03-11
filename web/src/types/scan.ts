@@ -148,6 +148,17 @@ export interface PreScanFilterPayload {
   min_dte?: number | null
   max_dte?: number | null
   min_score?: number | null
+  min_direction_confidence?: number | null
+  custom_tickers?: string[]
+  top_n?: number | null
+  min_dollar_volume?: number | null
+  min_oi?: number | null
+  min_volume?: number | null
+  max_spread_pct?: number | null
+  delta_primary_min?: number | null
+  delta_primary_max?: number | null
+  delta_fallback_min?: number | null
+  delta_fallback_max?: number | null
 }
 
 /** Single ticker entry for S&P 500 heatmap treemap. */

@@ -54,6 +54,15 @@ class ScanRequest(BaseModel):
     max_dte: int | None = None
     min_score: float | None = None
     min_direction_confidence: float | None = None
+    top_n: int | None = None
+    min_dollar_volume: float | None = None
+    min_oi: int | None = None
+    min_volume: int | None = None
+    max_spread_pct: float | None = None
+    delta_primary_min: float | None = None
+    delta_primary_max: float | None = None
+    delta_fallback_min: float | None = None
+    delta_fallback_max: float | None = None
     source: ScanSource = ScanSource.MANUAL
 
     @field_validator("min_price", "max_price")
@@ -86,9 +95,61 @@ class ScanRequest(BaseModel):
             if not math.isfinite(v):
                 raise ValueError(f"min_direction_confidence must be finite, got {v}")
             if not 0.0 <= v <= 1.0:
-                raise ValueError(
-                    f"min_direction_confidence must be in [0.0, 1.0], got {v}"
-                )
+                raise ValueError(f"min_direction_confidence must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("top_n")
+    @classmethod
+    def validate_top_n(cls, v: int | None) -> int | None:
+        """Ensure top_n is at least 1 when set."""
+        if v is not None and v < 1:
+            raise ValueError(f"top_n must be >= 1, got {v}")
+        return v
+
+    @field_validator("min_dollar_volume")
+    @classmethod
+    def validate_min_dollar_volume(cls, v: float | None) -> float | None:
+        """Ensure min_dollar_volume is finite and non-negative when set."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"min_dollar_volume must be finite, got {v}")
+            if v < 0.0:
+                raise ValueError(f"min_dollar_volume must be non-negative, got {v}")
+        return v
+
+    @field_validator("min_oi", "min_volume")
+    @classmethod
+    def validate_non_negative_int(cls, v: int | None) -> int | None:
+        """Ensure min_oi and min_volume are non-negative when set."""
+        if v is not None and v < 0:
+            raise ValueError(f"value must be non-negative, got {v}")
+        return v
+
+    @field_validator("max_spread_pct")
+    @classmethod
+    def validate_max_spread_pct(cls, v: float | None) -> float | None:
+        """Ensure max_spread_pct is finite and non-negative when set."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"max_spread_pct must be finite, got {v}")
+            if v < 0.0:
+                raise ValueError(f"max_spread_pct must be non-negative, got {v}")
+        return v
+
+    @field_validator(
+        "delta_primary_min",
+        "delta_primary_max",
+        "delta_fallback_min",
+        "delta_fallback_max",
+    )
+    @classmethod
+    def validate_delta(cls, v: float | None) -> float | None:
+        """Ensure delta fields are finite and in [0.0, 1.0] when set."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"delta must be finite, got {v}")
+            if not 0.0 <= v <= 1.0:
+                raise ValueError(f"delta must be in [0.0, 1.0], got {v}")
         return v
 
     @field_validator("min_dte", "max_dte")
@@ -101,7 +162,7 @@ class ScanRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_cross_field_ranges(self) -> Self:
-        """Reject min > max for price and DTE when both are set."""
+        """Reject min > max for price, DTE, and delta ranges when both are set."""
         if (
             self.min_price is not None
             and self.max_price is not None
@@ -112,6 +173,24 @@ class ScanRequest(BaseModel):
             )
         if self.min_dte is not None and self.max_dte is not None and self.min_dte > self.max_dte:
             raise ValueError(f"min_dte ({self.min_dte}) must not exceed max_dte ({self.max_dte})")
+        if (
+            self.delta_primary_min is not None
+            and self.delta_primary_max is not None
+            and self.delta_primary_min > self.delta_primary_max
+        ):
+            raise ValueError(
+                f"delta_primary_min ({self.delta_primary_min}) must not exceed "
+                f"delta_primary_max ({self.delta_primary_max})"
+            )
+        if (
+            self.delta_fallback_min is not None
+            and self.delta_fallback_max is not None
+            and self.delta_fallback_min > self.delta_fallback_max
+        ):
+            raise ValueError(
+                f"delta_fallback_min ({self.delta_fallback_min}) must not exceed "
+                f"delta_fallback_max ({self.delta_fallback_max})"
+            )
         return self
 
     @field_validator("market_cap_tiers", mode="before")

@@ -12,8 +12,9 @@ import io
 import json
 import logging
 import re
+from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Protocol
 
 import httpx
 import pandas as pd
@@ -1245,6 +1246,78 @@ def classify_market_cap(market_cap: int | None) -> MarketCapTier | None:
     if market_cap >= _SMALL_CAP_THRESHOLD:
         return MarketCapTier.SMALL
     return MarketCapTier.MICRO
+
+
+class _TickerInfoProvider(Protocol):
+    """Minimal protocol for fetching ticker info (MarketDataService)."""
+
+    async def fetch_ticker_info(self, ticker: str) -> TickerInfo: ...
+
+
+class _MetadataStore(Protocol):
+    """Minimal protocol for persisting ticker metadata (Repository)."""
+
+    async def upsert_ticker_metadata(self, metadata: TickerMetadata) -> None: ...
+
+
+async def index_tickers(
+    tickers: list[str],
+    market_data: _TickerInfoProvider,
+    repository: _MetadataStore,
+    *,
+    concurrency: int = 5,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> tuple[int, int]:
+    """Index a list of tickers by fetching metadata from yfinance and persisting.
+
+    Reusable helper shared by ``cli/_index_async()`` and ``phase_universe.py``
+    auto-index. Fetches ``TickerInfo`` for each ticker, maps to ``TickerMetadata``,
+    and upserts into the repository.
+
+    Args:
+        tickers: List of ticker symbols to index.
+        market_data: ``MarketDataService`` instance.
+        repository: ``Repository`` instance.
+        concurrency: Maximum concurrent yfinance calls.
+        on_progress: Optional callback ``(completed, total)`` for progress reporting.
+
+    Returns:
+        Tuple of ``(success_count, fail_count)``.
+    """
+    if not tickers:
+        return 0, 0
+
+    sem = asyncio.Semaphore(concurrency)
+    success_count = 0
+    fail_count = 0
+    total = len(tickers)
+
+    async def _process(ticker: str) -> bool:
+        async with sem:
+            try:
+                ticker_info = await market_data.fetch_ticker_info(ticker)
+                metadata = map_yfinance_to_metadata(ticker_info)
+                await repository.upsert_ticker_metadata(metadata)
+                return True
+            except Exception:
+                logger.warning("Failed to index %s", ticker, exc_info=True)
+                return False
+
+    tasks = [_process(t) for t in tickers]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for completed, result in enumerate(results, start=1):
+        if isinstance(result, Exception):
+            fail_count += 1
+            logger.warning("Unexpected gather error: %s", result)
+        elif result:
+            success_count += 1
+        else:
+            fail_count += 1
+        if on_progress is not None:
+            on_progress(completed, total)
+
+    return success_count, fail_count
 
 
 def map_yfinance_to_metadata(ticker_info: TickerInfo) -> TickerMetadata:

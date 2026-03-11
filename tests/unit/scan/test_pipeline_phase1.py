@@ -15,7 +15,7 @@ Covers:
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock
 
@@ -28,6 +28,7 @@ from options_arena.models import (
 from options_arena.models.config import ScanConfig
 from options_arena.models.filters import ScanFilterSpec, UniverseFilters
 from options_arena.models.market_data import OHLCV
+from options_arena.models.metadata import TickerMetadata
 from options_arena.scan.pipeline import ScanPipeline
 from options_arena.scan.progress import CancellationToken, ScanPhase
 from options_arena.services import BatchOHLCVResult, TickerOHLCVResult
@@ -113,6 +114,10 @@ def _make_pipeline(
     mock_options_data = AsyncMock()
     mock_fred = AsyncMock()
     mock_repository = AsyncMock()
+    # Provide metadata for all tickers so auto-index is skipped
+    mock_repository.get_all_ticker_metadata = AsyncMock(
+        return_value=[TickerMetadata(ticker=t, last_updated=datetime.now(UTC)) for t in tickers]
+    )
 
     pipeline = ScanPipeline(
         settings=_settings,

@@ -3,6 +3,8 @@ import { ref, onMounted, watch } from 'vue'
 import Select from 'primevue/select'
 import MultiSelect from 'primevue/multiselect'
 import InputNumber from 'primevue/inputnumber'
+import Chips from 'primevue/chips'
+import Panel from 'primevue/panel'
 import SectorTree from '@/components/SectorTree.vue'
 import PresetCard from '@/components/scan/PresetCard.vue'
 import { api } from '@/composables/useApi'
@@ -94,6 +96,27 @@ const selectedDirection = ref<string | null>(null)
 const excludeEarningsDays = ref<number | null>(null)
 const minIvRank = ref<number | null>(null)
 const minScore = ref<number | null>(null)
+const minDirectionConfidence = ref<number | null>(null)
+const customTickers = ref<string[]>([])
+
+// ---------------------------------------------------------------------------
+// Panel 5: Advanced Options
+// ---------------------------------------------------------------------------
+
+const topN = ref<number | null>(null)
+const minDollarVolume = ref<number | null>(null)
+const minOi = ref<number | null>(null)
+const minVolume = ref<number | null>(null)
+const maxSpreadPct = ref<number | null>(null)
+const deltaPrimaryMin = ref<number | null>(null)
+const deltaPrimaryMax = ref<number | null>(null)
+const deltaFallbackMin = ref<number | null>(null)
+const deltaFallbackMax = ref<number | null>(null)
+
+// Auto-uppercase custom tickers
+function onCustomTickerAdd(event: { value: string[] }): void {
+  customTickers.value = event.value.map((t) => t.toUpperCase())
+}
 
 // ---------------------------------------------------------------------------
 // Panel 3: Price & Expiry
@@ -122,6 +145,23 @@ function emitFilters(): void {
     min_dte: minDte.value,
     max_dte: maxDte.value,
     min_score: minScore.value,
+    min_direction_confidence: minDirectionConfidence.value != null
+      ? minDirectionConfidence.value / 100
+      : null,
+    custom_tickers: customTickers.value.length > 0 ? customTickers.value : undefined,
+    top_n: topN.value,
+    min_dollar_volume: minDollarVolume.value != null
+      ? minDollarVolume.value * 1_000_000
+      : null,
+    min_oi: minOi.value,
+    min_volume: minVolume.value,
+    max_spread_pct: maxSpreadPct.value != null
+      ? maxSpreadPct.value / 100
+      : null,
+    delta_primary_min: deltaPrimaryMin.value,
+    delta_primary_max: deltaPrimaryMax.value,
+    delta_fallback_min: deltaFallbackMin.value,
+    delta_fallback_max: deltaFallbackMax.value,
   }
   emit('update:filters', payload)
 }
@@ -141,6 +181,17 @@ watch(
     maxPrice,
     minDte,
     maxDte,
+    minDirectionConfidence,
+    customTickers,
+    topN,
+    minDollarVolume,
+    minOi,
+    minVolume,
+    maxSpreadPct,
+    deltaPrimaryMin,
+    deltaPrimaryMax,
+    deltaFallbackMin,
+    deltaFallbackMax,
   ],
   () => emitFilters(),
   { deep: true, immediate: true },
@@ -165,6 +216,15 @@ function clearFilter(key: string): void {
     dte_range: () => { minDte.value = null; maxDte.value = null },
     sectors: () => { selectedSectors.value = [] },
     industryGroups: () => { selectedIndustryGroups.value = [] },
+    min_direction_confidence: () => { minDirectionConfidence.value = null },
+    custom_tickers: () => { customTickers.value = [] },
+    top_n: () => { topN.value = null },
+    min_dollar_volume: () => { minDollarVolume.value = null },
+    min_oi: () => { minOi.value = null },
+    min_volume: () => { minVolume.value = null },
+    max_spread_pct: () => { maxSpreadPct.value = null },
+    delta_primary: () => { deltaPrimaryMin.value = null; deltaPrimaryMax.value = null },
+    delta_fallback: () => { deltaFallbackMin.value = null; deltaFallbackMax.value = null },
   }
   defaults[key]?.()
 }
@@ -181,6 +241,17 @@ function clearAll(): void {
   maxDte.value = null
   selectedSectors.value = []
   selectedIndustryGroups.value = []
+  minDirectionConfidence.value = null
+  customTickers.value = []
+  topN.value = null
+  minDollarVolume.value = null
+  minOi.value = null
+  minVolume.value = null
+  maxSpreadPct.value = null
+  deltaPrimaryMin.value = null
+  deltaPrimaryMax.value = null
+  deltaFallbackMin.value = null
+  deltaFallbackMax.value = null
 }
 
 defineExpose({ clearFilter, clearAll })
@@ -292,6 +363,34 @@ onMounted(() => {
               data-testid="min-score-filter"
             />
           </div>
+          <div class="filter-group">
+            <label class="filter-label" for="confidence-filter">Min Direction Confidence</label>
+            <InputNumber
+              v-model="minDirectionConfidence"
+              placeholder="Min confidence"
+              :min="0"
+              :max="100"
+              :step="5"
+              :disabled="disabled"
+              showButtons
+              suffix="%"
+              inputId="confidence-filter"
+              data-testid="confidence-filter"
+            />
+          </div>
+        </div>
+        <div class="filter-group filter-group--full-width">
+          <label class="filter-label" for="custom-tickers-filter">Custom Tickers</label>
+          <Chips
+            v-model="customTickers"
+            placeholder="Add ticker symbols (e.g., AAPL)"
+            :max="200"
+            :disabled="disabled"
+            separator=","
+            inputId="custom-tickers-filter"
+            data-testid="custom-tickers-filter"
+            @add="onCustomTickerAdd"
+          />
         </div>
       </div>
     </div>
@@ -393,6 +492,150 @@ onMounted(() => {
         </span>
       </div>
     </div>
+
+    <!-- Section 5: Advanced Options -->
+    <Panel
+      header="Advanced Options"
+      toggleable
+      :collapsed="true"
+      class="filter-section"
+      data-testid="advanced-options-panel"
+    >
+      <div class="filter-card">
+        <div class="filter-grid">
+          <div class="filter-group">
+            <label class="filter-label" for="top-n-filter">Max Results</label>
+            <InputNumber
+              v-model="topN"
+              placeholder="Default (50)"
+              :min="1"
+              :max="500"
+              :step="10"
+              :disabled="disabled"
+              showButtons
+              inputId="top-n-filter"
+              data-testid="top-n-filter"
+            />
+          </div>
+          <div class="filter-group">
+            <label class="filter-label" for="min-dollar-vol-filter">Min $ Volume (M)</label>
+            <InputNumber
+              v-model="minDollarVolume"
+              placeholder="Millions"
+              :min="0"
+              :step="1"
+              :minFractionDigits="0"
+              :maxFractionDigits="1"
+              :disabled="disabled"
+              showButtons
+              prefix="$"
+              suffix="M"
+              inputId="min-dollar-vol-filter"
+              data-testid="min-dollar-vol-filter"
+            />
+          </div>
+          <div class="filter-group">
+            <label class="filter-label" for="min-oi-filter">Min Open Interest</label>
+            <InputNumber
+              v-model="minOi"
+              placeholder="No minimum"
+              :min="0"
+              :step="10"
+              :disabled="disabled"
+              showButtons
+              inputId="min-oi-filter"
+              data-testid="min-oi-filter"
+            />
+          </div>
+          <div class="filter-group">
+            <label class="filter-label" for="min-vol-filter">Min Volume</label>
+            <InputNumber
+              v-model="minVolume"
+              placeholder="No minimum"
+              :min="0"
+              :step="1"
+              :disabled="disabled"
+              showButtons
+              inputId="min-vol-filter"
+              data-testid="min-vol-filter"
+            />
+          </div>
+          <div class="filter-group">
+            <label class="filter-label" for="max-spread-filter">Max Bid-Ask Spread</label>
+            <InputNumber
+              v-model="maxSpreadPct"
+              placeholder="No limit"
+              :min="0"
+              :max="100"
+              :step="1"
+              :disabled="disabled"
+              showButtons
+              suffix="%"
+              inputId="max-spread-filter"
+              data-testid="max-spread-filter"
+            />
+          </div>
+        </div>
+        <div class="filter-grid range-section">
+          <div class="filter-group filter-group--range">
+            <label class="filter-label">Primary Delta Range</label>
+            <div class="range-inputs">
+              <InputNumber
+                v-model="deltaPrimaryMin"
+                placeholder="0.00"
+                :min="0"
+                :max="1"
+                :step="0.05"
+                :minFractionDigits="2"
+                :maxFractionDigits="2"
+                :disabled="disabled"
+                data-testid="delta-primary-min-filter"
+              />
+              <span class="range-sep">to</span>
+              <InputNumber
+                v-model="deltaPrimaryMax"
+                placeholder="1.00"
+                :min="0"
+                :max="1"
+                :step="0.05"
+                :minFractionDigits="2"
+                :maxFractionDigits="2"
+                :disabled="disabled"
+                data-testid="delta-primary-max-filter"
+              />
+            </div>
+          </div>
+          <div class="filter-group filter-group--range">
+            <label class="filter-label">Fallback Delta Range</label>
+            <div class="range-inputs">
+              <InputNumber
+                v-model="deltaFallbackMin"
+                placeholder="0.00"
+                :min="0"
+                :max="1"
+                :step="0.05"
+                :minFractionDigits="2"
+                :maxFractionDigits="2"
+                :disabled="disabled"
+                data-testid="delta-fallback-min-filter"
+              />
+              <span class="range-sep">to</span>
+              <InputNumber
+                v-model="deltaFallbackMax"
+                placeholder="1.00"
+                :min="0"
+                :max="1"
+                :step="0.05"
+                :minFractionDigits="2"
+                :maxFractionDigits="2"
+                :disabled="disabled"
+                data-testid="delta-fallback-max-filter"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </Panel>
   </div>
 </template>
 
@@ -448,5 +691,30 @@ onMounted(() => {
   font-size: 0.85rem;
   color: var(--p-surface-400, #888);
   margin-top: 0.5rem;
+}
+
+.filter-group--full-width {
+  grid-column: 1 / -1;
+  margin-top: 0.5rem;
+}
+
+.filter-group--range {
+  min-width: 240px;
+}
+
+.range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.range-sep {
+  color: var(--p-surface-400, #888);
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.range-section {
+  margin-top: 1rem;
 }
 </style>

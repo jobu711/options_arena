@@ -321,3 +321,74 @@ class TestFilterIntegration:
         assert roundtrip.options.min_dte == 45
         assert roundtrip.options.max_dte == 120
         assert roundtrip.options.exclude_near_earnings_days == 5
+
+
+class TestAutoIndex:
+    """Tests for auto-index of missing tickers in phase_universe."""
+
+    async def test_auto_index_triggers_when_metadata_empty(self) -> None:
+        """Verify auto-index is called when no metadata exists."""
+        settings = _make_settings(preset=ScanPreset.FULL)
+        tickers = ["AAPL", "MSFT"]
+        pipeline, _, mock_market_data, _, _, mock_repo = _build_pipeline(
+            settings, tickers, metadata=[]
+        )
+        mock_repo.upsert_ticker_metadata = AsyncMock()
+
+        # Patch index_tickers to track whether auto-index was invoked
+        index_calls: list[list[str]] = []
+        original_index = __import__(
+            "options_arena.services.universe", fromlist=["index_tickers"]
+        ).index_tickers
+
+        async def _tracking_index(
+            ticker_list: list[str], *args: object, **kwargs: object
+        ) -> tuple[int, int]:
+            index_calls.append(ticker_list)
+            return await original_index(ticker_list, *args, **kwargs)
+
+        import options_arena.scan.phase_universe as pu_mod
+
+        original_fn = pu_mod.index_tickers
+        pu_mod.index_tickers = _tracking_index  # type: ignore[assignment]
+        try:
+            token = CancellationToken()
+            await pipeline.run(token, _noop_progress)
+
+            # Auto-index should have been called with the missing tickers
+            assert len(index_calls) == 1
+            assert set(index_calls[0]) == {"AAPL", "MSFT"}
+        finally:
+            pu_mod.index_tickers = original_fn
+
+    async def test_auto_index_skips_when_metadata_populated(self) -> None:
+        """Verify auto-index is skipped when all tickers have metadata."""
+        metadata = [
+            _make_metadata("AAPL", MarketCapTier.MEGA),
+            _make_metadata("MSFT", MarketCapTier.LARGE),
+        ]
+        settings = _make_settings(preset=ScanPreset.FULL)
+        tickers = ["AAPL", "MSFT"]
+        pipeline, *_ = _build_pipeline(settings, tickers, metadata=metadata)
+
+        # Patch index_tickers to track whether auto-index was invoked
+        index_calls: list[list[str]] = []
+
+        async def _tracking_index(
+            ticker_list: list[str], *args: object, **kwargs: object
+        ) -> tuple[int, int]:
+            index_calls.append(ticker_list)
+            return 0, 0
+
+        import options_arena.scan.phase_universe as pu_mod
+
+        original_fn = pu_mod.index_tickers
+        pu_mod.index_tickers = _tracking_index  # type: ignore[assignment]
+        try:
+            token = CancellationToken()
+            await pipeline.run(token, _noop_progress)
+
+            # Auto-index should NOT have been called (all tickers have metadata)
+            assert len(index_calls) == 0
+        finally:
+            pu_mod.index_tickers = original_fn

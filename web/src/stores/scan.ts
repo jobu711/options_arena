@@ -83,6 +83,16 @@ export const useScanStore = defineStore('scan', () => {
     min_dte?: number | null
     max_dte?: number | null
     min_score?: number | null
+    min_direction_confidence?: number | null
+    top_n?: number | null
+    min_dollar_volume?: number | null
+    min_oi?: number | null
+    min_volume?: number | null
+    max_spread_pct?: number | null
+    delta_primary_min?: number | null
+    delta_primary_max?: number | null
+    delta_fallback_min?: number | null
+    delta_fallback_max?: number | null
   }
 
   async function startScan(options: StartScanOptions): Promise<number> {
@@ -125,6 +135,36 @@ export const useScanStore = defineStore('scan', () => {
     }
     if (options.min_score != null) {
       body.min_score = options.min_score
+    }
+    if (options.min_direction_confidence != null) {
+      body.min_direction_confidence = options.min_direction_confidence
+    }
+    if (options.top_n != null) {
+      body.top_n = options.top_n
+    }
+    if (options.min_dollar_volume != null) {
+      body.min_dollar_volume = options.min_dollar_volume
+    }
+    if (options.min_oi != null) {
+      body.min_oi = options.min_oi
+    }
+    if (options.min_volume != null) {
+      body.min_volume = options.min_volume
+    }
+    if (options.max_spread_pct != null) {
+      body.max_spread_pct = options.max_spread_pct
+    }
+    if (options.delta_primary_min != null) {
+      body.delta_primary_min = options.delta_primary_min
+    }
+    if (options.delta_primary_max != null) {
+      body.delta_primary_max = options.delta_primary_max
+    }
+    if (options.delta_fallback_min != null) {
+      body.delta_fallback_min = options.delta_fallback_min
+    }
+    if (options.delta_fallback_max != null) {
+      body.delta_fallback_max = options.delta_fallback_max
     }
     const res = await api<{ scan_id: number }>('/api/scan', {
       method: 'POST',

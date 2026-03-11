@@ -135,6 +135,114 @@ class TestAPIFilterRequest:
         assert req.min_direction_confidence is None
         assert req.min_price is None
 
+    # --- top_n ---
+
+    def test_top_n_valid(self) -> None:
+        """Verify top_n accepts positive integers."""
+        req = ScanRequest(top_n=10)
+        assert req.top_n == 10
+
+    def test_top_n_zero_rejected(self) -> None:
+        """Verify top_n rejects zero."""
+        with pytest.raises(ValidationError, match="top_n"):
+            ScanRequest(top_n=0)
+
+    # --- min_dollar_volume ---
+
+    def test_min_dollar_volume_valid(self) -> None:
+        """Verify min_dollar_volume accepts non-negative finite float."""
+        req = ScanRequest(min_dollar_volume=5_000_000.0)
+        assert req.min_dollar_volume == pytest.approx(5_000_000.0)
+
+    def test_min_dollar_volume_negative_rejected(self) -> None:
+        """Verify min_dollar_volume rejects negative values."""
+        with pytest.raises(ValidationError, match="min_dollar_volume"):
+            ScanRequest(min_dollar_volume=-1.0)
+
+    def test_min_dollar_volume_nan_rejected(self) -> None:
+        """Verify min_dollar_volume rejects NaN."""
+        with pytest.raises(ValidationError, match="min_dollar_volume"):
+            ScanRequest(min_dollar_volume=float("nan"))
+
+    # --- min_oi ---
+
+    def test_min_oi_valid(self) -> None:
+        """Verify min_oi accepts non-negative int."""
+        req = ScanRequest(min_oi=50)
+        assert req.min_oi == 50
+
+    def test_min_oi_negative_rejected(self) -> None:
+        """Verify min_oi rejects negative values."""
+        with pytest.raises(ValidationError, match="non-negative"):
+            ScanRequest(min_oi=-1)
+
+    # --- min_volume ---
+
+    def test_min_volume_valid(self) -> None:
+        """Verify min_volume accepts non-negative int."""
+        req = ScanRequest(min_volume=10)
+        assert req.min_volume == 10
+
+    def test_min_volume_negative_rejected(self) -> None:
+        """Verify min_volume rejects negative values."""
+        with pytest.raises(ValidationError, match="non-negative"):
+            ScanRequest(min_volume=-1)
+
+    # --- max_spread_pct ---
+
+    def test_max_spread_pct_valid(self) -> None:
+        """Verify max_spread_pct accepts non-negative finite float."""
+        req = ScanRequest(max_spread_pct=0.15)
+        assert req.max_spread_pct == pytest.approx(0.15)
+
+    def test_max_spread_pct_negative_rejected(self) -> None:
+        """Verify max_spread_pct rejects negative values."""
+        with pytest.raises(ValidationError, match="max_spread_pct"):
+            ScanRequest(max_spread_pct=-0.01)
+
+    # --- delta fields ---
+
+    def test_delta_valid(self) -> None:
+        """Verify delta fields accept values in [0.0, 1.0]."""
+        req = ScanRequest(
+            delta_primary_min=0.25,
+            delta_primary_max=0.45,
+            delta_fallback_min=0.10,
+            delta_fallback_max=0.80,
+        )
+        assert req.delta_primary_min == pytest.approx(0.25)
+        assert req.delta_primary_max == pytest.approx(0.45)
+
+    def test_delta_out_of_range_rejected(self) -> None:
+        """Verify delta rejects values outside [0.0, 1.0]."""
+        with pytest.raises(ValidationError, match="delta"):
+            ScanRequest(delta_primary_min=1.5)
+
+    def test_delta_primary_min_gt_max_rejected(self) -> None:
+        """Verify delta_primary_min > delta_primary_max is rejected."""
+        with pytest.raises(ValidationError, match="delta_primary_min"):
+            ScanRequest(delta_primary_min=0.6, delta_primary_max=0.3)
+
+    def test_delta_fallback_min_gt_max_rejected(self) -> None:
+        """Verify delta_fallback_min > delta_fallback_max is rejected."""
+        with pytest.raises(ValidationError, match="delta_fallback_min"):
+            ScanRequest(delta_fallback_min=0.8, delta_fallback_max=0.2)
+
+    # --- new fields defaults ---
+
+    def test_new_options_fields_default_none(self) -> None:
+        """Verify all 9 new fields default to None."""
+        req = ScanRequest()
+        assert req.top_n is None
+        assert req.min_dollar_volume is None
+        assert req.min_oi is None
+        assert req.min_volume is None
+        assert req.max_spread_pct is None
+        assert req.delta_primary_min is None
+        assert req.delta_primary_max is None
+        assert req.delta_fallback_min is None
+        assert req.delta_fallback_max is None
+
     def test_json_roundtrip(self) -> None:
         """Verify ScanRequest survives JSON serialization roundtrip."""
         req = ScanRequest(
@@ -142,9 +250,19 @@ class TestAPIFilterRequest:
             sectors=[GICSSector.INFORMATION_TECHNOLOGY],
             min_score=42.0,
             min_direction_confidence=0.75,
+            top_n=25,
+            min_dollar_volume=5_000_000.0,
+            max_spread_pct=0.15,
+            delta_primary_min=0.25,
+            delta_primary_max=0.45,
         )
         json_str = req.model_dump_json()
         roundtrip = ScanRequest.model_validate_json(json_str)
         assert roundtrip.preset == ScanPreset.FULL
         assert roundtrip.min_score == pytest.approx(42.0)
         assert roundtrip.min_direction_confidence == pytest.approx(0.75)
+        assert roundtrip.top_n == 25
+        assert roundtrip.min_dollar_volume == pytest.approx(5_000_000.0)
+        assert roundtrip.max_spread_pct == pytest.approx(0.15)
+        assert roundtrip.delta_primary_min == pytest.approx(0.25)
+        assert roundtrip.delta_primary_max == pytest.approx(0.45)
