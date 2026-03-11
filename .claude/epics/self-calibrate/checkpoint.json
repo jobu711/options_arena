@@ -1,0 +1,12 @@
+{
+  "epic": "self-calibrate",
+  "phase": "planning",
+  "last_command": "/pm:prd-parse self-calibrate",
+  "last_updated": "2026-03-11T13:35:15Z",
+  "completed_phases": ["prd-created", "research", "planning"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "Architecture boundary issue identified: services/ cannot import from agents/. Recommend DI callable injection for auto-tune trigger."
+}

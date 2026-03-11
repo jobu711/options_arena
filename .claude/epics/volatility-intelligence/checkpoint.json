@@ -1,0 +1,12 @@
+{
+  "epic": "volatility-intelligence",
+  "phase": "research",
+  "last_command": "/pm:prd-research volatility-intelligence",
+  "last_updated": "2026-03-11T13:01:55Z",
+  "completed_phases": ["prd-created", "research"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}

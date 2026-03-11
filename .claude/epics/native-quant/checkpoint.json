@@ -1,0 +1,12 @@
+{
+  "epic": "native-quant",
+  "phase": "research",
+  "last_command": "/pm:prd-research native-quant",
+  "last_updated": "2026-03-11T13:04:05Z",
+  "completed_phases": ["prd-created", "research"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}

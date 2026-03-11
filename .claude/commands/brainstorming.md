@@ -1,5 +1,5 @@
 ---
-allowed-tools: Read, Glob, Grep, Bash, Agent, AskUserQuestion, Write, Edit
+allowed-tools: Read, Glob, Grep, Bash, Write, Edit
 description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."
 ---
 
@@ -25,11 +25,23 @@ no config changes. The only file you create is the PRD at the end. If the user a
 start coding, remind them: "Let's finish the design first — implementation comes after
 `/pm:prd-research` or `/pm:prd-parse`."
 
-## Preflight Checklist
+## Critical: Conversation Turn Discipline
 
-Complete silently — do not narrate these checks to the user.
+This command uses **natural conversation turns** for user interaction. You output text, then
+**STOP and wait for the user to respond**. You do NOT use `AskUserQuestion`. You do NOT
+continue past a stop point under any circumstances.
 
-### Input Validation
+There are **3 mandatory stop points** in this flow. At each one you MUST:
+1. End your message with the stop marker (shown below)
+2. **Actually stop generating** — do not continue to the next phase
+3. Wait for the user's next message before proceeding
+
+## Phases
+
+### Phase 1 — Discover
+
+#### Preflight (silent — do not narrate)
+
 1. **Validate feature name format:**
    - Must contain only lowercase letters, numbers, and hyphens
    - Must start with a letter
@@ -37,19 +49,14 @@ Complete silently — do not narrate these checks to the user.
 
 2. **Check for existing PRD:**
    - Check if `.claude/prds/$ARGUMENTS.md` already exists
-   - If it exists, ask user: "PRD '$ARGUMENTS' already exists. Overwrite it?"
-   - Only proceed with explicit confirmation
-   - If no: "Use a different name or run: /pm:prd-parse $ARGUMENTS to create an epic from the existing PRD"
+   - If it exists, tell the user: "PRD '$ARGUMENTS' already exists. Let me know if you want to overwrite it, or use a different name. You can also run `/pm:prd-parse $ARGUMENTS` to create an epic from the existing PRD."
+   - **STOP and wait for the user's response before continuing.**
 
 3. **Verify directory structure:**
    - Check if `.claude/prds/` directory exists
    - If not, create it
 
-## Steps
-
-### Step 1 — Explore Project Context
-
-Before asking the user anything, silently gather context:
+#### Context Exploration (silent — do not narrate individual steps)
 
 - Read `CLAUDE.md`, `.claude/context/progress.md`, `.claude/context/system-patterns.md`
 - Glob for files related to the feature name (`$ARGUMENTS`)
@@ -57,31 +64,35 @@ Before asking the user anything, silently gather context:
 - Scan existing PRDs in `.claude/prds/` for related work
 - Look at open GitHub issues if relevant (`gh issue list` if available)
 
+#### Present Findings + Ask Questions
+
 Summarize what you found in 3-5 bullet points. Example:
 > Based on the codebase, here's what I see:
 > - The project already has X which relates to this feature
 > - There's existing infrastructure in `module/` that could be leveraged
 > - No prior PRD or epic covers this area
 
-### Step 2 — Clarifying Questions (One at a Time)
+Then present **all clarifying questions at once** as a numbered list. Cover these areas
+(skip any already answered by the user's initial request):
 
-Ask **one question at a time** using `AskUserQuestion` with multiple-choice options.
-Do NOT dump a list of questions. Wait for each answer before asking the next.
+1. **Core problem**: What specific problem does this solve?
+2. **Scope**: How large should the first version be? (Minimal MVP / Moderate / Full-featured)
+3. **Users**: Who is the primary user of this feature?
+4. **Constraints**: Any hard constraints? (timeline, tech stack, compatibility)
+5. **Success criteria**: How will we know this works?
 
-Cover these areas (skip any already answered by the user's initial request):
+End with:
+---
+**Your turn** — answer the questions above (as much or as little as you like).
 
-1. **Core problem**: "What specific problem does this solve for users?"
-2. **Scope**: "How large should the first version be?" (Options: Minimal MVP / Moderate / Full-featured)
-3. **Users**: "Who is the primary user?" (Options derived from project context)
-4. **Constraints**: "Any hard constraints?" (timeline, tech stack, compatibility)
-5. **Success criteria**: "How will we know this works?" (Options: specific metrics, user feedback, etc.)
+**STOP. End your turn. Do not continue until the user responds.**
+Do not propose approaches. Do not start designing. Do not write the PRD. Wait for the user.
 
-Stop asking when you have enough to propose approaches (usually 3-5 questions).
-If the user says "that's enough" or similar, move on immediately.
+---
 
-### Step 3 — Propose 2-3 Approaches
+### Phase 2 — Propose
 
-Present 2-3 distinct implementation approaches. For each:
+Read the user's answers from their previous message. Then present 2-3 distinct approaches:
 
 ```
 ### Approach A: [Name]
@@ -95,14 +106,18 @@ Present 2-3 distinct implementation approaches. For each:
 End with a clear recommendation:
 > **Recommended: Approach B** — [one sentence why]
 
-Ask the user to pick one (or suggest a hybrid) using `AskUserQuestion`.
+End with:
+---
+**Your turn** — pick an approach (A, B, C) or suggest a hybrid.
 
-### Step 4 — Present Design Incrementally
+**STOP. End your turn. Do not continue until the user responds.**
+Do not start designing. Do not write the PRD. Wait for the user.
 
-Present the design in sections, getting approval on each before moving to the next.
-Use `AskUserQuestion` after each section with options: "Looks good" / "Needs changes".
+---
 
-**Section order:**
+### Phase 3 — Design
+
+Based on the chosen approach, present the **full design at once** covering all 5 sections:
 
 1. **Architecture & Module Changes**
    - Which modules are affected
@@ -124,15 +139,25 @@ Use `AskUserQuestion` after each section with options: "Looks good" / "Needs cha
    - What tests are needed
    - Edge cases to cover
 
-If the user requests changes to a section, revise and re-present that section only.
+End with:
+---
+**Your turn** — "Looks good" to finalize, or tell me what to change.
 
-### Step 5 — Write the PRD
+**STOP. End your turn. Do not continue until the user responds.**
+Do not write the PRD. Wait for the user.
 
-Once all sections are approved, write the PRD to `.claude/prds/$ARGUMENTS.md`.
+---
+
+**Revision loop**: If the user requests changes, revise the affected sections and re-present
+the full design. Then STOP again with the same marker above. Repeat until the user approves.
+
+### Phase 4 — Finalize
+
+Once the user approves the design, write the PRD and wrap up.
 
 **Get the real current datetime** by running: `date -u +"%Y-%m-%dT%H:%M:%SZ"`
 
-**File format:**
+**Write the PRD** to `.claude/prds/$ARGUMENTS.md` with this format:
 
 ```markdown
 ---
@@ -145,49 +170,49 @@ created: [Real ISO datetime from system]
 # PRD: $ARGUMENTS
 
 ## Executive Summary
-[Value proposition — what and why, derived from Step 2 answers]
+[Value proposition — what and why, derived from Phase 1 answers]
 
 ## Problem Statement
 ### What problem are we solving?
-[From Step 2 core problem discussion]
+[From Phase 1 core problem discussion]
 
 ### Why is this important now?
-[Context from Step 1 exploration — existing infrastructure, user demand, etc.]
+[Context from Phase 1 exploration — existing infrastructure, user demand, etc.]
 
 ## User Stories
-[From Step 2 users discussion, with acceptance criteria]
+[From Phase 1 users discussion, with acceptance criteria]
 
 ## Architecture & Design
 ### Chosen Approach
-[The selected approach from Step 3, with rationale]
+[The selected approach from Phase 2, with rationale]
 
 ### Module Changes
-[From Step 4 Section 1]
+[From Phase 3 Section 1]
 
 ### Data Models
-[From Step 4 Section 2]
+[From Phase 3 Section 2]
 
 ### Core Logic
-[From Step 4 Section 3]
+[From Phase 3 Section 3]
 
 ## Requirements
 ### Functional Requirements
-[Derived from Steps 2-4]
+[Derived from Phases 1-3]
 
 ### Non-Functional Requirements
-[Performance, security, compatibility — from Step 2 constraints]
+[Performance, security, compatibility — from Phase 1 constraints]
 
 ## API / CLI Surface
-[From Step 4 Section 4, or "N/A" if none]
+[From Phase 3 Section 4, or "N/A" if none]
 
 ## Testing Strategy
-[From Step 4 Section 5]
+[From Phase 3 Section 5]
 
 ## Success Criteria
-[Measurable outcomes from Step 2]
+[Measurable outcomes from Phase 1]
 
 ## Constraints & Assumptions
-[From Step 2 constraints discussion]
+[From Phase 1 constraints discussion]
 
 ## Out of Scope
 [Explicitly listed — things discussed but deferred]
@@ -195,8 +220,6 @@ created: [Real ISO datetime from system]
 ## Dependencies
 [External and internal dependencies identified during design]
 ```
-
-### Step 6 — Transition
 
 After writing the PRD:
 
@@ -208,7 +231,7 @@ After writing the PRD:
 
 ## Error Recovery
 
-- If any step fails, explain what went wrong and how to fix it
+- If any phase fails, explain what went wrong and how to fix it
 - Never leave partial or corrupted files
 - If the user abandons mid-session, do not write the PRD
 

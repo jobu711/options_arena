@@ -209,6 +209,18 @@ def scan(preset: ScanPreset = ScanPreset.SP500) -> None:
 - `asyncio.gather(*tasks, return_exceptions=True)` for batch operations.
 - Typer commands are sync wrappers: `def scan() -> None: asyncio.run(_scan_async())`.
 
+### Demand Elegance (Balanced)
+
+For non-trivial changes, pause and ask: is there a more elegant way? If a fix feels
+hacky, find the elegant solution with full codebase knowledge. Challenge your own work
+before presenting it. Skip this for simple fixes.
+
+### Self-Improvement Loop
+
+After any correction from user, update `.claude/lessons.md` with the pattern. Write
+rules for yourself that prevent the mistake in the future. Ruthlessly iterate on these
+lessons until mistake rates drop. Review `.claude/lessons.md` on session start.
+
 ## Verification — Run Before Every Commit
 
 ```bash
