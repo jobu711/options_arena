@@ -112,6 +112,8 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 ### Scan Pipeline Decomposition
 - **Thin orchestrator**: `pipeline.py` (352 lines) delegates to 4 phase modules
 - **Phase modules**: `phase_universe.py` (universe + sector filtering), `phase_scoring.py` (indicators + composite), `phase_options.py` (chain fetch + contract selection), `phase_persist.py` (SQLite persistence)
+- **Auto-index**: Phase 1 detects tickers missing from `ticker_metadata` cache and calls `index_tickers()` inline (non-fatal, concurrency=5). Re-enriches sector/industry maps from newly indexed data.
+- **`index_tickers()`**: Reusable service function in `services/universe.py` — protocol-based DI (`_TickerInfoProvider`, `_MetadataStore`), semaphore concurrency, progress callback. Shared by CLI `universe index` and Phase 1 auto-index.
 - **Same public API**: `run_scan_pipeline()` signature unchanged; internal decomposition only
 
 ### Analytics Persistence Pattern (Outcome Tracking)

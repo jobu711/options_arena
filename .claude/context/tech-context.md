@@ -57,6 +57,6 @@ For web/optional/dev deps, build system, and tool config: `.claude/guides/depend
 - **Launch**: `options-arena serve` (loopback-only, auto-opens browser)
 - **Dev mode**: Vite (:5173) proxies to FastAPI (:8000)
 - **Production**: FastAPI serves `web/dist/` via catch-all GET + `/assets` mount
-- **E2E tests**: Playwright (92 tests across 15 spec files, 4 parallel workers, isolated DBs)
+- **E2E tests**: Playwright (107 tests across 17 spec files, 4 parallel workers, isolated DBs)
 - **WebSocket**: Real-time progress for scans and debates
 - **Operation mutex**: `asyncio.Lock` — one scan or batch debate at a time (409 if busy)
