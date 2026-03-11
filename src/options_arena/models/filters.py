@@ -286,6 +286,14 @@ class OptionsFilters(BaseModel):
             raise ValueError(f"max_spread_pct must be >= 0, got {v}")
         return v
 
+    @field_validator("exclude_near_earnings_days")
+    @classmethod
+    def validate_exclude_near_earnings_days(cls, v: int | None) -> int | None:
+        """Ensure exclude_near_earnings_days is non-negative when set."""
+        if v is not None and v < 0:
+            raise ValueError(f"exclude_near_earnings_days must be >= 0, got {v}")
+        return v
+
     @field_validator("min_iv_rank")
     @classmethod
     def validate_min_iv_rank(cls, v: float | None) -> float | None:

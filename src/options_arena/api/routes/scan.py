@@ -38,6 +38,12 @@ from options_arena.models import (
     TickerDelta,
     TickerScore,
 )
+from options_arena.models.filters import (
+    OptionsFilters,
+    ScanFilterSpec,
+    ScoringFilters,
+    UniverseFilters,
+)
 from options_arena.scan import CancellationToken, ScanPipeline, ScanResult
 from options_arena.services import (
     FredService,
@@ -136,13 +142,6 @@ async def start_scan(
 
     # Apply per-request filters to settings (immutable copy pattern)
     effective_settings = settings
-    from options_arena.models.filters import (
-        OptionsFilters,
-        ScanFilterSpec,
-        ScoringFilters,
-        UniverseFilters,
-    )
-
     base_filters = settings.scan.filters
 
     # Build universe filter overrides

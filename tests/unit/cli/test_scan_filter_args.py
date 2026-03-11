@@ -74,8 +74,8 @@ class TestCLIFilterArgs:
         assert args[0] == ScanPreset.SP500
         # top_n default = 50
         assert args[1] == 50
-        # min_score default = 0.0
-        assert args[2] == pytest.approx(0.0)
+        # min_score default = None (unset unless explicitly provided)
+        assert args[2] is None
 
     def test_sector_args(self) -> None:
         """Verify --sector args are parsed and passed as GICSSector list."""

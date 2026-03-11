@@ -289,6 +289,16 @@ class TestOptionsFilters:
         with pytest.raises(ValidationError):
             OptionsFilters(max_dte=0)
 
+    def test_exclude_near_earnings_days_rejects_negative(self) -> None:
+        """exclude_near_earnings_days must be >= 0 when set."""
+        with pytest.raises(ValidationError, match="exclude_near_earnings_days must be >= 0"):
+            OptionsFilters(exclude_near_earnings_days=-1)
+
+    def test_exclude_near_earnings_days_accepts_zero(self) -> None:
+        """exclude_near_earnings_days=0 is valid (effectively disables the filter)."""
+        of = OptionsFilters(exclude_near_earnings_days=0)
+        assert of.exclude_near_earnings_days == 0
+
     def test_delta_fallback_min_exceeds_max(self) -> None:
         """delta_fallback_min > delta_fallback_max should be rejected."""
         with pytest.raises(ValidationError, match="fallback_min.*fallback_max"):

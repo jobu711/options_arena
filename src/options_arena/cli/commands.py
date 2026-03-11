@@ -189,7 +189,7 @@ def scan(
         ),
     ),
     top_n: int = typer.Option(50, "--top-n", "-n", help="Top N tickers for options analysis"),
-    min_score: float = typer.Option(0.0, "--min-score", help="Minimum composite score"),
+    min_score: float | None = typer.Option(None, "--min-score", help="Minimum composite score"),
     sector: list[str] = typer.Option(  # noqa: B008
         [], "--sector", "-s", help="Filter by GICS sector (repeatable)"
     ),
@@ -258,7 +258,7 @@ def scan(
 async def _scan_async(
     preset: ScanPreset,
     top_n: int,
-    min_score: float,
+    min_score: float | None,
     sectors: list[GICSSector],
     market_cap_tiers: list[MarketCapTier] | None = None,
     exclude_near_earnings_days: int | None = None,
@@ -296,7 +296,7 @@ async def _scan_async(
 
     # Scoring filter overrides (post-Phase 2)
     scoring_overrides: dict[str, object] = {}
-    if min_score > 0.0:
+    if min_score is not None:
         scoring_overrides["min_score"] = min_score
     if direction_filter is not None:
         scoring_overrides["direction_filter"] = direction_filter
