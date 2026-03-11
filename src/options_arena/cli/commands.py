@@ -314,13 +314,25 @@ async def _scan_async(
     if max_dte is not None:
         options_overrides["max_dte"] = max_dte
 
-    # Build filter spec from base + overrides (frozen models — use model_copy)
-    from options_arena.models.filters import ScanFilterSpec
+    # Build filter spec from base + overrides
+    # Reconstruct via model constructor to trigger validators (model_copy bypasses them)
+    from options_arena.models.filters import (
+        OptionsFilters,
+        ScanFilterSpec,
+        ScoringFilters,
+        UniverseFilters,
+    )
 
     filter_spec = ScanFilterSpec(
-        universe=base_filters.universe.model_copy(update=universe_overrides),
-        scoring=base_filters.scoring.model_copy(update=scoring_overrides),
-        options=base_filters.options.model_copy(update=options_overrides),
+        universe=UniverseFilters(
+            **base_filters.universe.model_copy(update=universe_overrides).model_dump()
+        ),
+        scoring=ScoringFilters(
+            **base_filters.scoring.model_copy(update=scoring_overrides).model_dump()
+        ),
+        options=OptionsFilters(
+            **base_filters.options.model_copy(update=options_overrides).model_dump()
+        ),
     )
 
     settings = settings.model_copy(
@@ -760,7 +772,8 @@ async def _debate_single(
         spot=spot,
         risk_free_rate=risk_free_rate,
         dividend_yield=ticker_info.dividend_yield,
-        config=settings.pricing,
+        filters=settings.scan.filters.options,
+        delta_target=settings.pricing.delta_target,
     )
 
     logger.info(

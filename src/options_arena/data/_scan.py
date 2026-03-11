@@ -147,7 +147,8 @@ class ScanMixin(RepositoryBase):
     def _row_to_scan_run(row: Row) -> ScanRun:
         """Reconstruct a ScanRun from an aiosqlite.Row."""
         completed_at_raw: str | None = row["completed_at"]
-        source_raw: str | None = row["source"] if "source" in row else None  # noqa: SIM401
+        # sqlite3.Row ``in`` checks values, not columns — must use .keys()
+        source_raw: str | None = row["source"] if "source" in row.keys() else None  # noqa: SIM118
         # filter_spec_json may not exist in legacy databases before migration 031;
         # sqlite3.Row does not support ``"col" in row`` — use ``.keys()`` instead.
         row_keys = row.keys()

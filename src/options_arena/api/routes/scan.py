@@ -136,7 +136,12 @@ async def start_scan(
 
     # Apply per-request filters to settings (immutable copy pattern)
     effective_settings = settings
-    from options_arena.models.filters import ScanFilterSpec
+    from options_arena.models.filters import (
+        OptionsFilters,
+        ScanFilterSpec,
+        ScoringFilters,
+        UniverseFilters,
+    )
 
     base_filters = settings.scan.filters
 
@@ -175,10 +180,17 @@ async def start_scan(
     if body.max_dte is not None:
         options_overrides["max_dte"] = body.max_dte
 
+    # Reconstruct via model constructor to trigger validators (model_copy bypasses them)
     filter_spec = ScanFilterSpec(
-        universe=base_filters.universe.model_copy(update=universe_overrides),
-        scoring=base_filters.scoring.model_copy(update=scoring_overrides),
-        options=base_filters.options.model_copy(update=options_overrides),
+        universe=UniverseFilters(
+            **base_filters.universe.model_copy(update=universe_overrides).model_dump()
+        ),
+        scoring=ScoringFilters(
+            **base_filters.scoring.model_copy(update=scoring_overrides).model_dump()
+        ),
+        options=OptionsFilters(
+            **base_filters.options.model_copy(update=options_overrides).model_dump()
+        ),
     )
 
     effective_settings = settings.model_copy(
