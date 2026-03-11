@@ -167,16 +167,7 @@ Update the PRD frontmatter status to `planned`:
 - Change `status:` value to `planned` in frontmatter (may be `backlog` or `researched`)
 - Preserve all other frontmatter fields and content
 
-### 8. Create Planning Lock
-
-If `.claude/epics/$ARGUMENTS/.planning-lock` does not already exist, create it:
-```
-Planning phase active for epic: $ARGUMENTS
-Created by: /pm:prd-parse
-Remove with: /pm:epic-decompose $ARGUMENTS
-```
-
-### 9. Write Checkpoint (best-effort)
+### 8. Write Checkpoint (best-effort)
 
 Write `.claude/epics/$ARGUMENTS/checkpoint.json` with `phase: "planning"`.
 Get REAL current datetime. Failure to write checkpoint does not fail the command.
@@ -210,8 +201,7 @@ After successfully creating the epic:
    - Number of task categories identified
    - Key architecture decisions
    - Estimated effort
-3. Note if planning lock is active: "Planning lock active — code writes to src/, tests/, web/ blocked."
-4. Suggest next step: "Ready to break down into tasks? Run: /pm:epic-decompose $ARGUMENTS"
+3. Suggest next step: "Ready to break down into tasks? Run: /pm:epic-decompose $ARGUMENTS"
 
 ## Error Recovery
 
