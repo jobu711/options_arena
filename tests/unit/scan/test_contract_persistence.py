@@ -23,7 +23,6 @@ from options_arena.models import (
     OptionContract,
     OptionGreeks,
     RecommendedContract,
-    ScanPreset,
     ScanSource,
     SignalDirection,
     TickerScore,
@@ -160,7 +159,6 @@ class TestPipelineContractPersistence:
 
         await pipeline._phase_persist(
             started_at=datetime.now(UTC),
-            preset=ScanPreset.FULL,
             source=ScanSource.MANUAL,
             universe_result=_make_universe_result(["AAPL"]),
             scoring_result=scoring_result,
@@ -214,7 +212,6 @@ class TestPipelineContractPersistence:
 
         await pipeline._phase_persist(
             started_at=datetime.now(UTC),
-            preset=ScanPreset.FULL,
             source=ScanSource.MANUAL,
             universe_result=_make_universe_result(["AAPL"]),
             scoring_result=scoring_result,
@@ -241,7 +238,6 @@ class TestPipelineContractPersistence:
 
         result = await pipeline._phase_persist(
             started_at=datetime.now(UTC),
-            preset=ScanPreset.FULL,
             source=ScanSource.MANUAL,
             universe_result=_make_universe_result(["AAPL"]),
             scoring_result=scoring_result,
@@ -283,7 +279,6 @@ class TestPipelineContractPersistence:
 
         await pipeline._phase_persist(
             started_at=datetime.now(UTC),
-            preset=ScanPreset.FULL,
             source=ScanSource.MANUAL,
             universe_result=_make_universe_result(["AAPL"]),
             scoring_result=scoring_result,
@@ -332,7 +327,6 @@ class TestPipelineContractPersistence:
 
         await pipeline._phase_persist(
             started_at=datetime.now(UTC),
-            preset=ScanPreset.SP500,
             source=ScanSource.MANUAL,
             universe_result=_make_universe_result(["MSFT"]),
             scoring_result=scoring_result,

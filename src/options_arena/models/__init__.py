@@ -40,7 +40,6 @@ from options_arena.models.analytics import (
     WinRateResult,
 )
 from options_arena.models.config import (
-    TICKER_RE,
     AnalyticsConfig,
     AppSettings,
     DataConfig,
@@ -57,6 +56,7 @@ from options_arena.models.enums import (
     INDUSTRY_GROUP_ALIASES,
     SECTOR_ALIASES,
     SECTOR_TO_INDUSTRY_GROUPS,
+    TICKER_RE,
     CatalystImpact,
     DividendSource,
     ExerciseStyle,
@@ -81,6 +81,12 @@ from options_arena.models.enums import (
     SpreadType,
     VolAssessment,
     VolRegime,
+)
+from options_arena.models.filters import (
+    OptionsFilters,
+    ScanFilterSpec,
+    ScoringFilters,
+    UniverseFilters,
 )
 from options_arena.models.financial_datasets import (
     BalanceSheetData,
@@ -207,6 +213,11 @@ __all__ = [
     "ScanConfig",
     "ServiceConfig",
     "TICKER_RE",
+    # Filters
+    "OptionsFilters",
+    "ScanFilterSpec",
+    "ScoringFilters",
+    "UniverseFilters",
     # Financial Datasets
     "BalanceSheetData",
     "FinancialDatasetsPackage",

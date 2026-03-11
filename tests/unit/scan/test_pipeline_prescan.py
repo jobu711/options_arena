@@ -26,7 +26,9 @@ from options_arena.models import (
     SignalDirection,
     TickerScore,
 )
+from options_arena.models.config import ScanConfig
 from options_arena.models.enums import DividendSource, ExerciseStyle, OptionType
+from options_arena.models.filters import OptionsFilters, ScanFilterSpec, UniverseFilters
 from options_arena.models.market_data import OHLCV, TickerInfo
 from options_arena.models.options import OptionContract
 from options_arena.scan.models import (
@@ -189,7 +191,9 @@ def _make_phase1_pipeline(
     settings: AppSettings | None = None,
 ) -> tuple[ScanPipeline, dict[str, AsyncMock]]:
     """Create a ScanPipeline with mocked services for Phase 1 preset dispatch testing."""
-    _settings = settings or AppSettings()
+    _settings = settings or AppSettings(
+        scan=ScanConfig(filters=ScanFilterSpec(universe=UniverseFilters(preset=ScanPreset.FULL)))
+    )
     tickers = optionable_tickers if optionable_tickers is not None else ["AAPL", "MSFT", "GOOG"]
 
     mock_universe = AsyncMock()
@@ -236,7 +240,9 @@ def _make_phase3_pipeline(
     fred_rate: float = 0.045,
 ) -> tuple[ScanPipeline, dict[str, AsyncMock]]:
     """Create a ScanPipeline with mocked services for Phase 3 testing."""
-    _settings = settings or AppSettings()
+    _settings = settings or AppSettings(
+        scan=ScanConfig(filters=ScanFilterSpec(universe=UniverseFilters(preset=ScanPreset.FULL)))
+    )
 
     mock_universe = AsyncMock()
     mock_market_data = AsyncMock()
@@ -290,14 +296,22 @@ class TestPhase1PresetDispatch:
         optionable = ["AAPL", "MSFT", "GOOG", "AMZN", "XYZ"]
         nasdaq100 = ["AAPL", "MSFT", "AMZN", "TSLA"]  # TSLA not optionable
         batch = _make_batch_result(["AAPL", "MSFT", "AMZN"])
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(preset=ScanPreset.NASDAQ100),
+                )
+            )
+        )
 
         pipeline, mocks = _make_phase1_pipeline(
             optionable_tickers=optionable,
             nasdaq100_tickers=nasdaq100,
             batch_result=batch,
+            settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.NASDAQ100, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         mocks["universe"].fetch_nasdaq100_constituents.assert_awaited_once()
         # Only optionable AND nasdaq100 tickers should pass
@@ -310,14 +324,22 @@ class TestPhase1PresetDispatch:
         optionable = ["AAPL", "MSFT", "SMTK", "ABCD"]
         russell2000 = ["SMTK", "ABCD", "EFGH"]  # EFGH not optionable
         batch = _make_batch_result(["SMTK", "ABCD"])
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(preset=ScanPreset.RUSSELL2000),
+                )
+            )
+        )
 
         pipeline, mocks = _make_phase1_pipeline(
             optionable_tickers=optionable,
             russell2000_tickers=russell2000,
             batch_result=batch,
+            settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.RUSSELL2000, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         mocks["universe"].fetch_russell2000_tickers.assert_awaited_once_with(
             repo=mocks["repository"],
@@ -330,14 +352,22 @@ class TestPhase1PresetDispatch:
         optionable = ["AAPL", "MSFT", "TSLA", "NVDA"]
         most_active = ["TSLA", "NVDA", "PLTR"]  # PLTR not optionable
         batch = _make_batch_result(["TSLA", "NVDA"])
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(preset=ScanPreset.MOST_ACTIVE),
+                )
+            )
+        )
 
         pipeline, mocks = _make_phase1_pipeline(
             optionable_tickers=optionable,
             most_active_tickers=most_active,
             batch_result=batch,
+            settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.MOST_ACTIVE, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         mocks["universe"].fetch_most_active.assert_awaited_once()
         assert set(result.tickers) == {"TSLA", "NVDA"}
@@ -349,14 +379,22 @@ class TestPhase1PresetDispatch:
         # Preset returns tickers not in optionable — should be excluded
         nasdaq100 = ["AAPL", "TSLA", "NVDA"]
         batch = _make_batch_result(["AAPL"])
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(preset=ScanPreset.NASDAQ100),
+                )
+            )
+        )
 
         pipeline, _ = _make_phase1_pipeline(
             optionable_tickers=optionable,
             nasdaq100_tickers=nasdaq100,
             batch_result=batch,
+            settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.NASDAQ100, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         # Only AAPL is in both optionable AND nasdaq100
         assert result.tickers == ["AAPL"]
@@ -366,14 +404,22 @@ class TestPhase1PresetDispatch:
         optionable = ["AAPL", "MSFT"]
         nasdaq100: list[str] = []  # empty preset
         batch = _make_batch_result([])
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(preset=ScanPreset.NASDAQ100),
+                )
+            )
+        )
 
         pipeline, _ = _make_phase1_pipeline(
             optionable_tickers=optionable,
             nasdaq100_tickers=nasdaq100,
             batch_result=batch,
+            settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.NASDAQ100, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert result.tickers == []
         assert result.ohlcv_map == {}
@@ -383,14 +429,22 @@ class TestPhase1PresetDispatch:
         optionable: list[str] = []
         russell2000 = ["SMTK", "ABCD"]
         batch = _make_batch_result([])
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(preset=ScanPreset.RUSSELL2000),
+                )
+            )
+        )
 
         pipeline, _ = _make_phase1_pipeline(
             optionable_tickers=optionable,
             russell2000_tickers=russell2000,
             batch_result=batch,
+            settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.RUSSELL2000, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert result.tickers == []
 
@@ -405,10 +459,14 @@ class TestPhase3MaxPriceFilter:
 
     async def test_max_price_filters_expensive(self) -> None:
         """Verify stocks above max_price are excluded."""
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0  # Don't filter by dollar volume
-        settings.scan.min_price = 1.0  # Don't filter by min_price
-        settings.scan.max_price = 200.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                    universe=UniverseFilters(min_price=1.0, max_price=200.0),
+                )
+            )
+        )
 
         tickers = ["CHEAP", "EXPENSIVE"]
         universe_result = UniverseResult(
@@ -435,10 +493,14 @@ class TestPhase3MaxPriceFilter:
 
     async def test_max_price_none_no_filter(self) -> None:
         """Verify None max_price means no upper filter is applied."""
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
-        settings.scan.max_price = None  # No upper limit
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                    universe=UniverseFilters(min_price=1.0, max_price=None),
+                )
+            )
+        )
 
         tickers = ["AAPL", "BRK"]
         universe_result = UniverseResult(
@@ -465,10 +527,14 @@ class TestPhase3MaxPriceFilter:
 
     async def test_min_and_max_price_combined(self) -> None:
         """Verify both min and max price filters applied together."""
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 20.0
-        settings.scan.max_price = 300.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                    universe=UniverseFilters(min_price=20.0, max_price=300.0),
+                )
+            )
+        )
 
         tickers = ["PENNY", "MIDRANGE", "PRICEY"]
         universe_result = UniverseResult(
@@ -497,10 +563,14 @@ class TestPhase3MaxPriceFilter:
 
     async def test_max_price_boundary(self) -> None:
         """Verify stock at exactly max_price is included (not excluded)."""
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
-        settings.scan.max_price = 200.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                    universe=UniverseFilters(min_price=1.0, max_price=200.0),
+                )
+            )
+        )
 
         tickers = ["EXACT"]
         universe_result = UniverseResult(

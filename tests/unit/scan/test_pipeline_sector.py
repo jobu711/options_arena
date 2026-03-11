@@ -23,6 +23,8 @@ from options_arena.models import (
     GICSSector,
     ScanPreset,
 )
+from options_arena.models.config import ScanConfig
+from options_arena.models.filters import ScanFilterSpec, UniverseFilters
 from options_arena.models.market_data import OHLCV
 from options_arena.scan.pipeline import ScanPipeline
 from options_arena.scan.progress import ScanPhase
@@ -138,7 +140,7 @@ class TestSectorMapConstruction:
             sp500_constituents=sp500,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert result.sector_map["AAPL"] is GICSSector.INFORMATION_TECHNOLOGY
         assert result.sector_map["JPM"] is GICSSector.FINANCIALS
@@ -166,7 +168,7 @@ class TestSectorMapConstruction:
             sp500_constituents=sp500,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert len(result.sector_map) == 11
 
@@ -181,7 +183,7 @@ class TestSectorMapConstruction:
             sp500_constituents=sp500,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert "AAPL" in result.sector_map
         assert "XYZ" not in result.sector_map
@@ -193,7 +195,7 @@ class TestSectorMapConstruction:
             sp500_constituents=[],
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert result.sector_map == {}
 
@@ -216,8 +218,13 @@ class TestSectorFilter:
         ]
         tickers = ["AAPL", "MSFT", "JPM", "GS"]
 
-        settings = AppSettings()
-        settings.scan.sectors = [GICSSector.INFORMATION_TECHNOLOGY]
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(sectors=[GICSSector.INFORMATION_TECHNOLOGY]),
+                )
+            )
+        )
 
         # After sector filtering, only AAPL and MSFT are passed to fetch_batch_ohlcv.
         # The mock returns data matching the filtered set.
@@ -228,7 +235,7 @@ class TestSectorFilter:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         # Only tech tickers should remain
         assert set(result.tickers) == {"AAPL", "MSFT"}
@@ -245,8 +252,15 @@ class TestSectorFilter:
         ]
         tickers = ["AAPL", "JPM", "XOM"]
 
-        settings = AppSettings()
-        settings.scan.sectors = [GICSSector.INFORMATION_TECHNOLOGY, GICSSector.ENERGY]
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        sectors=[GICSSector.INFORMATION_TECHNOLOGY, GICSSector.ENERGY],
+                    ),
+                )
+            )
+        )
 
         pipeline, _ = _make_pipeline(
             optionable_tickers=tickers,
@@ -255,7 +269,7 @@ class TestSectorFilter:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert set(result.tickers) == {"AAPL", "XOM"}
 
@@ -268,7 +282,7 @@ class TestSectorFilter:
         tickers = ["AAPL", "JPM"]
 
         settings = AppSettings()
-        assert settings.scan.sectors == []
+        assert settings.scan.filters.universe.sectors == []
 
         pipeline, _ = _make_pipeline(
             optionable_tickers=tickers,
@@ -277,7 +291,7 @@ class TestSectorFilter:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         # No filtering applied — all tickers remain
         assert set(result.tickers) == {"AAPL", "JPM"}
@@ -290,8 +304,13 @@ class TestSectorFilter:
         # XYZ is not in SP500, so it has no sector
         tickers = ["AAPL", "XYZ"]
 
-        settings = AppSettings()
-        settings.scan.sectors = [GICSSector.INFORMATION_TECHNOLOGY]
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(sectors=[GICSSector.INFORMATION_TECHNOLOGY]),
+                )
+            )
+        )
 
         pipeline, _ = _make_pipeline(
             optionable_tickers=tickers,
@@ -300,7 +319,7 @@ class TestSectorFilter:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert result.tickers == ["AAPL"]
 
@@ -313,8 +332,16 @@ class TestSectorFilter:
         # Extra non-SP500 ticker
         tickers = ["AAPL", "JPM", "XYZ"]
 
-        settings = AppSettings()
-        settings.scan.sectors = [GICSSector.INFORMATION_TECHNOLOGY]
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        preset=ScanPreset.SP500,
+                        sectors=[GICSSector.INFORMATION_TECHNOLOGY],
+                    ),
+                )
+            )
+        )
 
         pipeline, _ = _make_pipeline(
             optionable_tickers=tickers,
@@ -323,7 +350,7 @@ class TestSectorFilter:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.SP500, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         # SP500 filter removes XYZ, sector filter removes JPM
         assert result.tickers == ["AAPL"]
@@ -336,8 +363,13 @@ class TestSectorFilter:
         ]
         tickers = ["AAPL", "JPM"]
 
-        settings = AppSettings()
-        settings.scan.sectors = [GICSSector.INFORMATION_TECHNOLOGY]
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(sectors=[GICSSector.INFORMATION_TECHNOLOGY]),
+                )
+            )
+        )
 
         pipeline, _ = _make_pipeline(
             optionable_tickers=tickers,
@@ -347,7 +379,7 @@ class TestSectorFilter:
         )
 
         with caplog.at_level(logging.INFO, logger="options_arena.scan.pipeline"):
-            await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+            await pipeline._phase_universe(_noop_progress)
 
         info_messages = [r.message for r in caplog.records if r.levelno == logging.INFO]
         assert any("Sector filter" in msg and "2 -> 1" in msg for msg in info_messages)
@@ -375,7 +407,7 @@ class TestPhase2SectorEnrichment:
             batch_result=_make_batch_result(tickers),
         )
 
-        universe_result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        universe_result = await pipeline._phase_universe(_noop_progress)
         scoring_result = await pipeline._phase_scoring(universe_result, _noop_progress)
 
         for ts in scoring_result.scores:
@@ -389,7 +421,7 @@ class TestPhase2SectorEnrichment:
             sp500_constituents=[],
         )
 
-        universe_result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        universe_result = await pipeline._phase_universe(_noop_progress)
         scoring_result = await pipeline._phase_scoring(universe_result, _noop_progress)
 
         for ts in scoring_result.scores:

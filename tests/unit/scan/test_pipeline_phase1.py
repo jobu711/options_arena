@@ -25,6 +25,8 @@ from options_arena.models import (
     AppSettings,
     ScanPreset,
 )
+from options_arena.models.config import ScanConfig
+from options_arena.models.filters import ScanFilterSpec, UniverseFilters
 from options_arena.models.market_data import OHLCV
 from options_arena.scan.pipeline import ScanPipeline
 from options_arena.scan.progress import CancellationToken, ScanPhase
@@ -92,7 +94,9 @@ def _make_pipeline(
 
     Returns the pipeline and a dict of the mock services for assertion.
     """
-    _settings = settings or AppSettings()
+    _settings = settings or AppSettings(
+        scan=ScanConfig(filters=ScanFilterSpec(universe=UniverseFilters(preset=ScanPreset.FULL)))
+    )
     tickers = optionable_tickers if optionable_tickers is not None else ["AAPL", "MSFT", "GOOG"]
 
     mock_universe = AsyncMock()
@@ -165,15 +169,20 @@ class TestPhaseUniverse:
         tickers = ["AAPL", "MSFT", "GOOG"]
         pipeline, mocks = _make_pipeline(optionable_tickers=tickers)
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         mocks["universe"].fetch_optionable_tickers.assert_awaited_once()
         assert result.tickers == tickers
 
     async def test_filters_by_ohlcv_min_bars(self) -> None:
         """Tickers with fewer bars than ohlcv_min_bars are filtered out."""
-        settings = AppSettings()
-        settings.scan.ohlcv_min_bars = 200
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(ohlcv_min_bars=200),
+                )
+            )
+        )
 
         # AAPL has 250 bars (passes), MSFT has 100 bars (filtered)
         batch = BatchOHLCVResult(
@@ -189,7 +198,7 @@ class TestPhaseUniverse:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert "AAPL" in result.ohlcv_map
         assert "MSFT" not in result.ohlcv_map
@@ -209,13 +218,22 @@ class TestPhaseUniverse:
         mock_market_data = AsyncMock()
         mock_market_data.fetch_batch_ohlcv = AsyncMock(return_value=batch)
 
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(preset=ScanPreset.SP500),
+                )
+            )
+        )
+
         pipeline, _mocks = _make_pipeline(
             optionable_tickers=all_tickers,
             sp500_constituents=sp500,
             batch_result=batch,
+            settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.SP500, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         # The tickers list should be filtered to SP500 only
         assert set(result.tickers) == {"AAPL", "MSFT"}
@@ -233,7 +251,7 @@ class TestPhaseUniverse:
             batch_result=batch,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert result.failed_count == 2
         assert "AAPL" in result.ohlcv_map
@@ -249,7 +267,7 @@ class TestPhaseUniverse:
 
         pipeline, _ = _make_pipeline(optionable_tickers=["AAPL", "MSFT"])
 
-        await pipeline._phase_universe(ScanPreset.FULL, recording_progress)
+        await pipeline._phase_universe(recording_progress)
 
         # Should have at least the start (0, N) and end (N, N) calls
         assert len(progress_calls) >= 2
@@ -274,7 +292,7 @@ class TestPhaseUniverse:
             sp500_constituents=sp500,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert result.sp500_sectors == {
             "AAPL": "Information Technology",
@@ -289,7 +307,7 @@ class TestPhaseUniverse:
             batch_result=batch,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert result.ohlcv_map == {}
         assert result.tickers == []
@@ -300,14 +318,19 @@ class TestPhaseUniverse:
         """fetch_batch_ohlcv is called with period='1y'."""
         pipeline, mocks = _make_pipeline(optionable_tickers=["AAPL"])
 
-        await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        await pipeline._phase_universe(_noop_progress)
 
         mocks["market_data"].fetch_batch_ohlcv.assert_awaited_once_with(["AAPL"], period="1y")
 
     async def test_ohlcv_map_contains_only_valid_tickers(self) -> None:
         """ohlcv_map contains only tickers that passed both fetch and min_bars filter."""
-        settings = AppSettings()
-        settings.scan.ohlcv_min_bars = 200
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(ohlcv_min_bars=200),
+                )
+            )
+        )
 
         batch = BatchOHLCVResult(
             results=[
@@ -323,7 +346,7 @@ class TestPhaseUniverse:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert set(result.ohlcv_map.keys()) == {"AAPL"}
         assert result.failed_count == 1
@@ -340,12 +363,20 @@ class TestETFSPresetFiltering:
 
     async def test_etfs_preset_filters_to_etf_tickers(self) -> None:
         """ScanPreset.ETFS filters universe to only ETF tickers."""
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(preset=ScanPreset.ETFS),
+                )
+            )
+        )
         pipeline, mocks = _make_pipeline(
             optionable_tickers=["AAPL", "SPY", "QQQ", "MSFT"],
             etf_tickers=["SPY", "QQQ"],
+            settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.ETFS, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         # Only ETF tickers are included
         assert sorted(result.tickers) == ["QQQ", "SPY"]
@@ -353,20 +384,35 @@ class TestETFSPresetFiltering:
 
     async def test_etfs_preset_empty_etfs_produces_empty_tickers(self) -> None:
         """When no ETF tickers are found, result has no tickers."""
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(preset=ScanPreset.ETFS),
+                )
+            )
+        )
         pipeline, _ = _make_pipeline(
             optionable_tickers=["AAPL", "MSFT"],
             etf_tickers=[],
+            settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.ETFS, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert result.tickers == []
 
     async def test_full_preset_does_not_call_fetch_etf_tickers(self) -> None:
         """ScanPreset.FULL does NOT call fetch_etf_tickers."""
-        pipeline, mocks = _make_pipeline(optionable_tickers=["AAPL"])
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(preset=ScanPreset.FULL),
+                )
+            )
+        )
+        pipeline, mocks = _make_pipeline(optionable_tickers=["AAPL"], settings=settings)
 
-        await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        await pipeline._phase_universe(_noop_progress)
 
         mocks["universe"].fetch_etf_tickers.assert_not_awaited()
 
@@ -384,7 +430,7 @@ class TestPhase1Cancellation:
 
         # We need to mock _phase_scoring to avoid it actually running
         # Since run() checks cancellation AFTER Phase 1, it should short-circuit
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.cancelled is True
         assert result.phases_completed == 1

@@ -23,7 +23,6 @@ import pytest
 from options_arena.models.config import (
     AppSettings,
     OpenBBConfig,
-    PricingConfig,
     ServiceConfig,
 )
 from options_arena.models.enums import (
@@ -33,6 +32,7 @@ from options_arena.models.enums import (
     PricingModel,
     SignalDirection,
 )
+from options_arena.models.filters import OptionsFilters
 from options_arena.models.options import OptionContract, OptionGreeks
 from options_arena.scoring.contracts import compute_greeks, recommend_contracts
 from options_arena.services.cache import ServiceCache
@@ -208,9 +208,9 @@ def service_config() -> ServiceConfig:
 
 
 @pytest.fixture()
-def pricing_config() -> PricingConfig:
-    """Default PricingConfig with standard filters."""
-    return PricingConfig()
+def options_filters() -> OptionsFilters:
+    """Default OptionsFilters with standard filters."""
+    return OptionsFilters()
 
 
 @pytest.fixture()
@@ -236,7 +236,7 @@ class TestChainMigrationScanPipeline:
     async def test_scan_with_cboe_provider(
         self,
         service_config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
@@ -253,7 +253,7 @@ class TestChainMigrationScanPipeline:
 
             service = OptionsDataService(
                 service_config,
-                pricing_config,
+                options_filters,
                 cache,
                 limiter,
                 openbb_config=openbb_config,
@@ -270,7 +270,7 @@ class TestChainMigrationScanPipeline:
     async def test_scan_cboe_fallback_to_yfinance(
         self,
         service_config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
@@ -303,7 +303,7 @@ class TestChainMigrationScanPipeline:
 
             service = OptionsDataService(
                 service_config,
-                pricing_config,
+                options_filters,
                 cache,
                 limiter,
                 openbb_config=openbb_config,
@@ -375,7 +375,7 @@ class TestChainMigrationScanPipeline:
     async def test_scan_bid_ask_iv_propagation(
         self,
         service_config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
@@ -392,7 +392,7 @@ class TestChainMigrationScanPipeline:
 
             service = OptionsDataService(
                 service_config,
-                pricing_config,
+                options_filters,
                 cache,
                 limiter,
                 openbb_config=openbb_config,
@@ -417,7 +417,7 @@ class TestChainMigrationDebatePath:
     async def test_debate_with_cboe_chains(
         self,
         service_config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
@@ -438,7 +438,7 @@ class TestChainMigrationDebatePath:
 
             service = OptionsDataService(
                 service_config,
-                pricing_config,
+                options_filters,
                 cache,
                 limiter,
                 openbb_config=openbb_config,
@@ -460,7 +460,7 @@ class TestChainMigrationDebatePath:
     async def test_debate_cboe_fallback(
         self,
         service_config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
@@ -491,7 +491,7 @@ class TestChainMigrationDebatePath:
 
             service = OptionsDataService(
                 service_config,
-                pricing_config,
+                options_filters,
                 cache,
                 limiter,
                 openbb_config=openbb_config,
@@ -515,7 +515,7 @@ class TestChainMigrationFallback:
     async def test_full_fallback_chain(
         self,
         service_config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
@@ -541,7 +541,7 @@ class TestChainMigrationFallback:
 
             service = OptionsDataService(
                 service_config,
-                pricing_config,
+                options_filters,
                 cache,
                 limiter,
                 openbb_config=openbb_config,
@@ -573,7 +573,7 @@ class TestCutoverConfig:
     def test_yfinance_fallback_always_present(
         self,
         service_config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
@@ -587,7 +587,7 @@ class TestCutoverConfig:
 
             service = OptionsDataService(
                 service_config,
-                pricing_config,
+                options_filters,
                 cache,
                 limiter,
                 openbb_config=openbb_config,
@@ -600,7 +600,7 @@ class TestCutoverConfig:
     def test_cboe_plus_yfinance_when_sdk_available(
         self,
         service_config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
@@ -613,7 +613,7 @@ class TestCutoverConfig:
 
             service = OptionsDataService(
                 service_config,
-                pricing_config,
+                options_filters,
                 cache,
                 limiter,
                 openbb_config=openbb_config,
@@ -636,7 +636,7 @@ class TestRegressionSuite:
     async def test_no_openbb_sdk_identical_behavior(
         self,
         service_config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
@@ -670,7 +670,7 @@ class TestRegressionSuite:
 
             service = OptionsDataService(
                 service_config,
-                pricing_config,
+                options_filters,
                 cache,
                 limiter,
                 openbb_config=openbb_config,
@@ -690,7 +690,7 @@ class TestRegressionSuite:
     async def test_cboe_disabled_identical_behavior(
         self,
         service_config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
@@ -719,7 +719,7 @@ class TestRegressionSuite:
 
             service = OptionsDataService(
                 service_config,
-                pricing_config,
+                options_filters,
                 cache,
                 limiter,
                 openbb_config=openbb_config,
@@ -812,7 +812,7 @@ class TestRegressionSuite:
     async def test_no_openbb_config_at_all(
         self,
         service_config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
@@ -838,7 +838,7 @@ class TestRegressionSuite:
             mock_yf.Ticker.return_value = mock_ticker
 
             # No openbb_config at all — pre-migration constructor
-            service = OptionsDataService(service_config, pricing_config, cache, limiter)
+            service = OptionsDataService(service_config, options_filters, cache, limiter)
 
             contracts = await service.fetch_chain("SPY", _FUTURE_EXP)
 

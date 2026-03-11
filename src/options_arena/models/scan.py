@@ -164,6 +164,7 @@ class ScanRun(BaseModel):
     tickers_scanned: int
     tickers_scored: int
     recommendations: int
+    filter_spec_json: str | None = None  # ScanFilterSpec JSON for reproducibility
 
     @field_validator("tickers_scanned", "tickers_scored", "recommendations")
     @classmethod

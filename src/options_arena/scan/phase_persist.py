@@ -19,6 +19,7 @@ from options_arena.models import (
     SignalDirection,
     TickerScore,
 )
+from options_arena.models.filters import ScanFilterSpec
 from options_arena.scan.models import (
     OptionsResult,
     ScanResult,
@@ -42,6 +43,7 @@ async def run_persist_phase(
     options_result: OptionsResult,
     progress: ProgressCallback,
     repository: Repository,
+    filter_spec: ScanFilterSpec | None = None,
 ) -> ScanResult:
     """Phase 4: Persist scan results to database and assemble final ScanResult.
 
@@ -65,6 +67,7 @@ async def run_persist_phase(
         options_result: Phase 3 output with recommended contracts and risk-free rate.
         progress: Callback for reporting per-phase progress.
         repository: Data layer for persistence.
+        filter_spec: Optional filter specification to persist for reproducibility.
 
     Returns:
         ``ScanResult`` with all 4 phases completed and DB-assigned scan ID.
@@ -81,6 +84,7 @@ async def run_persist_phase(
         tickers_scanned=len(universe_result.tickers),
         tickers_scored=len(scoring_result.scores),
         recommendations=recommendation_count,
+        filter_spec_json=filter_spec.model_dump_json() if filter_spec else None,
     )
 
     # Step 2: Save scan run → get DB-assigned ID
@@ -199,6 +203,7 @@ async def run_persist_phase(
         tickers_scanned=scan_run.tickers_scanned,
         tickers_scored=scan_run.tickers_scored,
         recommendations=scan_run.recommendations,
+        filter_spec_json=scan_run.filter_spec_json,
     )
 
     return ScanResult(

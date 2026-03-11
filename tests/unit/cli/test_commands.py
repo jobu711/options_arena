@@ -50,10 +50,10 @@ def test_scan_command_default_args(mock_scan_async: AsyncMock) -> None:
     assert result.exit_code == 0
     mock_scan_async.assert_awaited_once()
     args = mock_scan_async.call_args
-    # Default preset is SP500, top_n=50, min_score=0.0, sectors=[]
+    # Default preset is SP500, top_n=50, min_score=None (unset), sectors=[]
     assert args[0][0].value == "sp500"
     assert args[0][1] == 50
-    assert args[0][2] == 0.0
+    assert args[0][2] is None
     assert args[0][3] == []
 
 

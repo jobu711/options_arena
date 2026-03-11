@@ -24,6 +24,8 @@ from options_arena.models import (
     GICSSector,
     ScanPreset,
 )
+from options_arena.models.config import ScanConfig
+from options_arena.models.filters import ScanFilterSpec, UniverseFilters
 from options_arena.models.market_data import OHLCV
 from options_arena.scan.pipeline import ScanPipeline
 from options_arena.scan.progress import ScanPhase
@@ -78,7 +80,9 @@ def _make_pipeline(
     settings: AppSettings | None = None,
 ) -> tuple[ScanPipeline, dict[str, AsyncMock]]:
     """Create a ScanPipeline with mocked services."""
-    _settings = settings or AppSettings()
+    _settings = settings or AppSettings(
+        scan=ScanConfig(filters=ScanFilterSpec(universe=UniverseFilters(preset=ScanPreset.FULL)))
+    )
     tickers = optionable_tickers if optionable_tickers is not None else ["AAPL", "MSFT", "GOOG"]
 
     mock_universe = AsyncMock()
@@ -142,7 +146,7 @@ class TestIndustryGroupMapConstruction:
             sp500_constituents=sp500,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert result.industry_group_map["FCX"] == GICSIndustryGroup.MATERIALS
         assert result.industry_group_map["NEE"] == GICSIndustryGroup.UTILITIES
@@ -164,7 +168,7 @@ class TestIndustryGroupMapConstruction:
             sp500_constituents=sp500,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert result.industry_group_map["AAPL"] == GICSIndustryGroup.TECHNOLOGY_HARDWARE_EQUIPMENT
 
@@ -180,7 +184,7 @@ class TestIndustryGroupMapConstruction:
             sp500_constituents=sp500,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         # AAPL should NOT be in industry_group_map because IT has multiple groups
         # and no sub_industry is available
@@ -193,7 +197,7 @@ class TestIndustryGroupMapConstruction:
             sp500_constituents=[],
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert result.industry_group_map == {}
 
@@ -216,8 +220,16 @@ class TestPhase1IndustryGroupFilter:
         ]
         tickers = ["NEE", "FCX"]
 
-        settings = AppSettings()
-        settings.scan.industry_groups = [GICSIndustryGroup.UTILITIES]
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        preset=ScanPreset.FULL,
+                        industry_groups=[GICSIndustryGroup.UTILITIES],
+                    ),
+                )
+            )
+        )
 
         pipeline, _ = _make_pipeline(
             optionable_tickers=tickers,
@@ -226,7 +238,7 @@ class TestPhase1IndustryGroupFilter:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert result.tickers == ["NEE"]
 
@@ -238,8 +250,14 @@ class TestPhase1IndustryGroupFilter:
         ]
         tickers = ["NEE", "FCX"]
 
-        settings = AppSettings()
-        assert settings.scan.industry_groups == []
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(preset=ScanPreset.FULL),
+                )
+            )
+        )
+        assert settings.scan.filters.universe.industry_groups == []
 
         pipeline, _ = _make_pipeline(
             optionable_tickers=tickers,
@@ -248,7 +266,7 @@ class TestPhase1IndustryGroupFilter:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert set(result.tickers) == {"NEE", "FCX"}
 
@@ -259,8 +277,16 @@ class TestPhase1IndustryGroupFilter:
         ]
         tickers = ["NEE"]
 
-        settings = AppSettings()
-        settings.scan.industry_groups = [GICSIndustryGroup.BANKS]
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        preset=ScanPreset.FULL,
+                        industry_groups=[GICSIndustryGroup.BANKS],
+                    ),
+                )
+            )
+        )
 
         pipeline, _ = _make_pipeline(
             optionable_tickers=tickers,
@@ -269,7 +295,7 @@ class TestPhase1IndustryGroupFilter:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert result.tickers == []
 
@@ -283,8 +309,16 @@ class TestPhase1IndustryGroupFilter:
         ]
         tickers = ["NEE", "FCX"]
 
-        settings = AppSettings()
-        settings.scan.industry_groups = [GICSIndustryGroup.UTILITIES]
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        preset=ScanPreset.FULL,
+                        industry_groups=[GICSIndustryGroup.UTILITIES],
+                    ),
+                )
+            )
+        )
 
         pipeline, _ = _make_pipeline(
             optionable_tickers=tickers,
@@ -294,7 +328,7 @@ class TestPhase1IndustryGroupFilter:
         )
 
         with caplog.at_level(logging.INFO, logger="options_arena.scan.pipeline"):
-            await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+            await pipeline._phase_universe(_noop_progress)
 
         info_messages = [r.message for r in caplog.records if r.levelno == logging.INFO]
         assert any("Industry group filter" in msg and "2 -> 1" in msg for msg in info_messages)
@@ -317,11 +351,19 @@ class TestCombinedFilters:
         ]
         tickers = ["NEE", "FCX", "AAPL"]
 
-        settings = AppSettings()
-        # Sector filter: only Utilities and Materials
-        settings.scan.sectors = [GICSSector.UTILITIES, GICSSector.MATERIALS]
-        # Industry group filter: only UTILITIES
-        settings.scan.industry_groups = [GICSIndustryGroup.UTILITIES]
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        preset=ScanPreset.FULL,
+                        # Sector filter: only Utilities and Materials
+                        sectors=[GICSSector.UTILITIES, GICSSector.MATERIALS],
+                        # Industry group filter: only UTILITIES
+                        industry_groups=[GICSIndustryGroup.UTILITIES],
+                    ),
+                )
+            )
+        )
 
         pipeline, _ = _make_pipeline(
             optionable_tickers=tickers,
@@ -330,7 +372,7 @@ class TestCombinedFilters:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         # AAPL removed by sector filter, FCX removed by industry group filter
         assert result.tickers == ["NEE"]
@@ -357,7 +399,7 @@ class TestPhase2IndustryGroupEnrichment:
             sp500_constituents=sp500,
         )
 
-        universe_result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        universe_result = await pipeline._phase_universe(_noop_progress)
         scoring_result = await pipeline._phase_scoring(universe_result, _noop_progress)
 
         for ts in scoring_result.scores:
@@ -379,7 +421,7 @@ class TestPhase2IndustryGroupEnrichment:
             sp500_constituents=sp500,
         )
 
-        universe_result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        universe_result = await pipeline._phase_universe(_noop_progress)
         scoring_result = await pipeline._phase_scoring(universe_result, _noop_progress)
 
         for ts in scoring_result.scores:
@@ -398,7 +440,7 @@ class TestPhase2IndustryGroupEnrichment:
             sp500_constituents=sp500,
         )
 
-        universe_result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        universe_result = await pipeline._phase_universe(_noop_progress)
         scoring_result = await pipeline._phase_scoring(universe_result, _noop_progress)
 
         for ts in scoring_result.scores:
@@ -421,8 +463,16 @@ class TestSectorFilterRegression:
         ]
         tickers = ["AAPL", "JPM"]
 
-        settings = AppSettings()
-        settings.scan.sectors = [GICSSector.INFORMATION_TECHNOLOGY]
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        preset=ScanPreset.FULL,
+                        sectors=[GICSSector.INFORMATION_TECHNOLOGY],
+                    ),
+                )
+            )
+        )
 
         pipeline, _ = _make_pipeline(
             optionable_tickers=tickers,
@@ -431,7 +481,7 @@ class TestSectorFilterRegression:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert set(result.tickers) == {"AAPL"}
 
@@ -447,7 +497,7 @@ class TestSectorFilterRegression:
             sp500_constituents=sp500,
         )
 
-        universe_result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        universe_result = await pipeline._phase_universe(_noop_progress)
         scoring_result = await pipeline._phase_scoring(universe_result, _noop_progress)
 
         for ts in scoring_result.scores:

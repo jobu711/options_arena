@@ -41,8 +41,8 @@ class ScanMixin(RepositoryBase):
         cursor = await conn.execute(
             "INSERT INTO scan_runs "
             "(started_at, completed_at, preset, source, "
-            "tickers_scanned, tickers_scored, recommendations) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "tickers_scanned, tickers_scored, recommendations, filter_spec_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 scan_run.started_at.isoformat(),
                 scan_run.completed_at.isoformat() if scan_run.completed_at is not None else None,
@@ -51,6 +51,7 @@ class ScanMixin(RepositoryBase):
                 scan_run.tickers_scanned,
                 scan_run.tickers_scored,
                 scan_run.recommendations,
+                scan_run.filter_spec_json,
             ),
         )
         if commit:
@@ -146,7 +147,14 @@ class ScanMixin(RepositoryBase):
     def _row_to_scan_run(row: Row) -> ScanRun:
         """Reconstruct a ScanRun from an aiosqlite.Row."""
         completed_at_raw: str | None = row["completed_at"]
-        source_raw: str | None = row["source"] if "source" in row else None  # noqa: SIM401
+        # sqlite3.Row ``in`` checks values, not columns — must use .keys()
+        source_raw: str | None = row["source"] if "source" in row.keys() else None  # noqa: SIM118
+        # filter_spec_json may not exist in legacy databases before migration 031;
+        # sqlite3.Row does not support ``"col" in row`` — use ``.keys()`` instead.
+        row_keys = row.keys()
+        filter_spec_raw: str | None = (
+            row["filter_spec_json"] if "filter_spec_json" in row_keys else None
+        )  # noqa: E501
         return ScanRun(
             id=int(row["id"]),
             started_at=datetime.fromisoformat(row["started_at"]),
@@ -158,6 +166,7 @@ class ScanMixin(RepositoryBase):
             tickers_scanned=int(row["tickers_scanned"]),
             tickers_scored=int(row["tickers_scored"]),
             recommendations=int(row["recommendations"]),
+            filter_spec_json=filter_spec_raw,
         )
 
     @staticmethod

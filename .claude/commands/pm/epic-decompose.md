@@ -255,14 +255,7 @@ Before finalizing tasks, verify:
 - [ ] Edge cases identified (minimum: empty input, error handling, validation)
 - [ ] `test_files` frontmatter matches Test Plan paths
 
-### 10. Remove Planning Lock
-
-Remove the planning lock file if it exists:
-```bash
-rm -f .claude/epics/$ARGUMENTS/.planning-lock
-```
-
-### 11. Write Checkpoint (best-effort)
+### 10. Write Checkpoint (best-effort)
 
 Write `.claude/epics/$ARGUMENTS/checkpoint.json` with `phase: "decomposition"`.
 Get REAL current datetime. Failure to write checkpoint does not fail the command.

@@ -38,6 +38,7 @@ from options_arena.models import (
     ScanConfig,
     TickerScore,
 )
+from options_arena.models.filters import OptionsFilters, UniverseFilters
 from options_arena.models.market_data import OHLCV, TickerInfo
 from options_arena.models.metadata import TickerMetadata
 from options_arena.scan.indicators import (
@@ -162,6 +163,8 @@ async def run_options_phase(
     options_data: OptionsDataService,
     repository: Repository,
     scan_config: ScanConfig,
+    options_filters: OptionsFilters,
+    universe_filters: UniverseFilters,
     pricing_config: PricingConfig,
     process_ticker_fn: ProcessTickerFn | None = None,
 ) -> OptionsResult:
@@ -189,8 +192,13 @@ async def run_options_phase(
         market_data: Market data service for OHLCV and ticker info.
         options_data: Options data service for chain fetching.
         repository: Data layer for metadata upserts.
-        scan_config: Scan pipeline configuration slice.
-        pricing_config: Pricing configuration for Greeks computation.
+        scan_config: Scan pipeline configuration slice (options_per_ticker_timeout,
+            options_concurrency).
+        options_filters: Phase 3 option chain filters (top_n, min_dollar_volume,
+            exclude_near_earnings_days, min_iv_rank).
+        universe_filters: Phase 1 universe filters (min_price, max_price,
+            market_cap_tiers).
+        pricing_config: Pricing configuration for Greeks computation (delta_target).
         process_ticker_fn: Optional override for per-ticker processing (used by
             ``ScanPipeline`` to route through ``self._process_ticker_options``
             for test-patching compatibility).
@@ -201,9 +209,9 @@ async def run_options_phase(
     ohlcv_map = universe_result.ohlcv_map
 
     # Step 1: Liquidity pre-filter
-    min_dollar_volume = scan_config.min_dollar_volume
-    min_price = scan_config.min_price
-    max_price = scan_config.max_price
+    min_dollar_volume = options_filters.min_dollar_volume
+    min_price = universe_filters.min_price
+    max_price = universe_filters.max_price
 
     liquid_scores: list[TickerScore] = []
     for ts in scoring_result.scores:
@@ -233,7 +241,7 @@ async def run_options_phase(
     )
 
     # Step 2: Top-N selection (scores already sorted descending)
-    top_n = scan_config.top_n
+    top_n = options_filters.top_n
     top_scores = liquid_scores[:top_n]
 
     logger.info("Top-N selection: %d tickers (top_n=%d)", len(top_scores), top_n)
@@ -311,7 +319,8 @@ async def run_options_phase(
                             market_data=market_data,
                             options_data=options_data,
                             repository=repository,
-                            scan_config=scan_config,
+                            options_filters=options_filters,
+                            universe_filters=universe_filters,
                             pricing_config=pricing_config,
                         ),
                         timeout=per_ticker_timeout,
@@ -384,7 +393,8 @@ async def process_ticker_options(
     market_data: MarketDataService,
     options_data: OptionsDataService,
     repository: Repository,
-    scan_config: ScanConfig,
+    options_filters: OptionsFilters,
+    universe_filters: UniverseFilters,
     pricing_config: PricingConfig,
     recommend_contracts_fn: RecommendContractsFn | None = None,
     map_yfinance_fn: MapYfinanceFn | None = None,
@@ -406,8 +416,10 @@ async def process_ticker_options(
         market_data: Market data service for ticker info and earnings.
         options_data: Options data service for chain fetching.
         repository: Data layer for metadata upserts.
-        scan_config: Scan pipeline configuration slice.
-        pricing_config: Pricing configuration for Greeks computation.
+        options_filters: Phase 3 option chain filters (exclude_near_earnings_days,
+            min_iv_rank).
+        universe_filters: Phase 1 universe filters (market_cap_tiers).
+        pricing_config: Pricing configuration for Greeks computation (delta_target).
         recommend_contracts_fn: Optional override for ``recommend_contracts`` (used
             by ``ScanPipeline`` wrappers for test-patching compatibility).
         map_yfinance_fn: Optional override for ``map_yfinance_to_metadata`` (used
@@ -421,14 +433,44 @@ async def process_ticker_options(
     _map_yfinance = map_yfinance_fn or map_yfinance_to_metadata
     ticker = ticker_score.ticker
 
-    # Fetch chains, ticker info, and earnings date concurrently
+    # Early earnings check — before expensive chain fetch (saves API calls)
+    earnings_date: date | None = None
+    if options_filters.exclude_near_earnings_days is not None:
+        try:
+            earnings_date = await market_data.fetch_earnings_date(ticker)
+        except Exception:
+            logger.warning("Earnings fetch failed for %s", ticker, exc_info=True)
+
+        if earnings_date is not None:
+            market_today = datetime.now(ZoneInfo("America/New_York")).date()
+            days_to_earnings = (earnings_date - market_today).days
+            if 0 <= days_to_earnings <= options_filters.exclude_near_earnings_days:
+                logger.info(
+                    "Filtered %s: earnings in %d days (<= %d)",
+                    ticker,
+                    days_to_earnings,
+                    options_filters.exclude_near_earnings_days,
+                )
+                return (ticker, [], earnings_date, None)
+
+    # Fetch chains, ticker info (and earnings if not already fetched) concurrently
     chain_task = options_data.fetch_chain_all_expirations(ticker)
     info_task = market_data.fetch_ticker_info(ticker)
-    earnings_task = market_data.fetch_earnings_date(ticker)
 
-    chain_results, ticker_info, earnings_result = await asyncio.gather(
-        chain_task, info_task, earnings_task, return_exceptions=True
-    )
+    if earnings_date is None and options_filters.exclude_near_earnings_days is None:
+        # Earnings not fetched yet — fetch concurrently with chains
+        earnings_task = market_data.fetch_earnings_date(ticker)
+        chain_results, ticker_info, earnings_result = await asyncio.gather(
+            chain_task, info_task, earnings_task, return_exceptions=True
+        )
+        if isinstance(earnings_result, BaseException):
+            logger.warning("Earnings fetch failed for %s: %s", ticker, earnings_result)
+        else:
+            earnings_date = earnings_result
+    else:
+        chain_results, ticker_info = await asyncio.gather(
+            chain_task, info_task, return_exceptions=True
+        )
 
     # Re-raise required data failures
     if isinstance(chain_results, BaseException):
@@ -436,39 +478,19 @@ async def process_ticker_options(
     if isinstance(ticker_info, BaseException):
         raise ticker_info
 
-    # Earnings is optional — log and continue on failure
-    earnings_date: date | None
-    if isinstance(earnings_result, BaseException):
-        logger.warning("Earnings fetch failed for %s: %s", ticker, earnings_result)
-        earnings_date = None
-    else:
-        earnings_date = earnings_result
-
-    # Pre-scan narrowing: check market cap tier + earnings proximity
+    # Pre-scan narrowing: check market cap tier
     if (
-        scan_config.market_cap_tiers
+        universe_filters.market_cap_tiers
         and ticker_info.market_cap_tier is not None
-        and ticker_info.market_cap_tier not in scan_config.market_cap_tiers
+        and ticker_info.market_cap_tier not in universe_filters.market_cap_tiers
     ):
         logger.info(
             "Filtered %s: market_cap_tier %s not in %s",
             ticker,
             ticker_info.market_cap_tier.value,
-            [t.value for t in scan_config.market_cap_tiers],
+            [t.value for t in universe_filters.market_cap_tiers],
         )
         return (ticker, [], earnings_date, ticker_info.current_price)
-
-    if scan_config.exclude_near_earnings_days is not None and earnings_date is not None:
-        market_today = datetime.now(ZoneInfo("America/New_York")).date()
-        days_to_earnings = (earnings_date - market_today).days
-        if days_to_earnings < scan_config.exclude_near_earnings_days:
-            logger.info(
-                "Filtered %s: earnings in %d days (< %d)",
-                ticker,
-                days_to_earnings,
-                scan_config.exclude_near_earnings_days,
-            )
-            return (ticker, [], earnings_date, ticker_info.current_price)
 
     # Enrich ticker_score with company_name from ticker info
     ticker_score.company_name = ticker_info.company_name
@@ -539,14 +561,14 @@ async def process_ticker_options(
             )
 
     # Pre-scan narrowing: IV rank filter (applied after Phase 3 DSE populates iv_rank)
-    if scan_config.min_iv_rank is not None:
+    if options_filters.min_iv_rank is not None:
         iv_rank = ticker_score.signals.iv_rank
-        if iv_rank is None or iv_rank < scan_config.min_iv_rank:
+        if iv_rank is None or iv_rank < options_filters.min_iv_rank:
             logger.info(
                 "Filtered %s: iv_rank %s < min_iv_rank %.1f",
                 ticker,
                 iv_rank,
-                scan_config.min_iv_rank,
+                options_filters.min_iv_rank,
             )
             return (ticker, [], earnings_date, entry_stock_price)
 
@@ -556,7 +578,8 @@ async def process_ticker_options(
         spot=spot,
         risk_free_rate=risk_free_rate,
         dividend_yield=ticker_info.dividend_yield,
-        config=pricing_config,
+        filters=options_filters,
+        delta_target=pricing_config.delta_target,
     )
 
     return (ticker, recommended, earnings_date, entry_stock_price)

@@ -30,8 +30,9 @@ import pandas as pd
 import yfinance as yf
 from pydantic import BaseModel
 
-from options_arena.models.config import OpenBBConfig, PricingConfig, ServiceConfig
+from options_arena.models.config import OpenBBConfig, ServiceConfig
 from options_arena.models.enums import ExerciseStyle, OptionType
+from options_arena.models.filters import OptionsFilters
 from options_arena.models.options import OptionContract
 from options_arena.services.base import ServiceBase
 from options_arena.services.cache import ServiceCache
@@ -50,19 +51,19 @@ from options_arena.utils.exceptions import DataFetchError, DataSourceUnavailable
 # ---------------------------------------------------------------------------
 
 
-def _passes_liquidity_filter(row: pd.Series[float], config: PricingConfig) -> bool:
+def _passes_liquidity_filter(row: pd.Series[float], filters: OptionsFilters) -> bool:
     """Check if an option contract row passes basic liquidity requirements.
 
     Filters applied:
     - Reject truly dead contracts where both bid AND ask are zero.
     - Zero-bid exemption: bid=0/ask>0 passes through (allows the analysis
       layer to price these contracts via ``pricing/dispatch.py``).
-    - Open interest must meet ``config.min_oi``.
-    - Volume must meet ``config.min_volume``.
+    - Open interest must meet ``filters.min_oi``.
+    - Volume must meet ``filters.min_volume``.
 
     Args:
         row: A single row from a yfinance option chain DataFrame.
-        config: Pricing configuration with ``min_oi`` and ``min_volume`` thresholds.
+        filters: Options filter configuration with ``min_oi`` and ``min_volume`` thresholds.
 
     Returns:
         ``True`` if the contract passes all liquidity checks.
@@ -77,7 +78,7 @@ def _passes_liquidity_filter(row: pd.Series[float], config: PricingConfig) -> bo
         return False
 
     # bid=0/ask>0 passes (zero-bid exemption)
-    return oi >= config.min_oi and vol >= config.min_volume
+    return oi >= filters.min_oi and vol >= filters.min_volume
 
 
 def _row_to_contract(
@@ -185,7 +186,7 @@ class YFinanceChainProvider:
 
     Args:
         config: Service configuration with timeout settings.
-        pricing_config: Pricing configuration with OI/volume filter thresholds.
+        options_filters: Options filter configuration with OI/volume filter thresholds.
         cache: Two-tier service cache for chain data.
         limiter: Rate limiter for yfinance API calls.
     """
@@ -193,12 +194,12 @@ class YFinanceChainProvider:
     def __init__(
         self,
         config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
         self._config = config
-        self._pricing_config = pricing_config
+        self._options_filters = options_filters
         self._cache = cache
         self._limiter = limiter
         self._log = logging.getLogger(type(self).__module__)
@@ -318,7 +319,7 @@ class YFinanceChainProvider:
         # Process calls DataFrame
         calls_df: pd.DataFrame = chain_data.calls
         for _, row in calls_df.iterrows():
-            if _passes_liquidity_filter(row, self._pricing_config):
+            if _passes_liquidity_filter(row, self._options_filters):
                 try:
                     contracts.append(_row_to_contract(row, ticker, OptionType.CALL, expiration))
                 except ValueError:
@@ -327,7 +328,7 @@ class YFinanceChainProvider:
         # Process puts DataFrame
         puts_df: pd.DataFrame = chain_data.puts
         for _, row in puts_df.iterrows():
-            if _passes_liquidity_filter(row, self._pricing_config):
+            if _passes_liquidity_filter(row, self._options_filters):
                 try:
                     contracts.append(_row_to_contract(row, ticker, OptionType.PUT, expiration))
                 except ValueError:
@@ -379,7 +380,7 @@ class OptionsDataService(ServiceBase[ServiceConfig]):
 
     Args:
         config: Service configuration with timeout settings.
-        pricing_config: Pricing configuration with OI/volume filter thresholds.
+        options_filters: Options filter configuration with OI/volume filter thresholds.
         cache: Two-tier service cache for chain data.
         limiter: Rate limiter for API calls.
         provider: Optional chain provider override — when given, used as the
@@ -392,7 +393,7 @@ class OptionsDataService(ServiceBase[ServiceConfig]):
     def __init__(
         self,
         config: ServiceConfig,
-        pricing_config: PricingConfig,
+        options_filters: OptionsFilters,
         cache: ServiceCache,
         limiter: RateLimiter,
         *,
@@ -400,7 +401,7 @@ class OptionsDataService(ServiceBase[ServiceConfig]):
         openbb_config: OpenBBConfig | None = None,
     ) -> None:
         super().__init__(config, cache, limiter)
-        self._pricing_config = pricing_config
+        self._options_filters = options_filters
         self._openbb_config = openbb_config
         self._validation_mode = openbb_config is not None and openbb_config.chain_validation_mode
 
@@ -423,7 +424,7 @@ class OptionsDataService(ServiceBase[ServiceConfig]):
                 # Build one if needed (e.g., when CBOE is primary and yfinance is fallback)
                 self._yfinance_provider = YFinanceChainProvider(
                     config=config,
-                    pricing_config=pricing_config,
+                    options_filters=options_filters,
                     cache=cache,
                     limiter=limiter,
                 )
@@ -461,7 +462,7 @@ class OptionsDataService(ServiceBase[ServiceConfig]):
 
         yfinance_provider = YFinanceChainProvider(
             config=self._config,
-            pricing_config=self._pricing_config,
+            options_filters=self._options_filters,
             cache=cache,
             limiter=limiter,
         )

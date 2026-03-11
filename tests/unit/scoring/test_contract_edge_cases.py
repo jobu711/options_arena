@@ -16,8 +16,8 @@ from decimal import Decimal
 
 import pytest
 
-from options_arena.models.config import PricingConfig
 from options_arena.models.enums import SignalDirection
+from options_arena.models.filters import OptionsFilters
 from options_arena.scoring.contracts import (
     _compute_liquidity_score,
     filter_contracts,
@@ -30,9 +30,9 @@ from tests.harnesses.chain_factory import ChainSpec, build_chain
 # ---------------------------------------------------------------------------
 
 
-def _default_config() -> PricingConfig:
-    """PricingConfig with production defaults."""
-    return PricingConfig()
+def _default_filters() -> OptionsFilters:
+    """OptionsFilters with production defaults."""
+    return OptionsFilters()
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +50,7 @@ class TestZeroBidContracts:
             zero_bid_indices=[0, 1, 2, 3, 4],
         )
         chain = build_chain(spec)
-        cfg = _default_config()
+        cfg = _default_filters()
         for contract in chain:
             score = _compute_liquidity_score(contract, cfg.max_spread_pct)
             # Mid is (0 + ask)/2 > 0, spread/mid is large, so spread_component ≈ 0
@@ -67,7 +67,7 @@ class TestZeroBidContracts:
             c.model_copy(update={"bid": Decimal("0"), "ask": Decimal("0"), "last": Decimal("0")})
             for c in chain
         ]
-        filtered = filter_contracts(dead_chain, SignalDirection.BULLISH, _default_config())
+        filtered = filter_contracts(dead_chain, SignalDirection.BULLISH, _default_filters())
         assert len(filtered) == 0, "Dead contracts (bid=0, ask=0) should all be filtered"
 
 
@@ -87,7 +87,7 @@ class TestStaleBidGtAsk:
             stale_bid_gt_ask_indices=[0, 1, 2, 3, 4],
         )
         chain = build_chain(spec)
-        cfg = _default_config()
+        cfg = _default_filters()
         for contract in chain:
             score = _compute_liquidity_score(contract, cfg.max_spread_pct)
             assert 0.0 <= score <= 1.0, (
@@ -99,7 +99,7 @@ class TestStaleBidGtAsk:
         penalizing stale data. Score comes only from the OI component."""
         spec_stale = ChainSpec(num_strikes=1, stale_bid_gt_ask_indices=[0])
         stale = build_chain(spec_stale)[0]
-        cfg = _default_config()
+        cfg = _default_filters()
         score = _compute_liquidity_score(stale, cfg.max_spread_pct)
         assert 0.0 <= score <= 1.0, f"Score {score} out of [0,1] for stale quote"
         # spread_component is 0.0 (penalized), so total = 0.0 * 0.7 + oi * 0.3
@@ -122,7 +122,7 @@ class TestNaNDelta:
             nan_delta_indices=[0, 1, 2, 3, 4],
         )
         chain = build_chain(spec)
-        result = select_by_delta(chain, _default_config())
+        result = select_by_delta(chain, _default_filters())
         assert result is None, "Expected None when all deltas are NaN"
 
     def test_nan_delta_skipped_in_sort(self) -> None:
@@ -133,7 +133,7 @@ class TestNaNDelta:
             base_delta=0.35,  # Valid delta on indices 1, 3
         )
         chain = build_chain(spec)
-        result = select_by_delta(chain, _default_config())
+        result = select_by_delta(chain, _default_filters())
         assert result is not None, "Valid contracts should be selectable"
         assert result.greeks is not None
         assert math.isfinite(result.greeks.delta), "Selected contract has NaN delta!"
@@ -154,7 +154,7 @@ class TestWideSpread:
             wide_spread_indices=[0, 1, 2, 3, 4],
         )
         chain = build_chain(spec)
-        cfg = _default_config()
+        cfg = _default_filters()
         filtered = filter_contracts(chain, SignalDirection.BULLISH, cfg)
         assert len(filtered) == 0, "All wide-spread contracts should be filtered"
 
@@ -173,7 +173,7 @@ class TestZeroOI:
             zero_oi_indices=[0, 1, 2, 3, 4],
         )
         chain = build_chain(spec)
-        cfg = _default_config()
+        cfg = _default_filters()
         filtered = filter_contracts(chain, SignalDirection.BULLISH, cfg)
         assert len(filtered) == 0, "All zero-OI contracts should be filtered"
 
@@ -192,7 +192,7 @@ class TestSingleValidContract:
             base_delta=0.35,  # Within primary range [0.20, 0.50]
         )
         chain = build_chain(spec)
-        result = select_by_delta(chain, _default_config())
+        result = select_by_delta(chain, _default_filters())
         assert result is not None, "Single valid contract should be selected"
         assert result.ticker == "TEST"
 
@@ -212,7 +212,7 @@ class TestAllDeepITM:
             base_delta=0.95,  # Outside fallback max (0.80)
         )
         chain = build_chain(spec)
-        result = select_by_delta(chain, _default_config())
+        result = select_by_delta(chain, _default_filters())
         assert result is None, "All deep ITM contracts should yield None"
 
 
@@ -232,7 +232,7 @@ class TestMixedNaNAndValid:
             base_delta=0.35,
         )
         chain = build_chain(spec)
-        result = select_by_delta(chain, _default_config())
+        result = select_by_delta(chain, _default_filters())
         assert result is not None, "Should select from valid contracts"
         assert result.greeks is not None
         assert math.isfinite(result.greeks.delta)
@@ -249,7 +249,7 @@ class TestMixedNaNAndValid:
         )
         chain = build_chain(spec)
         # select_by_delta should work without error (no NaN in sort key)
-        result = select_by_delta(chain, _default_config())
+        result = select_by_delta(chain, _default_filters())
         if result is not None:
             assert result.greeks is not None
             assert math.isfinite(result.greeks.delta)

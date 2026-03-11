@@ -31,15 +31,18 @@ from options_arena.data import Repository
 from options_arena.models import (
     AppSettings,
     MarketRegime,
-    PricingConfig,
-    ScanConfig,
     ScanDiff,
-    ScanPreset,
     ScanRun,
     ScanSource,
     SignalDirection,
     TickerDelta,
     TickerScore,
+)
+from options_arena.models.filters import (
+    OptionsFilters,
+    ScanFilterSpec,
+    ScoringFilters,
+    UniverseFilters,
 )
 from options_arena.scan import CancellationToken, ScanPipeline, ScanResult
 from options_arena.services import (
@@ -63,7 +66,6 @@ router = APIRouter(prefix="/api", tags=["scan"])
 async def _run_scan_background(
     request: Request,
     scan_id: int,
-    preset: ScanPreset,
     source: ScanSource,
     token: CancellationToken,
     bridge: WebSocketProgressBridge,
@@ -76,7 +78,7 @@ async def _run_scan_background(
     Pipeline Phase 4 handles all persistence internally.
     """
     try:
-        result: ScanResult = await pipeline.run(preset, token, bridge, source=source)
+        result: ScanResult = await pipeline.run(token, bridge, source=source)
 
         # Collect outcomes for previous scans (never-raises contract)
         outcomes_count = 0
@@ -140,53 +142,59 @@ async def start_scan(
 
     # Apply per-request filters to settings (immutable copy pattern)
     effective_settings = settings
-    scan_overrides: dict[str, object] = {}
+    base_filters = settings.scan.filters
+
+    # Build universe filter overrides
+    universe_overrides: dict[str, object] = {"preset": body.preset}
     if body.sectors:
-        scan_overrides["sectors"] = body.sectors
+        universe_overrides["sectors"] = body.sectors
     if body.market_cap_tiers:
-        scan_overrides["market_cap_tiers"] = body.market_cap_tiers
-    if body.exclude_near_earnings_days is not None:
-        scan_overrides["exclude_near_earnings_days"] = body.exclude_near_earnings_days
-    if body.direction_filter is not None:
-        scan_overrides["direction_filter"] = body.direction_filter
-    if body.min_iv_rank is not None:
-        scan_overrides["min_iv_rank"] = body.min_iv_rank
+        universe_overrides["market_cap_tiers"] = body.market_cap_tiers
     if body.industry_groups:
-        scan_overrides["industry_groups"] = body.industry_groups
+        universe_overrides["industry_groups"] = body.industry_groups
     if body.custom_tickers:
-        scan_overrides["custom_tickers"] = body.custom_tickers
+        universe_overrides["custom_tickers"] = body.custom_tickers
     if body.min_price is not None:
-        scan_overrides["min_price"] = body.min_price
+        universe_overrides["min_price"] = body.min_price
     if body.max_price is not None:
-        scan_overrides["max_price"] = body.max_price
-    if body.min_dte is not None:
-        scan_overrides["min_dte"] = body.min_dte
-    if body.max_dte is not None:
-        scan_overrides["max_dte"] = body.max_dte
+        universe_overrides["max_price"] = body.max_price
+
+    # Build scoring filter overrides
+    scoring_overrides: dict[str, object] = {}
+    if body.direction_filter is not None:
+        scoring_overrides["direction_filter"] = body.direction_filter
     if body.min_score is not None:
-        scan_overrides["min_score"] = body.min_score
+        scoring_overrides["min_score"] = body.min_score
+    if body.min_direction_confidence is not None:
+        scoring_overrides["min_direction_confidence"] = body.min_direction_confidence
 
-    # DTE overrides also forward to PricingConfig for contract filtering
-    pricing_overrides: dict[str, object] = {}
+    # Build options filter overrides
+    options_overrides: dict[str, object] = {}
+    if body.exclude_near_earnings_days is not None:
+        options_overrides["exclude_near_earnings_days"] = body.exclude_near_earnings_days
+    if body.min_iv_rank is not None:
+        options_overrides["min_iv_rank"] = body.min_iv_rank
     if body.min_dte is not None:
-        pricing_overrides["dte_min"] = body.min_dte
+        options_overrides["min_dte"] = body.min_dte
     if body.max_dte is not None:
-        pricing_overrides["dte_max"] = body.max_dte
+        options_overrides["max_dte"] = body.max_dte
 
-    if scan_overrides or pricing_overrides:
-        new_scan = (
-            ScanConfig.model_validate(settings.scan.model_copy(update=scan_overrides).model_dump())
-            if scan_overrides
-            else settings.scan
-        )
-        new_pricing = (
-            PricingConfig.model_validate(
-                settings.pricing.model_copy(update=pricing_overrides).model_dump()
-            )
-            if pricing_overrides
-            else settings.pricing
-        )
-        effective_settings = settings.model_copy(update={"scan": new_scan, "pricing": new_pricing})
+    # Reconstruct via model constructor to trigger validators (model_copy bypasses them)
+    filter_spec = ScanFilterSpec(
+        universe=UniverseFilters(
+            **base_filters.universe.model_copy(update=universe_overrides).model_dump()
+        ),
+        scoring=ScoringFilters(
+            **base_filters.scoring.model_copy(update=scoring_overrides).model_dump()
+        ),
+        options=OptionsFilters(
+            **base_filters.options.model_copy(update=options_overrides).model_dump()
+        ),
+    )
+
+    effective_settings = settings.model_copy(
+        update={"scan": settings.scan.model_copy(update={"filters": filter_spec})}
+    )
 
     pipeline = ScanPipeline(
         settings=effective_settings,
@@ -207,9 +215,7 @@ async def start_scan(
 
     # Background task owns the lock and releases it on completion
     asyncio.create_task(
-        _run_scan_background(
-            request, scan_id, body.preset, body.source, token, bridge, pipeline, lock
-        )
+        _run_scan_background(request, scan_id, body.source, token, bridge, pipeline, lock)
     )
     return ScanStarted(scan_id=scan_id)
 

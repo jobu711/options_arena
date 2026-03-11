@@ -28,7 +28,9 @@ from options_arena.models import (
     SignalDirection,
     TickerScore,
 )
+from options_arena.models.config import ScanConfig
 from options_arena.models.enums import DividendSource, ExerciseStyle, OptionType
+from options_arena.models.filters import OptionsFilters, ScanFilterSpec, UniverseFilters
 from options_arena.models.market_data import OHLCV, TickerInfo
 from options_arena.scan.pipeline import ScanPipeline
 from options_arena.scan.progress import CancellationToken, ScanPhase
@@ -172,10 +174,14 @@ def _make_full_pipeline(
     if settings is not None:
         _settings = settings
     else:
-        _settings = AppSettings()
-        # Relax filters so tickers pass by default
-        _settings.scan.min_dollar_volume = 1.0
-        _settings.scan.min_price = 1.0
+        _settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                    universe=UniverseFilters(min_price=1.0),
+                )
+            )
+        )
 
     mock_universe = AsyncMock()
     mock_universe.fetch_optionable_tickers = AsyncMock(return_value=_tickers)
@@ -245,10 +251,14 @@ class TestFullPipelineSectorFilter:
         ]
         all_tickers = ["AAPL", "MSFT", "JPM", "XOM"]
 
-        settings = AppSettings()
-        settings.scan.sectors = [GICSSector.INFORMATION_TECHNOLOGY]
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(sectors=[GICSSector.INFORMATION_TECHNOLOGY]),
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         # Only provide OHLCV for filtered tickers since pipeline will only
         # request data for tickers that survive the sector filter.
@@ -264,7 +274,7 @@ class TestFullPipelineSectorFilter:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[_make_option_contract("X")],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         assert result.phases_completed == 4
         assert result.cancelled is False
@@ -283,10 +293,16 @@ class TestFullPipelineSectorFilter:
         ]
         all_tickers = ["AAPL", "JPM", "XOM"]
 
-        settings = AppSettings()
-        settings.scan.sectors = [GICSSector.INFORMATION_TECHNOLOGY, GICSSector.ENERGY]
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        sectors=[GICSSector.INFORMATION_TECHNOLOGY, GICSSector.ENERGY],
+                    ),
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         pipeline, _ = _make_full_pipeline(
             tickers=all_tickers,
@@ -300,7 +316,7 @@ class TestFullPipelineSectorFilter:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[_make_option_contract("X")],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         result_tickers = {ts.ticker for ts in result.scores}
         assert "AAPL" in result_tickers
@@ -315,10 +331,14 @@ class TestFullPipelineSectorFilter:
         ]
         all_tickers = ["AAPL", "JPM"]
 
-        settings = AppSettings()
-        assert settings.scan.sectors == []
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
+        assert settings.scan.filters.universe.sectors == []
 
         pipeline, _ = _make_full_pipeline(
             tickers=all_tickers,
@@ -332,7 +352,7 @@ class TestFullPipelineSectorFilter:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         result_tickers = {ts.ticker for ts in result.scores}
         assert result_tickers == {"AAPL", "JPM"}
@@ -346,10 +366,17 @@ class TestFullPipelineSectorFilter:
         # Add a non-SP500 ticker to optionable universe
         all_tickers = ["AAPL", "JPM", "XYZ"]
 
-        settings = AppSettings()
-        settings.scan.sectors = [GICSSector.INFORMATION_TECHNOLOGY]
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        preset=ScanPreset.SP500,
+                        sectors=[GICSSector.INFORMATION_TECHNOLOGY],
+                    ),
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         pipeline, _ = _make_full_pipeline(
             tickers=all_tickers,
@@ -363,7 +390,7 @@ class TestFullPipelineSectorFilter:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[],
         ):
-            result = await pipeline.run(ScanPreset.SP500, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         # SP500 preset removes XYZ, sector filter removes JPM -> only AAPL
         result_tickers = {ts.ticker for ts in result.scores}
@@ -383,9 +410,14 @@ class TestFullPipelineETFSPreset:
         all_tickers = ["AAPL", "MSFT", "SPY", "QQQ", "IWM"]
         etf_tickers = ["SPY", "QQQ", "IWM"]
 
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(preset=ScanPreset.ETFS),
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         pipeline, mocks = _make_full_pipeline(
             tickers=all_tickers,
@@ -399,7 +431,7 @@ class TestFullPipelineETFSPreset:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[],
         ):
-            result = await pipeline.run(ScanPreset.ETFS, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         assert result.phases_completed == 4
         assert result.cancelled is False
@@ -416,9 +448,14 @@ class TestFullPipelineETFSPreset:
         """ETFS preset with no ETFs produces empty results."""
         all_tickers = ["AAPL", "MSFT"]
 
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(preset=ScanPreset.ETFS),
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         pipeline, _ = _make_full_pipeline(
             tickers=all_tickers,
@@ -428,7 +465,7 @@ class TestFullPipelineETFSPreset:
         )
         token = CancellationToken()
 
-        result = await pipeline.run(ScanPreset.ETFS, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.phases_completed == 4
         assert result.scores == []
@@ -451,9 +488,13 @@ class TestEnrichmentSectorAndCompanyName:
         ]
         tickers = ["AAPL", "JPM"]
 
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         pipeline, _ = _make_full_pipeline(
             tickers=tickers,
@@ -467,7 +508,7 @@ class TestEnrichmentSectorAndCompanyName:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[_make_option_contract("X")],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         by_ticker = {ts.ticker: ts for ts in result.scores}
         assert by_ticker["AAPL"].sector is GICSSector.INFORMATION_TECHNOLOGY
@@ -491,9 +532,13 @@ class TestEnrichmentSectorAndCompanyName:
                 fifty_two_week_low=Decimal("105.0"),
             )
 
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         pipeline, _ = _make_full_pipeline(
             tickers=tickers,
@@ -507,7 +552,7 @@ class TestEnrichmentSectorAndCompanyName:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[_make_option_contract("X")],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         by_ticker = {ts.ticker: ts for ts in result.scores}
         assert by_ticker["AAPL"].company_name == "Apple Inc."
@@ -526,9 +571,13 @@ class TestEnrichmentSectorAndCompanyName:
         ]
         tickers = ["AAPL", "XYZ"]
 
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         pipeline, _ = _make_full_pipeline(
             tickers=tickers,
@@ -542,7 +591,7 @@ class TestEnrichmentSectorAndCompanyName:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[_make_option_contract("X")],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         by_ticker = {ts.ticker: ts for ts in result.scores}
         assert by_ticker["AAPL"].sector is GICSSector.INFORMATION_TECHNOLOGY
@@ -567,9 +616,13 @@ class TestEnrichmentSectorAndCompanyName:
                 fifty_two_week_low=Decimal("105.0"),
             )
 
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         pipeline, _ = _make_full_pipeline(
             tickers=["AAPL"],
@@ -584,7 +637,7 @@ class TestEnrichmentSectorAndCompanyName:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[_make_option_contract("AAPL")],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         assert len(result.scores) == 1
         ts = result.scores[0]
@@ -607,9 +660,13 @@ class TestPipelinePersistSectorData:
             SP500Constituent(ticker="AAPL", sector="Information Technology"),
         ]
 
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         pipeline, mocks = _make_full_pipeline(
             tickers=["AAPL"],
@@ -623,7 +680,7 @@ class TestPipelinePersistSectorData:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[_make_option_contract("AAPL")],
         ):
-            await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            await pipeline.run(token, _noop_progress)
 
         # Verify save_ticker_scores was called
         mocks["repository"].save_ticker_scores.assert_awaited_once()
@@ -647,9 +704,13 @@ class TestPipelinePersistSectorData:
                 fifty_two_week_low=Decimal("105.0"),
             )
 
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         pipeline, mocks = _make_full_pipeline(
             tickers=["AAPL"],
@@ -663,7 +724,7 @@ class TestPipelinePersistSectorData:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[_make_option_contract("AAPL")],
         ):
-            await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            await pipeline.run(token, _noop_progress)
 
         mocks["repository"].save_ticker_scores.assert_awaited_once()
         saved_scores: list[TickerScore] = mocks["repository"].save_ticker_scores.call_args[0][1]
@@ -689,10 +750,14 @@ class TestScanRunMetadataWithSectorFilter:
         ]
         all_tickers = ["AAPL", "MSFT", "JPM", "XOM"]
 
-        settings = AppSettings()
-        settings.scan.sectors = [GICSSector.INFORMATION_TECHNOLOGY]
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(sectors=[GICSSector.INFORMATION_TECHNOLOGY]),
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         pipeline, _ = _make_full_pipeline(
             tickers=all_tickers,
@@ -706,7 +771,7 @@ class TestScanRunMetadataWithSectorFilter:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         # Only 2 IT tickers should be scanned (not 4)
         assert result.scan_run.tickers_scanned == 2
@@ -739,9 +804,13 @@ class TestAllGICSSectorsThroughPipeline:
         tickers = [t for t, _, _ in sector_pairs]
         sp500 = [SP500Constituent(ticker=t, sector=s) for t, s, _ in sector_pairs]
 
-        settings = AppSettings()
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         pipeline, _ = _make_full_pipeline(
             tickers=tickers,
@@ -755,7 +824,7 @@ class TestAllGICSSectorsThroughPipeline:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[],
         ):
-            result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         by_ticker = {ts.ticker: ts for ts in result.scores}
         for ticker, _, expected_sector in sector_pairs:
@@ -784,10 +853,17 @@ class TestETFSPresetWithSectorFilter:
         all_tickers = ["AAPL", "SPY", "QQQ", "IWM"]
         etf_tickers = ["SPY", "QQQ", "IWM"]
 
-        settings = AppSettings()
-        settings.scan.sectors = [GICSSector.INFORMATION_TECHNOLOGY]
-        settings.scan.min_dollar_volume = 1.0
-        settings.scan.min_price = 1.0
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        preset=ScanPreset.ETFS,
+                        sectors=[GICSSector.INFORMATION_TECHNOLOGY],
+                    ),
+                    options=OptionsFilters(min_dollar_volume=1.0),
+                )
+            )
+        )
 
         pipeline, _ = _make_full_pipeline(
             tickers=all_tickers,
@@ -802,7 +878,7 @@ class TestETFSPresetWithSectorFilter:
             "options_arena.scan.pipeline.recommend_contracts",
             return_value=[],
         ):
-            result = await pipeline.run(ScanPreset.ETFS, token, _noop_progress)
+            result = await pipeline.run(token, _noop_progress)
 
         result_tickers = {ts.ticker for ts in result.scores}
         # ETFS preset keeps only SPY, QQQ, IWM.

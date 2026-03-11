@@ -240,31 +240,42 @@ class TestCompositeScoreBounds:
 
 
 class TestScanConfigValidators:
-    """ScanConfig validates top_n and ohlcv_min_bars."""
+    """Validates top_n on OptionsFilters, ohlcv_min_bars on UniverseFilters,
+    and options_concurrency on ScanConfig."""
 
     def test_rejects_top_n_zero(self) -> None:
-        """ScanConfig rejects top_n=0."""
+        """OptionsFilters rejects top_n=0."""
+        from options_arena.models.filters import OptionsFilters  # noqa: PLC0415
+
         with pytest.raises(ValidationError, match="top_n must be >= 1"):
-            ScanConfig(top_n=0)
+            OptionsFilters(top_n=0)
 
     def test_rejects_top_n_negative(self) -> None:
-        """ScanConfig rejects negative top_n."""
+        """OptionsFilters rejects negative top_n."""
+        from options_arena.models.filters import OptionsFilters  # noqa: PLC0415
+
         with pytest.raises(ValidationError, match="top_n must be >= 1"):
-            ScanConfig(top_n=-5)
+            OptionsFilters(top_n=-5)
 
     def test_accepts_top_n_1(self) -> None:
-        """ScanConfig accepts top_n=1."""
-        cfg = ScanConfig(top_n=1)
+        """OptionsFilters accepts top_n=1."""
+        from options_arena.models.filters import OptionsFilters  # noqa: PLC0415
+
+        cfg = OptionsFilters(top_n=1)
         assert cfg.top_n == 1
 
     def test_rejects_ohlcv_min_bars_too_low(self) -> None:
-        """ScanConfig rejects ohlcv_min_bars < 5."""
+        """UniverseFilters rejects ohlcv_min_bars < 5."""
+        from options_arena.models.filters import UniverseFilters  # noqa: PLC0415
+
         with pytest.raises(ValidationError, match="ohlcv_min_bars must be >= 5"):
-            ScanConfig(ohlcv_min_bars=4)
+            UniverseFilters(ohlcv_min_bars=4)
 
     def test_accepts_ohlcv_min_bars_5(self) -> None:
-        """ScanConfig accepts ohlcv_min_bars=5."""
-        cfg = ScanConfig(ohlcv_min_bars=5)
+        """UniverseFilters accepts ohlcv_min_bars=5."""
+        from options_arena.models.filters import UniverseFilters  # noqa: PLC0415
+
+        cfg = UniverseFilters(ohlcv_min_bars=5)
         assert cfg.ohlcv_min_bars == 5
 
     def test_rejects_options_concurrency_zero(self) -> None:
@@ -411,6 +422,10 @@ class TestPhase3Concurrency:
             IndicatorSignals,
             TickerScore,
         )
+        from options_arena.models.filters import (  # noqa: PLC0415
+            OptionsFilters,
+            ScanFilterSpec,
+        )
         from options_arena.models.market_data import OHLCV  # noqa: PLC0415
         from options_arena.scan.models import (  # noqa: PLC0415
             OptionsResult,
@@ -420,9 +435,13 @@ class TestPhase3Concurrency:
         from options_arena.scan.pipeline import ScanPipeline  # noqa: PLC0415
         from options_arena.scan.progress import ScanPhase  # noqa: PLC0415
 
-        settings = AppSettings()
-        settings.scan.top_n = 3
-        settings.scan.options_concurrency = 2
+        settings = AppSettings(
+            scan=ScanConfig(
+                options_concurrency=2,
+                filters=ScanFilterSpec(options=OptionsFilters(top_n=3)),
+            )
+        )
+        # ScanConfig is not frozen, so options_concurrency can be set at construction
 
         # Create mock services
         market_data = AsyncMock()

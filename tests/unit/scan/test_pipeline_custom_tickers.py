@@ -16,6 +16,8 @@ from decimal import Decimal
 from unittest.mock import AsyncMock
 
 from options_arena.models import AppSettings, GICSSector, ScanPreset
+from options_arena.models.config import ScanConfig
+from options_arena.models.filters import ScanFilterSpec, UniverseFilters
 from options_arena.models.market_data import OHLCV
 from options_arena.scan.pipeline import ScanPipeline
 from options_arena.scan.progress import ScanPhase
@@ -70,7 +72,9 @@ def _make_pipeline(
     settings: AppSettings | None = None,
 ) -> tuple[ScanPipeline, dict[str, AsyncMock]]:
     """Create a ScanPipeline with mocked services."""
-    _settings = settings or AppSettings()
+    _settings = settings or AppSettings(
+        scan=ScanConfig(filters=ScanFilterSpec(universe=UniverseFilters(preset=ScanPreset.FULL)))
+    )
     tickers = optionable_tickers if optionable_tickers is not None else ["AAPL", "MSFT", "GOOG"]
 
     mock_universe = AsyncMock()
@@ -122,8 +126,16 @@ class TestPipelineCustomTickers:
     async def test_custom_tickers_used_when_set(self) -> None:
         """Pipeline scans only custom tickers when provided."""
         optionable = ["AAPL", "MSFT", "GOOG", "AMZN", "TSLA"]
-        settings = AppSettings()
-        settings.scan = settings.scan.model_copy(update={"custom_tickers": ["AAPL", "MSFT"]})
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        preset=ScanPreset.FULL,
+                        custom_tickers=["AAPL", "MSFT"],
+                    ),
+                )
+            )
+        )
 
         pipeline, mocks = _make_pipeline(
             optionable_tickers=optionable,
@@ -131,7 +143,7 @@ class TestPipelineCustomTickers:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         # Only custom tickers appear in the result
         assert set(result.ohlcv_map.keys()) == {"AAPL", "MSFT"}
@@ -139,9 +151,15 @@ class TestPipelineCustomTickers:
     async def test_custom_tickers_intersect_optionable(self) -> None:
         """Non-optionable custom tickers are excluded."""
         optionable = ["AAPL", "MSFT"]
-        settings = AppSettings()
-        settings.scan = settings.scan.model_copy(
-            update={"custom_tickers": ["AAPL", "FAKE1", "FAKE2"]}
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        preset=ScanPreset.FULL,
+                        custom_tickers=["AAPL", "FAKE1", "FAKE2"],
+                    ),
+                )
+            )
         )
 
         pipeline, mocks = _make_pipeline(
@@ -150,7 +168,7 @@ class TestPipelineCustomTickers:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         # Only AAPL is optionable and fetched
         assert "AAPL" in result.ohlcv_map
@@ -163,9 +181,16 @@ class TestPipelineCustomTickers:
             SP500Constituent(ticker="AAPL", company_name="Apple", sector="Technology"),
         ]
         optionable = ["AAPL", "MSFT", "GOOG"]
-        settings = AppSettings()
-        # MSFT is not in SP500 but should still be scanned via custom_tickers
-        settings.scan = settings.scan.model_copy(update={"custom_tickers": ["MSFT"]})
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        preset=ScanPreset.SP500,
+                        custom_tickers=["MSFT"],
+                    ),
+                )
+            )
+        )
 
         pipeline, mocks = _make_pipeline(
             optionable_tickers=optionable,
@@ -176,19 +201,23 @@ class TestPipelineCustomTickers:
 
         # Using SP500 preset — normally MSFT wouldn't be in the result since
         # it's not in sp500_constituents. But custom_tickers bypasses preset.
-        result = await pipeline._phase_universe(ScanPreset.SP500, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert "MSFT" in result.ohlcv_map
 
     async def test_custom_tickers_bypass_sector_filter(self) -> None:
         """Sector filter is skipped when custom tickers provided."""
         optionable = ["AAPL", "MSFT", "XOM"]
-        settings = AppSettings()
-        settings.scan = settings.scan.model_copy(
-            update={
-                "custom_tickers": ["AAPL", "XOM"],
-                "sectors": [GICSSector.ENERGY],  # would normally filter to XOM only
-            }
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        preset=ScanPreset.FULL,
+                        custom_tickers=["AAPL", "XOM"],
+                        sectors=[GICSSector.ENERGY],
+                    ),
+                )
+            )
         )
 
         pipeline, mocks = _make_pipeline(
@@ -197,7 +226,7 @@ class TestPipelineCustomTickers:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         # Both AAPL and XOM should be present — sector filter bypassed
         assert "AAPL" in result.ohlcv_map
@@ -209,9 +238,15 @@ class TestPipelineCustomTickers:
             SP500Constituent(ticker="AAPL", company_name="Apple", sector="Technology"),
         ]
         optionable = ["AAPL", "MSFT", "GOOG"]
-        settings = AppSettings()
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(preset=ScanPreset.SP500),
+                )
+            )
+        )
         # custom_tickers is default empty — should use SP500 preset filter
-        assert settings.scan.custom_tickers == []
+        assert settings.scan.filters.universe.custom_tickers == []
 
         pipeline, mocks = _make_pipeline(
             optionable_tickers=optionable,
@@ -220,7 +255,7 @@ class TestPipelineCustomTickers:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.SP500, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         # Only AAPL is in SP500
         assert "AAPL" in result.ohlcv_map
@@ -229,8 +264,16 @@ class TestPipelineCustomTickers:
     async def test_all_custom_tickers_non_optionable(self) -> None:
         """All non-optionable → 0 valid tickers → pipeline runs with empty OHLCV map."""
         optionable = ["AAPL", "MSFT"]
-        settings = AppSettings()
-        settings.scan = settings.scan.model_copy(update={"custom_tickers": ["FAKE1", "FAKE2"]})
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        preset=ScanPreset.FULL,
+                        custom_tickers=["FAKE1", "FAKE2"],
+                    ),
+                )
+            )
+        )
 
         pipeline, mocks = _make_pipeline(
             optionable_tickers=optionable,
@@ -238,16 +281,24 @@ class TestPipelineCustomTickers:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert result.ohlcv_map == {}
 
     async def test_ohlcv_min_bars_still_applies(self) -> None:
         """OHLCV min_bars filter still applies to custom tickers."""
         optionable = ["AAPL", "MSFT"]
-        settings = AppSettings()
-        settings.scan = settings.scan.model_copy(update={"custom_tickers": ["AAPL", "MSFT"]})
-        settings.scan.ohlcv_min_bars = 200
+        settings = AppSettings(
+            scan=ScanConfig(
+                filters=ScanFilterSpec(
+                    universe=UniverseFilters(
+                        preset=ScanPreset.FULL,
+                        custom_tickers=["AAPL", "MSFT"],
+                        ohlcv_min_bars=200,
+                    ),
+                )
+            )
+        )
 
         # AAPL has 250 bars (passes), MSFT has 100 bars (filtered)
         batch = BatchOHLCVResult(
@@ -263,7 +314,7 @@ class TestPipelineCustomTickers:
             settings=settings,
         )
 
-        result = await pipeline._phase_universe(ScanPreset.FULL, _noop_progress)
+        result = await pipeline._phase_universe(_noop_progress)
 
         assert "AAPL" in result.ohlcv_map
         assert "MSFT" not in result.ohlcv_map

@@ -23,7 +23,6 @@ from options_arena.data import Repository
 from options_arena.models import (
     AppSettings,
     OptionContract,
-    ScanPreset,
     ScanRun,
     ScanSource,
     TickerScore,
@@ -99,7 +98,6 @@ class ScanPipeline:
 
     async def run(
         self,
-        preset: ScanPreset,
         token: CancellationToken,
         progress: ProgressCallback,
         source: ScanSource = ScanSource.MANUAL,
@@ -107,7 +105,6 @@ class ScanPipeline:
         """Orchestrate all pipeline phases with cancellation checks between phases.
 
         Args:
-            preset: Universe preset (FULL, SP500, ETFS).
             token: Instance-scoped cancellation token checked between phases.
             progress: Callback for reporting per-phase progress.
             source: Origin of the scan (manual).
@@ -119,12 +116,11 @@ class ScanPipeline:
         phases_completed = 0
 
         # Phase 1: Universe + OHLCV
-        universe_result = await self._phase_universe(preset, progress)
+        universe_result = await self._phase_universe(progress)
         phases_completed = 1
         if token.is_cancelled:
             return self._make_cancelled_result(
                 started_at=started_at,
-                preset=preset,
                 source=source,
                 universe_result=universe_result,
                 phases_completed=phases_completed,
@@ -136,23 +132,54 @@ class ScanPipeline:
         if token.is_cancelled:
             return self._make_cancelled_result(
                 started_at=started_at,
-                preset=preset,
                 source=source,
                 universe_result=universe_result,
                 phases_completed=phases_completed,
                 scoring_result=scoring_result,
             )
 
-        # Post-Phase 2: Apply direction filter if configured
-        direction_filter = self._settings.scan.direction_filter
-        if direction_filter is not None:
+        # Post-Phase 2: Apply scoring filters (direction, min_score, min_confidence)
+        scoring_filters = self._settings.scan.filters.scoring
+
+        if scoring_filters.direction_filter is not None:
             before_count = len(scoring_result.scores)
             scoring_result.scores = [
-                ts for ts in scoring_result.scores if ts.direction == direction_filter
+                ts
+                for ts in scoring_result.scores
+                if ts.direction == scoring_filters.direction_filter
             ]
             logger.info(
                 "Direction filter (%s): %d -> %d tickers",
-                direction_filter.value,
+                scoring_filters.direction_filter.value,
+                before_count,
+                len(scoring_result.scores),
+            )
+
+        if scoring_filters.min_score > 0.0:
+            before_count = len(scoring_result.scores)
+            scoring_result.scores = [
+                ts
+                for ts in scoring_result.scores
+                if ts.composite_score >= scoring_filters.min_score
+            ]
+            logger.info(
+                "min_score cutoff (%.1f): %d -> %d tickers",
+                scoring_filters.min_score,
+                before_count,
+                len(scoring_result.scores),
+            )
+
+        if scoring_filters.min_direction_confidence > 0.0:
+            before_count = len(scoring_result.scores)
+            scoring_result.scores = [
+                ts
+                for ts in scoring_result.scores
+                if ts.direction_confidence is not None
+                and ts.direction_confidence >= scoring_filters.min_direction_confidence
+            ]
+            logger.info(
+                "min_confidence cutoff (%.2f): %d -> %d tickers",
+                scoring_filters.min_direction_confidence,
                 before_count,
                 len(scoring_result.scores),
             )
@@ -170,7 +197,6 @@ class ScanPipeline:
         if token.is_cancelled:
             return self._make_cancelled_result(
                 started_at=started_at,
-                preset=preset,
                 source=source,
                 universe_result=universe_result,
                 phases_completed=phases_completed,
@@ -181,7 +207,6 @@ class ScanPipeline:
         # Phase 4: Persist
         return await self._phase_persist(
             started_at=started_at,
-            preset=preset,
             source=source,
             universe_result=universe_result,
             scoring_result=scoring_result,
@@ -195,17 +220,15 @@ class ScanPipeline:
 
     async def _phase_universe(
         self,
-        preset: ScanPreset,
         progress: ProgressCallback,
     ) -> UniverseResult:
         """Phase 1: Fetch universe tickers, S&P 500 sectors, and OHLCV data."""
         return await run_universe_phase(
-            preset,
             progress,
             universe=self._universe,
             market_data=self._market_data,
             repository=self._repository,
-            scan_config=self._settings.scan,
+            universe_filters=self._settings.scan.filters.universe,
         )
 
     async def _phase_scoring(
@@ -237,6 +260,8 @@ class ScanPipeline:
             options_data=self._options_data,
             repository=self._repository,
             scan_config=self._settings.scan,
+            options_filters=self._settings.scan.filters.options,
+            universe_filters=self._settings.scan.filters.universe,
             pricing_config=self._settings.pricing,
             process_ticker_fn=self._process_ticker_options,
         )
@@ -257,7 +282,8 @@ class ScanPipeline:
             market_data=self._market_data,
             options_data=self._options_data,
             repository=self._repository,
-            scan_config=self._settings.scan,
+            options_filters=self._settings.scan.filters.options,
+            universe_filters=self._settings.scan.filters.universe,
             pricing_config=self._settings.pricing,
             recommend_contracts_fn=recommend_contracts,
             map_yfinance_fn=map_yfinance_to_metadata,
@@ -267,7 +293,6 @@ class ScanPipeline:
         self,
         *,
         started_at: datetime,
-        preset: ScanPreset,
         source: ScanSource,
         universe_result: UniverseResult,
         scoring_result: ScoringResult,
@@ -275,6 +300,7 @@ class ScanPipeline:
         progress: ProgressCallback,
     ) -> ScanResult:
         """Phase 4: Persist scan results to the database."""
+        preset = self._settings.scan.filters.universe.preset
         return await run_persist_phase(
             started_at=started_at,
             preset=preset,
@@ -284,6 +310,7 @@ class ScanPipeline:
             options_result=options_result,
             progress=progress,
             repository=self._repository,
+            filter_spec=self._settings.scan.filters,
         )
 
     # ------------------------------------------------------------------
@@ -294,7 +321,6 @@ class ScanPipeline:
         self,
         *,
         started_at: datetime,
-        preset: ScanPreset,
         source: ScanSource,
         universe_result: UniverseResult,
         phases_completed: int,
@@ -305,7 +331,6 @@ class ScanPipeline:
 
         Args:
             started_at: Pipeline start time (UTC).
-            preset: Scan preset used.
             source: How the scan was triggered.
             universe_result: Phase 1 output.
             phases_completed: Number of phases completed before cancellation.
@@ -315,6 +340,7 @@ class ScanPipeline:
         Returns:
             A ``ScanResult`` with ``cancelled=True`` and partial data.
         """
+        preset = self._settings.scan.filters.universe.preset
         scores = scoring_result.scores if scoring_result is not None else []
         tickers_scored = len(scores)
         recommendations = options_result.recommendations if options_result is not None else {}
@@ -342,6 +368,7 @@ class ScanPipeline:
                 tickers_scanned=len(universe_result.tickers),
                 tickers_scored=tickers_scored,
                 recommendations=recommendation_count,
+                filter_spec_json=self._settings.scan.filters.model_dump_json(),
             ),
             scores=scores,
             recommendations=recommendations,

@@ -46,6 +46,7 @@ async def test_scan_runs_columns(db: Database) -> None:
         "tickers_scanned": "INTEGER",
         "tickers_scored": "INTEGER",
         "recommendations": "INTEGER",
+        "filter_spec_json": "TEXT",
     }
     async with db.conn.execute("PRAGMA table_info(scan_runs)") as cursor:
         rows = await cursor.fetchall()

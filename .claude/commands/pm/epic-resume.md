@@ -87,12 +87,6 @@ Based on the current phase, suggest the appropriate next command:
 
 If there are blockers, mention them before the suggestion.
 
-### 6. Planning Lock Status
-
-Check if `.claude/epics/$ARGUMENTS/.planning-lock` exists:
-- If yes: "Planning lock active — code writes to src/, tests/, web/ blocked."
-- If no: (say nothing)
-
 ## Error Recovery
 
 - If checkpoint.json is malformed, fall back to directory-based reconstruction

@@ -17,6 +17,7 @@ from options_arena.models.config import (
     PricingConfig,
     ServiceConfig,
 )
+from options_arena.models.filters import OptionsFilters
 from options_arena.services.base import ServiceBase
 from options_arena.services.cache import ServiceCache
 from options_arena.services.financial_datasets import FinancialDatasetsService
@@ -90,7 +91,7 @@ def _build_all_services(
         UniverseService(config=service_config, cache=cache, limiter=limiter),
         OptionsDataService(
             config=service_config,
-            pricing_config=pricing_config,
+            options_filters=OptionsFilters(),
             cache=cache,
             limiter=limiter,
         ),
@@ -206,7 +207,7 @@ class TestServiceBaseIntegration:
 
         opts = OptionsDataService(
             config=service_config,
-            pricing_config=pricing_config,
+            options_filters=OptionsFilters(),
             cache=cache,
             limiter=limiter,
         )
@@ -276,7 +277,7 @@ class TestServiceBaseIntegration:
 
         opts = OptionsDataService(
             config=service_config,
-            pricing_config=pricing_config,
+            options_filters=OptionsFilters(),
             cache=cache,
             limiter=limiter,
         )

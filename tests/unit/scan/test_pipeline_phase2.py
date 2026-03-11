@@ -27,6 +27,8 @@ from options_arena.models import (
     ScanPreset,
     SignalDirection,
 )
+from options_arena.models.config import ScanConfig
+from options_arena.models.filters import ScanFilterSpec, UniverseFilters
 from options_arena.models.market_data import OHLCV, TickerInfo
 from options_arena.scan.models import ScanResult, ScoringResult, UniverseResult
 from options_arena.scan.pipeline import ScanPipeline
@@ -81,7 +83,9 @@ def _make_pipeline(
     settings: AppSettings | None = None,
 ) -> tuple[ScanPipeline, dict[str, AsyncMock]]:
     """Create a ScanPipeline with mocked services."""
-    _settings = settings or AppSettings()
+    _settings = settings or AppSettings(
+        scan=ScanConfig(filters=ScanFilterSpec(universe=UniverseFilters(preset=ScanPreset.FULL)))
+    )
     tickers = optionable_tickers if optionable_tickers is not None else ["AAPL", "MSFT", "GOOG"]
 
     mock_universe = AsyncMock()
@@ -314,7 +318,7 @@ class TestPhase2Cancellation:
         token = CancellationToken()
         token.cancel()
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.cancelled is True
         assert result.phases_completed == 1
@@ -339,7 +343,7 @@ class TestPhase2Cancellation:
 
         pipeline._phase_scoring = _scoring_then_cancel  # type: ignore[assignment]
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.phases_completed == 2
         assert result.cancelled is True
@@ -377,7 +381,7 @@ class TestFullRun:
 
         token = CancellationToken()
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.phases_completed == 4
         assert result.cancelled is False
@@ -405,7 +409,7 @@ class TestFullRun:
 
         token = CancellationToken()
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.scan_run.preset == ScanPreset.FULL
         assert result.scan_run.tickers_scanned == 3
@@ -439,7 +443,7 @@ class TestFullRun:
 
         token = CancellationToken()
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert result.risk_free_rate == pytest.approx(0.042)
 
@@ -464,6 +468,6 @@ class TestFullRun:
 
         token = CancellationToken()
 
-        result = await pipeline.run(ScanPreset.FULL, token, _noop_progress)
+        result = await pipeline.run(token, _noop_progress)
 
         assert isinstance(result, ScanResult)
