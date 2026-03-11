@@ -310,6 +310,7 @@ class ScanPipeline:
             options_result=options_result,
             progress=progress,
             repository=self._repository,
+            filter_spec=self._settings.scan.filters,
         )
 
     # ------------------------------------------------------------------
@@ -367,6 +368,7 @@ class ScanPipeline:
                 tickers_scanned=len(universe_result.tickers),
                 tickers_scored=tickers_scored,
                 recommendations=recommendation_count,
+                filter_spec_json=self._settings.scan.filters.model_dump_json(),
             ),
             scores=scores,
             recommendations=recommendations,
