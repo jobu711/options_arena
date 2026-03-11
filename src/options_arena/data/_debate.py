@@ -270,7 +270,7 @@ class DebateMixin(RepositoryBase):
         conn = self._db.conn
         where_clauses = [
             "co.holding_days = 10",
-            "ap.direction IS NOT NULL",
+            "ap.direction IN ('bullish', 'bearish')",
             "ap.recommended_contract_id IS NOT NULL",
         ]
         params: list[object] = []
@@ -506,57 +506,45 @@ class DebateMixin(RepositoryBase):
         """
         conn = self._db.conn
 
-        # 1. Get distinct timestamps, newest first
-        async with conn.execute(
-            "SELECT DISTINCT created_at FROM auto_tune_weights ORDER BY created_at DESC LIMIT ?",
-            (limit,),
-        ) as cursor:
-            ts_rows = await cursor.fetchall()
+        # Single query: fetch all rows for the N most recent timestamps
+        sql = (
+            "SELECT agent_name, manual_weight, auto_weight, "
+            "brier_score, sample_size, window_days, created_at "
+            "FROM auto_tune_weights "
+            "WHERE created_at IN ("
+            "  SELECT DISTINCT created_at FROM auto_tune_weights "
+            "  ORDER BY created_at DESC LIMIT ?"
+            ") "
+            "ORDER BY created_at DESC, agent_name"
+        )
+        async with conn.execute(sql, (limit,)) as cursor:
+            rows = await cursor.fetchall()
 
-        if not ts_rows:
+        if not rows:
             return []
 
+        # Group rows by created_at timestamp (Python-side)
+        from itertools import groupby
+
         snapshots: list[WeightSnapshot] = []
-        for ts_row in ts_rows:
-            ts_str: str = ts_row["created_at"]
-
-            async with conn.execute(
-                "SELECT agent_name, manual_weight, auto_weight, "
-                "brier_score, sample_size, window_days "
-                "FROM auto_tune_weights "
-                "WHERE created_at = ? "
-                "ORDER BY agent_name",
-                (ts_str,),
-            ) as cursor:
-                rows = await cursor.fetchall()
-
-            if not rows:
-                continue  # pragma: no cover — defensive
-
-            window_days: int | None = None
-            weights: list[AgentWeightsComparison] = []
-            for r in rows:
-                if window_days is None:
-                    window_days = int(r["window_days"])
-                weights.append(
-                    AgentWeightsComparison(
-                        agent_name=str(r["agent_name"]),
-                        manual_weight=float(r["manual_weight"]),
-                        auto_weight=float(r["auto_weight"]),
-                        brier_score=(
-                            float(r["brier_score"]) if r["brier_score"] is not None else None
-                        ),
-                        sample_size=int(r["sample_size"]),
-                    )
+        for ts_str, group in groupby(rows, key=lambda r: r["created_at"]):
+            group_rows = list(group)
+            weights = [
+                AgentWeightsComparison(
+                    agent_name=str(r["agent_name"]),
+                    manual_weight=float(r["manual_weight"]),
+                    auto_weight=float(r["auto_weight"]),
+                    brier_score=(
+                        float(r["brier_score"]) if r["brier_score"] is not None else None
+                    ),
+                    sample_size=int(r["sample_size"]),
                 )
-
-            computed_at = datetime.fromisoformat(ts_str)
-            assert window_days is not None  # guaranteed by non-empty rows
-
+                for r in group_rows
+            ]
             snapshots.append(
                 WeightSnapshot(
-                    computed_at=computed_at,
-                    window_days=window_days,
+                    computed_at=datetime.fromisoformat(ts_str),
+                    window_days=int(group_rows[0]["window_days"]),
                     weights=weights,
                 )
             )

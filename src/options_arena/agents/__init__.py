@@ -21,6 +21,7 @@ from options_arena.agents.orchestrator import (
     AGENT_VOTE_WEIGHTS,
     DebatePhase,
     DebateProgressCallback,
+    VoteWeights,
     auto_tune_weights,
     build_market_context,
     classify_macd_signal,
@@ -37,6 +38,7 @@ from options_arena.agents.volatility import volatility_agent
 
 __all__ = [
     "AGENT_VOTE_WEIGHTS",
+    "VoteWeights",
     "DebateDeps",
     "DebatePhase",
     "DebateProgressCallback",

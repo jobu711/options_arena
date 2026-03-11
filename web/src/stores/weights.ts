@@ -1,39 +1,45 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { api } from '@/composables/useApi'
-import type { AgentWeight, WeightSnapshot } from '@/types'
+import type { AgentWeightsComparison, WeightSnapshot } from '@/types'
 
 export const useWeightsStore = defineStore('weights', () => {
   // --- State ---
-  const weights = ref<AgentWeight[]>([])
+  const weights = ref<AgentWeightsComparison[]>([])
   const weightHistory = ref<WeightSnapshot[]>([])
-  const loading = ref(false)
+  const loadingWeights = ref(false)
+  const loadingHistory = ref(false)
+  const loading = computed(() => loadingWeights.value || loadingHistory.value)
   const tuning = ref(false)
 
   // --- Actions ---
 
   async function fetchWeights(): Promise<void> {
-    loading.value = true
+    loadingWeights.value = true
     try {
-      weights.value = await api<AgentWeight[]>('/api/analytics/agent-weights')
+      weights.value = await api<AgentWeightsComparison[]>('/api/analytics/agent-weights')
+    } catch {
+      weights.value = []
     } finally {
-      loading.value = false
+      loadingWeights.value = false
     }
   }
 
   async function fetchWeightHistory(): Promise<void> {
-    loading.value = true
+    loadingHistory.value = true
     try {
       weightHistory.value = await api<WeightSnapshot[]>('/api/analytics/weights/history')
+    } catch {
+      weightHistory.value = []
     } finally {
-      loading.value = false
+      loadingHistory.value = false
     }
   }
 
-  async function triggerAutoTune(window?: number): Promise<AgentWeight[]> {
+  async function triggerAutoTune(window?: number): Promise<AgentWeightsComparison[]> {
     tuning.value = true
     try {
-      const result = await api<AgentWeight[]>('/api/analytics/weights/auto-tune', {
+      const result = await api<AgentWeightsComparison[]>('/api/analytics/weights/auto-tune', {
         method: 'POST',
         params: { window: window ?? undefined },
       })

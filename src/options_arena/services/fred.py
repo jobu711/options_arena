@@ -6,7 +6,6 @@ the risk-free rate. Converts the percentage value to a decimal fraction
 on ANY error -- this service never raises.
 """
 
-import logging
 from datetime import UTC, datetime, timedelta
 from typing import NamedTuple
 
@@ -15,8 +14,6 @@ import httpx
 from options_arena.models.config import PricingConfig, ServiceConfig
 from options_arena.services.base import ServiceBase
 from options_arena.services.cache import TTL_REFERENCE, ServiceCache
-
-logger = logging.getLogger(__name__)
 
 # FRED API constants
 _FRED_API_URL: str = "https://api.stlouisfed.org/fred/series/observations"
@@ -85,7 +82,7 @@ class FredService(ServiceBase[ServiceConfig]):
         except Exception:
             # Defensive outer catch -- should never reach here because
             # _fetch_with_cache already catches broadly, but belt-and-suspenders.
-            logger.warning(
+            self._log.warning(
                 "Unexpected error in fetch_risk_free_rate, returning fallback %.4f",
                 fallback,
             )
@@ -110,13 +107,13 @@ class FredService(ServiceBase[ServiceConfig]):
         if self._cached_rate is not None:
             age = datetime.now(UTC) - self._cached_rate.fetched_at
             if age > _STALENESS_THRESHOLD:
-                logger.warning(
+                self._log.warning(
                     "FRED risk-free rate is %.0f hours old; attempting refresh",
                     age.total_seconds() / 3600,
                 )
                 # Fall through to attempt refresh from two-tier cache / FRED API
             else:
-                logger.debug("FRED rate in-memory cache hit: %.4f", self._cached_rate.rate)
+                self._log.debug("FRED rate in-memory cache hit: %.4f", self._cached_rate.rate)
                 return self._cached_rate.rate
 
         # --- Two-tier cache check ---
@@ -135,14 +132,14 @@ class FredService(ServiceBase[ServiceConfig]):
                     rate = float(decoded)
                     fetched_at = datetime.now(UTC)  # legacy: no timestamp available
                 self._cached_rate = CachedRate(rate=rate, fetched_at=fetched_at)
-                logger.debug("FRED rate cache hit: %.4f", rate)
+                self._log.debug("FRED rate cache hit: %.4f", rate)
                 return rate
         except Exception:
-            logger.warning("Error reading FRED rate from cache, proceeding to fetch")
+            self._log.warning("Error reading FRED rate from cache, proceeding to fetch")
 
         # --- API key check ---
         if self._config.fred_api_key is None:
-            logger.warning(
+            self._log.warning(
                 "FRED API key not configured, returning fallback rate %.4f",
                 fallback,
             )
@@ -154,7 +151,7 @@ class FredService(ServiceBase[ServiceConfig]):
         try:
             fetched_rate = await self._fetch_from_fred(api_key)
         except Exception as exc:
-            logger.warning(
+            self._log.warning(
                 "FRED fetch failed (%s), returning fallback rate %.4f",
                 exc,
                 fallback,
@@ -162,7 +159,7 @@ class FredService(ServiceBase[ServiceConfig]):
             return fallback
 
         if fetched_rate is None:
-            logger.warning(
+            self._log.warning(
                 "FRED returned no usable data, returning fallback rate %.4f",
                 fallback,
             )
@@ -180,9 +177,9 @@ class FredService(ServiceBase[ServiceConfig]):
                 cache_blob.encode(),
                 ttl=TTL_REFERENCE,
             )
-            logger.debug("Cached FRED rate %.4f with TTL %ds", fetched_rate, TTL_REFERENCE)
+            self._log.debug("Cached FRED rate %.4f with TTL %ds", fetched_rate, TTL_REFERENCE)
         except Exception:
-            logger.warning("Failed to cache FRED rate, continuing with fetched value")
+            self._log.warning("Failed to cache FRED rate, continuing with fetched value")
 
         return fetched_rate
 
@@ -213,21 +210,21 @@ class FredService(ServiceBase[ServiceConfig]):
         observations: list[dict[str, str]] = data.get("observations", [])
 
         if not observations:
-            logger.warning("FRED response contained no observations")
+            self._log.warning("FRED response contained no observations")
             return None
 
         value_str: str = observations[0].get("value", _FRED_MISSING_VALUE)
 
         # FRED uses "." as a missing-data marker
         if value_str == _FRED_MISSING_VALUE:
-            logger.warning("FRED returned missing-data marker '.' for DGS10")
+            self._log.warning("FRED returned missing-data marker '.' for DGS10")
             return None
 
         # Parse percentage string and convert to decimal fraction
         percentage = float(value_str)
         rate = percentage / _PERCENTAGE_DIVISOR
 
-        logger.info(
+        self._log.info(
             "Fetched FRED DGS10 rate: %s%% -> %.4f decimal",
             value_str,
             rate,
