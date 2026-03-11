@@ -133,8 +133,9 @@ def _make_debate_result(ticker: str) -> DebateResult:
 # ---------------------------------------------------------------------------
 
 
+@patch("options_arena.cli.commands._validate_provider_config")
 @patch("options_arena.cli.commands._batch_async", new_callable=AsyncMock)
-def test_batch_flag_without_ticker(mock_batch: AsyncMock) -> None:
+def test_batch_flag_without_ticker(mock_batch: AsyncMock, _mock_validate: MagicMock) -> None:
     """--batch without ticker invokes _batch_async."""
     mock_batch.return_value = None
     result = runner.invoke(app, ["debate", "--batch"])
@@ -142,8 +143,9 @@ def test_batch_flag_without_ticker(mock_batch: AsyncMock) -> None:
     mock_batch.assert_awaited_once()
 
 
+@patch("options_arena.cli.commands._validate_provider_config")
 @patch("options_arena.cli.commands._debate_async", new_callable=AsyncMock)
-def test_single_ticker_without_batch(mock_debate: AsyncMock) -> None:
+def test_single_ticker_without_batch(mock_debate: AsyncMock, _mock_validate: MagicMock) -> None:
     """debate AAPL without --batch invokes _debate_async (existing behavior)."""
     mock_debate.return_value = None
     result = runner.invoke(app, ["debate", "AAPL"])
