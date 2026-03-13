@@ -58,6 +58,9 @@ class RecommendedContract(BaseModel):
         theta: Time decay (optional).
         vega: Volatility sensitivity, >= 0 (optional).
         rho: Interest rate sensitivity (optional).
+        vanna: Sensitivity of delta to volatility (optional).
+        charm: Sensitivity of delta to time (optional).
+        vomma: Sensitivity of vega to volatility (optional).
         pricing_model: Which model (BSM/BAW) produced the Greeks (optional).
         greeks_source: Where the Greeks came from (optional).
         entry_stock_price: Stock price at time of recommendation (None if unavailable).
@@ -89,6 +92,9 @@ class RecommendedContract(BaseModel):
     theta: float | None = None
     vega: float | None = None
     rho: float | None = None
+    vanna: float | None = None
+    charm: float | None = None
+    vomma: float | None = None
     pricing_model: PricingModel | None = None
     greeks_source: GreeksSource | None = None
     entry_stock_price: Decimal | None = None
@@ -164,10 +170,10 @@ class RecommendedContract(BaseModel):
                 raise ValueError(f"must be >= 0, got {v}")
         return v
 
-    @field_validator("theta", "rho")
+    @field_validator("theta", "rho", "vanna", "charm", "vomma")
     @classmethod
     def validate_optional_float_finite(cls, v: float | None) -> float | None:
-        """Ensure theta and rho are finite when provided."""
+        """Ensure theta, rho, and second-order Greeks are finite when provided."""
         if v is not None and not math.isfinite(v):
             raise ValueError(f"must be finite, got {v}")
         return v

@@ -169,6 +169,12 @@ class MarketContext(BaseModel):
     # --- DSE: Direction Confidence ---
     direction_confidence: float | None = None  # [0.0, 1.0]
 
+    # --- Native Quant: HV & Vol Surface ---
+    hv_yang_zhang: float | None = None  # Yang-Zhang historical volatility (annualized)
+    skew_25d: float | None = None  # 25-delta skew (put IV - call IV)
+    smile_curvature: float | None = None  # butterfly spread curvature measure
+    prob_above_current: float | None = None  # risk-neutral probability [0.0, 1.0]
+
     # --- Financial Datasets enrichment (fd_* prefix) ---
     fd_revenue: float | None = None
     fd_net_income: float | None = None
@@ -406,6 +412,10 @@ class MarketContext(BaseModel):
         "target_vomma",
         # DSE direction confidence
         "direction_confidence",
+        # Native Quant: HV & vol surface (prob_above_current has its own validator)
+        "hv_yang_zhang",
+        "skew_25d",
+        "smile_curvature",
         # Financial Datasets enrichment
         "fd_revenue",
         "fd_net_income",
@@ -429,6 +439,17 @@ class MarketContext(BaseModel):
         """Reject NaN/Inf on optional float fields while allowing None."""
         if v is not None and not math.isfinite(v):
             raise ValueError(f"must be finite, got {v}")
+        return v
+
+    @field_validator("prob_above_current")
+    @classmethod
+    def validate_prob_above_current(cls, v: float | None) -> float | None:
+        """Ensure prob_above_current is finite and within [0.0, 1.0] when provided."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"prob_above_current must be finite, got {v}")
+            if not 0.0 <= v <= 1.0:
+                raise ValueError(f"prob_above_current must be in [0, 1], got {v}")
         return v
 
     @field_validator("contract_mid")

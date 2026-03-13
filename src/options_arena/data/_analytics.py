@@ -73,10 +73,14 @@ class AnalyticsMixin(RepositoryBase):
             "INSERT INTO recommended_contracts "
             "(scan_run_id, ticker, option_type, strike, expiration, bid, ask, last, "
             "volume, open_interest, market_iv, exercise_style, "
-            "delta, gamma, theta, vega, rho, pricing_model, greeks_source, "
+            "delta, gamma, theta, vega, rho, vanna, charm, vomma, "
+            "pricing_model, greeks_source, "
             "entry_stock_price, entry_mid, direction, composite_score, "
             "risk_free_rate, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES ("
+            "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+            "?, ?, ?, ?, ?, ?, ?, ?, "
+            "?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 (
                     scan_id,
@@ -96,6 +100,9 @@ class AnalyticsMixin(RepositoryBase):
                     c.theta,
                     c.vega,
                     c.rho,
+                    c.vanna,
+                    c.charm,
+                    c.vomma,
                     c.pricing_model.value if c.pricing_model is not None else None,
                     c.greeks_source.value if c.greeks_source is not None else None,
                     str(c.entry_stock_price) if c.entry_stock_price is not None else None,
@@ -253,6 +260,9 @@ class AnalyticsMixin(RepositoryBase):
             theta=float(row["theta"]) if row["theta"] is not None else None,
             vega=float(row["vega"]) if row["vega"] is not None else None,
             rho=float(row["rho"]) if row["rho"] is not None else None,
+            vanna=float(row["vanna"]) if row["vanna"] is not None else None,
+            charm=float(row["charm"]) if row["charm"] is not None else None,
+            vomma=float(row["vomma"]) if row["vomma"] is not None else None,
             pricing_model=(
                 PricingModel(raw_pricing_model) if raw_pricing_model is not None else None
             ),
