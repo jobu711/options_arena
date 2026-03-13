@@ -40,6 +40,7 @@ from options_arena.indicators.fundamental import (
     compute_earnings_impact,
     compute_iv_crush_history,
 )
+from options_arena.indicators.hv_estimators import compute_hv_yang_zhang
 from options_arena.indicators.iv_analytics import (
     compute_ewma_vol_forecast,
     compute_expected_move,
@@ -67,6 +68,7 @@ from options_arena.indicators.trend import (
     roc,
     supertrend,
 )
+from options_arena.indicators.vol_surface import VolSurfaceResult
 from options_arena.indicators.volatility import atr_percent, bb_width, keltner_width
 from options_arena.indicators.volume import ad_trend, obv_trend, relative_volume
 from options_arena.models.enums import OptionType
@@ -416,6 +418,8 @@ def compute_phase3_indicators(
     next_earnings: date | None,
     mp_strike: float | None,
     spx_close: pd.Series | None = None,
+    ohlcv_df: pd.DataFrame | None = None,
+    vol_result: VolSurfaceResult | None = None,
 ) -> IndicatorSignals:
     """Compute DSE indicators that require chain, ticker, or SPX data.
 
@@ -445,6 +449,15 @@ def compute_phase3_indicators(
     spx_close
         SPX daily close prices for relative-strength computation.
         ``None`` if unavailable (indicator will be skipped).
+    ohlcv_df
+        Full OHLCV DataFrame with columns ``open``, ``high``, ``low``,
+        ``close``, ``volume``.  When provided, Yang-Zhang HV is computed
+        from the OHLC columns.  ``None`` skips HV computation.
+    vol_result
+        Pre-computed volatility surface analytics from
+        ``compute_vol_surface()``.  When provided, ``skew_25d``,
+        ``smile_curvature``, ``prob_above_current``, and ``atm_iv_30d``
+        are extracted.  ``None`` skips vol surface indicators.
 
     Returns
     -------
@@ -455,6 +468,36 @@ def compute_phase3_indicators(
 
     if not contracts or not math.isfinite(spot) or spot <= 0.0:
         return signals
+
+    # --- Yang-Zhang Historical Volatility ---
+    try:
+        if ohlcv_df is not None and len(ohlcv_df) >= 22:
+            hv_yz = compute_hv_yang_zhang(
+                ohlcv_df["open"],
+                ohlcv_df["high"],
+                ohlcv_df["low"],
+                ohlcv_df["close"],
+            )
+            if hv_yz is not None and math.isfinite(hv_yz):
+                signals.hv_yang_zhang = hv_yz
+    except Exception:
+        logger.warning("Indicator hv_yang_zhang failed; setting to None", exc_info=True)
+
+    # --- Vol Surface Metrics ---
+    try:
+        if vol_result is not None:
+            if vol_result.skew_25d is not None and math.isfinite(vol_result.skew_25d):
+                signals.skew_25d = vol_result.skew_25d
+            if vol_result.smile_curvature is not None and math.isfinite(
+                vol_result.smile_curvature
+            ):
+                signals.smile_curvature = vol_result.smile_curvature
+            if vol_result.prob_above_current is not None and math.isfinite(
+                vol_result.prob_above_current
+            ):
+                signals.prob_above_current = vol_result.prob_above_current
+    except Exception:
+        logger.warning("Vol surface metric extraction failed; setting to None", exc_info=True)
 
     # --- IV Analytics ---
 
@@ -467,8 +510,15 @@ def compute_phase3_indicators(
     except Exception:
         logger.warning("Indicator hv_20d failed; setting to None", exc_info=True)
 
-    # Gather ATM IV from contracts (nearest to spot) for 30d and 60d buckets
+    # Gather ATM IV from contracts (nearest to spot) for 30d and 60d buckets.
+    # Vol surface provides more accurate ATM IV when a fitted surface is available;
+    # fall back to the per-contract extraction method otherwise.
     atm_iv_30d, atm_iv_60d = _extract_atm_iv_by_dte(contracts, spot)
+    if vol_result is not None:
+        if vol_result.atm_iv_30d is not None and math.isfinite(vol_result.atm_iv_30d):
+            atm_iv_30d = vol_result.atm_iv_30d
+        if vol_result.atm_iv_60d is not None and math.isfinite(vol_result.atm_iv_60d):
+            atm_iv_60d = vol_result.atm_iv_60d
 
     # iv_hv_spread
     try:

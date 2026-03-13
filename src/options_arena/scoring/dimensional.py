@@ -51,11 +51,15 @@ FAMILY_INDICATOR_MAP: dict[str, list[str]] = {
         "skew_ratio",
         "expected_move",
         "expected_move_ratio",
+        "skew_25d",
+        "smile_curvature",
+        "prob_above_current",
     ],
     "hv_vol": [
         "bb_width",
         "atr_pct",
         "keltner_width",
+        "hv_yang_zhang",
     ],
     "flow": [
         "put_call_ratio",

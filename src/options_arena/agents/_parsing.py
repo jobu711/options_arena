@@ -963,6 +963,19 @@ def render_context_block(ctx: MarketContext) -> str:
         lines.append("## Market & Flow Signals")
         lines.extend(filtered_market)
 
+    # --- Native Quant: HV & Vol Surface ---
+    nq_lines = [
+        _render_optional("HV YANG-ZHANG", ctx.hv_yang_zhang, ".4f"),
+        _render_optional("SKEW 25D", ctx.skew_25d, ".4f"),
+        _render_optional("SMILE CURVATURE", ctx.smile_curvature, ".4f"),
+        _render_optional("PROB ABOVE CURRENT", ctx.prob_above_current, ".2f"),
+    ]
+    filtered_nq = [ln for ln in nq_lines if ln is not None]
+    if filtered_nq:
+        lines.append("")
+        lines.append("## HV & Vol Surface")
+        lines.extend(filtered_nq)
+
     # --- DSE: Second-Order Greeks ---
     greeks2_lines = [
         _render_optional("VANNA", ctx.target_vanna, ".6f"),

@@ -554,6 +554,8 @@ class TestNormalizeSingleTicker:
             "max_pain_distance",
             "chain_spread_pct",
             "chain_oi_depth",
+            "skew_25d",
+            "smile_curvature",
         }
         assert set(DOMAIN_BOUNDS.keys()) == expected
 

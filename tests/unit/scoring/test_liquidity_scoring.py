@@ -10,9 +10,9 @@ from options_arena.scoring.normalization import DOMAIN_BOUNDS, INVERTED_INDICATO
 
 
 class TestLiquidityWeightConfig:
-    def test_weights_has_21_entries(self) -> None:
-        """Verify INDICATOR_WEIGHTS now has 21 entries."""
-        assert len(INDICATOR_WEIGHTS) == 21
+    def test_weights_has_23_entries(self) -> None:
+        """Verify INDICATOR_WEIGHTS now has 23 entries."""
+        assert len(INDICATOR_WEIGHTS) == 23
 
     def test_weights_sum_to_one(self) -> None:
         """Verify weight sum = 1.0 within 1e-9."""
@@ -23,7 +23,7 @@ class TestLiquidityWeightConfig:
         """Verify chain_spread_pct has correct weight and category."""
         assert "chain_spread_pct" in INDICATOR_WEIGHTS
         w, cat = INDICATOR_WEIGHTS["chain_spread_pct"]
-        assert w == pytest.approx(0.04)
+        assert w == pytest.approx(0.03)
         assert cat == "liquidity"
 
     def test_chain_oi_depth_weight(self) -> None:

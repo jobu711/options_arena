@@ -146,6 +146,9 @@ def _make_contract() -> OptionContract:
             vega=0.32,
             rho=0.08,
             pricing_model=PricingModel.BAW,
+            vanna=0.001,
+            charm=-0.002,
+            vomma=0.0003,
         ),
     )
 
@@ -406,7 +409,7 @@ class TestBuildMarketContextDSE:
         assert ctx.expected_move_ratio == pytest.approx(0.05)
 
     def test_second_order_greeks_mapped(self) -> None:
-        """Second-order Greeks (vanna, charm, vomma) mapped from signals."""
+        """Second-order Greeks (vanna, charm, vomma) mapped from contract Greeks."""
         ctx = build_market_context(
             _make_ticker_score(),
             _make_quote(),
@@ -448,9 +451,11 @@ class TestBuildMarketContextDSE:
         assert ctx.rsi_divergence is None
         assert ctx.expected_move is None
         assert ctx.expected_move_ratio is None
-        assert ctx.target_vanna is None
-        assert ctx.target_charm is None
-        assert ctx.target_vomma is None
+        # Second-order Greeks now sourced from contract.greeks, not signals.
+        # When contract has vanna/charm/vomma, they are populated regardless of signals.
+        assert ctx.target_vanna == pytest.approx(0.001)
+        assert ctx.target_charm == pytest.approx(-0.002)
+        assert ctx.target_vomma == pytest.approx(0.0003)
         assert ctx.direction_confidence is None
 
     def test_vix_term_structure_and_market_regime_mapped_to_none(self) -> None:
@@ -569,10 +574,11 @@ class TestBuildMarketContextCombined:
         assert ctx.rsi_divergence is None
         assert ctx.expected_move is None
         assert ctx.expected_move_ratio is None
-        # Second-order Greeks
-        assert ctx.target_vanna is None
-        assert ctx.target_charm is None
-        assert ctx.target_vomma is None
+        # Second-order Greeks — now sourced from contract.greeks, not signals.
+        # When contract has vanna/charm/vomma, they are populated regardless of signals.
+        assert ctx.target_vanna == pytest.approx(0.001)
+        assert ctx.target_charm == pytest.approx(-0.002)
+        assert ctx.target_vomma == pytest.approx(0.0003)
         # Direction confidence
         assert ctx.direction_confidence is None
 

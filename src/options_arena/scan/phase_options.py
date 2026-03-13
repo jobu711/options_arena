@@ -29,6 +29,7 @@ import pandas as pd
 
 from options_arena.data import Repository
 from options_arena.indicators.options_specific import max_pain
+from options_arena.indicators.vol_surface import VolSurfaceResult, compute_vol_surface
 from options_arena.models import (
     IndicatorSignals,
     MarketRegime,
@@ -138,6 +139,11 @@ _PHASE3_FIELDS: tuple[str, ...] = (
     # Liquidity
     "chain_spread_pct",
     "chain_oi_depth",
+    # Native Quant: HV & Vol Surface
+    "hv_yang_zhang",
+    "skew_25d",
+    "smile_curvature",
+    "prob_above_current",
 )
 
 
@@ -536,6 +542,27 @@ async def process_ticker_options(
             ticker_df = ohlcv_to_dataframe(ohlcv_list)
             close_series: pd.Series = ticker_df["close"]
 
+            # Compute vol surface from option chain (graceful degradation on failure)
+            vol_result: VolSurfaceResult | None = None
+            try:
+                if len(all_contracts) >= 3:
+                    vs_strikes = np.array([float(c.strike) for c in all_contracts], dtype=float)
+                    vs_ivs = np.array([c.market_iv for c in all_contracts], dtype=float)
+                    vs_dtes = np.array([float(c.dte) for c in all_contracts], dtype=float)
+                    vs_types = np.array(
+                        [1.0 if c.option_type == OptionType.CALL else -1.0 for c in all_contracts],
+                        dtype=float,
+                    )
+                    vol_result = compute_vol_surface(
+                        vs_strikes, vs_ivs, vs_dtes, vs_types, spot, risk_free_rate
+                    )
+            except Exception:
+                logger.warning(
+                    "Vol surface computation failed for %s; continuing without",
+                    ticker,
+                    exc_info=True,
+                )
+
             dse_signals = compute_phase3_indicators(
                 contracts=all_contracts,
                 spot=spot,
@@ -544,6 +571,8 @@ async def process_ticker_options(
                 next_earnings=earnings_date,
                 mp_strike=mp_strike,
                 spx_close=spx_close,
+                ohlcv_df=ticker_df,
+                vol_result=vol_result,
             )
 
             # Merge DSE signals into the ticker's existing signals

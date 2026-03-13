@@ -340,10 +340,21 @@ def build_market_context(
         rsi_divergence=signals.rsi_divergence,
         expected_move=signals.expected_move,
         expected_move_ratio=signals.expected_move_ratio,
-        # --- DSE: Second-order Greeks (from TickerScore.signals) ---
-        target_vanna=signals.vanna,
-        target_charm=signals.charm,
-        target_vomma=signals.vomma,
+        # --- DSE: Second-order Greeks (from recommended contract) ---
+        target_vanna=(
+            first_contract.greeks.vanna if first_contract and first_contract.greeks else None
+        ),
+        target_charm=(
+            first_contract.greeks.charm if first_contract and first_contract.greeks else None
+        ),
+        target_vomma=(
+            first_contract.greeks.vomma if first_contract and first_contract.greeks else None
+        ),
+        # --- Native Quant: HV & Vol Surface ---
+        hv_yang_zhang=signals.hv_yang_zhang,
+        skew_25d=signals.skew_25d,
+        smile_curvature=signals.smile_curvature,
+        prob_above_current=signals.prob_above_current,
         # --- DSE: Direction confidence ---
         direction_confidence=ticker_score.direction_confidence,
         # --- Financial Datasets enrichment (fd_* fields) ---

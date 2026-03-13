@@ -53,11 +53,14 @@ INDICATOR_WEIGHTS: dict[str, tuple[float, str]] = {
     # Options
     "iv_rank": (0.05, "options"),
     "iv_percentile": (0.05, "options"),
-    "put_call_ratio": (0.04, "options"),
-    "max_pain_distance": (0.04, "options"),
+    "put_call_ratio": (0.03, "options"),
+    "max_pain_distance": (0.03, "options"),
     # Liquidity
-    "chain_spread_pct": (0.04, "liquidity"),
+    "chain_spread_pct": (0.03, "liquidity"),
     "chain_oi_depth": (0.02, "liquidity"),
+    # Vol Surface
+    "skew_25d": (0.02, "vol_surface"),
+    "smile_curvature": (0.01, "vol_surface"),
 }
 
 # Validate weights sum to 1.0 at import time — catches drift before any scoring runs.

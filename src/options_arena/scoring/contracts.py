@@ -20,7 +20,7 @@ from decimal import Decimal
 from options_arena.models.enums import GreeksSource, OptionType, SignalDirection
 from options_arena.models.filters import OptionsFilters
 from options_arena.models.options import OptionContract
-from options_arena.pricing.dispatch import option_greeks, option_iv
+from options_arena.pricing.dispatch import option_greeks, option_iv, option_second_order_greeks
 
 logger = logging.getLogger(__name__)
 
@@ -273,6 +273,32 @@ def compute_greeks(
                 sigma,
                 contract.option_type,
             )
+
+            # Attempt second-order Greeks — failure is non-fatal (keep first-order)
+            try:
+                second = option_second_order_greeks(
+                    contract.exercise_style,
+                    spot,
+                    strike_f,
+                    time_to_expiry,
+                    risk_free_rate,
+                    dividend_yield,
+                    sigma,
+                    contract.option_type,
+                )
+                greeks = greeks.model_copy(
+                    update={
+                        "vanna": second.vanna,
+                        "charm": second.charm,
+                        "vomma": second.vomma,
+                    },
+                )
+            except (ValueError, OverflowError, ZeroDivisionError):
+                logger.debug(
+                    "Second-order Greeks failed for %s strike %s; keeping first-order only",
+                    contract.ticker,
+                    contract.strike,
+                )
 
             # OptionContract is frozen — model_copy skips validators on ALL
             # fields (including updated ones). Safe here because greeks was
