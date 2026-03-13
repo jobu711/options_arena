@@ -6,7 +6,6 @@ Run with: uv run python scripts/fred_examples.py
 """
 
 import os
-import json
 from datetime import datetime, timedelta
 
 # Import the FREDQuery class
@@ -144,7 +143,7 @@ def example_releases():
     today = datetime.now().strftime("%Y-%m-%d")
     next_week = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
 
-    print(f"\n5a. Upcoming Releases (next 7 days):")
+    print("\n5a. Upcoming Releases (next 7 days):")
     dates = fred.get_release_dates(
         realtime_start=today,
         realtime_end=next_week,

@@ -184,7 +184,7 @@ class DebateMixin(RepositoryBase):
             row = await cursor.fetchone()
         if row is None:
             return None
-        return int(row[0])
+        return int(row["id"])
 
     async def get_debate_by_id(self, debate_id: int) -> DebateRow | None:
         """Get a single debate by its primary key, or None if not found."""

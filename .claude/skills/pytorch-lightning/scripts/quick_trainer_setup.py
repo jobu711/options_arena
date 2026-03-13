@@ -6,16 +6,13 @@ Copy and modify these configurations for your specific needs.
 """
 
 import lightning as L
+from lightning.pytorch import loggers as pl_loggers
 from lightning.pytorch.callbacks import (
-    ModelCheckpoint,
     EarlyStopping,
     LearningRateMonitor,
-    DeviceStatsMonitor,
-    RichProgressBar,
+    ModelCheckpoint,
 )
-from lightning.pytorch import loggers as pl_loggers
 from lightning.pytorch.strategies import DDPStrategy, FSDPStrategy
-
 
 # =============================================================================
 # 1. BASIC TRAINING (Single GPU/CPU)

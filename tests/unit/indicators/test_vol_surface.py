@@ -17,6 +17,7 @@ import numpy as np
 import pytest
 
 from options_arena.indicators.vol_surface import (
+    VolSurfaceIndicators,
     VolSurfaceResult,
     _standalone_atm_iv,
     _standalone_implied_move,
@@ -558,20 +559,20 @@ class TestEdgeCases:
 class TestComputeSurfaceIndicators:
     """Test for the compute_surface_indicators stub."""
 
-    def test_stub_returns_empty_dict(self) -> None:
-        """Stub should return empty dict for any input."""
+    def test_stub_returns_empty_tuple(self) -> None:
+        """Stub should return empty VolSurfaceIndicators for any input."""
         result = compute_surface_indicators(_NONE_RESULT)
-        assert result == {}
-        assert isinstance(result, dict)
+        assert result == VolSurfaceIndicators()
+        assert isinstance(result, VolSurfaceIndicators)
 
     def test_stub_with_real_result(self) -> None:
-        """Stub returns empty dict even with a real VolSurfaceResult."""
+        """Stub returns empty VolSurfaceIndicators even with a real VolSurfaceResult."""
         strikes, ivs, dtes, types = _make_dense_chain()
         vol_result = compute_vol_surface(strikes, ivs, dtes, types, spot=100.0)
 
         result = compute_surface_indicators(vol_result)
 
-        assert result == {}
+        assert result == VolSurfaceIndicators()
 
 
 # Reference the module-level _NONE_RESULT for stub tests

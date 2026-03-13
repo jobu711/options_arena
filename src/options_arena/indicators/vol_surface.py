@@ -27,6 +27,7 @@ from typing import NamedTuple
 
 import numpy as np
 from scipy.interpolate import SmoothBivariateSpline
+from scipy.stats import norm as _norm
 
 logger = logging.getLogger(__name__)
 
@@ -230,6 +231,7 @@ def _fit_surface(
         skew_val = iv_25d_put - iv_25d_call
         skew_25d: float | None = skew_val if math.isfinite(skew_val) else None
     except Exception:
+        logger.debug("Spline skew_25d extraction failed", exc_info=True)
         skew_25d = None
 
     # ----- Extract smile curvature (second derivative at ATM) -----
@@ -243,6 +245,7 @@ def _fit_surface(
         curv_val = (iv_plus - 2.0 * iv_center + iv_minus) / (h * h)
         curvature = curv_val if math.isfinite(curv_val) else None
     except Exception:
+        logger.debug("Spline smile curvature extraction failed", exc_info=True)
         curvature = None
 
     # ----- ATM IV at 30d and 60d -----
@@ -251,7 +254,7 @@ def _fit_surface(
         val = _eval(0.0, sqrt_t_30)
         atm_iv_30d = val if math.isfinite(val) and val > 0.0 else None
     except Exception:
-        pass
+        logger.debug("Spline ATM IV 30d extraction failed", exc_info=True)
 
     atm_iv_60d: float | None = None
     try:
@@ -259,7 +262,7 @@ def _fit_surface(
         val = _eval(0.0, sqrt_t_60)
         atm_iv_60d = val if math.isfinite(val) and val > 0.0 else None
     except Exception:
-        pass
+        logger.debug("Spline ATM IV 60d extraction failed", exc_info=True)
 
     # ----- Fitted values, residuals, z-scores -----
     fitted_arr: np.ndarray | None = None
@@ -285,6 +288,7 @@ def _fit_surface(
             r2 = 1.0 - ss_res / ss_tot
             r_squared = r2 if math.isfinite(r2) else None
     except Exception:
+        logger.debug("Fitted values computation failed", exc_info=True)
         fitted_arr = None
         resid_arr = None
         z_arr = None
@@ -384,6 +388,8 @@ def _standalone_smile_curvature(
     Returns ``None`` if fewer than 3 unique strikes near ATM.
     """
     if len(strikes) < 3:
+        return None
+    if spot <= 0.0:
         return None
 
     # Deduplicate strikes by averaging IVs at the same strike
@@ -525,8 +531,6 @@ def _standalone_implied_move(
     discount = math.exp(risk_free_rate * t)
 
     # Compute call prices via BSM for the butterfly spread
-    from scipy.stats import norm as _norm
-
     n_strikes = len(k)
     call_prices = np.empty(n_strikes, dtype=float)
     for i in range(n_strikes):
@@ -594,7 +598,14 @@ def _standalone_implied_move(
 # ---------------------------------------------------------------------------
 
 
-def compute_surface_indicators(result: VolSurfaceResult) -> dict[str, float]:
+class VolSurfaceIndicators(NamedTuple):
+    """Indicator signals derived from fitted vol surface.
+
+    Stub — fields will be added by the ``volatility-intelligence`` epic.
+    """
+
+
+def compute_surface_indicators(result: VolSurfaceResult) -> VolSurfaceIndicators:
     """Map per-contract z-scores from fitted surface to indicator signals.
 
     Stub -- completed by the ``volatility-intelligence`` epic.
@@ -606,7 +617,7 @@ def compute_surface_indicators(result: VolSurfaceResult) -> dict[str, float]:
 
     Returns
     -------
-    dict[str, float]
-        Empty dict (stub).
+    VolSurfaceIndicators
+        Empty (stub).
     """
-    return {}
+    return VolSurfaceIndicators()

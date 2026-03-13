@@ -123,6 +123,7 @@ class ServiceCache:
         if self._db_path is None:
             return
         self._db = await aiosqlite.connect(self._db_path)
+        self._db.row_factory = aiosqlite.Row
         await self._db.execute("PRAGMA journal_mode=WAL")
         await self._db.execute(
             "CREATE TABLE IF NOT EXISTS service_cache "
@@ -168,8 +169,8 @@ class ServiceCache:
             ) as cursor:
                 row = await cursor.fetchone()
             if row is not None:
-                value_blob: bytes = row[0]
-                db_expires_at: float = row[1]
+                value_blob: bytes = row["value"]
+                db_expires_at: float = row["expires_at"]
                 if db_expires_at != 0.0 and db_expires_at < time.time():
                     # Expired in SQLite — clean up
                     await self._db.execute("DELETE FROM service_cache WHERE key = ?", (key,))
