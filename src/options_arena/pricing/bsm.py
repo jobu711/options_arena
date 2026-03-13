@@ -5,10 +5,11 @@ All functions accept scalar ``float`` arguments and return either ``float`` (pri
 or ``OptionGreeks`` (Greeks). No API calls, no pandas, no raw dicts.
 
 Functions:
-    bsm_price  — European option price (call or put).
-    bsm_greeks — All 5 analytical Greeks as ``OptionGreeks(pricing_model=BSM)``.
-    bsm_vega   — Standalone vega for Newton-Raphson ``fprime`` parameter.
-    bsm_iv     — Newton-Raphson implied volatility solver.
+    bsm_price                — European option price (call or put).
+    bsm_greeks               — All 5 analytical Greeks as ``OptionGreeks(pricing_model=BSM)``.
+    bsm_vega                 — Standalone vega for Newton-Raphson ``fprime`` parameter.
+    bsm_iv                   — Newton-Raphson implied volatility solver.
+    bsm_second_order_greeks  — Analytical vanna, charm, vomma.
 """
 
 import logging
@@ -20,6 +21,7 @@ from options_arena.models.config import PricingConfig
 from options_arena.models.enums import OptionType, PricingModel
 from options_arena.models.options import OptionGreeks
 from options_arena.pricing._common import (
+    SecondOrderGreeks,
     boundary_greeks,
     intrinsic_value,
     validate_positive_inputs,
@@ -367,3 +369,90 @@ def bsm_iv(
         f"residual={abs(final_price - market_price):.2e}. "
         f"Inputs: S={S}, K={K}, T={T}, r={r}, q={q}, option_type={option_type}"
     )
+
+
+def bsm_second_order_greeks(
+    S: float,
+    K: float,
+    T: float,
+    r: float,
+    q: float,
+    sigma: float,
+    option_type: OptionType,
+) -> SecondOrderGreeks:
+    """Compute analytical second-order BSM Greeks: vanna, charm, vomma.
+
+    Closed-form solutions derived from the Merton (1973) BSM model:
+
+    - **Vanna** (d(delta)/d(sigma)): ``-e^(-qT) * n(d1) * d2 / sigma``
+      Same for calls and puts.
+
+    - **Charm** (d(delta)/d(T), negated for time *remaining*):
+      Call: ``-e^(-qT) * [n(d1) * (2(r-q)T - d2*sigma*sqrt(T)) /
+            (2*T*sigma*sqrt(T))] + q*e^(-qT)*N(d1)``
+      Put: ``-e^(-qT) * [n(d1) * (2(r-q)T - d2*sigma*sqrt(T)) /
+            (2*T*sigma*sqrt(T))] - q*e^(-qT)*N(-d1)``
+
+    - **Vomma** (d(vega)/d(sigma)): ``vega * d1 * d2 / sigma``
+
+    Args:
+        S: Spot price.
+        K: Strike price.
+        T: Time to expiration in years (DTE / 365.0).
+        r: Risk-free rate (annualized, decimal).
+        q: Continuous dividend yield (decimal).
+        sigma: Implied volatility (annualized, decimal).
+        option_type: ``OptionType.CALL`` or ``OptionType.PUT``.
+
+    Returns:
+        ``SecondOrderGreeks`` with vanna, charm, vomma. All ``None`` when
+        T <= 0 or sigma <= 0 (boundary conditions).
+    """
+    _none = SecondOrderGreeks(vanna=None, charm=None, vomma=None)
+
+    # Guard invalid inputs — return all-None for boundary conditions.
+    if T <= 0.0 or sigma <= 0.0:
+        return _none
+    if not math.isfinite(T) or not math.isfinite(sigma):
+        return _none
+    if not math.isfinite(S) or not math.isfinite(K) or S <= 0.0 or K <= 0.0:
+        return _none
+    if not math.isfinite(r) or not math.isfinite(q):
+        return _none
+
+    sigma_sqrt_t = sigma * math.sqrt(T)
+    if sigma_sqrt_t < _SIGMA_SQRT_T_EPSILON:
+        return _none
+
+    d1, d2 = _d1_d2(S, K, T, r, q, sigma)
+    sqrt_t = math.sqrt(T)
+    discount_q = math.exp(-q * T)
+    n_d1: float = norm.pdf(d1)  # Standard normal density at d1.
+
+    # Vanna: -e^(-qT) * n(d1) * d2 / sigma — same for calls and puts.
+    vanna = -discount_q * n_d1 * d2 / sigma
+
+    # Vega (needed for vomma): S * e^(-qT) * n(d1) * sqrt(T).
+    vega = S * discount_q * n_d1 * sqrt_t
+
+    # Vomma: vega * d1 * d2 / sigma.
+    vomma = vega * d1 * d2 / sigma
+
+    # Charm: d(delta)/d(T), reported as the negative of the time derivative
+    # (decay convention — how delta changes as time *passes*).
+    #
+    # Common term:  -e^(-qT) * n(d1) * [2(r-q)T - d2*sigma*sqrt(T)] /
+    #                (2*T*sigma*sqrt(T))
+    charm_common = (
+        -discount_q * n_d1 * (2.0 * (r - q) * T - d2 * sigma * sqrt_t) / (2.0 * T * sigma * sqrt_t)
+    )
+
+    match option_type:
+        case OptionType.CALL:
+            nd1_cdf: float = norm.cdf(d1)
+            charm = charm_common + q * discount_q * nd1_cdf
+        case OptionType.PUT:
+            n_neg_d1_cdf: float = norm.cdf(-d1)
+            charm = charm_common - q * discount_q * n_neg_d1_cdf
+
+    return SecondOrderGreeks(vanna=vanna, charm=charm, vomma=vomma)

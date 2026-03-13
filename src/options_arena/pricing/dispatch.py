@@ -1,7 +1,8 @@
 """Unified pricing dispatch by ExerciseStyle.
 
-Routes ``option_price``, ``option_greeks``, and ``option_iv`` to the correct
-pricing engine based on ``ExerciseStyle``:
+Routes ``option_price``, ``option_greeks``, ``option_iv``, and
+``option_second_order_greeks`` to the correct pricing engine based on
+``ExerciseStyle``:
   - AMERICAN -> BAW (``american.py``)
   - EUROPEAN -> BSM (``bsm.py``)
 
@@ -13,8 +14,14 @@ import logging
 from options_arena.models.config import PricingConfig
 from options_arena.models.enums import ExerciseStyle, OptionType
 from options_arena.models.options import OptionGreeks
-from options_arena.pricing.american import american_greeks, american_iv, american_price
-from options_arena.pricing.bsm import bsm_greeks, bsm_iv, bsm_price
+from options_arena.pricing._common import SecondOrderGreeks
+from options_arena.pricing.american import (
+    american_greeks,
+    american_iv,
+    american_price,
+    american_second_order_greeks,
+)
+from options_arena.pricing.bsm import bsm_greeks, bsm_iv, bsm_price, bsm_second_order_greeks
 
 logger = logging.getLogger(__name__)
 
@@ -117,3 +124,36 @@ def option_iv(
             return american_iv(market_price, S, K, T, r, q, option_type, config)
         case ExerciseStyle.EUROPEAN:
             return bsm_iv(market_price, S, K, T, r, q, option_type, config=config)
+
+
+def option_second_order_greeks(
+    exercise_style: ExerciseStyle,
+    S: float,
+    K: float,
+    T: float,
+    r: float,
+    q: float,
+    sigma: float,
+    option_type: OptionType,
+) -> SecondOrderGreeks:
+    """Compute second-order Greeks by dispatching to BSM or BAW.
+
+    Args:
+        exercise_style: AMERICAN dispatches to BAW (finite-difference),
+            EUROPEAN to BSM (analytical closed-form).
+        S: Spot price.
+        K: Strike price.
+        T: Time to expiration in years.
+        r: Risk-free rate (annualized, decimal).
+        q: Continuous dividend yield (decimal).
+        sigma: Implied volatility (annualized, decimal).
+        option_type: CALL or PUT.
+
+    Returns:
+        ``SecondOrderGreeks`` with vanna, charm, vomma.
+    """
+    match exercise_style:
+        case ExerciseStyle.AMERICAN:
+            return american_second_order_greeks(S, K, T, r, q, sigma, option_type)
+        case ExerciseStyle.EUROPEAN:
+            return bsm_second_order_greeks(S, K, T, r, q, sigma, option_type)

@@ -69,6 +69,11 @@ class OptionGreeks(BaseModel):
             raise ValueError(f"must be finite and >= 0, got {v}")
         return v
 
+    # Second-order Greeks (optional — populated by pricing module on request).
+    vanna: float | None = None
+    charm: float | None = None
+    vomma: float | None = None
+
     @field_validator("theta", "rho")
     @classmethod
     def validate_finite(cls, v: float) -> float:
@@ -78,6 +83,14 @@ class OptionGreeks(BaseModel):
         Rho can be either sign depending on option type and rate direction.
         """
         if not math.isfinite(v):
+            raise ValueError(f"must be finite, got {v}")
+        return v
+
+    @field_validator("vanna", "charm", "vomma")
+    @classmethod
+    def validate_second_order(cls, v: float | None) -> float | None:
+        """Ensure second-order Greeks are finite when provided (allow any sign)."""
+        if v is not None and not math.isfinite(v):
             raise ValueError(f"must be finite, got {v}")
         return v
 

@@ -24,6 +24,7 @@ from options_arena.models.config import PricingConfig
 from options_arena.models.enums import OptionType, PricingModel
 from options_arena.models.options import OptionGreeks
 from options_arena.pricing._common import (
+    SecondOrderGreeks,
     boundary_greeks,
     intrinsic_value,
     validate_positive_inputs,
@@ -647,3 +648,112 @@ def american_iv(
         K,
     )
     return iv
+
+
+def american_second_order_greeks(
+    S: float,
+    K: float,
+    T: float,
+    r: float,
+    q: float,
+    sigma: float,
+    option_type: OptionType,
+) -> SecondOrderGreeks:
+    """Compute second-order American option Greeks via finite-difference cross-bumps.
+
+    Uses direct price evaluations via ``american_price`` for numerical stability:
+
+    - **Vanna**: Cross-partial d^2V/(dS dsigma) via the four-point formula:
+      ``[V(S+dS, sig+dsig) - V(S+dS, sig-dsig) - V(S-dS, sig+dsig)
+        + V(S-dS, sig-dsig)] / (4 * dS * dsig)``
+
+    - **Charm**: d(delta)/dT via centered difference on delta.
+      Delta(T) computed from ``[V(S+dS,T) - V(S-dS,T)] / (2*dS)``.
+      Backward difference when T > dT, forward when T <= dT.
+
+    - **Vomma**: d^2V/dsigma^2 via centered second difference on price:
+      ``[V(sig+dsig) - 2*V(sig) + V(sig-dsig)] / dsig^2``
+
+    Args:
+        S: Spot price.
+        K: Strike price.
+        T: Time to expiration in years (DTE / 365.0).
+        r: Risk-free rate (annualized, decimal).
+        q: Continuous dividend yield (decimal).
+        sigma: Implied volatility (annualized, decimal).
+        option_type: ``OptionType.CALL`` or ``OptionType.PUT``.
+
+    Returns:
+        ``SecondOrderGreeks`` with vanna, charm, vomma. All ``None`` when
+        T <= 0 or sigma <= 0 (boundary conditions).
+    """
+    _none = SecondOrderGreeks(vanna=None, charm=None, vomma=None)
+
+    # Guard boundary conditions.
+    if T <= 0.0 or sigma <= 0.0:
+        return _none
+    if not math.isfinite(T) or not math.isfinite(sigma):
+        return _none
+    if not math.isfinite(S) or not math.isfinite(K) or S <= 0.0 or K <= 0.0:
+        return _none
+    if not math.isfinite(r) or not math.isfinite(q):
+        return _none
+
+    sigma_sqrt_t = sigma * math.sqrt(T)
+    if sigma_sqrt_t < _SIGMA_SQRT_T_EPSILON:
+        return _none
+
+    dS = _DS_FRACTION * S
+    dT = _DT
+    dSigma = _DSIGMA
+
+    # Clamp sigma bumps to avoid negative sigma.
+    sigma_up = sigma + dSigma
+    sigma_dn = max(sigma - dSigma, _IV_LOWER_BOUND)
+
+    # -------------------------------------------------------------------
+    # Base and sigma-bumped prices (reused across Greeks).
+    # -------------------------------------------------------------------
+    price_base = american_price(S, K, T, r, q, sigma, option_type)
+    price_sigma_up = american_price(S, K, T, r, q, sigma_up, option_type)
+    price_sigma_dn = american_price(S, K, T, r, q, sigma_dn, option_type)
+
+    # -------------------------------------------------------------------
+    # Vomma: d^2V/dsigma^2 via centered second difference on price.
+    # -------------------------------------------------------------------
+    actual_dsigma = sigma_up - sigma_dn
+    half_dsigma = actual_dsigma / 2.0
+    vomma = (price_sigma_up - 2.0 * price_base + price_sigma_dn) / (half_dsigma * half_dsigma)
+
+    # -------------------------------------------------------------------
+    # Vanna: d^2V/(dS dsigma) via 4-point cross-partial formula.
+    # -------------------------------------------------------------------
+    p_up_s_up_sig = american_price(S + dS, K, T, r, q, sigma_up, option_type)
+    p_up_s_dn_sig = american_price(S + dS, K, T, r, q, sigma_dn, option_type)
+    p_dn_s_up_sig = american_price(S - dS, K, T, r, q, sigma_up, option_type)
+    p_dn_s_dn_sig = american_price(S - dS, K, T, r, q, sigma_dn, option_type)
+
+    vanna = (p_up_s_up_sig - p_up_s_dn_sig - p_dn_s_up_sig + p_dn_s_dn_sig) / (
+        2.0 * dS * actual_dsigma
+    )
+
+    # -------------------------------------------------------------------
+    # Charm: d(delta)/dT via finite difference of delta at different T values.
+    # Delta at each T is computed from centered difference on S.
+    # -------------------------------------------------------------------
+    price_up_S = american_price(S + dS, K, T, r, q, sigma, option_type)
+    price_dn_S = american_price(S - dS, K, T, r, q, sigma, option_type)
+    delta_base = (price_up_S - price_dn_S) / (2.0 * dS)
+
+    if dT < T:
+        price_up_S_T_minus = american_price(S + dS, K, T - dT, r, q, sigma, option_type)
+        price_dn_S_T_minus = american_price(S - dS, K, T - dT, r, q, sigma, option_type)
+        delta_T_minus = (price_up_S_T_minus - price_dn_S_T_minus) / (2.0 * dS)
+        charm = (delta_T_minus - delta_base) / dT
+    else:
+        price_up_S_T_plus = american_price(S + dS, K, T + dT, r, q, sigma, option_type)
+        price_dn_S_T_plus = american_price(S - dS, K, T + dT, r, q, sigma, option_type)
+        delta_T_plus = (price_up_S_T_plus - price_dn_S_T_plus) / (2.0 * dS)
+        charm = (delta_base - delta_T_plus) / dT
+
+    return SecondOrderGreeks(vanna=vanna, charm=charm, vomma=vomma)
