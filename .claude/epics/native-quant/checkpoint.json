@@ -1,9 +1,9 @@
 {
   "epic": "native-quant",
-  "phase": "research",
-  "last_command": "/pm:prd-research native-quant",
-  "last_updated": "2026-03-11T13:04:05Z",
-  "completed_phases": ["prd-created", "research"],
+  "phase": "synced",
+  "last_command": "/pm:epic-sync native-quant",
+  "last_updated": "2026-03-13T19:05:00Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
   "current_task": null,
   "tasks_completed": [],
   "tasks_in_progress": [],

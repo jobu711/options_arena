@@ -116,6 +116,34 @@ Clear, concise description of what needs to be done
 - Key considerations
 - Code locations/files affected
 
+## Execution
+
+### Read First
+Files that MUST be read before starting this task:
+- `path/to/file.py` — understand existing pattern
+- `path/to/other.py` — interface this task must conform to
+
+### Action
+Concrete implementation steps with specific values:
+1. In `path/to/file.py`, add class `FeatureName` inheriting `BaseClass`
+   - WHY: follows existing pattern established in `other_file.py`
+2. Add field `field_name: float` with `math.isfinite()` validator
+   - WHY: NaN defense pattern (CLAUDE.md requirement)
+
+### Verify
+Automatable verification commands (copy-paste ready):
+```
+uv run pytest tests/unit/module/test_feature.py -v
+uv run ruff check src/options_arena/module/feature.py
+uv run mypy src/options_arena/module/feature.py --strict
+```
+
+### Done
+Measurable completion criteria (not "it works"):
+- `FeatureName` model validates in `test_feature.py` (3 test cases pass)
+- Import works: `from options_arena.models import FeatureName`
+- No lint/type errors in modified files
+
 ## Test Plan
 
 ### Test Files
@@ -254,6 +282,10 @@ Before finalizing tasks, verify:
 - [ ] Test file paths follow `tests/unit/{module}/` or `tests/integration/` conventions
 - [ ] Edge cases identified (minimum: empty input, error handling, validation)
 - [ ] `test_files` frontmatter matches Test Plan paths
+- [ ] Every task has a Read First section with at least 1 file path
+- [ ] Every task has an Action section with numbered steps (WHAT + WHY)
+- [ ] Every task has a Verify section with runnable commands
+- [ ] Every task has a Done section with measurable criteria
 
 ### 10. Write Checkpoint (best-effort)
 

@@ -14,6 +14,17 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python C:/Users/nicho/Desktop/Options_Arena/.claude/hooks/context-monitor.py"
+          }
+        ]
+      }
     ]
   }
 }

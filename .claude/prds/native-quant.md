@@ -1,7 +1,7 @@
 ---
 name: native-quant
 description: Native reimplementation of 3 quantitative finance algorithms — HV estimators, vol surface, higher-order Greeks
-status: researched
+status: planned
 created: 2026-03-11T01:46:14Z
 ---
 
