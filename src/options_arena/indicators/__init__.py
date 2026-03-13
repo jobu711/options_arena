@@ -19,10 +19,16 @@ from options_arena.indicators.options_specific import (
 )
 from options_arena.indicators.oscillators import rsi, stoch_rsi, williams_r
 from options_arena.indicators.trend import adx, macd, roc, supertrend
+from options_arena.indicators.vol_surface import (
+    VolSurfaceResult,
+    compute_surface_indicators,
+    compute_vol_surface,
+)
 from options_arena.indicators.volatility import atr_percent, bb_width, keltner_width
 from options_arena.indicators.volume import ad_trend, obv_trend, relative_volume
 
 __all__ = [
+    "VolSurfaceResult",
     "ad_trend",
     "adx",
     "atr_percent",
@@ -30,6 +36,8 @@ __all__ = [
     "compute_hv_parkinson",
     "compute_hv_rogers_satchell",
     "compute_hv_yang_zhang",
+    "compute_surface_indicators",
+    "compute_vol_surface",
     "iv_percentile",
     "iv_rank",
     "keltner_width",
