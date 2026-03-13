@@ -5,9 +5,22 @@ Internal module — not part of the public API. Consumers import from
 """
 
 import math
+from typing import NamedTuple
 
 from options_arena.models.enums import OptionType, PricingModel
 from options_arena.models.options import OptionGreeks
+
+
+class SecondOrderGreeks(NamedTuple):
+    """Second-order Greeks: vanna, charm, vomma.
+
+    Fields are ``None`` when the underlying computation cannot produce a value
+    (e.g., T <= 0, sigma <= 0).
+    """
+
+    vanna: float | None
+    charm: float | None
+    vomma: float | None
 
 
 def validate_positive_inputs(
