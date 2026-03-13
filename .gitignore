@@ -72,6 +72,10 @@ data/*.db-shm
 # Stale E2E test databases
 .e2e-test-*.db*
 
+# Audit reports (transient, per-session)
+.claude/audits/*
+!.claude/audits/.gitkeep
+
 # Verification stamps (transient, per-session)
 .claude/.context7-stamp
 .claude/.analyze-stamp

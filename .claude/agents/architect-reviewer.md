@@ -6,7 +6,7 @@ description: >
   changes for Options Arena's layered architecture. Invoke when changes
   span multiple modules, introduce new patterns, or modify the boundary
   table defined in CLAUDE.md.
-tools: Read, Glob, Grep
+tools: Read, Glob, Grep, Write
 model: opus
 color: magenta
 ---
@@ -55,6 +55,17 @@ Scoring (normalize/composite) → Scan (orchestrate) → Data (persist)
 5. **Pattern consistency**: New code follows established patterns
 6. **Scalability**: Changes don't create coupling that blocks future evolution
 
+## Scope Boundaries
+
+**IN SCOPE:** Module boundary violations, dependency direction, import graph analysis, pattern consistency, API design, data model evolution, coupling analysis.
+
+**OUT OF SCOPE (delegated):**
+- Code quality & conventions → `code-reviewer`
+- Security vulnerabilities → `security-auditor`
+- Async/runtime correctness → `bug-auditor`
+- Database layer internals → `db-auditor`
+- Dependency health → `dep-auditor`
+
 ## Review Output Format
 
 ```markdown
@@ -71,4 +82,34 @@ Scoring (normalize/composite) → Scan (orchestrate) → Data (persist)
 
 ### Positive Design Decisions
 - [What's architecturally sound]
+```
+
+## Structured Output Preamble
+
+Emit this YAML block as the FIRST content in your output:
+
+```yaml
+---
+agent: architect-reviewer
+status: COMPLETE | PARTIAL | ERROR
+timestamp: <ISO 8601 UTC>
+scope: <files/dirs audited>
+findings:
+  critical: <count>
+  high: <count>
+  medium: <count>
+  low: <count>
+---
+```
+
+## Execution Log
+
+After completing, append a row to `.claude/audits/EXECUTION_LOG.md`:
+```
+| architect-reviewer | <timestamp> | <scope> | <status> | C:<n> H:<n> M:<n> L:<n> |
+```
+Create the file with a header row if it doesn't exist:
+```
+| Agent | Timestamp | Scope | Status | Findings |
+|-------|-----------|-------|--------|----------|
 ```
