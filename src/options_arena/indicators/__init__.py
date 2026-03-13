@@ -4,6 +4,11 @@ Pure math module: pandas Series/DataFrames in, pandas Series/DataFrames out.
 No API calls, no Pydantic models, no I/O.
 """
 
+from options_arena.indicators.hv_estimators import (
+    compute_hv_parkinson,
+    compute_hv_rogers_satchell,
+    compute_hv_yang_zhang,
+)
 from options_arena.indicators.moving_averages import sma_alignment, vwap_deviation
 from options_arena.indicators.options_specific import (
     iv_percentile,
@@ -22,6 +27,9 @@ __all__ = [
     "adx",
     "atr_percent",
     "bb_width",
+    "compute_hv_parkinson",
+    "compute_hv_rogers_satchell",
+    "compute_hv_yang_zhang",
     "iv_percentile",
     "iv_rank",
     "keltner_width",
