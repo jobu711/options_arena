@@ -21,18 +21,21 @@ These agents have **non-overlapping scopes** by design. Run any combination in p
 | `bug-auditor` | Async races, resource leaks, timeouts, error handling, concurrency, floating tasks | Security, style, DB, deps | opus |
 | `db-auditor` | SQL injection, commit discipline, migrations, serialization, connection lifecycle | API logic, async, security, deps | opus |
 | `dep-auditor` | CVEs, unused deps, licenses, optional import guards, version constraints | App code, async, security, DB | sonnet |
+| `oa-python-reviewer` | Pricing math, scoring rules, indicator correctness, agent patterns, financial precision | General style, security, async races, DB, deps | opus |
 
 **Non-overlap guarantee**: Each auditor's IN scope is every other auditor's OUT scope. No
 two auditors will flag the same issue type. This makes parallel execution safe and
 non-redundant.
 
-### T2 — Analysts (3 agents, read-only)
+### T2 — Analysts (5 agents, read-only)
 
 | Agent | Use When | Model |
 |-------|----------|-------|
 | `research-analyst` | Pre-implementation research, API evaluation, data source assessment | opus |
 | `code-analyzer` | Deep logic tracing, bug investigation, change impact analysis | opus |
 | `file-analyzer` | Summarizing verbose output (logs, test results) to save parent context | haiku |
+| `learnings-researcher` | Pre-task search for past solutions in docs/solutions/ | sonnet |
+| `spec-analyzer` | Pre-epic requirements completeness, gap analysis, permutation discovery | opus |
 
 ### T3 — Domain Specialists (3 agents, write-capable)
 
@@ -68,13 +71,13 @@ validation. This table aligns with CLAUDE.md's module boundary table.
 |--------|--------------|-------------------|-------|
 | `models/` | Main thread | `code-reviewer` | Data shapes only — no logic |
 | `services/` | Main thread | `bug-auditor`, `security-auditor` | External API access, async patterns |
-| `indicators/` | `quant-analyst` | `code-reviewer` | Pure math, pandas in/out |
-| `pricing/` | `quant-analyst` | `code-reviewer` | BSM + BAW, scipy |
-| `scoring/` | `quant-analyst` | `code-reviewer` | Normalization, composite scoring |
+| `indicators/` | `quant-analyst` | `oa-python-reviewer`, `code-reviewer` | Pure math, pandas in/out |
+| `pricing/` | `quant-analyst` | `oa-python-reviewer`, `code-reviewer` | BSM + BAW, scipy |
+| `scoring/` | `quant-analyst` | `oa-python-reviewer`, `code-reviewer` | Normalization, composite scoring |
 | `data/` | Main thread | `db-auditor` | SQLite persistence |
 | `data/migrations/` | Main thread | `db-auditor` | Sequential SQL migration files |
 | `scan/` | Main thread | `bug-auditor`, `architect-reviewer` | 4-phase async pipeline |
-| `agents/` | Main thread | `bug-auditor`, `architect-reviewer` | PydanticAI debate orchestration |
+| `agents/` | Main thread | `oa-python-reviewer`, `bug-auditor`, `architect-reviewer` | PydanticAI debate orchestration |
 | `agents/prompts/` | `prompt-engineer` | `bug-auditor` | Prompt templates & versioning |
 | `api/` | Main thread | `security-auditor`, `bug-auditor` | FastAPI REST + WebSocket |
 | `cli/` | Main thread | `code-reviewer` | Typer + Rich entry point |
@@ -263,7 +266,7 @@ Wave 2 — Triple Audit (parallel, BG)
 
 ```
 Wave 0 — Research (parallel, FG)
-  research-analyst + Explore + architect-reviewer
+  research-analyst + spec-analyzer + Explore + architect-reviewer
 
 Wave 1 — Foundation (main thread)
   Models, config, types (low risk)

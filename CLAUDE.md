@@ -217,9 +217,10 @@ before presenting it. Skip this for simple fixes.
 
 ### Self-Improvement Loop
 
-After any correction from user, update `.claude/lessons.md` with the pattern. Write
-rules for yourself that prevent the mistake in the future. Ruthlessly iterate on these
-lessons until mistake rates drop. Review `.claude/lessons.md` on session start.
+After any correction from user, run `/compound` to capture the solution in
+`docs/solutions/`. Before tasks in known-fragile areas (pricing, NaN defense, async),
+invoke `learnings-researcher` to check for relevant past solutions. Knowledge compounds
+— first fix is research, subsequent fixes are lookup.
 
 ## Verification — Run Before Every Commit
 
