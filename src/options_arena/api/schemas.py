@@ -407,6 +407,15 @@ class DebateResultDetail(BaseModel):
     news_sentiment_score: float | None = None
     news_sentiment_label: SentimentLabel | None = None
     enrichment_ratio: float | None = None
+    # Native Quant: HV & vol surface metrics (extracted from MarketContext)
+    hv_yang_zhang: float | None = None
+    skew_25d: float | None = None
+    smile_curvature: float | None = None
+    prob_above_current: float | None = None
+    # Native Quant: second-order Greeks on target contract (from MarketContext)
+    target_vanna: float | None = None
+    target_charm: float | None = None
+    target_vomma: float | None = None
 
 
 # ---------------------------------------------------------------------------

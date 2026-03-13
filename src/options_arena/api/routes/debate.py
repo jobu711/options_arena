@@ -761,4 +761,13 @@ async def get_debate(
         news_sentiment_score=mc.news_sentiment if mc else None,
         news_sentiment_label=(mc.news_sentiment_label if mc else None),
         enrichment_ratio=mc.enrichment_ratio() if mc else None,
+        # Native Quant: HV & vol surface metrics
+        hv_yang_zhang=mc.hv_yang_zhang if mc else None,
+        skew_25d=mc.skew_25d if mc else None,
+        smile_curvature=mc.smile_curvature if mc else None,
+        prob_above_current=mc.prob_above_current if mc else None,
+        # Native Quant: second-order Greeks on target contract
+        target_vanna=mc.target_vanna if mc else None,
+        target_charm=mc.target_charm if mc else None,
+        target_vomma=mc.target_vomma if mc else None,
     )
