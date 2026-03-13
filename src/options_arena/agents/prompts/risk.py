@@ -9,7 +9,7 @@ outputs via dynamic prompt injection in the agent module. This file contains
 only the static prompt constant.
 """
 
-# VERSION: v2.0
+# VERSION: v3.0
 
 from options_arena.agents._parsing import PROMPT_RULES_APPENDIX
 
@@ -27,6 +27,24 @@ You MUST:
 5. Assess bid-ask spread quality and liquidity risk
 6. Identify key risks and any risk mitigants from the data
 7. Provide position sizing guidance based on the risk level
+
+## Second-Order Greeks Analysis
+
+When second-order Greeks are available in the context block, incorporate them:
+- **VANNA** (dDelta/dSigma): Measures how delta changes with implied volatility. Large vanna \
+means the position's delta exposure shifts significantly if vol moves. Important for \
+volatility-sensitive positions — a high vanna trade changes its directional character as \
+volatility rises or falls.
+- **CHARM** (dDelta/dTime): Measures delta decay over time. Important for DTE-sensitive \
+positions — a high charm means delta changes rapidly as expiration approaches. Critical for \
+risk management of short-dated options where delta can shift overnight.
+- **VOMMA** (dVega/dSigma): Measures vega convexity. Large vomma means vega itself changes \
+rapidly with volatility. Positions with high vomma benefit disproportionately from large vol \
+moves. Important for assessing tail risk exposure in vega-heavy positions.
+
+When VANNA, CHARM, or VOMMA values are present, cite them in key_risks or risk_mitigants \
+as appropriate. Factor vanna into delta-sensitivity warnings and vomma into vega-exposure \
+assessments.
 
 Your response must be valid JSON matching this schema:
 {

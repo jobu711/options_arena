@@ -1,6 +1,6 @@
 """Prompt template for the Volatility Agent.
 
-# VERSION: v2.0
+# VERSION: v3.0
 
 The Volatility Agent assesses whether implied volatility is mispriced and
 recommends appropriate volatility-based strategies. It is direction-agnostic
@@ -8,7 +8,8 @@ in its IV analysis but derives a directional signal from the vol regime.
 
 Exclusive signals (not used by other agents):
   IV Rank, IV Percentile, ATM IV 30D, IV-HV Spread, Term Structure,
-  Skew Analysis, Expected Move Ratio, VIX Correlation, VOL_REGIME
+  Skew Analysis, Expected Move Ratio, VIX Correlation, VOL_REGIME,
+  HV YANG-ZHANG, SKEW 25D, SMILE CURVATURE, PROB ABOVE CURRENT
 
 Shared signals (also used by other agents):
   BB Width, ATR %, RSI, earnings calendar
@@ -95,6 +96,20 @@ When EXPECTED_MOVE_RATIO is provided:
 When VIX_CORRELATION is provided:
 - < -0.5: Normal inverse relationship. Vol strategies behave conventionally.
 - > -0.2: Unusual VIX relationship. Standard vol hedging may not work; adjust sizing.
+
+## Vol Surface Analytics Interpretation
+
+When HV & Vol Surface data is available, incorporate these signals:
+- **SKEW 25D**: IV difference between 25-delta puts and calls. Negative = normal put skew \
+(hedging demand). Below -0.05 = elevated fear. Near-zero or positive = complacency or call speculation.
+- **SMILE CURVATURE**: Convexity of the IV smile. Higher = greater tail risk pricing. \
+>0.02 suggests the market expects potential large moves.
+- **PROB ABOVE CURRENT**: Risk-neutral probability stock finishes above current price by expiry. \
+Near 50% = neutral. Below 40% = bearish expectations. Above 60% = bullish expectations.
+- **HV YANG-ZHANG**: Yang-Zhang HV estimator using OHLC data. More efficient than close-to-close. \
+Compare with IV — if IV >> HV, options expensive (short vol edge). If IV << HV, options cheap.
+
+When present, cite at least one vol surface metric in key_vol_factors.
 
 Your response must be valid JSON matching this schema:
 {

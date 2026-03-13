@@ -469,7 +469,8 @@ def render_volatility_context(ctx: MarketContext) -> str:
     Includes the shared identity block plus volatility-specific indicators:
     IV RANK, IV PERCENTILE, ATM IV 30D, BB WIDTH, ATR%, VOL REGIME,
     IV-HV SPREAD, SKEW RATIO, VIX TERM STRUCTURE, EXPECTED MOVE,
-    EXPECTED MOVE RATIO, VEGA, VOMMA, dim_iv_vol, dim_hv_vol.
+    EXPECTED MOVE RATIO, VEGA, VOMMA, HV YANG-ZHANG, SKEW 25D,
+    SMILE CURVATURE, PROB ABOVE CURRENT, dim_iv_vol, dim_hv_vol.
 
     Excludes COMPOSITE SCORE, DIRECTION, and DIRECTION CONFIDENCE.
     """
@@ -513,6 +514,22 @@ def render_volatility_context(ctx: MarketContext) -> str:
         rendered = _render_optional(label, value, fmt)
         if rendered is not None:
             lines.append(rendered)
+
+    # Native Quant: HV & Vol Surface
+    nq_vol_lines: list[str] = []
+    for label, value, fmt in [
+        ("HV YANG-ZHANG", ctx.hv_yang_zhang, ".1%"),
+        ("SKEW 25D", ctx.skew_25d, ".3f"),
+        ("SMILE CURVATURE", ctx.smile_curvature, ".3f"),
+        ("PROB ABOVE CURRENT", ctx.prob_above_current, ".1%"),
+    ]:
+        rendered = _render_optional(label, value, fmt)
+        if rendered is not None:
+            nq_vol_lines.append(rendered)
+    if nq_vol_lines:
+        lines.append("")
+        lines.append("## HV & Vol Surface")
+        lines.extend(nq_vol_lines)
 
     # Dimensional scores
     dim_lines: list[str] = []
@@ -965,10 +982,10 @@ def render_context_block(ctx: MarketContext) -> str:
 
     # --- Native Quant: HV & Vol Surface ---
     nq_lines = [
-        _render_optional("HV YANG-ZHANG", ctx.hv_yang_zhang, ".4f"),
-        _render_optional("SKEW 25D", ctx.skew_25d, ".4f"),
-        _render_optional("SMILE CURVATURE", ctx.smile_curvature, ".4f"),
-        _render_optional("PROB ABOVE CURRENT", ctx.prob_above_current, ".2f"),
+        _render_optional("HV YANG-ZHANG", ctx.hv_yang_zhang, ".1%"),
+        _render_optional("SKEW 25D", ctx.skew_25d, ".3f"),
+        _render_optional("SMILE CURVATURE", ctx.smile_curvature, ".3f"),
+        _render_optional("PROB ABOVE CURRENT", ctx.prob_above_current, ".1%"),
     ]
     filtered_nq = [ln for ln in nq_lines if ln is not None]
     if filtered_nq:
