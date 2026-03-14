@@ -611,6 +611,19 @@ async def process_ticker_options(
             )
             return (ticker, [], earnings_date, entry_stock_price)
 
+    # Build surface residuals mapping for direction-aware delta tiebreaker
+    _surface_residuals: dict[tuple[Decimal, date], float] | None = None
+    if (
+        vol_result is not None
+        and vol_result.z_scores is not None
+        and vs_strikes is not None
+        and vs_dtes is not None
+    ):
+        _surface_residuals = {}
+        for i, c in enumerate(all_contracts):
+            if i < len(vol_result.z_scores) and math.isfinite(vol_result.z_scores[i]):
+                _surface_residuals[(c.strike, c.expiration)] = float(vol_result.z_scores[i])
+
     recommended = _recommend(
         contracts=all_contracts,
         direction=ticker_score.direction,
@@ -619,6 +632,7 @@ async def process_ticker_options(
         dividend_yield=ticker_info.dividend_yield,
         filters=options_filters,
         delta_target=pricing_config.delta_target,
+        surface_residuals=_surface_residuals,
     )
 
     # Compute surface indicators for the recommended contract
