@@ -555,6 +555,20 @@ class TestEdgeCases:
 # Stub test
 # ---------------------------------------------------------------------------
 
+_NONE_RESULT = VolSurfaceResult(
+    skew_25d=None,
+    smile_curvature=None,
+    prob_above_current=None,
+    atm_iv_30d=None,
+    atm_iv_60d=None,
+    fitted_ivs=None,
+    residuals=None,
+    z_scores=None,
+    r_squared=None,
+    is_1d_fallback=False,
+    is_standalone_fallback=False,
+)
+
 
 class TestComputeSurfaceIndicators:
     """Test for the compute_surface_indicators stub."""
@@ -573,19 +587,3 @@ class TestComputeSurfaceIndicators:
         result = compute_surface_indicators(vol_result)
 
         assert result == VolSurfaceIndicators()
-
-
-# Reference the module-level _NONE_RESULT for stub tests
-_NONE_RESULT = VolSurfaceResult(
-    skew_25d=None,
-    smile_curvature=None,
-    prob_above_current=None,
-    atm_iv_30d=None,
-    atm_iv_60d=None,
-    fitted_ivs=None,
-    residuals=None,
-    z_scores=None,
-    r_squared=None,
-    is_1d_fallback=False,
-    is_standalone_fallback=False,
-)

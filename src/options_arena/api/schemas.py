@@ -446,6 +446,13 @@ class DebateResultDetail(BaseModel):
             raise ValueError("value must be finite")
         return v
 
+    @field_validator("prob_above_current")
+    @classmethod
+    def _validate_prob_above_current(cls, v: float | None) -> float | None:
+        if v is not None and not 0.0 <= v <= 1.0:
+            raise ValueError("prob_above_current must be between 0.0 and 1.0")
+        return v
+
     @field_validator("created_at")
     @classmethod
     def _validate_utc(cls, v: datetime) -> datetime:

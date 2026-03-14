@@ -688,7 +688,7 @@ def _parse_agent_json[T: BaseModel](
         return None
     try:
         return model_cls.model_validate_json(raw_json)
-    except Exception:
+    except (ValueError, TypeError):
         logger.warning("Malformed %s for debate %d", field_name, debate_id, exc_info=True)
         return None
 
