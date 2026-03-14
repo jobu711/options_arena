@@ -45,6 +45,7 @@ class ScanConfig(BaseModel):
     enable_flow_analytics: bool = True
     enable_fundamental: bool = True
     enable_regime: bool = True
+    fit_vol_surface: bool = True
 
     # Consolidated filter spec — all pre-scan filter fields
     filters: ScanFilterSpec = ScanFilterSpec()

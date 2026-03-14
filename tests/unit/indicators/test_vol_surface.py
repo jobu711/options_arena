@@ -571,19 +571,35 @@ _NONE_RESULT = VolSurfaceResult(
 
 
 class TestComputeSurfaceIndicators:
-    """Test for the compute_surface_indicators stub."""
+    """Test for the compute_surface_indicators function."""
 
-    def test_stub_returns_empty_tuple(self) -> None:
-        """Stub should return empty VolSurfaceIndicators for any input."""
-        result = compute_surface_indicators(_NONE_RESULT)
+    def test_standalone_fallback_returns_all_none(self) -> None:
+        """Standalone fallback result should return all-None indicators."""
+        strikes = np.array([90.0, 95.0, 100.0])
+        dtes = np.array([30.0, 30.0, 30.0])
+        result = compute_surface_indicators(
+            _NONE_RESULT._replace(is_standalone_fallback=True),
+            contract_strike=100.0,
+            contract_dte=30.0,
+            strikes=strikes,
+            dtes=dtes,
+        )
         assert result == VolSurfaceIndicators()
         assert isinstance(result, VolSurfaceIndicators)
 
-    def test_stub_with_real_result(self) -> None:
-        """Stub returns empty VolSurfaceIndicators even with a real VolSurfaceResult."""
+    def test_with_real_fitted_result(self) -> None:
+        """Fitted surface result should populate R² and is_1d at minimum."""
         strikes, ivs, dtes, types = _make_dense_chain()
         vol_result = compute_vol_surface(strikes, ivs, dtes, types, spot=100.0)
 
-        result = compute_surface_indicators(vol_result)
+        result = compute_surface_indicators(
+            vol_result,
+            contract_strike=100.0,
+            contract_dte=30.0,
+            strikes=strikes,
+            dtes=dtes,
+        )
 
-        assert result == VolSurfaceIndicators()
+        # R² should always be populated for a fitted result
+        assert result.surface_fit_r2 is not None
+        assert result.surface_is_1d is not None
