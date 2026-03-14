@@ -1,12 +1,12 @@
 {
   "epic": "devops-audit",
-  "phase": "synced",
-  "last_command": "/pm:epic-sync devops-audit",
-  "last_updated": "2026-03-14T00:24:00Z",
-  "completed_phases": ["prd-created", "planning", "decomposition", "synced"],
-  "current_task": null,
-  "tasks_completed": [],
-  "tasks_in_progress": [],
+  "phase": "executing",
+  "last_command": "/pm:epic-start devops-audit",
+  "last_updated": "2026-03-14T00:50:00Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced", "executing"],
+  "current_task": 497,
+  "tasks_completed": [495, 496],
+  "tasks_in_progress": [497],
   "blockers": [],
-  "notes": ""
+  "notes": "Task 497 requires running /devops-audit interactively to smoke test"
 }
