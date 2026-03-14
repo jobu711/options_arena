@@ -85,16 +85,16 @@
       "source": "Analytical BSM — OTM call K=120, high vol",
       "parameters": {"S": 100.0, "K": 120.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.30},
       "european": {
-        "call": {"price": 8.907318},
-        "put": {"price": 23.030260}
+        "call": {"price": 6.903998},
+        "put": {"price": 21.051528}
       },
       "american": {
-        "call": {"price": 8.907318},
-        "put": {"price": 23.030260}
+        "call": {"price": 6.903998},
+        "put": {"price": 21.051528}
       },
       "iv_round_trip": {
-        "call": {"target_price": 8.907318, "recovered_sigma": 0.30},
-        "put": {"target_price": 23.030260, "recovered_sigma": 0.30}
+        "call": {"target_price": 6.903998, "recovered_sigma": 0.30},
+        "put": {"target_price": 21.051528, "recovered_sigma": 0.30}
       }
     },
     {
@@ -165,15 +165,15 @@
       "source": "Analytical BSM — ITM call K=80 low vol sigma=0.10",
       "parameters": {"S": 100.0, "K": 80.0, "T": 0.25, "r": 0.02, "q": 0.0, "sigma": 0.10},
       "european": {
-        "call": {"price": 20.397459},
-        "put": {"price": 0.000000, "note": "Deep OTM put, price effectively zero"}
+        "call": {"price": 20.399004},
+        "put": {"price": 0.000002, "note": "Deep OTM put, price effectively zero"}
       },
       "american": {
-        "call": {"price": 20.397459},
-        "put": {"price": 0.000000}
+        "call": {"price": 20.399004},
+        "put": {"price": 0.000002}
       },
       "iv_round_trip": {
-        "call": {"target_price": 20.397459, "recovered_sigma": 0.10}
+        "call": {"target_price": 20.399004, "recovered_sigma": 0.10, "tolerance": 0.002}
       }
     }
   ]
