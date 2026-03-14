@@ -1,82 +1,87 @@
-# Context7 Verification — Structural Verification Guide
+# Context7 Verification Guide
 
-The `/context7` command runs comprehensive structural verification on changed files. It
-auto-detects which checks to run based on what changed, covering 7 scopes:
+Two separate things share the "Context7" name:
 
-| Scope | What it checks | Trigger |
-|-------|---------------|---------|
-| External Libraries | API field names, return types, signatures via Context7 MCP | Files in `services/` or importing yfinance/httpx/scipy |
-| Model Consistency | frozen, validators, NaN defense, no raw dicts | Files in `models/` or defining BaseModel subclasses |
-| Prompt Templates | VERSION header, PROMPT_RULES_APPENDIX, JSON schema | Files in `agents/prompts/` |
-| Config Shape | Single BaseSettings, nested BaseModel, env config | `models/config.py` or BaseSettings imports |
-| Architecture Boundaries | tach dependency graph + ast-grep structural rules | Any changed `.py` source file |
-| Test Coverage | Test file existence + function coverage | Any changed file under `src/` |
-| Migration Consistency | Sequential numbering, column alignment | Files in `data/` or `data/migrations/` |
+1. **`/context7` command** — Fast structural verification (tach + ast-grep + ruff + optional mypy/agents)
+2. **Context7 MCP** — External library API verification via `resolve-library-id` + `query-docs`
 
-## External Library Verification (Scope 1)
+This guide covers both.
 
-Before writing or modifying code that depends on the shape of data returned by an external
-library (yfinance, pandas, scipy, httpx, etc.), you MUST use Context7 (`resolve-library-id`
-then `query-docs`) to verify the actual field names, column names, return types, and method
-signatures. Do NOT rely on training data assumptions — libraries change between versions.
+## /context7 Command
 
-### When to verify
+Fast deterministic checks on changed or specified files. No code modification.
 
-- **Writing a new service method** that parses library output (e.g., yfinance `option_chain()`,
-  `Ticker.info`, `Ticker.get_dividends()`).
-- **Adding or modifying a Pydantic model** whose fields map to external library data shapes
-  (e.g., `OptionContract` fields matching yfinance chain columns).
-- **Using `pd.read_html()`**, `pd.read_csv()`, or any parser where column names come from
-  an external source (e.g., Wikipedia table headers).
-- **Calling a library function** with parameters you haven't used before in this project.
-- **Setting up Typer commands, Rich handlers, or pydantic-settings config** — verify parameter
-  names, enum support, and async compatibility.
+### Usage
 
-### What to verify
+| Command | What it checks |
+|---------|---------------|
+| `/context7` | Changed files only (git diff) |
+| `/context7 all` | Entire `src/` |
+| `/context7 <path>` | Specific file or directory |
+| `/context7 --full` | Above + mypy + relevant audit agents |
 
-- **Field/column names**: exact spelling, casing (e.g., yfinance uses camelCase in `.info`).
-- **Return types**: what the function actually returns (DataFrame, dict, Series, namedtuple).
-- **Parameter signatures**: required vs optional args, default values, valid options.
-- **Data shapes**: which fields can be `None`, which are always present, value ranges.
+### Checks Run
 
-### How to verify
+1. **tach check** — Module boundary enforcement (always whole-project)
+2. **ast-grep scan** — 4 structural rules (no-direct-pricing-import, no-optional-syntax, no-print-in-library, no-raw-dict-return)
+3. **ruff check** — Lint on target scope
+4. **mypy --strict** — Type checking (only with `--full`)
+5. **Audit agents** — Domain-specific review (only with `--full`)
 
-```
-1. resolve-library-id  — get the Context7 library ID
-2. query-docs          — ask the specific question about the data shape
-3. Document findings   — update the relevant PRD requirement or system-patterns.md
-                         with "(Context7-verified)" annotation
-```
+## Context7 MCP — External Library Verification
 
-### Assumptions that were wrong before Context7 verification
+Before writing code that maps external library output to typed models, use Context7 MCP
+(`resolve-library-id` then `query-docs`) to verify field names, return types, and signatures.
 
-- "yfinance option chains include Greeks (delta, gamma, theta, vega)" — **FALSE**.
-  Chains only include `impliedVolatility`. All Greeks computed locally via `pricing/dispatch.py`.
-- "Wikipedia S&P 500 table can be fetched with `pd.read_html(url)[0]`" — **FRAGILE**.
-  Target with `attrs={"id": "constituents"}`.
-- "Typer supports async command functions" — **UNRELIABLE**.
-  Always use sync def + `asyncio.run()`.
-- "RichHandler handles all log messages safely" — **FALSE**.
-  `markup=False` required to prevent `[ticker]` bracket crashes.
-- "pydantic-settings nested delimiter just works" — **PARTIALLY**.
-  `env_nested_delimiter="__"` can mismatch on fields with underscores; may need
-  `env_nested_max_split` for complex nesting.
+### When to Verify
+
+- Writing a new service method that parses library output (yfinance, pandas, scipy, httpx)
+- Adding/modifying Pydantic models whose fields map to external library data
+- Using library functions with parameters not yet used in this project
+- Setting up Typer commands, Rich handlers, or pydantic-settings config
+
+### What to Verify
+
+- **Field/column names**: exact spelling, casing (e.g., yfinance uses camelCase in `.info`)
+- **Return types**: what the function actually returns (DataFrame, dict, Series, etc.)
+- **Parameter signatures**: required vs optional args, defaults, valid options
+- **Data shapes**: which fields can be `None`, which are always present
+
+### Known Wrong Assumptions (Caught by Prior Verification)
+
+- "yfinance option chains include Greeks" — **FALSE**. Only `impliedVolatility`. All Greeks from `pricing/dispatch.py`.
+- "Typer supports async command functions" — **UNRELIABLE**. Always sync def + `asyncio.run()`.
+- "RichHandler handles all log messages safely" — **FALSE**. `markup=False` required.
+- "pydantic-settings nested delimiter just works" — **PARTIALLY**. May need `env_nested_max_split`.
 
 Do NOT commit code that maps external library output to typed models without Context7
-verification in the current conversation. If Context7 is unavailable, note the assumption
-as **unverified** in a code comment and in the relevant PRD section.
+verification. If Context7 MCP is unavailable, note the assumption as **unverified** in a
+code comment.
 
-## Three-State Verdict
+## PRD Audit Mode
 
-| State | Meaning | Stamp written? |
-|-------|---------|----------------|
-| PASS | All checks passed | Yes |
-| WARN | Non-blocking issues (missing tests, style) | Yes |
-| FAIL | Blocking issues (boundary violations, API mismatches) | No |
+`/context7 prd` audits technical claims in PRD files against the codebase. Catches wrong
+file paths, misnamed model fields, stale dependency versions, and boundary violations before
+PRD-to-epic conversion.
 
-**FAIL triggers**: architecture boundary violations (tach/ast-grep), external library
-mismatches, migration gaps/duplicates, config shape violations.
+### Usage
 
-**WARN triggers**: missing test files, missing validators (reported only), prompt style issues.
+| Command | What it does |
+|---------|-------------|
+| `/context7 prd` | Audit all PRDs in `.claude/prds/` |
+| `/context7 prd <name>` | Audit a specific PRD (e.g., `volatility-intelligence`) |
+| `/context7 prd --full` | Also verify library API claims via Context7 MCP |
 
-The stamp is written to `.claude/.context7-stamp` and checked by the pre-commit hook.
+### Claim Categories
+
+7 check categories (P1-P7): file paths, model fields, enum variants, import boundaries,
+dependencies, architecture, and library APIs. See the command file for the full taxonomy.
+
+### Status Awareness
+
+NOT_FOUND results are interpreted based on PRD `status` frontmatter:
+- `planned`/`researched`: NOT_FOUND = **INFO** (features not yet built)
+- `in-progress`: NOT_FOUND = **WARN**
+- `completed`: NOT_FOUND = **FAIL**
+
+MISMATCH and VIOLATION are always FAIL regardless of status.

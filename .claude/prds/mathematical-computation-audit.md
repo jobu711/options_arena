@@ -1,7 +1,7 @@
 ---
 name: mathematical-computation-audit
 description: Repeatable hybrid audit framework — deterministic tests (correctness, stability, performance) plus agent-driven discovery — covering all 66+ mathematical functions with CI gate
-status: backlog
+status: planned
 created: 2026-03-14T14:14:37Z
 ---
 
@@ -87,21 +87,22 @@ class AuditFinding(BaseModel):
     tolerance: str | None = None
     proposed_test: str | None = None  # Agent-proposed test code
 
+class AuditLayerSummary(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    layer: AuditLayer
+    tests_run: int
+    passed: int
+    failed: int
+    coverage_pct: float  # Functions covered / total functions
+
 class AuditReport(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     generated_at: datetime  # UTC validated
     total_functions: int
-    layers: dict[str, AuditLayerSummary]
+    layers: list[AuditLayerSummary]  # one per AuditLayer
     findings: list[AuditFinding]
-
-class AuditLayerSummary(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    tests_run: int
-    passed: int
-    failed: int
-    coverage_pct: float  # Functions covered / total functions
 ```
 
 ### Core Logic

@@ -1,329 +1,283 @@
 ---
-allowed-tools: Bash, Read, Glob, Grep, Agent, Edit
-description: Comprehensive structural verification — auto-detects scopes from changed files
+allowed-tools: Bash, Read, Glob, Grep, Agent
+description: Fast structural verification — tach + ast-grep + ruff on changed or specified files, or PRD claim audit
 ---
 
 <role>
-You are a structural verification engine for Options Arena. You auto-detect which checks
-to run based on which files changed, then execute all relevant scopes in parallel. You
-coordinate sub-agents for deep checks and run fast tooling (tach, ast-grep) on the main
-thread. Your goal is a single, consolidated pass/warn/fail verdict.
+You are a fast structural verification tool. You run deterministic checks (tach, ast-grep, ruff,
+optionally mypy) and report pass/fail. In PRD audit mode, you extract technical claims from PRD
+markdown and verify them against the codebase. You never modify code — verification only.
 </role>
 
-<context>
-This project uses strict conventions: typed Pydantic models (no raw dicts), architecture
-boundaries (enforced by tach.toml + ast-grep rules), NaN/Inf defense, UTC validators,
-confidence bounds, prompt template structure, and sequential migrations. The root CLAUDE.md
-(auto-loaded) contains the full boundary table and code patterns.
-
-Key tooling already configured:
-- `tach.toml` — module dependency graph, enforced via `uv run tach check`
-- `sgconfig.yml` → `.claude/rules/ast-grep/` — 4 structural rules:
-  - `no-direct-pricing-import`: scoring/scan can't import pricing.bsm/american
-  - `no-optional-syntax`: use `X | None`, not `Optional[X]`
-  - `no-print-in-library`: no `print()` outside cli/
-  - `no-raw-dict-return`: no `-> dict[...]` return types
-</context>
-
 <task>
-Run comprehensive structural verification on changed files. Auto-detect which scopes
-apply, execute all checks, produce a consolidated report with pass/warn/fail verdict,
-and write the verification stamp on pass/warn.
+Run structural checks on the target scope. Parse arguments to determine scope, depth, and mode.
 </task>
 
 <instructions>
 
-## Phase 1: Detect Changed Files and Active Scopes
+## Step 1: Parse Arguments
 
-Get the list of changed Python source files:
+The user's input after `/context7` determines scope, depth, and mode:
 
+**Code-audit mode (default):**
+
+| Input | Scope | Depth |
+|-------|-------|-------|
+| *(empty)* | Changed files (`git diff HEAD --name-only` + `git diff --staged --name-only`) | deterministic |
+| `all` | Entire `src/` | deterministic |
+| `<path>` (file or dir) | That path | deterministic |
+| `--full` | Changed files | deterministic + mypy + audit agents |
+| `--full all` | Entire `src/` | deterministic + mypy + audit agents |
+| `--full <path>` | That path | deterministic + mypy + audit agents |
+
+**PRD-audit mode** (when first non-flag arg is `prd`):
+
+| Input | Scope | Mode |
+|-------|-------|------|
+| `prd` | All PRDs in `.claude/prds/` | prd-audit |
+| `prd <name>` | `.claude/prds/<name>.md` | prd-audit |
+| `prd --full` | All PRDs + Context7 MCP library API verification | prd-audit + library |
+| `prd <name> --full` | Single PRD + Context7 MCP library API verification | prd-audit + library |
+
+Extract `--full` flag first (present anywhere in args). Then check if first remaining arg is `prd`.
+If so, enter PRD-audit mode (skip Steps 2-3, go to Steps 2a-2b). If second remaining arg exists,
+it's the PRD name (without `.md` extension).
+
+**Code-audit scope resolution** (non-`prd` mode):
+
+For changed-files scope: run `git diff HEAD --name-only && git diff --staged --name-only`,
+deduplicate, filter to `.py` files under `src/`. If no Python files changed:
+```
+No Python source changes detected. Scope: changed files (0 files).
+Tip: Use `/context7 all` to check entire src/ or `/context7 <path>` for a specific target.
+```
+Then STOP (do not treat empty changeset as fatal — just inform and exit).
+
+For `all` scope: target is `src/`.
+For path scope: verify the path exists, use it directly.
+
+Report the resolved scope:
+```
+Scope: {changed files (N files) | all (src/) | <path>}
+```
+
+## Step 2: Run Deterministic Checks
+
+*Skip this step in PRD-audit mode — go to Step 2a.*
+
+Run these three commands. Capture stdout+stderr and exit codes.
+
+**[1] BOUNDARIES (tach)**
 ```bash
-git diff --name-only HEAD && git diff --staged --name-only
+uv run tach check 2>&1; echo "EXIT:$?"
 ```
+Result: PASS if exit code 0, FAIL if non-zero. If `tach` not found, WARN and continue.
+Note: tach checks the whole project graph — not scoped to individual files.
 
-Deduplicate the combined list. Filter to `.py` files under `src/`.
-
-If NO Python source files changed, report:
-```
-No Python source changes detected. Nothing to verify.
-```
-And stop.
-
-Otherwise, determine which scopes are active using this trigger table:
-
-| Scope | Name | Trigger Condition |
-|-------|------|-------------------|
-| 1 | External Libraries | Any file in `services/`, OR file imports yfinance/httpx/scipy/pandas/aiosqlite |
-| 2 | Model Consistency | Any file in `models/`, OR file contains `class.*BaseModel` |
-| 3 | Prompt Templates | Any file in `agents/prompts/` |
-| 4 | Config Shape | `models/config.py` changed, OR file imports `BaseSettings` |
-| 5 | Architecture Boundaries | Always active when ANY `.py` source file changed |
-| 6 | Test Coverage | Always active when ANY file under `src/` changed |
-| 7 | Migration Consistency | Any file in `data/` or `data/migrations/` |
-
-To check triggers for Scopes 1/2/4: read each changed file (or Grep for the import patterns).
-Scope 5 and 6 are always active. Scope 3 and 7 are path-based (just check the file paths).
-
-Report the active scopes:
-```
-Files: {N} Python source files changed
-Active scopes: {comma-separated list of active scope names}
-```
-
-## Phase 2: Architecture Boundaries (Scope 5 — Main Thread)
-
-Run these two commands sequentially on the main thread (they're fast):
-
+**[2] STRUCTURE (ast-grep)**
 ```bash
-uv run tach check 2>&1 || true
+ast-grep scan --config sgconfig.yml {target} 2>&1; echo "EXIT:$?"
 ```
+Where `{target}` is the resolved scope path (file, directory, or `src/` for `all`).
+For changed-files scope, pass each file: `ast-grep scan --config sgconfig.yml file1.py file2.py ...`
+Result: PASS if no matches, FAIL if any rule matches. If `ast-grep` not found, WARN and continue.
 
+**[3] LINT (ruff)**
 ```bash
-ast-grep scan --config sgconfig.yml 2>&1 || true
+uv run ruff check {target} 2>&1; echo "EXIT:$?"
+```
+Where `{target}` is the same resolved scope. For changed-files, pass the file list.
+Result: PASS if exit code 0, FAIL if violations found.
+
+Run all three commands (they're fast). Report results immediately.
+
+## Step 2a: PRD Claim Extraction (PRD-audit mode only)
+
+For each PRD in scope:
+
+1. **Read the PRD file** using the Read tool.
+2. **Parse frontmatter** for `name` and `status` (one of: `planned`, `researched`, `in-progress`, `completed`). Default to `planned` if missing.
+3. **Extract claims** by category. Scan the full PRD text for these patterns:
+
+**[P1] FILE PATHS** — Backtick-quoted paths ending in `.py` (e.g., `` `pricing/dispatch.py` ``, `` `models/greeks.py` ``). Normalize to `src/options_arena/` prefix if not already present. Also capture paths to migration files, config files, etc.
+
+**[P2] MODEL FIELDS** — Patterns like `ModelName.field_name`, "`field_name: type`" in context of a model definition, or "adds `field_name` field to `ModelName`". Extract the model name, field name, and expected type if stated.
+
+**[P3] ENUM VARIANTS** — Patterns like "adds `VARIANT`", "new enum value `VARIANT`", "`EnumClass.VARIANT`", or "gains `VARIANT`". Extract enum class and variant name.
+
+**[P4] IMPORT BOUNDARIES** — Phrases like "imports from X only", "never imports Y", "X cannot access Y", "does not depend on Z". Extract the source module, allowed/disallowed target, and the direction (must-import or must-not-import).
+
+**[P5] DEPENDENCIES** — Package names with version constraints (e.g., "scipy >= 1.17", "no new dependencies", "uses existing pandas"). Extract package name and version constraint or "no new deps" assertion.
+
+**[P6] ARCHITECTURE** — Claims about field counts ("N fields"), base classes ("extends BaseModel"), function existence ("adds `function_name()`"), method signatures, or class inheritance.
+
+**[P7] LIBRARY APIs** — References to external library functions or behavior (e.g., "`scipy.optimize.brentq`", "`yfinance.Ticker.options`", "`numpy.polynomial.polynomial.Polynomial.fit`"). Tag these for `--full` mode only.
+
+Collect all claims into a structured list with: category, claim text, source line/section, and verification target.
+
+Report:
+```
+Claims extracted: {N} ([P1]: {n1}, [P2]: {n2}, [P3]: {n3}, [P4]: {n4}, [P5]: {n5}, [P6]: {n6}, [P7]: {n7})
 ```
 
-Record each result as PASS or FAIL:
-- `tach check`: PASS if exit code 0, FAIL if violations found
-- `ast-grep scan`: PASS if no matches found, FAIL if any rule matches
+## Step 2b: PRD Claim Verification (PRD-audit mode only)
 
-If either is FAIL, the overall verdict will be FAIL. Continue running other scopes.
+Verify each extracted claim using the appropriate tool:
 
-## Phase 3: Launch Sub-Agents in Parallel
+**[P1] FILE PATHS** — Use `Glob` to check if each path exists under `src/options_arena/` (or the stated location). Also check `data/migrations/`, `tests/`, etc. as appropriate.
+- EXISTS → FOUND
+- Not exists → NOT_FOUND
 
-For each active scope (except 5, already done), launch the appropriate sub-agent using the
-Agent tool. Launch ALL triggered scopes in a SINGLE message to maximize parallelism.
+**[P2] MODEL FIELDS** — Use `Grep` to search for the field name in the model's expected source file. If the model file is known (from P1 or from project knowledge), read it and verify the field exists with the expected type.
+- Field exists with matching type → FOUND
+- Field exists with different type → MISMATCH (report actual type)
+- Field not found → NOT_FOUND
 
-### Scope 1 — External Library Mappings
+**[P3] ENUM VARIANTS** — Use `Grep` to search for the variant name in the expected enum class file (typically `models/enums.py`).
+- Variant exists → FOUND
+- Variant not found → NOT_FOUND
 
-Launch a `general-purpose` agent:
+**[P4] IMPORT BOUNDARIES** — Use `Grep` to scan actual imports in the target module.
+- For "must not import X": grep for `import X` or `from X` in the source module. No matches → COMPLIANT. Matches → VIOLATION.
+- For "imports X only": grep for all imports in the source file, verify they only reference allowed targets. All compliant → COMPLIANT. Extra imports → VIOLATION.
 
-```
-Verify that data structures in changed files correctly map to external library APIs
-using Context7 (resolve-library-id → query-docs, max 3 calls per library).
+**[P5] DEPENDENCIES** — Use `Read` on `pyproject.toml`. Find the package in `[project.dependencies]` or `[project.optional-dependencies]`. Compare version constraints.
+- Package found with compatible version → MATCH
+- Package found with incompatible version → MISMATCH
+- Package not found (when "no new deps" claimed) → MATCH
+- Package not found (when expected to exist) → NOT_FOUND
 
-Files to check: {list of files triggering scope 1}
+**[P6] ARCHITECTURE** — Use `Read` and/or `Grep` on the relevant source file(s). Verify field counts, base class inheritance, function definitions, etc.
+- Claim matches reality → MATCH
+- Claim contradicts reality → MISMATCH (report actual)
+- Target file doesn't exist → NOT_FOUND
 
-For each file:
-1. Read the file
-2. Identify external library field access, column names, parameter names, return type assumptions
-3. Call Context7 resolve-library-id then query-docs to verify actual API shape
-4. Compare code assumptions vs Context7 documentation
+**[P7] LIBRARY APIs** (only with `--full`) — Use Context7 MCP: first `resolve-library-id` for the library, then `query-docs` to verify the API claim. If Context7 MCP is unavailable, report SKIPPED.
+- API exists as claimed → VERIFIED
+- API differs from claim → MISMATCH (report actual)
+- Cannot verify → SKIPPED
 
-Key libraries: yfinance (services/market_data.py, options_data.py), pandas (indicators/),
-scipy (pricing/), httpx (services/fred.py), pydantic-ai (agents/), fastapi (api/),
-pydantic-settings (models/config.py)
+Without `--full`, report all P7 claims as SKIPPED with note "use --full for library API verification".
 
-Report format per file:
-- PASS: "{file} — {N} mappings verified against {libraries}"
-- FAIL: "{file}:{line} — mismatch: code assumes {X}, docs say {Y}. Fix: {correction}"
-- WARN: "{file}:{line} — could not verify: {reason}"
+### Status-Aware Result Interpretation
 
-If mismatches found, apply fixes using Edit tool and stage with `git add`.
-Return overall scope result: PASS, WARN, or FAIL.
-```
+NOT_FOUND results are interpreted based on PRD frontmatter `status`:
 
-### Scope 2 — Model Consistency
+| PRD Status | NOT_FOUND for new files/fields | Severity |
+|------------|-------------------------------|----------|
+| `planned` or `researched` | Expected — these don't exist yet | **INFO** |
+| `in-progress` | May or may not exist yet | **WARN** |
+| `completed` | Should exist — something is wrong | **FAIL** |
 
-Launch a `code-analyzer` agent:
+MISMATCH and VIOLATION are always **FAIL** regardless of status (the PRD contradicts existing code).
+FOUND, MATCH, COMPLIANT, VERIFIED are always **PASS**.
 
-```
-Check Pydantic model conventions in changed files.
+## Step 3: Full Mode (only with --full, code-audit mode only)
 
-Files to check: {list of files triggering scope 2}
+*Skip this step in PRD-audit mode — `--full` in PRD mode enables P7 library API checks in Step 2b.*
 
-For each file, read it and verify:
-1. Snapshot models (Quote, Contract, OHLCV, Greeks, Verdict, etc.) have `frozen=True` in ConfigDict
-2. Every `confidence` field has a `field_validator` constraining to [0.0, 1.0]
-3. Every `datetime` field has a `field_validator` checking UTC (tzinfo is None or utcoffset != 0)
-4. Numeric validators use `math.isfinite()` BEFORE range checks (NaN passes `v >= 0`)
-5. No `Optional[X]` syntax — must be `X | None`
-6. No `typing.List` or `typing.Dict` — must be lowercase `list`/`dict`
-7. No `dict[str, Any]` or `dict[str, float]` as function return types
+If `--full` was specified, run two additional steps:
 
-Severity classification:
-- FAIL: missing isfinite() on financial numeric validator, architecture boundary violation
-- WARN: missing frozen=True on a snapshot model, missing confidence/datetime validator
-- AUTO-FIX: `Optional[X]` → `X | None`, `typing.List` → `list`, `typing.Dict` → `dict`
-
-For auto-fixable issues: apply the fix using Edit tool, then `git add` the file.
-For non-auto-fixable: report with file:line, issue description, and recommended fix.
-
-Return: scope result (PASS/WARN/FAIL) + list of findings.
-```
-
-### Scope 3 — Prompt Templates
-
-Launch a `code-analyzer` agent:
-
-```
-Check prompt template conventions in changed prompt files.
-
-Files to check: {list of files triggering scope 3}
-
-Read agents/prompts/CLAUDE.md first for the module rules. Then for each changed prompt file:
-
-1. Has `# VERSION: vX.Y` in module docstring
-2. Imports `PROMPT_RULES_APPENDIX` from `_parsing` and appends it to the prompt constant
-3. Contains a JSON schema block (has `"confidence":` and `"direction":`)
-4. Has a `Rules:` section with at least one bullet point
-5. No imports beyond `_parsing` (prompt files should be self-contained except for shared appendix)
-6. Any JSON examples in the file are valid JSON (check for syntax errors)
-
-Severity:
-- FAIL: missing PROMPT_RULES_APPENDIX, invalid JSON examples
-- WARN: missing VERSION header, missing Rules section, style issues
-
-Return: scope result (PASS/WARN/FAIL) + list of findings.
-```
-
-### Scope 4 — Config Shape
-
-Launch a `code-analyzer` agent:
-
-```
-Check configuration conventions in changed config files.
-
-Files to check: {list of files triggering scope 4}
-
-Read models/config.py (or the triggering file). Verify:
-1. Exactly ONE `BaseSettings` subclass exists in the project (`AppSettings`)
-2. All nested submodels use `BaseModel`, NOT `BaseSettings`
-3. `AppSettings` has `env_prefix` and `env_nested_delimiter` configured
-4. If models/config.py changed: use Context7 to verify pydantic-settings v2 patterns
-   (resolve-library-id for "pydantic-settings", then query-docs for BaseSettings config)
-
-Severity:
-- FAIL: multiple BaseSettings subclasses, nested BaseSettings instead of BaseModel
-- WARN: missing env_prefix or env_nested_delimiter
-
-Return: scope result (PASS/WARN/FAIL) + list of findings.
-```
-
-### Scope 6 — Test Coverage
-
-Launch an `Explore` agent (quick thoroughness):
-
-```
-Check test coverage for changed source files.
-
-Changed source files: {list of files under src/ that changed}
-
-For each changed file `src/options_arena/{module}/{file}.py`:
-1. Check if `tests/unit/{module}/test_{file}.py` exists (use Glob)
-2. If it exists: check if new/modified public functions have test counterparts (use Grep
-   to find function names in the source, then Grep for those names in the test file)
-3. If it doesn't exist: report as a gap
-
-This is NON-BLOCKING — all findings are WARN severity, never FAIL.
-
-Return: scope result (PASS or WARN) + list of coverage gaps found.
-```
-
-### Scope 7 — Migration Consistency
-
-Launch a `code-analyzer` agent:
-
-```
-Check migration consistency for changed data layer files.
-
-Files to check: {list of files triggering scope 7}
-
-Verify:
-1. Read all files in data/migrations/ (use Glob for *.sql pattern)
-2. Migration files are sequentially numbered with no gaps and no duplicates
-   (e.g., 001_*.sql, 002_*.sql, ..., 028_*.sql)
-3. If new model fields were added in data/ Python files: check that corresponding
-   ALTER TABLE or CREATE TABLE columns exist in migration files
-4. Repository methods in data/repository.py reference valid table/column names
-   that exist in the migrations
-
-Severity:
-- FAIL: gaps in migration numbering, duplicate numbers
-- WARN: new fields without obvious migration, column name mismatches
-
-Return: scope result (PASS/WARN/FAIL) + list of findings.
-```
-
-## Phase 4: Collect Results and Synthesize Report
-
-Wait for all sub-agents to complete. Collect their results.
-
-Produce the consolidated report in this exact format:
-
-```
-STRUCTURAL VERIFICATION REPORT
-===============================
-Branch: {current branch from git branch --show-current}
-Files: {N} changed
-Scopes: {list of active scope names}
-
-[SCOPE 5] ARCHITECTURE BOUNDARIES
-  tach check: {PASS|FAIL — details if fail}
-  ast-grep (4 rules): {PASS|FAIL — details if fail}
-
-[SCOPE 1] EXTERNAL LIBRARY MAPPINGS          ← only if scope was active
-  {PASS|WARN|FAIL} — {summary}
-
-[SCOPE 2] MODEL CONSISTENCY                   ← only if scope was active
-  {PASS|WARN|FAIL} — {summary}
-  {list each finding with file:line if any}
-
-[SCOPE 3] PROMPT TEMPLATES                    ← only if scope was active
-  {PASS|WARN|FAIL} — {summary}
-
-[SCOPE 4] CONFIG SHAPE                        ← only if scope was active
-  {PASS|WARN|FAIL} — {summary}
-
-[SCOPE 6] TEST COVERAGE                       ← only if scope was active
-  {PASS|WARN} — {summary}
-  {list gaps if any}
-
-[SCOPE 7] MIGRATION CONSISTENCY               ← only if scope was active
-  {PASS|WARN|FAIL} — {summary}
-
-VERDICT: {PASS|WARN|FAIL} ({detail})
-Stamp: {written (hash) | NOT written (blocking failures)}
-```
-
-Omit scope sections that were not active.
-
-## Phase 5: Write Verification Stamp
-
-Determine overall verdict using these rules:
-- If ANY scope is FAIL → overall FAIL
-- If any scope is WARN (but none FAIL) → overall WARN
-- If all scopes PASS → overall PASS
-
-**PASS or WARN**: Write the stamp.
+**[4] TYPES (mypy)**
 ```bash
-git diff --staged | git hash-object --stdin > .claude/.context7-stamp
+uv run mypy {target} --strict 2>&1; echo "EXIT:$?"
 ```
-If `git diff --staged` is empty (no staged changes), use:
-```bash
-echo "no-staged-changes" | git hash-object --stdin > .claude/.context7-stamp
+Result: PASS if exit code 0, FAIL if type errors found.
+
+**[5] AUDIT AGENTS** — Determine which agents to launch based on which modules are in scope.
+Use file paths to match:
+
+| Path contains | Agent | Description |
+|---------------|-------|-------------|
+| `pricing/`, `scoring/`, `indicators/` | `oa-python-reviewer` | Financial precision review |
+| `models/` | `code-reviewer` | Model conventions review |
+| `data/` | `db-auditor` | Database layer audit |
+| `api/`, `services/` | `security-auditor` | Security audit |
+| *(any file)* | `architect-reviewer` | Architecture review |
+
+Launch all matched agents in a SINGLE message for parallelism. Each agent gets the list
+of in-scope files relevant to its domain. Collect their findings.
+
+## Step 4: Report
+
+### Code-audit report format
+
+Output this exact format:
+
+```
+STRUCTURAL CHECK
+================
+Scope: {description}
+Files: {N} files checked
+
+[1] BOUNDARIES (tach)      {PASS | FAIL | WARN} — {details if non-pass}
+[2] STRUCTURE (ast-grep)   {PASS | FAIL | WARN} — {details if non-pass}
+[3] LINT (ruff)            {PASS | FAIL | WARN} — {details if non-pass}
+[4] TYPES (mypy)           {PASS | FAIL | WARN} — {details if non-pass}    ← only with --full
+
+VERDICT: {PASS | FAIL} ({N} checks passed, {M} failed)
 ```
 
-**FAIL**: Do NOT write the stamp. Report:
+If `--full` was used and audit agents returned findings, append them after the verdict:
+
 ```
-Stamp: NOT written — {count} blocking failures must be resolved first
+AUDIT FINDINGS
+==============
+[agent-name] {summary of findings}
 ```
 
-If auto-fixes were applied and staged during Phase 3:
-1. Report which files were auto-fixed
-2. Recompute the staged diff hash AFTER staging
-3. Write the updated stamp
+Verdict rules:
+- Any FAIL → overall FAIL
+- WARN-only → overall PASS (warnings noted)
+- All PASS → overall PASS
+
+### PRD-audit report format
+
+Output this exact format for each PRD:
+
+```
+PRD AUDIT
+=========
+PRD: {name} (status: {status})
+Claims extracted: {N}
+
+[P1] FILE PATHS          {found} found, {missing} missing             {PASS|FAIL|INFO|WARN}
+[P2] MODEL FIELDS        {found} found, {mismatch} mismatch, {pending} pending  {PASS|FAIL|INFO|WARN}
+[P3] ENUM VARIANTS       {found} found, {pending} pending             {PASS|FAIL|INFO|WARN}
+[P4] IMPORT BOUNDARIES   {compliant} compliant, {violations} violations  {PASS|FAIL}
+[P5] DEPENDENCIES        {match} match, {mismatch} mismatch           {PASS|FAIL}
+[P6] ARCHITECTURE        {match} match, {mismatch} mismatch           {PASS|FAIL|INFO|WARN}
+[P7] LIBRARY APIs        {verified}/{total} verified                   {PASS|FAIL|SKIPPED}
+
+VERDICT: {PASS | FAIL | INFO} ({summary})
+```
+
+For FAIL or WARN lines, append ` — {details}` with specifics (which files missing, which fields mismatched, etc.).
+
+When auditing multiple PRDs, output one report block per PRD, then a combined summary:
+
+```
+COMBINED SUMMARY
+================
+{N} PRDs audited: {pass_count} PASS, {fail_count} FAIL, {info_count} INFO
+```
+
+PRD verdict rules:
+- Any MISMATCH or VIOLATION → **FAIL** (PRD contradicts existing code)
+- NOT_FOUND in `completed` PRD → **FAIL**
+- NOT_FOUND in `in-progress` PRD (only) → **WARN** (upgraded to INFO in verdict if no FAILs)
+- NOT_FOUND in `planned`/`researched` PRD (only, no FAILs) → **INFO** (expected, not yet built)
+- All FOUND/MATCH/COMPLIANT → **PASS**
 
 </instructions>
 
 <constraints>
-1. Always run Phase 1 first — never skip file detection
-2. Scope 5 (architecture boundaries) runs on main thread, not as a sub-agent
-3. Launch all sub-agents in a SINGLE message for maximum parallelism
-4. Sub-agents must READ files before checking — never audit from assumptions
-5. Context7 calls limited to 3 per library (1 resolve + 2 queries max)
-6. Auto-fix ONLY mechanical syntax issues (Optional→union, typing.List→list)
-7. Never auto-fix semantic issues (missing validators) — report only
-8. WARN findings do not block the stamp; FAIL findings do
-9. Scope 6 (test coverage) is always WARN severity, never FAIL
-10. If tach or ast-grep binaries are missing, report as WARN (not FAIL) and continue
+1. NEVER modify code — this is a read-only verification command
+2. NEVER write stamp files — no `.context7-stamp` mechanism
+3. Report tool-not-found as WARN, not FAIL (tach/ast-grep may not be installed)
+4. Run deterministic checks before any agent-based analysis
+5. Only launch audit agents when `--full` is explicitly specified
+6. Keep output concise — full tool output only on FAIL, summary on PASS
+7. In PRD-audit mode, skip tach/ast-grep/ruff/mypy — these check code, not PRDs
+8. PRD claims about not-yet-implemented features are INFO (not FAIL) for planned/researched PRDs
 </constraints>
