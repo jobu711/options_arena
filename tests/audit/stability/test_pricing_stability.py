@@ -28,6 +28,7 @@ from options_arena.pricing.bsm import (
 )
 from options_arena.pricing.dispatch import (
     option_greeks,
+    option_iv,
     option_price,
     option_second_order_greeks,
 )
@@ -961,3 +962,74 @@ class TestIntrinsicValueStability:
             assert val == pytest.approx(max(S - K, 0.0), abs=1e-10)
         else:
             assert val == pytest.approx(max(K - S, 0.0), abs=1e-10)
+
+
+# ===========================================================================
+# Dispatch option_iv Stability
+# ===========================================================================
+
+
+class TestOptionIVStability:
+    """Hypothesis + NaN tests for dispatch option_iv."""
+
+    @pytest.mark.audit_stability
+    @given(
+        exercise_style=_exercise_style_strategy,
+        S=st.floats(min_value=50.0, max_value=500.0, allow_nan=False, allow_infinity=False),
+        K=st.floats(min_value=50.0, max_value=500.0, allow_nan=False, allow_infinity=False),
+        T=st.floats(min_value=0.05, max_value=2.0, allow_nan=False, allow_infinity=False),
+        r=st.floats(min_value=0.0, max_value=0.15, allow_nan=False, allow_infinity=False),
+        q=st.floats(min_value=0.0, max_value=0.05, allow_nan=False, allow_infinity=False),
+        sigma=st.floats(min_value=0.05, max_value=2.0, allow_nan=False, allow_infinity=False),
+        option_type=_option_type_strategy,
+    )
+    @settings(max_examples=50, deadline=None)
+    def test_option_iv_round_trip(
+        self,
+        exercise_style: ExerciseStyle,
+        S: float,
+        K: float,
+        T: float,
+        r: float,
+        q: float,
+        sigma: float,
+        option_type: OptionType,
+    ) -> None:
+        """Property: option_price(option_iv(price)) approximately equals price."""
+        market_price = option_price(exercise_style, S, K, T, r, q, sigma, option_type)
+        if market_price <= 0.0:
+            return
+        try:
+            recovered_sigma = option_iv(exercise_style, market_price, S, K, T, r, q, option_type)
+            recovered_price = option_price(
+                exercise_style, S, K, T, r, q, recovered_sigma, option_type
+            )
+            assert recovered_price == pytest.approx(market_price, abs=1e-3), (
+                f"IV round-trip failed: original={market_price:.6f}, "
+                f"recovered={recovered_price:.6f}"
+            )
+        except ValueError:
+            pass  # Some extreme combos may not converge
+
+    @pytest.mark.audit_stability
+    @pytest.mark.parametrize("position", range(6))
+    @pytest.mark.parametrize("bad_value", [float("nan"), float("inf")])
+    @pytest.mark.parametrize("exercise_style", [ExerciseStyle.AMERICAN, ExerciseStyle.EUROPEAN])
+    def test_option_iv_nan_inf_injection(
+        self, position: int, bad_value: float, exercise_style: ExerciseStyle
+    ) -> None:
+        """NaN/Inf in any input position raises ValueError."""
+        # args: market_price, S, K, T, r, q
+        args: list[float] = [5.0, 100.0, 100.0, 0.5, 0.05, 0.02]
+        args[position] = bad_value
+        with pytest.raises(ValueError):
+            option_iv(
+                exercise_style,
+                args[0],
+                args[1],
+                args[2],
+                args[3],
+                args[4],
+                args[5],
+                OptionType.CALL,
+            )

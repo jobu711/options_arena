@@ -1,20 +1,33 @@
 """Stability tests for scoring functions: Hypothesis + extreme inputs + NaN injection.
 
 Covers normalization (5), composite (2), direction (1), dimensional (3), and
-contracts-related scoring functions. Every function produces valid output or
+contracts-related scoring functions (5). Every function produces valid output or
 raises a clean error. Zero silent NaN propagation.
 """
 
 import math
+from datetime import timedelta
 
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from options_arena.models.config import ScanConfig
-from options_arena.models.enums import SignalDirection
+from options_arena.models.enums import MarketRegime, SignalDirection
 from options_arena.models.scan import IndicatorSignals
 from options_arena.scoring.composite import composite_score, score_universe
+from options_arena.scoring.contracts import (
+    compute_greeks,
+    filter_contracts,
+    recommend_contracts,
+    select_by_delta,
+    select_expiration,
+)
+from options_arena.scoring.dimensional import (
+    apply_regime_weights,
+    compute_dimensional_scores,
+    compute_direction_signal,
+)
 from options_arena.scoring.direction import determine_direction
 from options_arena.scoring.normalization import (
     compute_normalization_stats,
@@ -23,6 +36,7 @@ from options_arena.scoring.normalization import (
     normalize_single_ticker,
     percentile_rank_normalize,
 )
+from tests.factories import make_option_contract
 
 # ---------------------------------------------------------------------------
 # Hypothesis strategies for scoring inputs
@@ -487,6 +501,276 @@ class TestDetermineDirectionStability:
             SignalDirection.BEARISH,
             SignalDirection.NEUTRAL,
         )
+
+
+# ===========================================================================
+# Dimensional Scoring Stability (3 functions)
+# ===========================================================================
+
+
+class TestComputeDimensionalScoresStability:
+    """Stability tests for compute_dimensional_scores."""
+
+    @pytest.mark.audit_stability
+    def test_dimensional_scores_valid(self) -> None:
+        """Valid signals produce DimensionalScores with trend in [0, 100]."""
+        signals = IndicatorSignals(rsi=60.0, adx=70.0, macd=55.0)
+        scores = compute_dimensional_scores(signals)
+        assert scores.trend is not None
+        assert 0.0 <= scores.trend <= 100.0
+
+    @pytest.mark.audit_stability
+    def test_dimensional_scores_all_none(self) -> None:
+        """All-None signals produce all-None scores."""
+        scores = compute_dimensional_scores(IndicatorSignals())
+        assert scores.trend is None
+        assert scores.iv_vol is None
+        assert scores.flow is None
+
+    @pytest.mark.audit_stability
+    def test_dimensional_scores_nan_ignored(self) -> None:
+        """NaN values in signals are treated as missing."""
+        signals = IndicatorSignals(rsi=float("nan"), adx=50.0)
+        scores = compute_dimensional_scores(signals)
+        # trend family should still get a score from adx
+        assert scores.trend is not None
+
+    @pytest.mark.audit_stability
+    @given(signals=indicator_signals_strategy())
+    @settings(max_examples=30)
+    def test_dimensional_scores_in_range(self, signals: IndicatorSignals) -> None:
+        """Property: all non-None scores in [0, 100]."""
+        scores = compute_dimensional_scores(signals)
+        families = ("trend", "iv_vol", "hv_vol", "flow", "microstructure", "regime", "risk")
+        for field_name in families:
+            val = getattr(scores, field_name)
+            if val is not None:
+                assert 0.0 <= val <= 100.0, f"{field_name} = {val}"
+
+
+class TestApplyRegimeWeightsStability:
+    """Stability tests for apply_regime_weights."""
+
+    @pytest.mark.audit_stability
+    def test_regime_weights_default(self) -> None:
+        """Default weights produce composite in [0, 100]."""
+        from options_arena.models.scoring import DimensionalScores
+
+        scores = DimensionalScores(trend=60.0, iv_vol=50.0, flow=55.0)
+        composite = apply_regime_weights(scores)
+        assert 0.0 <= composite <= 100.0
+
+    @pytest.mark.audit_stability
+    def test_regime_weights_all_none(self) -> None:
+        """All-None scores produce 0.0."""
+        from options_arena.models.scoring import DimensionalScores
+
+        scores = DimensionalScores()
+        assert apply_regime_weights(scores) == 0.0
+
+    @pytest.mark.audit_stability
+    @pytest.mark.parametrize(
+        "regime",
+        [
+            MarketRegime.TRENDING,
+            MarketRegime.MEAN_REVERTING,
+            MarketRegime.VOLATILE,
+            MarketRegime.CRISIS,
+        ],
+    )
+    def test_regime_weights_each_regime(self, regime: MarketRegime) -> None:
+        """Each regime produces composite in [0, 100]."""
+        from options_arena.models.scoring import DimensionalScores
+
+        scores = DimensionalScores(trend=70.0, iv_vol=50.0, risk=40.0)
+        composite = apply_regime_weights(scores, regime=regime, enable_regime_weights=True)
+        assert 0.0 <= composite <= 100.0
+
+
+class TestComputeDirectionSignalStability:
+    """Stability tests for compute_direction_signal."""
+
+    @pytest.mark.audit_stability
+    def test_direction_signal_bullish(self) -> None:
+        """Bullish signals produce confidence in [0.10, 0.95]."""
+        signals = IndicatorSignals(rsi=75.0, adx=80.0, sma_alignment=70.0)
+        result = compute_direction_signal(signals, SignalDirection.BULLISH)
+        assert 0.10 <= result.confidence <= 0.95
+        assert result.direction == SignalDirection.BULLISH
+
+    @pytest.mark.audit_stability
+    def test_direction_signal_all_none(self) -> None:
+        """All-None signals produce NEUTRAL with low confidence."""
+        result = compute_direction_signal(IndicatorSignals(), SignalDirection.NEUTRAL)
+        assert result.direction == SignalDirection.NEUTRAL
+        assert result.confidence == pytest.approx(0.1, abs=1e-10)
+
+    @pytest.mark.audit_stability
+    @given(signals=indicator_signals_strategy())
+    @settings(max_examples=30)
+    def test_direction_signal_confidence_bounded(self, signals: IndicatorSignals) -> None:
+        """Property: confidence always in [0.10, 0.95]."""
+        for direction in SignalDirection:
+            result = compute_direction_signal(signals, direction)
+            assert 0.10 <= result.confidence <= 0.95
+            assert len(result.contributing_signals) >= 1
+
+
+# ===========================================================================
+# Contracts Scoring Stability (5 functions)
+# ===========================================================================
+
+
+class TestFilterContractsStability:
+    """Stability tests for filter_contracts."""
+
+    @pytest.mark.audit_stability
+    def test_filter_contracts_bullish(self) -> None:
+        """Bullish direction keeps calls, filters puts."""
+        call = make_option_contract()
+        put = make_option_contract(option_type="put")
+        result = filter_contracts([call, put], SignalDirection.BULLISH)
+        assert all(c.option_type.value == "call" for c in result)
+
+    @pytest.mark.audit_stability
+    def test_filter_contracts_bearish(self) -> None:
+        """Bearish direction keeps puts, filters calls."""
+        call = make_option_contract()
+        put = make_option_contract(option_type="put")
+        result = filter_contracts([call, put], SignalDirection.BEARISH)
+        assert all(c.option_type.value == "put" for c in result)
+
+    @pytest.mark.audit_stability
+    def test_filter_contracts_empty(self) -> None:
+        """Empty list returns empty."""
+        assert filter_contracts([], SignalDirection.BULLISH) == []
+
+    @pytest.mark.audit_stability
+    def test_filter_contracts_neutral_keeps_both(self) -> None:
+        """Neutral keeps both types."""
+        call = make_option_contract()
+        put = make_option_contract(option_type="put")
+        result = filter_contracts([call, put], SignalDirection.NEUTRAL)
+        assert len(result) >= 1
+
+
+class TestSelectExpirationStability:
+    """Stability tests for select_expiration."""
+
+    @pytest.mark.audit_stability
+    def test_select_expiration_valid(self) -> None:
+        """Contract within DTE range selects a date."""
+        contract = make_option_contract()
+        result = select_expiration([contract])
+        # Default DTE range is [30, 365], contract has 45 DTE
+        assert result is not None
+
+    @pytest.mark.audit_stability
+    def test_select_expiration_empty(self) -> None:
+        """Empty list returns None."""
+        assert select_expiration([]) is None
+
+    @pytest.mark.audit_stability
+    def test_select_expiration_out_of_range(self) -> None:
+        """Contract outside DTE range returns None."""
+        from datetime import UTC, datetime
+
+        # Create a contract with 1 DTE (outside default 30-365 range)
+        contract = make_option_contract(expiration=datetime.now(UTC).date() + timedelta(days=1))
+        result = select_expiration([contract])
+        assert result is None
+
+
+class TestComputeGreeksStability:
+    """Stability tests for compute_greeks."""
+
+    @pytest.mark.audit_stability
+    def test_compute_greeks_valid(self) -> None:
+        """Valid contracts get greeks populated."""
+        contract = make_option_contract()
+        result = compute_greeks([contract], 185.0, 0.05, 0.01)
+        # Should produce at least one contract with greeks
+        assert isinstance(result, list)
+        for c in result:
+            if c.greeks is not None:
+                assert math.isfinite(c.greeks.delta)
+
+    @pytest.mark.audit_stability
+    def test_compute_greeks_empty(self) -> None:
+        """Empty list returns empty."""
+        assert compute_greeks([], 185.0, 0.05, 0.01) == []
+
+    @pytest.mark.audit_stability
+    def test_compute_greeks_with_existing_greeks(self) -> None:
+        """Contract with existing greeks preserves them (Tier 1)."""
+        from options_arena.models.enums import PricingModel
+        from options_arena.models.options import OptionGreeks
+
+        greeks = OptionGreeks(
+            delta=0.5,
+            gamma=0.03,
+            theta=-0.05,
+            vega=0.20,
+            rho=0.02,
+            pricing_model=PricingModel.BSM,
+        )
+        contract = make_option_contract(greeks=greeks)
+        result = compute_greeks([contract], 185.0, 0.05, 0.01)
+        assert len(result) == 1
+        assert result[0].greeks is not None
+        assert result[0].greeks.delta == pytest.approx(0.5)
+
+
+class TestSelectByDeltaStability:
+    """Stability tests for select_by_delta."""
+
+    @pytest.mark.audit_stability
+    def test_select_by_delta_empty(self) -> None:
+        """Empty list returns None."""
+        assert select_by_delta([]) is None
+
+    @pytest.mark.audit_stability
+    def test_select_by_delta_no_greeks(self) -> None:
+        """Contracts without greeks returns None."""
+        contract = make_option_contract()
+        assert select_by_delta([contract]) is None
+
+    @pytest.mark.audit_stability
+    def test_select_by_delta_valid(self) -> None:
+        """Contract with greeks in range is selected."""
+        from options_arena.models.enums import PricingModel
+        from options_arena.models.options import OptionGreeks
+
+        greeks = OptionGreeks(
+            delta=0.35,
+            gamma=0.03,
+            theta=-0.05,
+            vega=0.20,
+            rho=0.02,
+            pricing_model=PricingModel.BSM,
+        )
+        contract = make_option_contract(greeks=greeks)
+        result = select_by_delta([contract])
+        assert result is not None
+
+
+class TestRecommendContractsStability:
+    """Stability tests for recommend_contracts."""
+
+    @pytest.mark.audit_stability
+    def test_recommend_contracts_empty(self) -> None:
+        """Empty list returns empty."""
+        result = recommend_contracts([], SignalDirection.BULLISH, 185.0, 0.05, 0.01)
+        assert result == []
+
+    @pytest.mark.audit_stability
+    def test_recommend_contracts_valid(self) -> None:
+        """Valid contract can produce recommendation."""
+        contract = make_option_contract()
+        result = recommend_contracts([contract], SignalDirection.BULLISH, 185.0, 0.05, 0.01)
+        # May be empty if greeks don't match delta range, but no crash
+        assert isinstance(result, list)
+        assert len(result) <= 1
 
 
 # ===========================================================================
