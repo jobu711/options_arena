@@ -37,13 +37,13 @@ All Greeks are computed locally via `pricing/dispatch.py`, which uses BSM (Europ
 BAW (American) pricing models. The flow:
 1. Fetch option chain from yfinance (or CBOE)
 2. Extract `impliedVolatility` from the chain
-3. Pass IV + other inputs to `pricing/dispatch.compute_greeks()`
+3. Pass IV + other inputs to `pricing/dispatch.option_greeks()`
 4. Greeks are returned as `OptionGreeks` model with `pricing_model` field
 
 ## Prevention Rule
 
 **Never assume yfinance provides Greeks.** When writing code that needs Greeks, always
-import from `pricing/dispatch` and call `compute_greeks()`. The only field yfinance
+import from `pricing/dispatch` and call `option_greeks()`. The only field yfinance
 provides related to options pricing is `impliedVolatility`.
 
 ## Related

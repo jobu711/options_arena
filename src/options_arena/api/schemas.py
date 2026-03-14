@@ -7,7 +7,7 @@ Most responses use existing Pydantic models from ``models/`` directly.
 from __future__ import annotations
 
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Self
 
@@ -353,12 +353,28 @@ class DebateResultSummary(BaseModel):
 
     id: int
     ticker: str
-    direction: str
+    direction: SignalDirection
     confidence: float
     is_fallback: bool
     model_name: str
     duration_ms: int
     created_at: datetime
+
+    @field_validator("confidence")
+    @classmethod
+    def _validate_confidence(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("confidence must be finite")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError("confidence must be between 0.0 and 1.0")
+        return v
+
+    @field_validator("created_at")
+    @classmethod
+    def _validate_utc(cls, v: datetime) -> datetime:
+        if v.tzinfo is None or v.utcoffset() != timedelta(0):
+            raise ValueError("must be UTC")
+        return v
 
 
 class DebateResultDetail(BaseModel):
@@ -417,6 +433,33 @@ class DebateResultDetail(BaseModel):
     target_charm: float | None = None
     target_vomma: float | None = None
 
+    @field_validator(
+        "pe_ratio", "forward_pe", "peg_ratio", "price_to_book", "debt_to_equity",
+        "revenue_growth", "profit_margin", "net_call_premium", "net_put_premium",
+        "news_sentiment_score", "enrichment_ratio", "citation_density",
+        "agent_agreement_score", "hv_yang_zhang", "skew_25d", "smile_curvature",
+        "prob_above_current", "target_vanna", "target_charm", "target_vomma",
+    )
+    @classmethod
+    def _validate_finite(cls, v: float | None) -> float | None:
+        if v is not None and not math.isfinite(v):
+            raise ValueError("value must be finite")
+        return v
+
+    @field_validator("prob_above_current")
+    @classmethod
+    def _validate_prob_above_current(cls, v: float | None) -> float | None:
+        if v is not None and not 0.0 <= v <= 1.0:
+            raise ValueError("prob_above_current must be between 0.0 and 1.0")
+        return v
+
+    @field_validator("created_at")
+    @classmethod
+    def _validate_utc(cls, v: datetime) -> datetime:
+        if v.tzinfo is None or v.utcoffset() != timedelta(0):
+            raise ValueError("must be UTC")
+        return v
+
 
 # ---------------------------------------------------------------------------
 # Batch debate schemas (#127)
@@ -462,7 +505,7 @@ class BatchTickerResult(BaseModel):
 
     ticker: str
     debate_id: int | None = None
-    direction: str | None = None
+    direction: SignalDirection | None = None
     confidence: float | None = None
     error: str | None = None
 

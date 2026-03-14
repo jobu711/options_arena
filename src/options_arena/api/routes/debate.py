@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -42,6 +41,7 @@ from options_arena.models import (
     FlowThesis,
     FundamentalThesis,
     RiskAssessment,
+    SignalDirection,
     TradeThesis,
 )
 from options_arena.models.financial_datasets import FinancialDatasetsPackage
@@ -51,14 +51,16 @@ from options_arena.models.openbb import (
     NewsSentimentSnapshot,
     UnusualFlowSnapshot,
 )
-from options_arena.scoring import compute_dimensional_scores
-from options_arena.scoring.normalization import normalize_single_ticker
+from options_arena.scoring import compute_dimensional_scores, normalize_single_ticker
 from options_arena.services import MarketDataService, OptionsDataService
 from options_arena.services.financial_datasets import FinancialDatasetsService
 from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.openbb_service import OpenBBService
 
 logger = logging.getLogger(__name__)
+
+# Strong references to background tasks prevent garbage collection (AUDIT P1-1)
+_background_tasks: set[asyncio.Task[None]] = set()
 
 router = APIRouter(prefix="/api", tags=["debate"])
 
@@ -165,7 +167,7 @@ async def _run_debate_background(
         try:
             dim_scores = compute_dimensional_scores(score_match.signals)
         except Exception:
-            logger.debug("Could not compute dimensional scores for %s", ticker, exc_info=True)
+            logger.warning("Could not compute dimensional scores for %s", ticker, exc_info=True)
 
         # Fetch OpenBB enrichment (never-raises — methods return None on error)
         openbb_svc: OpenBBService | None = getattr(request.app.state, "openbb", None)
@@ -173,11 +175,18 @@ async def _run_debate_background(
         flow: UnusualFlowSnapshot | None = None
         sentiment: NewsSentimentSnapshot | None = None
         if openbb_svc is not None:
-            fundamentals, flow, sentiment = await asyncio.gather(
+            _openbb_results = await asyncio.gather(
                 openbb_svc.fetch_fundamentals(ticker),
                 openbb_svc.fetch_unusual_flow(ticker),
                 openbb_svc.fetch_news_sentiment(ticker),
+                return_exceptions=True,
             )
+            if not isinstance(_openbb_results[0], BaseException):
+                fundamentals = _openbb_results[0]
+            if not isinstance(_openbb_results[1], BaseException):
+                flow = _openbb_results[1]
+            if not isinstance(_openbb_results[2], BaseException):
+                sentiment = _openbb_results[2]
 
         # Fetch intelligence data (never raises — returns None on error)
         intelligence_svc: IntelligenceService | None = getattr(
@@ -302,7 +311,7 @@ async def start_debate(
 
     request.app.state.debate_queues[debate_id] = bridge.queue
 
-    asyncio.create_task(
+    task = asyncio.create_task(
         _run_debate_background(
             request,
             debate_id,
@@ -315,6 +324,8 @@ async def start_debate(
             bridge,
         )
     )
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
     return DebateStarted(debate_id=debate_id)
 
 
@@ -429,7 +440,7 @@ async def _run_batch_debate_background(
                 try:
                     batch_dim_scores = compute_dimensional_scores(score_match.signals)
                 except Exception:
-                    logger.debug(
+                    logger.warning(
                         "Could not compute dimensional scores for %s", ticker, exc_info=True
                     )
 
@@ -439,11 +450,18 @@ async def _run_batch_debate_background(
                 batch_flow: UnusualFlowSnapshot | None = None
                 batch_sentiment: NewsSentimentSnapshot | None = None
                 if batch_openbb is not None:
-                    batch_fundamentals, batch_flow, batch_sentiment = await asyncio.gather(
+                    _batch_openbb_results = await asyncio.gather(
                         batch_openbb.fetch_fundamentals(ticker),
                         batch_openbb.fetch_unusual_flow(ticker),
                         batch_openbb.fetch_news_sentiment(ticker),
+                        return_exceptions=True,
                     )
+                    if not isinstance(_batch_openbb_results[0], BaseException):
+                        batch_fundamentals = _batch_openbb_results[0]
+                    if not isinstance(_batch_openbb_results[1], BaseException):
+                        batch_flow = _batch_openbb_results[1]
+                    if not isinstance(_batch_openbb_results[2], BaseException):
+                        batch_sentiment = _batch_openbb_results[2]
 
                 # Fetch intelligence data (never raises — returns None on error)
                 batch_intel_svc: IntelligenceService | None = getattr(
@@ -518,7 +536,7 @@ async def _run_batch_debate_background(
                 if batch_predictions:
                     await repo.save_agent_predictions(batch_predictions)
 
-                direction = result.thesis.direction.value
+                direction = result.thesis.direction
                 confidence = result.thesis.confidence
                 results.append(
                     BatchTickerResult(
@@ -586,7 +604,7 @@ async def start_batch_debate(
     bridge = BatchProgressBridge()
     request.app.state.batch_queues[batch_id] = bridge.queue
 
-    asyncio.create_task(
+    task = asyncio.create_task(
         _run_batch_debate_background(
             request,
             batch_id,
@@ -600,6 +618,8 @@ async def start_batch_debate(
             lock,
         )
     )
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
     return BatchDebateStarted(batch_id=batch_id, tickers=tickers)
 
@@ -621,7 +641,7 @@ async def list_debates(
     summaries: list[DebateResultSummary] = []
     for row in rows:
         # Parse verdict to extract direction + confidence
-        direction = "neutral"
+        direction = SignalDirection.NEUTRAL
         confidence = 0.0
         if row.verdict_json is not None:
             from pydantic import ValidationError as PydanticValidationError  # noqa: PLC0415
@@ -633,7 +653,7 @@ async def list_debates(
                     parsed_verdict = ExtendedTradeThesis.model_validate_json(row.verdict_json)
                 except PydanticValidationError:
                     parsed_verdict = TradeThesis.model_validate_json(row.verdict_json)
-                direction = parsed_verdict.direction.value
+                direction = parsed_verdict.direction
                 confidence = parsed_verdict.confidence
             except PydanticValidationError:
                 logger.warning("Failed to parse verdict JSON for debate %d", row.id, exc_info=True)
@@ -666,10 +686,11 @@ def _parse_agent_json[T: BaseModel](
     """
     if not raw_json:
         return None
-    with contextlib.suppress(Exception):
+    try:
         return model_cls.model_validate_json(raw_json)
-    logger.warning("Malformed %s for debate %d", field_name, debate_id, exc_info=True)
-    return None
+    except (ValueError, TypeError):
+        logger.warning("Malformed %s for debate %d", field_name, debate_id, exc_info=True)
+        return None
 
 
 @router.get("/debate/{debate_id}")

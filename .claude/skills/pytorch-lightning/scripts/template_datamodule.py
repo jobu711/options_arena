@@ -6,8 +6,8 @@ with all essential methods and best practices for data handling.
 """
 
 import lightning as L
-from torch.utils.data import Dataset, DataLoader, random_split
 import torch
+from torch.utils.data import DataLoader, Dataset, random_split
 
 
 class CustomDataset(Dataset):

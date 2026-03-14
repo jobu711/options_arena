@@ -418,11 +418,11 @@ class AnalyticsMixin(RepositoryBase):
             "SELECT EXISTS("
             "  SELECT 1 FROM contract_outcomes "
             "  WHERE recommended_contract_id = ? AND exit_date = ?"
-            ")",
+            ") AS has_row",
             (contract_id, exit_date.isoformat()),
         ) as cursor:
             row = await cursor.fetchone()
-        return bool(row[0]) if row else False
+        return bool(row["has_row"]) if row else False
 
     @staticmethod
     def _row_to_contract_outcome(row: Row) -> ContractOutcome:
@@ -556,6 +556,10 @@ class AnalyticsMixin(RepositoryBase):
             Single-element list with correlation result, or empty list if
             insufficient data (fewer than 3 data points).
         """
+        # Defense-in-depth: ensure indicator name is a valid Python identifier
+        # to prevent JSON path traversal via '$.' || ? construction.
+        if not indicator.isidentifier() or indicator.startswith("_"):
+            return []
         conn = self._db.conn
         # Join through ticker_scores signals_json to extract the indicator value.
         # json_extract on signals_json pulls the indicator's normalized value.
@@ -1152,29 +1156,35 @@ class AnalyticsMixin(RepositoryBase):
         conn = self._db.conn
 
         if groupby == GreeksGroupBy.SECTOR:
-            group_col_sql = "tm.sector"
-            join_clause = "JOIN ticker_metadata tm ON tm.ticker = rc.ticker "
-            where_extra = "AND tm.sector IS NOT NULL "
+            sql = (
+                "SELECT "
+                "  tm.sector AS group_key, "
+                "  rc.option_type, rc.delta, "
+                "  co.stock_return_pct, co.contract_return_pct "
+                "FROM recommended_contracts rc "
+                "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
+                "JOIN ticker_metadata tm ON tm.ticker = rc.ticker "
+                "WHERE co.holding_days = ? "
+                "  AND co.contract_return_pct IS NOT NULL "
+                "  AND co.stock_return_pct IS NOT NULL "
+                "  AND rc.delta IS NOT NULL "
+                "  AND tm.sector IS NOT NULL "
+                "ORDER BY group_key"
+            )
         else:
-            group_col_sql = "rc.direction"
-            join_clause = ""
-            where_extra = ""
-
-        sql = (
-            "SELECT "
-            f"  {group_col_sql} AS group_key, "
-            "  rc.option_type, rc.delta, "
-            "  co.stock_return_pct, co.contract_return_pct "
-            "FROM recommended_contracts rc "
-            "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
-            f"{join_clause}"
-            "WHERE co.holding_days = ? "
-            "  AND co.contract_return_pct IS NOT NULL "
-            "  AND co.stock_return_pct IS NOT NULL "
-            "  AND rc.delta IS NOT NULL "
-            f"  {where_extra}"
-            "ORDER BY group_key"
-        )
+            sql = (
+                "SELECT "
+                "  rc.direction AS group_key, "
+                "  rc.option_type, rc.delta, "
+                "  co.stock_return_pct, co.contract_return_pct "
+                "FROM recommended_contracts rc "
+                "JOIN contract_outcomes co ON co.recommended_contract_id = rc.id "
+                "WHERE co.holding_days = ? "
+                "  AND co.contract_return_pct IS NOT NULL "
+                "  AND co.stock_return_pct IS NOT NULL "
+                "  AND rc.delta IS NOT NULL "
+                "ORDER BY group_key"
+            )
 
         async with conn.execute(sql, (holding_days,)) as cursor:
             rows = await cursor.fetchall()
