@@ -1,0 +1,12 @@
+{
+  "epic": "devops-audit",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync devops-audit",
+  "last_updated": "2026-03-14T00:24:00Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}
