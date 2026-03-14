@@ -78,6 +78,7 @@ class PricingConfig(BaseModel):
     delta_target: float = 0.35
     iv_solver_tol: float = 1e-6
     iv_solver_max_iter: int = 50
+    use_parity_smoothing: bool = True
 
     @model_validator(mode="after")
     def validate_all_finite(self) -> Self:
