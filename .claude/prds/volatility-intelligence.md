@@ -1,7 +1,7 @@
 ---
 name: volatility-intelligence
 description: Put-call parity IV smoothing and fitted volatility surface with mispricing detection for alpha-generative contract scoring
-status: researched
+status: planned
 created: 2026-03-11T02:36:56Z
 ---
 
@@ -80,9 +80,9 @@ The full option chain contains dozens of (strike, expiration, IV) triples. A fit
 **As** a user scanning mid-cap or low-liquidity tickers, **I want** the surface to degrade gracefully when there aren't enough strikes **so that** the system never errors and always produces a result.
 
 **Acceptance criteria:**
-- Minimum threshold: 6 contracts across at least 2 expirations to attempt surface fit
+- Minimum threshold for 2D surface: `(kx+1)*(ky+1)` contracts (16 for cubic, 4 for bilinear) across at least 2 expirations. Degree adapts to data: `kx = min(3, n_unique_moneyness - 1)`, `ky = min(3, n_unique_dte - 1)`. Absolute floor: 4 contracts with valid IV.
 - Below threshold: all surface-derived fields are None, pipeline continues with raw IVs
-- Single-expiration chains: 1D interpolation (strike-only smile) instead of 2D surface
+- Single-expiration chains: 1D interpolation (strike-only smile) instead of 2D surface. Input sorted by log-moneyness (UnivariateSpline requires strictly increasing x).
 - `surface_fit_r2 < 0.5`: log warning, still populate fields but mark low-confidence
 
 ## Requirements
@@ -146,19 +146,21 @@ Extend `indicators/vol_surface.py` (created by the `native-quant` epic — share
 1. Convert strikes to log-moneyness: `m = ln(K / spot)`.
 2. Filter out contracts with non-finite IV, IV <= 0, or IV > 3.0.
 3. If fewer than `min_contracts` valid points, return None.
-4. If only one unique DTE, fall back to 1D fit: `scipy.interpolate.UnivariateSpline(m, iv, s=smoothing)`.
-5. For 2D: use `scipy.interpolate.SmoothBivariateSpline(m, dte, iv, s=smoothing)` with adaptive smoothing factor `s` based on data density.
-6. Compute fitted IV at each data point: `iv_fitted = surface(m_i, dte_i)`.
+4. If only one unique DTE, fall back to 1D fit: sort `(m, iv)` pairs by `m` (required — `UnivariateSpline` demands strictly increasing `x`), then `scipy.interpolate.UnivariateSpline(m_sorted, iv_sorted, s=smoothing)`.
+5. For 2D: compute adaptive degree `kx = min(3, n_unique_moneyness - 1)`, `ky = min(3, n_unique_dte - 1)`. Guard that total points >= `(kx + 1) * (ky + 1)` — if not, reduce degree further or fall back to 1D. Then `scipy.interpolate.SmoothBivariateSpline(m, dte, iv, kx=kx, ky=ky, s=smoothing)`.
+6. Compute fitted IV at each data point: **`iv_fitted = surface.ev(m_array, dte_array)`** (CRITICAL: `__call__` defaults to `grid=True` which returns a 2D Cartesian product — must use `.ev()` or `__call__(grid=False)` for per-point evaluation).
 7. Compute residuals: `residual_i = (iv_i - iv_fitted_i) / iv_fitted_i` (relative residual).
 8. Compute z-scores: `z_i = (residual_i - mean(residuals)) / std(residuals)`.
 9. Compute R²: `1 - SS_res / SS_tot`.
-10. Extract ATM IV: `surface(m=0, dte=target_dte)` for each target DTE.
+10. Extract ATM IV: `surface.ev(np.array([0.0]), np.array([target_dte]))[0]` for each target DTE (using `.ev()` for consistency).
 11. Compute smile curvature: `∂²IV/∂m²` at m=0 (second derivative via finite difference on surface).
 
 **Smoothing factor selection**:
-- `s = len(data) * median_iv_variance` — scales with data size and IV noise level
-- If fit fails with default `s`, retry with `s * 2.0` (more smoothing)
-- If retry fails, return None
+- `s = len(data) * median_iv_variance` — scales with data size and IV noise level. Floor at `s = max(s, 1.0)` to prevent near-interpolation when IV variance is near zero.
+- Scipy guidance: good `s` values are in the range `m ± sqrt(2m)` where m = number of data points. Validate computed `s` falls in this range; clamp if outside.
+- Quality gate is R² after fitting, NOT exception catching — FITPACK convergence failures emit `warnings.warn()`, not exceptions. The `ValueError` from scipy only fires when data count < `(kx+1)*(ky+1)`.
+- If R² < 0.3 with initial `s`, retry with `s * 2.0` (more smoothing)
+- If retry still yields R² < 0.3, return None
 
 #### FR-V3: Mispricing Score Integration
 
@@ -202,9 +204,14 @@ All `float | None` fields with `math.isfinite()` validators. `surface_fit_r2` ad
 
 #### FR-V6: Agent Prompt Enrichment
 
-The vol surface rendering block in `render_volatility_context()` is established by `native-quant` (renders `SKEW 25D`, `SMILE CURVATURE`, `PROB ABOVE`, `HV YANG-ZHANG`). This epic appends two lines to that block:
+Create `render_volatility_context()` in `agents/_parsing.py`. Note: this function does NOT yet exist — native-quant added the `MarketContext` fields (`skew_25d`, `smile_curvature`, `prob_above_current`, `hv_yang_zhang`) but did not create a dedicated rendering function. This epic creates `render_volatility_context()` which renders all vol surface fields (both native-quant and this epic's additions) into a single context block for debate agents:
 
 ```
+--- VOLATILITY SURFACE ---
+SKEW 25D: {skew_25d:.4f}
+SMILE CURVATURE: {smile_curvature:.4f}
+PROB ABOVE CURRENT: {prob_above_current:.1%}
+HV YANG-ZHANG: {hv_yang_zhang:.1%}
 IV VS SURFACE: {iv_surface_residual:+.2f} std devs ({overpriced|underpriced|fair})
 SURFACE R²: {surface_fit_r2:.2f}
 ```
@@ -250,7 +257,7 @@ All implementations use existing scipy (SmoothBivariateSpline, UnivariateSpline)
 - Surface fitting is opt-in via `ScanConfig.fit_vol_surface: bool = True`
 - When disabled, pipeline behavior is identical to current (raw IVs, no surface indicators)
 - All new model fields are `Optional` with `None` defaults
-- All ~4,400 existing tests pass without modification
+- All ~4,522 existing tests pass without modification
 
 #### NFR-V3: Performance
 - IV smoothing: O(n) grouping + O(1) per pair = negligible overhead
@@ -266,10 +273,14 @@ All implementations use existing scipy (SmoothBivariateSpline, UnivariateSpline)
 #### NFR-V5: Graceful Degradation
 | Condition | Behavior |
 |-----------|----------|
-| <6 contracts with valid IV | Surface = None, use raw IVs |
-| Single expiration | 1D smile fit (strike-only), `is_1d_fallback=True` |
+| <4 contracts with valid IV | Surface = None, use raw IVs |
+| 4-15 contracts, 2+ DTEs | Reduced-degree 2D fit (`kx`/`ky` adapted to data). Guard `n >= (kx+1)*(ky+1)` |
+| 16+ contracts, 2+ DTEs | Full cubic 2D fit (`kx=3, ky=3`) |
+| Single expiration | 1D smile fit (strike-only, sorted by log-moneyness), `is_1d_fallback=True` |
 | Surface fit R² < 0.5 | Populate fields but log warning, `surface_fit_r2` visible to agents |
-| Scipy convergence failure | Retry with 2x smoothing, then None |
+| Surface fit R² < 0.3 | Retry with `s * 2.0`. If still < 0.3, return None |
+| FITPACK convergence warning | Not an exception — detected via R² quality gate after fitting |
+| `ValueError` from scipy | Data count < `(kx+1)*(ky+1)` — reduce degree or fall back to 1D |
 | All IVs at a strike are NaN | Skip that strike in surface fit |
 | Strike has only call or only put | No parity smoothing, use raw IV |
 
@@ -292,7 +303,7 @@ All implementations use existing scipy (SmoothBivariateSpline, UnivariateSpline)
 - `indicators/vol_surface.py` (shared with native-quant): pure numpy/scipy — no Pydantic models (indicators module convention). Use NamedTuple for structured returns.
 - `pricing/iv_smoothing.py`: scalar float in/out — no pandas, no API calls (pricing module convention).
 - `scoring/contracts.py` modification: imports `pricing/dispatch` only — smoothing function imported from `pricing/iv_smoothing`.
-- All new model fields need `math.isfinite()` validators. `VolatilitySurface.surface_fit_r2` needs `[0, 1]` range check.
+- All new model fields need `math.isfinite()` validators. `MarketContext.surface_fit_r2` needs `[0, 1]` range check. New float fields must be added to `MarketContext.validate_optional_finite` field list (currently 45+ fields) or they'll silently pass NaN/Inf.
 - Frozen models use `model_copy(update=...)` — never mutate in place.
 
 ### Assumptions
@@ -301,6 +312,13 @@ All implementations use existing scipy (SmoothBivariateSpline, UnivariateSpline)
 - `SmoothBivariateSpline` is appropriate for IV surfaces (well-established in quant literature)
 - Log-moneyness is a better fitting coordinate than raw strike (standard in vol surface literature)
 - A 2σ threshold for "mispricing" is a reasonable starting point (tunable via config)
+
+### scipy API Constraints (Context7-verified, scipy v1.17.0)
+- `SmoothBivariateSpline.__call__` defaults to `grid=True` (Cartesian product output). Per-point evaluation requires `.ev()` or `__call__(grid=False)`. **All evaluation calls must use `.ev()`**.
+- `SmoothBivariateSpline` minimum data: `(kx+1)*(ky+1)` points. Cubic (kx=ky=3) needs 16 points. Degree must adapt to data size.
+- `UnivariateSpline` requires strictly increasing `x`. Log-moneyness arrays must be sorted before fitting.
+- FITPACK convergence issues emit `warnings.warn()`, not exceptions. `ValueError` only fires on data-count violations. Quality must be assessed via R² after fitting.
+- `IndicatorSignals` currently has 65 fields (native-quant added 4 to the original 61).
 
 ## Out of Scope
 
@@ -314,15 +332,15 @@ All implementations use existing scipy (SmoothBivariateSpline, UnivariateSpline)
 
 ## Cross-PRD Coordination: native-quant
 
-This PRD shares `indicators/vol_surface.py` with the `native-quant` PRD. native-quant is a **hard dependency** for Issue 3.
+This PRD shares `indicators/vol_surface.py` with the `native-quant` PRD. native-quant is **complete** (Epic 31, merged 2026-03-13). The `vol_surface.py` file exists with `VolSurfaceResult` (11 fields including `r_squared`, `residuals`, `z_scores`, `is_1d_fallback`), tiered `compute_vol_surface()` (400+ LOC), and `compute_surface_indicators()` stub.
 
-| Aspect | native-quant | volatility-intelligence (this PRD) |
+| Aspect | native-quant (COMPLETE) | volatility-intelligence (this PRD) |
 |--------|-------------|-----------------------------------|
-| File | Creates `vol_surface.py` with `VolSurfaceResult`, standalone tier, fitted surface tier, `compute_surface_indicators()` stub | Completes fitted surface implementation and `compute_surface_indicators()` |
-| MarketContext fields | `hv_yang_zhang`, `skew_25d`, `smile_curvature`, `prob_above_current` | `iv_surface_residual`, `surface_fit_r2`, `surface_is_1d` |
+| File | Created `vol_surface.py` with `VolSurfaceResult`, standalone tier, fitted surface tier, `compute_surface_indicators()` stub | Completes fitted surface implementation and `compute_surface_indicators()` |
+| MarketContext fields | `hv_yang_zhang`, `skew_25d`, `smile_curvature`, `prob_above_current` (lines 172-176) | `iv_surface_residual`, `surface_fit_r2`, `surface_is_1d` |
 | `atm_iv_30d` | Surface-derived replaces `_extract_atm_iv_by_dte()` | Same mechanism — no new field |
 | `smile_curvature` | Standalone finite-diff (Tier 2) | Surface derivative (Tier 1) — same field, better value |
-| Rendering | Creates vol surface block | Appends `IV VS SURFACE` + `SURFACE R²` |
+| Rendering | Added MarketContext fields but NO `render_volatility_context()` function | Creates `render_volatility_context()` rendering ALL vol surface fields (both epics) |
 | Weights | `+skew_25d(0.02) +smile_curvature(0.01)` | None (tiebreaker only) |
 
 ## Dependencies
@@ -333,7 +351,7 @@ This PRD shares `indicators/vol_surface.py` with the `native-quant` PRD. native-
 - `scan/phase_options.py` — modification point for surface fitting insertion
 - `MarketContext` in `models/analysis.py` — new fields for surface data
 - `agents/_parsing.py` — new rendering block for surface context
-- **Hard dependency on `native-quant`**: `vol_surface.py`, `VolSurfaceResult` NamedTuple, and the tiered `compute_vol_surface()` architecture must exist before Issue 3 can begin. Issues 1-2 (IV smoothing) are independent and can start before native-quant completes.
+- **`native-quant` dependency SATISFIED** (Epic 31, merged 2026-03-13): `vol_surface.py` exists with `VolSurfaceResult` NamedTuple (11 fields), tiered `compute_vol_surface()`, and `compute_surface_indicators()` stub. All 5 issues are now unblocked.
 
 ### External
 - No external dependencies. scipy (`SmoothBivariateSpline`, `UnivariateSpline`) already in dependency tree.
@@ -346,15 +364,15 @@ This PRD shares `indicators/vol_surface.py` with the `native-quant` PRD. native-
 | 2 | Smoothing integration into `compute_greeks()` | 0 | 1 (`scoring/contracts.py`) | ~15 |
 | 3 | Vol surface fitting + mispricing indicators | 0 (extends `indicators/vol_surface.py`) | 0 | ~25 |
 | 4 | Pipeline integration + MarketContext fields | 0 | 2 (`models/analysis.py`, `models/scan.py`) | ~10 |
-| 5 | Agent prompt enrichment + scoring integration | 0 | 3 (`agents/_parsing.py`, `scoring/composite.py`, `scoring/contracts.py`) | ~10 |
+| 5 | Agent prompt enrichment (create `render_volatility_context()`) + scoring integration | 0 | 3 (`agents/_parsing.py`, `scoring/composite.py`, `scoring/contracts.py`) | ~10 |
 | **Total** | | **1** | **9** | **~80** |
 
-Issues 1 and 3 can be implemented in parallel (Issue 1 is independent; Issue 3 requires native-quant complete). Issue 2 depends on 1. Issue 4 depends on 2 and 3. Issue 5 depends on 4.
+Issues 1 and 3 can be implemented in parallel (both unblocked — native-quant merged). Issue 2 depends on 1. Issue 4 depends on 2 and 3. Issue 5 depends on 4.
 
 ```
 Issue 1 (IV smoothing) ──→ Issue 2 (scoring integration) ──┐
                                                              ├──→ Issue 4 (pipeline) ──→ Issue 5 (agents + scoring)
-[native-quant complete] ──→ Issue 3 (extend vol_surface.py) ┘
+Issue 3 (extend vol_surface.py) ───────────────────────────┘
 ```
 
 ## References

@@ -2,31 +2,31 @@
 
 ## Current State
 
-- **Version**: 2.8.0 — Backtesting analytics + pipeline decomposition
-- **All 9 phases + 30 epics**: Complete and merged to master
+- **Version**: 2.8.0 — Native quant + DevOps audit infrastructure
+- **All 9 phases + 32 epics**: Complete and merged to master
 - **Tests**: 4,522 Python (24K+ parametrized) + 107 E2E (17 spec files)
-- **GitHub issues**: 6+ open (financialdatasets-ai #393-#399), 390+ closed
+- **GitHub issues**: 6+ open (financialdatasets-ai #393-#399), 490+ closed
 - **CI**: GitHub Actions (4 gates: lint, typecheck, tests, frontend)
 - **CLI**: `options-arena scan`, `health`, `universe` (+ `index`), `debate` (+ `--batch`, `--export`, `--provider`), `serve`, `watchlist`, `outcomes` (collect, summary, backtest, equity-curve)
 - **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
 - **AI providers**: Groq (default, `GROQ_API_KEY`) + Anthropic (`ANTHROPIC_API_KEY`, `--provider anthropic`)
+- **Claude Code infra**: 7 audit agents, `/full-audit` parallel orchestration, `/fix-loop` iterative repair, `/compound` knowledge capture, `docs/solutions/` institutional memory
 
 ## In Progress
 
 - **FinancialDatasets.ai epic** (#393, issues #394-#399): Integrate Financial Datasets MCP for fundamental data enrichment
+- **AI Agency Evolution PRD**: Drafted (`.claude/prds/ai-agency-evolution.md`), not yet parsed into epic
 
 ## Recently Completed
 
-- **Pre-scan filters epic** (2026-03-11): Issues #464-#470. Unified `ScanFilterSpec` with 3 stage models (`UniverseFilters`, `ScoringFilters`, `OptionsFilters`). Config migration, market cap pre-filter, scoring cutoffs, filter persistence (migration 031). 110 tests. Post-epic: advanced filter API/UI exposure + `index_tickers()` auto-indexing.
-- **Service layer unification epic** (2026-03-10): Issues #438-#444. `ServiceBase[ConfigT]` mixin in `base.py` — cache-first fetch, rate-limited retries, yfinance wrapping. All 7 data services migrated. Cleanup PR #450: consolidated dual-logger to `self._log` (`type(self).__module__`), added missing `super().close()`.
-- **Backtesting engine epic** (2026-03-10): Issues #430-#436. 7 backtest models, 7 analytics queries, 7 API endpoints, CLI subcommands, Vue analytics dashboard, E2E tests. Migration 029.
-- **Pipeline phase extraction epic** (2026-03-10): Issues #424-#428. Decomposed monolithic `pipeline.py` (1168→352 lines) into 4 phase modules.
-- **Repository decomposition epic** (2026-03-09): Issues #418-#422. Decomposed `Repository` monolith into domain-specific mixins.
+- **DevOps audit epic** (2026-03-14): Issues #495-#497, PR #498. 3-phase `/devops-audit` command (static analysis, dynamic probes, gap analysis). New commands: `/full-audit`, `/fix-loop`, `/release-prep`, `/compound`. New agents: architect-reviewer, oa-python-reviewer, learnings-researcher, spec-analyzer. Scope boundary hardening.
+- **Native quant epic** (2026-03-13): Issues #486-#492. Vol surface analysis (`analysis/` module), second-order Greeks (vanna, charm, vomma), HV estimators, probability models. Migration 032. API enrichment with vol surface + Greeks guidance in debate prompts. `docs/solutions/` knowledge capture infra.
 
 ## Future Work
 
 - Real-time market data streaming
 - Frontend unit testing (Vitest + Vue Test Utils) — E2E covered by Playwright
+- AI agency evolution (multi-model orchestration, agent self-improvement)
 
 ## Blockers
 

@@ -2,6 +2,27 @@
 
 Historical completion logs for Options Arena. Current state is in `progress.md`.
 
+## Epic 32: DevOps Audit (2026-03-14) — #495-#497, PR #498
+3-phase devops-audit command (static analysis, dynamic probes, gap analysis).
+New commands: `/devops-audit`, `/full-audit`, `/fix-loop`, `/release-prep`, `/compound`.
+New agents: architect-reviewer, oa-python-reviewer, learnings-researcher, spec-analyzer.
+`docs/solutions/` for knowledge capture. Scope boundary hardening for T1 tools.
+
+## Epic 31: Native Quant (2026-03-13) — #486-#492
+Native quantitative finance capabilities. Vol surface analysis, second-order Greeks
+(vanna, charm, vomma), HV estimators, probability models. `analysis/` module.
+Migration 032 (second_order_greeks). API enrichment for debate prompts with vol surface
+and Greeks guidance. +tests.
+
+## Epics 28-30: Pre-scan Filters / Service Unification / Backtesting (2026-03-10–11)
+- Pre-scan filters (#464-#470): Unified `ScanFilterSpec`, 3 stage models, migration 031. 110 tests.
+- Service layer unification (#438-#444): `ServiceBase[ConfigT]` mixin, 7 services migrated.
+- Backtesting engine (#430-#436): 7 backtest models, 7 analytics queries, 7 API endpoints, migration 029.
+
+## Epics 26-27: Pipeline Decomposition / Repository Decomposition (2026-03-09–10)
+- Pipeline phase extraction (#424-#428): Monolithic `pipeline.py` (1168→352 lines) into 4 phase modules.
+- Repository decomposition (#418-#422): `Repository` monolith into domain-specific mixins.
+
 ## Epic 19: Scan from Watchlist (2026-03-04) — #242-#246, PR #247
 Custom tickers through full stack. +130 tests.
 ScanSource enum, custom_tickers on ScanConfig/ScanRequest, TICKER_RE validation,
