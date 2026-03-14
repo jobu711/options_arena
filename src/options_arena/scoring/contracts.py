@@ -421,16 +421,27 @@ def select_by_delta(
     contracts: list[OptionContract],
     filters: OptionsFilters | None = None,
     delta_target: float = _DEFAULT_DELTA_TARGET,
+    *,
+    direction: SignalDirection | None = None,
+    surface_residuals: dict[tuple[Decimal, date], float] | None = None,
 ) -> OptionContract | None:
     """Select the contract with delta closest to the target.
 
     Uses ``abs(delta)`` for comparison so that puts (negative delta) and
     calls (positive delta) are treated symmetrically.
 
+    When ``direction`` and ``surface_residuals`` are provided, a secondary
+    tiebreaker favours contracts with direction-favorable vol mispricing:
+    BULLISH prefers underpriced (lower residual = cheaper vol), BEARISH
+    prefers overpriced (higher residual = richer vol to sell).
+
     Args:
         contracts: Contracts with greeks already computed.
         filters: Options filter configuration. Uses ``OptionsFilters()`` defaults if None.
         delta_target: Target delta value (from ``PricingConfig``).
+        direction: Signal direction for vol-mispricing tiebreaker.
+        surface_residuals: Map of ``(strike, expiration)`` to IV surface
+            residual z-score. Positive = IV above fitted surface (overpriced).
 
     Returns:
         Best contract by delta proximity, or ``None`` if no contract has
@@ -459,13 +470,37 @@ def select_by_delta(
         elif cfg.delta_fallback_min <= abs_delta <= cfg.delta_fallback_max:
             fallback.append((contract, distance))
 
+    def _vol_tiebreaker(c: OptionContract) -> float:
+        """Compute vol-mispricing tiebreaker for sort key.
+
+        Returns a float where lower = better for the given direction.
+        """
+        if not surface_residuals or not direction:
+            return 0.0
+        key = (c.strike, c.expiration)
+        residual = surface_residuals.get(key)
+        if residual is None or not math.isfinite(residual):
+            return 0.0
+        if direction == SignalDirection.BULLISH:
+            # Lower residual = underpriced vol = better for buying
+            return residual
+        if direction == SignalDirection.BEARISH:
+            # Higher residual = overpriced vol = better for selling (negate)
+            return -residual
+        # NEUTRAL — no tiebreaker
+        return 0.0
+
     if primary:
-        # Sort by effective distance (delta_distance / liquidity), then by strike
-        def _sort_key(pair: tuple[OptionContract, float]) -> tuple[float, Decimal]:
+        # Sort by effective distance (delta_distance / liquidity),
+        # then vol tiebreaker, then strike
+        def _sort_key(
+            pair: tuple[OptionContract, float],
+        ) -> tuple[float, float, Decimal]:
             c, delta_dist = pair
             liq = _compute_liquidity_score(c, cfg.max_spread_pct)
             effective = delta_dist / max(liq, 0.01)
-            return (effective, c.strike)
+            tb = _vol_tiebreaker(c)
+            return (effective, tb, c.strike)
 
         primary.sort(key=_sort_key)
         best, best_distance = primary[0]
@@ -479,11 +514,14 @@ def select_by_delta(
 
     if fallback:
 
-        def _sort_key_fb(pair: tuple[OptionContract, float]) -> tuple[float, Decimal]:
+        def _sort_key_fb(
+            pair: tuple[OptionContract, float],
+        ) -> tuple[float, float, Decimal]:
             c, delta_dist = pair
             liq = _compute_liquidity_score(c, cfg.max_spread_pct)
             effective = delta_dist / max(liq, 0.01)
-            return (effective, c.strike)
+            tb = _vol_tiebreaker(c)
+            return (effective, tb, c.strike)
 
         fallback.sort(key=_sort_key_fb)
         best_fb, best_fb_distance = fallback[0]
@@ -506,6 +544,8 @@ def recommend_contracts(
     dividend_yield: float,
     filters: OptionsFilters | None = None,
     delta_target: float = _DEFAULT_DELTA_TARGET,
+    *,
+    surface_residuals: dict[tuple[Decimal, date], float] | None = None,
 ) -> list[OptionContract]:
     """Run the full recommendation pipeline: filter -> expiration -> greeks -> delta.
 
@@ -517,6 +557,8 @@ def recommend_contracts(
         dividend_yield: Continuous dividend yield (decimal).
         filters: Options filter configuration. Uses ``OptionsFilters()`` defaults if None.
         delta_target: Target delta value (from ``PricingConfig``).
+        surface_residuals: Map of ``(strike, expiration)`` to IV surface
+            residual z-score for vol-mispricing tiebreaker.
 
     Returns:
         List of 0 or 1 recommended contracts.
@@ -544,8 +586,14 @@ def recommend_contracts(
         logger.info("recommend_contracts: Greeks computation failed for all contracts")
         return []
 
-    # Step 5: Select by delta
-    best = select_by_delta(with_greeks, cfg, delta_target)
+    # Step 5: Select by delta (with optional vol-mispricing tiebreaker)
+    best = select_by_delta(
+        with_greeks,
+        cfg,
+        delta_target,
+        direction=direction,
+        surface_residuals=surface_residuals,
+    )
     if best is None:
         logger.info("recommend_contracts: no contracts matched delta target")
         return []
