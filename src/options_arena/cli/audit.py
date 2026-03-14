@@ -2,21 +2,26 @@
 
 Each command is a sync Typer function wrapping an async internal function
 via ``asyncio.run()``. Audit layers are invoked via ``subprocess.run()``
-to run pytest with the appropriate marker.
+to run pytest with the appropriate marker. The ``--discover`` flag triggers
+the AI-powered discovery layer using pre-existing JSON findings.
 """
 
 from __future__ import annotations
 
 import asyncio
 import datetime
+import json
 import logging
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from options_arena.cli.app import app
 from options_arena.models.audit import AuditFinding, AuditLayerSummary, AuditReport
@@ -246,6 +251,127 @@ def _render_summary_table(report: AuditReport) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Discovery layer — AI-powered formula audit
+# ---------------------------------------------------------------------------
+
+# Default path for pre-existing discovery findings (JSON).
+_DISCOVERY_FINDINGS_PATH = Path("tests/audit/reference_data/discovery_findings.json")
+
+# Severity-to-Rich-style mapping for colored output.
+_SEVERITY_STYLES: dict[AuditSeverity, str] = {
+    AuditSeverity.CRITICAL: "bold red",
+    AuditSeverity.WARNING: "bold yellow",
+    AuditSeverity.INFO: "bold blue",
+}
+
+
+def _load_discovery_findings(
+    path: Path | None = None,
+) -> list[AuditFinding]:
+    """Load pre-existing discovery findings from a JSON file.
+
+    The JSON file should contain a list of objects matching the
+    ``AuditFinding`` schema. If the file does not exist or cannot
+    be parsed, returns an empty list and logs a warning.
+
+    Args:
+        path: Path to the discovery findings JSON file. Defaults to
+              ``_DISCOVERY_FINDINGS_PATH`` when ``None``.
+
+    Returns:
+        List of validated ``AuditFinding`` models.
+    """
+    resolved = path if path is not None else _DISCOVERY_FINDINGS_PATH
+    if not resolved.exists():
+        logger.debug("Discovery findings file not found: %s", resolved)
+        return []
+
+    raw_text = resolved.read_text(encoding="utf-8")
+    raw_data: list[dict[str, object]] = json.loads(raw_text)
+
+    findings: list[AuditFinding] = []
+    for item in raw_data:
+        findings.append(AuditFinding.model_validate(item))
+    return findings
+
+
+def _render_discovery_findings(findings: list[AuditFinding]) -> None:
+    """Display discovery findings with severity-colored Rich output.
+
+    Args:
+        findings: List of ``AuditFinding`` models to render.
+    """
+    if not findings:
+        console.print(
+            Panel(
+                "No discovery findings available.\n"
+                "Run [bold cyan]/math-audit[/bold cyan] in Claude Code "
+                "to invoke the quant-analyst discovery agent.",
+                title="Discovery Layer",
+                border_style="cyan",
+            )
+        )
+        return
+
+    # Summary counts
+    critical = sum(1 for f in findings if f.severity == AuditSeverity.CRITICAL)
+    warning = sum(1 for f in findings if f.severity == AuditSeverity.WARNING)
+    info = sum(1 for f in findings if f.severity == AuditSeverity.INFO)
+
+    # Findings table
+    table = Table(title="Discovery Layer Findings")
+    table.add_column("#", justify="right", style="dim", width=4)
+    table.add_column("Severity", justify="center", width=10)
+    table.add_column("Function", style="cyan", no_wrap=True)
+    table.add_column("Description")
+    table.add_column("Source", style="dim")
+
+    for idx, finding in enumerate(findings, 1):
+        severity_style = _SEVERITY_STYLES.get(finding.severity, "white")
+        severity_text = Text(finding.severity.value.upper(), style=severity_style)
+        table.add_row(
+            str(idx),
+            severity_text,
+            finding.function_name,
+            finding.description,
+            finding.source or "--",
+        )
+
+    console.print(table)
+    console.print(f"\nDiscovery totals: {critical} critical, {warning} warning, {info} info")
+
+
+def _run_discovery() -> None:
+    """Execute the discovery layer: load findings and display with Rich output.
+
+    Prints guidance on how to invoke the ``/math-audit`` skill in Claude Code,
+    then loads and displays any pre-existing findings from the JSON file.
+    Never raises -- all errors are caught and logged as warnings.
+    """
+    try:
+        console.print(
+            Panel(
+                "Run [bold cyan]/math-audit[/bold cyan] in Claude Code "
+                "to invoke the quant-analyst discovery agent.\n\n"
+                "The discovery layer uses AI to review mathematical functions\n"
+                "for correctness issues, edge-case gaps, and undocumented\n"
+                "approximations. Findings are advisory and require human review.",
+                title="AI-Powered Discovery",
+                border_style="cyan",
+            )
+        )
+
+        findings = _load_discovery_findings()
+        _render_discovery_findings(findings)
+
+    except Exception:
+        logger.warning("Discovery layer encountered an error", exc_info=True)
+        err_console.print(
+            "[yellow]Warning: Discovery layer failed. See logs for details.[/yellow]"
+        )
+
+
+# ---------------------------------------------------------------------------
 # CLI command
 # ---------------------------------------------------------------------------
 
@@ -294,7 +420,7 @@ async def _math_audit_async(
     (correctness, stability, performance).
     """
     if discover:
-        console.print("Discovery requires /math-audit skill")
+        _run_discovery()
         return
 
     # Determine which layers to run
