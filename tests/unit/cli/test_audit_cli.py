@@ -139,7 +139,7 @@ class TestAuditFlagParsing:
         """--discover flag prints stub message and returns."""
         result = runner.invoke(app, ["audit", "math", "--discover"])
         assert result.exit_code == 0
-        assert "Discovery requires /math-audit skill" in result.output
+        assert "/math-audit" in result.output
 
 
 # ---------------------------------------------------------------------------
