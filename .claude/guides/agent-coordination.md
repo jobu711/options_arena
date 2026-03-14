@@ -83,6 +83,7 @@ validation. This table aligns with CLAUDE.md's module boundary table.
 | `cli/` | Main thread | `code-reviewer` | Typer + Rich entry point |
 | `reporting/` | Main thread | `code-reviewer` | Export generation |
 | `utils/` | Main thread | `code-reviewer` | Exception hierarchy |
+| `analysis/` | `quant-analyst` | `oa-python-reviewer`, `code-reviewer` | Vol surface, HV estimators |
 | `web/` | Main thread | `security-auditor` | Vue 3 SPA |
 
 ## Quality Sweeps

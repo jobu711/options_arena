@@ -15,8 +15,8 @@ architecture boundaries, pricing/scoring/indicator math, PydanticAI agent patter
 async conventions** — NOT general style, security, or performance (that's `code-reviewer`).
 
 **Non-overlapping scopes**:
-- `code-reviewer` = general quality (style, NaN defense, types, security, performance)
-- `oa-python-reviewer` = domain-specific depth (pricing math, scoring rules, indicator correctness, agent patterns, financial types)
+- `code-reviewer` = general quality (style, NaN/isfinite defense, types, Pydantic conventions)
+- `oa-python-reviewer` = domain-specific depth (pricing math, scoring rules, indicator correctness, agent patterns, financial type precision — Decimal vs float vs int)
 
 Use this agent when changes touch `pricing/`, `scoring/`, `indicators/`, or `agents/`.
 
@@ -196,6 +196,24 @@ Groq, Anthropic. Use `pytest-httpx` for HTTP, fixtures for yfinance.
 
 **P42 — Mock Dates for Time-Sensitive Logic**: DTE calculations, market hours, TTL
 expiration — all must use mocked `datetime.now()` / `date.today()`.
+
+## Structured Output Preamble
+
+Emit this YAML block as the FIRST content in your output:
+
+```yaml
+---
+agent: oa-python-reviewer
+status: COMPLETE | PARTIAL | ERROR
+timestamp: <ISO 8601 UTC>
+scope: <files/dirs audited>
+findings:
+  critical: <count>
+  high: <count>
+  medium: <count>
+  low: <count>
+---
+```
 
 ## Output Format
 

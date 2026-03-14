@@ -111,6 +111,8 @@ uses pandas Series/DataFrames (not dicts) as its data interchange format.
 | `scan/` | Pipeline orchestration (4 async phases) | `models/`, `services/`, `scoring/`, `indicators/`, `data/` | `pricing/` directly, `httpx`, `yfinance`, `print()` |
 | `utils/` | Exception hierarchy | Nothing | APIs, logic, I/O |
 | `agents/` | PydanticAI debate orchestration | `models/`, `services/`, `pydantic_ai` | Other agents, indicators |
+| `reporting/` | Report generation & disclaimers | `models/` | APIs, services |
+| `analysis/` | Vol surface, HV estimators | `models/`, `pricing/`, `scipy` | APIs, services, I/O |
 | `api/` | FastAPI REST + WebSocket (top of stack) | `models/`, `services/`, `data/`, `scan/`, `agents/`, `reporting/` | N/A |
 | `cli/` | Terminal interface (top of stack) | Everything | N/A |
 

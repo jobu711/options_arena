@@ -1,22 +1,23 @@
 ---
 allowed-tools: Read, Glob, Grep, Bash, Agent, Write
-description: "Spawn all 6 auditors in parallel, consolidate into prioritized report"
+description: "Spawn all 7 auditors in parallel, consolidate into prioritized report"
 ---
 
 <role>
-You are the audit orchestrator for Options Arena. You launch all 6 specialized auditor
+You are the audit orchestrator for Options Arena. You launch all 7 specialized auditor
 agents in parallel, collect their structured findings, deduplicate, assign unified
 priority levels, and produce a single consolidated report.
 </role>
 
 <context>
-Options Arena has 6 auditor agents with non-overlapping scopes:
+Options Arena has 7 auditor agents with non-overlapping scopes:
 - `security-auditor` — OWASP, secrets, injection, input sanitization
 - `bug-auditor` — async correctness, resource lifecycle, concurrency, error handling
 - `code-reviewer` — typed models, NaN defense, type annotations, Pydantic conventions
 - `architect-reviewer` — module boundaries, dependency direction, pattern consistency
 - `db-auditor` — SQL injection, queries, migrations, serialization, data integrity
 - `dep-auditor` — CVEs, outdated packages, unused deps, license compliance
+- `oa-python-reviewer` — pricing math, scoring rules, indicator correctness, financial precision
 
 Each agent emits a YAML preamble with finding counts and writes to `.claude/audits/`.
 </context>
@@ -44,9 +45,9 @@ Arguments: `$ARGUMENTS` may contain:
 2. Create `.claude/audits/` directory if it doesn't exist: `mkdir -p .claude/audits`
 3. Note the current UTC timestamp for report header.
 
-## Phase 2: Parallel Audit — Launch ALL 6 agents in ONE message
+## Phase 2: Parallel Audit — Launch ALL 7 agents in ONE message
 
-Launch all 6 agents in a SINGLE message (parallel fan-out). Each agent receives the
+Launch all 7 agents in a SINGLE message (parallel fan-out). Each agent receives the
 same scope. Each agent writes its report to `.claude/audits/AUDIT_<NAME>.md`.
 
 **Agent launch prompts** (adapt scope from Phase 1):
@@ -93,11 +94,18 @@ Write your full report (including YAML preamble) to .claude/audits/AUDIT_DEP.md
 Follow all instructions in your agent prompt. Be thorough but stay in scope.
 ```
 
+### oa-python-reviewer
+```
+Review the following scope for pricing math, scoring rules, indicator correctness, and financial precision: {scope}
+Write your full report (including YAML preamble) to .claude/audits/AUDIT_OA.md
+Follow all instructions in your agent prompt. Be thorough but stay in scope.
+```
+
 ## Phase 3: Consolidate
 
-After all 6 agents complete:
+After all 7 agents complete:
 
-1. Read all 6 report files from `.claude/audits/AUDIT_*.md`
+1. Read all 7 report files from `.claude/audits/AUDIT_*.md`
 2. Parse the YAML preamble from each to get finding counts and status
 3. Collect all findings across all reports
 4. **Deduplicate**: If two agents flag the same `file:line`, keep the finding from the
@@ -107,7 +115,7 @@ After all 6 agents complete:
 ### Priority Mapping
 - **P1 (Security/Data)**: security-auditor Critical+High, db-auditor Critical, bug-auditor Critical
 - **P2 (Bugs/Correctness)**: bug-auditor High, code-reviewer Critical, db-auditor High
-- **P3 (Quality/Architecture)**: architect-reviewer all, code-reviewer High+Medium, dep-auditor High
+- **P3 (Quality/Architecture)**: architect-reviewer all, code-reviewer High+Medium, dep-auditor High, oa-python-reviewer High+Medium
 - **P4 (Cosmetic)**: remaining Low/Informational findings from any agent
 
 6. Write the consolidated report to `.claude/audits/FULL_AUDIT.md`
@@ -119,7 +127,7 @@ After all 6 agents complete:
 
 **Scope**: {scope}
 **Timestamp**: {UTC timestamp}
-**Agents**: 6/6 completed (or N/6 if partial)
+**Agents**: 7/7 completed (or N/7 if partial)
 
 ## Summary
 
@@ -131,6 +139,7 @@ After all 6 agents complete:
 | architect-reviewer | ... | ... | ... | ... | ... |
 | db-auditor | ... | ... | ... | ... | ... |
 | dep-auditor | ... | ... | ... | ... | ... |
+| oa-python-reviewer | ... | ... | ... | ... | ... |
 | **Total** | — | **N** | **N** | **N** | **N** |
 
 ## P1 — Security & Data Integrity (fix immediately)
@@ -156,7 +165,7 @@ Display the summary table and P1 count to the user. If P1 > 0, recommend running
 </instructions>
 
 <constraints>
-1. ALL 6 agents MUST be launched in a SINGLE message — never sequentially
+1. ALL 7 agents MUST be launched in a SINGLE message — never sequentially
 2. Never modify application source code — this is an audit-only command
 3. If an agent errors, note it in the report but don't block other agents
 4. Deduplicate before reporting — same file:line should not appear twice

@@ -4,7 +4,7 @@ description: >
   Use PROACTIVELY for database layer audits. Audits SQLite/aiosqlite queries,
   connections, migrations, serialization, and data integrity in the persistence
   layer. Read-only agent that reports findings without modifying code.
-tools: Read, Glob, Grep, Bash, Write
+tools: Read, Glob, Grep, Bash
 model: opus
 color: gold
 ---

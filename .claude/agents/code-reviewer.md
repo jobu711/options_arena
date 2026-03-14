@@ -5,7 +5,7 @@ description: >
   conventions, NaN defense, type annotations, Pydantic patterns, and financial
   precision rules. Invoke for PR reviews, pre-commit quality gates, or targeted
   code audits.
-tools: Read, Glob, Grep, Bash, Write
+tools: Read, Glob, Grep, Bash
 model: opus
 color: red
 ---
@@ -54,9 +54,10 @@ You are an elite code reviewer specializing in Python 3.13+ codebases with stric
 
 ## Scope Boundaries
 
-**IN SCOPE:** Raw dict prohibition, NaN/Inf defense, type annotation completeness, Pydantic model conventions, financial precision rules, `print()` prohibition in library code.
+**IN SCOPE:** Raw dict prohibition, NaN/Inf defense (`isfinite()` checks), type annotation completeness, Pydantic model conventions, `print()` prohibition in library code.
 
 **OUT OF SCOPE (delegated):**
+- Domain-specific financial precision (Decimal vs float vs int rules, pricing math) → `oa-python-reviewer`
 - Async correctness → `bug-auditor`
 - Security/OWASP → `security-auditor`
 - Architecture boundaries → `architect-reviewer`

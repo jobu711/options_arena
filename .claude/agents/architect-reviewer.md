@@ -6,7 +6,7 @@ description: >
   changes for Options Arena's layered architecture. Invoke when changes
   span multiple modules, introduce new patterns, or modify the boundary
   table defined in CLAUDE.md.
-tools: Read, Glob, Grep, Write
+tools: Read, Glob, Grep
 model: opus
 color: magenta
 ---

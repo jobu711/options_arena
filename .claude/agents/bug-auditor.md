@@ -5,7 +5,7 @@ description: >
   leaks, race conditions, error handling gaps, and concurrency issues in
   Python/asyncio code. Read-only agent that reports findings without
   modifying code.
-tools: Read, Glob, Grep, Bash, Write
+tools: Read, Glob, Grep, Bash
 model: opus
 color: teal
 ---

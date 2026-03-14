@@ -5,7 +5,7 @@ description: >
   packages, unused dependencies, optional import guards, version constraints,
   and license compliance. Read-only agent that reports findings without
   modifying code.
-tools: Read, Glob, Grep, Bash, Write
+tools: Read, Glob, Grep, Bash
 model: sonnet
 color: salmon
 ---
