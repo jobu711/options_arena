@@ -20,8 +20,8 @@ from decimal import Decimal
 from options_arena.models.enums import GreeksSource, OptionType, SignalDirection
 from options_arena.models.filters import OptionsFilters
 from options_arena.models.options import OptionContract
+from options_arena.pricing import smooth_iv_parity
 from options_arena.pricing.dispatch import option_greeks, option_iv, option_second_order_greeks
-from options_arena.pricing.iv_smoothing import smooth_iv_parity
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,9 @@ _DEFAULT_DELTA_TARGET: float = 0.35
 # Liquidity multiplier calibration — internal constants, NOT config.
 _SPREAD_WEIGHT: float = 0.7
 _OI_WEIGHT: float = 0.3
+
+# Type alias for per-contract vol surface residuals (z-scores keyed by strike + expiration).
+type SurfaceResiduals = dict[tuple[Decimal, date], float]
 
 
 def _default_filters(filters: OptionsFilters | None) -> OptionsFilters:
@@ -423,7 +426,7 @@ def select_by_delta(
     delta_target: float = _DEFAULT_DELTA_TARGET,
     *,
     direction: SignalDirection | None = None,
-    surface_residuals: dict[tuple[Decimal, date], float] | None = None,
+    surface_residuals: SurfaceResiduals | None = None,
 ) -> OptionContract | None:
     """Select the contract with delta closest to the target.
 
@@ -545,7 +548,7 @@ def recommend_contracts(
     filters: OptionsFilters | None = None,
     delta_target: float = _DEFAULT_DELTA_TARGET,
     *,
-    surface_residuals: dict[tuple[Decimal, date], float] | None = None,
+    surface_residuals: SurfaceResiduals | None = None,
 ) -> list[OptionContract]:
     """Run the full recommendation pipeline: filter -> expiration -> greeks -> delta.
 

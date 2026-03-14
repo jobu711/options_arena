@@ -60,6 +60,7 @@ from options_arena.scoring import (
     percentile_rank_normalize,
     recommend_contracts,
 )
+from options_arena.scoring.contracts import SurfaceResiduals
 from options_arena.services import FredService, MarketDataService, OptionsDataService
 from options_arena.services.universe import map_yfinance_to_metadata
 
@@ -547,6 +548,7 @@ async def process_ticker_options(
     ohlcv_list = ohlcv_map.get(ticker)
     vol_result: VolSurfaceResult | None = None
     vs_strikes: np.ndarray | None = None
+    vs_ivs: np.ndarray | None = None
     vs_dtes: np.ndarray | None = None
     if ohlcv_list is not None and len(ohlcv_list) > 0:
         try:
@@ -564,7 +566,8 @@ async def process_ticker_options(
                         dtype=float,
                     )
                     vol_result = compute_vol_surface(
-                        vs_strikes, vs_ivs, vs_dtes, vs_types, spot, risk_free_rate
+                        vs_strikes, vs_ivs, vs_dtes, vs_types, spot, risk_free_rate,
+                        dividend_yield=ticker_info.dividend_yield,
                     )
             except Exception:
                 logger.warning(
@@ -611,18 +614,27 @@ async def process_ticker_options(
             )
             return (ticker, [], earnings_date, entry_stock_price)
 
-    # Build surface residuals mapping for direction-aware delta tiebreaker
-    _surface_residuals: dict[tuple[Decimal, date], float] | None = None
+    # Build surface residuals mapping for direction-aware delta tiebreaker.
+    # z_scores align with *filtered* contracts (valid_mask), not all_contracts.
+    # Reconstruct the same valid_mask used inside compute_vol_surface() to map
+    # z_scores[j] back to the correct all_contracts[i].
+    _surface_residuals: SurfaceResiduals | None = None
     if (
         vol_result is not None
         and vol_result.z_scores is not None
+        and vs_ivs is not None
         and vs_strikes is not None
         and vs_dtes is not None
     ):
+        valid_mask = (
+            np.isfinite(vs_ivs) & (vs_ivs > 0.0) & np.isfinite(vs_strikes) & np.isfinite(vs_dtes)
+        )
+        valid_indices = np.where(valid_mask)[0]
         _surface_residuals = {}
-        for i, c in enumerate(all_contracts):
-            if i < len(vol_result.z_scores) and math.isfinite(vol_result.z_scores[i]):
-                _surface_residuals[(c.strike, c.expiration)] = float(vol_result.z_scores[i])
+        for j, orig_idx in enumerate(valid_indices):
+            if j < len(vol_result.z_scores) and math.isfinite(vol_result.z_scores[j]):
+                c = all_contracts[int(orig_idx)]
+                _surface_residuals[(c.strike, c.expiration)] = float(vol_result.z_scores[j])
 
     recommended = _recommend(
         contracts=all_contracts,

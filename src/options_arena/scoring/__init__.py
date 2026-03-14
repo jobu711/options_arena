@@ -13,6 +13,7 @@ from options_arena.scoring.composite import (
     score_universe,
 )
 from options_arena.scoring.contracts import (
+    SurfaceResiduals,
     compute_greeks,
     filter_contracts,
     recommend_contracts,
@@ -61,6 +62,7 @@ __all__: list[str] = [
     # direction
     "determine_direction",
     # contracts
+    "SurfaceResiduals",
     "filter_contracts",
     "select_expiration",
     "compute_greeks",

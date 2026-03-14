@@ -477,8 +477,8 @@ class DebateResultDetail(BaseModel):
     @field_validator("surface_fit_r2")
     @classmethod
     def _validate_surface_fit_r2(cls, v: float | None) -> float | None:
-        if v is not None and not 0.0 <= v <= 1.0:
-            raise ValueError("surface_fit_r2 must be between 0.0 and 1.0")
+        if v is not None and (not math.isfinite(v) or not 0.0 <= v <= 1.0):
+            raise ValueError("surface_fit_r2 must be finite and between 0.0 and 1.0")
         return v
 
     @field_validator("created_at")

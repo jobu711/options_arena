@@ -39,6 +39,31 @@ def _is_loopback_origin(origin: str) -> bool:
 router = APIRouter()
 
 
+_SENTINEL_TYPES: frozenset[str] = frozenset({"complete", "batch_complete", "error"})
+
+
+def _safe_put(queue: asyncio.Queue[dict[str, object]], event: dict[str, object]) -> None:
+    """Put event on queue, dropping progress events if full (CWE-770 defense).
+
+    Sentinel events (complete, batch_complete, error) are never dropped — if the
+    queue is full, one progress event is evicted to make room.  Without this,
+    a dropped sentinel would cause the WebSocket consumer loop to spin forever.
+    """
+    try:
+        queue.put_nowait(event)
+    except asyncio.QueueFull:
+        if event.get("type") in _SENTINEL_TYPES:
+            # Evict oldest event to make room for the sentinel
+            with contextlib.suppress(asyncio.QueueEmpty):
+                queue.get_nowait()
+            try:
+                queue.put_nowait(event)
+            except asyncio.QueueFull:
+                logger.error("Failed to enqueue sentinel event type=%s", event.get("type"))
+        else:
+            logger.debug("WebSocket queue full — dropping event type=%s", event.get("type"))
+
+
 # ---------------------------------------------------------------------------
 # Scan progress bridge
 # ---------------------------------------------------------------------------
@@ -52,27 +77,29 @@ class WebSocketProgressBridge:
     """
 
     def __init__(self) -> None:
-        self.queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+        self.queue: asyncio.Queue[dict[str, object]] = asyncio.Queue(maxsize=1000)
 
     def __call__(self, phase: ScanPhase, current: int, total: int) -> None:
-        self.queue.put_nowait(
-            {"type": "progress", "phase": phase.value, "current": current, "total": total}
+        _safe_put(
+            self.queue,
+            {"type": "progress", "phase": phase.value, "current": current, "total": total},
         )
 
     def complete(self, scan_id: int, *, cancelled: bool, outcomes_collected: int = 0) -> None:
         """Signal scan completion."""
-        self.queue.put_nowait(
+        _safe_put(
+            self.queue,
             {
                 "type": "complete",
                 "scan_id": scan_id,
                 "cancelled": cancelled,
                 "outcomes_collected": outcomes_collected,
-            }
+            },
         )
 
     def error(self, message: str) -> None:
         """Signal an error event."""
-        self.queue.put_nowait({"type": "error", "message": message})
+        _safe_put(self.queue, {"type": "error", "message": message})
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +111,7 @@ class DebateProgressBridge:
     """Bridges ``DebateProgressCallback`` to ``asyncio.Queue`` for WebSocket."""
 
     def __init__(self) -> None:
-        self.queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+        self.queue: asyncio.Queue[dict[str, object]] = asyncio.Queue(maxsize=1000)
 
     def __call__(self, phase: DebatePhase, status: str, confidence: float | None) -> None:
         event: dict[str, object] = {
@@ -94,15 +121,15 @@ class DebateProgressBridge:
         }
         if confidence is not None:
             event["confidence"] = confidence
-        self.queue.put_nowait(event)
+        _safe_put(self.queue, event)
 
     def complete(self, debate_id: int) -> None:
         """Signal debate completion."""
-        self.queue.put_nowait({"type": "complete", "debate_id": debate_id})
+        _safe_put(self.queue, {"type": "complete", "debate_id": debate_id})
 
     def error(self, message: str) -> None:
         """Signal an error event."""
-        self.queue.put_nowait({"type": "error", "message": message})
+        _safe_put(self.queue, {"type": "error", "message": message})
 
 
 # ---------------------------------------------------------------------------
@@ -126,21 +153,21 @@ class _BatchAgentBridge:
         }
         if confidence is not None:
             event["confidence"] = confidence
-        self._queue.put_nowait(event)
+        _safe_put(self._queue, event)
 
     def complete(self, debate_id: int) -> None:
         """No-op — batch bridge handles completion."""
 
     def error(self, message: str) -> None:
         """Forward error to batch queue."""
-        self._queue.put_nowait({"type": "error", "ticker": self._ticker, "message": message})
+        _safe_put(self._queue, {"type": "error", "ticker": self._ticker, "message": message})
 
 
 class BatchProgressBridge:
     """Bridges batch debate progress to ``asyncio.Queue`` for WebSocket."""
 
     def __init__(self) -> None:
-        self.queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+        self.queue: asyncio.Queue[dict[str, object]] = asyncio.Queue(maxsize=1000)
 
     def agent_bridge(self, ticker: str) -> _BatchAgentBridge:
         """Create a per-ticker agent progress bridge."""
@@ -148,14 +175,15 @@ class BatchProgressBridge:
 
     def batch_progress(self, ticker: str, index: int, total: int, status: str) -> None:
         """Signal per-ticker batch progress."""
-        self.queue.put_nowait(
+        _safe_put(
+            self.queue,
             {
                 "type": "batch_progress",
                 "ticker": ticker,
                 "index": index,
                 "total": total,
                 "status": status,
-            }
+            },
         )
 
     def batch_complete(self, results: Sequence[object]) -> None:
@@ -163,11 +191,11 @@ class BatchProgressBridge:
         from options_arena.api.schemas import BatchTickerResult  # noqa: PLC0415
 
         serialized = [r.model_dump() if isinstance(r, BatchTickerResult) else r for r in results]
-        self.queue.put_nowait({"type": "batch_complete", "results": serialized})
+        _safe_put(self.queue, {"type": "batch_complete", "results": serialized})
 
     def error(self, message: str) -> None:
         """Signal an error event."""
-        self.queue.put_nowait({"type": "error", "message": message})
+        _safe_put(self.queue, {"type": "error", "message": message})
 
 
 # ---------------------------------------------------------------------------

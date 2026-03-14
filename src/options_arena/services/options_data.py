@@ -412,6 +412,9 @@ class OptionsDataService(ServiceBase[ServiceConfig]):
         else:
             self._providers = self._build_provider_list(openbb_config, cache, limiter)
 
+        # Store background validation tasks to prevent GC + log exceptions
+        self._background_tasks: set[asyncio.Task[None]] = set()
+
         # Keep a reference to the yfinance provider for validation mode
         self._yfinance_provider: YFinanceChainProvider | None = None
         if self._validation_mode:
@@ -560,11 +563,13 @@ class OptionsDataService(ServiceBase[ServiceConfig]):
                     and self._yfinance_provider is not None
                     and not isinstance(provider, YFinanceChainProvider)
                 ):
-                    asyncio.create_task(
+                    task = asyncio.create_task(
                         self._validate_chain(
                             ticker, expiration, primary_result, self._yfinance_provider
                         )
                     )
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
                 return primary_result
             except TimeoutError:
                 self._log.warning(
@@ -700,7 +705,13 @@ class OptionsDataService(ServiceBase[ServiceConfig]):
         return chains
 
     async def close(self) -> None:
-        """Clean up resources. Closes all providers that have a ``close`` method."""
+        """Clean up resources. Cancels background tasks, then closes providers."""
+        # Cancel any outstanding validation tasks before closing providers
+        for task in self._background_tasks:
+            task.cancel()
+        if self._background_tasks:
+            await asyncio.gather(*self._background_tasks, return_exceptions=True)
+            self._background_tasks.clear()
         for provider in self._providers:
             close_fn = getattr(provider, "close", None)
             if close_fn is not None and callable(close_fn):

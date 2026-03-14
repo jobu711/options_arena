@@ -37,6 +37,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["universe"])
 
+# Store background task references to prevent GC + surface exceptions
+_background_tasks: set[asyncio.Task[None]] = set()
+
 
 @router.get("/universe")
 @limiter.limit("60/minute")
@@ -339,7 +342,9 @@ async def start_index(
     task_id: int = request.app.state.index_counter
 
     # Background task owns the lock and releases it on completion
-    asyncio.create_task(
+    task = asyncio.create_task(
         _run_index_background(task_id, force, max_age, universe, market_data, repo, lock)
     )
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
     return IndexStarted(index_task_id=task_id)

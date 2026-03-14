@@ -37,6 +37,10 @@ logger = logging.getLogger(__name__)
 _THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 _THINK_TAG_RE = re.compile(r"</?think>")
 
+# Surface mispricing classification thresholds (z-score standard deviations)
+_SURFACE_SIGNIFICANT_THRESHOLD: float = 2.0   # |z| > 2.0 → "significantly over/underpriced"
+_SURFACE_MISPRICED_THRESHOLD: float = 0.5     # |z| > 0.5 → "over/underpriced"
+
 # Regime label lookup tables for human-readable rendering
 _VOL_REGIME_LABELS: dict[float, str] = {0.0: "NORMAL", 1.0: "ELEVATED", 2.0: "CRISIS"}
 _MARKET_REGIME_LABELS: dict[float, str] = {
@@ -530,11 +534,11 @@ def render_volatility_context(ctx: MarketContext) -> str:
     # Surface mispricing (volatility-intelligence epic)
     if ctx.iv_surface_residual is not None and math.isfinite(ctx.iv_surface_residual):
         z = ctx.iv_surface_residual
-        if abs(z) > 2.0:
+        if abs(z) > _SURFACE_SIGNIFICANT_THRESHOLD:
             classification = "significantly overpriced" if z > 0 else "significantly underpriced"
-        elif z > 0.5:
+        elif z > _SURFACE_MISPRICED_THRESHOLD:
             classification = "overpriced"
-        elif z < -0.5:
+        elif z < -_SURFACE_MISPRICED_THRESHOLD:
             classification = "underpriced"
         else:
             classification = "fair"

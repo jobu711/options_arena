@@ -365,6 +365,27 @@ class FinancialDatasetsConfig(BaseModel):
     api_key: SecretStr | None = None
     base_url: str = "https://api.financialdatasets.ai"
     request_timeout: float = 10.0
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, v: str) -> str:
+        """Enforce HTTPS scheme and reject private/loopback IP ranges (SSRF defense)."""
+        from urllib.parse import urlparse  # noqa: PLC0415
+
+        parsed = urlparse(v)
+        if parsed.scheme != "https":
+            raise ValueError(f"base_url must use HTTPS scheme, got {parsed.scheme!r}")
+        hostname = parsed.hostname or ""
+        # Reject private/loopback/link-local ranges
+        _PRIVATE_PREFIXES = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
+                             "172.20.", "172.21.", "172.22.", "172.23.", "172.24.",
+                             "172.25.", "172.26.", "172.27.", "172.28.", "172.29.",
+                             "172.30.", "172.31.", "192.168.", "127.", "169.254.")
+        if hostname in ("localhost", "::1") or any(
+            hostname.startswith(p) for p in _PRIVATE_PREFIXES
+        ):
+            raise ValueError(f"base_url must not point to private/loopback address: {hostname}")
+        return v
     cache_ttl: int = 3600
 
     @field_validator("api_key", mode="before")

@@ -96,6 +96,7 @@ def compute_vol_surface(
     option_types: np.ndarray,
     spot: float,
     risk_free_rate: float = 0.05,
+    dividend_yield: float = 0.0,
 ) -> VolSurfaceResult:
     """Compute implied volatility surface analytics with tiered fallback.
 
@@ -113,6 +114,8 @@ def compute_vol_surface(
         Current underlying price.
     risk_free_rate
         Annualized risk-free rate (decimal).  Default 0.05.
+    dividend_yield
+        Continuous dividend yield (decimal fraction).  Default 0.0.
 
     Returns
     -------
@@ -139,7 +142,10 @@ def compute_vol_surface(
 
     # ----- Tier 1: fitted surface -----
     if n_contracts >= _MIN_CONTRACTS_TIER1 and len(unique_dtes) >= _MIN_UNIQUE_DTES_TIER1:
-        result = _fit_surface(strikes_f, ivs_f, dtes_f, types_f, spot, risk_free_rate)
+        result = _fit_surface(
+            strikes_f, ivs_f, dtes_f, types_f, spot, risk_free_rate,
+            dividend_yield=dividend_yield,
+        )
         if result is not None:
             return result
         # Fall through to Tier 2 on spline failure
@@ -157,6 +163,7 @@ def compute_vol_surface(
         spot,
         risk_free_rate,
         dtes_f,
+        dividend_yield=dividend_yield,
     )
 
     return VolSurfaceResult(
@@ -186,6 +193,8 @@ def _fit_surface(
     option_types: np.ndarray,
     spot: float,
     risk_free_rate: float,
+    *,
+    dividend_yield: float = 0.0,
 ) -> VolSurfaceResult | None:
     """Fit IV surface via bivariate spline and extract analytics.
 
@@ -215,7 +224,7 @@ def _fit_surface(
             kx=3,
             ky=3,
         )
-    except Exception:
+    except (ValueError, RuntimeError, FloatingPointError, np.linalg.LinAlgError):
         logger.debug("SmoothBivariateSpline fit failed", exc_info=True)
         return None
 
@@ -230,7 +239,7 @@ def _fit_surface(
         iv_25d_call = _eval(_25D_MONEYNESS_CALL, sqrt_t_30)
         skew_val = iv_25d_put - iv_25d_call
         skew_25d: float | None = skew_val if math.isfinite(skew_val) else None
-    except Exception:
+    except (ValueError, RuntimeError, FloatingPointError, np.linalg.LinAlgError):
         logger.debug("Spline skew_25d extraction failed", exc_info=True)
         skew_25d = None
 
@@ -244,7 +253,7 @@ def _fit_surface(
         iv_plus = _eval(h, sqrt_t_30)
         curv_val = (iv_plus - 2.0 * iv_center + iv_minus) / (h * h)
         curvature = curv_val if math.isfinite(curv_val) else None
-    except Exception:
+    except (ValueError, RuntimeError, FloatingPointError, np.linalg.LinAlgError):
         logger.debug("Spline smile curvature extraction failed", exc_info=True)
         curvature = None
 
@@ -253,7 +262,7 @@ def _fit_surface(
     try:
         val = _eval(0.0, sqrt_t_30)
         atm_iv_30d = val if math.isfinite(val) and val > 0.0 else None
-    except Exception:
+    except (ValueError, RuntimeError, FloatingPointError, np.linalg.LinAlgError):
         logger.debug("Spline ATM IV 30d extraction failed", exc_info=True)
 
     atm_iv_60d: float | None = None
@@ -261,7 +270,7 @@ def _fit_surface(
         sqrt_t_60 = math.sqrt(60.0 / 365.0)
         val = _eval(0.0, sqrt_t_60)
         atm_iv_60d = val if math.isfinite(val) and val > 0.0 else None
-    except Exception:
+    except (ValueError, RuntimeError, FloatingPointError, np.linalg.LinAlgError):
         logger.debug("Spline ATM IV 60d extraction failed", exc_info=True)
 
     # ----- Fitted values, residuals, z-scores -----
@@ -281,13 +290,14 @@ def _fit_surface(
         else:
             z_arr = np.zeros_like(resid_arr)
 
-        # R-squared
+        # R-squared (clamped to [0, 1] — negative R² means worse than mean,
+        # but downstream validators expect non-negative values)
         ss_res = float(np.sum(resid_arr**2))
         ss_tot = float(np.sum((ivs_clean - np.mean(ivs_clean)) ** 2))
         if math.isfinite(ss_tot) and ss_tot > 0.0:
-            r2 = 1.0 - ss_res / ss_tot
+            r2 = max(0.0, 1.0 - ss_res / ss_tot)
             r_squared = r2 if math.isfinite(r2) else None
-    except Exception:
+    except (ValueError, RuntimeError, FloatingPointError, np.linalg.LinAlgError):
         logger.debug("Fitted values computation failed", exc_info=True)
         fitted_arr = None
         resid_arr = None
@@ -302,6 +312,7 @@ def _fit_surface(
         spot,
         risk_free_rate,
         dtes_clean,
+        dividend_yield=dividend_yield,
     )
 
     return VolSurfaceResult(
@@ -487,6 +498,8 @@ def _standalone_implied_move(
     spot: float,
     risk_free_rate: float,
     dtes: np.ndarray,
+    *,
+    dividend_yield: float = 0.0,
 ) -> float | None:
     """Compute probability of spot being above current price via Breeden-Litzenberger.
 
@@ -528,22 +541,23 @@ def _standalone_implied_move(
     iv = exp_ivs[sort_idx]
 
     t = float(target_dte) / 365.0
-    discount = math.exp(risk_free_rate * t)
+    forward_factor = math.exp(risk_free_rate * t)
 
-    # Compute call prices via BSM for the butterfly spread
+    # Compute call prices via Merton (1973) BSM with continuous dividend yield
     n_strikes = len(k)
     call_prices = np.empty(n_strikes, dtype=float)
+    q = dividend_yield
     for i in range(n_strikes):
         sigma = float(iv[i])
         strike = float(k[i])
         if sigma <= 0.0 or strike <= 0.0:
-            call_prices[i] = 0.0
+            call_prices[i] = np.nan  # Mark invalid — excluded from integration
             continue
-        d1 = (math.log(spot / strike) + (risk_free_rate + 0.5 * sigma * sigma) * t) / (
+        d1 = (math.log(spot / strike) + (risk_free_rate - q + 0.5 * sigma * sigma) * t) / (
             sigma * math.sqrt(t)
         )
         d2 = d1 - sigma * math.sqrt(t)
-        call_prices[i] = spot * float(_norm.cdf(d1)) - strike * math.exp(
+        call_prices[i] = spot * math.exp(-q * t) * float(_norm.cdf(d1)) - strike * math.exp(
             -risk_free_rate * t
         ) * float(_norm.cdf(d2))
 
@@ -562,8 +576,15 @@ def _standalone_implied_move(
             continue
         # Butterfly approximation for PDF
         d2c = (call_prices[i + 1] - 2.0 * call_prices[i] + call_prices[i - 1]) / (dk * dk)
-        pdf_k[i - 1] = max(0.0, discount * d2c)
+        pdf_k[i - 1] = max(0.0, forward_factor * d2c)
         pdf_strikes[i - 1] = float(k[i])
+
+    # Filter out NaN entries (from invalid zero-IV/zero-strike contracts)
+    valid_pdf = np.isfinite(pdf_k)
+    pdf_k = pdf_k[valid_pdf]
+    pdf_strikes = pdf_strikes[valid_pdf]
+    if len(pdf_k) < 2:
+        return None
 
     # Integrate: P(S > spot) = 1 - CDF(spot)
     # CDF(K) = integral from -inf to K of pdf
@@ -603,10 +624,10 @@ class VolSurfaceIndicators(NamedTuple):
 
     Fields:
         iv_surface_residual: z-score of the contract's IV versus the fitted
-            surface.  Positive means the contract is "cheap" (IV below surface);
-            negative means "expensive".  ``None`` when the contract cannot be
-            located in the surface arrays or when the surface is a standalone
-            fallback.
+            surface.  Positive means IV is above the surface (overpriced);
+            negative means below (underpriced).  ``None`` when the contract
+            cannot be located in the surface arrays or when the surface
+            is a standalone fallback.
         surface_fit_r2: R-squared of the surface fit, in ``[0, 1]``.  ``None``
             when no fitted surface is available.
         surface_is_1d: ``True`` when a single-DTE 1-D fallback was used instead

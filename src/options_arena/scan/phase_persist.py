@@ -133,6 +133,9 @@ async def run_persist_phase(
                     theta=(contract.greeks.theta if contract.greeks is not None else None),
                     vega=(contract.greeks.vega if contract.greeks is not None else None),
                     rho=(contract.greeks.rho if contract.greeks is not None else None),
+                    vanna=(contract.greeks.vanna if contract.greeks is not None else None),
+                    charm=(contract.greeks.charm if contract.greeks is not None else None),
+                    vomma=(contract.greeks.vomma if contract.greeks is not None else None),
                     pricing_model=(
                         contract.greeks.pricing_model if contract.greeks is not None else None
                     ),

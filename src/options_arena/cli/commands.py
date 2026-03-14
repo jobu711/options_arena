@@ -733,9 +733,16 @@ async def _debate_single(
     risk_free_task = fred.fetch_risk_free_rate()
     chains_task = options_data.fetch_chain_all_expirations(ticker)
 
-    quote, ticker_info, ohlcv_list, risk_free_rate, chain_results = await asyncio.gather(
-        quote_task, info_task, ohlcv_task, risk_free_task, chains_task
+    gather_results = await asyncio.gather(
+        quote_task, info_task, ohlcv_task, risk_free_task, chains_task,
+        return_exceptions=True,
     )
+    # Check for exceptions in gathered results
+    for i, r in enumerate(gather_results):
+        if isinstance(r, BaseException):
+            task_names = ["quote", "ticker_info", "ohlcv", "risk_free_rate", "chains"]
+            raise RuntimeError(f"Failed to fetch {task_names[i]}: {r}") from r
+    quote, ticker_info, ohlcv_list, risk_free_rate, chain_results = gather_results
 
     # Compute raw indicators from OHLCV data so the debate context gets
     # actual values (e.g., RSI=65.3) instead of percentile-ranked values
@@ -795,10 +802,19 @@ async def _debate_single(
     flow: UnusualFlowSnapshot | None = None
     sentiment: NewsSentimentSnapshot | None = None
     if openbb_svc is not None:
-        fundamentals, flow, sentiment = await asyncio.gather(
+        openbb_results = await asyncio.gather(
             openbb_svc.fetch_fundamentals(ticker_score.ticker),
             openbb_svc.fetch_unusual_flow(ticker_score.ticker),
             openbb_svc.fetch_news_sentiment(ticker_score.ticker),
+            return_exceptions=True,
+        )
+        # OpenBB never-raises contract: treat exceptions as None
+        fundamentals = (
+            openbb_results[0] if not isinstance(openbb_results[0], BaseException) else None
+        )
+        flow = openbb_results[1] if not isinstance(openbb_results[1], BaseException) else None
+        sentiment = (
+            openbb_results[2] if not isinstance(openbb_results[2], BaseException) else None
         )
 
     # Fetch intelligence data (never raises -- returns None on error)
