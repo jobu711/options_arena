@@ -859,7 +859,7 @@ class TestCompletenessRatio:
         assert ctx.completeness_ratio() == pytest.approx(0.0)
 
     def test_completeness_all_populated_with_contracts(self) -> None:
-        """All 17 optional fields populated (with contract) returns 1.0."""
+        """All 19 optional fields populated (with contract) returns 1.0."""
         ctx = self._make_context(
             iv_rank=45.0,
             iv_percentile=52.0,
@@ -878,6 +878,8 @@ class TestCompletenessRatio:
             target_theta=-0.045,
             target_vega=0.32,
             target_rho=0.08,
+            iv_surface_residual=-0.5,
+            surface_fit_r2=0.92,
             contract_mid=Decimal("3.50"),
         )
         assert ctx.completeness_ratio() == pytest.approx(1.0)
@@ -915,7 +917,7 @@ class TestCompletenessRatio:
         assert ctx.completeness_ratio() == pytest.approx(7.0 / 13.0)
 
     def test_completeness_partial_with_contract(self) -> None:
-        """7 indicator + 4 Greeks of 17 total (with contract) returns 11/17."""
+        """7 indicator + 4 Greeks of 19 total (with contract) returns 11/19."""
         ctx = self._make_context(
             iv_rank=45.0,
             iv_percentile=52.0,
@@ -930,7 +932,7 @@ class TestCompletenessRatio:
             target_rho=0.08,
             contract_mid=Decimal("3.50"),
         )
-        assert ctx.completeness_ratio() == pytest.approx(11.0 / 17.0)
+        assert ctx.completeness_ratio() == pytest.approx(11.0 / 19.0)
 
     def test_completeness_some_none_no_contract(self) -> None:
         """2 indicator fields populated (no contract, Greeks ignored) returns 2/13."""
@@ -944,7 +946,7 @@ class TestCompletenessRatio:
         assert ctx.completeness_ratio() == pytest.approx(2.0 / 13.0)
 
     def test_completeness_some_none_with_contract(self) -> None:
-        """4 of 17 fields populated (with contract) returns 4/17."""
+        """4 of 19 fields populated (with contract) returns 4/19."""
         ctx = self._make_context(
             iv_rank=45.0,
             iv_percentile=52.0,
@@ -952,7 +954,7 @@ class TestCompletenessRatio:
             target_theta=-0.045,
             contract_mid=Decimal("2.10"),
         )
-        assert ctx.completeness_ratio() == pytest.approx(4.0 / 17.0)
+        assert ctx.completeness_ratio() == pytest.approx(4.0 / 19.0)
 
     def test_completeness_zero_values_count_as_populated(self) -> None:
         """Zero float values are NOT None — they count as populated."""
