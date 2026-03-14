@@ -50,6 +50,9 @@ htmlcov/
 # pytest
 .pytest_cache/
 
+# Hypothesis seed database (regenerated per CI run)
+.hypothesis/
+
 # Architecture tools
 .tach/
 

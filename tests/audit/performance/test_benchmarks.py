@@ -951,14 +951,28 @@ class TestVolSurfaceBenchmarks:
         )
 
         d = vol_surface_arrays
+        strikes = d["strikes"]
+        dtes = d["dtes"]
+        assert isinstance(strikes, np.ndarray)
+        assert isinstance(dtes, np.ndarray)
         surface_result = compute_vol_surface(
-            d["strikes"],
+            strikes,
             d["ivs"],
-            d["dtes"],
+            dtes,
             d["option_types"],
             d["spot"],
         )
-        benchmark(compute_surface_indicators, surface_result)
+        # Pick a representative contract strike/DTE from the arrays
+        contract_strike = float(strikes[len(strikes) // 2])
+        contract_dte = float(dtes[len(dtes) // 2])
+        benchmark(
+            compute_surface_indicators,
+            surface_result,
+            contract_strike,
+            contract_dte,
+            strikes,
+            dtes,
+        )
 
 
 # ===========================================================================
