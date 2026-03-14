@@ -41,9 +41,10 @@ Reference files for checks:
 </context>
 
 <task>
-Run a comprehensive devops infrastructure audit covering 39 static analysis checks
-across 7 categories. Accumulate all findings in a consistent format, then write the
-report to `.claude/audits/AUDIT_DEVOPS.md`.
+Run a comprehensive devops infrastructure audit covering 49 checks across 9 categories
+in 3 phases: Phase 1 (39 static analysis checks), Phase 2 (5 dynamic probes), and
+Phase 3 (5 gap analysis checks + report consolidation). Accumulate all findings in a
+consistent format, then write the report to `.claude/audits/AUDIT_DEVOPS.md`.
 
 This command takes no arguments. It always performs a full devops audit.
 </task>
@@ -498,44 +499,195 @@ Use these severity levels when recording findings:
 
 ---
 
-## Phase 2: Dynamic Probes -- Added separately
+## Phase 2: Dynamic Probes (5 checks)
 
-Phase 2 covers dynamic probes that require network access or running application commands
-(CI run status, dependency freshness, dependency security, external service health, test
-tier coverage). These checks will be added in a subsequent task.
+Launch all 5 probes in parallel using background Bash commands (each with a 30-second
+timeout). After launching all 5, wait for all to complete, then parse results and add
+findings to the accumulated list.
 
-## Phase 3: Gap Analysis & Report -- Added separately
-
-Phase 3 covers gap analysis and final report generation (missing practices detection,
-stale audit reports, broken guide references, health check completeness, and the final
-consolidated `AUDIT_DEVOPS.md` report writing). These checks will be added in a
-subsequent task.
+**Important**: Each probe has a pre-check for tool availability. If the tool is not
+available, skip the probe and record it as a P4 informational finding — never an error.
 
 ---
 
-## Report Output
+### H. Dynamic Probes (checks 40-44)
 
-After completing all Phase 1 checks, write the findings to `.claude/audits/AUDIT_DEVOPS.md`
-using this format:
+**Check 40: CI run status**
+- **Pre-check**: Run `which gh` via Bash. If `gh` is not found, skip this check entirely.
+- **Action**: Run the following as a background Bash command with `run_in_background: true`
+  and `timeout: 30000`:
+  ```bash
+  gh run list --limit 5 --json status,conclusion,name 2>/dev/null || echo "SKIP: gh CLI not available"
+  ```
+- **Parse results**: If output is valid JSON, check the `conclusion` field of each run.
+  Count runs with `conclusion: "failure"` or `conclusion: "cancelled"`.
+- **Pass**: All recent CI runs have `conclusion: "success"`.
+- **Fail**: One or more recent CI runs have a non-success conclusion.
+- **Skip**: `gh` CLI not available — record as P4 informational.
+- **Severity**: P2 (if CI runs failing), P4 (if skipped)
+- **Finding (fail)**: `[CI] GitHub Actions — {N} of last 5 CI runs failed (conclusions: {list}). Impact: Broken CI pipeline means PRs may merge without passing gates. Fix: Investigate failing runs with "gh run view {id}".`
+- **Finding (skip)**: `[CI] GitHub Actions — gh CLI not available, CI run status not checked. Impact: Cannot verify CI health. Fix: Install gh CLI (https://cli.github.com/).`
+
+**Check 41: Dependency freshness**
+- **Action**: Run the following as a background Bash command with `run_in_background: true`
+  and `timeout: 30000`:
+  ```bash
+  uv lock --check 2>&1 || echo "STALE_LOCKFILE"
+  ```
+- **Parse results**: If output contains "STALE_LOCKFILE" or the exit code is non-zero,
+  the lockfile is out of sync with `pyproject.toml`.
+- **Pass**: `uv lock --check` exits 0 (lockfile is fresh).
+- **Fail**: Non-zero exit — lockfile is stale.
+- **Severity**: P2
+- **Finding**: `[DEPS] uv.lock — Lockfile is out of sync with pyproject.toml. Impact: Dependency resolution may differ between environments. Fix: Run "uv lock" to regenerate lockfile.`
+
+**Check 42: Dependency security**
+- **Pre-check**: Run `uv run pip-audit --version 2>/dev/null` via Bash. If it fails,
+  skip this check entirely.
+- **Action**: Run the following as a background Bash command with `run_in_background: true`
+  and `timeout: 30000`:
+  ```bash
+  uv run pip-audit --format json 2>/dev/null || echo "SKIP: pip-audit not installed"
+  ```
+- **Parse results**: If output is valid JSON, check for vulnerabilities. Count the total
+  number of entries with `"vulns"` arrays that are non-empty.
+- **Pass**: No known vulnerabilities found.
+- **Fail**: One or more packages have known CVEs.
+- **Skip**: `pip-audit` not installed — record as P4 informational.
+- **Severity**: P1 (if critical CVEs found), P2 (if moderate CVEs), P4 (if skipped)
+- **Finding (fail)**: `[DEPS] pip-audit — {N} packages with known vulnerabilities: {package_list}. Impact: Security risk from known CVEs. Fix: Run "uv run pip-audit --fix" or update affected packages.`
+- **Finding (skip)**: `[DEPS] pip-audit — pip-audit not installed, dependency security not checked. Impact: Cannot verify packages against CVE databases. Fix: Run "uv add --dev pip-audit".`
+
+**Check 43: External service health**
+- **Action**: Run the following as a background Bash command with `run_in_background: true`
+  and `timeout: 30000`:
+  ```bash
+  uv run options-arena health 2>&1 || echo "HEALTH_CHECK_FAILED"
+  ```
+- **Parse results**: Check the command output for service status indicators. Look for
+  services reported as unhealthy, unreachable, or with errors.
+- **Pass**: All services report healthy/reachable status.
+- **Fail**: One or more services are unhealthy or unreachable.
+- **Skip**: Command fails entirely (not installed or crashes) — record as P3.
+- **Severity**: P3 (if services unhealthy or command fails)
+- **Finding (fail)**: `[SERVICES] health check — Services unhealthy: {service_list}. Impact: Application may not function correctly with degraded services. Fix: Check service credentials and network connectivity.`
+- **Finding (skip)**: `[SERVICES] health check — "options-arena health" command failed. Impact: Cannot verify external service readiness. Fix: Ensure options-arena is installed ("uv run options-arena health").`
+
+**Check 44: Test tier coverage**
+- **Action**: Run the following as a background Bash command with `run_in_background: true`
+  and `timeout: 30000`:
+  ```bash
+  uv run pytest --collect-only -q 2>/dev/null | tail -1 || echo "SKIP: pytest collection failed"
+  ```
+- **Also run** (as a second background Bash command with same timeout):
+  ```bash
+  uv run pytest --collect-only -q -m critical 2>/dev/null | tail -1 || echo "SKIP"
+  ```
+- **Parse results**: Extract total test count and per-marker counts. Compare against
+  known test expectations (the project has 4,522+ tests). Flag if:
+  - Critical marker has 0 tests (P2 — no pre-commit test tier)
+  - Total tests decreased significantly from expected count (P3 — informational)
+- **Pass**: Test collection succeeds and critical tier has tests.
+- **Fail**: Critical marker has 0 tests, or test collection fails entirely.
+- **Skip**: pytest not available or collection errors — record as P4.
+- **Severity**: P2 (if critical tier empty), P3 (if test count anomaly), P4 (if skipped)
+- **Finding (critical tier empty)**: `[TESTS] pytest markers — Critical test tier has 0 tests. Impact: No pre-commit test gate available. Fix: Add @pytest.mark.critical to essential test cases.`
+- **Finding (count anomaly)**: `[TESTS] pytest collection — Only {N} tests collected (expected 4,500+). Impact: Possible test discovery issue. Fix: Check for import errors or missing test files.`
+- **Finding (skip)**: `[TESTS] pytest collection — Test collection failed. Impact: Cannot verify test tier coverage. Fix: Run "uv run pytest --collect-only" manually to diagnose.`
+
+---
+
+**Phase 2 execution pattern**:
+1. Run all 5 pre-checks (checks 40 and 42 need tool availability verification).
+2. Launch all 5 probes as background Bash commands simultaneously.
+3. Wait for all probes to complete (they will each finish or timeout at 30s).
+4. Parse each probe's output and add findings to the accumulated list.
+5. Continue to Phase 3.
+
+## Phase 3: Gap Analysis & Report (5 checks)
+
+Phase 3 runs sequentially after Phase 2 completes. It performs gap analysis checks and
+then consolidates ALL findings from Phases 1-3 into the final report.
+
+---
+
+### I. Gap Analysis (checks 45-49)
+
+**Check 45: Missing practices**
+- **Action**: Check for the existence of the following files using Glob:
+  1. `.github/dependabot.yml` or `.github/renovate.json` — automated dependency updates
+  2. `Dockerfile` or `docker-compose.yml` — containerization
+  3. `.github/workflows/release*.yml` — release automation
+  4. Any SAST config: `.github/workflows/codeql*.yml`, `.snyk`, `.semgrep.yml`,
+     `bandit.yml`, or similar static analysis security testing configuration
+- **Pass**: N/A — this check is purely informational. Each missing practice is a P3 finding.
+- **Fail**: For each missing practice, record a P3 finding.
+- **Severity**: P3
+- **Findings**:
+  - `[GAP] .github/dependabot.yml — No automated dependency update configuration (Dependabot or Renovate). Impact: Dependencies may become stale without automated PR creation. Fix: Add .github/dependabot.yml with ecosystem: pip and npm entries.`
+  - `[GAP] Dockerfile — No containerization configuration. Impact: Cannot reproduce build environment or deploy to container platforms. Fix: Create Dockerfile with Python 3.13 base image and uv package manager.`
+  - `[GAP] .github/workflows/release*.yml — No release automation workflow. Impact: Releases require manual steps, increasing error risk. Fix: Create release workflow triggered on version tags.`
+  - `[GAP] SAST config — No static analysis security testing configuration. Impact: Security vulnerabilities may not be caught by automated scanning. Fix: Add CodeQL analysis workflow or integrate semgrep/bandit.`
+
+**Check 46: Stale audit reports**
+- **Action**: Glob `.claude/audits/*.md` to find all existing audit reports. For each
+  report file, run `stat` via Bash to get its last modification time, or parse the
+  `timestamp` field from the YAML preamble. Compare against the current UTC time.
+- **Pass**: All audit reports were generated within the last 7 days.
+- **Fail**: One or more audit reports are older than 7 days.
+- **Skip**: If `.claude/audits/` is empty or does not exist, record as P3 informational
+  (no audit history exists).
+- **Severity**: P3
+- **Finding (stale)**: `[GAP] .claude/audits/{filename} — Audit report is {N} days old (last run: {date}). Impact: Audit findings may not reflect current code state. Fix: Re-run the corresponding audit command.`
+- **Finding (no reports)**: `[GAP] .claude/audits/ — No audit reports found. Impact: No audit history available. Fix: Run /full-audit to generate baseline audit reports.`
+
+**Check 47: Broken guide references**
+- **Action**: Read `CLAUDE.md` and find the "Guides" table (the table with "Guide" and
+  "When to load" columns). Extract each `.claude/guides/*.md` file path from the table.
+  For each path, verify the file exists using Glob.
+- **Pass**: Every guide path referenced in the CLAUDE.md table exists on disk.
+- **Fail**: A referenced guide file does not exist.
+- **Severity**: P2
+- **Finding**: `[GAP] CLAUDE.md — References guide "{path}" which does not exist. Impact: Developers directed to a non-existent guide file, causing confusion. Fix: Create the guide file or remove the reference from CLAUDE.md.`
+
+**Check 48: Health check completeness**
+- **Action**:
+  1. Grep `src/options_arena/services/` for service class definitions (classes that
+     inherit from `ServiceBase` or classes in service files). Build a list of service names.
+  2. Read the health check command implementation. Grep for service names checked in the
+     health command (look in `src/options_arena/cli/` for the `health` command and in
+     `src/options_arena/services/health.py` if it exists).
+  3. Cross-reference: identify services that exist in `services/` but are NOT checked
+     by the health command.
+- **Pass**: Every service has a corresponding health check.
+- **Fail**: One or more services have no health check coverage.
+- **Severity**: P3
+- **Finding**: `[GAP] src/options_arena/services/{service}.py — Service has no corresponding health check. Impact: Service failures may go undetected until they cause user-visible errors. Fix: Add health check for this service in the health command.`
+
+**Check 49: Report consolidation**
+- **Action**: Collect ALL findings accumulated from Phase 1 (checks 1-39), Phase 2
+  (checks 40-44), and Phase 3 (checks 45-48). Count findings by severity level.
+  Generate the full report and write it to `.claude/audits/AUDIT_DEVOPS.md`.
+
+The report MUST use this exact format:
 
 ```markdown
 ---
 agent: devops-audit
 status: COMPLETE
-timestamp: {UTC ISO 8601}
-scope: agents, commands, CI, config, hooks
-phase: 1
+timestamp: {current UTC ISO 8601}
+scope: agents, commands, CI, config, hooks, services, gaps
 findings:
-  critical: {count}
-  high: {count}
-  medium: {count}
-  low: {count}
+  critical: {count of P1 findings}
+  high: {count of P2 findings}
+  medium: {count of P3 findings}
+  low: {count of P4 findings}
 ---
 
-# DevOps Audit Report (Phase 1: Static Analysis)
+# DevOps Audit Report
 
 **Timestamp**: {UTC timestamp}
-**Checks executed**: 39
+**Checks executed**: 49
 **Checks passed**: {count}
 **Checks failed**: {count}
 
@@ -550,44 +702,81 @@ findings:
 | E. Coordination | 6 | ... | ... | ... | ... | ... | ... |
 | F. Change Detection | 4 | ... | ... | ... | ... | ... | ... |
 | G. CI/Config/Hooks | 10 | ... | ... | ... | ... | ... | ... |
-| **Total** | **39** | **N** | **N** | **N** | **N** | **N** | **N** |
+| H. Dynamic Probes | 5 | ... | ... | ... | ... | ... | ... |
+| I. Gap Analysis | 5 | ... | ... | ... | ... | ... | ... |
+| **Total** | **49** | **N** | **N** | **N** | **N** | **N** | **N** |
 
 ## P1 -- Critical (fix immediately)
 
-{P1 findings or "No P1 findings."}
+{List each P1 finding, or "No findings." if none}
 
 ## P2 -- High (fix before merge)
 
-{P2 findings or "No P2 findings."}
+{List each P2 finding, or "No findings." if none}
 
 ## P3 -- Medium (plan for next sprint)
 
-{P3 findings or "No P3 findings."}
+{List each P3 finding, or "No findings." if none}
 
 ## P4 -- Low (informational)
 
-{P4 findings or "No P4 findings."}
-
-## Phase 2: Dynamic Probes
-
-_Not yet executed. Run `/devops-audit` with Phase 2 enabled._
-
-## Phase 3: Gap Analysis
-
-_Not yet executed. Run `/devops-audit` with Phase 3 enabled._
+{List each P4 finding, or "No findings." if none}
 ```
 
-After writing the report, display to the user:
-1. The summary table with finding counts by severity
-2. If P1 > 0, recommend running `/fix-loop` to address critical issues
-3. The path to the full report: `.claude/audits/AUDIT_DEVOPS.md`
+Every severity section MUST be included in the report, even if it has no findings (use
+"No findings." in that case). The report file is overwritten on each run (idempotent).
+
+---
+
+## Report Output
+
+After completing all checks in Phases 1-3, Check 49 handles writing the consolidated
+report to `.claude/audits/AUDIT_DEVOPS.md`. The report format is specified in Check 49
+above. The report file is overwritten on each run (idempotent), never appended.
+
+Ensure the `.claude/audits/` directory exists before writing (created in Setup step 1).
+
+---
+
+## User-Facing Summary
+
+After writing the report file, display the following summary to the user. This is the
+final output of the `/devops-audit` command.
+
+Display the summary using this format:
+
+```
+## Devops Audit Complete
+
+| Severity | Count |
+|----------|-------|
+| P1 Critical | {critical count} |
+| P2 High | {high count} |
+| P3 Medium | {medium count} |
+| P4 Low | {low count} |
+
+Report: `.claude/audits/AUDIT_DEVOPS.md`
+```
+
+If the P1 (critical) count is greater than 0, add immediately after the table:
+
+```
+**{critical count} critical finding(s) require immediate attention.**
+Next: Run `/fix-loop` to address P1 issues before merging.
+```
+
+If the P1 count is 0, add instead:
+
+```
+No critical findings. Review P2 items before next merge.
+```
 
 </instructions>
 
 <constraints>
 1. NEVER modify application source code — this is a read-only audit command
 2. Each finding MUST include: category tag, file location, description, impact, and fix
-3. Use numbered check identifiers (1-39) for traceability in the report
+3. Use numbered check identifiers (1-49) for traceability in the report
 4. All file reads and searches use only the allowed tools: Read, Glob, Grep, Bash
 5. Write is used ONLY for the final report output to `.claude/audits/AUDIT_DEVOPS.md`
 6. If a file referenced by a check does not exist, record that as a finding — do not error out
@@ -596,4 +785,7 @@ After writing the report, display to the user:
 8. Bash commands must have timeouts — no unbounded waits
 9. Git commands (checks 26-29) should use `--oneline` and limit output with `-20`
 10. The report file is overwritten on each run (idempotent), never appended
+11. Phase 2 probes MUST use `run_in_background: true` and `timeout: 30000` — no blocking waits
+12. Phase 2 probes that fail pre-checks (tool not available) are P4 informational, not errors
+13. Phase 3 report consolidation (check 49) collects findings from ALL 3 phases
 </constraints>
