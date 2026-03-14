@@ -306,6 +306,23 @@ SECTOR_ALIASES: dict[str, GICSSector] = {
 }
 
 
+class AuditSeverity(StrEnum):
+    """Severity level for mathematical computation audit findings."""
+
+    CRITICAL = "critical"
+    WARNING = "warning"
+    INFO = "info"
+
+
+class AuditLayer(StrEnum):
+    """Audit layer classifying the type of mathematical audit test."""
+
+    CORRECTNESS = "correctness"
+    STABILITY = "stability"
+    PERFORMANCE = "performance"
+    DISCOVERY = "discovery"
+
+
 class GICSIndustryGroup(StrEnum):
     """GICS Industry Groups (2023 standard).
 
