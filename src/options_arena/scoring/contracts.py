@@ -21,6 +21,7 @@ from options_arena.models.enums import GreeksSource, OptionType, SignalDirection
 from options_arena.models.filters import OptionsFilters
 from options_arena.models.options import OptionContract
 from options_arena.pricing.dispatch import option_greeks, option_iv, option_second_order_greeks
+from options_arena.pricing.iv_smoothing import smooth_iv_parity
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +161,8 @@ def compute_greeks(
     spot: float,
     risk_free_rate: float,
     dividend_yield: float,
+    *,
+    use_parity_smoothing: bool = True,
 ) -> list[OptionContract]:
     """Compute or preserve Greeks for each contract using three-tier resolution.
 
@@ -169,6 +172,10 @@ def compute_greeks(
 
     **Tier 2** — Contract has no ``greeks``: compute via ``pricing/dispatch.py``
     (existing behavior), set ``greeks_source=GreeksSource.COMPUTED``.
+    When ``use_parity_smoothing`` is True and both call and put exist at the
+    same (strike, expiration), the smoothed IV from ``smooth_iv_parity()``
+    replaces the raw ``market_iv`` as sigma, and
+    ``greeks_source=GreeksSource.SMOOTHED``.
 
     **Tier 3** — Local computation fails: contract excluded (logged at warning).
 
@@ -181,12 +188,22 @@ def compute_greeks(
         spot: Current underlying price.
         risk_free_rate: Annualized risk-free rate (decimal).
         dividend_yield: Continuous dividend yield (decimal).
+        use_parity_smoothing: When True, group contracts by (strike, expiration)
+            and apply IV smoothing via put-call parity spread weighting when
+            both call and put exist at the same strike/expiration.
 
     Returns:
         List of new ``OptionContract`` instances with ``greeks`` populated.
         May be shorter than the input if some contracts fail.
     """
     result: list[OptionContract] = []
+
+    # Build call/put pair lookup for IV smoothing
+    pairs: dict[tuple[Decimal, date], dict[str, OptionContract]] = {}
+    if use_parity_smoothing:
+        for c in contracts:
+            key = (c.strike, c.expiration)
+            pairs.setdefault(key, {})[c.option_type.value] = c
 
     for contract in contracts:
         # ------------------------------------------------------------------
@@ -221,6 +238,45 @@ def compute_greeks(
 
             strike_f = float(contract.strike)
             sigma = contract.market_iv
+
+            # Attempt IV smoothing via put-call parity when a paired contract exists
+            smoothed_iv_value: float | None = None
+            if use_parity_smoothing:
+                key = (contract.strike, contract.expiration)
+                pair = pairs.get(key, {})
+                other_type = "put" if contract.option_type == OptionType.CALL else "call"
+                other = pair.get(other_type)
+                if (
+                    other is not None
+                    and math.isfinite(other.market_iv)
+                    and other.market_iv > 0
+                    and math.isfinite(sigma)
+                    and sigma > 0
+                ):
+                    smoothed_iv_value = smooth_iv_parity(
+                        call_iv=(
+                            sigma if contract.option_type == OptionType.CALL else other.market_iv
+                        ),
+                        put_iv=(
+                            other.market_iv if contract.option_type == OptionType.CALL else sigma
+                        ),
+                        call_bid=float(
+                            contract.bid if contract.option_type == OptionType.CALL else other.bid
+                        ),
+                        call_ask=float(
+                            contract.ask if contract.option_type == OptionType.CALL else other.ask
+                        ),
+                        put_bid=float(
+                            other.bid if contract.option_type == OptionType.CALL else contract.bid
+                        ),
+                        put_ask=float(
+                            other.ask if contract.option_type == OptionType.CALL else contract.ask
+                        ),
+                    )
+                    if math.isfinite(smoothed_iv_value) and smoothed_iv_value > 0:
+                        sigma = smoothed_iv_value
+                    else:
+                        smoothed_iv_value = None
 
             # If market_iv is suspect, attempt IV solve using mid price
             if not math.isfinite(sigma) or sigma <= 0.0 or sigma > 5.0:
@@ -303,11 +359,15 @@ def compute_greeks(
             # OptionContract is frozen — model_copy skips validators on ALL
             # fields (including updated ones). Safe here because greeks was
             # constructed via OptionGreeks(...) and sigma passed isfinite above.
+            greeks_source = (
+                GreeksSource.SMOOTHED if smoothed_iv_value is not None else GreeksSource.COMPUTED
+            )
             new_contract = contract.model_copy(
                 update={
                     "greeks": greeks,
                     "market_iv": sigma,
-                    "greeks_source": GreeksSource.COMPUTED,
+                    "smoothed_iv": smoothed_iv_value,
+                    "greeks_source": greeks_source,
                 },
             )
             result.append(new_contract)
