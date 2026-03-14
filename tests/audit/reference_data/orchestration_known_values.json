@@ -1,0 +1,260 @@
+{
+  "metadata": {
+    "description": "Known-values for orchestration algorithms: log-odds pooling, Shannon entropy, agreement score",
+    "version": "1.0.0",
+    "date": "2026-03-14"
+  },
+  "log_odds_pool": [
+    {
+      "source": "Bordley (1982) 'A Multiplicative Formula for Aggregating Probability Assessments'",
+      "description": "Three agents at 0.9 confidence with equal weight 0.2 each",
+      "input": {
+        "probabilities": [0.9, 0.9, 0.9],
+        "weights": [0.2, 0.2, 0.2]
+      },
+      "expected": {
+        "value": 0.78890452,
+        "note": "Compounding agreement: three agents at 0.9 produce ~0.789, NOT simple average 0.9"
+      }
+    },
+    {
+      "source": "Bordley (1982) — opposing agents cancel out",
+      "description": "One agent at 0.9, one at 0.1, same weight — cancels to 0.5",
+      "input": {
+        "probabilities": [0.9, 0.1],
+        "weights": [0.2, 0.2]
+      },
+      "expected": {
+        "value": 0.50000000,
+        "note": "log(0.9/0.1) + log(0.1/0.9) = 0, so pooled = 0.5 (neutral)"
+      }
+    },
+    {
+      "source": "Bordley (1982) — single agent at 0.5",
+      "description": "0.5 probability contributes zero log-odds",
+      "input": {
+        "probabilities": [0.5],
+        "weights": [0.2]
+      },
+      "expected": {
+        "value": 0.50000000,
+        "note": "log(0.5/0.5) = 0, so pooled stays at neutral prior 0.5"
+      }
+    },
+    {
+      "source": "Bordley (1982) — mixed confidence with different weights",
+      "description": "Weighted combination of 0.7, 0.8, 0.6",
+      "input": {
+        "probabilities": [0.7, 0.8, 0.6],
+        "weights": [0.3, 0.2, 0.1]
+      },
+      "expected": {
+        "value": 0.63922332,
+        "note": "Higher weight on 0.7 agent; all above 0.5 so result above 0.5"
+      }
+    },
+    {
+      "source": "Bordley (1982) — four agreeing agents compound further",
+      "description": "Four agents at 0.9 each with weight 0.2",
+      "input": {
+        "probabilities": [0.9, 0.9, 0.9, 0.9],
+        "weights": [0.2, 0.2, 0.2, 0.2]
+      },
+      "expected": {
+        "value": 0.85293136,
+        "note": "More agreeing agents => higher compound confidence"
+      }
+    },
+    {
+      "source": "Bordley (1982) — moderate confidence compounding",
+      "description": "Three agents at 0.6 each with weight 0.2",
+      "input": {
+        "probabilities": [0.6, 0.6, 0.6],
+        "weights": [0.2, 0.2, 0.2]
+      },
+      "expected": {
+        "value": 0.56052156,
+        "note": "Modest agreement compounds modestly"
+      }
+    },
+    {
+      "source": "Bordley (1982) — empty inputs return neutral prior",
+      "description": "No agents means no information — return 0.5",
+      "input": {
+        "probabilities": [],
+        "weights": []
+      },
+      "expected": {
+        "value": 0.50000000,
+        "note": "No data -> neutral prior"
+      }
+    },
+    {
+      "source": "Implementation detail: clamping [0.01, 0.99] prevents log(0)",
+      "description": "Extreme probabilities are clamped before log-odds",
+      "input": {
+        "probabilities": [0.0, 1.0],
+        "weights": [0.2, 0.2]
+      },
+      "expected": {
+        "value_finite": true,
+        "note": "0.0 clamped to 0.01, 1.0 clamped to 0.99; opposing values still cancel"
+      }
+    }
+  ],
+  "shannon_entropy": [
+    {
+      "source": "Shannon (1948) 'A Mathematical Theory of Communication'",
+      "description": "Unanimous vote (all same direction) has zero entropy",
+      "input": {
+        "directions": {"agent_1": "BULLISH", "agent_2": "BULLISH", "agent_3": "BULLISH", "agent_4": "BULLISH"}
+      },
+      "expected": {
+        "value": 0.0,
+        "note": "H = -1.0 * log2(1.0) = 0.0 — zero uncertainty"
+      }
+    },
+    {
+      "source": "Shannon (1948) — maximum entropy for two equally likely outcomes",
+      "description": "Perfect 2-2 split has maximum entropy = 1.0 bit",
+      "input": {
+        "directions": {"agent_1": "BULLISH", "agent_2": "BULLISH", "agent_3": "BEARISH", "agent_4": "BEARISH"}
+      },
+      "expected": {
+        "value": 1.0,
+        "note": "H = -2*(0.5*log2(0.5)) = 1.0 bit — maximum uncertainty for binary"
+      }
+    },
+    {
+      "source": "Shannon (1948) — 3:1 split entropy",
+      "description": "3 BULLISH, 1 BEARISH",
+      "input": {
+        "directions": {"agent_1": "BULLISH", "agent_2": "BULLISH", "agent_3": "BULLISH", "agent_4": "BEARISH"}
+      },
+      "expected": {
+        "value": 0.81127812,
+        "note": "H = -(0.75*log2(0.75) + 0.25*log2(0.25)) ≈ 0.811"
+      }
+    },
+    {
+      "source": "Shannon (1948) — 3:2 split entropy",
+      "description": "3 BULLISH, 2 BEARISH",
+      "input": {
+        "directions": {"agent_1": "BULLISH", "agent_2": "BULLISH", "agent_3": "BULLISH", "agent_4": "BEARISH", "agent_5": "BEARISH"}
+      },
+      "expected": {
+        "value": 0.97095059,
+        "note": "H = -(0.6*log2(0.6) + 0.4*log2(0.4)) ≈ 0.971"
+      }
+    },
+    {
+      "source": "Implementation: NEUTRAL agents excluded from entropy calculation",
+      "description": "NEUTRAL agents don't count toward entropy",
+      "input": {
+        "directions": {"agent_1": "BULLISH", "agent_2": "BULLISH", "agent_3": "NEUTRAL", "agent_4": "NEUTRAL"}
+      },
+      "expected": {
+        "value": 0.0,
+        "note": "Only directional agents counted: 2 BULLISH = unanimous = 0 entropy"
+      }
+    },
+    {
+      "source": "Implementation: all NEUTRAL returns 0.0",
+      "description": "No directional agents means no entropy to compute",
+      "input": {
+        "directions": {"agent_1": "NEUTRAL", "agent_2": "NEUTRAL"}
+      },
+      "expected": {
+        "value": 0.0
+      }
+    },
+    {
+      "source": "Implementation: empty dict returns 0.0",
+      "description": "No agents means no votes",
+      "input": {
+        "directions": {}
+      },
+      "expected": {
+        "value": 0.0
+      }
+    }
+  ],
+  "agreement_score": [
+    {
+      "source": "agents/orchestrator.py — fraction of directional agents agreeing with majority",
+      "description": "All 4 agents BULLISH — perfect agreement",
+      "input": {
+        "directions": {"agent_1": "BULLISH", "agent_2": "BULLISH", "agent_3": "BULLISH", "agent_4": "BULLISH"}
+      },
+      "expected": {
+        "value": 1.0,
+        "note": "4/4 directional agents agree with majority"
+      }
+    },
+    {
+      "source": "agents/orchestrator.py — 3:1 split agreement",
+      "description": "3 BULLISH, 1 BEARISH — majority is BULLISH",
+      "input": {
+        "directions": {"agent_1": "BULLISH", "agent_2": "BULLISH", "agent_3": "BULLISH", "agent_4": "BEARISH"}
+      },
+      "expected": {
+        "value": 0.75,
+        "note": "3/4 agree with BULLISH majority"
+      }
+    },
+    {
+      "source": "agents/orchestrator.py — perfect split",
+      "description": "2 BULLISH, 2 BEARISH — tie",
+      "input": {
+        "directions": {"agent_1": "BULLISH", "agent_2": "BULLISH", "agent_3": "BEARISH", "agent_4": "BEARISH"}
+      },
+      "expected": {
+        "value": 0.5,
+        "note": "2/4 = 0.5 — majority is 2 either way"
+      }
+    },
+    {
+      "source": "agents/orchestrator.py — 3:2 split agreement",
+      "description": "3 BULLISH, 2 BEARISH",
+      "input": {
+        "directions": {"agent_1": "BULLISH", "agent_2": "BULLISH", "agent_3": "BULLISH", "agent_4": "BEARISH", "agent_5": "BEARISH"}
+      },
+      "expected": {
+        "value": 0.6,
+        "note": "3/5 agree with BULLISH majority"
+      }
+    },
+    {
+      "source": "agents/orchestrator.py — NEUTRAL agents excluded from denominator",
+      "description": "2 BULLISH, 1 BEARISH, 2 NEUTRAL",
+      "input": {
+        "directions": {"agent_1": "BULLISH", "agent_2": "BULLISH", "agent_3": "BEARISH", "agent_4": "NEUTRAL", "agent_5": "NEUTRAL"}
+      },
+      "expected": {
+        "value": 0.6666667,
+        "tolerance": 0.0001,
+        "note": "Only 3 directional agents; 2/3 agree with BULLISH majority"
+      }
+    },
+    {
+      "source": "agents/orchestrator.py — all NEUTRAL returns 0.0",
+      "description": "No directional agents",
+      "input": {
+        "directions": {"agent_1": "NEUTRAL", "agent_2": "NEUTRAL"}
+      },
+      "expected": {
+        "value": 0.0
+      }
+    },
+    {
+      "source": "agents/orchestrator.py — empty dict returns 0.0",
+      "description": "No agents at all",
+      "input": {
+        "directions": {}
+      },
+      "expected": {
+        "value": 0.0
+      }
+    }
+  ]
+}

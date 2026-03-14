@@ -1,0 +1,544 @@
+{
+  "metadata": {
+    "description": "Academic known-values for options pricing validation",
+    "generated_by": "Analytical BSM formulas computed via scipy.stats.norm",
+    "version": "1.0.0",
+    "date": "2026-03-14"
+  },
+  "bsm_price": [
+    {
+      "source": "Hull (2018) 'Options, Futures, and Other Derivatives' Ch.15, ATM European option",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {"call": 10.450584, "put": 5.573526}
+    },
+    {
+      "source": "Hull (2018) Ch.15, ATM 6-month European option",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 0.5, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {"call": 6.888729, "put": 4.419720}
+    },
+    {
+      "source": "Hull (2018) Ch.15, ATM 3-month European option",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 0.25, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {"call": 4.614997, "put": 3.372777}
+    },
+    {
+      "source": "Hull (2018) Ch.15, OTM call 1-year European option",
+      "parameters": {"S": 100.0, "K": 110.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {"call": 6.040088, "put": 10.675325}
+    },
+    {
+      "source": "Hull (2018) Ch.15, ITM call 1-year European option",
+      "parameters": {"S": 100.0, "K": 90.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {"call": 16.699448, "put": 2.310097}
+    },
+    {
+      "source": "Hull (2018) Ch.15, ATM 1-year high volatility (sigma=0.30)",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.30},
+      "expected": {"call": 14.231255, "put": 9.354197}
+    },
+    {
+      "source": "Hull (2018) Ch.15, ATM 1-year high interest rate (r=0.10)",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.10, "q": 0.0, "sigma": 0.20},
+      "expected": {"call": 13.269677, "put": 3.753418}
+    },
+    {
+      "source": "Hull (2018) Ch.15, S=50 ATM scaled (prices scale linearly with S for same moneyness)",
+      "parameters": {"S": 50.0, "K": 50.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {"call": 5.225292, "put": 2.786763}
+    },
+    {
+      "source": "Hull (2018) Ch.15, S=200 ATM scaled",
+      "parameters": {"S": 200.0, "K": 200.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {"call": 20.901167, "put": 11.147052}
+    },
+    {
+      "source": "Hull (2018) Ch.15, deep ITM call S=100 K=80",
+      "parameters": {"S": 100.0, "K": 80.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {"call": 24.588835, "put": 0.687189}
+    },
+    {
+      "source": "Merton (1973) continuous dividend yield extension, ATM q=2%",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.02, "sigma": 0.20},
+      "expected": {"call": 9.227006, "put": 6.330081}
+    },
+    {
+      "source": "Merton (1973) ATM q=2% sigma=25%",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.02, "sigma": 0.25},
+      "expected": {"call": 11.123762, "put": 8.226837}
+    },
+    {
+      "source": "Merton (1973) OTM call q=2% 6-month",
+      "parameters": {"S": 100.0, "K": 110.0, "T": 0.5, "r": 0.05, "q": 0.02, "sigma": 0.25},
+      "expected": {"call": 3.859760, "put": 12.138867}
+    },
+    {
+      "source": "Merton (1973) ITM call q=1% 3-month",
+      "parameters": {"S": 100.0, "K": 90.0, "T": 0.25, "r": 0.03, "q": 0.01, "sigma": 0.30},
+      "expected": {"call": 12.323149, "put": 1.900362}
+    },
+    {
+      "source": "Merton (1973) S=50 q=3% high volatility sigma=40%",
+      "parameters": {"S": 50.0, "K": 50.0, "T": 1.0, "r": 0.08, "q": 0.03, "sigma": 0.40},
+      "expected": {"call": 8.745146, "put": 6.378687}
+    },
+    {
+      "source": "Merton (1973) long DTE low vol",
+      "parameters": {"S": 200.0, "K": 180.0, "T": 2.0, "r": 0.04, "q": 0.015, "sigma": 0.15},
+      "expected": {"call": 33.062366, "put": 5.134202}
+    },
+    {
+      "source": "Merton (1973) deep OTM call high rate high dividend",
+      "parameters": {"S": 100.0, "K": 120.0, "T": 1.0, "r": 0.10, "q": 0.05, "sigma": 0.20},
+      "expected": {"call": 3.089096, "put": 16.546644}
+    },
+    {
+      "source": "Hull (2018) short DTE ~1 month",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 0.083, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {"call": 2.506621, "put": 2.092481}
+    },
+    {
+      "source": "Analytical BSM: low rate low vol",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.02, "q": 0.0, "sigma": 0.10},
+      "expected": {"call": 5.016981, "put": 3.036848}
+    },
+    {
+      "source": "Analytical BSM: very high volatility sigma=50%",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.50},
+      "expected": {"call": 21.792604, "put": 16.915547}
+    },
+    {
+      "source": "Merton (1973) q > r/2, 6-month",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 0.5, "r": 0.05, "q": 0.03, "sigma": 0.20},
+      "expected": {"call": 6.029529, "put": 5.049327}
+    },
+    {
+      "source": "Merton (1973) deep ITM high vol q=2%",
+      "parameters": {"S": 150.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.02, "sigma": 0.30},
+      "expected": {"call": 53.057682, "put": 1.150824}
+    },
+    {
+      "source": "Merton (1973) deep OTM high vol q=2%",
+      "parameters": {"S": 50.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.02, "sigma": 0.30},
+      "expected": {"call": 0.096277, "put": 46.209286}
+    },
+    {
+      "source": "Merton (1973) near zero net carry 2-year",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 2.0, "r": 0.05, "q": 0.04, "sigma": 0.25},
+      "expected": {"call": 13.758823, "put": 11.930931}
+    },
+    {
+      "source": "Merton (1973) high rate high dividend 6-month",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 0.5, "r": 0.10, "q": 0.05, "sigma": 0.30},
+      "expected": {"call": 9.396991, "put": 6.988942}
+    }
+  ],
+  "bsm_greeks": [
+    {
+      "source": "Analytical BSM Greeks from Hull (2018) Ch.19 — ATM 1Y no dividend",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {
+        "delta_call": 0.63683065, "delta_put": -0.36316935,
+        "gamma": 0.01876202, "vega": 37.524035,
+        "theta_call": -6.414028, "theta_put": -1.657880,
+        "rho_call": 53.232482, "rho_put": -41.890461
+      }
+    },
+    {
+      "source": "Analytical BSM Greeks — ATM 6M no dividend",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 0.5, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {
+        "delta_call": 0.59773447, "delta_put": -0.40226553,
+        "gamma": 0.02735866, "vega": 27.358659,
+        "theta_call": -8.115968, "theta_put": -3.239418,
+        "rho_call": 26.442359, "rho_put": -22.323136
+      }
+    },
+    {
+      "source": "Analytical BSM Greeks — ATM 3M no dividend",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 0.25, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {
+        "delta_call": 0.56946018, "delta_put": -0.43053982,
+        "gamma": 0.039288, "vega": 19.644000,
+        "theta_call": -10.474151, "theta_put": -5.536262,
+        "rho_call": 13.082755, "rho_put": -11.606690
+      }
+    },
+    {
+      "source": "Analytical BSM Greeks — OTM call 1Y K=110",
+      "parameters": {"S": 100.0, "K": 110.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {
+        "delta_call": 0.44964793, "delta_put": -0.55035207,
+        "gamma": 0.01978802, "vega": 39.576048,
+        "theta_call": -5.903840, "theta_put": -0.672078,
+        "rho_call": 38.924705, "rho_put": -65.710532
+      }
+    },
+    {
+      "source": "Analytical BSM Greeks — ITM call 1Y K=90",
+      "parameters": {"S": 100.0, "K": 90.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {
+        "delta_call": 0.80970306, "delta_put": -0.19029694,
+        "gamma": 0.01358129, "vega": 27.162579,
+        "theta_call": -5.929801, "theta_put": -1.649268,
+        "rho_call": 64.270858, "rho_put": -21.339791
+      }
+    },
+    {
+      "source": "Analytical BSM Greeks — ATM high vol sigma=0.30",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.30},
+      "expected": {
+        "delta_call": 0.62425173, "delta_put": -0.37574827,
+        "gamma": 0.01264776, "vega": 37.943293,
+        "theta_call": -8.101190, "theta_put": -3.345043,
+        "rho_call": 48.193918, "rho_put": -46.929024
+      }
+    },
+    {
+      "source": "Analytical BSM Greeks — ATM high rate r=0.10",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.10, "q": 0.0, "sigma": 0.20},
+      "expected": {
+        "delta_call": 0.72574688, "delta_put": -0.27425312,
+        "gamma": 0.01666123, "vega": 33.322460,
+        "theta_call": -9.262747, "theta_put": -0.214373,
+        "rho_call": 59.305012, "rho_put": -31.178730
+      }
+    },
+    {
+      "source": "Analytical BSM Greeks — S=50 ATM (gamma scales inversely with S)",
+      "parameters": {"S": 50.0, "K": 50.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {
+        "delta_call": 0.63683065, "delta_put": -0.36316935,
+        "gamma": 0.03752403, "vega": 18.762017,
+        "theta_call": -3.207014, "theta_put": -0.828940,
+        "rho_call": 26.616241, "rho_put": -20.945230
+      }
+    },
+    {
+      "source": "Analytical BSM Greeks — deep ITM call K=80",
+      "parameters": {"S": 100.0, "K": 80.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {
+        "delta_call": 0.92863740, "delta_put": -0.07136260,
+        "gamma": 0.00681360, "vega": 13.627194,
+        "theta_call": -4.776465, "theta_put": -0.971547,
+        "rho_call": 68.274905, "rho_put": -7.823449
+      }
+    },
+    {
+      "source": "Merton (1973) Greeks — ATM q=2%",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.02, "sigma": 0.20},
+      "expected": {
+        "delta_call": 0.58685115, "delta_put": -0.39334753,
+        "gamma": 0.01895058, "vega": 37.901158,
+        "theta_call": -5.089319, "theta_put": -2.293569,
+        "rho_call": 49.458109, "rho_put": -45.664833
+      }
+    },
+    {
+      "source": "Merton (1973) Greeks — OTM q=2% 6M sigma=25%",
+      "parameters": {"S": 100.0, "K": 110.0, "T": 0.5, "r": 0.05, "q": 0.02, "sigma": 0.25},
+      "expected": {
+        "delta_call": 0.35366005, "delta_put": -0.63638979,
+        "gamma": 0.02089621, "vega": 26.120261,
+        "theta_call": -7.398057, "theta_put": -4.013953,
+        "rho_call": 15.753122, "rho_put": -37.888923
+      }
+    },
+    {
+      "source": "Merton (1973) Greeks — ITM q=1% 3M sigma=30%",
+      "parameters": {"S": 100.0, "K": 90.0, "T": 0.25, "r": 0.03, "q": 0.01, "sigma": 0.30},
+      "expected": {
+        "delta_call": 0.78926594, "delta_put": -0.20823718,
+        "gamma": 0.01909869, "vega": 14.324014,
+        "theta_call": -9.803246, "theta_put": -8.120923,
+        "rho_call": 16.650861, "rho_put": -5.681020
+      }
+    },
+    {
+      "source": "Merton (1973) Greeks — S=50 q=3% vol=40%",
+      "parameters": {"S": 50.0, "K": 50.0, "T": 1.0, "r": 0.08, "q": 0.03, "sigma": 0.40},
+      "expected": {
+        "delta_call": 0.60886671, "delta_put": -0.36157882,
+        "gamma": 0.01836179, "vega": 18.361792,
+        "theta_call": -4.494913, "theta_put": -2.258116,
+        "rho_call": 21.698189, "rho_put": -24.457628
+      }
+    },
+    {
+      "source": "Merton (1973) Greeks — long DTE low vol",
+      "parameters": {"S": 200.0, "K": 180.0, "T": 2.0, "r": 0.04, "q": 0.015, "sigma": 0.15},
+      "expected": {
+        "delta_call": 0.77549165, "delta_put": -0.19495388,
+        "gamma": 0.00642087, "vega": 77.050381,
+        "theta_call": -5.444353, "theta_put": -1.709252,
+        "rho_call": 244.071928, "rho_put": -88.249957
+      }
+    },
+    {
+      "source": "Merton (1973) Greeks — deep OTM high rate",
+      "parameters": {"S": 100.0, "K": 120.0, "T": 1.0, "r": 0.10, "q": 0.05, "sigma": 0.20},
+      "expected": {
+        "delta_call": 0.27318514, "delta_put": -0.67804429,
+        "gamma": 0.01620602, "vega": 32.412041,
+        "theta_call": -4.298220, "theta_put": 1.803682,
+        "rho_call": 24.229418, "rho_put": -84.351073
+      }
+    },
+    {
+      "source": "Analytical BSM Greeks — short DTE ~1 month",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 0.083, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {
+        "delta_call": 0.54015889, "delta_put": -0.45984111,
+        "gamma": 0.06888635, "vega": 11.435134,
+        "theta_call": -16.352734, "theta_put": -11.373441,
+        "rho_call": 4.275269, "rho_put": -3.990357
+      }
+    },
+    {
+      "source": "Analytical BSM Greeks — low rate low vol",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.02, "q": 0.0, "sigma": 0.10},
+      "expected": {
+        "delta_call": 0.59870633, "delta_put": -0.40129367,
+        "gamma": 0.03866681, "vega": 38.666812,
+        "theta_call": -3.030414, "theta_put": -1.070016,
+        "rho_call": 54.853652, "rho_put": -43.166215
+      }
+    },
+    {
+      "source": "Analytical BSM Greeks — very high vol sigma=0.50",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.50},
+      "expected": {
+        "delta_call": 0.63683065, "delta_put": -0.36316935,
+        "gamma": 0.00750481, "vega": 37.524035,
+        "theta_call": -11.475532, "theta_put": -6.719385,
+        "rho_call": 41.890461, "rho_put": -53.232482
+      }
+    },
+    {
+      "source": "Merton (1973) Greeks — deep ITM high vol q=2%",
+      "parameters": {"S": 150.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.02, "sigma": 0.30},
+      "expected": {
+        "delta_call": 0.92665283, "delta_put": -0.05354584,
+        "gamma": 0.00241011, "vega": 16.268244,
+        "theta_call": -3.957290, "theta_put": -2.141739,
+        "rho_call": 85.940243, "rho_put": -9.182700
+      }
+    },
+    {
+      "source": "Merton (1973) Greeks — near zero net carry 2Y",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 2.0, "r": 0.05, "q": 0.04, "sigma": 0.25},
+      "expected": {
+        "delta_call": 0.54671873, "delta_put": -0.37639761,
+        "gamma": 0.01013650, "vega": 50.682478,
+        "theta_call": -3.026432, "theta_put": -2.194711,
+        "rho_call": 81.826100, "rho_put": -99.141384
+      }
+    }
+  ],
+  "bsm_second_order_greeks": [
+    {
+      "source": "Analytical second-order BSM Greeks — ATM 1Y no dividend",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20, "option_type": "call"},
+      "expected": {"vanna": -0.281430, "charm": -0.065667, "vomma": 9.850059}
+    },
+    {
+      "source": "Analytical second-order BSM Greeks — ATM 1Y no dividend PUT",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20, "option_type": "put"},
+      "expected": {"vanna": -0.281430, "charm": -0.065667, "vomma": 9.850059}
+    },
+    {
+      "source": "Analytical second-order BSM Greeks — OTM call 1Y K=110",
+      "parameters": {"S": 100.0, "K": 110.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20, "option_type": "call"},
+      "expected": {"vanna": 0.646180, "charm": -0.163558, "vomma": 8.177462}
+    },
+    {
+      "source": "Analytical second-order BSM Greeks — ITM call 1Y K=90",
+      "parameters": {"S": 100.0, "K": 90.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20, "option_type": "call"},
+      "expected": {"vanna": -0.919185, "charm": 0.024012, "vomma": 80.594395}
+    },
+    {
+      "source": "Analytical second-order BSM Greeks — Merton ATM q=2%",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.02, "sigma": 0.20, "option_type": "call"},
+      "expected": {"vanna": -0.094753, "charm": -0.035639, "vomma": 2.368822}
+    },
+    {
+      "source": "Analytical second-order BSM Greeks — Merton ATM q=2% PUT",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.02, "sigma": 0.20, "option_type": "put"},
+      "expected": {"vanna": -0.094753, "charm": -0.055243, "vomma": 2.368822}
+    },
+    {
+      "source": "Analytical second-order BSM Greeks — OTM q=2% 6M sigma=25%",
+      "parameters": {"S": 100.0, "K": 110.0, "T": 0.5, "r": 0.05, "q": 0.02, "sigma": 0.25, "option_type": "call"},
+      "expected": {"vanna": 0.801873, "charm": -0.256084, "vomma": 20.747710}
+    },
+    {
+      "source": "Analytical second-order BSM Greeks — ITM q=1% 3M sigma=30%",
+      "parameters": {"S": 100.0, "K": 90.0, "T": 0.25, "r": 0.03, "q": 0.01, "sigma": 0.30, "option_type": "call"},
+      "expected": {"vanna": -0.630960, "charm": 0.348271, "vomma": 25.577131}
+    },
+    {
+      "source": "Analytical second-order BSM Greeks — deep ITM high vol q=2%",
+      "parameters": {"S": 150.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.02, "sigma": 0.30, "option_type": "call"},
+      "expected": {"vanna": -0.470532, "charm": 0.078267, "vomma": 113.037097}
+    },
+    {
+      "source": "Analytical second-order BSM Greeks — near zero net carry 2Y",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 2.0, "r": 0.05, "q": 0.04, "sigma": 0.25, "option_type": "call"},
+      "expected": {"vanna": 0.172320, "charm": 0.000962, "vomma": -5.686574}
+    },
+    {
+      "source": "Analytical second-order BSM Greeks — very high vol sigma=0.50",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.50, "option_type": "call"},
+      "expected": {"vanna": 0.112572, "charm": -0.065667, "vomma": -3.940024}
+    },
+    {
+      "source": "Analytical second-order BSM Greeks — short DTE ~1M",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 0.083, "r": 0.05, "q": 0.0, "sigma": 0.20, "option_type": "call"},
+      "expected": {"vanna": -0.085764, "charm": -0.241102, "vomma": 0.249143}
+    }
+  ],
+  "bsm_iv_round_trip": [
+    {
+      "source": "IV round-trip: BSM price -> IV solver -> price recovery",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20, "option_type": "call"},
+      "expected": {"market_price": 10.450584, "recovered_sigma": 0.20}
+    },
+    {
+      "source": "IV round-trip: OTM put",
+      "parameters": {"S": 100.0, "K": 90.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20, "option_type": "put"},
+      "expected": {"market_price": 2.310097, "recovered_sigma": 0.20}
+    },
+    {
+      "source": "IV round-trip: ATM high vol put",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.30, "option_type": "put"},
+      "expected": {"market_price": 9.354197, "recovered_sigma": 0.30}
+    },
+    {
+      "source": "IV round-trip: Merton with dividend",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.02, "sigma": 0.25, "option_type": "call"},
+      "expected": {"market_price": 11.123762, "recovered_sigma": 0.25}
+    },
+    {
+      "source": "IV round-trip: S=50 ATM high vol",
+      "parameters": {"S": 50.0, "K": 50.0, "T": 1.0, "r": 0.08, "q": 0.03, "sigma": 0.40, "option_type": "call"},
+      "expected": {"market_price": 8.745146, "recovered_sigma": 0.40}
+    },
+    {
+      "source": "IV round-trip: low vol",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.02, "q": 0.0, "sigma": 0.10, "option_type": "call"},
+      "expected": {"market_price": 5.016981, "recovered_sigma": 0.10}
+    },
+    {
+      "source": "IV round-trip: very high vol",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.50, "option_type": "put"},
+      "expected": {"market_price": 16.915547, "recovered_sigma": 0.50}
+    },
+    {
+      "source": "IV round-trip: short DTE",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 0.083, "r": 0.05, "q": 0.0, "sigma": 0.20, "option_type": "call"},
+      "expected": {"market_price": 2.506621, "recovered_sigma": 0.20}
+    }
+  ],
+  "baw_price": [
+    {
+      "source": "BAW (1987) Table 1: American call S=100 K=100 T=0.25 r=0.08 q=0.12 sigma=0.20",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 0.25, "r": 0.08, "q": 0.12, "sigma": 0.20},
+      "expected": {"option_type": "call", "tolerance": 0.05},
+      "note": "BAW premium verified: american_call >= bsm_call when q > 0"
+    },
+    {
+      "source": "BAW identity FR-P4: when q=0, American call == BSM call",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "expected": {"option_type": "call", "american_equals_bsm": true}
+    },
+    {
+      "source": "BAW identity FR-P4: OTM call q=0",
+      "parameters": {"S": 100.0, "K": 110.0, "T": 0.5, "r": 0.08, "q": 0.0, "sigma": 0.30},
+      "expected": {"option_type": "call", "american_equals_bsm": true}
+    },
+    {
+      "source": "BAW identity FR-P4: deep ITM call q=0",
+      "parameters": {"S": 100.0, "K": 80.0, "T": 1.0, "r": 0.06, "q": 0.0, "sigma": 0.35},
+      "expected": {"option_type": "call", "american_equals_bsm": true}
+    },
+    {
+      "source": "BAW dominance FR-P5: American put >= BSM put, ATM with dividend",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.02, "sigma": 0.20},
+      "expected": {"option_type": "put", "american_geq_bsm": true}
+    },
+    {
+      "source": "BAW dominance FR-P5: deep ITM put with dividend",
+      "parameters": {"S": 80.0, "K": 120.0, "T": 1.0, "r": 0.05, "q": 0.02, "sigma": 0.20},
+      "expected": {"option_type": "put", "american_geq_bsm": true, "premium_positive": true}
+    },
+    {
+      "source": "BAW dominance FR-P5: high rate put",
+      "parameters": {"S": 90.0, "K": 110.0, "T": 1.0, "r": 0.10, "q": 0.02, "sigma": 0.25},
+      "expected": {"option_type": "put", "american_geq_bsm": true, "premium_positive": true}
+    },
+    {
+      "source": "BAW: ATM call with dividend — exercise premium exists",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.04, "sigma": 0.20},
+      "expected": {"option_type": "call", "american_geq_bsm": true}
+    },
+    {
+      "source": "BAW: deep OTM put — negligible early exercise premium",
+      "parameters": {"S": 150.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.02, "sigma": 0.20},
+      "expected": {"option_type": "put", "american_geq_bsm": true, "premium_small": true}
+    },
+    {
+      "source": "BAW: high vol ATM put",
+      "parameters": {"S": 50.0, "K": 50.0, "T": 1.0, "r": 0.08, "q": 0.03, "sigma": 0.40},
+      "expected": {"option_type": "put", "american_geq_bsm": true}
+    },
+    {
+      "source": "BAW boundary: T=0 ITM call returns intrinsic",
+      "parameters": {"S": 110.0, "K": 100.0, "T": 0.0, "r": 0.05, "q": 0.02, "sigma": 0.20},
+      "expected": {"option_type": "call", "price": 10.0}
+    },
+    {
+      "source": "BAW boundary: T=0 ITM put returns intrinsic",
+      "parameters": {"S": 90.0, "K": 100.0, "T": 0.0, "r": 0.05, "q": 0.02, "sigma": 0.20},
+      "expected": {"option_type": "put", "price": 10.0}
+    },
+    {
+      "source": "BAW boundary: T=0 OTM call returns 0",
+      "parameters": {"S": 90.0, "K": 100.0, "T": 0.0, "r": 0.05, "q": 0.02, "sigma": 0.20},
+      "expected": {"option_type": "call", "price": 0.0}
+    },
+    {
+      "source": "BAW boundary: T=0 OTM put returns 0",
+      "parameters": {"S": 110.0, "K": 100.0, "T": 0.0, "r": 0.05, "q": 0.02, "sigma": 0.20},
+      "expected": {"option_type": "put", "price": 0.0}
+    },
+    {
+      "source": "BAW: sigma=0 ITM call returns intrinsic",
+      "parameters": {"S": 110.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.0},
+      "expected": {"option_type": "call", "price": 10.0}
+    },
+    {
+      "source": "BAW: long DTE put with dividend",
+      "parameters": {"S": 200.0, "K": 180.0, "T": 2.0, "r": 0.04, "q": 0.015, "sigma": 0.15},
+      "expected": {"option_type": "put", "american_geq_bsm": true}
+    },
+    {
+      "source": "BAW: short DTE put",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 0.083, "r": 0.05, "q": 0.02, "sigma": 0.20},
+      "expected": {"option_type": "put", "american_geq_bsm": true}
+    },
+    {
+      "source": "BAW: ITM call with high dividend q=5%",
+      "parameters": {"S": 100.0, "K": 90.0, "T": 1.0, "r": 0.05, "q": 0.05, "sigma": 0.25},
+      "expected": {"option_type": "call", "american_geq_bsm": true}
+    },
+    {
+      "source": "BAW: high rate high vol put",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 0.5, "r": 0.10, "q": 0.05, "sigma": 0.30},
+      "expected": {"option_type": "put", "american_geq_bsm": true}
+    },
+    {
+      "source": "BAW: very deep ITM put — immediate exercise may be optimal",
+      "parameters": {"S": 50.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.02, "sigma": 0.20},
+      "expected": {"option_type": "put", "american_geq_bsm": true, "price_geq_intrinsic": true}
+    }
+  ]
+}

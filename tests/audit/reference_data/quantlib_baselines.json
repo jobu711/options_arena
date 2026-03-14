@@ -1,0 +1,180 @@
+{
+  "metadata": {
+    "description": "QuantLib cross-validation baselines for options pricing (placeholder with analytically computed entries)",
+    "engine_european": "AnalyticEuropeanEngine (BSM) — values computed analytically via scipy",
+    "engine_american": "BinomialVanillaEngine (CRR, 1000 steps) — placeholder, BAW approximation used",
+    "version": "1.0.0",
+    "is_placeholder": true,
+    "total_combinations": 10,
+    "note": "Run 'python tools/generate_quantlib_baselines.py' with QuantLib installed to generate full 864-entry dataset",
+    "parameter_grid": {
+      "S": [50.0, 100.0, 200.0],
+      "K": [80.0, 100.0, 120.0],
+      "T": [0.083, 0.25, 0.5, 1.0],
+      "r": [0.02, 0.05, 0.10],
+      "q": [0.0, 0.02],
+      "sigma": [0.1, 0.2, 0.3, 0.5]
+    }
+  },
+  "entries": [
+    {
+      "source": "Analytical BSM (scipy.stats.norm) — matches QuantLib AnalyticEuropeanEngine",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "european": {
+        "call": {"price": 10.450584, "delta": 0.63683065, "gamma": 0.01876202, "vega": 37.524035, "theta": -6.414028, "rho": 53.232482},
+        "put": {"price": 5.573526, "delta": -0.36316935, "gamma": 0.01876202, "vega": 37.524035, "theta": -1.657880, "rho": -41.890461}
+      },
+      "american": {
+        "call": {"price": 10.450584},
+        "put": {"price": 5.573526, "note": "BAW put premium negligible at q=0"}
+      },
+      "iv_round_trip": {
+        "call": {"target_price": 10.450584, "recovered_sigma": 0.20},
+        "put": {"target_price": 5.573526, "recovered_sigma": 0.20}
+      }
+    },
+    {
+      "source": "Analytical BSM — ATM 6M",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 0.5, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "european": {
+        "call": {"price": 6.888729, "delta": 0.59773447, "gamma": 0.02735866, "vega": 27.358659, "theta": -8.115968, "rho": 26.442359},
+        "put": {"price": 4.419720, "delta": -0.40226553, "gamma": 0.02735866, "vega": 27.358659, "theta": -3.239418, "rho": -22.323136}
+      },
+      "american": {
+        "call": {"price": 6.888729},
+        "put": {"price": 4.419720}
+      },
+      "iv_round_trip": {
+        "call": {"target_price": 6.888729, "recovered_sigma": 0.20},
+        "put": {"target_price": 4.419720, "recovered_sigma": 0.20}
+      }
+    },
+    {
+      "source": "Analytical BSM — S=50 ATM",
+      "parameters": {"S": 50.0, "K": 50.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "european": {
+        "call": {"price": 5.225292, "delta": 0.63683065, "gamma": 0.03752403, "vega": 18.762017, "theta": -3.207014, "rho": 26.616241},
+        "put": {"price": 2.786763, "delta": -0.36316935, "gamma": 0.03752403, "vega": 18.762017, "theta": -0.828940, "rho": -20.945230}
+      },
+      "american": {
+        "call": {"price": 5.225292},
+        "put": {"price": 2.786763}
+      },
+      "iv_round_trip": {
+        "call": {"target_price": 5.225292, "recovered_sigma": 0.20},
+        "put": {"target_price": 2.786763, "recovered_sigma": 0.20}
+      }
+    },
+    {
+      "source": "Analytical BSM — S=200 K=200 ATM",
+      "parameters": {"S": 200.0, "K": 200.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "european": {
+        "call": {"price": 20.901167, "delta": 0.63683065, "gamma": 0.00938101, "vega": 75.048069, "theta": -12.828055, "rho": 106.464963},
+        "put": {"price": 11.147052, "delta": -0.36316935, "gamma": 0.00938101, "vega": 75.048069, "theta": -3.315761, "rho": -83.780922}
+      },
+      "american": {
+        "call": {"price": 20.901167},
+        "put": {"price": 11.147052}
+      },
+      "iv_round_trip": {
+        "call": {"target_price": 20.901167, "recovered_sigma": 0.20},
+        "put": {"target_price": 11.147052, "recovered_sigma": 0.20}
+      }
+    },
+    {
+      "source": "Analytical BSM — OTM call K=120, high vol",
+      "parameters": {"S": 100.0, "K": 120.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.30},
+      "european": {
+        "call": {"price": 8.907318},
+        "put": {"price": 23.030260}
+      },
+      "american": {
+        "call": {"price": 8.907318},
+        "put": {"price": 23.030260}
+      },
+      "iv_round_trip": {
+        "call": {"target_price": 8.907318, "recovered_sigma": 0.30},
+        "put": {"target_price": 23.030260, "recovered_sigma": 0.30}
+      }
+    },
+    {
+      "source": "Analytical BSM — Merton with dividend q=0.02",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.02, "sigma": 0.20},
+      "european": {
+        "call": {"price": 9.227006, "delta": 0.58685115, "gamma": 0.01895058, "vega": 37.901158, "theta": -5.089319, "rho": 49.458109},
+        "put": {"price": 6.330081, "delta": -0.39334753, "gamma": 0.01895058, "vega": 37.901158, "theta": -2.293569, "rho": -45.664833}
+      },
+      "american": {
+        "call": {"price": 9.227006, "note": "American call with q>0 may have premium"},
+        "put": {"price": 6.330081, "note": "BAW put premium expected"}
+      },
+      "iv_round_trip": {
+        "call": {"target_price": 9.227006, "recovered_sigma": 0.20},
+        "put": {"target_price": 6.330081, "recovered_sigma": 0.20}
+      }
+    },
+    {
+      "source": "Analytical BSM — short DTE",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 0.083, "r": 0.05, "q": 0.0, "sigma": 0.20},
+      "european": {
+        "call": {"price": 2.506621, "delta": 0.54015889, "gamma": 0.06888635, "vega": 11.435134, "theta": -16.352734, "rho": 4.275269},
+        "put": {"price": 2.092481, "delta": -0.45984111, "gamma": 0.06888635, "vega": 11.435134, "theta": -11.373441, "rho": -3.990357}
+      },
+      "american": {
+        "call": {"price": 2.506621},
+        "put": {"price": 2.092481}
+      },
+      "iv_round_trip": {
+        "call": {"target_price": 2.506621, "recovered_sigma": 0.20},
+        "put": {"target_price": 2.092481, "recovered_sigma": 0.20}
+      }
+    },
+    {
+      "source": "Analytical BSM — high rate r=0.10",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.10, "q": 0.0, "sigma": 0.20},
+      "european": {
+        "call": {"price": 13.269677},
+        "put": {"price": 3.753418}
+      },
+      "american": {
+        "call": {"price": 13.269677},
+        "put": {"price": 3.753418}
+      },
+      "iv_round_trip": {
+        "call": {"target_price": 13.269677, "recovered_sigma": 0.20},
+        "put": {"target_price": 3.753418, "recovered_sigma": 0.20}
+      }
+    },
+    {
+      "source": "Analytical BSM — very high vol sigma=0.50",
+      "parameters": {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "q": 0.0, "sigma": 0.50},
+      "european": {
+        "call": {"price": 21.792604},
+        "put": {"price": 16.915547}
+      },
+      "american": {
+        "call": {"price": 21.792604},
+        "put": {"price": 16.915547}
+      },
+      "iv_round_trip": {
+        "call": {"target_price": 21.792604, "recovered_sigma": 0.50},
+        "put": {"target_price": 16.915547, "recovered_sigma": 0.50}
+      }
+    },
+    {
+      "source": "Analytical BSM — ITM call K=80 low vol sigma=0.10",
+      "parameters": {"S": 100.0, "K": 80.0, "T": 0.25, "r": 0.02, "q": 0.0, "sigma": 0.10},
+      "european": {
+        "call": {"price": 20.397459},
+        "put": {"price": 0.000000, "note": "Deep OTM put, price effectively zero"}
+      },
+      "american": {
+        "call": {"price": 20.397459},
+        "put": {"price": 0.000000}
+      },
+      "iv_round_trip": {
+        "call": {"target_price": 20.397459, "recovered_sigma": 0.10}
+      }
+    }
+  ]
+}
