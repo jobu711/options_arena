@@ -21,6 +21,7 @@ from options_arena.models.enums import GreeksSource, OptionType, SignalDirection
 from options_arena.models.filters import OptionsFilters
 from options_arena.models.options import OptionContract
 from options_arena.pricing.dispatch import option_greeks, option_iv, option_second_order_greeks
+from options_arena.pricing.iv_smoothing import smooth_iv_parity
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +161,8 @@ def compute_greeks(
     spot: float,
     risk_free_rate: float,
     dividend_yield: float,
+    *,
+    use_parity_smoothing: bool = True,
 ) -> list[OptionContract]:
     """Compute or preserve Greeks for each contract using three-tier resolution.
 
@@ -169,6 +172,10 @@ def compute_greeks(
 
     **Tier 2** — Contract has no ``greeks``: compute via ``pricing/dispatch.py``
     (existing behavior), set ``greeks_source=GreeksSource.COMPUTED``.
+    When ``use_parity_smoothing`` is True and both call and put exist at the
+    same (strike, expiration), the smoothed IV from ``smooth_iv_parity()``
+    replaces the raw ``market_iv`` as sigma, and
+    ``greeks_source=GreeksSource.SMOOTHED``.
 
     **Tier 3** — Local computation fails: contract excluded (logged at warning).
 
@@ -181,12 +188,22 @@ def compute_greeks(
         spot: Current underlying price.
         risk_free_rate: Annualized risk-free rate (decimal).
         dividend_yield: Continuous dividend yield (decimal).
+        use_parity_smoothing: When True, group contracts by (strike, expiration)
+            and apply IV smoothing via put-call parity spread weighting when
+            both call and put exist at the same strike/expiration.
 
     Returns:
         List of new ``OptionContract`` instances with ``greeks`` populated.
         May be shorter than the input if some contracts fail.
     """
     result: list[OptionContract] = []
+
+    # Build call/put pair lookup for IV smoothing
+    pairs: dict[tuple[Decimal, date], dict[str, OptionContract]] = {}
+    if use_parity_smoothing:
+        for c in contracts:
+            key = (c.strike, c.expiration)
+            pairs.setdefault(key, {})[c.option_type.value] = c
 
     for contract in contracts:
         # ------------------------------------------------------------------
@@ -221,6 +238,45 @@ def compute_greeks(
 
             strike_f = float(contract.strike)
             sigma = contract.market_iv
+
+            # Attempt IV smoothing via put-call parity when a paired contract exists
+            smoothed_iv_value: float | None = None
+            if use_parity_smoothing:
+                key = (contract.strike, contract.expiration)
+                pair = pairs.get(key, {})
+                other_type = "put" if contract.option_type == OptionType.CALL else "call"
+                other = pair.get(other_type)
+                if (
+                    other is not None
+                    and math.isfinite(other.market_iv)
+                    and other.market_iv > 0
+                    and math.isfinite(sigma)
+                    and sigma > 0
+                ):
+                    smoothed_iv_value = smooth_iv_parity(
+                        call_iv=(
+                            sigma if contract.option_type == OptionType.CALL else other.market_iv
+                        ),
+                        put_iv=(
+                            other.market_iv if contract.option_type == OptionType.CALL else sigma
+                        ),
+                        call_bid=float(
+                            contract.bid if contract.option_type == OptionType.CALL else other.bid
+                        ),
+                        call_ask=float(
+                            contract.ask if contract.option_type == OptionType.CALL else other.ask
+                        ),
+                        put_bid=float(
+                            other.bid if contract.option_type == OptionType.CALL else contract.bid
+                        ),
+                        put_ask=float(
+                            other.ask if contract.option_type == OptionType.CALL else contract.ask
+                        ),
+                    )
+                    if math.isfinite(smoothed_iv_value) and smoothed_iv_value > 0:
+                        sigma = smoothed_iv_value
+                    else:
+                        smoothed_iv_value = None
 
             # If market_iv is suspect, attempt IV solve using mid price
             if not math.isfinite(sigma) or sigma <= 0.0 or sigma > 5.0:
@@ -303,11 +359,15 @@ def compute_greeks(
             # OptionContract is frozen — model_copy skips validators on ALL
             # fields (including updated ones). Safe here because greeks was
             # constructed via OptionGreeks(...) and sigma passed isfinite above.
+            greeks_source = (
+                GreeksSource.SMOOTHED if smoothed_iv_value is not None else GreeksSource.COMPUTED
+            )
             new_contract = contract.model_copy(
                 update={
                     "greeks": greeks,
                     "market_iv": sigma,
-                    "greeks_source": GreeksSource.COMPUTED,
+                    "smoothed_iv": smoothed_iv_value,
+                    "greeks_source": greeks_source,
                 },
             )
             result.append(new_contract)
@@ -361,16 +421,27 @@ def select_by_delta(
     contracts: list[OptionContract],
     filters: OptionsFilters | None = None,
     delta_target: float = _DEFAULT_DELTA_TARGET,
+    *,
+    direction: SignalDirection | None = None,
+    surface_residuals: dict[tuple[Decimal, date], float] | None = None,
 ) -> OptionContract | None:
     """Select the contract with delta closest to the target.
 
     Uses ``abs(delta)`` for comparison so that puts (negative delta) and
     calls (positive delta) are treated symmetrically.
 
+    When ``direction`` and ``surface_residuals`` are provided, a secondary
+    tiebreaker favours contracts with direction-favorable vol mispricing:
+    BULLISH prefers underpriced (lower residual = cheaper vol), BEARISH
+    prefers overpriced (higher residual = richer vol to sell).
+
     Args:
         contracts: Contracts with greeks already computed.
         filters: Options filter configuration. Uses ``OptionsFilters()`` defaults if None.
         delta_target: Target delta value (from ``PricingConfig``).
+        direction: Signal direction for vol-mispricing tiebreaker.
+        surface_residuals: Map of ``(strike, expiration)`` to IV surface
+            residual z-score. Positive = IV above fitted surface (overpriced).
 
     Returns:
         Best contract by delta proximity, or ``None`` if no contract has
@@ -399,13 +470,37 @@ def select_by_delta(
         elif cfg.delta_fallback_min <= abs_delta <= cfg.delta_fallback_max:
             fallback.append((contract, distance))
 
+    def _vol_tiebreaker(c: OptionContract) -> float:
+        """Compute vol-mispricing tiebreaker for sort key.
+
+        Returns a float where lower = better for the given direction.
+        """
+        if not surface_residuals or not direction:
+            return 0.0
+        key = (c.strike, c.expiration)
+        residual = surface_residuals.get(key)
+        if residual is None or not math.isfinite(residual):
+            return 0.0
+        if direction == SignalDirection.BULLISH:
+            # Lower residual = underpriced vol = better for buying
+            return residual
+        if direction == SignalDirection.BEARISH:
+            # Higher residual = overpriced vol = better for selling (negate)
+            return -residual
+        # NEUTRAL — no tiebreaker
+        return 0.0
+
     if primary:
-        # Sort by effective distance (delta_distance / liquidity), then by strike
-        def _sort_key(pair: tuple[OptionContract, float]) -> tuple[float, Decimal]:
+        # Sort by effective distance (delta_distance / liquidity),
+        # then vol tiebreaker, then strike
+        def _sort_key(
+            pair: tuple[OptionContract, float],
+        ) -> tuple[float, float, Decimal]:
             c, delta_dist = pair
             liq = _compute_liquidity_score(c, cfg.max_spread_pct)
             effective = delta_dist / max(liq, 0.01)
-            return (effective, c.strike)
+            tb = _vol_tiebreaker(c)
+            return (effective, tb, c.strike)
 
         primary.sort(key=_sort_key)
         best, best_distance = primary[0]
@@ -419,11 +514,14 @@ def select_by_delta(
 
     if fallback:
 
-        def _sort_key_fb(pair: tuple[OptionContract, float]) -> tuple[float, Decimal]:
+        def _sort_key_fb(
+            pair: tuple[OptionContract, float],
+        ) -> tuple[float, float, Decimal]:
             c, delta_dist = pair
             liq = _compute_liquidity_score(c, cfg.max_spread_pct)
             effective = delta_dist / max(liq, 0.01)
-            return (effective, c.strike)
+            tb = _vol_tiebreaker(c)
+            return (effective, tb, c.strike)
 
         fallback.sort(key=_sort_key_fb)
         best_fb, best_fb_distance = fallback[0]
@@ -446,6 +544,8 @@ def recommend_contracts(
     dividend_yield: float,
     filters: OptionsFilters | None = None,
     delta_target: float = _DEFAULT_DELTA_TARGET,
+    *,
+    surface_residuals: dict[tuple[Decimal, date], float] | None = None,
 ) -> list[OptionContract]:
     """Run the full recommendation pipeline: filter -> expiration -> greeks -> delta.
 
@@ -457,6 +557,8 @@ def recommend_contracts(
         dividend_yield: Continuous dividend yield (decimal).
         filters: Options filter configuration. Uses ``OptionsFilters()`` defaults if None.
         delta_target: Target delta value (from ``PricingConfig``).
+        surface_residuals: Map of ``(strike, expiration)`` to IV surface
+            residual z-score for vol-mispricing tiebreaker.
 
     Returns:
         List of 0 or 1 recommended contracts.
@@ -484,8 +586,14 @@ def recommend_contracts(
         logger.info("recommend_contracts: Greeks computation failed for all contracts")
         return []
 
-    # Step 5: Select by delta
-    best = select_by_delta(with_greeks, cfg, delta_target)
+    # Step 5: Select by delta (with optional vol-mispricing tiebreaker)
+    best = select_by_delta(
+        with_greeks,
+        cfg,
+        delta_target,
+        direction=direction,
+        surface_residuals=surface_residuals,
+    )
     if best is None:
         logger.info("recommend_contracts: no contracts matched delta target")
         return []

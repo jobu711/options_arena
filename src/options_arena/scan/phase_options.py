@@ -29,7 +29,11 @@ import pandas as pd
 
 from options_arena.data import Repository
 from options_arena.indicators.options_specific import max_pain
-from options_arena.indicators.vol_surface import VolSurfaceResult, compute_vol_surface
+from options_arena.indicators.vol_surface import (
+    VolSurfaceResult,
+    compute_surface_indicators,
+    compute_vol_surface,
+)
 from options_arena.models import (
     IndicatorSignals,
     MarketRegime,
@@ -144,6 +148,10 @@ _PHASE3_FIELDS: tuple[str, ...] = (
     "skew_25d",
     "smile_curvature",
     "prob_above_current",
+    # Volatility Intelligence: Surface Mispricing
+    "iv_surface_residual",
+    "surface_fit_r2",
+    "surface_is_1d",
 )
 
 
@@ -537,13 +545,15 @@ async def process_ticker_options(
 
     # Compute Phase 3 DSE indicators (IV analytics, flow, fundamental, RS)
     ohlcv_list = ohlcv_map.get(ticker)
+    vol_result: VolSurfaceResult | None = None
+    vs_strikes: np.ndarray | None = None
+    vs_dtes: np.ndarray | None = None
     if ohlcv_list is not None and len(ohlcv_list) > 0:
         try:
             ticker_df = ohlcv_to_dataframe(ohlcv_list)
             close_series: pd.Series = ticker_df["close"]
 
             # Compute vol surface from option chain (graceful degradation on failure)
-            vol_result: VolSurfaceResult | None = None
             try:
                 if len(all_contracts) >= 3:
                     vs_strikes = np.array([float(c.strike) for c in all_contracts], dtype=float)
@@ -601,6 +611,19 @@ async def process_ticker_options(
             )
             return (ticker, [], earnings_date, entry_stock_price)
 
+    # Build surface residuals mapping for direction-aware delta tiebreaker
+    _surface_residuals: dict[tuple[Decimal, date], float] | None = None
+    if (
+        vol_result is not None
+        and vol_result.z_scores is not None
+        and vs_strikes is not None
+        and vs_dtes is not None
+    ):
+        _surface_residuals = {}
+        for i, c in enumerate(all_contracts):
+            if i < len(vol_result.z_scores) and math.isfinite(vol_result.z_scores[i]):
+                _surface_residuals[(c.strike, c.expiration)] = float(vol_result.z_scores[i])
+
     recommended = _recommend(
         contracts=all_contracts,
         direction=ticker_score.direction,
@@ -609,7 +632,32 @@ async def process_ticker_options(
         dividend_yield=ticker_info.dividend_yield,
         filters=options_filters,
         delta_target=pricing_config.delta_target,
+        surface_residuals=_surface_residuals,
     )
+
+    # Compute surface indicators for the recommended contract
+    if recommended and vol_result is not None and vs_strikes is not None and vs_dtes is not None:
+        try:
+            first_rec = recommended[0]
+            surf_ind = compute_surface_indicators(
+                result=vol_result,
+                contract_strike=float(first_rec.strike),
+                contract_dte=float(first_rec.dte),
+                strikes=vs_strikes,
+                dtes=vs_dtes,
+            )
+            if surf_ind.iv_surface_residual is not None:
+                ticker_score.signals.iv_surface_residual = surf_ind.iv_surface_residual
+            if surf_ind.surface_fit_r2 is not None:
+                ticker_score.signals.surface_fit_r2 = surf_ind.surface_fit_r2
+            if surf_ind.surface_is_1d is not None:
+                ticker_score.signals.surface_is_1d = 1.0 if surf_ind.surface_is_1d else 0.0
+        except Exception:
+            logger.warning(
+                "Surface indicators failed for %s; continuing without",
+                ticker,
+                exc_info=True,
+            )
 
     return (ticker, recommended, earnings_date, entry_stock_price)
 

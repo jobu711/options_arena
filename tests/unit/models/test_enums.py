@@ -333,27 +333,33 @@ class TestScanPreset:
 
 
 # ---------------------------------------------------------------------------
-# GreeksSource (2 members)
+# GreeksSource (3 members)
 # ---------------------------------------------------------------------------
 
 
 class TestGreeksSource:
-    def test_greeks_source_has_exactly_two_members(self) -> None:
-        assert len(GreeksSource) == 2
+    def test_greeks_source_has_exactly_three_members(self) -> None:
+        assert len(GreeksSource) == 3
 
     def test_greeks_source_values_are_lowercase(self) -> None:
         assert GreeksSource.COMPUTED == "computed"
         assert GreeksSource.MARKET == "market"
+        assert GreeksSource.SMOOTHED == "smoothed"
 
     def test_greeks_source_is_str_enum(self) -> None:
         assert issubclass(GreeksSource, StrEnum)
 
     def test_greeks_source_exhaustive_iteration(self) -> None:
-        assert set(GreeksSource) == {GreeksSource.COMPUTED, GreeksSource.MARKET}
+        assert set(GreeksSource) == {
+            GreeksSource.COMPUTED,
+            GreeksSource.MARKET,
+            GreeksSource.SMOOTHED,
+        }
 
     def test_greeks_source_string_serialization(self) -> None:
         assert str(GreeksSource.COMPUTED) == "computed"
         assert str(GreeksSource.MARKET) == "market"
+        assert str(GreeksSource.SMOOTHED) == "smoothed"
 
 
 # ---------------------------------------------------------------------------

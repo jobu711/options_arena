@@ -136,12 +136,14 @@ class ScanSource(StrEnum):
 class GreeksSource(StrEnum):
     """Source of Greeks values on an option contract.
 
-    COMPUTED — locally computed via ``pricing/dispatch.py`` (BAW or BSM).
-    MARKET   — sourced from market data provider (not used in MVP).
+    COMPUTED  — locally computed via ``pricing/dispatch.py`` (BAW or BSM).
+    MARKET    — sourced from market data provider (not used in MVP).
+    SMOOTHED  — IV smoothed via put-call parity spread weighting.
     """
 
     COMPUTED = "computed"
     MARKET = "market"
+    SMOOTHED = "smoothed"
 
 
 class VolAssessment(StrEnum):

@@ -175,6 +175,11 @@ class MarketContext(BaseModel):
     smile_curvature: float | None = None  # butterfly spread curvature measure
     prob_above_current: float | None = None  # risk-neutral probability [0.0, 1.0]
 
+    # --- Volatility Intelligence: Surface Mispricing ---
+    iv_surface_residual: float | None = None  # z-score: contract IV vs fitted surface
+    surface_fit_r2: float | None = None  # surface fit quality [0, 1]
+    surface_is_1d: bool | None = None  # True if single-DTE fallback used
+
     # --- Financial Datasets enrichment (fd_* prefix) ---
     fd_revenue: float | None = None
     fd_net_income: float | None = None
@@ -224,8 +229,8 @@ class MarketContext(BaseModel):
             self.short_ratio,
             self.short_pct_of_float,
         ]
-        # Only count Greeks when contracts are available — without contracts,
-        # Greeks are inherently absent and shouldn't lower the ratio.
+        # Only count Greeks and surface indicators when contracts are available —
+        # without contracts, these are inherently absent and shouldn't lower the ratio.
         if self.contract_mid is not None:
             checkable_fields.extend(
                 [
@@ -233,6 +238,8 @@ class MarketContext(BaseModel):
                     self.target_theta,
                     self.target_vega,
                     self.target_rho,
+                    self.iv_surface_residual,
+                    self.surface_fit_r2,
                 ]
             )
         if not checkable_fields:
@@ -416,6 +423,9 @@ class MarketContext(BaseModel):
         "hv_yang_zhang",
         "skew_25d",
         "smile_curvature",
+        # Volatility Intelligence: Surface Mispricing
+        # (surface_fit_r2 has its own range validator; iv_surface_residual checked here)
+        "iv_surface_residual",
         # Financial Datasets enrichment
         "fd_revenue",
         "fd_net_income",
@@ -450,6 +460,17 @@ class MarketContext(BaseModel):
                 raise ValueError(f"prob_above_current must be finite, got {v}")
             if not 0.0 <= v <= 1.0:
                 raise ValueError(f"prob_above_current must be in [0, 1], got {v}")
+        return v
+
+    @field_validator("surface_fit_r2")
+    @classmethod
+    def validate_surface_fit_r2(cls, v: float | None) -> float | None:
+        """Ensure surface_fit_r2 is finite and within [0.0, 1.0] when provided."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"surface_fit_r2 must be finite, got {v}")
+            if not 0.0 <= v <= 1.0:
+                raise ValueError(f"surface_fit_r2 must be in [0, 1], got {v}")
         return v
 
     @field_validator("contract_mid")

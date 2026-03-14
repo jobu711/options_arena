@@ -526,6 +526,23 @@ def render_volatility_context(ctx: MarketContext) -> str:
         rendered = _render_optional(label, value, fmt)
         if rendered is not None:
             nq_vol_lines.append(rendered)
+
+    # Surface mispricing (volatility-intelligence epic)
+    if ctx.iv_surface_residual is not None and math.isfinite(ctx.iv_surface_residual):
+        z = ctx.iv_surface_residual
+        if abs(z) > 2.0:
+            classification = "significantly overpriced" if z > 0 else "significantly underpriced"
+        elif z > 0.5:
+            classification = "overpriced"
+        elif z < -0.5:
+            classification = "underpriced"
+        else:
+            classification = "fair"
+        nq_vol_lines.append(f"IV VS SURFACE: {z:+.2f} std devs ({classification})")
+    rendered_r2 = _render_optional("SURFACE R²", ctx.surface_fit_r2, ".2f")
+    if rendered_r2 is not None:
+        nq_vol_lines.append(rendered_r2)
+
     if nq_vol_lines:
         lines.append("")
         lines.append("## HV & Vol Surface")

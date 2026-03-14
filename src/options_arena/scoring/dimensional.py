@@ -54,6 +54,9 @@ FAMILY_INDICATOR_MAP: dict[str, list[str]] = {
         "skew_25d",
         "smile_curvature",
         "prob_above_current",
+        "iv_surface_residual",
+        "surface_fit_r2",
+        "surface_is_1d",
     ],
     "hv_vol": [
         "bb_width",

@@ -601,23 +601,75 @@ def _standalone_implied_move(
 class VolSurfaceIndicators(NamedTuple):
     """Indicator signals derived from fitted vol surface.
 
-    Stub — fields will be added by the ``volatility-intelligence`` epic.
+    Fields:
+        iv_surface_residual: z-score of the contract's IV versus the fitted
+            surface.  Positive means the contract is "cheap" (IV below surface);
+            negative means "expensive".  ``None`` when the contract cannot be
+            located in the surface arrays or when the surface is a standalone
+            fallback.
+        surface_fit_r2: R-squared of the surface fit, in ``[0, 1]``.  ``None``
+            when no fitted surface is available.
+        surface_is_1d: ``True`` when a single-DTE 1-D fallback was used instead
+            of the full 2-D spline.  ``None`` when the surface result is
+            insufficient.
     """
 
+    iv_surface_residual: float | None = None
+    surface_fit_r2: float | None = None
+    surface_is_1d: bool | None = None
 
-def compute_surface_indicators(result: VolSurfaceResult) -> VolSurfaceIndicators:
+
+def compute_surface_indicators(
+    result: VolSurfaceResult,
+    contract_strike: float,
+    contract_dte: float,
+    strikes: np.ndarray,
+    dtes: np.ndarray,
+) -> VolSurfaceIndicators:
     """Map per-contract z-scores from fitted surface to indicator signals.
-
-    Stub -- completed by the ``volatility-intelligence`` epic.
 
     Parameters
     ----------
     result
         Output of :func:`compute_vol_surface`.
+    contract_strike
+        Strike price of the contract to look up.
+    contract_dte
+        Days-to-expiration of the contract to look up.
+    strikes
+        Array of strike prices corresponding to the surface z-scores.
+    dtes
+        Array of DTEs corresponding to the surface z-scores.
 
     Returns
     -------
     VolSurfaceIndicators
-        Empty (stub).
+        Surface-derived indicators for the contract.  All ``None`` when the
+        surface result is a standalone fallback or has no z-scores.
     """
-    return VolSurfaceIndicators()
+    if result.is_standalone_fallback or result.z_scores is None:
+        return VolSurfaceIndicators()
+
+    # Find the index where strikes[i] ≈ contract_strike AND dtes[i] ≈ contract_dte
+    strike_match = np.isclose(strikes, contract_strike)
+    dte_match = np.isclose(dtes, contract_dte)
+    combined_mask = strike_match & dte_match
+
+    matching_indices = np.flatnonzero(combined_mask)
+
+    if len(matching_indices) > 0:
+        idx = int(matching_indices[0])
+        z_score = float(result.z_scores[idx])
+        residual: float | None = z_score if math.isfinite(z_score) else None
+        return VolSurfaceIndicators(
+            iv_surface_residual=residual,
+            surface_fit_r2=result.r_squared,
+            surface_is_1d=result.is_1d_fallback,
+        )
+
+    # No matching contract found — still return R² and is_1d
+    return VolSurfaceIndicators(
+        iv_surface_residual=None,
+        surface_fit_r2=result.r_squared,
+        surface_is_1d=result.is_1d_fallback,
+    )

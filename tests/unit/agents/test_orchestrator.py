@@ -936,8 +936,8 @@ class TestQualityGate:
         """Completeness between 40% and 60% logs a caution warning but proceeds."""
         import logging
 
-        # Build a score with 7 of 15 fields populated = ~47%
-        # (2 indicators + atm_iv_30d from contract + 4 Greeks = 7/15)
+        # Build a score with 9 of 19 fields populated = ~47%
+        # (4 indicators + atm_iv_30d from contract + 4 Greeks = 9/19)
         score = TickerScore(
             ticker="AAPL",
             composite_score=72.5,
@@ -946,6 +946,8 @@ class TestQualityGate:
                 rsi=62.3,
                 adx=28.4,
                 sma_alignment=0.7,
+                iv_surface_residual=0.5,
+                surface_fit_r2=0.85,
             ),
             scan_run_id=1,
         )
