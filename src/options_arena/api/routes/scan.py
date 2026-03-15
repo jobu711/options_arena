@@ -24,7 +24,9 @@ from options_arena.api.schemas import (
     PaginatedResponse,
     ScanRequest,
     ScanStarted,
+    SpreadDetail,
     TickerDetail,
+    spread_detail_from_analysis,
 )
 from options_arena.api.ws import WebSocketProgressBridge
 from options_arena.data import Repository
@@ -426,11 +428,27 @@ async def get_ticker_detail(
         raise HTTPException(404, f"Ticker {ticker_upper} not found in scan {scan_id}")
     all_contracts = await repo.get_contracts_for_scan(scan_id)
     ticker_contracts = [c for c in all_contracts if c.ticker == ticker_upper]
+
+    # Fetch spread data for this ticker (#521)
+    spread_detail: SpreadDetail | None = None
+    try:
+        spread_analysis = await repo.get_spread_for_ticker(scan_id, ticker_upper)
+        if spread_analysis is not None:
+            spread_detail = spread_detail_from_analysis(spread_analysis)
+    except Exception:
+        logger.warning(
+            "Failed to fetch spread for ticker %s in scan %d",
+            ticker_upper,
+            scan_id,
+            exc_info=True,
+        )
+
     return TickerDetail(
         ticker=match.ticker,
         composite_score=match.composite_score,
         direction=match.direction,
         contracts=ticker_contracts,
+        spread=spread_detail,
     )
 
 

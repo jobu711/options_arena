@@ -23,6 +23,7 @@ from options_arena.models import (
     FlowThesis,
     FundamentalThesis,
     RiskAssessment,
+    SpreadAnalysis,
     TradeThesis,
     VolatilityThesis,
 )
@@ -404,6 +405,59 @@ def render_contrarian_panel(contra: ContrarianThesis) -> Panel:
         title="CONTRARIAN ANALYSIS",
         title_align="left",
     )
+
+
+_UNLIMITED_SENTINEL = "999999.99"
+
+
+def render_spread_panel(console: Console, spread: SpreadAnalysis) -> None:
+    """Render a spread strategy as a Rich table with P&L summary.
+
+    Handles edge cases: NaN risk/reward shows ``--``, unlimited max profit
+    (sentinel ``Decimal("999999.99")``) shows ``Unlimited``, missing delta
+    shows ``--``.
+
+    Args:
+        console: Rich Console instance for stdout output.
+        spread: SpreadAnalysis from the scoring/data layer.
+    """
+    console.print()
+    # Text() prevents bracket interpretation from spread type values
+    console.print(Text(f"Strategy: {spread.spread.spread_type.value.upper()}", style="bold cyan"))
+
+    table = Table(title="Spread Legs")
+    table.add_column("Side", style="bold")
+    table.add_column("Type")
+    table.add_column("Strike", justify="right")
+    table.add_column("Exp")
+    table.add_column("Bid", justify="right")
+    table.add_column("Ask", justify="right")
+    table.add_column("Delta", justify="right")
+
+    for leg in spread.spread.legs:
+        contract = leg.contract
+        delta_str = f"{contract.greeks.delta:.3f}" if contract.greeks is not None else "--"
+        table.add_row(
+            leg.side.value.upper(),
+            contract.option_type.value.upper(),
+            f"${contract.strike}",
+            str(contract.expiration),
+            f"${contract.bid}" if contract.bid else "--",
+            f"${contract.ask}" if contract.ask else "--",
+            delta_str,
+        )
+    console.print(table)
+
+    # P&L summary
+    max_profit_str = (
+        "Unlimited" if str(spread.max_profit) == _UNLIMITED_SENTINEL else f"${spread.max_profit}"
+    )
+    console.print(Text(f"  Net Premium: ${spread.net_premium}"))
+    console.print(Text(f"  Max Profit: {max_profit_str}  |  Max Loss: ${spread.max_loss}"))
+
+    pop_str = f"{spread.pop_estimate:.1%}" if math.isfinite(spread.pop_estimate) else "--"
+    rr_str = f"{spread.risk_reward_ratio:.2f}" if math.isfinite(spread.risk_reward_ratio) else "--"
+    console.print(Text(f"  PoP: {pop_str}  |  Risk/Reward: {rr_str}"))
 
 
 def render_debate_panels(console: Console, result: DebateResult) -> None:
