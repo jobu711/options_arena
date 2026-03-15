@@ -58,6 +58,7 @@ from options_arena.models.config import (
     ServiceConfig,
     SpreadConfig,
 )
+from options_arena.models.correlation import CorrelationMatrix, PairwiseCorrelation
 from options_arena.models.enums import (
     INDUSTRY_GROUP_ALIASES,
     SECTOR_ALIASES,
@@ -281,4 +282,7 @@ __all__ = [
     "AuditFinding",
     "AuditLayerSummary",
     "AuditReport",
+    # Correlation
+    "CorrelationMatrix",
+    "PairwiseCorrelation",
 ]

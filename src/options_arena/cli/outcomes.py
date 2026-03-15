@@ -12,11 +12,13 @@ import math
 from pathlib import Path
 from typing import Annotated
 
+import pandas as pd
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from options_arena.agents import auto_tune_weights
+from options_arena.analysis.correlation import compute_correlation_matrix
 from options_arena.cli.app import app
 from options_arena.data import Database, Repository
 from options_arena.models.config import AppSettings
@@ -757,3 +759,132 @@ async def _risk_metrics_async(lookback_days: int) -> None:
         raise typer.Exit(code=1) from exc
     finally:
         await db.close()
+
+
+# ---------------------------------------------------------------------------
+# Portfolio correlation matrix
+# ---------------------------------------------------------------------------
+
+
+@outcomes_app.command("correlation")
+def correlation_cmd(
+    tickers: Annotated[
+        str | None,
+        typer.Option("--tickers", help="Comma-separated tickers (e.g. AAPL,MSFT)"),
+    ] = None,
+) -> None:
+    """Show pairwise correlation matrix for specified tickers."""
+    asyncio.run(_correlation_async(tickers))
+
+
+async def _correlation_async(tickers_str: str | None) -> None:
+    """Compute and display portfolio correlation matrix."""
+    if tickers_str is None or not tickers_str.strip():
+        err_console.print("[red]No tickers specified. Use --tickers AAPL,MSFT,GOOG[/red]")
+        raise typer.Exit(code=1)
+
+    ticker_list = [t.strip().upper() for t in tickers_str.split(",") if t.strip()]
+    # Deduplicate
+    ticker_list = list(dict.fromkeys(ticker_list))
+
+    if len(ticker_list) < 2:  # noqa: PLR2004
+        err_console.print("[red]At least 2 tickers are required for correlation analysis.[/red]")
+        raise typer.Exit(code=1)
+
+    settings = AppSettings()
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    cache = ServiceCache(settings.service)
+    limiter = RateLimiter(
+        settings.service.rate_limit_rps, settings.service.max_concurrent_requests
+    )
+    market_data: MarketDataService | None = None
+
+    try:
+        market_data = MarketDataService(settings.service, cache, limiter)
+
+        err_console.print(f"[cyan]Fetching price data for {', '.join(ticker_list)}...[/cyan]")
+
+        # Fetch OHLCV for each ticker
+        price_data: dict[str, pd.DataFrame] = {}
+        batch_result = await market_data.fetch_batch_ohlcv(ticker_list, period="1y")
+        for item in batch_result.succeeded():
+            if item.data:
+                rows = [{"date": bar.date, "Close": float(bar.close)} for bar in item.data]
+                df = pd.DataFrame(rows).set_index("date")
+                price_data[item.ticker] = df
+
+        failed_tickers = [item.ticker for item in batch_result.failed()]
+        if failed_tickers:
+            err_console.print(f"[yellow]Failed to fetch: {', '.join(failed_tickers)}[/yellow]")
+
+        if len(price_data) < 2:  # noqa: PLR2004
+            err_console.print(
+                "[red]Insufficient data: fewer than 2 tickers have valid price history.[/red]"
+            )
+            raise typer.Exit(code=1)
+
+        result = compute_correlation_matrix(price_data, min_overlap=30)
+
+        if not result.pairs:
+            console.print(
+                "[yellow]No pairs with sufficient overlapping data (>= 30 days).[/yellow]"
+            )
+            return
+
+        # Build a Rich table showing the correlation matrix
+        table = Table(title="Portfolio Correlation Matrix (Pearson, log returns)")
+
+        # First column for row ticker
+        table.add_column("", style="bold white", no_wrap=True)
+        for ticker in result.tickers:
+            table.add_column(ticker, justify="right", style="cyan")
+
+        # Build lookup for quick access
+        pair_lookup: dict[tuple[str, str], float] = {}
+        for pair in result.pairs:
+            pair_lookup[(pair.ticker_a, pair.ticker_b)] = pair.correlation
+            pair_lookup[(pair.ticker_b, pair.ticker_a)] = pair.correlation
+
+        for row_ticker in result.tickers:
+            row_values: list[str] = []
+            for col_ticker in result.tickers:
+                if row_ticker == col_ticker:
+                    row_values.append("[bold]1.000[/bold]")
+                else:
+                    corr = pair_lookup.get((row_ticker, col_ticker))
+                    if corr is not None:
+                        if corr >= 0.7:  # noqa: PLR2004
+                            style = "[red]"
+                        elif corr >= 0.3:  # noqa: PLR2004
+                            style = "[yellow]"
+                        elif corr <= -0.3:
+                            style = "[green]"
+                        else:
+                            style = "[dim]"
+                        row_values.append(f"{style}{corr:+.3f}[/{style.strip('[').strip(']')}]")
+                    else:
+                        row_values.append("[dim]--[/dim]")
+            table.add_row(row_ticker, *row_values)
+
+        console.print(table)
+
+        # Summary statistics
+        if result.avg_correlation is not None:
+            console.print(
+                f"\n[dim]Average correlation: {result.avg_correlation:+.3f} "
+                f"({result.pair_count} pairs)[/dim]"
+            )
+
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        logger.exception("Correlation analysis failed")
+        err_console.print(
+            "[red]Correlation analysis failed. Check logs/options_arena.log for details.[/red]"
+        )
+        raise typer.Exit(code=1) from exc
+    finally:
+        if market_data is not None:
+            await market_data.close()
+        await cache.close()
