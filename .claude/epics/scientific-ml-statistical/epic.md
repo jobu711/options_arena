@@ -5,7 +5,7 @@ created: 2026-03-15T14:00:00Z
 progress: 0%
 prd: .claude/prds/scientific-ml-integration.md
 parent: .claude/epics/scientific-ml-integration
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/532
 ---
 
 # Epic A: Statistical Computation Foundation (arch + statsmodels + FRED)
@@ -167,3 +167,19 @@ A1 and A3 can run in parallel. A2 depends on A1. A4 depends on A3. A5 depends on
 | FRED macro series fetched | 8/8 series, <2s batch with caching |
 | Existing test suite | 100% pass (zero regressions) |
 | Default config behavior | Identical to current — all features off |
+
+## Tasks Created
+- [ ] #533 - FRED Service Expansion + MacroContext Model (parallel: true)
+- [ ] #535 - Macro Regime Derivation + Agent Enrichment (parallel: false, depends: #533)
+- [ ] #534 - GARCH/EGARCH Volatility Forecasting + ADF Stationarity (parallel: true)
+- [ ] #536 - Markov-Switching Regime Detection (parallel: false, depends: #534)
+- [ ] #537 - Statistical Pipeline Integration (parallel: false, depends: #533, #535, #534, #536)
+
+Total tasks: 5
+Parallel tasks: 2 (#533, #534 can run in parallel)
+Sequential tasks: 3 (#535 → after #533, #536 → after #534, #537 → after all)
+Estimated total effort: 31-40 hours
+
+## Test Coverage Plan
+Total test files planned: 7
+Total test cases planned: ~74

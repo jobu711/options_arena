@@ -1,15 +1,15 @@
 ---
-allowed-tools: Bash, Read, Glob, Grep, Write, Agent
+allowed-tools: Bash, Read, Glob, Grep, Agent
 ---
 
 # Epic Recap
 
-Generate a browser-based visual walkthrough of what was built in an epic.
+Generate an inline visual recap of what was built in an epic, rendered directly in the
+conversation as formatted markdown with ASCII diagrams.
 
 ## Usage
 ```
 /pm:epic-recap <epic_name>
-/pm:epic-recap <epic_name> --diagrams
 ```
 
 ## Required Rules
@@ -23,8 +23,7 @@ Do not narrate preflight steps. Just do them.
 
 1. **Validate arguments:**
    - Extract `<epic_name>` from `$ARGUMENTS` (first word)
-   - Check for `--diagrams` flag in `$ARGUMENTS`
-   - If no epic name: "Usage: `/pm:epic-recap <epic_name> [--diagrams]`"
+   - If no epic name: "Usage: `/pm:epic-recap <epic_name>`"
 
 2. **Locate epic directory:**
    - Check `.claude/epics/$EPIC_NAME/` first (active/completed)
@@ -73,21 +72,22 @@ git log --all --oneline --grep="$EPIC_NAME" 2>/dev/null | head -30
 git log --all --oneline --grep="#<issue_number>" 2>/dev/null
 ```
 
-### 2. Generate Markdown Recap
+### 2. Generate & Output Inline Recap
 
-Synthesize the gathered data into a **compact** markdown document. Be token-efficient — every
-sentence should carry information. No filler.
+Synthesize the gathered data and **output directly as formatted markdown** in the
+conversation. Be token-efficient — every sentence should carry information. No filler.
 
-**Required sections:**
+**Required sections** (output all of these inline):
 
-```markdown
+---
+
 # Epic Recap: {epic_name}
 
 ## Executive Summary
 
 {2-3 sentences: what was built and why. Pull from epic.md overview.}
 
-## Problem → Solution
+## Problem / Solution
 
 **Problem**: {1-2 sentences from PRD problem statement}
 
@@ -110,6 +110,39 @@ sentence should carry information. No filler.
 {Pull from epic.md "Architecture Decisions" section. For each decision, add a one-line
 annotation: "Held up well", "Required adjustment", or "Not yet validated".}
 
+## Wave Execution
+
+{Show the wave/phase execution strategy with an ASCII diagram:}
+
+```
+Wave 1 (parallel)     Wave 2 (sequential)     Wave 3 (sequential)
+┌─────────────┐       ┌──────────────────┐     ┌──────────────────┐
+│ Task A      │──┐    │ Task D           │──┐  │ Task F           │
+│ Task B      │──┼──▶ │ Task E           │──┼─▶│ Task G           │
+│ Task C      │──┘    └──────────────────┘  │  └──────────────────┘
+└─────────────┘                             │
+                                            ▼
+                              {dependency arrows as needed}
+```
+
+{Adapt the diagram to the actual wave structure of the epic. Use box-drawing
+characters (┌ ┐ └ ┘ │ ─ ┼ ▶ ▼) for clean ASCII art.}
+
+## Module Dependencies
+
+{Show an ASCII dependency graph of modules touched by this epic:}
+
+```
+indicators/hurst.py ──▶ models/indicators.py ──▶ scoring/weights.py
+                                                        │
+analysis/performance.py ──▶ models/analytics.py         ▼
+analysis/position_sizing.py ──────────────────▶ agents/orchestrator.py
+analysis/valuation.py ──▶ models/valuation.py ──┘
+analysis/correlation.py ──▶ models/correlation.py
+```
+
+{Adapt to actual modules. Show data flow direction with arrows.}
+
 ## Task Breakdown
 
 | # | Task | Issue | Status | Commits |
@@ -120,95 +153,25 @@ annotation: "Held up well", "Required adjustment", or "Not yet validated".}
 
 {Only if retro.md exists. Otherwise omit this section entirely.}
 
-- **Duration**: {days} days
+- **Duration**: {wall_clock_time}
 - **Effort**: {proxy_hours}h (estimation ratio: {ratio}x)
 - **Quality**: {post_merge_fixes} post-merge fixes
-```
+- **Tests**: {planned} planned / {actual} delivered
+- **Scope accuracy**: {percentage}
 
-**If `--diagrams` flag is set**, add these additional sections using Mermaid fenced blocks:
+---
 
-````markdown
-## Data Flow
+### 3. Output Summary
 
-```mermaid
-graph LR
-    A[Phase 1: Universe] --> B[Phase 2: Scoring]
-    B --> C[Phase 3: Options]
-    C --> D[Phase 4: Persist]
-    {Add nodes/edges specific to what this epic added or modified}
-```
-
-## Module Dependencies
-
-```mermaid
-graph TD
-    {Show only modules touched by this epic and their dependency relationships}
-```
-````
-
-Build the Mermaid diagrams from:
-- The epic's "Technical Approach" / "Data Flow" sections in `epic.md`
-- The git diff file list (which modules were touched)
-- The architecture boundary table in `CLAUDE.md`
-
-### 3. Render in Browser
-
-Read the HTML template:
-```
-.claude/templates/recap.html
-```
-
-**Prepare the markdown for injection:**
-- The template uses `{{MARKDOWN_CONTENT}}` as the placeholder
-- The markdown will be placed inside a JavaScript template literal (backtick string)
-- You MUST escape these characters in the markdown content:
-  - Backticks (`` ` ``) → `\``
-  - Dollar signs followed by `{` (`${`) → `\${`
-  - Backslashes (`\`) → `\\`
-
-**Write the final HTML:**
-```bash
-# Determine temp directory
-TEMP_DIR=$(mktemp -d 2>/dev/null || echo "$TEMP/epic-recap-$$")
-mkdir -p "$TEMP_DIR"
-```
-
-Use the Write tool to create `$TEMP_DIR/index.html` with the template content,
-replacing `{{EPIC_NAME}}` with the epic name and `{{MARKDOWN_CONTENT}}` with the
-escaped markdown content.
-
-**Serve and open:**
-```bash
-# Find an available port
-PORT=$(python -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()")
-
-# Open browser (cross-platform)
-python -c "import webbrowser; webbrowser.open('http://localhost:$PORT')"
-
-# Serve (this blocks until Ctrl+C)
-cd "$TEMP_DIR" && python -m http.server $PORT --bind 127.0.0.1
-```
-
-Run the server command with `run_in_background: true` so the user can continue working.
-Tell the user the URL and how to stop it.
-
-### 4. Output
+After the full recap, add a one-line summary:
 
 ```
-Epic recap: {epic_name}
-
-  Browser: http://localhost:{port}
-  Sections: {count} sections{, 2 diagrams if --diagrams}
-  Source: {task_count} tasks, {commit_count} commits, {files_changed} files
-
-  Press Ctrl+C in the terminal or stop the background task to shut down the server.
+Recap complete: {task_count} tasks, {commit_count} commits, {files_changed} files changed, {lines_added} lines added
 ```
 
 ## Error Recovery
 
 - If epic branch not found in git: use issue-number grep to find commits. If no commits found,
   show "No git history available" in the What Changed section and skip Metrics.
-- If PRD file not found: omit the "Problem" half of "Problem → Solution", show only "Solution".
-- If template file missing: show error "Template not found: `.claude/templates/recap.html`. Reinstall the template."
-- If port binding fails: retry with a different random port (up to 3 attempts).
-- If browser fails to open: print the URL and tell the user to open it manually.
+- If PRD file not found: omit the "Problem" half of "Problem / Solution", show only "Solution".
+- If retro.md not found: omit Metrics section entirely.

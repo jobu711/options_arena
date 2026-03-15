@@ -20,10 +20,10 @@ Options Arena currently operates as a **batch pipeline tool**: users trigger sca
 ### Why is this important now?
 
 The foundation is ready. Options Arena already has:
-- 6 domain-partitioned AI agents with structured outputs and independent judgment
+- 8 agent modules (bull, bear, risk, volatility, contrarian, flow, fundamental, trend) running a 6-agent debate pipeline with structured outputs and independent judgment
 - Outcome tracking with P&L at T+1/5/10/20 and agent accuracy heatmaps
 - Auto-tuning infrastructure (`compute_auto_tune_weights()`) that derives vote weights from accuracy
-- Background task infrastructure (OutcomeScheduler, operation mutex, WebSocket progress)
+- Background task infrastructure (operation mutex, WebSocket progress)
 - PydanticAI's unused `@agent.tool` capability — agents CAN use tools, we just haven't enabled it
 
 The pieces exist. This PRD assembles them into an agency.
@@ -55,7 +55,7 @@ The pieces exist. This PRD assembles them into an agency.
 
 ### Chosen Approach: Evolve-in-Place
 
-Promote existing 6 debate agents into dual-purpose agents (debate mode + interactive desk mode). Add Advisor agent for routing, monitoring module for alerts, and learning module for self-improvement. The debate system becomes one capability of the agency, not a separate thing.
+Promote existing 8 agent modules (6-agent debate pipeline) into dual-purpose agents (debate mode + interactive desk mode). Add Advisor agent for routing, monitoring module for alerts, and learning module for self-improvement. The debate system becomes one capability of the agency, not a separate thing.
 
 **Why this approach**: Maximizes reuse of existing agent expertise, prompts, and service layer. No duplication — every self-improvement gain benefits both debates and direct queries.
 
@@ -424,10 +424,10 @@ options-arena agency learn playbook
 ## Dependencies
 
 ### Internal
-- Existing 6 debate agents (`agents/`)
+- Existing 8 agent modules / 6-agent debate pipeline (`agents/`)
 - Outcome tracking system (`data/`, `services/outcome_collector.py`)
 - Auto-tune infrastructure (`agents/orchestrator.py :: compute_auto_tune_weights()`)
-- Watchlist system (`data/`, `api/routes/watchlist.py`)
+- Watchlist system — **NOT YET BUILT** (requires: `WatchlistItem` model, Repository CRUD, API routes, CLI subcommand)
 - WebSocket infrastructure (`api/`)
 - Service layer (`services/`)
 

@@ -12,7 +12,7 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
   - `_scan.py`: `ScanMixin` — scan runs, ticker scores, score history
   - `_debate.py`: `DebateMixin` — debate results, agent predictions
   - `_analytics.py`: `AnalyticsMixin` — outcomes, P&L tracking, analytics queries
-  - `_metadata.py`: `MetadataMixin` — ticker metadata, watchlist, universe index
+  - `_metadata.py`: `MetadataMixin` — ticker metadata, universe index
 - `Repository(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin)` — single public class, same API
 - All queries return typed models, never raw dicts
 
@@ -81,8 +81,9 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **Static serving**: Explicit catch-all GET `/{path:path}` route serves static files if they exist,
   otherwise `index.html` for Vue Router history mode. `/assets` mounted via `StaticFiles`.
 
-### Watchlist Pattern
-- SQLite-backed `WatchlistItem` model, Repository CRUD, API `/api/watchlist`, CLI `watchlist`
+### Watchlist Pattern (Planned — Not Yet Built)
+- Planned: SQLite-backed `WatchlistItem` model, Repository CRUD, API `/api/watchlist`, CLI `watchlist`
+- Prerequisite for ai-agency-evolution Epic 4 (Monitoring & Alerts)
 
 ### Score History, Trending & Scan Delta
 - `HistoryPoint`/`TrendingTicker` from scan_runs join ticker_scores; `ScoreHistoryChart`/`SparklineChart`
@@ -118,7 +119,7 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 
 ### Analytics Persistence Pattern (Outcome Tracking)
 - **Contract persistence**: Phase 3 captures `entry_stock_price`; Phase 4 persists `RecommendedContract` + `NormalizationStats`
-- **Outcome collection**: `OutcomeCollector` fetches quotes at T+1/T+5/T+10/T+20, computes P&L; auto-scheduled via `OutcomeScheduler`
+- **Outcome collection**: `OutcomeCollector` fetches quotes at T+1/T+5/T+10/T+20, computes P&L (manual trigger via CLI `outcomes collect`; `OutcomeScheduler` is planned but not yet built)
 - **Expired handling**: ITM -> intrinsic value; OTM -> expired worthless (-100%)
 - **Analytics queries**: 6 typed results + 7 backtesting queries, 16 API endpoints on `/api/analytics`, CLI `outcomes` subcommand
 
