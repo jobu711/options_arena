@@ -10,6 +10,7 @@ from sqlite3 import Row
 
 import numpy as np
 
+from options_arena.analysis.performance import compute_risk_adjusted_metrics
 from options_arena.models import (
     ContractOutcome,
     DeltaPerformanceResult,
@@ -30,6 +31,7 @@ from options_arena.models import (
     PerformanceSummary,
     PricingModel,
     RecommendedContract,
+    RiskAdjustedMetrics,
     ScoreCalibrationBucket,
     SectorPerformanceResult,
     SignalDirection,
@@ -1305,3 +1307,79 @@ class AnalyticsMixin(RepositoryBase):
 
         logger.debug("Holding period comparison: %d groups", len(results))
         return results
+
+    # ------------------------------------------------------------------
+    # Analytics: Risk-Adjusted Metrics
+    # ------------------------------------------------------------------
+
+    async def get_risk_adjusted_metrics(
+        self,
+        lookback_days: int = 365,
+        risk_free_rate: float = 0.05,
+    ) -> RiskAdjustedMetrics:
+        """Compute risk-adjusted performance metrics from outcome data.
+
+        Queries ``contract_outcomes`` for returns and holding days within the
+        lookback window, then delegates to ``compute_risk_adjusted_metrics()``
+        for Sharpe, Sortino, and max drawdown computation.
+
+        Args:
+            lookback_days: Number of calendar days to look back from now.
+            risk_free_rate: Annualized risk-free rate for excess return calculation.
+
+        Returns:
+            ``RiskAdjustedMetrics`` with computed ratios. Ratios are ``None`` when
+            data is insufficient.
+        """
+        conn = self._db.conn
+        cutoff = (datetime.now(UTC) - timedelta(days=lookback_days)).isoformat()
+
+        async with conn.execute(
+            "SELECT co.contract_return_pct, co.holding_days "
+            "FROM contract_outcomes co "
+            "WHERE co.collected_at > ? "
+            "  AND co.contract_return_pct IS NOT NULL "
+            "  AND co.holding_days IS NOT NULL "
+            "ORDER BY co.collected_at ASC",
+            (cutoff,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        if not rows:
+            return RiskAdjustedMetrics(
+                lookback_days=lookback_days,
+                total_trades=0,
+                sharpe_ratio=None,
+                sortino_ratio=None,
+                max_drawdown_pct=None,
+                max_drawdown_date=None,
+                annualized_return_pct=None,
+                risk_free_rate=risk_free_rate,
+            )
+
+        returns: list[float] = []
+        holding_days_list: list[int] = []
+        for row in rows:
+            ret_pct = float(row["contract_return_pct"])
+            hd = int(row["holding_days"])
+            # Convert percentage to fraction (e.g. 5.0 -> 0.05)
+            returns.append(ret_pct / 100.0)
+            holding_days_list.append(hd)
+
+        result = compute_risk_adjusted_metrics(
+            returns=returns,
+            holding_days=holding_days_list,
+            risk_free_rate=risk_free_rate,
+        )
+
+        # Override lookback_days to reflect the query parameter, not the computed sum
+        return RiskAdjustedMetrics(
+            lookback_days=lookback_days,
+            total_trades=result.total_trades,
+            sharpe_ratio=result.sharpe_ratio,
+            sortino_ratio=result.sortino_ratio,
+            max_drawdown_pct=result.max_drawdown_pct,
+            max_drawdown_date=result.max_drawdown_date,
+            annualized_return_pct=result.annualized_return_pct,
+            risk_free_rate=result.risk_free_rate,
+        )
