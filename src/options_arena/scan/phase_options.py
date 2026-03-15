@@ -618,15 +618,24 @@ async def process_ticker_options(
     if (
         vol_result is not None
         and vol_result.z_scores is not None
-        and vs_strikes is not None
-        and vs_dtes is not None
+        and vol_result.fitted_strikes is not None
+        and vol_result.fitted_dtes is not None
     ):
         _surface_residuals = {}
-        for i, c in enumerate(all_contracts):
-            if i < len(vol_result.z_scores) and math.isfinite(vol_result.z_scores[i]):
-                _surface_residuals[(c.option_type, c.strike, c.expiration)] = float(
-                    vol_result.z_scores[i]
-                )
+        # Match z_scores back to contracts using the filtered arrays stored
+        # on VolSurfaceResult (not positional indexing against all_contracts).
+        fit_strikes = vol_result.fitted_strikes
+        fit_dtes = vol_result.fitted_dtes
+        for i in range(len(vol_result.z_scores)):
+            z = vol_result.z_scores[i]
+            if not math.isfinite(z):
+                continue
+            k_val = float(fit_strikes[i])
+            d_val = float(fit_dtes[i])
+            for c in all_contracts:
+                if math.isclose(float(c.strike), k_val) and math.isclose(float(c.dte), d_val):
+                    _surface_residuals[(c.option_type, c.strike, c.expiration)] = float(z)
+                    break
 
     recommended = _recommend(
         contracts=all_contracts,

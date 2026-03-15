@@ -289,9 +289,10 @@ class TestHVYangZhang:
     def test_known_value(self) -> None:
         """Verify Yang-Zhang against manual computation.
 
-        Reference: Yang & Zhang (2000).
-        sigma^2_yz = sigma^2_overnight + k*sigma^2_close + (1-k)*sigma^2_rs
+        Reference: Yang & Zhang (2000) Eq. 6-12.
+        sigma^2_yz = sigma^2_overnight + sigma^2_close + k * sigma^2_rs
         k = 0.34 / (1.34 + (n+1)/(n-1))
+        sigma^2_close uses close-to-open (intraday) returns: ln(C_i / O_i)
         """
         # 6 bars, period=5
         opens = pd.Series([100.0, 102.0, 101.0, 103.0, 100.5, 104.0])
@@ -311,7 +312,8 @@ class TestHVYangZhang:
         c = closes.to_numpy(dtype=float)
 
         overnight = np.log(o[1:] / c[:-1])
-        close_ret = np.log(c[1:] / c[:-1])
+        # Close-to-open (intraday) returns per Yang & Zhang (2000) Eq. 7
+        close_ret = np.log(c[1:] / o[1:])
 
         overnight_mean = np.mean(overnight)
         sigma2_overnight = np.sum((overnight - overnight_mean) ** 2) / (n - 1)
@@ -331,7 +333,8 @@ class TestHVYangZhang:
         sigma2_rs = np.sum(log_hc * log_ho + log_lc * log_lo) / n
 
         k = 0.34 / (1.34 + (n + 1) / (n - 1))
-        variance = sigma2_overnight + k * sigma2_close + (1.0 - k) * sigma2_rs
+        # Per Yang & Zhang (2000) Eq. 12: weights are (1, 1, k)
+        variance = sigma2_overnight + sigma2_close + k * sigma2_rs
         expected = math.sqrt(float(variance) * 252)
 
         assert result == pytest.approx(expected, rel=1e-6)

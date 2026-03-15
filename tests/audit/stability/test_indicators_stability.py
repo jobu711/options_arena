@@ -1878,6 +1878,8 @@ class TestComputeSurfaceIndicatorsStability:
             residuals=None,
             z_scores=None,
             r_squared=None,
+            fitted_strikes=None,
+            fitted_dtes=None,
             is_1d_fallback=False,
             is_standalone_fallback=True,
         )
@@ -1890,6 +1892,8 @@ class TestComputeSurfaceIndicatorsStability:
     def test_surface_indicators_with_z_scores(self) -> None:
         """Result with z_scores returns matching residual."""
         z_scores = np.array([1.5, -0.5, 0.3])
+        strikes = np.array([95.0, 100.0, 105.0])
+        dtes = np.array([30.0, 30.0, 30.0])
         result = VolSurfaceResult(
             skew_25d=0.05,
             smile_curvature=0.10,
@@ -1900,11 +1904,11 @@ class TestComputeSurfaceIndicatorsStability:
             residuals=np.array([0.02, -0.01, 0.005]),
             z_scores=z_scores,
             r_squared=0.95,
+            fitted_strikes=strikes,
+            fitted_dtes=dtes,
             is_1d_fallback=False,
             is_standalone_fallback=False,
         )
-        strikes = np.array([95.0, 100.0, 105.0])
-        dtes = np.array([30.0, 30.0, 30.0])
         indicators = compute_surface_indicators(result, 100.0, 30.0, strikes, dtes)
         assert indicators.iv_surface_residual is not None
         assert indicators.iv_surface_residual == pytest.approx(-0.5, abs=1e-10)
@@ -1914,6 +1918,8 @@ class TestComputeSurfaceIndicatorsStability:
     def test_surface_indicators_no_match(self) -> None:
         """Contract not in surface arrays returns None residual."""
         z_scores = np.array([1.5])
+        strikes = np.array([95.0])
+        dtes = np.array([30.0])
         result = VolSurfaceResult(
             skew_25d=0.05,
             smile_curvature=0.10,
@@ -1924,11 +1930,11 @@ class TestComputeSurfaceIndicatorsStability:
             residuals=np.array([0.02]),
             z_scores=z_scores,
             r_squared=0.95,
+            fitted_strikes=strikes,
+            fitted_dtes=dtes,
             is_1d_fallback=False,
             is_standalone_fallback=False,
         )
-        strikes = np.array([95.0])
-        dtes = np.array([30.0])
         indicators = compute_surface_indicators(result, 200.0, 60.0, strikes, dtes)
         assert indicators.iv_surface_residual is None
         assert indicators.surface_fit_r2 == pytest.approx(0.95, abs=1e-10)

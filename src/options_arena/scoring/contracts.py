@@ -88,7 +88,7 @@ def filter_contracts(
             continue
         else:
             spread_pct = float(contract.spread / contract.mid)
-            if spread_pct > cfg.max_spread_pct:
+            if spread_pct < 0.0 or spread_pct > cfg.max_spread_pct:
                 continue
 
         filtered.append(contract)

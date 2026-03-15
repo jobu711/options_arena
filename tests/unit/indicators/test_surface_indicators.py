@@ -31,6 +31,8 @@ def _make_fitted_result(
     *,
     z_scores: np.ndarray | None = None,
     r_squared: float | None = 0.92,
+    fitted_strikes: np.ndarray | None = None,
+    fitted_dtes: np.ndarray | None = None,
     is_1d_fallback: bool = False,
     is_standalone_fallback: bool = False,
 ) -> VolSurfaceResult:
@@ -48,6 +50,8 @@ def _make_fitted_result(
         residuals=residuals,
         z_scores=z_scores,
         r_squared=r_squared,
+        fitted_strikes=fitted_strikes,
+        fitted_dtes=fitted_dtes,
         is_1d_fallback=is_1d_fallback,
         is_standalone_fallback=is_standalone_fallback,
     )
@@ -63,6 +67,8 @@ _NONE_RESULT = VolSurfaceResult(
     residuals=None,
     z_scores=None,
     r_squared=None,
+    fitted_strikes=None,
+    fitted_dtes=None,
     is_1d_fallback=False,
     is_standalone_fallback=False,
 )
@@ -104,14 +110,15 @@ class TestComputeSurfaceIndicators:
         dtes = np.array([30.0, 30.0, 30.0, 30.0, 30.0])
         z_scores = np.array([-1.2, -0.5, 0.0, 0.8, 1.5])
 
-        result_vol = _make_fitted_result(z_scores=z_scores, r_squared=0.90)
+        result_vol = _make_fitted_result(
+            z_scores=z_scores, r_squared=0.90,
+            fitted_strikes=strikes, fitted_dtes=dtes,
+        )
 
         indicators = compute_surface_indicators(
             result_vol,
             contract_strike=100.0,
             contract_dte=30.0,
-            strikes=strikes,
-            dtes=dtes,
         )
 
         assert indicators.iv_surface_residual is not None
@@ -126,6 +133,7 @@ class TestComputeSurfaceIndicators:
 
         result_vol = _make_fitted_result(
             z_scores=np.array([0.1, 0.2, 0.3]),
+            fitted_strikes=strikes, fitted_dtes=dtes,
             is_standalone_fallback=True,
         )
 
@@ -133,8 +141,6 @@ class TestComputeSurfaceIndicators:
             result_vol,
             contract_strike=100.0,
             contract_dte=30.0,
-            strikes=strikes,
-            dtes=dtes,
         )
 
         assert indicators.iv_surface_residual is None
@@ -143,17 +149,12 @@ class TestComputeSurfaceIndicators:
 
     def test_no_zscores_returns_none(self) -> None:
         """z_scores=None returns residual None; R² is NOT populated (all-None path)."""
-        strikes = np.array([90.0, 100.0, 110.0])
-        dtes = np.array([30.0, 30.0, 30.0])
-
         result_vol = _make_fitted_result(z_scores=None, r_squared=0.85)
 
         indicators = compute_surface_indicators(
             result_vol,
             contract_strike=100.0,
             contract_dte=30.0,
-            strikes=strikes,
-            dtes=dtes,
         )
 
         # z_scores is None → early return with all-None VolSurfaceIndicators
@@ -167,14 +168,15 @@ class TestComputeSurfaceIndicators:
         dtes = np.array([30.0, 30.0, 30.0])
         z_scores = np.array([-0.5, 0.0, 0.5])
 
-        result_vol = _make_fitted_result(z_scores=z_scores, r_squared=0.88)
+        result_vol = _make_fitted_result(
+            z_scores=z_scores, r_squared=0.88,
+            fitted_strikes=strikes, fitted_dtes=dtes,
+        )
 
         indicators = compute_surface_indicators(
             result_vol,
             contract_strike=150.0,  # not in strikes array
             contract_dte=30.0,
-            strikes=strikes,
-            dtes=dtes,
         )
 
         assert indicators.iv_surface_residual is None
@@ -187,15 +189,16 @@ class TestComputeSurfaceIndicators:
         dtes = np.array([30.0, 30.0])
         z_scores = np.array([0.1, 0.2])
 
-        result_vol = _make_fitted_result(z_scores=z_scores, r_squared=0.75)
+        result_vol = _make_fitted_result(
+            z_scores=z_scores, r_squared=0.75,
+            fitted_strikes=strikes, fitted_dtes=dtes,
+        )
 
         # Query a DTE that doesn't match
         indicators = compute_surface_indicators(
             result_vol,
             contract_strike=100.0,
             contract_dte=60.0,  # no 60-day in array
-            strikes=strikes,
-            dtes=dtes,
         )
 
         assert indicators.iv_surface_residual is None
@@ -209,6 +212,7 @@ class TestComputeSurfaceIndicators:
 
         result_vol = _make_fitted_result(
             z_scores=z_scores,
+            fitted_strikes=strikes, fitted_dtes=dtes,
             is_1d_fallback=True,
         )
 
@@ -216,8 +220,6 @@ class TestComputeSurfaceIndicators:
             result_vol,
             contract_strike=100.0,
             contract_dte=30.0,
-            strikes=strikes,
-            dtes=dtes,
         )
 
         assert indicators.surface_is_1d is True
@@ -228,23 +230,22 @@ class TestComputeSurfaceIndicators:
         dtes = np.array([30.0, 30.0, 30.0, 30.0, 30.0])
         z_scores = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
 
-        result_vol = _make_fitted_result(z_scores=z_scores)
+        result_vol = _make_fitted_result(
+            z_scores=z_scores,
+            fitted_strikes=strikes, fitted_dtes=dtes,
+        )
 
         # Query strike=90
         ind_90 = compute_surface_indicators(
             result_vol,
             contract_strike=90.0,
             contract_dte=30.0,
-            strikes=strikes,
-            dtes=dtes,
         )
         # Query strike=110
         ind_110 = compute_surface_indicators(
             result_vol,
             contract_strike=110.0,
             contract_dte=30.0,
-            strikes=strikes,
-            dtes=dtes,
         )
 
         assert ind_90.iv_surface_residual is not None
@@ -263,14 +264,15 @@ class TestComputeSurfaceIndicators:
         dtes = np.array([30.0])
         z_scores = np.array([0.5])
 
-        result_vol = _make_fitted_result(z_scores=z_scores, r_squared=r2_value)
+        result_vol = _make_fitted_result(
+            z_scores=z_scores, r_squared=r2_value,
+            fitted_strikes=strikes, fitted_dtes=dtes,
+        )
 
         indicators = compute_surface_indicators(
             result_vol,
             contract_strike=100.0,
             contract_dte=30.0,
-            strikes=strikes,
-            dtes=dtes,
         )
 
         assert indicators.surface_fit_r2 == pytest.approx(r2_value)
@@ -281,14 +283,15 @@ class TestComputeSurfaceIndicators:
         dtes = np.array([30.0, 30.0, 30.0])
         z_scores = np.array([0.5, float("nan"), 1.0])
 
-        result_vol = _make_fitted_result(z_scores=z_scores, r_squared=0.80)
+        result_vol = _make_fitted_result(
+            z_scores=z_scores, r_squared=0.80,
+            fitted_strikes=strikes, fitted_dtes=dtes,
+        )
 
         indicators = compute_surface_indicators(
             result_vol,
             contract_strike=100.0,
             contract_dte=30.0,
-            strikes=strikes,
-            dtes=dtes,
         )
 
         # z_scores[1] is NaN, so residual should be None
@@ -301,14 +304,15 @@ class TestComputeSurfaceIndicators:
         dtes = np.array([30.0000001])
         z_scores = np.array([1.23])
 
-        result_vol = _make_fitted_result(z_scores=z_scores)
+        result_vol = _make_fitted_result(
+            z_scores=z_scores,
+            fitted_strikes=strikes, fitted_dtes=dtes,
+        )
 
         indicators = compute_surface_indicators(
             result_vol,
             contract_strike=100.0,
             contract_dte=30.0,
-            strikes=strikes,
-            dtes=dtes,
         )
 
         assert indicators.iv_surface_residual is not None

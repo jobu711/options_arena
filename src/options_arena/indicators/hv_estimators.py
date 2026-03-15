@@ -156,12 +156,12 @@ def compute_hv_yang_zhang(
 ) -> float | None:
     """Yang-Zhang (2000) historical volatility estimator.
 
-    Combines overnight (open-to-close) variance, close-to-close variance,
-    and Rogers-Satchell variance. Handles both drift and opening jumps.
-    Minimum variance estimator that is independent of drift and opening gaps.
+    Combines overnight (open-to-previous-close) variance, close-to-open
+    (intraday) variance, and Rogers-Satchell variance. Handles both drift
+    and opening jumps. Minimum variance estimator independent of drift.
 
     Formula:
-        sigma^2_yz = sigma^2_overnight + k * sigma^2_close + (1 - k) * sigma^2_rs
+        sigma^2_yz = sigma^2_overnight + sigma^2_close + k * sigma^2_rs
         k = 0.34 / (1.34 + (n + 1) / (n - 1))
 
     Reference: Yang, D. & Zhang, Q. (2000) "Drift-Independent Volatility
@@ -208,8 +208,9 @@ def compute_hv_yang_zhang(
     # We have (period+1) bars, so overnight returns are from index 1 to end
     overnight_returns: np.ndarray = np.log(o[1:] / c[:-1])
 
-    # Close-to-close returns: ln(close_t / close_{t-1})
-    close_returns: np.ndarray = np.log(c[1:] / c[:-1])
+    # Close-to-open (intraday) returns: ln(close_t / open_t)
+    # Per Yang & Zhang (2000) Eq. 6-9, sigma^2_c uses close-to-open, NOT close-to-close.
+    close_returns: np.ndarray = np.log(c[1:] / o[1:])
 
     # Overnight variance (sample variance, ddof=1)
     overnight_mean: float = float(np.mean(overnight_returns))
@@ -236,8 +237,10 @@ def compute_hv_yang_zhang(
     # k = 0.34 / (1.34 + (n+1)/(n-1))
     k: float = 0.34 / (1.34 + (n + 1) / (n - 1))
 
-    # Combined Yang-Zhang variance
-    variance: float = sigma2_overnight + k * sigma2_close + (1.0 - k) * sigma2_rs
+    # Combined Yang-Zhang variance: sigma^2_o + sigma^2_c + k * sigma^2_rs
+    # Per Yang & Zhang (2000) Eq. 12: overnight and close-to-open get weight 1,
+    # Rogers-Satchell gets weight k.
+    variance: float = sigma2_overnight + sigma2_close + k * sigma2_rs
 
     if not math.isfinite(variance) or variance < 0.0:
         return None

@@ -54,6 +54,10 @@ class VolSurfaceResult(NamedTuple):
     Fields set to ``None`` when insufficient data prevents computation.
     ``fitted_ivs``, ``residuals``, ``z_scores``, ``r_squared`` are ``None``
     when the standalone fallback (Tier 2) is used instead of a fitted surface.
+
+    ``fitted_strikes`` and ``fitted_dtes`` are the filtered arrays that
+    correspond positionally to ``z_scores``.  Consumers MUST use these
+    (not the original unfiltered arrays) for index lookups.
     """
 
     skew_25d: float | None
@@ -65,6 +69,8 @@ class VolSurfaceResult(NamedTuple):
     residuals: np.ndarray | None
     z_scores: np.ndarray | None
     r_squared: float | None
+    fitted_strikes: np.ndarray | None
+    fitted_dtes: np.ndarray | None
     is_1d_fallback: bool
     is_standalone_fallback: bool
 
@@ -79,6 +85,8 @@ _NONE_RESULT = VolSurfaceResult(
     residuals=None,
     z_scores=None,
     r_squared=None,
+    fitted_strikes=None,
+    fitted_dtes=None,
     is_1d_fallback=False,
     is_standalone_fallback=False,
 )
@@ -169,6 +177,8 @@ def compute_vol_surface(
         residuals=None,
         z_scores=None,
         r_squared=None,
+        fitted_strikes=None,
+        fitted_dtes=None,
         is_1d_fallback=False,
         is_standalone_fallback=True,
     )
@@ -314,6 +324,8 @@ def _fit_surface(
         residuals=resid_arr,
         z_scores=z_arr,
         r_squared=r_squared,
+        fitted_strikes=strikes_clean,
+        fitted_dtes=dtes_clean,
         is_1d_fallback=False,
         is_standalone_fallback=False,
     )
@@ -555,13 +567,22 @@ def _standalone_implied_move(
     pdf_strikes = np.empty(n_strikes - 2, dtype=float)
 
     for i in range(1, n_strikes - 1):
-        dk = float(k[i + 1] - k[i - 1]) / 2.0
-        if dk <= 0.0:
+        h1 = float(k[i] - k[i - 1])
+        h2 = float(k[i + 1] - k[i])
+        if h1 <= 0.0 or h2 <= 0.0:
             pdf_k[i - 1] = 0.0
             pdf_strikes[i - 1] = float(k[i])
             continue
-        # Butterfly approximation for PDF
-        d2c = (call_prices[i + 1] - 2.0 * call_prices[i] + call_prices[i - 1]) / (dk * dk)
+        # Unequal-spacing centered second derivative (Breeden-Litzenberger)
+        d2c = (
+            2.0
+            * (
+                call_prices[i + 1] / h2
+                - call_prices[i] * (1.0 / h1 + 1.0 / h2)
+                + call_prices[i - 1] / h1
+            )
+            / (h1 + h2)
+        )
         pdf_k[i - 1] = max(0.0, discount * d2c)
         pdf_strikes[i - 1] = float(k[i])
 
@@ -623,8 +644,8 @@ def compute_surface_indicators(
     result: VolSurfaceResult,
     contract_strike: float,
     contract_dte: float,
-    strikes: np.ndarray,
-    dtes: np.ndarray,
+    strikes: np.ndarray | None = None,
+    dtes: np.ndarray | None = None,
 ) -> VolSurfaceIndicators:
     """Map per-contract z-scores from fitted surface to indicator signals.
 
@@ -637,9 +658,9 @@ def compute_surface_indicators(
     contract_dte
         Days-to-expiration of the contract to look up.
     strikes
-        Array of strike prices corresponding to the surface z-scores.
+        Deprecated — ignored.  Uses ``result.fitted_strikes`` instead.
     dtes
-        Array of DTEs corresponding to the surface z-scores.
+        Deprecated — ignored.  Uses ``result.fitted_dtes`` instead.
 
     Returns
     -------
@@ -650,9 +671,18 @@ def compute_surface_indicators(
     if result.is_standalone_fallback or result.z_scores is None:
         return VolSurfaceIndicators()
 
+    # Use the filtered arrays stored alongside z_scores for correct indexing
+    fit_strikes = result.fitted_strikes
+    fit_dtes = result.fitted_dtes
+    if fit_strikes is None or fit_dtes is None:
+        return VolSurfaceIndicators(
+            surface_fit_r2=result.r_squared,
+            surface_is_1d=result.is_1d_fallback,
+        )
+
     # Find the index where strikes[i] ≈ contract_strike AND dtes[i] ≈ contract_dte
-    strike_match = np.isclose(strikes, contract_strike)
-    dte_match = np.isclose(dtes, contract_dte)
+    strike_match = np.isclose(fit_strikes, contract_strike)
+    dte_match = np.isclose(fit_dtes, contract_dte)
     combined_mask = strike_match & dte_match
 
     matching_indices = np.flatnonzero(combined_mask)

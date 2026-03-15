@@ -129,8 +129,13 @@ def _find_critical_price_call(
     # S* is typically K / (1 - 2 / q2) for the perpetual case; use K as initial seed.
     S_star = K / (1.0 - 2.0 / q2) if q2 > 2.0 else K * 1.5
 
-    # Ensure S_star > K (for calls, exercise boundary is above the strike).
+    # Upper bound: prevent overflow for extreme parameters (high vol, long T).
+    # S* for a call is finite for all valid inputs; cap at a generous multiple.
+    upper_bound = K * 100.0
+
+    # Ensure K * 1.001 <= S_star <= upper_bound.
     S_star = max(S_star, K * 1.001)
+    S_star = min(S_star, upper_bound)
 
     for _ in range(_CRITICAL_PRICE_MAX_ITER):
         bsm_call_val = bsm_price(S_star, K, T, r, q, sigma, OptionType.CALL)
@@ -174,8 +179,9 @@ def _find_critical_price_call(
         # Newton step.
         S_star = S_star - residual / d_residual_dS
 
-        # Ensure S_star remains positive and above K.
+        # Ensure K * 1.001 <= S_star <= upper_bound.
         S_star = max(S_star, K * 1.001)
+        S_star = min(S_star, upper_bound)
 
     logger.warning(
         "BAW critical price (call) did not converge after %d iterations. "
@@ -713,20 +719,29 @@ def american_second_order_greeks(
 
     # -------------------------------------------------------------------
     # Base and sigma-bumped prices (reused across Greeks).
+    # When sigma_dn is clamped, recompute base at the true midpoint to
+    # maintain centered finite-difference accuracy.
     # -------------------------------------------------------------------
-    price_base = american_price(S, K, T, r, q, sigma, option_type)
     price_sigma_up = american_price(S, K, T, r, q, sigma_up, option_type)
     price_sigma_dn = american_price(S, K, T, r, q, sigma_dn, option_type)
+
+    actual_dsigma = sigma_up - sigma_dn
+    sigma_mid = (sigma_up + sigma_dn) / 2.0
+    half_dsigma = actual_dsigma / 2.0
+
+    # Use true midpoint as base for vomma when bumps are asymmetric
+    price_base_sigma = american_price(S, K, T, r, q, sigma_mid, option_type)
 
     # -------------------------------------------------------------------
     # Vomma: d^2V/dsigma^2 via centered second difference on price.
     # -------------------------------------------------------------------
-    actual_dsigma = sigma_up - sigma_dn
-    half_dsigma = actual_dsigma / 2.0
-    vomma = (price_sigma_up - 2.0 * price_base + price_sigma_dn) / (half_dsigma * half_dsigma)
+    vomma = (price_sigma_up - 2.0 * price_base_sigma + price_sigma_dn) / (
+        half_dsigma * half_dsigma
+    )
 
     # -------------------------------------------------------------------
     # Vanna: d^2V/(dS dsigma) via 4-point cross-partial formula.
+    # Uses actual bumped sigma values for consistent grid spacing.
     # -------------------------------------------------------------------
     p_up_s_up_sig = american_price(S + dS, K, T, r, q, sigma_up, option_type)
     p_up_s_dn_sig = american_price(S + dS, K, T, r, q, sigma_dn, option_type)
@@ -734,7 +749,7 @@ def american_second_order_greeks(
     p_dn_s_dn_sig = american_price(S - dS, K, T, r, q, sigma_dn, option_type)
 
     vanna = (p_up_s_up_sig - p_up_s_dn_sig - p_dn_s_up_sig + p_dn_s_dn_sig) / (
-        2.0 * dS * actual_dsigma
+        4.0 * dS * half_dsigma
     )
 
     # -------------------------------------------------------------------

@@ -131,6 +131,8 @@ def _make_vol_result(
         residuals=None,
         z_scores=None,
         r_squared=None,
+        fitted_strikes=None,
+        fitted_dtes=None,
         is_1d_fallback=False,
         is_standalone_fallback=True,
     )
@@ -242,6 +244,8 @@ class TestVolSurfaceWiring:
             residuals=None,
             z_scores=None,
             r_squared=None,
+            fitted_strikes=None,
+            fitted_dtes=None,
             is_1d_fallback=False,
             is_standalone_fallback=True,
         )
