@@ -83,7 +83,7 @@ class TestEarningsReorder:
             pricing_config=PricingConfig(),
         )
 
-        ticker, contracts, earnings, _price = result
+        ticker, contracts, earnings, _price, _spread = result
         assert ticker == "AAPL"
         assert contracts == []
         assert earnings == tomorrow
@@ -177,7 +177,7 @@ class TestEarningsReorder:
             pricing_config=PricingConfig(),
         )
 
-        _ticker, _contracts, earnings, _price = result
+        _ticker, _contracts, earnings, _price, _spread = result
         assert earnings == tomorrow
 
     async def test_zero_days_to_earnings(self) -> None:
@@ -198,7 +198,7 @@ class TestEarningsReorder:
             pricing_config=PricingConfig(),
         )
 
-        _ticker, contracts, earnings, _price = result
+        _ticker, contracts, earnings, _price, _spread = result
         assert contracts == []
         assert earnings == date.today()
         mock_options.fetch_chain_all_expirations.assert_not_awaited()

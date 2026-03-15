@@ -41,6 +41,8 @@ from options_arena.models import (
     OptionType,
     PricingConfig,
     ScanConfig,
+    SpreadAnalysis,
+    SpreadConfig,
     TickerScore,
 )
 from options_arena.models.filters import OptionsFilters, UniverseFilters
@@ -59,6 +61,7 @@ from options_arena.scoring import (
     compute_direction_signal,
     percentile_rank_normalize,
     recommend_contracts,
+    select_strategy,
 )
 from options_arena.services import FredService, MarketDataService, OptionsDataService
 from options_arena.services.universe import map_yfinance_to_metadata
@@ -84,7 +87,9 @@ type RecommendContractsFn = Callable[
 # process_ticker_options async callable (return type only; args via ...)
 type ProcessTickerFn = Callable[
     ...,
-    Awaitable[tuple[str, list[OptionContract], date | None, Decimal | None]],
+    Awaitable[
+        tuple[str, list[OptionContract], date | None, Decimal | None, SpreadAnalysis | None]
+    ],
 ]
 
 
@@ -180,6 +185,7 @@ async def run_options_phase(
     options_filters: OptionsFilters,
     universe_filters: UniverseFilters,
     pricing_config: PricingConfig,
+    spread_config: SpreadConfig | None = None,
     process_ticker_fn: ProcessTickerFn | None = None,
 ) -> OptionsResult:
     """Phase 3: Fetch options chains, compute Greeks, recommend contracts.
@@ -213,12 +219,14 @@ async def run_options_phase(
         universe_filters: Phase 1 universe filters (min_price, max_price,
             market_cap_tiers).
         pricing_config: Pricing configuration for Greeks computation (delta_target).
+        spread_config: Spread strategy configuration (``None`` disables spread
+            construction, equivalent to ``SpreadConfig(enabled=False)``).
         process_ticker_fn: Optional override for per-ticker processing (used by
             ``ScanPipeline`` to route through ``self._process_ticker_options``
             for test-patching compatibility).
 
     Returns:
-        ``OptionsResult`` with recommendations and risk-free rate.
+        ``OptionsResult`` with recommendations, risk-free rate, and spread analyses.
     """
     ohlcv_map = universe_result.ohlcv_map
 
@@ -307,6 +315,7 @@ async def run_options_phase(
     recommendations: dict[str, list[OptionContract]] = {}
     earnings_dates: dict[str, date] = {}
     entry_prices: dict[str, Decimal] = {}
+    spread_analyses: dict[str, SpreadAnalysis] = {}
     completed = 0
 
     # Use override if provided (ScanPipeline routes through self._process_ticker_options)
@@ -314,7 +323,7 @@ async def run_options_phase(
 
     async def _fetch_with_sem(
         ts: TickerScore,
-    ) -> tuple[str, list[OptionContract], date | None, Decimal | None]:
+    ) -> tuple[str, list[OptionContract], date | None, Decimal | None, SpreadAnalysis | None]:
         nonlocal completed
         async with sem:
             try:
@@ -336,6 +345,7 @@ async def run_options_phase(
                             options_filters=options_filters,
                             universe_filters=universe_filters,
                             pricing_config=pricing_config,
+                            spread_config=spread_config,
                         ),
                         timeout=per_ticker_timeout,
                     )
@@ -345,7 +355,8 @@ async def run_options_phase(
                 progress(ScanPhase.OPTIONS, completed, len(top_scores))
 
     all_results: list[
-        tuple[str, list[OptionContract], date | None, Decimal | None] | BaseException
+        tuple[str, list[OptionContract], date | None, Decimal | None, SpreadAnalysis | None]
+        | BaseException
     ] = await asyncio.gather(
         *[_fetch_with_sem(ts) for ts in top_scores],
         return_exceptions=True,
@@ -360,13 +371,15 @@ async def run_options_phase(
                 result,
             )
         else:
-            ticker, contracts, next_earnings, entry_price = result
+            ticker, contracts, next_earnings, entry_price, spread = result
             if contracts:
                 recommendations[ticker] = contracts
             if next_earnings is not None:
                 earnings_dates[ticker] = next_earnings
             if entry_price is not None:
                 entry_prices[ticker] = entry_price
+            if spread is not None:
+                spread_analyses[ticker] = spread
 
     logger.info(
         "Options phase complete: %d recommendations from %d tickers",
@@ -390,6 +403,7 @@ async def run_options_phase(
         risk_free_rate=risk_free_rate,
         earnings_dates=earnings_dates,
         entry_prices=entry_prices,
+        spread_analyses=spread_analyses,
     )
 
 
@@ -410,14 +424,19 @@ async def process_ticker_options(
     options_filters: OptionsFilters,
     universe_filters: UniverseFilters,
     pricing_config: PricingConfig,
+    spread_config: SpreadConfig | None = None,
     recommend_contracts_fn: RecommendContractsFn | None = None,
     map_yfinance_fn: MapYfinanceFn | None = None,
-) -> tuple[str, list[OptionContract], date | None, Decimal | None]:
+) -> tuple[str, list[OptionContract], date | None, Decimal | None, SpreadAnalysis | None]:
     """Fetch chains + ticker info + earnings date for a single ticker.
 
     Also computes Phase 3 DSE indicators (IV analytics, flow, fundamental,
     relative strength) from chain + ticker data and merges them into the
     ticker's ``IndicatorSignals``.
+
+    When ``spread_config`` is provided and enabled, ``select_strategy()`` is
+    called after the single-contract recommendation to construct an optimal
+    multi-leg spread from the available contracts.
 
     Isolated per-ticker: exceptions propagate up to ``asyncio.gather``
     with ``return_exceptions=True``.
@@ -434,6 +453,8 @@ async def process_ticker_options(
             min_iv_rank).
         universe_filters: Phase 1 universe filters (market_cap_tiers).
         pricing_config: Pricing configuration for Greeks computation (delta_target).
+        spread_config: Spread strategy configuration (``None`` disables spread
+            construction).
         recommend_contracts_fn: Optional override for ``recommend_contracts`` (used
             by ``ScanPipeline`` wrappers for test-patching compatibility).
         map_yfinance_fn: Optional override for ``map_yfinance_to_metadata`` (used
@@ -441,7 +462,7 @@ async def process_ticker_options(
 
     Returns:
         Tuple of (ticker, recommended contracts, next_earnings_date | None,
-        entry_stock_price | None).
+        entry_stock_price | None, spread_analysis | None).
     """
     _recommend = recommend_contracts_fn or recommend_contracts
     _map_yfinance = map_yfinance_fn or map_yfinance_to_metadata
@@ -465,7 +486,7 @@ async def process_ticker_options(
                     days_to_earnings,
                     options_filters.exclude_near_earnings_days,
                 )
-                return (ticker, [], earnings_date, None)
+                return (ticker, [], earnings_date, None, None)
 
     # Fetch chains, ticker info (and earnings if not already fetched) concurrently
     chain_task = options_data.fetch_chain_all_expirations(ticker)
@@ -504,7 +525,7 @@ async def process_ticker_options(
             ticker_info.market_cap_tier.value,
             [t.value for t in universe_filters.market_cap_tiers],
         )
-        return (ticker, [], earnings_date, ticker_info.current_price)
+        return (ticker, [], earnings_date, ticker_info.current_price, None)
 
     # Enrich ticker_score with company_name from ticker info
     ticker_score.company_name = ticker_info.company_name
@@ -529,7 +550,7 @@ async def process_ticker_options(
 
     if not all_contracts:
         logger.info("No contracts found for %s", ticker)
-        return (ticker, [], earnings_date, entry_stock_price)
+        return (ticker, [], earnings_date, entry_stock_price, None)
 
     spot = float(ticker_info.current_price)
 
@@ -609,7 +630,7 @@ async def process_ticker_options(
                 iv_rank,
                 options_filters.min_iv_rank,
             )
-            return (ticker, [], earnings_date, entry_stock_price)
+            return (ticker, [], earnings_date, entry_stock_price, None)
 
     # Build surface residuals mapping for direction-aware delta tiebreaker.
     # Key includes option_type so calls and puts at the same strike/expiration
@@ -672,7 +693,44 @@ async def process_ticker_options(
                 exc_info=True,
             )
 
-    return (ticker, recommended, earnings_date, entry_stock_price)
+    # Multi-leg spread construction (after single-contract recommendation)
+    spread_result: SpreadAnalysis | None = None
+    if spread_config is not None and spread_config.enabled and all_contracts:
+        try:
+            # Use the first recommended contract's DTE for time_to_expiry,
+            # or fall back to the target DTE from the options filters.
+            if recommended:
+                target_dte = float(recommended[0].dte)
+            else:
+                target_dte = float(options_filters.max_dte)
+            time_to_expiry = target_dte / 365.0
+
+            spread_result = select_strategy(
+                contracts=all_contracts,
+                direction=ticker_score.direction,
+                confidence=ticker_score.composite_score / 100.0,
+                iv_rank=ticker_score.signals.iv_rank,
+                spot_price=spot,
+                risk_free_rate=risk_free_rate,
+                time_to_expiry=time_to_expiry,
+                config=spread_config,
+            )
+            if spread_result is not None:
+                rationale_preview = (
+                    spread_result.strategy_rationale[:60]
+                    if spread_result.strategy_rationale
+                    else ""
+                )
+                logger.info(
+                    "Spread constructed for %s: %s (%s)",
+                    ticker,
+                    spread_result.spread.spread_type.value,
+                    rationale_preview,
+                )
+        except Exception:
+            logger.warning("Spread construction failed for %s", ticker, exc_info=True)
+
+    return (ticker, recommended, earnings_date, entry_stock_price, spread_result)
 
 
 # ---------------------------------------------------------------------------

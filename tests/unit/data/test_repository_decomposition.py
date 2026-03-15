@@ -12,6 +12,7 @@ from options_arena.data._base import RepositoryBase
 from options_arena.data._debate import DebateMixin
 from options_arena.data._metadata import MetadataMixin
 from options_arena.data._scan import ScanMixin
+from options_arena.data._spreads import SpreadsMixin
 
 
 class TestRepositoryDecomposition:
@@ -26,6 +27,7 @@ class TestRepositoryDecomposition:
             "DebateMixin",
             "AnalyticsMixin",
             "MetadataMixin",
+            "SpreadsMixin",
             "RepositoryBase",
             "object",
         ]
@@ -76,6 +78,10 @@ class TestRepositoryDecomposition:
             "get_all_ticker_metadata",
             "get_stale_tickers",
             "get_metadata_coverage",
+            # SpreadsMixin
+            "save_spread_recommendation",
+            "get_spread_recommendations",
+            "get_spread_for_ticker",
             # RepositoryBase
             "commit",
         }
@@ -105,7 +111,7 @@ class TestRepositoryDecomposition:
 
     def test_all_mixins_inherit_repository_base(self) -> None:
         """Every mixin inherits from RepositoryBase."""
-        for mixin in (ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin):
+        for mixin in (ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin):
             assert issubclass(mixin, RepositoryBase), f"{mixin.__name__} missing RepositoryBase"
 
     def test_database_not_needed_for_class_construction(self) -> None:
