@@ -14,6 +14,8 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from options_arena.models import (
+    INDUSTRY_GROUP_ALIASES,
+    SECTOR_ALIASES,
     TICKER_RE,
     AgentResponse,
     ContrarianThesis,
@@ -30,7 +32,6 @@ from options_arena.models import (
     SignalDirection,
     TradeThesis,
 )
-from options_arena.models.enums import INDUSTRY_GROUP_ALIASES, SECTOR_ALIASES
 
 # ---------------------------------------------------------------------------
 # Scan schemas (#126, #162)
@@ -311,6 +312,15 @@ class TickerDetail(BaseModel):
     direction: SignalDirection
     contracts: list[RecommendedContract]
 
+    @field_validator("composite_score")
+    @classmethod
+    def _validate_composite_score(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError(f"composite_score must be finite, got {v}")
+        if not 0.0 <= v <= 100.0:
+            raise ValueError(f"composite_score must be in [0, 100], got {v}")
+        return v
+
 
 # ---------------------------------------------------------------------------
 # Debate schemas (#123)
@@ -537,6 +547,16 @@ class BatchTickerResult(BaseModel):
     confidence: float | None = None
     error: str | None = None
 
+    @field_validator("confidence")
+    @classmethod
+    def _validate_confidence(cls, v: float | None) -> float | None:
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"confidence must be finite, got {v}")
+            if not 0.0 <= v <= 1.0:
+                raise ValueError(f"confidence must be in [0, 1], got {v}")
+        return v
+
 
 # ---------------------------------------------------------------------------
 # Supporting page schemas (#129)
@@ -620,6 +640,15 @@ class MetadataStats(BaseModel):
     with_sector: int
     with_industry_group: int
     coverage: float  # with_sector / total, 0.0 if total == 0
+
+    @field_validator("coverage")
+    @classmethod
+    def _validate_coverage(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError(f"coverage must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"coverage must be in [0, 1], got {v}")
+        return v
 
 
 class IndexStarted(BaseModel):

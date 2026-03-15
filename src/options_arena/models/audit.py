@@ -11,6 +11,10 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 from options_arena.models.enums import AuditLayer, AuditSeverity
 
+# Number of mathematical functions tracked by the audit framework.
+# Update when adding/removing auditable functions in pricing/, indicators/, scoring/.
+MATH_FUNCTION_COUNT: int = 92
+
 
 class AuditFinding(BaseModel):
     """A single finding from a mathematical computation audit.

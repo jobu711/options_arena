@@ -294,7 +294,7 @@ async def run_options_phase(
             except Exception:
                 logger.warning("Failed to fetch SPX data; rs_vs_spx will be None", exc_info=True)
     except Exception:
-        logger.warning("Failed to extract SPX close series; rs_vs_spx will be None")
+        logger.warning("Failed to extract SPX close series; rs_vs_spx will be None", exc_info=True)
 
     # Step 4: Per-ticker options processing with semaphore-bounded concurrency
     # A semaphore limits concurrent chains-in-flight, allowing all tickers to
@@ -611,8 +611,10 @@ async def process_ticker_options(
             )
             return (ticker, [], earnings_date, entry_stock_price)
 
-    # Build surface residuals mapping for direction-aware delta tiebreaker
-    _surface_residuals: dict[tuple[Decimal, date], float] | None = None
+    # Build surface residuals mapping for direction-aware delta tiebreaker.
+    # Key includes option_type so calls and puts at the same strike/expiration
+    # don't overwrite each other.
+    _surface_residuals: dict[tuple[OptionType, Decimal, date], float] | None = None
     if (
         vol_result is not None
         and vol_result.z_scores is not None
@@ -622,7 +624,9 @@ async def process_ticker_options(
         _surface_residuals = {}
         for i, c in enumerate(all_contracts):
             if i < len(vol_result.z_scores) and math.isfinite(vol_result.z_scores[i]):
-                _surface_residuals[(c.strike, c.expiration)] = float(vol_result.z_scores[i])
+                _surface_residuals[(c.option_type, c.strike, c.expiration)] = float(
+                    vol_result.z_scores[i]
+                )
 
     recommended = _recommend(
         contracts=all_contracts,

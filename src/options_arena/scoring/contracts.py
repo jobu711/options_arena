@@ -20,8 +20,8 @@ from decimal import Decimal
 from options_arena.models.enums import GreeksSource, OptionType, SignalDirection
 from options_arena.models.filters import OptionsFilters
 from options_arena.models.options import OptionContract
+from options_arena.pricing import smooth_iv_parity
 from options_arena.pricing.dispatch import option_greeks, option_iv, option_second_order_greeks
-from options_arena.pricing.iv_smoothing import smooth_iv_parity
 
 logger = logging.getLogger(__name__)
 
@@ -302,6 +302,7 @@ def compute_greeks(
                         dividend_yield,
                         contract.option_type,
                     )
+                    smoothed_iv_value = None  # solver overrode smoothed IV
                     logger.debug(
                         "IV re-solved for %s strike %s: %.4f -> %.4f",
                         contract.ticker,
@@ -423,7 +424,7 @@ def select_by_delta(
     delta_target: float = _DEFAULT_DELTA_TARGET,
     *,
     direction: SignalDirection | None = None,
-    surface_residuals: dict[tuple[Decimal, date], float] | None = None,
+    surface_residuals: dict[tuple[OptionType, Decimal, date], float] | None = None,
 ) -> OptionContract | None:
     """Select the contract with delta closest to the target.
 
@@ -440,8 +441,8 @@ def select_by_delta(
         filters: Options filter configuration. Uses ``OptionsFilters()`` defaults if None.
         delta_target: Target delta value (from ``PricingConfig``).
         direction: Signal direction for vol-mispricing tiebreaker.
-        surface_residuals: Map of ``(strike, expiration)`` to IV surface
-            residual z-score. Positive = IV above fitted surface (overpriced).
+        surface_residuals: Map of ``(option_type, strike, expiration)`` to IV
+            surface residual z-score. Positive = IV above fitted surface (overpriced).
 
     Returns:
         Best contract by delta proximity, or ``None`` if no contract has
@@ -477,7 +478,7 @@ def select_by_delta(
         """
         if not surface_residuals or not direction:
             return 0.0
-        key = (c.strike, c.expiration)
+        key = (c.option_type, c.strike, c.expiration)
         residual = surface_residuals.get(key)
         if residual is None or not math.isfinite(residual):
             return 0.0
@@ -545,7 +546,7 @@ def recommend_contracts(
     filters: OptionsFilters | None = None,
     delta_target: float = _DEFAULT_DELTA_TARGET,
     *,
-    surface_residuals: dict[tuple[Decimal, date], float] | None = None,
+    surface_residuals: dict[tuple[OptionType, Decimal, date], float] | None = None,
 ) -> list[OptionContract]:
     """Run the full recommendation pipeline: filter -> expiration -> greeks -> delta.
 
@@ -557,8 +558,8 @@ def recommend_contracts(
         dividend_yield: Continuous dividend yield (decimal).
         filters: Options filter configuration. Uses ``OptionsFilters()`` defaults if None.
         delta_target: Target delta value (from ``PricingConfig``).
-        surface_residuals: Map of ``(strike, expiration)`` to IV surface
-            residual z-score for vol-mispricing tiebreaker.
+        surface_residuals: Map of ``(option_type, strike, expiration)`` to IV
+            surface residual z-score for vol-mispricing tiebreaker.
 
     Returns:
         List of 0 or 1 recommended contracts.

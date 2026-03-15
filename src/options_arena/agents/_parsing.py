@@ -11,7 +11,8 @@ import logging
 import math
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict
 from pydantic_ai.usage import RunUsage
@@ -408,7 +409,8 @@ def _render_identity_block(ctx: MarketContext) -> list[str]:
 
     # Earnings warning — appended when next earnings is within 7 days
     if ctx.next_earnings is not None:
-        days_to_earnings = (ctx.next_earnings - date.today()).days
+        market_today = datetime.now(ZoneInfo("America/New_York")).date()
+        days_to_earnings = (ctx.next_earnings - market_today).days
         if days_to_earnings >= 0:
             lines.append(f"NEXT EARNINGS: {ctx.next_earnings.isoformat()} ({days_to_earnings}d)")
             if days_to_earnings <= 7:
@@ -1024,7 +1026,8 @@ def render_context_block(ctx: MarketContext) -> str:
 
     # Earnings warning — appended when next earnings is within 7 days
     if ctx.next_earnings is not None:
-        days_to_earnings = (ctx.next_earnings - date.today()).days
+        market_today = datetime.now(ZoneInfo("America/New_York")).date()
+        days_to_earnings = (ctx.next_earnings - market_today).days
         if days_to_earnings >= 0:
             lines.append(f"NEXT EARNINGS: {ctx.next_earnings.isoformat()} ({days_to_earnings}d)")
             if days_to_earnings <= 7:

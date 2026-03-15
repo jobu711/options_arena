@@ -9,7 +9,7 @@ Provides fixtures for all 4 function groups:
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 
 import numpy as np
@@ -25,6 +25,8 @@ from options_arena.models.enums import (
 )
 from options_arena.models.options import OptionContract, OptionGreeks
 from options_arena.models.scan import IndicatorSignals
+
+_BENCHMARK_EXPIRATION = date(2099, 2, 15)
 
 # ---------------------------------------------------------------------------
 # Pricing fixtures
@@ -259,7 +261,7 @@ def single_ticker_signals() -> IndicatorSignals:
 def sample_contracts() -> list[OptionContract]:
     """10 synthetic OptionContract instances for contract selection benchmarks."""
     contracts: list[OptionContract] = []
-    base_exp = date.today() + timedelta(days=45)
+    base_exp = _BENCHMARK_EXPIRATION
     for i in range(10):
         strike = Decimal(str(95 + i * 2))
         bid = Decimal(str(max(0.10, 5.0 - i * 0.5)))
@@ -295,7 +297,7 @@ def sample_contracts() -> list[OptionContract]:
 def sample_contracts_no_greeks() -> list[OptionContract]:
     """5 synthetic OptionContract instances without Greeks for compute_greeks benchmark."""
     contracts: list[OptionContract] = []
-    base_exp = date.today() + timedelta(days=45)
+    base_exp = _BENCHMARK_EXPIRATION
     for i in range(5):
         strike = Decimal(str(95 + i * 2))
         bid = Decimal(str(max(0.10, 5.0 - i * 0.5)))

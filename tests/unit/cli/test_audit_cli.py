@@ -6,8 +6,10 @@ Typer CliRunner captures output and exit codes for assertion.
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from typer.testing import CliRunner
 
 from options_arena.cli.app import app
@@ -148,7 +150,7 @@ class TestAuditFlagParsing:
 
 
 class TestAuditReportFlag:
-    """Verify --report flag generates markdown output."""
+    """Verify --report flag generates markdown output and writes to disk."""
 
     @patch("options_arena.cli.audit._run_audit_layer")
     def test_report_flag_generates_markdown(self, mock_run_layer: MagicMock) -> None:
@@ -167,6 +169,35 @@ class TestAuditReportFlag:
         result = runner.invoke(app, ["audit", "math", "--correctness", "--report"])
         assert result.exit_code == 0
         assert "Markdown Report" in result.output
+
+    @patch("options_arena.cli.audit._run_audit_layer")
+    def test_report_flag_writes_file_to_disk(
+        self, mock_run_layer: MagicMock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--report flag writes markdown report to math-audit-report.md on disk."""
+        from options_arena.models.enums import AuditLayer
+
+        mock_run_layer.return_value = MagicMock(
+            layer=AuditLayer.CORRECTNESS,
+            return_code=0,
+            passed=10,
+            failed=0,
+            errors=0,
+            total=10,
+        )
+
+        # Change working directory so the report file lands in tmp_path
+        monkeypatch.chdir(tmp_path)
+
+        result = runner.invoke(app, ["audit", "math", "--correctness", "--report"])
+        assert result.exit_code == 0
+
+        report_file = tmp_path / "math-audit-report.md"
+        assert report_file.exists(), "Report file was not written to disk"
+
+        content = report_file.read_text(encoding="utf-8")
+        assert "Mathematical Computation Audit Report" in content
+        assert "Report written to" in result.output
 
 
 # ---------------------------------------------------------------------------

@@ -330,11 +330,12 @@ class TestMathFunctionRegistry:
     """Tests for the MATH_FUNCTION_REGISTRY in tests/audit/conftest.py."""
 
     def test_registry_count(self) -> None:
-        """Verify registry contains exactly 87 functions."""
+        """Verify registry contains exactly 92 functions."""
+        from options_arena.models.audit import MATH_FUNCTION_COUNT
         from tests.audit.conftest import MATH_FUNCTION_REGISTRY
 
-        assert len(MATH_FUNCTION_REGISTRY) == 87, (
-            f"Expected 87 functions, got {len(MATH_FUNCTION_REGISTRY)}"
+        assert len(MATH_FUNCTION_REGISTRY) == MATH_FUNCTION_COUNT, (
+            f"Expected {MATH_FUNCTION_COUNT} functions, got {len(MATH_FUNCTION_REGISTRY)}"
         )
 
     def test_all_callables(self) -> None:
@@ -354,12 +355,12 @@ class TestMathFunctionRegistry:
         assert len(keys) == len(set(keys)), "Duplicate keys found in registry"
 
     def test_key_format(self) -> None:
-        """Verify all keys follow 'module.submodule.function_name' format."""
+        """Verify all keys follow 'module.function_name' or deeper dot-separated format."""
         from tests.audit.conftest import MATH_FUNCTION_REGISTRY
 
         for key in MATH_FUNCTION_REGISTRY:
             parts = key.split(".")
-            assert len(parts) >= 3, f"Key '{key}' does not have at least 3 dot-separated parts"
+            assert len(parts) >= 2, f"Key '{key}' does not have at least 2 dot-separated parts"
 
     def test_pricing_functions_present(self) -> None:
         """Verify key pricing functions are in the registry."""

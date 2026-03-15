@@ -12,6 +12,7 @@ import asyncio
 import datetime
 import json
 import logging
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -24,7 +25,12 @@ from rich.table import Table
 from rich.text import Text
 
 from options_arena.cli.app import app
-from options_arena.models.audit import AuditFinding, AuditLayerSummary, AuditReport
+from options_arena.models.audit import (
+    MATH_FUNCTION_COUNT,
+    AuditFinding,
+    AuditLayerSummary,
+    AuditReport,
+)
 from options_arena.models.enums import AuditLayer, AuditSeverity
 
 logger = logging.getLogger(__name__)
@@ -80,8 +86,6 @@ def _parse_pytest_output(output: str) -> tuple[int, int, int]:
             continue
         # pytest summary lines contain counts like "N passed", "N failed", "N error"
         if "passed" in stripped or "failed" in stripped or "error" in stripped:
-            import re  # noqa: PLC0415
-
             passed_match = re.search(r"(\d+)\s+passed", stripped)
             failed_match = re.search(r"(\d+)\s+failed", stripped)
             error_match = re.search(r"(\d+)\s+error", stripped)
@@ -119,12 +123,23 @@ def _run_audit_layer(layer: AuditLayer) -> _LayerResult:
 
     err_console.print(f"  Running {layer.value} layer...")
 
-    result = subprocess.run(  # noqa: S603
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=300,
-    )
+    try:
+        result = subprocess.run(  # noqa: S603
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning("Audit layer %s timed out after 300s", layer.value)
+        return _LayerResult(
+            layer=layer,
+            return_code=-1,
+            passed=0,
+            failed=0,
+            errors=1,
+            total=1,
+        )
 
     passed, failed, errors = _parse_pytest_output(result.stdout + "\n" + result.stderr)
     total = passed + failed + errors
@@ -286,12 +301,19 @@ def _load_discovery_findings(
         logger.debug("Discovery findings file not found: %s", resolved)
         return []
 
-    raw_text = resolved.read_text(encoding="utf-8")
-    raw_data: list[dict[str, object]] = json.loads(raw_text)
+    try:
+        raw_text = resolved.read_text(encoding="utf-8")
+        raw_data: list[dict[str, object]] = json.loads(raw_text)
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to parse discovery findings from %s: %s", resolved, exc)
+        return []
 
     findings: list[AuditFinding] = []
     for item in raw_data:
-        findings.append(AuditFinding.model_validate(item))
+        try:
+            findings.append(AuditFinding.model_validate(item))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Skipping invalid finding entry: %s", exc)
     return findings
 
 
@@ -433,25 +455,16 @@ async def _math_audit_async(
     if no_layer_selected or performance:
         layers_to_run.append(AuditLayer.PERFORMANCE)
 
-    # Get total function count from registry
-    try:
-        from tests.audit.conftest import MATH_FUNCTION_REGISTRY  # noqa: PLC0415
-
-        total_functions = len(MATH_FUNCTION_REGISTRY)
-    except ImportError:
-        logger.warning("Could not import MATH_FUNCTION_REGISTRY, using default count")
-        total_functions = 87
-
     err_console.print(
         f"Running {len(layers_to_run)} audit layer(s) "
-        f"against {total_functions} mathematical functions...\n"
+        f"against {MATH_FUNCTION_COUNT} mathematical functions...\n"
     )
 
     # Run each layer sequentially (subprocess-based, no async benefit)
     summaries: list[AuditLayerSummary] = []
     for layer in layers_to_run:
         layer_result = await asyncio.to_thread(_run_audit_layer, layer)
-        summary = _build_layer_summary(layer_result, total_functions)
+        summary = _build_layer_summary(layer_result, MATH_FUNCTION_COUNT)
         summaries.append(summary)
 
     audit_report = _build_report(summaries)
@@ -464,5 +477,12 @@ async def _math_audit_async(
         from tools.math_audit_report import generate_math_audit_report  # noqa: PLC0415
 
         md_content = generate_math_audit_report(audit_report)
+
+        # Write report to disk as an artifact
+        report_path = Path("math-audit-report.md")
+        report_path.write_text(md_content, encoding="utf-8")
+        console.print(f"\nReport written to [bold cyan]{report_path.resolve()}[/bold cyan]")
+
+        # Also print to stdout for immediate review
         console.print("\n--- Markdown Report ---\n")
         console.print(md_content, highlight=False)

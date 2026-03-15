@@ -9,7 +9,7 @@ the tiebreaker prefers direction-favorable vol mispricing:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from options_arena.models.enums import (
@@ -67,9 +67,9 @@ class TestDeltaTiebreaker:
         c_overpriced = _make_contract("150.00", delta=0.35)
         c_underpriced = _make_contract("155.00", delta=0.35)
 
-        residuals: dict[tuple[Decimal, datetime.date], float] = {
-            (c_overpriced.strike, c_overpriced.expiration): 1.5,  # overpriced
-            (c_underpriced.strike, c_underpriced.expiration): -1.5,  # underpriced
+        residuals: dict[tuple[OptionType, Decimal, date], float] = {
+            (c_overpriced.option_type, c_overpriced.strike, c_overpriced.expiration): 1.5,
+            (c_underpriced.option_type, c_underpriced.strike, c_underpriced.expiration): -1.5,
         }
 
         result = select_by_delta(
@@ -87,9 +87,9 @@ class TestDeltaTiebreaker:
         c_overpriced = _make_contract("150.00", delta=0.35)
         c_underpriced = _make_contract("155.00", delta=0.35)
 
-        residuals: dict[tuple[Decimal, datetime.date], float] = {
-            (c_overpriced.strike, c_overpriced.expiration): 1.5,  # overpriced
-            (c_underpriced.strike, c_underpriced.expiration): -1.5,  # underpriced
+        residuals: dict[tuple[OptionType, Decimal, date], float] = {
+            (c_overpriced.option_type, c_overpriced.strike, c_overpriced.expiration): 1.5,
+            (c_underpriced.option_type, c_underpriced.strike, c_underpriced.expiration): -1.5,
         }
 
         result = select_by_delta(
@@ -124,9 +124,9 @@ class TestDeltaTiebreaker:
         c1 = _make_contract("150.00", delta=0.35)
         c2 = _make_contract("155.00", delta=0.35)
 
-        residuals: dict[tuple[Decimal, datetime.date], float] = {
-            (c1.strike, c1.expiration): 2.0,
-            (c2.strike, c2.expiration): -2.0,
+        residuals: dict[tuple[OptionType, Decimal, date], float] = {
+            (c1.option_type, c1.strike, c1.expiration): 2.0,
+            (c2.option_type, c2.strike, c2.expiration): -2.0,
         }
 
         result = select_by_delta(
@@ -145,9 +145,9 @@ class TestDeltaTiebreaker:
         c1 = _make_contract("150.00", delta=0.35)
         c2 = _make_contract("155.00", delta=0.35)
 
-        residuals: dict[tuple[Decimal, datetime.date], float] = {
-            (c1.strike, c1.expiration): 2.0,
-            (c2.strike, c2.expiration): -2.0,
+        residuals: dict[tuple[OptionType, Decimal, date], float] = {
+            (c1.option_type, c1.strike, c1.expiration): 2.0,
+            (c2.option_type, c2.strike, c2.expiration): -2.0,
         }
 
         result = select_by_delta(
@@ -167,8 +167,8 @@ class TestDeltaTiebreaker:
         c2 = _make_contract("155.00", delta=0.35)
 
         # Only c2 has a residual
-        residuals: dict[tuple[Decimal, datetime.date], float] = {
-            (c2.strike, c2.expiration): -2.0,  # underpriced
+        residuals: dict[tuple[OptionType, Decimal, date], float] = {
+            (c2.option_type, c2.strike, c2.expiration): -2.0,  # underpriced
         }
 
         result = select_by_delta(
