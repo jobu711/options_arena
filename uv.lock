@@ -2146,7 +2146,7 @@ dev = [
 requires-dist = [
     { name = "aiosqlite", specifier = ">=0.22" },
     { name = "anthropic", specifier = ">=0.83.0" },
-    { name = "arch", marker = "extra == 'ml'", specifier = ">=7.0,<9" },
+    { name = "arch", marker = "extra == 'ml'", specifier = ">=8.0,<9" },
     { name = "fastapi", specifier = ">=0.133.1" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "numpy", specifier = ">=2.4" },
@@ -2158,7 +2158,7 @@ requires-dist = [
     { name = "rich", specifier = ">=14.3" },
     { name = "scipy", specifier = ">=1.17" },
     { name = "slowapi", specifier = ">=0.1.9" },
-    { name = "statsmodels", marker = "extra == 'ml'", specifier = ">=0.14" },
+    { name = "statsmodels", marker = "extra == 'ml'", specifier = ">=0.14,<0.15" },
     { name = "typer", specifier = ">=0.24" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0" },
     { name = "weasyprint", marker = "extra == 'pdf'", specifier = ">=63.0" },

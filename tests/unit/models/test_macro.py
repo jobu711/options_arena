@@ -1,4 +1,4 @@
-"""Tests for MacroContext, MacroRegimeResult, and FredSeriesConfig models.
+"""Tests for MacroContext, MacroRegimeResult, MacroSignals, and FredSeriesConfig models.
 
 Covers: construction, validation, NaN/Inf rejection, completeness_ratio,
 fallback classmethod, JSON roundtrip, frozen immutability, and edge cases.
@@ -7,10 +7,12 @@ fallback classmethod, JSON roundtrip, frozen immutability, and edge cases.
 import pytest
 from pydantic import ValidationError
 
+from options_arena.models.enums import FredTransform, MacroRegime
 from options_arena.models.macro import (
     FredSeriesConfig,
     MacroContext,
     MacroRegimeResult,
+    MacroSignals,
 )
 
 # ---------------------------------------------------------------------------
@@ -22,29 +24,35 @@ class TestFredSeriesConfig:
     """Tests for the FredSeriesConfig NamedTuple."""
 
     def test_construction(self) -> None:
-        """FredSeriesConfig stores all four fields."""
+        """FredSeriesConfig stores all four fields with FredTransform enum."""
         cfg = FredSeriesConfig(
             series_id="DGS10",
             display_name="10-Year Treasury",
             ttl_hours=24,
-            transform="pct_to_decimal",
+            transform=FredTransform.PCT_TO_DECIMAL,
         )
         assert cfg.series_id == "DGS10"
         assert cfg.display_name == "10-Year Treasury"
         assert cfg.ttl_hours == 24
-        assert cfg.transform == "pct_to_decimal"
+        assert cfg.transform == FredTransform.PCT_TO_DECIMAL
 
     def test_is_namedtuple(self) -> None:
         """FredSeriesConfig is a NamedTuple (immutable, iterable)."""
-        cfg = FredSeriesConfig("DGS2", "2-Year Treasury", 24, "pct_to_decimal")
+        cfg = FredSeriesConfig("DGS2", "2-Year Treasury", 24, FredTransform.PCT_TO_DECIMAL)
         assert isinstance(cfg, tuple)
         assert len(cfg) == 4
 
     def test_field_access_by_index(self) -> None:
         """NamedTuple fields are accessible by index."""
-        cfg = FredSeriesConfig("VIXCLS", "VIX", 24, "passthrough")
+        cfg = FredSeriesConfig("VIXCLS", "VIX", 24, FredTransform.PASSTHROUGH)
         assert cfg[0] == "VIXCLS"
-        assert cfg[3] == "passthrough"
+        assert cfg[3] == FredTransform.PASSTHROUGH
+
+    def test_yoy_pct_change_transform(self) -> None:
+        """YOY_PCT_CHANGE transform for CPI and INDPRO."""
+        cfg = FredSeriesConfig("CPIAUCSL", "CPI YoY", 168, FredTransform.YOY_PCT_CHANGE)
+        assert cfg.transform == FredTransform.YOY_PCT_CHANGE
+        assert cfg.ttl_hours == 168
 
 
 # ---------------------------------------------------------------------------
@@ -320,6 +328,66 @@ class TestMacroContextSerialization:
 
 
 # ---------------------------------------------------------------------------
+# MacroSignals
+# ---------------------------------------------------------------------------
+
+
+class TestMacroSignals:
+    """Tests for MacroSignals frozen typed model."""
+
+    def test_construction(self) -> None:
+        """MacroSignals constructs with valid data."""
+        signals = MacroSignals(
+            yield_spread_10y2y=0.01,
+            unemployment_rate=0.035,
+            fed_funds_rate=0.04,
+            vix=18.5,
+            cpi_yoy=2.5,
+        )
+        assert signals.yield_spread_10y2y == pytest.approx(0.01, rel=1e-6)
+        assert signals.unemployment_rate == pytest.approx(0.035, rel=1e-6)
+        assert signals.fed_funds_rate == pytest.approx(0.04, rel=1e-6)
+        assert signals.vix == pytest.approx(18.5, rel=1e-6)
+        assert signals.cpi_yoy == pytest.approx(2.5, rel=1e-6)
+
+    def test_all_none_default(self) -> None:
+        """MacroSignals() with no args creates all-None instance."""
+        signals = MacroSignals()
+        assert signals.yield_spread_10y2y is None
+        assert signals.unemployment_rate is None
+        assert signals.fed_funds_rate is None
+        assert signals.vix is None
+        assert signals.cpi_yoy is None
+
+    def test_frozen(self) -> None:
+        """MacroSignals is frozen (immutable)."""
+        signals = MacroSignals(vix=20.0)
+        with pytest.raises(ValidationError):
+            signals.vix = 25.0  # type: ignore[misc]
+
+    def test_nan_rejected(self) -> None:
+        """NaN is rejected on MacroSignals fields."""
+        with pytest.raises(ValidationError, match="finite"):
+            MacroSignals(yield_spread_10y2y=float("nan"))
+
+    def test_inf_rejected(self) -> None:
+        """Inf is rejected on MacroSignals fields."""
+        with pytest.raises(ValidationError, match="finite"):
+            MacroSignals(vix=float("inf"))
+
+    def test_json_roundtrip(self) -> None:
+        """MacroSignals survives JSON roundtrip."""
+        original = MacroSignals(
+            yield_spread_10y2y=0.01,
+            unemployment_rate=0.035,
+            vix=18.5,
+        )
+        json_str = original.model_dump_json()
+        restored = MacroSignals.model_validate_json(json_str)
+        assert restored == original
+
+
+# ---------------------------------------------------------------------------
 # MacroRegimeResult
 # ---------------------------------------------------------------------------
 
@@ -329,80 +397,107 @@ class TestMacroRegimeResult:
 
     @pytest.mark.critical
     def test_construction(self) -> None:
-        """MacroRegimeResult constructs with valid data."""
-        result = MacroRegimeResult(
-            regime="expansionary",
-            confidence=0.85,
-            signals={"treasury_10y": 0.045, "vix": 18.5, "cpi_yoy": None},
+        """MacroRegimeResult constructs with MacroRegime enum and MacroSignals."""
+        signals = MacroSignals(
+            yield_spread_10y2y=0.01,
+            vix=18.5,
+            cpi_yoy=None,
         )
-        assert result.regime == "expansionary"
+        result = MacroRegimeResult(
+            regime=MacroRegime.EXPANSIONARY,
+            confidence=0.85,
+            signals=signals,
+        )
+        assert result.regime == MacroRegime.EXPANSIONARY
+        assert result.regime == "expansionary"  # StrEnum is comparable to str
         assert result.confidence == pytest.approx(0.85, abs=0.01)
-        assert result.signals["treasury_10y"] == pytest.approx(0.045, rel=1e-6)
-        assert result.signals["cpi_yoy"] is None
+        assert result.signals.yield_spread_10y2y == pytest.approx(0.01, rel=1e-6)
+        assert result.signals.cpi_yoy is None
 
     def test_frozen(self) -> None:
         """MacroRegimeResult is frozen."""
         result = MacroRegimeResult(
-            regime="contractionary",
+            regime=MacroRegime.CONTRACTIONARY,
             confidence=0.7,
-            signals={},
+            signals=MacroSignals(),
         )
         with pytest.raises(ValidationError):
-            result.regime = "expansionary"  # type: ignore[misc]
+            result.regime = MacroRegime.EXPANSIONARY  # type: ignore[misc]
 
     def test_confidence_zero(self) -> None:
         """Confidence of 0.0 is valid."""
-        result = MacroRegimeResult(regime="transitional", confidence=0.0, signals={})
+        result = MacroRegimeResult(
+            regime=MacroRegime.TRANSITIONAL,
+            confidence=0.0,
+            signals=MacroSignals(),
+        )
         assert result.confidence == pytest.approx(0.0, abs=1e-9)
 
     def test_confidence_one(self) -> None:
         """Confidence of 1.0 is valid."""
-        result = MacroRegimeResult(regime="expansionary", confidence=1.0, signals={})
+        result = MacroRegimeResult(
+            regime=MacroRegime.EXPANSIONARY,
+            confidence=1.0,
+            signals=MacroSignals(),
+        )
         assert result.confidence == pytest.approx(1.0, abs=1e-9)
 
     def test_confidence_above_one_rejected(self) -> None:
         """Confidence > 1.0 is rejected."""
         with pytest.raises(ValidationError, match="confidence"):
-            MacroRegimeResult(regime="expansionary", confidence=1.1, signals={})
+            MacroRegimeResult(
+                regime=MacroRegime.EXPANSIONARY,
+                confidence=1.1,
+                signals=MacroSignals(),
+            )
 
     def test_confidence_below_zero_rejected(self) -> None:
         """Confidence < 0.0 is rejected."""
         with pytest.raises(ValidationError, match="confidence"):
-            MacroRegimeResult(regime="expansionary", confidence=-0.1, signals={})
+            MacroRegimeResult(
+                regime=MacroRegime.EXPANSIONARY,
+                confidence=-0.1,
+                signals=MacroSignals(),
+            )
 
     def test_confidence_nan_rejected(self) -> None:
         """NaN confidence is rejected."""
         with pytest.raises(ValidationError, match="finite"):
             MacroRegimeResult(
-                regime="expansionary",
+                regime=MacroRegime.EXPANSIONARY,
                 confidence=float("nan"),
-                signals={},
+                signals=MacroSignals(),
             )
 
     def test_confidence_inf_rejected(self) -> None:
         """Infinity confidence is rejected."""
         with pytest.raises(ValidationError, match="finite"):
             MacroRegimeResult(
-                regime="expansionary",
+                regime=MacroRegime.EXPANSIONARY,
                 confidence=float("inf"),
-                signals={},
+                signals=MacroSignals(),
             )
 
     def test_json_roundtrip(self) -> None:
         """MacroRegimeResult survives JSON roundtrip."""
         original = MacroRegimeResult(
-            regime="contractionary",
+            regime=MacroRegime.CONTRACTIONARY,
             confidence=0.75,
-            signals={"vix": 30.0, "treasury_10y": 0.02},
+            signals=MacroSignals(vix=30.0, yield_spread_10y2y=-0.01),
         )
         json_str = original.model_dump_json()
         restored = MacroRegimeResult.model_validate_json(json_str)
         assert restored == original
 
-    def test_empty_signals(self) -> None:
-        """Empty signals dict is valid."""
-        result = MacroRegimeResult(regime="transitional", confidence=0.5, signals={})
-        assert result.signals == {}
+    def test_all_regime_values(self) -> None:
+        """All MacroRegime enum values are accepted."""
+        for regime in MacroRegime:
+            result = MacroRegimeResult(
+                regime=regime,
+                confidence=0.5,
+                signals=MacroSignals(),
+            )
+            assert result.regime == regime
 
 
 # ---------------------------------------------------------------------------
@@ -431,3 +526,23 @@ class TestMacroContextFieldCount:
             "unemployment_rate",
         }
         assert set(MacroContext.model_fields.keys()) == expected
+
+
+class TestMacroSignalsFieldCount:
+    """Verify MacroSignals has exactly 5 fields."""
+
+    def test_field_count(self) -> None:
+        """MacroSignals has exactly 5 fields."""
+        fields = MacroSignals.model_fields
+        assert len(fields) == 5
+
+    def test_field_names(self) -> None:
+        """MacroSignals field names match expected set."""
+        expected = {
+            "yield_spread_10y2y",
+            "unemployment_rate",
+            "fed_funds_rate",
+            "vix",
+            "cpi_yoy",
+        }
+        assert set(MacroSignals.model_fields.keys()) == expected

@@ -412,9 +412,7 @@ class TestGetMajorityDirectionStability:
         )
     )
     @settings(max_examples=100)
-    def test_always_returns_valid_direction(
-        self, directions: dict[str, SignalDirection]
-    ) -> None:
+    def test_always_returns_valid_direction(self, directions: dict[str, SignalDirection]) -> None:
         """Output is always a valid SignalDirection."""
         result = _get_majority_direction(directions)
         assert result in {

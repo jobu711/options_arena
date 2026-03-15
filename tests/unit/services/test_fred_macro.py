@@ -493,31 +493,31 @@ class TestMacroSeriesTTL:
 
 
 class TestTransformApplication:
-    """Tests for FRED value transforms."""
+    """Tests for FRED value transforms using FredTransform enum."""
 
     @pytest.mark.asyncio
     async def test_pct_to_decimal_transform(self, fred_service: FredService) -> None:
-        """pct_to_decimal divides by 100 (4.50 -> 0.045)."""
-        result = fred_service._apply_transform(4.50, "pct_to_decimal")
+        """PCT_TO_DECIMAL divides by 100 (4.50 -> 0.045)."""
+        from options_arena.models.enums import FredTransform
+
+        result = fred_service._apply_transform(4.50, FredTransform.PCT_TO_DECIMAL)
         assert result == pytest.approx(0.045, rel=1e-6)
 
     @pytest.mark.asyncio
     async def test_passthrough_transform(self, fred_service: FredService) -> None:
-        """passthrough returns the value as-is (18.50 -> 18.50)."""
-        result = fred_service._apply_transform(18.50, "passthrough")
+        """PASSTHROUGH returns the value as-is (18.50 -> 18.50)."""
+        from options_arena.models.enums import FredTransform
+
+        result = fred_service._apply_transform(18.50, FredTransform.PASSTHROUGH)
         assert result == pytest.approx(18.50, rel=1e-6)
 
     @pytest.mark.asyncio
     async def test_yoy_pct_change_transform(self, fred_service: FredService) -> None:
-        """yoy_pct_change returns the value as-is (3.20 -> 3.20)."""
-        result = fred_service._apply_transform(3.20, "yoy_pct_change")
-        assert result == pytest.approx(3.20, rel=1e-6)
+        """YOY_PCT_CHANGE returns the value as-is (3.20 -> 3.20)."""
+        from options_arena.models.enums import FredTransform
 
-    @pytest.mark.asyncio
-    async def test_unknown_transform_uses_passthrough(self, fred_service: FredService) -> None:
-        """Unknown transform falls back to passthrough."""
-        result = fred_service._apply_transform(42.0, "unknown_transform")
-        assert result == pytest.approx(42.0, rel=1e-6)
+        result = fred_service._apply_transform(3.20, FredTransform.YOY_PCT_CHANGE)
+        assert result == pytest.approx(3.20, rel=1e-6)
 
 
 # ---------------------------------------------------------------------------

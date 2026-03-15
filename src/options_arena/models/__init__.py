@@ -65,6 +65,7 @@ from options_arena.models.enums import (
     CatalystImpact,
     DividendSource,
     ExerciseStyle,
+    FredTransform,
     GICSIndustryGroup,
     GICSSector,
     GreeksGroupBy,
@@ -72,6 +73,7 @@ from options_arena.models.enums import (
     IVTermStructureShape,
     LLMProvider,
     MacdSignal,
+    MacroRegime,
     MarketCapTier,
     MarketRegime,
     OptionType,
@@ -110,7 +112,7 @@ from options_arena.models.intelligence import (
     IntelligencePackage,
     UpgradeDowngrade,
 )
-from options_arena.models.macro import MacroContext, MacroRegimeResult
+from options_arena.models.macro import MacroContext, MacroRegimeResult, MacroSignals
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
 from options_arena.models.metadata import MetadataCoverage, TickerMetadata
 from options_arena.models.openbb import (
@@ -141,11 +143,13 @@ __all__ = [
     "GICSIndustryGroup",
     "GICSSector",
     "GreeksGroupBy",
+    "FredTransform",
     "GreeksSource",
     "INDUSTRY_GROUP_ALIASES",
     "IVTermStructureShape",
     "LLMProvider",
     "MacdSignal",
+    "MacroRegime",
     "MarketCapTier",
     "MarketRegime",
     "OptionType",
@@ -218,6 +222,7 @@ __all__ = [
     # Macro
     "MacroContext",
     "MacroRegimeResult",
+    "MacroSignals",
     # Config
     "AnalyticsConfig",
     "AppSettings",

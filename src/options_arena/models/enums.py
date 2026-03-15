@@ -308,6 +308,32 @@ SECTOR_ALIASES: dict[str, GICSSector] = {
 }
 
 
+class MacroRegime(StrEnum):
+    """Macro-economic regime classification from FRED indicators.
+
+    EXPANSIONARY   — positive yield curve + low unemployment.
+    CONTRACTIONARY — inverted yield curve + high unemployment.
+    TRANSITIONAL   — mixed signals or insufficient data for directional call.
+    """
+
+    EXPANSIONARY = "expansionary"
+    CONTRACTIONARY = "contractionary"
+    TRANSITIONAL = "transitional"
+
+
+class FredTransform(StrEnum):
+    """Transform applied to raw FRED series values.
+
+    PCT_TO_DECIMAL  — divide by 100 (e.g. 4.5 -> 0.045).
+    YOY_PCT_CHANGE  — FRED computes YoY % change via ``units=pc1``.
+    PASSTHROUGH     — use raw value as-is (index level, etc.).
+    """
+
+    PCT_TO_DECIMAL = "pct_to_decimal"
+    YOY_PCT_CHANGE = "yoy_pct_change"
+    PASSTHROUGH = "passthrough"
+
+
 class AuditSeverity(StrEnum):
     """Severity level for mathematical computation audit findings."""
 

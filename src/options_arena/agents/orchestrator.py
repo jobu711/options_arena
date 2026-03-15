@@ -66,6 +66,7 @@ from options_arena.models import (
     FundamentalThesis,
     LLMProvider,
     MacdSignal,
+    MacroRegime,
     MarketContext,
     NewsSentimentSnapshot,
     OptionContract,
@@ -121,6 +122,10 @@ def build_market_context(
     sentiment: NewsSentimentSnapshot | None = None,
     intelligence: IntelligencePackage | None = None,
     fd_package: FinancialDatasetsPackage | None = None,
+    macro_regime: MacroRegime | None = None,
+    macro_yield_spread: float | None = None,
+    macro_fed_funds_rate: float | None = None,
+    macro_vix_level: float | None = None,
 ) -> MarketContext:
     """Map scan pipeline output to ``MarketContext`` for agent consumption.
 
@@ -478,6 +483,11 @@ def build_market_context(
             and fd_package.metrics.free_cash_flow_yield is not None
             else None
         ),
+        # --- Macro Context (FRED) ---
+        macro_regime=macro_regime,
+        yield_spread=macro_yield_spread,
+        fed_funds_rate=macro_fed_funds_rate,
+        vix_level=macro_vix_level,
     )
 
 
@@ -1400,6 +1410,10 @@ async def run_debate(
     intelligence: IntelligencePackage | None = None,
     fd_package: FinancialDatasetsPackage | None = None,
     spread_analysis: SpreadAnalysis | None = None,
+    macro_regime: MacroRegime | None = None,
+    macro_yield_spread: float | None = None,
+    macro_fed_funds_rate: float | None = None,
+    macro_vix_level: float | None = None,
 ) -> DebateResult:
     """Run 6-agent debate protocol. Falls back to data-driven on failure — never raises.
 
@@ -1455,6 +1469,10 @@ async def run_debate(
         sentiment=sentiment,
         intelligence=intelligence,
         fd_package=fd_package,
+        macro_regime=macro_regime,
+        macro_yield_spread=macro_yield_spread,
+        macro_fed_funds_rate=macro_fed_funds_rate,
+        macro_vix_level=macro_vix_level,
     )
 
     # Populate flat spread fields on MarketContext from SpreadAnalysis

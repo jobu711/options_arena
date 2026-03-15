@@ -19,6 +19,7 @@ from typing import NamedTuple
 import httpx
 
 from options_arena.models.config import PricingConfig, ServiceConfig
+from options_arena.models.enums import FredTransform
 from options_arena.models.macro import FredSeriesConfig, MacroContext
 from options_arena.services.base import ServiceBase
 from options_arena.services.cache import TTL_REFERENCE, ServiceCache
@@ -41,49 +42,49 @@ _MACRO_SERIES: list[FredSeriesConfig] = [
         series_id="DGS10",
         display_name="10-Year Treasury",
         ttl_hours=24,
-        transform="pct_to_decimal",
+        transform=FredTransform.PCT_TO_DECIMAL,
     ),
     FredSeriesConfig(
         series_id="DGS2",
         display_name="2-Year Treasury",
         ttl_hours=24,
-        transform="pct_to_decimal",
+        transform=FredTransform.PCT_TO_DECIMAL,
     ),
     FredSeriesConfig(
         series_id="T10Y2Y",
         display_name="10Y-2Y Yield Spread",
         ttl_hours=24,
-        transform="pct_to_decimal",
+        transform=FredTransform.PCT_TO_DECIMAL,
     ),
     FredSeriesConfig(
         series_id="FEDFUNDS",
         display_name="Fed Funds Rate",
         ttl_hours=24,
-        transform="pct_to_decimal",
+        transform=FredTransform.PCT_TO_DECIMAL,
     ),
     FredSeriesConfig(
         series_id="VIXCLS",
         display_name="VIX",
         ttl_hours=24,
-        transform="passthrough",
+        transform=FredTransform.PASSTHROUGH,
     ),
     FredSeriesConfig(
         series_id="CPIAUCSL",
         display_name="CPI YoY",
         ttl_hours=168,
-        transform="yoy_pct_change",
+        transform=FredTransform.YOY_PCT_CHANGE,
     ),
     FredSeriesConfig(
         series_id="INDPRO",
         display_name="Industrial Production YoY",
         ttl_hours=168,
-        transform="yoy_pct_change",
+        transform=FredTransform.YOY_PCT_CHANGE,
     ),
     FredSeriesConfig(
         series_id="UNRATE",
         display_name="Unemployment Rate",
         ttl_hours=168,
-        transform="pct_to_decimal",
+        transform=FredTransform.PCT_TO_DECIMAL,
     ),
 ]
 
@@ -290,27 +291,37 @@ class FredService(ServiceBase[ServiceConfig]):
     # Private helpers — generalized FRED fetching
     # ------------------------------------------------------------------
 
-    async def _fetch_series_value(self, api_key: str, series_id: str) -> float | None:
+    async def _fetch_series_value(
+        self,
+        api_key: str,
+        series_id: str,
+        *,
+        units: str | None = None,
+    ) -> float | None:
         """Make the actual FRED API request for a single series and parse the response.
 
         Args:
             api_key: FRED API key for authentication.
             series_id: FRED series identifier (e.g. ``"DGS10"``).
+            units: Optional FRED ``units`` parameter for server-side transformation
+                (e.g. ``"pc1"`` for percent change from year ago).
 
         Returns:
-            Raw numeric value from FRED (before any transform), or ``None`` if
-            data is unavailable/unparseable.
+            Numeric value from FRED (after any server-side transform), or ``None``
+            if data is unavailable/unparseable.
 
         Raises:
             httpx.HTTPError: On network/timeout errors (caught by caller).
         """
-        params = {
+        params: dict[str, str] = {
             "series_id": series_id,
             "sort_order": "desc",
             "limit": "1",
             "file_type": "json",
             "api_key": api_key,
         }
+        if units is not None:
+            params["units"] = units
 
         response = await self._client.get(_FRED_API_URL, params=params)
         response.raise_for_status()
@@ -334,24 +345,22 @@ class FredService(ServiceBase[ServiceConfig]):
         self._log.info("Fetched FRED %s: %s", series_id, value_str)
         return raw_value
 
-    def _apply_transform(self, raw_value: float, transform: str) -> float:
+    def _apply_transform(self, raw_value: float, transform: FredTransform) -> float:
         """Apply the configured transform to a raw FRED value.
 
         Args:
             raw_value: Raw numeric value from FRED API.
-            transform: One of ``"pct_to_decimal"``, ``"yoy_pct_change"``,
-                ``"passthrough"``.
+            transform: ``FredTransform`` enum member specifying the transformation.
 
         Returns:
             Transformed value suitable for ``MacroContext``.
         """
         match transform:
-            case "pct_to_decimal":
+            case FredTransform.PCT_TO_DECIMAL:
                 return raw_value / _PERCENTAGE_DIVISOR
-            case "yoy_pct_change" | "passthrough":
-                return raw_value
-            case _:
-                self._log.warning("Unknown transform %r, using passthrough", transform)
+            case FredTransform.YOY_PCT_CHANGE | FredTransform.PASSTHROUGH:
+                # YOY_PCT_CHANGE: FRED already computed the YoY % via units=pc1
+                # PASSTHROUGH: raw value used as-is
                 return raw_value
 
     # ------------------------------------------------------------------
@@ -430,8 +439,17 @@ class FredService(ServiceBase[ServiceConfig]):
             )
 
         # --- Fetch ---
+        # For YoY series (CPI, Industrial Production), FRED computes the
+        # percent change from year ago server-side via units=pc1.  Without
+        # this, FRED returns raw index levels (~317 for CPI, ~103 for INDPRO).
+        fred_units: str | None = None
+        if series_cfg.transform == FredTransform.YOY_PCT_CHANGE:
+            fred_units = "pc1"
+
         try:
-            raw_value = await self._fetch_series_value(api_key, series_cfg.series_id)
+            raw_value = await self._fetch_series_value(
+                api_key, series_cfg.series_id, units=fred_units
+            )
         except Exception as exc:
             safe_err = (
                 exc.response.status_code

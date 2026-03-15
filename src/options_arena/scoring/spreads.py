@@ -930,91 +930,105 @@ def select_strategy(
     match (vol_regime, direction):
         case (VolRegime.ELEVATED | VolRegime.EXTREME, SignalDirection.NEUTRAL):
             # High IV + neutral → iron condor
-            result = _check_pop(build_iron_condor(
-                contracts,
-                spot_price,
-                risk_free_rate,
-                time_to_expiry,
-                config,
-                dividend_yield=dividend_yield,
-                vol_regime=vol_regime,
-            ))
+            result = _check_pop(
+                build_iron_condor(
+                    contracts,
+                    spot_price,
+                    risk_free_rate,
+                    time_to_expiry,
+                    config,
+                    dividend_yield=dividend_yield,
+                    vol_regime=vol_regime,
+                )
+            )
             if result is not None:
                 return result
             # Fallback: try strangle if iron condor can't be built
             logger.debug("select_strategy: iron condor failed, trying strangle fallback")
-            return _check_pop(build_strangle(
-                contracts,
-                spot_price,
-                risk_free_rate,
-                time_to_expiry,
-                config,
-                dividend_yield=dividend_yield,
-                vol_regime=vol_regime,
-            ))
+            return _check_pop(
+                build_strangle(
+                    contracts,
+                    spot_price,
+                    risk_free_rate,
+                    time_to_expiry,
+                    config,
+                    dividend_yield=dividend_yield,
+                    vol_regime=vol_regime,
+                )
+            )
 
         case (VolRegime.ELEVATED | VolRegime.EXTREME, _) if confidence < 0.4:
             # High IV + low confidence → strangle
-            result = _check_pop(build_strangle(
-                contracts,
-                spot_price,
-                risk_free_rate,
-                time_to_expiry,
-                config,
-                dividend_yield=dividend_yield,
-                vol_regime=vol_regime,
-            ))
+            result = _check_pop(
+                build_strangle(
+                    contracts,
+                    spot_price,
+                    risk_free_rate,
+                    time_to_expiry,
+                    config,
+                    dividend_yield=dividend_yield,
+                    vol_regime=vol_regime,
+                )
+            )
             if result is not None:
                 return result
             # Fallback: try straddle
             logger.debug("select_strategy: strangle failed, trying straddle fallback")
-            return _check_pop(build_straddle(
-                contracts,
-                spot_price,
-                risk_free_rate,
-                time_to_expiry,
-                dividend_yield=dividend_yield,
-                vol_regime=vol_regime,
-            ))
+            return _check_pop(
+                build_straddle(
+                    contracts,
+                    spot_price,
+                    risk_free_rate,
+                    time_to_expiry,
+                    dividend_yield=dividend_yield,
+                    vol_regime=vol_regime,
+                )
+            )
 
         case (VolRegime.ELEVATED | VolRegime.EXTREME, _):
             # High IV + directional + decent confidence → vertical credit spread
-            result = _check_pop(build_vertical_spread(
-                contracts,
-                direction,
-                spot_price,
-                risk_free_rate,
-                time_to_expiry,
-                config,
-                dividend_yield=dividend_yield,
-                vol_regime=vol_regime,
-            ))
+            result = _check_pop(
+                build_vertical_spread(
+                    contracts,
+                    direction,
+                    spot_price,
+                    risk_free_rate,
+                    time_to_expiry,
+                    config,
+                    dividend_yield=dividend_yield,
+                    vol_regime=vol_regime,
+                )
+            )
             if result is not None:
                 return result
             # Fallback: try strangle
             logger.debug("select_strategy: vertical credit failed, trying strangle fallback")
-            return _check_pop(build_strangle(
-                contracts,
-                spot_price,
-                risk_free_rate,
-                time_to_expiry,
-                config,
-                dividend_yield=dividend_yield,
-                vol_regime=vol_regime,
-            ))
+            return _check_pop(
+                build_strangle(
+                    contracts,
+                    spot_price,
+                    risk_free_rate,
+                    time_to_expiry,
+                    config,
+                    dividend_yield=dividend_yield,
+                    vol_regime=vol_regime,
+                )
+            )
 
         case (VolRegime.LOW, SignalDirection.BULLISH | SignalDirection.BEARISH):
             # Low IV + directional → vertical debit spread
-            result = _check_pop(build_vertical_spread(
-                contracts,
-                direction,
-                spot_price,
-                risk_free_rate,
-                time_to_expiry,
-                config,
-                dividend_yield=dividend_yield,
-                vol_regime=vol_regime,
-            ))
+            result = _check_pop(
+                build_vertical_spread(
+                    contracts,
+                    direction,
+                    spot_price,
+                    risk_free_rate,
+                    time_to_expiry,
+                    config,
+                    dividend_yield=dividend_yield,
+                    vol_regime=vol_regime,
+                )
+            )
             if result is not None:
                 return result
             logger.debug("select_strategy: vertical debit failed, no fallback for low IV")

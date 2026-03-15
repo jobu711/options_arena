@@ -22,6 +22,7 @@ from options_arena.models import (
     GICSIndustryGroup,
     GICSSector,
     IndicatorSignals,
+    MacroRegime,
     NormalizationStats,
     OptionContract,
     ScanRun,
@@ -101,7 +102,7 @@ class OptionsResult(BaseModel):
     spread_analyses: dict[str, SpreadAnalysis] = Field(default_factory=dict)
 
     # Macro context (populated when config.ml.enable_macro is True)
-    macro_regime: str | None = None
+    macro_regime: MacroRegime | None = None
     macro_yield_spread: float | None = None
     macro_fed_funds_rate: float | None = None
     macro_vix_level: float | None = None

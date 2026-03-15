@@ -38,6 +38,7 @@ from options_arena.models.enums import (
     CatalystImpact,
     ExerciseStyle,
     MacdSignal,
+    MacroRegime,
     RiskLevel,
     SentimentLabel,
     SignalDirection,
@@ -190,10 +191,10 @@ class MarketContext(BaseModel):
 
     # --- ML Volatility Forecasts ---
     vol_forecast_garch: float | None = None  # GARCH annualized vol forecast
-    iv_vs_forecast_spread: float | None = None  # ATM IV - GARCH forecast (positive = IV rich)
+    iv_vs_forecast_spread: float | None = None  # EWMA vol - GARCH forecast (positive = vol rich)
 
     # --- Macro Context (FRED) ---
-    macro_regime: str | None = None  # "expansionary", "contractionary", "transitional"
+    macro_regime: MacroRegime | None = None
     yield_spread: float | None = None  # 10Y-2Y spread (decimal fraction)
     fed_funds_rate: float | None = None  # Federal funds rate (decimal fraction)
     vix_level: float | None = None  # CBOE VIX index level (not percentage)
@@ -444,6 +445,9 @@ class MarketContext(BaseModel):
         # Volatility Intelligence: Surface Mispricing
         # (surface_fit_r2 has its own range validator; iv_surface_residual checked here)
         "iv_surface_residual",
+        # ML Volatility Forecasts
+        "vol_forecast_garch",
+        "iv_vs_forecast_spread",
         # Spread strategy
         "spread_pop",
         "spread_risk_reward",

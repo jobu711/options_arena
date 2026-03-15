@@ -147,7 +147,9 @@ class IndicatorSignals(BaseModel):
     # --- ML: Volatility Forecasting (3 new) ---
     vol_forecast_garch: float | None = None  # GARCH(1,1) annualized vol forecast
     vol_forecast_egarch: float | None = None  # EGARCH(1,1,1) annualized vol forecast
-    iv_vs_forecast_spread: float | None = None  # ATM IV minus GARCH forecast (positive = IV rich)
+    iv_vs_forecast_spread: float | None = (
+        None  # EWMA vol minus GARCH forecast (positive = vol rich)
+    )
 
     # --- ML: Regime Detection (2 new) ---
     regime_markov_label: float | None = None  # 0.0=low_vol, 1.0=normal, 2.0=high_vol

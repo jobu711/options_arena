@@ -36,6 +36,7 @@ from options_arena.indicators.vol_surface import (
 )
 from options_arena.models import (
     IndicatorSignals,
+    MacroRegime,
     MarketRegime,
     OptionContract,
     OptionType,
@@ -273,7 +274,7 @@ async def run_options_phase(
     logger.info("Risk-free rate: %.4f", risk_free_rate)
 
     # Step 3a: Macro context (FRED) — fetched once for entire scan when enabled
-    macro_regime: str | None = None
+    macro_regime: MacroRegime | None = None
     macro_yield_spread: float | None = None
     macro_fed_funds_rate: float | None = None
     macro_vix_level: float | None = None
@@ -283,13 +284,20 @@ async def run_options_phase(
             from options_arena.indicators.macro import compute_macro_regime
 
             macro_ctx = await fred.fetch_macro_context()
-            regime_result = compute_macro_regime(macro_ctx)
-            if regime_result is not None:
-                macro_regime = regime_result.regime
+            classification = compute_macro_regime(
+                yield_spread_10y2y=macro_ctx.yield_spread_10y2y,
+                unemployment_rate=macro_ctx.unemployment_rate,
+                fed_funds_rate=macro_ctx.fed_funds_rate,
+                vix=macro_ctx.vix,
+                cpi_yoy=macro_ctx.cpi_yoy,
+                completeness_ratio=macro_ctx.completeness_ratio(),
+            )
+            if classification is not None:
+                macro_regime = MacroRegime(classification.regime)
                 logger.info(
                     "Macro regime: %s (confidence=%.2f)",
                     macro_regime,
-                    regime_result.confidence,
+                    classification.confidence,
                 )
             macro_yield_spread = macro_ctx.yield_spread_10y2y
             macro_fed_funds_rate = macro_ctx.fed_funds_rate
