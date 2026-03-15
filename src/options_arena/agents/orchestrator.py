@@ -356,6 +356,9 @@ def build_market_context(
         skew_25d=signals.skew_25d,
         smile_curvature=signals.smile_curvature,
         prob_above_current=signals.prob_above_current,
+        # --- ML Volatility Forecasts ---
+        vol_forecast_garch=signals.vol_forecast_garch,
+        iv_vs_forecast_spread=signals.iv_vs_forecast_spread,
         # --- Volatility Intelligence: Surface Mispricing ---
         iv_surface_residual=signals.iv_surface_residual,
         surface_fit_r2=signals.surface_fit_r2,

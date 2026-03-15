@@ -188,6 +188,10 @@ class MarketContext(BaseModel):
     spread_pop: float | None = None  # Probability of profit [0.0, 1.0]
     spread_risk_reward: float | None = None
 
+    # --- ML Volatility Forecasts ---
+    vol_forecast_garch: float | None = None  # GARCH annualized vol forecast
+    iv_vs_forecast_spread: float | None = None  # ATM IV - GARCH forecast (positive = IV rich)
+
     # --- Macro Context (FRED) ---
     macro_regime: str | None = None  # "expansionary", "contractionary", "transitional"
     yield_spread: float | None = None  # 10Y-2Y spread (decimal fraction)

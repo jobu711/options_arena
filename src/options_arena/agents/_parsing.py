@@ -532,6 +532,16 @@ def render_volatility_context(ctx: MarketContext) -> str:
         if rendered is not None:
             nq_vol_lines.append(rendered)
 
+    # ML Volatility Forecasts (GARCH)
+    garch_rendered = _render_optional("GARCH FORECAST (ANN.)", ctx.vol_forecast_garch, ".1%")
+    if garch_rendered is not None:
+        nq_vol_lines.append(garch_rendered)
+    iv_spread_rendered = _render_optional(
+        "IV VS GARCH FORECAST SPREAD", ctx.iv_vs_forecast_spread, ".1%"
+    )
+    if iv_spread_rendered is not None:
+        nq_vol_lines.append(iv_spread_rendered)
+
     # Surface mispricing (volatility-intelligence epic)
     if ctx.iv_surface_residual is not None and math.isfinite(ctx.iv_surface_residual):
         z = ctx.iv_surface_residual
