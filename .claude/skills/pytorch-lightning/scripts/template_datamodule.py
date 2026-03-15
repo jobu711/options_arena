@@ -134,9 +134,7 @@ class TemplateDataModule(L.LightningDataModule):
         # Setup for training and validation
         if stage == "fit" or stage is None:
             # Load full dataset
-            full_dataset = CustomDataset(
-                self.hparams.data_dir, transform=train_transform
-            )
+            full_dataset = CustomDataset(self.hparams.data_dir, transform=train_transform)
 
             # Split into train and validation
             train_size = int(self.hparams.train_val_split * len(full_dataset))
@@ -154,15 +152,11 @@ class TemplateDataModule(L.LightningDataModule):
 
         # Setup for testing
         if stage == "test" or stage is None:
-            self.test_dataset = CustomDataset(
-                self.hparams.data_dir, transform=test_transform
-            )
+            self.test_dataset = CustomDataset(self.hparams.data_dir, transform=test_transform)
 
         # Setup for prediction
         if stage == "predict":
-            self.predict_dataset = CustomDataset(
-                self.hparams.data_dir, transform=test_transform
-            )
+            self.predict_dataset = CustomDataset(self.hparams.data_dir, transform=test_transform)
 
     def _get_train_transforms(self):
         """
