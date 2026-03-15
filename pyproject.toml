@@ -28,6 +28,10 @@ dependencies = [
 
 [project.optional-dependencies]
 pdf = ["weasyprint>=63.0"]
+ml = [
+    "arch>=7.0,<9",
+    "statsmodels>=0.14",
+]
 # NOTE: openbb extra omitted — OpenBB SDK pins fastapi<0.129 and ruff<0.14,
 # which conflicts with our fastapi>=0.133.1 and ruff>=0.15. Users who want
 # OpenBB enrichment should install openbb + vaderSentiment separately.
@@ -76,7 +80,7 @@ warn_return_any = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["openbb.*", "vaderSentiment.*", "yfinance.*"]
+module = ["arch.*", "openbb.*", "statsmodels.*", "vaderSentiment.*", "yfinance.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

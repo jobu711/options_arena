@@ -19,6 +19,11 @@ from options_arena.indicators.options_specific import (
 )
 from options_arena.indicators.oscillators import rsi, stoch_rsi, williams_r
 from options_arena.indicators.trend import adx, macd, roc, supertrend
+from options_arena.indicators.vol_forecast import (
+    compute_egarch_forecast,
+    compute_garch_forecast,
+    test_stationarity,
+)
 from options_arena.indicators.vol_surface import (
     VolSurfaceIndicators,
     VolSurfaceResult,
@@ -35,6 +40,8 @@ __all__ = [
     "adx",
     "atr_percent",
     "bb_width",
+    "compute_egarch_forecast",
+    "compute_garch_forecast",
     "compute_hv_parkinson",
     "compute_hv_rogers_satchell",
     "compute_hv_yang_zhang",
@@ -54,6 +61,7 @@ __all__ = [
     "sma_alignment",
     "stoch_rsi",
     "supertrend",
+    "test_stationarity",
     "vwap_deviation",
     "williams_r",
 ]
