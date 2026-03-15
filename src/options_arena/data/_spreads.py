@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import date
 from decimal import Decimal
@@ -51,12 +52,13 @@ class SpreadsMixin(RepositoryBase):
         Returns:
             The database-assigned ID of the spread recommendation.
         """
+        breakevens_json = json.dumps([str(b) for b in spread.breakevens])
         conn = self._db.conn
         cursor = await conn.execute(
             "INSERT INTO spread_recommendations "
             "(scan_run_id, ticker, spread_type, net_premium, max_profit, max_loss, "
-            "risk_reward_ratio, pop_estimate, strategy_rationale, iv_regime) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "risk_reward_ratio, pop_estimate, strategy_rationale, iv_regime, breakevens_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 scan_run_id,
                 ticker,
@@ -68,9 +70,11 @@ class SpreadsMixin(RepositoryBase):
                 spread.pop_estimate,
                 spread.strategy_rationale,
                 spread.iv_regime.value if spread.iv_regime is not None else None,
+                breakevens_json,
             ),
         )
-        assert cursor.lastrowid is not None
+        if cursor.lastrowid is None:
+            raise RuntimeError("INSERT into spread_recommendations returned no lastrowid")
         spread_id: int = cursor.lastrowid
 
         # Persist each leg
@@ -249,9 +253,21 @@ class SpreadsMixin(RepositoryBase):
             net_premium=Decimal(row["net_premium"]),  # type: ignore[index]
             max_profit=Decimal(row["max_profit"]),  # type: ignore[index]
             max_loss=Decimal(row["max_loss"]),  # type: ignore[index]
-            breakevens=[Decimal("0")],  # placeholder — breakevens not persisted
-            risk_reward_ratio=float(rr_raw) if rr_raw is not None else float("nan"),
+            breakevens=self._deserialize_breakevens(row),
+            risk_reward_ratio=float(rr_raw) if rr_raw is not None else None,
             pop_estimate=float(row["pop_estimate"]) if row["pop_estimate"] is not None else 0.5,  # type: ignore[index]
             strategy_rationale=str(row["strategy_rationale"] or ""),  # type: ignore[index]
             iv_regime=VolRegime(iv_regime_raw) if iv_regime_raw is not None else None,
         )
+
+    @staticmethod
+    def _deserialize_breakevens(row: object) -> list[Decimal]:
+        """Deserialize breakevens_json column, falling back to empty list."""
+        raw: str | None = row["breakevens_json"]  # type: ignore[index]
+        if raw is None:
+            return [Decimal("0")]  # legacy rows without breakevens_json
+        try:
+            values = json.loads(raw)
+            return [Decimal(v) for v in values]
+        except (json.JSONDecodeError, ValueError):
+            return [Decimal("0")]

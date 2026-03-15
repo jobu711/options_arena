@@ -282,7 +282,9 @@ def _render_spread_section(spread: SpreadAnalysis) -> str:
 
     pop_str = f"{spread.pop_estimate:.1%}" if math.isfinite(spread.pop_estimate) else "N/A"
     rr_str = (
-        f"{spread.risk_reward_ratio:.2f}" if math.isfinite(spread.risk_reward_ratio) else "N/A"
+        f"{spread.risk_reward_ratio:.2f}"
+        if spread.risk_reward_ratio is not None and math.isfinite(spread.risk_reward_ratio)
+        else "N/A"
     )
     lines.append(f"**Risk**: PoP: {pop_str} | Risk/Reward: {rr_str}")
     lines.append("")

@@ -111,8 +111,10 @@ class TestComputeSurfaceIndicators:
         z_scores = np.array([-1.2, -0.5, 0.0, 0.8, 1.5])
 
         result_vol = _make_fitted_result(
-            z_scores=z_scores, r_squared=0.90,
-            fitted_strikes=strikes, fitted_dtes=dtes,
+            z_scores=z_scores,
+            r_squared=0.90,
+            fitted_strikes=strikes,
+            fitted_dtes=dtes,
         )
 
         indicators = compute_surface_indicators(
@@ -133,7 +135,8 @@ class TestComputeSurfaceIndicators:
 
         result_vol = _make_fitted_result(
             z_scores=np.array([0.1, 0.2, 0.3]),
-            fitted_strikes=strikes, fitted_dtes=dtes,
+            fitted_strikes=strikes,
+            fitted_dtes=dtes,
             is_standalone_fallback=True,
         )
 
@@ -169,8 +172,10 @@ class TestComputeSurfaceIndicators:
         z_scores = np.array([-0.5, 0.0, 0.5])
 
         result_vol = _make_fitted_result(
-            z_scores=z_scores, r_squared=0.88,
-            fitted_strikes=strikes, fitted_dtes=dtes,
+            z_scores=z_scores,
+            r_squared=0.88,
+            fitted_strikes=strikes,
+            fitted_dtes=dtes,
         )
 
         indicators = compute_surface_indicators(
@@ -190,8 +195,10 @@ class TestComputeSurfaceIndicators:
         z_scores = np.array([0.1, 0.2])
 
         result_vol = _make_fitted_result(
-            z_scores=z_scores, r_squared=0.75,
-            fitted_strikes=strikes, fitted_dtes=dtes,
+            z_scores=z_scores,
+            r_squared=0.75,
+            fitted_strikes=strikes,
+            fitted_dtes=dtes,
         )
 
         # Query a DTE that doesn't match
@@ -212,7 +219,8 @@ class TestComputeSurfaceIndicators:
 
         result_vol = _make_fitted_result(
             z_scores=z_scores,
-            fitted_strikes=strikes, fitted_dtes=dtes,
+            fitted_strikes=strikes,
+            fitted_dtes=dtes,
             is_1d_fallback=True,
         )
 
@@ -232,7 +240,8 @@ class TestComputeSurfaceIndicators:
 
         result_vol = _make_fitted_result(
             z_scores=z_scores,
-            fitted_strikes=strikes, fitted_dtes=dtes,
+            fitted_strikes=strikes,
+            fitted_dtes=dtes,
         )
 
         # Query strike=90
@@ -265,8 +274,10 @@ class TestComputeSurfaceIndicators:
         z_scores = np.array([0.5])
 
         result_vol = _make_fitted_result(
-            z_scores=z_scores, r_squared=r2_value,
-            fitted_strikes=strikes, fitted_dtes=dtes,
+            z_scores=z_scores,
+            r_squared=r2_value,
+            fitted_strikes=strikes,
+            fitted_dtes=dtes,
         )
 
         indicators = compute_surface_indicators(
@@ -284,8 +295,10 @@ class TestComputeSurfaceIndicators:
         z_scores = np.array([0.5, float("nan"), 1.0])
 
         result_vol = _make_fitted_result(
-            z_scores=z_scores, r_squared=0.80,
-            fitted_strikes=strikes, fitted_dtes=dtes,
+            z_scores=z_scores,
+            r_squared=0.80,
+            fitted_strikes=strikes,
+            fitted_dtes=dtes,
         )
 
         indicators = compute_surface_indicators(
@@ -306,7 +319,8 @@ class TestComputeSurfaceIndicators:
 
         result_vol = _make_fitted_result(
             z_scores=z_scores,
-            fitted_strikes=strikes, fitted_dtes=dtes,
+            fitted_strikes=strikes,
+            fitted_dtes=dtes,
         )
 
         indicators = compute_surface_indicators(

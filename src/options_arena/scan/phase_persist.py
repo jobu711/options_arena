@@ -172,8 +172,8 @@ async def run_persist_phase(
                     commit=False,
                 )
                 spread_count += 1
-            except Exception:
-                logger.warning("Failed to persist spread for %s", ticker, exc_info=True)
+            except (ValueError, TypeError) as exc:
+                logger.warning("Failed to persist spread for %s: %s", ticker, exc)
         if spread_count > 0:
             logger.info(
                 "Persisted %d spread recommendations for scan %d",

@@ -714,6 +714,7 @@ async def process_ticker_options(
                 risk_free_rate=risk_free_rate,
                 time_to_expiry=time_to_expiry,
                 config=spread_config,
+                dividend_yield=ticker_info.dividend_yield,
             )
             if spread_result is not None:
                 rationale_preview = (

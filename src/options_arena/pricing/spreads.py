@@ -107,6 +107,12 @@ def aggregate_spread_greeks(legs: list[SpreadLeg]) -> OptionGreeks | None:
     assert first_greeks is not None  # noqa: S101
     pricing_model = first_greeks.pricing_model
 
+    # Guard non-finite values before model_construct (which bypasses validators)
+    primary_greeks = [total_delta, total_gamma, total_theta, total_vega, total_rho]
+    if not all(math.isfinite(v) for v in primary_greeks):
+        logger.warning("Non-finite aggregate Greeks detected, returning None")
+        return None
+
     # Use model_construct to bypass validators — aggregate Greeks for spreads
     # can legitimately have negative gamma/vega (short-heavy spreads) which
     # would fail the single-contract validators.

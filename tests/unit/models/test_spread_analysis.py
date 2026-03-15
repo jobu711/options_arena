@@ -7,7 +7,6 @@ defaults plus environment variable overrides.
 
 from __future__ import annotations
 
-import math
 from decimal import Decimal
 
 import pytest
@@ -153,16 +152,16 @@ class TestSpreadAnalysisRoundtrip:
         assert restored.iv_regime == VolRegime.LOW
         assert restored.strategy_rationale == "Test rationale."
 
-    def test_model_dump_preserves_nan_risk_reward(self) -> None:
-        """NaN risk_reward_ratio is preserved in model_dump() (Python dict).
+    def test_model_dump_preserves_none_risk_reward(self) -> None:
+        """NaN risk_reward_ratio is coerced to None by validator.
 
-        Pydantic serializes NaN to null in JSON, so true JSON roundtrip is
-        not possible for NaN floats. The Python dict roundtrip works fine.
+        The field_validator converts non-finite values (NaN, Inf) to None
+        for safe serialization and display.
         """
         analysis = make_spread_analysis(risk_reward_ratio=float("nan"))
 
         dumped = analysis.model_dump()
-        assert math.isnan(dumped["risk_reward_ratio"])
+        assert dumped["risk_reward_ratio"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -222,22 +221,27 @@ class TestSpreadAnalysisBreakevens:
 
 
 class TestSpreadAnalysisRiskReward:
-    """Test risk_reward_ratio allows NaN (for undefined ratios)."""
+    """Test risk_reward_ratio validator coerces NaN/Inf to None."""
 
-    def test_risk_reward_allows_nan(self) -> None:
-        """NaN is valid for risk_reward_ratio (undefined when max_loss is zero)."""
+    def test_risk_reward_coerces_nan_to_none(self) -> None:
+        """NaN is coerced to None (undefined when max_loss is zero)."""
         analysis = make_spread_analysis(risk_reward_ratio=float("nan"))
-        assert math.isnan(analysis.risk_reward_ratio)
+        assert analysis.risk_reward_ratio is None
 
-    def test_risk_reward_allows_positive_inf(self) -> None:
-        """Positive infinity is valid for risk_reward_ratio (credit spreads)."""
+    def test_risk_reward_coerces_inf_to_none(self) -> None:
+        """Positive infinity is coerced to None for safe serialization."""
         analysis = make_spread_analysis(risk_reward_ratio=float("inf"))
-        assert math.isinf(analysis.risk_reward_ratio)
+        assert analysis.risk_reward_ratio is None
 
     def test_risk_reward_allows_normal_values(self) -> None:
         """Normal float values are valid for risk_reward_ratio."""
         analysis = make_spread_analysis(risk_reward_ratio=2.5)
         assert analysis.risk_reward_ratio == pytest.approx(2.5)
+
+    def test_risk_reward_allows_none(self) -> None:
+        """None is valid for risk_reward_ratio."""
+        analysis = make_spread_analysis(risk_reward_ratio=None)
+        assert analysis.risk_reward_ratio is None
 
 
 # ---------------------------------------------------------------------------

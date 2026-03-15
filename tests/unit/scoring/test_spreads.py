@@ -17,6 +17,7 @@ from options_arena.models.enums import (
     PositionSide,
     SignalDirection,
     SpreadType,
+    VolRegime,
 )
 from options_arena.models.options import SpreadAnalysis
 from options_arena.scoring.spreads import (
@@ -175,6 +176,7 @@ class TestBuildVerticalSpread:
             _DEFAULT_RATE,
             _DEFAULT_TTE,
             _DEFAULT_CONFIG,
+            vol_regime=VolRegime.ELEVATED,
         )
 
         assert result is not None
@@ -201,6 +203,7 @@ class TestBuildVerticalSpread:
             _DEFAULT_RATE,
             _DEFAULT_TTE,
             _DEFAULT_CONFIG,
+            vol_regime=VolRegime.ELEVATED,
         )
 
         assert result is not None

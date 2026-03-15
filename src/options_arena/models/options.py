@@ -294,11 +294,21 @@ class SpreadAnalysis(BaseModel):
     max_profit: Decimal
     max_loss: Decimal
     breakevens: list[Decimal]
-    risk_reward_ratio: float
+    risk_reward_ratio: float | None
     pop_estimate: float
     net_greeks: OptionGreeks | None = None
     strategy_rationale: str = ""
     iv_regime: VolRegime | None = None
+
+    @field_validator("risk_reward_ratio", mode="before")
+    @classmethod
+    def validate_risk_reward_ratio(cls, v: float | None) -> float | None:
+        """Convert NaN to None for clean downstream handling."""
+        if v is None:
+            return None
+        if not math.isfinite(v):
+            return None
+        return v
 
     @field_validator("pop_estimate")
     @classmethod

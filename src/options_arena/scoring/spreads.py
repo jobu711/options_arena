@@ -57,8 +57,9 @@ def _compute_pop(
     sigma: float,
     *,
     profit_above: bool,
+    dividend_yield: float = 0.0,
 ) -> float:
-    """Probability of profit via BSM N(d2).
+    """Probability of profit via BSM N(d2) (Merton 1973 with dividends).
 
     Computes the risk-neutral probability that ``S_T`` finishes on the
     profitable side of the breakeven.
@@ -76,6 +77,7 @@ def _compute_pop(
         sigma: Implied volatility (annualized, decimal).
         profit_above: True if the strategy profits when the price
             finishes above the breakeven (bullish bias).
+        dividend_yield: Continuous dividend yield (decimal).
 
     Returns:
         Probability of profit in ``[0.0, 1.0]``. Falls back to ``0.5``
@@ -89,9 +91,10 @@ def _compute_pop(
     if not math.isfinite(spot_price) or spot_price <= 0:
         return 0.5
 
-    d2 = (math.log(spot_price / be) + (risk_free_rate - 0.5 * sigma**2) * time_to_expiry) / (
-        sigma * math.sqrt(time_to_expiry)
-    )
+    d2 = (
+        math.log(spot_price / be)
+        + (risk_free_rate - dividend_yield - 0.5 * sigma**2) * time_to_expiry
+    ) / (sigma * math.sqrt(time_to_expiry))
 
     prob = float(norm.cdf(d2))
     # N(d2) = P(S_T > breakeven) in risk-neutral measure
@@ -107,10 +110,12 @@ def _compute_pop_between(
     risk_free_rate: float,
     time_to_expiry: float,
     sigma: float,
+    *,
+    dividend_yield: float = 0.0,
 ) -> float:
     """Probability price stays between two breakevens (iron condor, short straddle).
 
-    Uses BSM: P(lower < S_T < upper) = N(d2_upper) - N(d2_lower).
+    Uses BSM (Merton 1973): P(lower < S_T < upper) = N(d2_upper) - N(d2_lower).
 
     Args:
         spot_price: Current underlying price.
@@ -119,6 +124,7 @@ def _compute_pop_between(
         risk_free_rate: Annualized risk-free rate (decimal).
         time_to_expiry: Time to expiry in years.
         sigma: Implied volatility (annualized, decimal).
+        dividend_yield: Continuous dividend yield (decimal).
 
     Returns:
         Probability in ``[0.0, 1.0]``. Falls back to ``0.5`` on degenerate inputs.
@@ -133,7 +139,7 @@ def _compute_pop_between(
         return 0.5
 
     sqrt_t = sigma * math.sqrt(time_to_expiry)
-    drift = (risk_free_rate - 0.5 * sigma**2) * time_to_expiry
+    drift = (risk_free_rate - dividend_yield - 0.5 * sigma**2) * time_to_expiry
 
     d2_upper = (math.log(spot_price / hi) + drift) / sqrt_t
     d2_lower = (math.log(spot_price / lo) + drift) / sqrt_t
@@ -149,6 +155,8 @@ def _compute_pop_outside(
     risk_free_rate: float,
     time_to_expiry: float,
     sigma: float,
+    *,
+    dividend_yield: float = 0.0,
 ) -> float:
     """Probability price moves outside two breakevens (long straddle/strangle).
 
@@ -161,6 +169,7 @@ def _compute_pop_outside(
         risk_free_rate: Annualized risk-free rate (decimal).
         time_to_expiry: Time to expiry in years.
         sigma: Implied volatility (annualized, decimal).
+        dividend_yield: Continuous dividend yield (decimal).
 
     Returns:
         Probability in ``[0.0, 1.0]``.
@@ -172,6 +181,7 @@ def _compute_pop_outside(
         risk_free_rate,
         time_to_expiry,
         sigma,
+        dividend_yield=dividend_yield,
     )
     return max(0.0, min(1.0, 1.0 - inside))
 
@@ -227,6 +237,9 @@ def build_vertical_spread(
     risk_free_rate: float,
     time_to_expiry: float,
     config: SpreadConfig,
+    *,
+    dividend_yield: float = 0.0,
+    vol_regime: VolRegime | None = None,
 ) -> SpreadAnalysis | None:
     """Build a vertical spread (bull/bear, credit/debit).
 
@@ -255,10 +268,9 @@ def build_vertical_spread(
 
     width = Decimal(str(config.vertical_width))
 
-    # Classify vol regime from average IV of contracts
-    avg_market_iv = _avg_iv(contracts)
-    iv_rank_estimate = avg_market_iv * 100  # rough proxy for regime decision
-    vol_regime = classify_vol_regime(iv_rank_estimate)
+    # Use vol_regime passed from select_strategy (avoids IV-to-rank conflation)
+    if vol_regime is None:
+        vol_regime = classify_vol_regime(None)
     is_credit = vol_regime in (VolRegime.ELEVATED, VolRegime.EXTREME)
 
     # Determine option type based on direction + credit/debit
@@ -405,6 +417,7 @@ def build_vertical_spread(
         time_to_expiry,
         sigma,
         profit_above=profit_above,
+        dividend_yield=dividend_yield,
     )
 
     # Build rationale
@@ -453,6 +466,8 @@ def build_iron_condor(
     risk_free_rate: float,
     time_to_expiry: float,
     config: SpreadConfig,
+    *,
+    dividend_yield: float = 0.0,
 ) -> SpreadAnalysis | None:
     """Build an iron condor (sell OTM put + call, buy further OTM put + call).
 
@@ -553,9 +568,10 @@ def build_iron_condor(
         logger.debug("build_iron_condor: degenerate P&L, skipping")
         return None
 
-    # Breakevens
-    lower_breakeven = short_put.strike - put_credit
-    upper_breakeven = short_call.strike + call_credit
+    # Breakevens — use total net premium (not per-side credits)
+    # At the lower breakeven, the call side expires worthless and its credit offsets put losses
+    lower_breakeven = short_put.strike - net_premium
+    upper_breakeven = short_call.strike + net_premium
 
     # PoP: probability price stays between breakevens
     sigma = _avg_iv([long_put, short_put, short_call, long_call])
@@ -566,12 +582,14 @@ def build_iron_condor(
         risk_free_rate,
         time_to_expiry,
         sigma,
+        dividend_yield=dividend_yield,
     )
 
+    vol_regime = classify_vol_regime(_avg_iv(contracts) * 100)
     rationale = (
         f"Iron condor: {long_put.strike}/{short_put.strike} puts, "
         f"{short_call.strike}/{long_call.strike} calls "
-        f"(neutral bias, elevated IV regime)"
+        f"(neutral bias, {vol_regime.value if vol_regime else 'unknown'} IV regime)"
     )
 
     spread = OptionSpread(
@@ -581,7 +599,6 @@ def build_iron_condor(
     )
 
     net_greeks = _net_greeks(legs)
-    vol_regime = classify_vol_regime(_avg_iv(contracts) * 100)
 
     return SpreadAnalysis(
         spread=spread,
@@ -607,6 +624,8 @@ def build_straddle(
     spot_price: float,
     risk_free_rate: float,
     time_to_expiry: float,
+    *,
+    dividend_yield: float = 0.0,
 ) -> SpreadAnalysis | None:
     """Build a long straddle (ATM call + ATM put at same strike).
 
@@ -689,6 +708,7 @@ def build_straddle(
         risk_free_rate,
         time_to_expiry,
         sigma,
+        dividend_yield=dividend_yield,
     )
 
     rationale = (
@@ -728,6 +748,8 @@ def build_strangle(
     risk_free_rate: float,
     time_to_expiry: float,
     config: SpreadConfig,
+    *,
+    dividend_yield: float = 0.0,
 ) -> SpreadAnalysis | None:
     """Build a long strangle (OTM call + OTM put at different strikes).
 
@@ -796,6 +818,7 @@ def build_strangle(
         risk_free_rate,
         time_to_expiry,
         sigma,
+        dividend_yield=dividend_yield,
     )
 
     rationale = (
@@ -838,6 +861,8 @@ def select_strategy(
     risk_free_rate: float,
     time_to_expiry: float,
     config: SpreadConfig,
+    *,
+    dividend_yield: float = 0.0,
 ) -> SpreadAnalysis | None:
     """Select the optimal multi-leg strategy based on IV regime, direction, and confidence.
 
@@ -890,6 +915,7 @@ def select_strategy(
                 risk_free_rate,
                 time_to_expiry,
                 config,
+                dividend_yield=dividend_yield,
             )
             if result is not None:
                 return result
@@ -901,6 +927,7 @@ def select_strategy(
                 risk_free_rate,
                 time_to_expiry,
                 config,
+                dividend_yield=dividend_yield,
             )
 
         case (VolRegime.ELEVATED | VolRegime.EXTREME, _) if confidence < 0.4:
@@ -911,6 +938,7 @@ def select_strategy(
                 risk_free_rate,
                 time_to_expiry,
                 config,
+                dividend_yield=dividend_yield,
             )
             if result is not None:
                 return result
@@ -921,6 +949,7 @@ def select_strategy(
                 spot_price,
                 risk_free_rate,
                 time_to_expiry,
+                dividend_yield=dividend_yield,
             )
 
         case (VolRegime.ELEVATED | VolRegime.EXTREME, _):
@@ -932,6 +961,8 @@ def select_strategy(
                 risk_free_rate,
                 time_to_expiry,
                 config,
+                dividend_yield=dividend_yield,
+                vol_regime=vol_regime,
             )
             if result is not None:
                 return result
@@ -943,6 +974,7 @@ def select_strategy(
                 risk_free_rate,
                 time_to_expiry,
                 config,
+                dividend_yield=dividend_yield,
             )
 
         case (VolRegime.LOW, SignalDirection.BULLISH | SignalDirection.BEARISH):
@@ -954,6 +986,8 @@ def select_strategy(
                 risk_free_rate,
                 time_to_expiry,
                 config,
+                dividend_yield=dividend_yield,
+                vol_regime=vol_regime,
             )
             if result is not None:
                 return result

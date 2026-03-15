@@ -57,6 +57,9 @@ from options_arena.services.outcome_collector import OutcomeCollector
 
 logger = logging.getLogger(__name__)
 
+# Strong references to background tasks prevent garbage collection (AUDIT P1-1)
+_background_tasks: set[asyncio.Task[None]] = set()
+
 router = APIRouter(prefix="/api", tags=["scan"])
 
 
@@ -234,9 +237,11 @@ async def start_scan(
     request.app.state.scan_queues[scan_id] = bridge.queue
 
     # Background task owns the lock and releases it on completion
-    asyncio.create_task(
+    task = asyncio.create_task(
         _run_scan_background(request, scan_id, body.source, token, bridge, pipeline, lock)
     )
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
     return ScanStarted(scan_id=scan_id)
 
 

@@ -442,8 +442,8 @@ def render_spread_panel(console: Console, spread: SpreadAnalysis) -> None:
             contract.option_type.value.upper(),
             f"${contract.strike}",
             str(contract.expiration),
-            f"${contract.bid}" if contract.bid else "--",
-            f"${contract.ask}" if contract.ask else "--",
+            f"${contract.bid}",
+            f"${contract.ask}",
             delta_str,
         )
     console.print(table)
@@ -456,7 +456,11 @@ def render_spread_panel(console: Console, spread: SpreadAnalysis) -> None:
     console.print(Text(f"  Max Profit: {max_profit_str}  |  Max Loss: ${spread.max_loss}"))
 
     pop_str = f"{spread.pop_estimate:.1%}" if math.isfinite(spread.pop_estimate) else "--"
-    rr_str = f"{spread.risk_reward_ratio:.2f}" if math.isfinite(spread.risk_reward_ratio) else "--"
+    rr_str = (
+        f"{spread.risk_reward_ratio:.2f}"
+        if spread.risk_reward_ratio is not None and math.isfinite(spread.risk_reward_ratio)
+        else "--"
+    )
     console.print(Text(f"  PoP: {pop_str}  |  Risk/Reward: {rr_str}"))
 
 

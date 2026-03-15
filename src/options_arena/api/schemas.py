@@ -395,8 +395,8 @@ def spread_detail_from_analysis(analysis: SpreadAnalysis) -> SpreadDetail:
                 expiration=str(contract.expiration),
                 side=leg.side.value,
                 quantity=leg.quantity,
-                bid=str(contract.bid) if contract.bid else None,
-                ask=str(contract.ask) if contract.ask else None,
+                bid=str(contract.bid),
+                ask=str(contract.ask),
                 delta=greeks.delta if greeks is not None else None,
             )
         )
@@ -407,7 +407,7 @@ def spread_detail_from_analysis(analysis: SpreadAnalysis) -> SpreadDetail:
         else str(analysis.max_profit)
     )
 
-    rr = analysis.risk_reward_ratio if math.isfinite(analysis.risk_reward_ratio) else None
+    rr = analysis.risk_reward_ratio  # already None for non-finite (model validator)
     pop = analysis.pop_estimate if math.isfinite(analysis.pop_estimate) else None
 
     return SpreadDetail(
