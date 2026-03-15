@@ -123,13 +123,13 @@ class TestCorrelationAdjustment:
         """correlation=None -> adjustment=1.0, no penalty."""
         result = compute_position_size(0.10, correlation_with_portfolio=None)
         assert result.correlation_adjustment == pytest.approx(1.0)
-        assert result.final_allocation_pct == result.base_allocation_pct
+        assert result.final_allocation_pct == pytest.approx(result.base_allocation_pct)
 
     def test_correlation_below_threshold_no_adjustment(self) -> None:
         """correlation=0.50 < 0.70 -> adjustment=1.0, no penalty."""
         result = compute_position_size(0.10, correlation_with_portfolio=0.50)
         assert result.correlation_adjustment == pytest.approx(1.0)
-        assert result.final_allocation_pct == result.base_allocation_pct
+        assert result.final_allocation_pct == pytest.approx(result.base_allocation_pct)
 
     def test_correlation_exactly_at_threshold_no_penalty(self) -> None:
         """correlation=0.70 == threshold -> strictly greater required, no penalty."""

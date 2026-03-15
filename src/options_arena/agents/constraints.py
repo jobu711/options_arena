@@ -103,24 +103,8 @@ def check_contract_constraints(
                 )
             )
 
-        # Spread too wide
-        spread_fraction = _spread_pct(contract)
-        if spread_fraction > filters.max_spread_pct:
-            violations.append(
-                ContractConstraint(
-                    contract_label=label,
-                    violation_type=ConstraintViolationType.SPREAD_TOO_WIDE,
-                    detail=(
-                        f"Bid-ask spread {spread_fraction:.0%} "
-                        f"exceeds {filters.max_spread_pct:.0%} maximum"
-                    ),
-                    severity=ConstraintSeverity.HARD,
-                )
-            )
-
-        # --- Soft constraints ---
-
-        # Zero bid
+        # Zero bid — check before spread to avoid false SPREAD_TOO_WIDE on zero-bid
+        # contracts. Zero-bid is a soft warning; skip spread check when detected.
         if contract.bid == Decimal("0") and contract.ask > Decimal("0"):
             violations.append(
                 ContractConstraint(
@@ -130,6 +114,23 @@ def check_contract_constraints(
                     severity=ConstraintSeverity.SOFT,
                 )
             )
+        else:
+            # Spread too wide (only when bid > 0, avoiding false positive on zero-bid)
+            spread_fraction = _spread_pct(contract)
+            if spread_fraction > filters.max_spread_pct:
+                violations.append(
+                    ContractConstraint(
+                        contract_label=label,
+                        violation_type=ConstraintViolationType.SPREAD_TOO_WIDE,
+                        detail=(
+                            f"Bid-ask spread {spread_fraction:.0%} "
+                            f"exceeds {filters.max_spread_pct:.0%} maximum"
+                        ),
+                        severity=ConstraintSeverity.HARD,
+                    )
+                )
+
+        # --- Soft constraints ---
 
         # Volume too low
         if contract.volume < filters.min_volume:

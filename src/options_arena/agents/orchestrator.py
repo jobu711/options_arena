@@ -1771,6 +1771,7 @@ async def _run_debate_pipeline(
         context=context,
         ticker_score=ticker_score,
         contracts=contracts,
+        constraint_warnings=constraint_warnings,
     )
     vol_coro = asyncio.wait_for(
         volatility_agent.run(
@@ -1800,6 +1801,7 @@ async def _run_debate_pipeline(
             context=context,
             ticker_score=ticker_score,
             contracts=contracts,
+            constraint_warnings=constraint_warnings,
         )
         flow_coro = asyncio.wait_for(
             flow_agent.run(
@@ -1819,6 +1821,7 @@ async def _run_debate_pipeline(
             context=context,
             ticker_score=ticker_score,
             contracts=contracts,
+            constraint_warnings=constraint_warnings,
         )
         fundamental_coro = asyncio.wait_for(
             fundamental_agent.run(

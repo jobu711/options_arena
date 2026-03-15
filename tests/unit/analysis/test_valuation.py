@@ -7,6 +7,8 @@ weight renormalization, and haircut application.
 
 from __future__ import annotations
 
+import pytest
+
 from options_arena.analysis.valuation import (
     DEFAULT_SECTOR_EV_EBITDA,
     OVERVALUED_THRESHOLD,
@@ -124,7 +126,7 @@ class TestOwnerEarningsDCF:
         fd.capex = None
         fd.earnings_growth = None
         result = compute_owner_earnings_dcf(fd, risk_free_rate=0.04, current_price=100.0)
-        assert result.confidence == 0.5  # only base confidence
+        assert result.confidence == pytest.approx(0.5)  # only base confidence
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +152,7 @@ class TestThreeStageDCF:
         assert result.fair_value is not None
         # The result should be deterministic — running it again gives same answer
         result2 = compute_three_stage_dcf(fd, risk_free_rate=0.04, current_price=100.0)
-        assert result.fair_value == result2.fair_value
+        assert result.fair_value == pytest.approx(result2.fair_value)
 
     def test_missing_fcf(self) -> None:
         """Missing FCF returns None."""
@@ -191,7 +193,7 @@ class TestEVEBITDARelative:
         assert result.methodology == "ev_ebitda_relative"
         assert result.fair_value is not None
         # If ticker trades at 20x but sector trades at 15x, implied fair value = 100 * (15/20) = 75
-        assert abs(result.fair_value - 75.0) < 0.01
+        assert result.fair_value == pytest.approx(75.0, abs=0.01)
 
     def test_sector_fallback(self) -> None:
         """Without sector average, falls back to S&P 500 median."""
@@ -201,7 +203,7 @@ class TestEVEBITDARelative:
         result = compute_ev_ebitda_relative(fd, current_price=100.0)
         assert result.fair_value is not None
         expected = 100.0 * (DEFAULT_SECTOR_EV_EBITDA / 20.0)
-        assert abs(result.fair_value - expected) < 0.01
+        assert result.fair_value == pytest.approx(expected, abs=0.01)
 
     def test_missing_ev_ebitda(self) -> None:
         """Missing ev_to_ebitda returns None."""
@@ -256,7 +258,7 @@ class TestResidualIncome:
         result = compute_residual_income(fd, risk_free_rate=0.04, current_price=100.0)
         assert result.fair_value is not None
         # Should be book_value * (1 - 0.20) = 50 * 0.8 = 40.0
-        assert abs(result.fair_value - 40.0) < 0.01
+        assert result.fair_value == pytest.approx(40.0, abs=0.01)
 
     def test_missing_book_value(self) -> None:
         """Missing book_value_per_share returns None."""
@@ -296,7 +298,7 @@ class TestCompositeValuation:
         assert result.composite_fair_value > 0.0
         assert len(result.weights_used) > 0
         # Weights should sum to ~1.0
-        assert abs(sum(result.weights_used.values()) - 1.0) < 0.001
+        assert sum(result.weights_used.values()) == pytest.approx(1.0, abs=0.001)
 
     def test_all_four_models_return_none(self) -> None:
         """When all models lack data, composite fair value is None."""
@@ -318,7 +320,7 @@ class TestCompositeValuation:
         assert result.composite_fair_value is not None
         assert len(result.weights_used) == 1
         assert "ev_ebitda_relative" in result.weights_used
-        assert abs(result.weights_used["ev_ebitda_relative"] - 1.0) < 0.001
+        assert result.weights_used["ev_ebitda_relative"] == pytest.approx(1.0, abs=0.001)
 
     def test_weight_renormalization(self) -> None:
         """When two of four models produce values, weights renormalize to sum to 1.0."""
@@ -331,7 +333,7 @@ class TestCompositeValuation:
         result = compute_composite_valuation("TEST", 100.0, fd)
         assert len(result.weights_used) >= 2
         total = sum(result.weights_used.values())
-        assert abs(total - 1.0) < 0.001
+        assert total == pytest.approx(1.0, abs=0.001)
 
     def test_margin_of_safety_undervalued(self) -> None:
         """Margin > 15% produces ValuationSignal.UNDERVALUED."""
@@ -356,7 +358,7 @@ class TestCompositeValuation:
         # fair_value = 100 * (15/15) = 100 -> MoS = 0
         assert result.valuation_signal == ValuationSignal.FAIRLY_VALUED
         assert result.composite_margin_of_safety is not None
-        assert abs(result.composite_margin_of_safety) <= 0.15
+        assert result.composite_margin_of_safety == pytest.approx(0.0, abs=0.15)
 
     def test_margin_of_safety_overvalued(self) -> None:
         """Margin < -15% produces ValuationSignal.OVERVALUED."""
@@ -383,7 +385,7 @@ class TestCompositeValuation:
         fd = _full_fd()
         result = compute_composite_valuation("AAPL", 150.0, fd)
         assert result.ticker == "AAPL"
-        assert result.current_price == 150.0
+        assert result.current_price == pytest.approx(150.0)
         assert len(result.models) == 4  # all four models attempted
         assert result.computed_at is not None
 

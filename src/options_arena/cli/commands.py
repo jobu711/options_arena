@@ -745,11 +745,10 @@ async def _debate_single(
     )
     # Re-raise the first exception with context (gather prevents one failure from
     # cancelling the other tasks, but we still need all critical results)
-    for i, result in enumerate(gather_results):
+    for result in gather_results:
         if isinstance(result, BaseException):
-            task_names = ["quote", "ticker_info", "ohlcv", "risk_free_rate", "chains"]
             raise RuntimeError(
-                f"Failed to fetch {task_names[i]} for {ticker}: {result}"
+                f"Data fetch failed: {type(result).__name__}"
             ) from result
     # Exception check above guarantees all values are their expected types
     quote = cast("Quote", gather_results[0])
@@ -826,15 +825,18 @@ async def _debate_single(
         if not isinstance(openbb_results[0], BaseException):
             fundamentals = openbb_results[0]
         else:
-            logger.warning("OpenBB fundamentals failed: %s", openbb_results[0])
+            logger.warning("OpenBB fundamentals unavailable: %s", type(openbb_results[0]).__name__)
+            logger.debug("OpenBB fundamentals error detail", exc_info=openbb_results[0])
         if not isinstance(openbb_results[1], BaseException):
             flow = openbb_results[1]
         else:
-            logger.warning("OpenBB flow failed: %s", openbb_results[1])
+            logger.warning("OpenBB flow unavailable: %s", type(openbb_results[1]).__name__)
+            logger.debug("OpenBB flow error detail", exc_info=openbb_results[1])
         if not isinstance(openbb_results[2], BaseException):
             sentiment = openbb_results[2]
         else:
-            logger.warning("OpenBB sentiment failed: %s", openbb_results[2])
+            logger.warning("OpenBB sentiment unavailable: %s", type(openbb_results[2]).__name__)
+            logger.debug("OpenBB sentiment error detail", exc_info=openbb_results[2])
             sentiment = None
 
     # Fetch intelligence data (never raises -- returns None on error)

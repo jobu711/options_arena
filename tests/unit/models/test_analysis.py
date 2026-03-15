@@ -979,7 +979,7 @@ class TestCompletenessRatio:
 
 
 class TestMarketContextFDFields:
-    """Tests for the 16 fd_* fields and financial_datasets_ratio() method."""
+    """Tests for the 22 fd_* fields and financial_datasets_ratio() method."""
 
     _FD_FIELD_NAMES: list[str] = [
         "fd_revenue",
@@ -1028,7 +1028,7 @@ class TestMarketContextFDFields:
         return MarketContext(**defaults)  # type: ignore[arg-type]
 
     def test_fd_fields_default_none(self) -> None:
-        """All 16 fd_* fields default to None."""
+        """All 22 fd_* fields default to None."""
         ctx = self._make_context()
         for name in self._FD_FIELD_NAMES:
             assert getattr(ctx, name) is None, f"{name} should default to None"

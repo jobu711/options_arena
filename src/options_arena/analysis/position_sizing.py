@@ -131,7 +131,9 @@ def compute_position_size(
     return PositionSizeResult(
         vol_regime_tier=tier,
         vol_regime_label=label,
-        annualized_iv=annualized_iv if math.isfinite(annualized_iv) else 0.0,
+        annualized_iv=(
+            annualized_iv if math.isfinite(annualized_iv) and annualized_iv >= 0.0 else 0.0
+        ),
         base_allocation_pct=base_alloc,
         correlation_adjustment=corr_adjustment,
         final_allocation_pct=final_alloc,

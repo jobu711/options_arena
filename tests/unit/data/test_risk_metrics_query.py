@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -32,9 +33,6 @@ async def repo(db: Database) -> Repository:
     return Repository(db)
 
 
-_contract_counter = 0
-
-
 async def _insert_contract_and_outcome(
     repo: Repository,
     *,
@@ -43,8 +41,7 @@ async def _insert_contract_and_outcome(
     collected_at: datetime | None = None,
 ) -> None:
     """Helper to insert a recommended contract and its outcome."""
-    global _contract_counter  # noqa: PLW0603
-    _contract_counter += 1
+    unique_id = uuid4().hex[:8]
 
     db = repo._db  # noqa: SLF001
     conn = db.conn
@@ -62,7 +59,7 @@ async def _insert_contract_and_outcome(
     await conn.commit()
 
     # Vary strike to avoid UNIQUE constraint violation
-    strike = Decimal("185.00") + Decimal(str(_contract_counter))
+    strike = Decimal("185.00") + Decimal(str(int(unique_id, 16) % 10000))
 
     # Insert a recommended contract
     cursor = await conn.execute(
@@ -173,4 +170,4 @@ class TestRiskMetricsQuery:
     async def test_risk_free_rate_passed_through(self, repo: Repository) -> None:
         """Risk-free rate from parameter flows to result."""
         result = await repo.get_risk_adjusted_metrics(risk_free_rate=0.03)
-        assert result.risk_free_rate == 0.03
+        assert result.risk_free_rate == pytest.approx(0.03)

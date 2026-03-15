@@ -35,5 +35,8 @@ class TestMacdWeight:
         assert weight == pytest.approx(0.05, abs=1e-9)
 
     def test_total_weight_count_is_24(self) -> None:
-        """Verify INDICATOR_WEIGHTS has 24 entries (19 original + 2 liquidity + 2 vol surface + 1 regime)."""
+        """Verify INDICATOR_WEIGHTS has 24 entries.
+
+        Breakdown: 19 original + 2 liquidity + 2 vol surface + 1 regime.
+        """
         assert len(INDICATOR_WEIGHTS) == 24

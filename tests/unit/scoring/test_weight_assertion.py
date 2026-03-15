@@ -18,7 +18,10 @@ def test_indicator_weights_sum_to_one() -> None:
 
 
 def test_indicator_weights_has_24_entries() -> None:
-    """INDICATOR_WEIGHTS has exactly 24 entries (19 original + 2 liquidity + 2 vol surface + 1 regime)."""
+    """INDICATOR_WEIGHTS has exactly 24 entries.
+
+    Breakdown: 19 original + 2 liquidity + 2 vol surface + 1 regime.
+    """
     assert len(INDICATOR_WEIGHTS) == 24
 
 

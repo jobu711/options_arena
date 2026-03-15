@@ -135,7 +135,7 @@ class TestComputeRiskAdjustedMetrics:
         holding_days = [5] * 50
         result = compute_risk_adjusted_metrics(returns, holding_days)
         assert result.max_drawdown_pct is not None
-        assert result.max_drawdown_pct == 0.0
+        assert result.max_drawdown_pct == pytest.approx(0.0)
 
     def test_holding_days_zero_handled(self) -> None:
         """Holding days of 0 does not cause division by zero."""

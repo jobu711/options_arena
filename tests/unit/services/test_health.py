@@ -76,7 +76,7 @@ class TestCheckYfinance:
         assert result.service_name == "yfinance"
         assert result.available is False
         assert result.error is not None
-        assert "network down" in result.error
+        assert result.error == "ConnectionError"
         assert result.latency_ms is not None
         assert result.latency_ms > 0
 
@@ -704,7 +704,7 @@ class TestCheckAll:
         assert fred_result.service_name == "fred"
         assert fred_result.available is False
         assert fred_result.error is not None
-        assert "boom" in fred_result.error
+        assert fred_result.error == "RuntimeError"
 
 
 # ---------------------------------------------------------------------------
@@ -839,7 +839,7 @@ class TestCheckFinancialDatasets:
 
         assert result.service_name == "financial_datasets"
         assert result.available is False
-        assert "API down" in (result.error or "")
+        assert result.error == "ConnectionError"
 
     @pytest.mark.asyncio
     async def test_disabled(self) -> None:

@@ -136,9 +136,11 @@ class TestCompositeValuation:
         json_str = original.model_dump_json()
         restored = CompositeValuation.model_validate_json(json_str)
         assert restored.ticker == original.ticker
-        assert restored.current_price == original.current_price
-        assert restored.composite_fair_value == original.composite_fair_value
-        assert restored.composite_margin_of_safety == original.composite_margin_of_safety
+        assert restored.current_price == pytest.approx(original.current_price)
+        assert restored.composite_fair_value == pytest.approx(original.composite_fair_value)
+        assert restored.composite_margin_of_safety == pytest.approx(
+            original.composite_margin_of_safety
+        )
         assert restored.valuation_signal == original.valuation_signal
         assert len(restored.models) == len(original.models)
 

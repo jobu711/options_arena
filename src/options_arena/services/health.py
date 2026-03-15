@@ -595,7 +595,7 @@ class HealthService:
                     HealthStatus(
                         service_name=name,
                         available=False,
-                        error=str(result),
+                        error=type(result).__name__,
                         checked_at=datetime.now(UTC),
                     )
                 )

@@ -25,6 +25,11 @@ from options_arena.models.enums import (
 )
 from options_arena.models.filters import ScanFilterSpec
 
+# Allowlisted hostnames for Financial Datasets SSRF protection.
+# Module-level constant (not class attribute) to avoid Pydantic v2 ModelPrivateAttr
+# descriptor semantics on leading-underscore annotated attributes.
+ALLOWED_FINANCIAL_DATASETS_HOSTNAMES: frozenset[str] = frozenset({"api.financialdatasets.ai"})
+
 
 class ScanConfig(BaseModel):
     """Scan pipeline configuration — scoring thresholds, timeouts, toggles, and filters.
@@ -374,9 +379,6 @@ class FinancialDatasetsConfig(BaseModel):
             return None
         return v
 
-    # Allowlisted hostnames for SSRF protection (prevents DNS rebinding attacks)
-    _ALLOWED_HOSTNAMES: frozenset[str] = frozenset({"api.financialdatasets.ai"})
-
     @field_validator("base_url")
     @classmethod
     def validate_base_url(cls, v: str) -> str:
@@ -396,9 +398,10 @@ class FinancialDatasetsConfig(BaseModel):
             raise ValueError("base_url must have a non-empty hostname")
 
         # Allowlist check — prevents DNS rebinding by only permitting known-good hosts
-        if hostname not in cls._ALLOWED_HOSTNAMES:
+        if hostname not in ALLOWED_FINANCIAL_DATASETS_HOSTNAMES:
             raise ValueError(
-                f"base_url hostname must be one of {sorted(cls._ALLOWED_HOSTNAMES)}, "
+                f"base_url hostname must be one of "
+                f"{sorted(ALLOWED_FINANCIAL_DATASETS_HOSTNAMES)}, "
                 f"got {hostname!r}"
             )
 
