@@ -29,12 +29,14 @@ from options_arena.models.enums import (
     ExerciseStyle,
     MacdSignal,
     OptionType,
+    PositionSide,
     ScanPreset,
     ScanSource,
     SignalDirection,
+    SpreadType,
 )
 from options_arena.models.market_data import Quote
-from options_arena.models.options import OptionContract
+from options_arena.models.options import OptionContract, OptionSpread, SpreadAnalysis, SpreadLeg
 from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
 from options_arena.models.scoring import DimensionalScores
 from options_arena.scan.models import ScanResult
@@ -224,6 +226,52 @@ def make_debate_result(**kw: object) -> DebateResult:
     }
     defaults.update(kw)
     return DebateResult(**defaults)
+
+
+def make_spread_leg(**kw: object) -> SpreadLeg:
+    """Create a test ``SpreadLeg`` with sensible defaults.
+
+    Defaults produce a long AAPL call leg with 1 contract.
+    """
+    defaults: dict[str, object] = {
+        "contract": make_option_contract(),
+        "side": PositionSide.LONG,
+        "quantity": 1,
+    }
+    defaults.update(kw)
+    return SpreadLeg(**defaults)
+
+
+def make_spread_analysis(**kw: object) -> SpreadAnalysis:
+    """Create a test ``SpreadAnalysis`` with sensible defaults.
+
+    Defaults produce a valid bull call vertical spread analysis on AAPL.
+    Long 150 call / short 155 call, debit spread.
+    """
+    long_leg = make_spread_leg(
+        contract=make_option_contract(strike=Decimal("150.00")),
+        side=PositionSide.LONG,
+    )
+    short_leg = make_spread_leg(
+        contract=make_option_contract(strike=Decimal("155.00")),
+        side=PositionSide.SHORT,
+    )
+    spread = OptionSpread(
+        spread_type=SpreadType.VERTICAL,
+        legs=[long_leg, short_leg],
+        ticker="AAPL",
+    )
+    defaults: dict[str, object] = {
+        "spread": spread,
+        "net_premium": Decimal("2.50"),
+        "max_profit": Decimal("2.50"),
+        "max_loss": Decimal("2.50"),
+        "breakevens": [Decimal("152.50")],
+        "risk_reward_ratio": 1.0,
+        "pop_estimate": 0.55,
+    }
+    defaults.update(kw)
+    return SpreadAnalysis(**defaults)
 
 
 def make_scan_result(**kw: object) -> ScanResult:

@@ -4,7 +4,6 @@ Re-exports all public models and enums from the ``models`` package.
 Consumers import from the package: ``from options_arena.models import OptionContract``.
 """
 
-from options_arena.models.audit import AuditFinding, AuditLayerSummary, AuditReport
 from options_arena.models.analysis import (
     AgentPrediction,
     AgentResponse,
@@ -40,6 +39,7 @@ from options_arena.models.analytics import (
     WeightSnapshot,
     WinRateResult,
 )
+from options_arena.models.audit import AuditFinding, AuditLayerSummary, AuditReport
 from options_arena.models.config import (
     AnalyticsConfig,
     AppSettings,
@@ -52,6 +52,7 @@ from options_arena.models.config import (
     PricingConfig,
     ScanConfig,
     ServiceConfig,
+    SpreadConfig,
 )
 from options_arena.models.enums import (
     INDUSTRY_GROUP_ALIASES,
@@ -117,7 +118,13 @@ from options_arena.models.openbb import (
     OpenBBHealthStatus,
     UnusualFlowSnapshot,
 )
-from options_arena.models.options import OptionContract, OptionGreeks, OptionSpread, SpreadLeg
+from options_arena.models.options import (
+    OptionContract,
+    OptionGreeks,
+    OptionSpread,
+    SpreadAnalysis,
+    SpreadLeg,
+)
 from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
 from options_arena.models.scan_delta import ScanDiff, TickerDelta
 from options_arena.models.scoring import DimensionalScores, DirectionSignal
@@ -161,6 +168,7 @@ __all__ = [
     "OptionContract",
     "OptionGreeks",
     "OptionSpread",
+    "SpreadAnalysis",
     "SpreadLeg",
     # Analysis
     "AgentPrediction",
@@ -217,6 +225,7 @@ __all__ = [
     "PricingConfig",
     "ScanConfig",
     "ServiceConfig",
+    "SpreadConfig",
     "TICKER_RE",
     # Filters
     "OptionsFilters",
