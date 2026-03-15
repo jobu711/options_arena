@@ -478,10 +478,10 @@ class TestPhase3Concurrency:
             rfr: float,
             ohlcv_map: dict[str, list[OHLCV]],
             spx_close: object,
-        ) -> tuple[str, list[object], date | None, Decimal | None]:
+        ) -> tuple[str, list[object], date | None, Decimal | None, None]:
             if ts.ticker == "BAD_TICKER":
                 raise RuntimeError("Simulated failure")
-            return (ts.ticker, [], None, Decimal("100"))
+            return (ts.ticker, [], None, Decimal("100"), None)
 
         pipeline._process_ticker_options = mock_process  # type: ignore[assignment]
 

@@ -180,6 +180,14 @@ class MarketContext(BaseModel):
     surface_fit_r2: float | None = None  # surface fit quality [0, 1]
     surface_is_1d: bool | None = None  # True if single-DTE fallback used
 
+    # --- Spread strategy fields (flat for agent prompt parsing) ---
+    spread_type: SpreadType | None = None
+    spread_net_premium: Decimal | None = None
+    spread_max_profit: Decimal | None = None
+    spread_max_loss: Decimal | None = None
+    spread_pop: float | None = None  # Probability of profit [0.0, 1.0]
+    spread_risk_reward: float | None = None
+
     # --- Financial Datasets enrichment (fd_* prefix) ---
     fd_revenue: float | None = None
     fd_net_income: float | None = None
@@ -426,6 +434,9 @@ class MarketContext(BaseModel):
         # Volatility Intelligence: Surface Mispricing
         # (surface_fit_r2 has its own range validator; iv_surface_residual checked here)
         "iv_surface_residual",
+        # Spread strategy
+        "spread_pop",
+        "spread_risk_reward",
         # Financial Datasets enrichment
         "fd_revenue",
         "fd_net_income",
@@ -481,6 +492,14 @@ class MarketContext(BaseModel):
             raise ValueError(f"contract_mid must be finite, got {v}")
         return v
 
+    @field_validator("spread_net_premium", "spread_max_profit", "spread_max_loss")
+    @classmethod
+    def validate_spread_decimal(cls, v: Decimal | None) -> Decimal | None:
+        """Ensure spread Decimal fields are finite when provided."""
+        if v is not None and not v.is_finite():
+            raise ValueError(f"spread decimal field must be finite, got {v}")
+        return v
+
     @field_validator("data_timestamp")
     @classmethod
     def validate_utc(cls, v: datetime) -> datetime:
@@ -497,6 +516,11 @@ class MarketContext(BaseModel):
     @field_serializer("contract_mid")
     def serialize_contract_mid(self, v: Decimal | None) -> str | None:
         """Serialize optional Decimal to str for JSON precision safety."""
+        return str(v) if v is not None else None
+
+    @field_serializer("spread_net_premium", "spread_max_profit", "spread_max_loss")
+    def serialize_spread_decimal(self, v: Decimal | None) -> str | None:
+        """Serialize optional spread Decimal fields to str for JSON precision safety."""
         return str(v) if v is not None else None
 
 

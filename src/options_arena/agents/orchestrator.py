@@ -72,6 +72,7 @@ from options_arena.models import (
     Quote,
     RiskAssessment,
     SignalDirection,
+    SpreadAnalysis,
     TickerInfo,
     TickerScore,
     TradeThesis,
@@ -1395,6 +1396,7 @@ async def run_debate(
     sentiment: NewsSentimentSnapshot | None = None,
     intelligence: IntelligencePackage | None = None,
     fd_package: FinancialDatasetsPackage | None = None,
+    spread_analysis: SpreadAnalysis | None = None,
 ) -> DebateResult:
     """Run 6-agent debate protocol. Falls back to data-driven on failure — never raises.
 
@@ -1430,6 +1432,8 @@ async def run_debate(
         Optional pre-computed FlowThesis from a flow agent.
     fundamental_output
         Optional pre-computed FundamentalThesis from a fundamental agent.
+    spread_analysis
+        Optional algorithmic spread recommendation from the spread engine.
 
     Returns
     -------
@@ -1449,6 +1453,15 @@ async def run_debate(
         intelligence=intelligence,
         fd_package=fd_package,
     )
+
+    # Populate flat spread fields on MarketContext from SpreadAnalysis
+    if spread_analysis is not None:
+        context.spread_type = spread_analysis.spread.spread_type
+        context.spread_net_premium = spread_analysis.net_premium
+        context.spread_max_profit = spread_analysis.max_profit
+        context.spread_max_loss = spread_analysis.max_loss
+        context.spread_pop = spread_analysis.pop_estimate
+        context.spread_risk_reward = spread_analysis.risk_reward_ratio
 
     completeness = context.completeness_ratio()
     _log_completeness_breakdown(context, completeness)
@@ -1496,6 +1509,7 @@ async def run_debate(
                 flow_output,
                 fundamental_output,
                 vote_weights=vote_weights,
+                spread_analysis=spread_analysis,
             ),
             timeout=config.max_total_duration,
         )
@@ -1629,6 +1643,7 @@ async def _run_debate_pipeline(
     flow_output: FlowThesis | None,
     fundamental_output: FundamentalThesis | None,
     vote_weights: VoteWeights | None = None,
+    spread_analysis: SpreadAnalysis | None = None,
 ) -> DebateResult:
     """Run the 6-agent pipeline. Raises on total failure."""
     model = build_debate_model(config)
@@ -1958,6 +1973,12 @@ async def _run_debate_pipeline(
         config=config,
         vote_weights=vote_weights,
     )
+
+    # Override recommended_strategy from algorithmic spread engine (priority over LLM)
+    if spread_analysis is not None:
+        thesis = thesis.model_copy(
+            update={"recommended_strategy": spread_analysis.spread.spread_type}
+        )
 
     elapsed_ms = int((time.monotonic() - start_time) * 1000)
 

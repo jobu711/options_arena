@@ -26,6 +26,7 @@ from options_arena.models.enums import (
     PositionSide,
     PricingModel,
     SpreadType,
+    VolRegime,
 )
 
 
@@ -264,3 +265,86 @@ class OptionSpread(BaseModel):
         if len(v) < 1:
             raise ValueError("legs must contain at least 1 spread leg")
         return v
+
+
+class SpreadAnalysis(BaseModel):
+    """Full analysis of an option spread strategy.
+
+    Frozen (immutable after construction) — a completed analysis snapshot.
+    Contains the spread definition, P&L profile, probability estimates,
+    net Greeks, and strategy rationale.
+
+    Attributes:
+        spread: The option spread being analyzed.
+        net_premium: Net premium paid (debit) or received (credit).
+        max_profit: Maximum possible profit.
+        max_loss: Maximum possible loss (positive value = dollars at risk).
+        breakevens: Breakeven price(s) — at least one required.
+        risk_reward_ratio: Ratio of max_profit to max_loss. NaN when undefined.
+        pop_estimate: Probability of profit estimate, [0.0, 1.0].
+        net_greeks: Aggregate Greeks across all legs, or None if unavailable.
+        strategy_rationale: Human-readable explanation of why this strategy.
+        iv_regime: Current implied volatility regime classification, if known.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    spread: OptionSpread
+    net_premium: Decimal
+    max_profit: Decimal
+    max_loss: Decimal
+    breakevens: list[Decimal]
+    risk_reward_ratio: float | None
+    pop_estimate: float
+    net_greeks: OptionGreeks | None = None
+    strategy_rationale: str = ""
+    iv_regime: VolRegime | None = None
+
+    @field_validator("net_premium", "max_profit", "max_loss")
+    @classmethod
+    def validate_decimal_finite(cls, v: Decimal) -> Decimal:
+        """Reject NaN/Infinity Decimals at the model boundary."""
+        if not v.is_finite():
+            raise ValueError(f"monetary field must be finite, got {v}")
+        return v
+
+    @field_validator("risk_reward_ratio", mode="before")
+    @classmethod
+    def validate_risk_reward_ratio(cls, v: float | None) -> float | None:
+        """Convert NaN to None for clean downstream handling."""
+        if v is None:
+            return None
+        if not math.isfinite(v):
+            return None
+        return v
+
+    @field_validator("pop_estimate")
+    @classmethod
+    def validate_pop_estimate(cls, v: float) -> float:
+        """Ensure pop_estimate is finite and within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"pop_estimate must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"pop_estimate must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("breakevens")
+    @classmethod
+    def validate_breakevens_not_empty(cls, v: list[Decimal]) -> list[Decimal]:
+        """Ensure at least one breakeven price is provided."""
+        if len(v) < 1:
+            raise ValueError("breakevens must contain at least 1 price")
+        for item in v:
+            if not item.is_finite():
+                raise ValueError(f"breakeven must be finite, got {item}")
+        return v
+
+    @field_serializer("net_premium", "max_profit", "max_loss")
+    def serialize_decimal(self, v: Decimal) -> str:
+        """Serialize Decimal fields to string to prevent float precision loss."""
+        return str(v)
+
+    @field_serializer("breakevens")
+    def serialize_breakevens(self, v: list[Decimal]) -> list[str]:
+        """Serialize breakeven Decimals to strings for JSON precision."""
+        return [str(d) for d in v]

@@ -1,7 +1,7 @@
 ---
 name: scientific-ml-integration
 description: Integrate arch, statsmodels, scikit-learn, PyTorch Lightning, and expanded FRED data into Options Arena for GARCH volatility forecasting, regime classification, neural pricing, and macro context
-status: researched
+status: planned
 created: 2026-03-13T00:00:00Z
 ---
 

@@ -1,0 +1,12 @@
+{
+  "epic": "scientific-ml-classification",
+  "phase": "planning",
+  "last_command": "split from scientific-ml-integration",
+  "last_updated": "2026-03-15T14:00:00Z",
+  "completed_phases": ["planning"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": ["scientific-ml-statistical must complete first (indicator feature vectors + config infra required)"],
+  "notes": "Epic B of scientific-ml-integration. ML classification: scikit-learn (GBM regime classifier, K-means clustering, Isolation Forest anomaly detection). Depends on Epic A completion. Can run in parallel with Epic C."
+}

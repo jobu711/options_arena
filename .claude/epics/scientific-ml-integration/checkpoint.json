@@ -1,12 +1,17 @@
 {
   "epic": "scientific-ml-integration",
-  "phase": "restructured",
-  "last_command": "PRD restructured: 3 epics (A/B/C), FR-S5 relocated to ai-agency, GARCH lib corrected, cross-PRD contracts added",
-  "last_updated": "2026-03-14T20:00:00Z",
-  "completed_phases": ["prd-created", "research", "restructured"],
+  "phase": "split",
+  "last_command": "split into 3 child epics",
+  "last_updated": "2026-03-15T14:00:00Z",
+  "completed_phases": ["prd-created", "research", "restructured", "planning", "split"],
   "current_task": null,
   "tasks_completed": [],
   "tasks_in_progress": [],
   "blockers": [],
-  "notes": "Split into 3 right-sized epics: A (Statistical Foundation, 5 issues, arch+statsmodels+FRED), B (ML Classification, 4 issues, scikit-learn), C (Neural Models, 4 issues, PyTorch Lightning). FR-S5 (indicator weight validation) moved to ai-agency-evolution Epic 5. Cross-PRD contracts established for WeightSnapshot, context rendering, and Volatility Agent."
+  "notes": "Parent epic split into 3 children: scientific-ml-statistical (A, 5 issues), scientific-ml-classification (B, 4 issues), scientific-ml-neural (C, 4 issues). Research.md remains in this directory as shared reference. Execute A first, then B and C in parallel.",
+  "child_epics": [
+    "scientific-ml-statistical",
+    "scientific-ml-classification",
+    "scientific-ml-neural"
+  ]
 }

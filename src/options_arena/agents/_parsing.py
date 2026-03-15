@@ -25,6 +25,7 @@ from options_arena.models import (
     MarketContext,
     OptionContract,
     RiskAssessment,
+    SpreadAnalysis,
     TickerScore,
     TradeThesis,
     VolatilityThesis,
@@ -331,6 +332,8 @@ class DebateDeps:
     fundamental_thesis: FundamentalThesis | None = None  # Phase 1 fundamental output
     risk_assessment: RiskAssessment | None = None  # Phase 2 risk output
     all_prior_outputs: str | None = None  # Formatted text for contrarian (Phase 3)
+    # --- Multi-leg strategy ---
+    spread_analysis: SpreadAnalysis | None = None  # Algorithmic spread recommendation
 
 
 class DebateResult(BaseModel):
@@ -563,6 +566,17 @@ def render_volatility_context(ctx: MarketContext) -> str:
         lines.append("")
         lines.append("## Signal Dimensions")
         lines.extend(dim_lines)
+
+    # Algorithmic spread recommendation (only when spread data is available)
+    if ctx.spread_type is not None:
+        lines.append("")
+        lines.append("## Algorithmic Strategy Recommendation")
+        lines.append(f"STRATEGY: {ctx.spread_type.value}")
+        if ctx.spread_net_premium is not None:
+            lines.append(f"NET PREMIUM: ${ctx.spread_net_premium}")
+        pop_str = _render_optional("POP", ctx.spread_pop, ".1%")
+        if pop_str is not None:
+            lines.append(pop_str)
 
     return "\n".join(lines)
 
@@ -1023,6 +1037,22 @@ def render_context_block(ctx: MarketContext) -> str:
         lines.append("")
         lines.append("## Second-Order Greeks")
         lines.extend(filtered_greeks2)
+
+    # --- Spread Risk Profile (when algorithmic spread data is available) ---
+    if ctx.spread_type is not None:
+        lines.append("")
+        lines.append("## Spread Risk Profile")
+        lines.append(f"STRATEGY: {ctx.spread_type.value}")
+        if ctx.spread_max_loss is not None:
+            lines.append(f"MAX LOSS: ${ctx.spread_max_loss}")
+        if ctx.spread_max_profit is not None:
+            lines.append(f"MAX PROFIT: ${ctx.spread_max_profit}")
+        rr_str = _render_optional("RISK/REWARD", ctx.spread_risk_reward, ".2f")
+        if rr_str is not None:
+            lines.append(rr_str)
+        pop_str = _render_optional("POP", ctx.spread_pop, ".1%")
+        if pop_str is not None:
+            lines.append(pop_str)
 
     # Earnings warning — appended when next earnings is within 7 days
     if ctx.next_earnings is not None:

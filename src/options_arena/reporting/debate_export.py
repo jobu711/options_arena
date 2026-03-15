@@ -21,6 +21,7 @@ if TYPE_CHECKING:
         FundamentalThesis,
         MarketContext,
         RiskAssessment,
+        SpreadAnalysis,
         VolatilityThesis,
     )
 
@@ -241,6 +242,57 @@ def _render_contrarian_section(contra: ContrarianThesis) -> str:
     return "\n".join(lines)
 
 
+_UNLIMITED_SENTINEL = "999999.99"
+
+
+def _render_spread_section(spread: SpreadAnalysis) -> str:
+    """Render a spread strategy section as Markdown.
+
+    Args:
+        spread: The spread analysis to render.
+
+    Returns:
+        Markdown string for the spread strategy section.
+    """
+    lines: list[str] = [
+        f"## Spread Strategy: {spread.spread.spread_type.value.upper()}",
+        "",
+        "| Leg | Side | Type | Strike | Expiration | Delta |",
+        "|-----|------|------|--------|------------|-------|",
+    ]
+
+    for i, leg in enumerate(spread.spread.legs, 1):
+        contract = leg.contract
+        delta = f"{contract.greeks.delta:.3f}" if contract.greeks is not None else "--"
+        lines.append(
+            f"| {i} | {leg.side.value} | {contract.option_type.value} "
+            f"| ${contract.strike} | {contract.expiration} | {delta} |"
+        )
+
+    max_profit_str = (
+        "Unlimited" if str(spread.max_profit) == _UNLIMITED_SENTINEL else f"${spread.max_profit}"
+    )
+
+    pop_str = f"{spread.pop_estimate:.1%}" if math.isfinite(spread.pop_estimate) else "N/A"
+    rr_str = (
+        f"{spread.risk_reward_ratio:.2f}"
+        if spread.risk_reward_ratio is not None and math.isfinite(spread.risk_reward_ratio)
+        else "N/A"
+    )
+
+    lines.append("")
+    lines.append("| Metric | Value |")
+    lines.append("|--------|-------|")
+    lines.append(f"| Net Premium | ${spread.net_premium} |")
+    lines.append(f"| Max Profit | {max_profit_str} |")
+    lines.append(f"| Max Loss | ${spread.max_loss} |")
+    lines.append(f"| PoP | {pop_str} |")
+    lines.append(f"| Risk/Reward | {rr_str} |")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 def _render_market_snapshot(ctx: MarketContext) -> str:
     """Render a Market Snapshot section from the persisted MarketContext.
 
@@ -276,7 +328,10 @@ def _render_market_snapshot(ctx: MarketContext) -> str:
     return "\n".join(lines)
 
 
-def export_debate_markdown(result: DebateResult) -> str:
+def export_debate_markdown(
+    result: DebateResult,
+    spread: SpreadAnalysis | None = None,
+) -> str:
     """Convert a debate result into a Markdown report string.
 
     This is a pure function with no side effects. The caller is responsible
@@ -284,6 +339,7 @@ def export_debate_markdown(result: DebateResult) -> str:
 
     Args:
         result: Complete debate output from ``run_debate()``.
+        spread: Optional spread analysis to include in the report.
 
     Returns:
         A GitHub-flavored Markdown string containing the full report
@@ -331,6 +387,10 @@ def export_debate_markdown(result: DebateResult) -> str:
 
     if result.contrarian_response is not None:
         sections.append(_render_contrarian_section(result.contrarian_response))
+
+    # --- Spread Strategy (#521) ---
+    if spread is not None:
+        sections.append(_render_spread_section(spread))
 
     # --- Verdict ---
     thesis = result.thesis
@@ -400,6 +460,7 @@ def export_debate_to_file(
     result: DebateResult,
     path: Path,
     fmt: str = "md",
+    spread: SpreadAnalysis | None = None,
 ) -> Path:
     """Write debate result to file as Markdown.
 
@@ -407,6 +468,7 @@ def export_debate_to_file(
         result: Complete debate output from ``run_debate()``.
         path: Destination file path.
         fmt: Output format — ``"md"`` (default).
+        spread: Optional spread analysis to include in the report.
 
     Returns:
         The path that was written.
@@ -414,7 +476,7 @@ def export_debate_to_file(
     Raises:
         ValueError: If *fmt* is not ``"md"``.
     """
-    md_content = export_debate_markdown(result)
+    md_content = export_debate_markdown(result, spread=spread)
     if fmt == "md":
         path.write_text(md_content, encoding="utf-8")
         return path

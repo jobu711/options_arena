@@ -30,6 +30,8 @@ from options_arena.api.schemas import (
     DebateResultDetail,
     DebateResultSummary,
     DebateStarted,
+    SpreadDetail,
+    spread_detail_from_analysis,
 )
 from options_arena.api.ws import BatchProgressBridge, DebateProgressBridge
 from options_arena.data import Repository
@@ -738,6 +740,21 @@ async def get_debate(
     # Extract OpenBB enrichment from MarketContext (already parsed by Repository)
     mc = row.market_context
 
+    # Fetch spread data if debate is linked to a scan (#521)
+    spread_detail: SpreadDetail | None = None
+    if row.scan_run_id is not None:
+        try:
+            spread_analysis = await repo.get_spread_for_ticker(row.scan_run_id, row.ticker)
+            if spread_analysis is not None:
+                spread_detail = spread_detail_from_analysis(spread_analysis)
+        except Exception:
+            logger.warning(
+                "Failed to fetch spread for debate %d ticker %s",
+                debate_id,
+                row.ticker,
+                exc_info=True,
+            )
+
     return DebateResultDetail(
         id=row.id,
         ticker=row.ticker,
@@ -791,4 +808,6 @@ async def get_debate(
         target_vanna=mc.target_vanna if mc else None,
         target_charm=mc.target_charm if mc else None,
         target_vomma=mc.target_vomma if mc else None,
+        # Spread strategy (#521)
+        spread=spread_detail,
     )

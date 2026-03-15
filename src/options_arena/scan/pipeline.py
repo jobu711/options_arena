@@ -25,6 +25,7 @@ from options_arena.models import (
     OptionContract,
     ScanRun,
     ScanSource,
+    SpreadAnalysis,
     TickerScore,
 )
 from options_arena.models.market_data import OHLCV
@@ -263,6 +264,7 @@ class ScanPipeline:
             options_filters=self._settings.scan.filters.options,
             universe_filters=self._settings.scan.filters.universe,
             pricing_config=self._settings.pricing,
+            spread_config=self._settings.spread,
             process_ticker_fn=self._process_ticker_options,
         )
 
@@ -272,7 +274,7 @@ class ScanPipeline:
         risk_free_rate: float,
         ohlcv_map: dict[str, list[OHLCV]],
         spx_close: pd.Series | None,
-    ) -> tuple[str, list[OptionContract], date | None, Decimal | None]:
+    ) -> tuple[str, list[OptionContract], date | None, Decimal | None, SpreadAnalysis | None]:
         """Fetch chains + ticker info + earnings date for a single ticker."""
         return await process_ticker_options(
             ticker_score,
@@ -285,6 +287,7 @@ class ScanPipeline:
             options_filters=self._settings.scan.filters.options,
             universe_filters=self._settings.scan.filters.universe,
             pricing_config=self._settings.pricing,
+            spread_config=self._settings.spread,
             recommend_contracts_fn=recommend_contracts,
             map_yfinance_fn=map_yfinance_to_metadata,
         )

@@ -25,6 +25,7 @@ from options_arena.models import (
     NormalizationStats,
     OptionContract,
     ScanRun,
+    SpreadAnalysis,
     TickerScore,
 )
 
@@ -83,6 +84,8 @@ class OptionsResult(BaseModel):
         risk_free_rate: Risk-free rate used for the entire scan (from FRED or fallback).
         earnings_dates: Ticker to next earnings date mapping (None if unknown).
         entry_prices: Ticker to spot price at scan time (captured from TickerInfo.current_price).
+        spread_analyses: Ticker to multi-leg spread analysis mapping (populated when
+            SpreadConfig.enabled is True and select_strategy returns a result).
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -91,6 +94,7 @@ class OptionsResult(BaseModel):
     risk_free_rate: float
     earnings_dates: dict[str, date] = Field(default_factory=dict)
     entry_prices: dict[str, Decimal] = Field(default_factory=dict)
+    spread_analyses: dict[str, SpreadAnalysis] = Field(default_factory=dict)
 
 
 class ScanResult(BaseModel):

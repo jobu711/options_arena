@@ -30,6 +30,7 @@ from options_arena.models import (
     ScanSource,
     SentimentLabel,
     SignalDirection,
+    SpreadAnalysis,
     TradeThesis,
 )
 
@@ -311,6 +312,7 @@ class TickerDetail(BaseModel):
     composite_score: float
     direction: SignalDirection
     contracts: list[RecommendedContract]
+    spread: SpreadDetail | None = None
 
     @field_validator("composite_score")
     @classmethod
@@ -320,6 +322,105 @@ class TickerDetail(BaseModel):
         if not 0.0 <= v <= 100.0:
             raise ValueError(f"composite_score must be in [0, 100], got {v}")
         return v
+
+
+# ---------------------------------------------------------------------------
+# Spread schemas (#521)
+# ---------------------------------------------------------------------------
+
+_UNLIMITED_SENTINEL = "999999.99"
+
+
+class SpreadLegDetail(BaseModel):
+    """Individual leg in a spread strategy."""
+
+    option_type: str
+    strike: str  # Decimal as string for precision
+    expiration: str
+    side: str  # "long" or "short"
+    quantity: int
+    bid: str | None = None
+    ask: str | None = None
+    delta: float | None = None
+
+    @field_validator("delta")
+    @classmethod
+    def _validate_delta(cls, v: float | None) -> float | None:
+        if v is not None and not math.isfinite(v):
+            raise ValueError("delta must be finite")
+        return v
+
+
+class SpreadDetail(BaseModel):
+    """Spread strategy recommendation with P&L analytics."""
+
+    spread_type: str
+    legs: list[SpreadLegDetail]
+    net_premium: str  # Decimal as string
+    max_profit: str
+    max_loss: str
+    risk_reward_ratio: float | None = None
+    pop_estimate: float | None = None
+    breakevens: list[str]
+    strategy_rationale: str
+
+    @field_validator("risk_reward_ratio", "pop_estimate")
+    @classmethod
+    def _validate_finite(cls, v: float | None) -> float | None:
+        if v is not None and not math.isfinite(v):
+            raise ValueError("value must be finite")
+        return v
+
+
+def spread_detail_from_analysis(analysis: SpreadAnalysis) -> SpreadDetail:
+    """Convert a ``SpreadAnalysis`` model to an API ``SpreadDetail`` response.
+
+    Handles the ``Decimal("999999.99")`` sentinel for unlimited max profit
+    by converting it to the string ``"Unlimited"``.
+
+    Args:
+        analysis: The spread analysis from the scoring/data layer.
+
+    Returns:
+        API-facing ``SpreadDetail`` with string-encoded Decimal values.
+    """
+    legs: list[SpreadLegDetail] = []
+    for leg in analysis.spread.legs:
+        contract = leg.contract
+        greeks = contract.greeks
+        legs.append(
+            SpreadLegDetail(
+                option_type=contract.option_type.value,
+                strike=str(contract.strike),
+                expiration=str(contract.expiration),
+                side=leg.side.value,
+                quantity=leg.quantity,
+                bid=str(contract.bid),
+                ask=str(contract.ask),
+                delta=greeks.delta if greeks is not None else None,
+            )
+        )
+
+    max_profit_str = (
+        "Unlimited"
+        if str(analysis.max_profit) == _UNLIMITED_SENTINEL
+        else str(analysis.max_profit)
+    )
+
+    rr = analysis.risk_reward_ratio  # already None for non-finite (model validator)
+    pop = analysis.pop_estimate if math.isfinite(analysis.pop_estimate) else None
+
+    return SpreadDetail(
+        spread_type=analysis.spread.spread_type.value,
+        legs=legs,
+        net_premium=str(analysis.net_premium),
+        max_profit=max_profit_str,
+        max_loss=str(analysis.max_loss),
+        risk_reward_ratio=rr,
+        pop_estimate=pop,
+        breakevens=[str(b) for b in analysis.breakevens],
+        strategy_rationale=analysis.strategy_rationale,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -446,6 +547,8 @@ class DebateResultDetail(BaseModel):
     iv_surface_residual: float | None = None
     surface_fit_r2: float | None = None
     surface_is_1d: bool | None = None
+    # Spread strategy (#521)
+    spread: SpreadDetail | None = None
 
     @field_validator(
         "pe_ratio",

@@ -160,6 +160,27 @@ async def run_persist_phase(
             scan_id,
         )
 
+    # Step 5b: Persist spread recommendations (from multi-leg strategy construction)
+    if options_result.spread_analyses:
+        spread_count = 0
+        for ticker, spread in options_result.spread_analyses.items():
+            try:
+                await repository.save_spread_recommendation(
+                    scan_run_id=scan_id,
+                    ticker=ticker,
+                    spread=spread,
+                    commit=False,
+                )
+                spread_count += 1
+            except (ValueError, TypeError) as exc:
+                logger.warning("Failed to persist spread for %s: %s", ticker, exc)
+        if spread_count > 0:
+            logger.info(
+                "Persisted %d spread recommendations for scan %d",
+                spread_count,
+                scan_id,
+            )
+
     # Step 6: Persist normalization stats with real scan_run_id
     # NormalizationStats is frozen, so rebuild with the correct scan_run_id.
     if scoring_result.normalization_stats:
