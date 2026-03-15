@@ -308,6 +308,33 @@ SECTOR_ALIASES: dict[str, GICSSector] = {
 }
 
 
+class ConstraintViolationType(StrEnum):
+    """Type of constraint violation detected during contract pre-check.
+
+    Hard violations (EXPIRED, DTE_TOO_SHORT, OI_TOO_LOW, SPREAD_TOO_WIDE)
+    disqualify contracts from debate. Soft violations (ZERO_BID, VOLUME_TOO_LOW)
+    inject caution warnings into agent context.
+    """
+
+    EXPIRED = "expired"
+    DTE_TOO_SHORT = "dte_too_short"
+    OI_TOO_LOW = "oi_too_low"
+    SPREAD_TOO_WIDE = "spread_too_wide"
+    ZERO_BID = "zero_bid"
+    VOLUME_TOO_LOW = "volume_too_low"
+
+
+class ConstraintSeverity(StrEnum):
+    """Severity level for constraint violations.
+
+    HARD — contract is disqualified from debate.
+    SOFT — caution warning injected into agent context.
+    """
+
+    HARD = "hard"
+    SOFT = "soft"
+
+
 class AuditSeverity(StrEnum):
     """Severity level for mathematical computation audit findings."""
 

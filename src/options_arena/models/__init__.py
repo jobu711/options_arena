@@ -7,6 +7,7 @@ Consumers import from the package: ``from options_arena.models import OptionCont
 from options_arena.models.analysis import (
     AgentPrediction,
     AgentResponse,
+    ContractConstraint,
     ContrarianThesis,
     ExtendedTradeThesis,
     FlowThesis,
@@ -63,6 +64,8 @@ from options_arena.models.enums import (
     AuditLayer,
     AuditSeverity,
     CatalystImpact,
+    ConstraintSeverity,
+    ConstraintViolationType,
     DividendSource,
     ExerciseStyle,
     GICSIndustryGroup,
@@ -135,6 +138,8 @@ __all__ = [
     "AuditLayer",
     "AuditSeverity",
     "CatalystImpact",
+    "ConstraintSeverity",
+    "ConstraintViolationType",
     "DividendSource",
     "ExerciseStyle",
     "GICSIndustryGroup",
@@ -174,6 +179,7 @@ __all__ = [
     # Analysis
     "AgentPrediction",
     "AgentResponse",
+    "ContractConstraint",
     "ContrarianThesis",
     "ExtendedTradeThesis",
     "FlowThesis",

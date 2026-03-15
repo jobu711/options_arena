@@ -36,6 +36,8 @@ from pydantic import (
 from options_arena.models._validators import validate_non_empty_list, validate_unit_interval
 from options_arena.models.enums import (
     CatalystImpact,
+    ConstraintSeverity,
+    ConstraintViolationType,
     ExerciseStyle,
     MacdSignal,
     RiskLevel,
@@ -909,3 +911,19 @@ class AgentPrediction(BaseModel):
     def _validate_confidence(cls, v: float) -> float:
         """Ensure confidence is finite and within [0.0, 1.0]."""
         return validate_unit_interval(v, "confidence")
+
+
+class ContractConstraint(BaseModel):
+    """A single constraint violation detected during contract pre-check.
+
+    Frozen (immutable after construction) -- represents a completed violation finding.
+    Hard violations disqualify contracts from debate; soft violations inject caution
+    warnings into agent context.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    contract_label: str  # "AAPL 200C 2026-04-18"
+    violation_type: ConstraintViolationType
+    detail: str
+    severity: ConstraintSeverity
