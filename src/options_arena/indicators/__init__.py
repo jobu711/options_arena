@@ -4,6 +4,7 @@ Pure math module: pandas Series/DataFrames in, pandas Series/DataFrames out.
 No API calls, no Pydantic models, no I/O.
 """
 
+from options_arena.indicators.hurst import hurst_exponent
 from options_arena.indicators.hv_estimators import (
     compute_hv_parkinson,
     compute_hv_rogers_satchell,
@@ -40,6 +41,7 @@ __all__ = [
     "compute_hv_yang_zhang",
     "compute_surface_indicators",
     "compute_vol_surface",
+    "hurst_exponent",
     "iv_percentile",
     "iv_rank",
     "keltner_width",

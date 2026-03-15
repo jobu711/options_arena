@@ -36,7 +36,7 @@ INDICATOR_WEIGHTS: dict[str, tuple[float, str]] = {
     "williams_r": (0.05, "oscillators"),
     # Trend
     "adx": (0.065, "trend"),
-    "roc": (0.03, "trend"),
+    "roc": (0.02, "trend"),
     "supertrend": (0.05, "trend"),
     "macd": (0.05, "trend"),
     # Volatility
@@ -53,7 +53,7 @@ INDICATOR_WEIGHTS: dict[str, tuple[float, str]] = {
     # Options
     "iv_rank": (0.05, "options"),
     "iv_percentile": (0.05, "options"),
-    "put_call_ratio": (0.03, "options"),
+    "put_call_ratio": (0.02, "options"),
     "max_pain_distance": (0.03, "options"),
     # Liquidity
     "chain_spread_pct": (0.03, "liquidity"),
@@ -61,6 +61,8 @@ INDICATOR_WEIGHTS: dict[str, tuple[float, str]] = {
     # Vol Surface
     "skew_25d": (0.02, "vol_surface"),
     "smile_curvature": (0.01, "vol_surface"),
+    # Regime
+    "hurst_exponent": (0.02, "regime"),
 }
 
 # Validate weights sum to 1.0 at import time — catches drift before any scoring runs.

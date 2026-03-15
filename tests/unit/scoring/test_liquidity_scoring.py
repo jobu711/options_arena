@@ -10,9 +10,9 @@ from options_arena.scoring.normalization import DOMAIN_BOUNDS, INVERTED_INDICATO
 
 
 class TestLiquidityWeightConfig:
-    def test_weights_has_23_entries(self) -> None:
-        """Verify INDICATOR_WEIGHTS now has 23 entries."""
-        assert len(INDICATOR_WEIGHTS) == 23
+    def test_weights_has_24_entries(self) -> None:
+        """Verify INDICATOR_WEIGHTS now has 24 entries."""
+        assert len(INDICATOR_WEIGHTS) == 24
 
     def test_weights_sum_to_one(self) -> None:
         """Verify weight sum = 1.0 within 1e-9."""

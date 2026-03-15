@@ -71,6 +71,7 @@ DOMAIN_BOUNDS: dict[str, tuple[float, float]] = {
     "chain_oi_depth": (0.0, 6.0),
     "skew_25d": (-0.15, 0.15),
     "smile_curvature": (-10.0, 10.0),
+    "hurst_exponent": (0.0, 1.0),
 }
 
 # All indicator field names from IndicatorSignals, cached once at import time.
