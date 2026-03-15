@@ -273,20 +273,21 @@ def _render_spread_section(spread: SpreadAnalysis) -> str:
         "Unlimited" if str(spread.max_profit) == _UNLIMITED_SENTINEL else f"${spread.max_profit}"
     )
 
-    lines.append("")
-    lines.append(
-        f"**P&L**: Net Premium: ${spread.net_premium} "
-        f"| Max Profit: {max_profit_str} "
-        f"| Max Loss: ${spread.max_loss}"
-    )
-
     pop_str = f"{spread.pop_estimate:.1%}" if math.isfinite(spread.pop_estimate) else "N/A"
     rr_str = (
         f"{spread.risk_reward_ratio:.2f}"
         if spread.risk_reward_ratio is not None and math.isfinite(spread.risk_reward_ratio)
         else "N/A"
     )
-    lines.append(f"**Risk**: PoP: {pop_str} | Risk/Reward: {rr_str}")
+
+    lines.append("")
+    lines.append("| Metric | Value |")
+    lines.append("|--------|-------|")
+    lines.append(f"| Net Premium | ${spread.net_premium} |")
+    lines.append(f"| Max Profit | {max_profit_str} |")
+    lines.append(f"| Max Loss | ${spread.max_loss} |")
+    lines.append(f"| PoP | {pop_str} |")
+    lines.append(f"| Risk/Reward | {rr_str} |")
     lines.append("")
 
     return "\n".join(lines)

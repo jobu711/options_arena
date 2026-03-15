@@ -40,7 +40,7 @@ class TestMarkdownSpreadSection:
         assert "## Spread Strategy" not in md
 
     def test_markdown_spread_pnl_details(self) -> None:
-        """Spread P&L line shows net premium, max profit, max loss."""
+        """Spread P&L table shows net premium, max profit, max loss."""
         spread = make_spread_analysis(
             net_premium=Decimal("3.00"),
             max_profit=Decimal("2.00"),
@@ -49,12 +49,12 @@ class TestMarkdownSpreadSection:
         result = make_debate_result()
         md = export_debate_markdown(result, spread=spread)
 
-        assert "Net Premium: $3.00" in md
-        assert "Max Profit: $2.00" in md
-        assert "Max Loss: $3.00" in md
+        assert "| Net Premium | $3.00 |" in md
+        assert "| Max Profit | $2.00 |" in md
+        assert "| Max Loss | $3.00 |" in md
 
     def test_markdown_spread_risk_metrics(self) -> None:
-        """Spread risk metrics (PoP, Risk/Reward) appear in markdown."""
+        """Spread risk metrics (PoP, Risk/Reward) appear in P&L table."""
         spread = make_spread_analysis(
             pop_estimate=0.65,
             risk_reward_ratio=2.50,
@@ -62,16 +62,16 @@ class TestMarkdownSpreadSection:
         result = make_debate_result()
         md = export_debate_markdown(result, spread=spread)
 
-        assert "PoP: 65.0%" in md
-        assert "Risk/Reward: 2.50" in md
+        assert "| PoP | 65.0% |" in md
+        assert "| Risk/Reward | 2.50 |" in md
 
     def test_markdown_nan_risk_reward_shows_na(self) -> None:
-        """NaN risk_reward_ratio displays as 'N/A' in markdown."""
+        """NaN risk_reward_ratio displays as 'N/A' in P&L table."""
         spread = make_spread_analysis(risk_reward_ratio=float("nan"))
         result = make_debate_result()
         md = export_debate_markdown(result, spread=spread)
 
-        assert "Risk/Reward: N/A" in md
+        assert "| Risk/Reward | N/A |" in md
 
     def test_markdown_unlimited_max_profit(self) -> None:
         """Sentinel Decimal('999999.99') displays as 'Unlimited' in markdown."""

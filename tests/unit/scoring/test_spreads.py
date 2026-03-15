@@ -39,7 +39,7 @@ from tests.factories import make_option_contract
 _DEFAULT_SPOT = 150.0
 _DEFAULT_RATE = 0.05
 _DEFAULT_TTE = 45.0 / 365.0  # 45 days
-_DEFAULT_CONFIG = SpreadConfig(vertical_width=5, iron_condor_wing_width=5)
+_DEFAULT_CONFIG = SpreadConfig(vertical_width=5, iron_condor_wing_width=5, min_pop=0.0)
 
 
 def _make_call_chain(

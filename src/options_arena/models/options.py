@@ -300,6 +300,14 @@ class SpreadAnalysis(BaseModel):
     strategy_rationale: str = ""
     iv_regime: VolRegime | None = None
 
+    @field_validator("net_premium", "max_profit", "max_loss")
+    @classmethod
+    def validate_decimal_finite(cls, v: Decimal) -> Decimal:
+        """Reject NaN/Infinity Decimals at the model boundary."""
+        if not v.is_finite():
+            raise ValueError(f"monetary field must be finite, got {v}")
+        return v
+
     @field_validator("risk_reward_ratio", mode="before")
     @classmethod
     def validate_risk_reward_ratio(cls, v: float | None) -> float | None:
@@ -326,6 +334,9 @@ class SpreadAnalysis(BaseModel):
         """Ensure at least one breakeven price is provided."""
         if len(v) < 1:
             raise ValueError("breakevens must contain at least 1 price")
+        for item in v:
+            if not item.is_finite():
+                raise ValueError(f"breakeven must be finite, got {item}")
         return v
 
     @field_serializer("net_premium", "max_profit", "max_loss")

@@ -144,7 +144,8 @@ def _compute_pop_between(
     d2_upper = (math.log(spot_price / hi) + drift) / sqrt_t
     d2_lower = (math.log(spot_price / lo) + drift) / sqrt_t
 
-    prob = float(norm.cdf(d2_upper)) - float(norm.cdf(d2_lower))
+    # P(lo < S_T < hi) = P(S_T > lo) - P(S_T > hi) = N(d2_lower) - N(d2_upper)
+    prob = float(norm.cdf(d2_lower)) - float(norm.cdf(d2_upper))
     return max(0.0, min(1.0, prob))
 
 
@@ -468,6 +469,7 @@ def build_iron_condor(
     config: SpreadConfig,
     *,
     dividend_yield: float = 0.0,
+    vol_regime: VolRegime | None = None,
 ) -> SpreadAnalysis | None:
     """Build an iron condor (sell OTM put + call, buy further OTM put + call).
 
@@ -585,7 +587,8 @@ def build_iron_condor(
         dividend_yield=dividend_yield,
     )
 
-    vol_regime = classify_vol_regime(_avg_iv(contracts) * 100)
+    if vol_regime is None:
+        vol_regime = classify_vol_regime(_avg_iv(contracts) * 100)
     rationale = (
         f"Iron condor: {long_put.strike}/{short_put.strike} puts, "
         f"{short_call.strike}/{long_call.strike} calls "
@@ -626,6 +629,7 @@ def build_straddle(
     time_to_expiry: float,
     *,
     dividend_yield: float = 0.0,
+    vol_regime: VolRegime | None = None,
 ) -> SpreadAnalysis | None:
     """Build a long straddle (ATM call + ATM put at same strike).
 
@@ -734,6 +738,7 @@ def build_straddle(
         pop_estimate=pop,
         net_greeks=net_greeks,
         strategy_rationale=rationale,
+        iv_regime=vol_regime,
     )
 
 
@@ -750,6 +755,7 @@ def build_strangle(
     config: SpreadConfig,
     *,
     dividend_yield: float = 0.0,
+    vol_regime: VolRegime | None = None,
 ) -> SpreadAnalysis | None:
     """Build a long strangle (OTM call + OTM put at different strikes).
 
@@ -844,6 +850,7 @@ def build_strangle(
         pop_estimate=pop,
         net_greeks=net_greeks,
         strategy_rationale=rationale,
+        iv_regime=vol_regime,
     )
 
 
@@ -906,55 +913,73 @@ def select_strategy(
         confidence,
     )
 
+    def _check_pop(result: SpreadAnalysis | None) -> SpreadAnalysis | None:
+        """Return *result* only if it meets the configured min PoP threshold."""
+        if result is None:
+            return None
+        if result.pop_estimate < config.min_pop:
+            logger.debug(
+                "select_strategy: rejecting %s (PoP %.2f < min_pop %.2f)",
+                result.spread.spread_type.value,
+                result.pop_estimate,
+                config.min_pop,
+            )
+            return None
+        return result
+
     match (vol_regime, direction):
         case (VolRegime.ELEVATED | VolRegime.EXTREME, SignalDirection.NEUTRAL):
             # High IV + neutral → iron condor
-            result = build_iron_condor(
+            result = _check_pop(build_iron_condor(
                 contracts,
                 spot_price,
                 risk_free_rate,
                 time_to_expiry,
                 config,
                 dividend_yield=dividend_yield,
-            )
+                vol_regime=vol_regime,
+            ))
             if result is not None:
                 return result
             # Fallback: try strangle if iron condor can't be built
             logger.debug("select_strategy: iron condor failed, trying strangle fallback")
-            return build_strangle(
+            return _check_pop(build_strangle(
                 contracts,
                 spot_price,
                 risk_free_rate,
                 time_to_expiry,
                 config,
                 dividend_yield=dividend_yield,
-            )
+                vol_regime=vol_regime,
+            ))
 
         case (VolRegime.ELEVATED | VolRegime.EXTREME, _) if confidence < 0.4:
             # High IV + low confidence → strangle
-            result = build_strangle(
+            result = _check_pop(build_strangle(
                 contracts,
                 spot_price,
                 risk_free_rate,
                 time_to_expiry,
                 config,
                 dividend_yield=dividend_yield,
-            )
+                vol_regime=vol_regime,
+            ))
             if result is not None:
                 return result
             # Fallback: try straddle
             logger.debug("select_strategy: strangle failed, trying straddle fallback")
-            return build_straddle(
+            return _check_pop(build_straddle(
                 contracts,
                 spot_price,
                 risk_free_rate,
                 time_to_expiry,
                 dividend_yield=dividend_yield,
-            )
+                vol_regime=vol_regime,
+            ))
 
         case (VolRegime.ELEVATED | VolRegime.EXTREME, _):
             # High IV + directional + decent confidence → vertical credit spread
-            result = build_vertical_spread(
+            result = _check_pop(build_vertical_spread(
                 contracts,
                 direction,
                 spot_price,
@@ -963,23 +988,24 @@ def select_strategy(
                 config,
                 dividend_yield=dividend_yield,
                 vol_regime=vol_regime,
-            )
+            ))
             if result is not None:
                 return result
             # Fallback: try strangle
             logger.debug("select_strategy: vertical credit failed, trying strangle fallback")
-            return build_strangle(
+            return _check_pop(build_strangle(
                 contracts,
                 spot_price,
                 risk_free_rate,
                 time_to_expiry,
                 config,
                 dividend_yield=dividend_yield,
-            )
+                vol_regime=vol_regime,
+            ))
 
         case (VolRegime.LOW, SignalDirection.BULLISH | SignalDirection.BEARISH):
             # Low IV + directional → vertical debit spread
-            result = build_vertical_spread(
+            result = _check_pop(build_vertical_spread(
                 contracts,
                 direction,
                 spot_price,
@@ -988,7 +1014,7 @@ def select_strategy(
                 config,
                 dividend_yield=dividend_yield,
                 vol_regime=vol_regime,
-            )
+            ))
             if result is not None:
                 return result
             logger.debug("select_strategy: vertical debit failed, no fallback for low IV")

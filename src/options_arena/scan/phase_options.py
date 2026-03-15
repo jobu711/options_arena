@@ -697,16 +697,29 @@ async def process_ticker_options(
     spread_result: SpreadAnalysis | None = None
     if spread_config is not None and spread_config.enabled and all_contracts:
         try:
-            # Use the first recommended contract's DTE for time_to_expiry,
-            # or fall back to the target DTE from the options filters.
+            # Use the first recommended contract's expiration to filter contracts
+            # to a single expiration.  Spread builders expect pre-filtered contracts;
+            # mixing expirations would pair legs from different dates.
             if recommended:
+                target_exp = recommended[0].expiration
                 target_dte = float(recommended[0].dte)
             else:
                 target_dte = float(options_filters.max_dte)
+                # Pick the expiration closest to the target DTE
+                today = date.today()
+                target_exp = min(
+                    {c.expiration for c in all_contracts},
+                    key=lambda exp: abs((exp - today).days - target_dte),
+                )
             time_to_expiry = target_dte / 365.0
 
+            # Filter to single expiration (1-day tolerance for rounding)
+            spread_contracts = [
+                c for c in all_contracts if abs((c.expiration - target_exp).days) <= 1
+            ]
+
             spread_result = select_strategy(
-                contracts=all_contracts,
+                contracts=spread_contracts,
                 direction=ticker_score.direction,
                 confidence=ticker_score.composite_score / 100.0,
                 iv_rank=ticker_score.signals.iv_rank,
