@@ -452,6 +452,68 @@ class FinancialDatasetsConfig(BaseModel):
         return self
 
 
+class SpreadConfig(BaseModel):
+    """Spread strategy configuration — controls multi-leg strategy construction.
+
+    ``vertical_width`` and ``iron_condor_wing_width`` set default strike widths.
+    ``short_leg_delta`` targets the short leg's delta for premium strategies.
+    ``min_pop`` filters out strategies below a minimum probability of profit.
+    ``max_legs`` caps the number of legs in any constructed spread.
+    ``enabled`` is a master toggle for the spread analysis pipeline.
+    """
+
+    vertical_width: int = 5
+    iron_condor_wing_width: int = 5
+    short_leg_delta: float = 0.30
+    min_pop: float = 0.40
+    max_legs: int = 4
+    enabled: bool = True
+
+    @field_validator("vertical_width", "iron_condor_wing_width")
+    @classmethod
+    def validate_width_positive(cls, v: int) -> int:
+        """Ensure strike width is at least 1."""
+        if v < 1:
+            raise ValueError(f"width must be >= 1, got {v}")
+        return v
+
+    @field_validator("max_legs")
+    @classmethod
+    def validate_max_legs(cls, v: int) -> int:
+        """Ensure max_legs is within [2, 8]."""
+        if not 2 <= v <= 8:
+            raise ValueError(f"max_legs must be in [2, 8], got {v}")
+        return v
+
+    @field_validator("short_leg_delta")
+    @classmethod
+    def validate_short_leg_delta(cls, v: float) -> float:
+        """Ensure short_leg_delta is finite and within (0.0, 1.0)."""
+        if not math.isfinite(v):
+            raise ValueError(f"short_leg_delta must be finite, got {v}")
+        if not 0.0 < v < 1.0:
+            raise ValueError(f"short_leg_delta must be in (0.0, 1.0), got {v}")
+        return v
+
+    @field_validator("min_pop")
+    @classmethod
+    def validate_min_pop(cls, v: float) -> float:
+        """Ensure min_pop is finite and within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"min_pop must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"min_pop must be in [0.0, 1.0], got {v}")
+        return v
+
+    @model_validator(mode="after")
+    def validate_all_finite(self) -> Self:
+        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
+        for name, value in self.__dict__.items():
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+        return self
+
+
 class OpenBBConfig(BaseModel):
     """OpenBB Platform SDK configuration — controls optional enrichment data.
 
@@ -499,3 +561,4 @@ class AppSettings(BaseSettings):
     intelligence: IntelligenceConfig = IntelligenceConfig()
     analytics: AnalyticsConfig = AnalyticsConfig()
     financial_datasets: FinancialDatasetsConfig = FinancialDatasetsConfig()
+    spread: SpreadConfig = SpreadConfig()
