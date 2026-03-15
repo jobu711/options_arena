@@ -96,6 +96,7 @@ FAMILY_INDICATOR_MAP: dict[str, list[str]] = {
         "risk_on_off_score",
         "sector_relative_momentum",
         "correlation_regime_shift",
+        "hurst_exponent",
     ],
     "risk": [
         "pop",
