@@ -89,6 +89,7 @@ from options_arena.models.enums import (
     SentimentLabel,
     SignalDirection,
     SpreadType,
+    ValuationSignal,
     VolAssessment,
     VolRegime,
 )
@@ -134,6 +135,7 @@ from options_arena.models.options import (
 from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
 from options_arena.models.scan_delta import ScanDiff, TickerDelta
 from options_arena.models.scoring import DimensionalScores, DirectionSignal
+from options_arena.models.valuation import CompositeValuation, ValuationModelResult
 
 __all__ = [
     # Enums
@@ -166,6 +168,7 @@ __all__ = [
     "SentimentLabel",
     "SignalDirection",
     "SpreadType",
+    "ValuationSignal",
     "VolAssessment",
     "VolRegime",
     # Market data
@@ -271,6 +274,9 @@ __all__ = [
     # Metadata
     "MetadataCoverage",
     "TickerMetadata",
+    # Valuation
+    "CompositeValuation",
+    "ValuationModelResult",
     # Audit
     "AuditFinding",
     "AuditLayerSummary",

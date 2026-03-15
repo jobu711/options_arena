@@ -719,6 +719,21 @@ def render_fundamental_context(ctx: MarketContext) -> str:
         lines.append("## Growth & Valuation")
         lines.extend(growth_lines)
 
+    # --- Multi-Methodology Valuation ---
+    valuation_lines: list[str] = []
+    if ctx.valuation_signal is not None:
+        valuation_lines.append(f"VALUATION SIGNAL: {ctx.valuation_signal.value.upper()}")
+    if ctx.valuation_fair_value is not None and math.isfinite(ctx.valuation_fair_value):
+        valuation_lines.append(f"COMPOSITE FAIR VALUE: ${ctx.valuation_fair_value:,.2f}")
+    if ctx.valuation_margin_of_safety is not None and math.isfinite(
+        ctx.valuation_margin_of_safety
+    ):
+        valuation_lines.append(f"MARGIN OF SAFETY: {ctx.valuation_margin_of_safety * 100:+.1f}%")
+    if valuation_lines:
+        lines.append("")
+        lines.append("## Multi-Model Valuation")
+        lines.extend(valuation_lines)
+
     # --- Analyst Intelligence ---
     analyst_lines: list[str | None] = [
         _render_optional("ANALYST TARGET MEAN", ctx.analyst_target_mean, ",.2f"),

@@ -55,6 +55,7 @@ from options_arena.agents.risk import risk_agent
 from options_arena.agents.trend_agent import trend_agent
 from options_arena.agents.volatility import volatility_agent
 from options_arena.analysis.position_sizing import compute_position_size
+from options_arena.analysis.valuation import FDData, compute_composite_valuation
 from options_arena.data.repository import Repository
 from options_arena.models import (
     AgentAccuracyReport,
@@ -479,6 +480,24 @@ def build_market_context(
             if fd_package
             and fd_package.metrics
             and fd_package.metrics.free_cash_flow_yield is not None
+            else None
+        ),
+        # --- Financial Datasets enrichment: valuation model inputs ---
+        # NOTE: capex, D&A, absolute FCF, and book_value_per_share are not yet on
+        # the FD models — they will be added by FinancialDatasets epic #393.
+        # For now these remain None; shares_outstanding and ROE are available.
+        fd_shares_outstanding=(
+            float(fd_package.balance_sheet.shares_outstanding)
+            if fd_package
+            and fd_package.balance_sheet
+            and fd_package.balance_sheet.shares_outstanding is not None
+            else None
+        ),
+        fd_roe=(
+            fd_package.metrics.return_on_equity
+            if fd_package
+            and fd_package.metrics
+            and fd_package.metrics.return_on_equity is not None
             else None
         ),
     )
@@ -1480,6 +1499,39 @@ async def run_debate(
         sizing_result = compute_position_size(iv_for_sizing)
         context.position_size_pct = sizing_result.final_allocation_pct
         context.position_size_rationale = sizing_result.rationale
+
+    # --- Multi-Methodology Valuation (FR-C6) ---
+    if context.fd_net_income is not None or context.fd_free_cash_flow is not None:
+        try:
+            fd_data = FDData(
+                net_income=context.fd_net_income,
+                depreciation_amortization=context.fd_depreciation_amortization,
+                capex=context.fd_capex,
+                free_cash_flow=context.fd_free_cash_flow,
+                revenue_growth=context.fd_revenue_growth,
+                earnings_growth=context.fd_earnings_growth,
+                ev_to_ebitda=context.fd_ev_to_ebitda,
+                book_value_per_share=context.fd_book_value_per_share,
+                roe=context.fd_roe,
+                shares_outstanding=context.fd_shares_outstanding,
+            )
+            valuation = compute_composite_valuation(
+                ticker=context.ticker,
+                current_price=float(context.current_price),
+                fd=fd_data,
+            )
+            context.valuation_signal = valuation.valuation_signal
+            context.valuation_margin_of_safety = valuation.composite_margin_of_safety
+            context.valuation_fair_value = valuation.composite_fair_value
+            logger.info(
+                "Valuation for %s: signal=%s, MoS=%.1f%%, fair_value=$%.2f",
+                context.ticker,
+                valuation.valuation_signal or "N/A",
+                (valuation.composite_margin_of_safety or 0.0) * 100,
+                valuation.composite_fair_value or 0.0,
+            )
+        except Exception:
+            logger.warning("Valuation computation failed for %s", context.ticker, exc_info=True)
 
     # --- Constraint pre-check (FR-C4) ---
     constraint_warnings_text: str | None = None

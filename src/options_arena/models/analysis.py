@@ -44,6 +44,7 @@ from options_arena.models.enums import (
     SentimentLabel,
     SignalDirection,
     SpreadType,
+    ValuationSignal,
     VolAssessment,
 )
 from options_arena.models.scoring import DimensionalScores
@@ -212,6 +213,19 @@ class MarketContext(BaseModel):
     fd_ev_to_ebitda: float | None = None
     fd_free_cash_flow_yield: float | None = None
 
+    # --- Financial Datasets enrichment: valuation model inputs (fd_* prefix) ---
+    fd_free_cash_flow: float | None = None  # absolute FCF (not yield)
+    fd_capex: float | None = None
+    fd_depreciation_amortization: float | None = None
+    fd_book_value_per_share: float | None = None
+    fd_roe: float | None = None  # return on equity, decimal fraction
+    fd_shares_outstanding: float | None = None
+
+    # --- Multi-Methodology Valuation summary ---
+    valuation_signal: ValuationSignal | None = None
+    valuation_margin_of_safety: float | None = None
+    valuation_fair_value: float | None = None
+
     def completeness_ratio(self) -> float:
         """Fraction of optional context fields that are populated (not None).
 
@@ -358,6 +372,12 @@ class MarketContext(BaseModel):
             self.fd_earnings_growth,
             self.fd_ev_to_ebitda,
             self.fd_free_cash_flow_yield,
+            self.fd_free_cash_flow,
+            self.fd_capex,
+            self.fd_depreciation_amortization,
+            self.fd_book_value_per_share,
+            self.fd_roe,
+            self.fd_shares_outstanding,
         ]
         populated = sum(1 for f in fd_fields if f is not None)
         return populated / len(fd_fields)
@@ -462,6 +482,16 @@ class MarketContext(BaseModel):
         "fd_earnings_growth",
         "fd_ev_to_ebitda",
         "fd_free_cash_flow_yield",
+        # Financial Datasets enrichment: valuation model inputs
+        "fd_free_cash_flow",
+        "fd_capex",
+        "fd_depreciation_amortization",
+        "fd_book_value_per_share",
+        "fd_roe",
+        "fd_shares_outstanding",
+        # Multi-Methodology Valuation summary
+        "valuation_margin_of_safety",
+        "valuation_fair_value",
     )
     @classmethod
     def validate_optional_finite(cls, v: float | None) -> float | None:

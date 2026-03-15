@@ -335,6 +335,19 @@ class ConstraintSeverity(StrEnum):
     SOFT = "soft"
 
 
+class ValuationSignal(StrEnum):
+    """Composite valuation classification from multi-methodology analysis.
+
+    UNDERVALUED   — margin of safety > 15% (fair value exceeds price).
+    FAIRLY_VALUED — margin of safety within +/- 15%.
+    OVERVALUED    — margin of safety < -15% (price exceeds fair value).
+    """
+
+    UNDERVALUED = "undervalued"
+    FAIRLY_VALUED = "fairly_valued"
+    OVERVALUED = "overvalued"
+
+
 class AuditSeverity(StrEnum):
     """Severity level for mathematical computation audit findings."""
 

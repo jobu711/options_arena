@@ -90,6 +90,19 @@ Rules:
 calendar proximity, dividend impact, and IV crush risk assessment.
 - When Income Statement, Balance Sheet, or Growth & Valuation sections are present, \
 integrate their data into your analysis and cite specific values.
+- When Multi-Model Valuation section is present, integrate valuation signals:
+
+Multi-Model Valuation Interpretation:
+- VALUATION SIGNAL: UNDERVALUED — composite fair value exceeds price by >15%. \
+Supports bullish options positioning with higher confidence.
+- VALUATION SIGNAL: OVERVALUED — price exceeds composite fair value by >15%. \
+Supports bearish thesis or reduces bullish confidence.
+- VALUATION SIGNAL: FAIRLY_VALUED — price is within 15% of composite fair value. \
+Neutral valuation impact — focus on catalysts and technicals.
+- MARGIN OF SAFETY: positive means upside, negative means downside. \
+Cite the exact percentage in your key_fundamental_factors.
+- COMPOSITE FAIR VALUE: multi-model weighted average. \
+Compare against current price for context.
 
 ## Example Output
 ```json
