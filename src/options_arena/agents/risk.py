@@ -17,6 +17,7 @@ from pydantic_ai import Agent, RunContext
 from options_arena.agents._parsing import (
     DebateDeps,
     build_cleaned_risk_assessment,
+    render_macro_context,
 )
 from options_arena.agents.prompts.risk import RISK_SYSTEM_PROMPT
 from options_arena.models import RiskAssessment
@@ -39,6 +40,10 @@ async def risk_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
     up the latest Phase 1 outputs from deps.
     """
     parts: list[str] = [RISK_SYSTEM_PROMPT]
+    # Inject macro context when available
+    macro_block = render_macro_context(ctx.deps.context)
+    if macro_block is not None:
+        parts.append(f"\n\n<<<MACRO_CONTEXT>>>\n{macro_block}\n<<<END_MACRO_CONTEXT>>>")
     if ctx.deps.trend_response is not None:
         trend = ctx.deps.trend_response
         parts.append(

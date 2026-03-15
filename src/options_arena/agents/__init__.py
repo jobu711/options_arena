@@ -10,6 +10,7 @@ from options_arena.agents._parsing import (
     render_context_block,
     render_flow_context,
     render_fundamental_context,
+    render_macro_context,
     render_trend_context,
     render_volatility_context,
 )
@@ -57,6 +58,7 @@ __all__ = [
     "render_context_block",
     "render_flow_context",
     "render_fundamental_context",
+    "render_macro_context",
     "render_trend_context",
     "render_volatility_context",
     "run_debate",

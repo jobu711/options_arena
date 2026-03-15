@@ -771,6 +771,36 @@ def render_fundamental_context(ctx: MarketContext) -> str:
     return "\n".join(lines)
 
 
+def render_macro_context(ctx: MarketContext) -> str | None:
+    """Render macro-economic context for agent consumption.
+
+    Returns ``None`` when no macro data is present on the ``MarketContext``,
+    so callers can skip the block entirely. Uses the ``_render_optional()``
+    pattern for NaN/Inf safety.
+
+    Renders: MACRO REGIME, YIELD SPREAD, FED FUNDS RATE, VIX LEVEL.
+    """
+    macro_lines: list[str] = []
+
+    # macro_regime is str | None — render directly
+    if ctx.macro_regime is not None:
+        macro_lines.append(f"MACRO REGIME: {ctx.macro_regime.upper()}")
+
+    for label, value, fmt in [
+        ("YIELD SPREAD (10Y-2Y)", ctx.yield_spread, ".4f"),
+        ("FED FUNDS RATE", ctx.fed_funds_rate, ".4f"),
+        ("VIX LEVEL", ctx.vix_level, ".1f"),
+    ]:
+        rendered = _render_optional(label, value, fmt)
+        if rendered is not None:
+            macro_lines.append(rendered)
+
+    if not macro_lines:
+        return None
+
+    return "\n".join(["", "## Macro Environment", *macro_lines])
+
+
 def render_context_block(ctx: MarketContext) -> str:
     """Render MarketContext as flat key-value text for agent consumption.
 

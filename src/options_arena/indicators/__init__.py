@@ -9,6 +9,7 @@ from options_arena.indicators.hv_estimators import (
     compute_hv_rogers_satchell,
     compute_hv_yang_zhang,
 )
+from options_arena.indicators.macro import compute_macro_regime
 from options_arena.indicators.moving_averages import sma_alignment, vwap_deviation
 from options_arena.indicators.options_specific import (
     iv_percentile,
@@ -37,6 +38,7 @@ __all__ = [
     "VolSurfaceIndicators",
     "VolSurfaceResult",
     "ad_trend",
+    "compute_macro_regime",
     "adx",
     "atr_percent",
     "bb_width",

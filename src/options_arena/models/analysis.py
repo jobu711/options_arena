@@ -188,6 +188,12 @@ class MarketContext(BaseModel):
     spread_pop: float | None = None  # Probability of profit [0.0, 1.0]
     spread_risk_reward: float | None = None
 
+    # --- Macro Context (FRED) ---
+    macro_regime: str | None = None  # "expansionary", "contractionary", "transitional"
+    yield_spread: float | None = None  # 10Y-2Y spread (decimal fraction)
+    fed_funds_rate: float | None = None  # Federal funds rate (decimal fraction)
+    vix_level: float | None = None  # CBOE VIX index level (not percentage)
+
     # --- Financial Datasets enrichment (fd_* prefix) ---
     fd_revenue: float | None = None
     fd_net_income: float | None = None
@@ -454,6 +460,10 @@ class MarketContext(BaseModel):
         "fd_earnings_growth",
         "fd_ev_to_ebitda",
         "fd_free_cash_flow_yield",
+        # Macro context (FRED) — macro_regime is str, not validated here
+        "yield_spread",
+        "fed_funds_rate",
+        "vix_level",
     )
     @classmethod
     def validate_optional_finite(cls, v: float | None) -> float | None:
