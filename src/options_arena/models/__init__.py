@@ -48,6 +48,7 @@ from options_arena.models.config import (
     FinancialDatasetsConfig,
     IntelligenceConfig,
     LogConfig,
+    MLConfig,
     OpenBBConfig,
     PricingConfig,
     ScanConfig,
@@ -109,6 +110,7 @@ from options_arena.models.intelligence import (
     IntelligencePackage,
     UpgradeDowngrade,
 )
+from options_arena.models.macro import MacroContext, MacroRegimeResult
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
 from options_arena.models.metadata import MetadataCoverage, TickerMetadata
 from options_arena.models.openbb import (
@@ -213,6 +215,9 @@ __all__ = [
     # Scoring
     "DimensionalScores",
     "DirectionSignal",
+    # Macro
+    "MacroContext",
+    "MacroRegimeResult",
     # Config
     "AnalyticsConfig",
     "AppSettings",
@@ -221,6 +226,7 @@ __all__ = [
     "FinancialDatasetsConfig",
     "IntelligenceConfig",
     "LogConfig",
+    "MLConfig",
     "OpenBBConfig",
     "PricingConfig",
     "ScanConfig",
