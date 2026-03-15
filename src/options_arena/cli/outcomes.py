@@ -677,3 +677,83 @@ async def _equity_curve_async(direction: str | None, period: int | None) -> None
         raise typer.Exit(code=1) from exc
     finally:
         await db.close()
+
+
+# ---------------------------------------------------------------------------
+# Risk-adjusted performance metrics
+# ---------------------------------------------------------------------------
+
+
+@outcomes_app.command(name="risk-metrics")
+def risk_metrics_cmd(
+    lookback_days: int = typer.Option(365, "--lookback-days", help="Number of days to look back"),
+) -> None:
+    """Show risk-adjusted performance metrics (Sharpe, Sortino, max drawdown)."""
+    asyncio.run(_risk_metrics_async(lookback_days))
+
+
+async def _risk_metrics_async(lookback_days: int) -> None:
+    """Display risk-adjusted metrics as a Rich table."""
+    settings = AppSettings()
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    if settings.data.db_path:
+        db_path = Path(settings.data.db_path)
+    else:
+        db_path = _DATA_DIR / "options_arena.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    db = Database(db_path)
+
+    try:
+        await db.connect()
+        repo = Repository(db)
+        metrics = await repo.get_risk_adjusted_metrics(lookback_days=lookback_days)
+
+        console.print(f"\n[bold]Risk-Adjusted Metrics ({lookback_days}-day lookback)[/bold]\n")
+
+        table = Table(show_header=False, padding=(0, 2))
+        table.add_column("Metric", style="bold white")
+        table.add_column("Value", justify="right", style="cyan")
+
+        table.add_row("Total trades", str(metrics.total_trades))
+        table.add_row("Risk-free rate", f"{metrics.risk_free_rate:.2%}")
+        table.add_row(
+            "Sharpe ratio",
+            f"{metrics.sharpe_ratio:.3f}"
+            if metrics.sharpe_ratio is not None and math.isfinite(metrics.sharpe_ratio)
+            else "--",
+        )
+        table.add_row(
+            "Sortino ratio",
+            f"{metrics.sortino_ratio:.3f}"
+            if metrics.sortino_ratio is not None and math.isfinite(metrics.sortino_ratio)
+            else "--",
+        )
+        table.add_row(
+            "Max drawdown",
+            f"{metrics.max_drawdown_pct:.2f}%"
+            if metrics.max_drawdown_pct is not None and math.isfinite(metrics.max_drawdown_pct)
+            else "--",
+        )
+        table.add_row(
+            "Max drawdown date",
+            str(metrics.max_drawdown_date) if metrics.max_drawdown_date is not None else "--",
+        )
+        table.add_row(
+            "Annualized return",
+            f"{metrics.annualized_return_pct:+.2f}%"
+            if metrics.annualized_return_pct is not None
+            and math.isfinite(metrics.annualized_return_pct)
+            else "--",
+        )
+
+        console.print(table)
+
+    except Exception as exc:
+        logger.exception("Risk metrics display failed")
+        err_console.print(
+            "[red]Risk metrics failed. Check logs/options_arena.log for details.[/red]"
+        )
+        raise typer.Exit(code=1) from exc
+    finally:
+        await db.close()

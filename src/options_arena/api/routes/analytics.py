@@ -22,6 +22,7 @@ from options_arena.models import (
     IndicatorSignals,
     PerformanceSummary,
     RecommendedContract,
+    RiskAdjustedMetrics,
     ScoreCalibrationBucket,
     SignalDirection,
     WeightSnapshot,
@@ -217,3 +218,14 @@ async def get_weight_history(
 ) -> list[WeightSnapshot]:
     """Retrieve historical auto-tune weight snapshots, newest first."""
     return await repo.get_weight_history(limit=limit)
+
+
+@router.get("/risk-metrics")
+@limiter.limit("60/minute")
+async def get_risk_metrics(
+    request: Request,
+    lookback_days: int = Query(default=365, ge=1),
+    repo: Repository = Depends(get_repo),
+) -> RiskAdjustedMetrics:
+    """Get risk-adjusted performance metrics (Sharpe, Sortino, max drawdown)."""
+    return await repo.get_risk_adjusted_metrics(lookback_days=lookback_days)
