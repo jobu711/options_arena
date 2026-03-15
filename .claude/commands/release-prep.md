@@ -1,5 +1,5 @@
 ---
-allowed-tools: Read, Glob, Grep, Bash, Agent, Write, Edit
+allowed-tools: Read, Glob, Grep, Bash, Agent, Skill, Write, Edit
 description: "Release workflow: audit, fix P1s, verify, docs, create PR"
 ---
 
@@ -16,7 +16,7 @@ Options Arena uses:
 - `uv run mypy src/ --strict` — type checking
 - `python tools/docgen.py` — technical reference generation
 - `gh pr create` — GitHub PR creation
-- 6 auditor agents for comprehensive code health checks
+- 7 auditor agents orchestrated via `/full-audit`
 </context>
 
 <task>
@@ -28,10 +28,10 @@ phase for user approval before proceeding.
 ## Phase 1: Comprehensive Audit
 
 1. Announce: "Phase 1/5: Running comprehensive audit..."
-2. Run the full audit — launch all 6 auditor agents in parallel (same pattern as
-   `/full-audit`) scoped to `src/options_arena/`
-3. Read and consolidate all reports
-4. Present the summary table and P1/P2/P3/P4 counts
+2. Use the Skill tool: `skill="full-audit"`, `args="src/options_arena/"`.
+   Wait for completion.
+3. Read `.claude/audits/FULL_AUDIT.md` for consolidated findings.
+4. Present the summary table and P1/P2/P3/P4 counts from that report.
 
 **STOP** — Ask user: "Proceed to fix P1 issues?" / "Skip fixes, go to verification" / "Abort release"
 
@@ -43,7 +43,9 @@ phase for user approval before proceeding.
    b. **Ask user**: "Apply this fix?" / "Skip" / "Custom fix"
    c. If approved, apply using Edit tool
    d. Show brief diff summary
-3. After all P1s addressed, re-audit ONLY changed files with relevant agents
+3. After all P1s addressed, re-audit ONLY changed files with relevant agents.
+   Read `.claude/commands/fix-loop.md` for the agent-to-module mapping to select
+   which auditors are relevant for each changed file's module
 4. If new P1s found, repeat (max 2 iterations)
 
 **STOP** — Show what was fixed/skipped. Ask: "Proceed to verification?" / "Abort"

@@ -1,5 +1,5 @@
 ---
-allowed-tools: Read, Glob, Grep, Bash, Agent, Write, Edit
+allowed-tools: Read, Glob, Grep, Bash, Agent, Skill, Write, Edit
 description: "Iterative audit-fix-verify loop with user approval between iterations"
 ---
 
@@ -10,15 +10,15 @@ or the user says stop. You never apply fixes without user approval.
 </role>
 
 <context>
-This command works with the 6 auditor agents (security-auditor, bug-auditor,
-code-reviewer, architect-reviewer, db-auditor, dep-auditor). Each has non-overlapping
+This command works with the 7 auditor agents orchestrated by `/full-audit`. Full-audit
+findings are written to `.claude/audits/FULL_AUDIT.md`. Each agent has non-overlapping
 scope boundaries. Reports are written to `.claude/audits/`.
 
 Agent-to-module mapping for targeted re-audit:
 - `services/` → bug-auditor, security-auditor
 - `models/` → code-reviewer, architect-reviewer
 - `data/` → db-auditor
-- `pricing/`, `scoring/`, `indicators/` → code-reviewer, architect-reviewer
+- `pricing/`, `scoring/`, `indicators/` → code-reviewer, architect-reviewer, oa-python-reviewer
 - `agents/` → bug-auditor, code-reviewer
 - `api/` → security-auditor, bug-auditor
 - `pyproject.toml` → dep-auditor
@@ -34,16 +34,19 @@ each step, re-auditing only changed files with relevant agents.
 <instructions>
 ## Step 1: Initial Audit
 
-Parse `$ARGUMENTS` for options:
-- No args → run `/full-audit` on `src/options_arena/`
-- `--auditor <name>` → run only the specified auditor agent
-- `<path>` → run full audit on the specified path
-- `--auditor <name> <path>` → run specified auditor on specified path
+Parse `$ARGUMENTS`:
+- `--auditor <name>` present → extract auditor name and optional path → single-agent mode
+- `<path>` only → full-audit scope is `<path>`
+- No args → full-audit scope is `src/options_arena/`
 
-If running full audit, use the same parallel fan-out pattern as `/full-audit`.
-If running a single auditor, launch just that agent.
+**Full audit mode** (no `--auditor` flag):
+Use the Skill tool: `skill="full-audit"`, `args="{scope}"`.
+Wait for completion. Then read `.claude/audits/FULL_AUDIT.md` for consolidated findings.
 
-Read the resulting report(s) from `.claude/audits/`.
+**Single-agent mode** (`--auditor <name>`):
+Launch only the named auditor via the Agent tool, scoped to the path (default
+`src/options_arena/`). Read `.claude/audits/AUDIT_<NAME>.md`. Map findings to P1-P4
+using the priority mapping defined in `/full-audit` Phase 3.
 
 ## Step 2: Present Findings
 
