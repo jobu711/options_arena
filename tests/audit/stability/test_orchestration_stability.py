@@ -11,7 +11,9 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from options_arena.agents._parsing import compute_citation_density
 from options_arena.agents.orchestrator import (
+    _get_majority_direction,
     _log_odds_pool,
     _vote_entropy,
     classify_macd_signal,
@@ -389,3 +391,58 @@ class TestOrchestrationNaNInjection:
         assert isinstance(result, float)
         # Inf gets clamped to 0.99 by the max(0.01, min(0.99, p)) guard
         assert math.isfinite(result)
+
+
+# ---------------------------------------------------------------------------
+# _get_majority_direction — stability
+# ---------------------------------------------------------------------------
+
+
+class TestGetMajorityDirectionStability:
+    """Stability tests for _get_majority_direction."""
+
+    @given(
+        directions=st.dictionaries(
+            keys=st.text(min_size=1, max_size=5),
+            values=st.sampled_from(
+                [SignalDirection.BULLISH, SignalDirection.BEARISH, SignalDirection.NEUTRAL]
+            ),
+            min_size=0,
+            max_size=10,
+        )
+    )
+    @settings(max_examples=100)
+    def test_always_returns_valid_direction(
+        self, directions: dict[str, SignalDirection]
+    ) -> None:
+        """Output is always a valid SignalDirection."""
+        result = _get_majority_direction(directions)
+        assert result in {
+            SignalDirection.BULLISH,
+            SignalDirection.BEARISH,
+            SignalDirection.NEUTRAL,
+        }
+
+
+# ---------------------------------------------------------------------------
+# compute_citation_density — stability
+# ---------------------------------------------------------------------------
+
+
+class TestComputeCitationDensityStability:
+    """Stability tests for compute_citation_density."""
+
+    @given(
+        context=st.text(min_size=0, max_size=200),
+        text=st.text(min_size=0, max_size=200),
+    )
+    @settings(max_examples=100)
+    def test_output_in_zero_one(self, context: str, text: str) -> None:
+        """Output is always in [0.0, 1.0]."""
+        result = compute_citation_density(context, text)
+        assert isinstance(result, float)
+        assert 0.0 <= result <= 1.0
+
+    def test_empty_inputs_no_crash(self) -> None:
+        """Empty strings produce 0.0 without errors."""
+        assert compute_citation_density("", "") == pytest.approx(0.0)
