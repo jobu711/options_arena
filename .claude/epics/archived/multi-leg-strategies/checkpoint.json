@@ -1,0 +1,12 @@
+{
+  "epic": "multi-leg-strategies",
+  "phase": "executing",
+  "last_command": "/pm:epic-start multi-leg-strategies",
+  "last_updated": "2026-03-15T14:30:00Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced", "executing"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": ["516", "518"],
+  "blockers": [],
+  "notes": "Wave 1 launched: #516 (models) and #518 (pricing) in parallel worktrees"
+}

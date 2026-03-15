@@ -18,7 +18,7 @@ Integrate `arch` (GARCH/EGARCH volatility forecasting), `statsmodels` (Markov-sw
 
 ## Architecture Decisions
 
-1. **Optional dependency group** — `arch >=7.0`, `statsmodels >=0.14` in `[project.optional-dependencies] ml = [...]`. Guarded imports via `_get_arch()` / `_get_sm()` pattern (see `openbb_service.py`).
+1. **Optional dependency group** — `arch >=7.0,<9`, `statsmodels >=0.14` in `[project.optional-dependencies] ml = [...]`. Guarded imports via `_get_arch()` / `_get_sm()` pattern (see `openbb_service.py`).
 2. **Config-gated features** — `MLConfig(BaseModel)` submodel on `ScanConfig` with `enable_garch: bool = False`, `enable_markov: bool = False`, `enable_macro: bool = False`. All disabled by default.
 3. **Indicator module purity** — `indicators/vol_forecast.py`, `indicators/regime_ml.py`, `indicators/macro.py` use guarded imports internally but expose `float | None` / `NamedTuple` return types. No Pydantic models in indicators.
 4. **Macro context via existing service pattern** — FRED expansion stays in `services/fred.py`, follows existing never-raises + two-tier cache pattern.
@@ -39,7 +39,7 @@ Integrate `arch` (GARCH/EGARCH volatility forecasting), `statsmodels` (Markov-sw
 |------|--------|
 | `services/fred.py` | Batch multi-series fetch, per-series TTL, `fetch_macro_context()` |
 | `models/analysis.py` | ML fields on `MarketContext` (vol forecast, regime probs, macro context) |
-| `models/scan.py` | ~6 ML indicator fields on `IndicatorSignals` |
+| `models/scan.py` | ~6 ML indicator fields on `IndicatorSignals` (currently 68 fields) |
 | `models/config.py` | `MLConfig(BaseModel)` submodel + feature flags on `ScanConfig` |
 | `agents/_parsing.py` | `render_macro_context()`, vol forecast in `render_volatility_context()` |
 | `agents/fundamental_agent.py` | Consume `MacroContext` in prompt |
@@ -50,20 +50,21 @@ Integrate `arch` (GARCH/EGARCH volatility forecasting), `statsmodels` (Markov-sw
 
 ## New Dependencies
 
-- `arch >=7.0` — MIT, standalone GARCH library (~5MB)
+- `arch >=7.0,<9` — MIT, standalone GARCH library (~5MB)
 - `statsmodels >=0.14` — BSD, Markov-switching + ADF (~50MB)
 
 ## Issues
 
 ### A1: FRED Service Expansion + MacroContext Model
 **FR**: FR-S11
-**Description**: Extend `FredService` to fetch 8 FRED series (DGS10, DGS2, T10Y2Y, FEDFUNDS, VIXCLS, CPIAUCSL, NAPM, UNRATE) with per-series TTL caching. Create `MacroContext` model in `models/macro.py` and `FredSeriesConfig` for series configuration. Add `fetch_macro_context()` batch method.
+**Description**: Extend `FredService` to fetch 8 FRED series (DGS10, DGS2, T10Y2Y, FEDFUNDS, VIXCLS, CPIAUCSL, INDPRO, UNRATE) with per-series TTL caching. Create `MacroContext` model in `models/macro.py` and `FredSeriesConfig` for series configuration. Add `fetch_macro_context()` batch method.
+> **Context7 fix**: NAPM (ISM Manufacturing PMI) was removed from FRED in June 2016. Replaced with INDPRO (Industrial Production Index) as the manufacturing activity proxy.
 **New files**: `models/macro.py`
 **Modified files**: `services/fred.py`, `models/config.py`
 **Est. tests**: ~25
 **Acceptance criteria**:
 - [ ] `FredSeriesConfig` with id, TTL, transform type
-- [ ] `MacroContext` model with all 8 series fields (all `float | None`)
+- [ ] `MacroContext` model with all 8 series fields (all `float | None`): DGS10, DGS2, T10Y2Y, FEDFUNDS, VIXCLS, CPIAUCSL, INDPRO, UNRATE
 - [ ] `fetch_macro_context()` batch-fetches with per-series TTL
 - [ ] Graceful degradation: partial data returns partial `MacroContext`
 - [ ] Never raises — follows existing FRED pattern
@@ -94,9 +95,16 @@ Integrate `arch` (GARCH/EGARCH volatility forecasting), `statsmodels` (Markov-sw
 - [ ] Guarded `arch` import — returns None when not installed
 - [ ] `iv_vs_forecast_spread` derived indicator computed
 
+**Context7 implementation notes**:
+- Use `arch_model(returns, vol='GARCH', p=1, q=1)` and `arch_model(returns, vol='EGARCH', p=1, o=1, q=1)` — EGARCH takes `(p, o, q)` not `(p, q)`
+- Forecast via `res.forecast(horizon=N).variance` (DataFrame with `h.1`..`h.N` columns); `res.conditional_volatility` is in-sample only
+- Convergence is **flag-based**, not exception-based: check `res.convergence_flag != 0` after `fit(disp='off')`
+- No `variance_backcast` parameter exists — use `backcast` on `fit()` or rely on default
+- The 252-observation minimum is a project policy for estimate reliability, not a library constraint
+
 ### A4: Markov-Switching Regime Detection
 **FR**: FR-S2
-**Description**: Implement `compute_markov_regime()` in `indicators/regime_ml.py` using `statsmodels.tsa.regime_switching`. Returns regime labels, smoothed probabilities, and transition matrix. Complements (not replaces) existing heuristic regime detection.
+**Description**: Implement `compute_markov_regime()` in `indicators/regime_ml.py` using `statsmodels.tsa.regime_switching.markov_regression.MarkovRegression`. Returns regime labels, smoothed probabilities, and transition matrix. Complements (not replaces) existing heuristic regime detection.
 **New files**: `indicators/regime_ml.py`
 **Modified files**: `indicators/regime.py`
 **Depends on**: A3 (shares stationarity infrastructure)
@@ -107,6 +115,13 @@ Integrate `arch` (GARCH/EGARCH volatility forecasting), `statsmodels` (Markov-sw
 - [ ] `regime_markov_label`, `regime_transition_prob` populated
 - [ ] Falls back to None on convergence failure
 - [ ] Guarded `statsmodels` import
+
+**Context7 implementation notes**:
+- Statsmodels uses `k_regimes` (not `n_regimes`): `MarkovRegression(returns, k_regimes=3)`
+- Smoothed probabilities via `results.smoothed_marginal_probabilities`
+- Transition matrix is on the **model**, not results: `model.regime_transition_matrix(results.params)[:, :, 0]` — must keep references to both objects; squeeze trailing dim from `(3,3,1)` to `(3,3)`
+- Use `fit(search_reps=20)` for better convergence on difficult series
+- Consider `MarkovAutoregression` as alternative if daily returns show serial correlation
 
 ### A5: Statistical Pipeline Integration
 **FR**: Pipeline wiring

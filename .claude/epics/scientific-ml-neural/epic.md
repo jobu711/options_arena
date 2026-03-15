@@ -18,7 +18,7 @@ Integrate PyTorch Lightning for neural IV surface fitting and LSTM price traject
 
 ## Architecture Decisions
 
-1. **Separate dependency group** — `pytorch-lightning >=2.3`, `torch >=2.3` in `[project.optional-dependencies] neural = [...]`. Separate from `ml` group due to large size (~2GB).
+1. **Separate dependency group** — `lightning >=2.4,<3.0`, `torch >=2.5,<3.0` in `[project.optional-dependencies] neural = [...]`. Separate from `ml` group due to large size (~200MB CPU-only, ~900MB with CUDA). Use CPU-only torch index (`https://download.pytorch.org/whl/cpu`) via `[tool.uv.sources]`.
 2. **Guarded imports** — `_get_lightning()` / `_get_torch()` pattern. Neural models return None when deps unavailable. Existing spline/BSM methods serve as automatic fallback.
 3. **Checkpoint persistence** — Trained model checkpoints stored in `data/model_cache/` (gitignored). Per-ticker checkpoints for IV surface (warm-start on subsequent scans).
 4. **CPU-first** — All models configured for CPU execution. GPU acceleration is optional performance enhancement, not a requirement.
@@ -44,8 +44,8 @@ Integrate PyTorch Lightning for neural IV surface fitting and LSTM price traject
 
 ## New Dependencies
 
-- `pytorch-lightning >=2.3` — Apache 2.0, neural training framework
-- `torch >=2.3` — BSD, PyTorch backend (~2GB combined)
+- `lightning >=2.4,<3.0` — Apache 2.0, unified PyTorch Lightning package (recommended over legacy `pytorch-lightning`)
+- `torch >=2.5,<3.0` — BSD, PyTorch backend (~200MB CPU-only via `whl/cpu` index, ~900MB with CUDA)
 
 ## Issues
 
@@ -82,7 +82,7 @@ Integrate PyTorch Lightning for neural IV surface fitting and LSTM price traject
 **Modified files**: `models/analysis.py`
 **Est. tests**: ~20
 **Acceptance criteria**:
-- [ ] LSTM: 2 layers, 128 hidden, dropout 0.2, 8-feature input
+- [ ] LSTM: 2 layers, 128 hidden, dropout 0.2 (applied between layers only — separate `nn.Dropout` needed on output), 8-feature input
 - [ ] Output: (mean, std) at 30/60/90 DTE horizons
 - [ ] `prob_profit_neural` = P(S_T > strike) from predicted distribution
 - [ ] Guarded PyTorch import — returns None when not installed

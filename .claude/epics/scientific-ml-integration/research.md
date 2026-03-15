@@ -7,7 +7,7 @@ Integrate `arch` (GARCH), statsmodels, scikit-learn, PyTorch Lightning, and expa
 1. **Volatility forecasting** — GARCH/EGARCH via `arch >=7.0` (not statsmodels) replacing backward-looking EWMA
 2. **Regime classification** — Markov-switching models (statsmodels) + ML classifiers (scikit-learn) replacing threshold heuristics
 3. **Neural pricing** — IV surface fitting + trajectory forecasting (PyTorch Lightning) complementing BSM/BAW
-4. **Macro context** — 8 FRED series (yield curve, Fed funds, VIX, CPI, PMI, unemployment) for agent enrichment
+4. **Macro context** — 8 FRED series (yield curve, Fed funds, VIX, CPI, industrial production, unemployment) for agent enrichment. Note: NAPM (ISM PMI) removed from FRED in June 2016; using INDPRO (Industrial Production) instead.
 
 **Restructured**: 3 independent epics (A: Statistical Foundation, B: ML Classification, C: Neural Models) with 13 issues total across 8 new files, ~220 estimated tests. FR-S5 (indicator weight validation) relocated to `ai-agency-evolution` PRD Epic 5.
 
@@ -102,7 +102,7 @@ NamedTuple with tiered computation. Neural surface should produce a parallel `Ne
 | `indicators/flow_analytics.py` (215 lines) | 5 pure-math flow functions | Add `detect_flow_anomalies()` using Isolation Forest |
 | `scoring/composite.py` (191 lines) | 24 indicators, sum-to-1.0 guard | Add ML indicator weights, redistribute existing to maintain sum |
 | `scoring/contracts.py` (493 lines) | `select_by_delta()`, `filter_contracts()` | Add optional clustering call after Greeks computation |
-| `models/scan.py` (231 lines) | `IndicatorSignals` (65 fields) | Add ~8-12 ML indicator fields |
+| `models/scan.py` (231 lines) | `IndicatorSignals` (68 fields) | Add ~8-12 ML indicator fields |
 | `models/analysis.py` (867 lines) | `MarketContext` (~80 optional fields) | Add ~10-15 ML + macro fields, extend `validate_optional_finite` list |
 | `models/config.py` (442 lines) | `ScanConfig`, `AppSettings` | Add `MLConfig(BaseModel)`, 4-6 feature flags |
 | `agents/_parsing.py` | 4 domain renderers | Add ML fields to `render_volatility_context()`, new `render_macro_context()` section in `render_fundamental_context()` |

@@ -55,7 +55,7 @@ Integrate `scikit-learn` for ML-based market regime classification, contract Gre
 - [ ] GBM classifier with configurable hyperparameters
 - [ ] Feature extraction from historical `IndicatorSignals`
 - [ ] Cross-validation with classification report
-- [ ] Model serialization to `data/model_cache/`
+- [ ] Model serialization to `data/model_cache/` via `joblib.dump`/`joblib.load` (top-level `import joblib`, NOT `sklearn.externals` — removed in sklearn 0.23)
 - [ ] Guarded scikit-learn import with clear error message
 
 ### B2: ML Regime Inference in Pipeline

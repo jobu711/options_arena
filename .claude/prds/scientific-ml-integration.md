@@ -102,7 +102,7 @@ Price trajectory forecasting for the underlying does not exist — agents have n
 **As** a trader, **I want** agents to reference yield curve slope, inflation trends, and labor market data **so that** macro regime context informs the trade thesis, especially for longer-dated options.
 
 **Acceptance criteria:**
-- `FredService` extended to fetch DGS10-DGS2 spread, FEDFUNDS, VIXCLS, CPIAUCSL, NAPM, UNRATE
+- `FredService` extended to fetch DGS10-DGS2 spread, FEDFUNDS, VIXCLS, CPIAUCSL, INDPRO, UNRATE
 - Macro data cached with configurable TTL (24h default, 7d for monthly series)
 - `MacroContext` model populated and available to Fundamental Agent and Risk Agent
 - Macro regime label (expansionary/contractionary/transitional) derived from indicator combination
@@ -294,7 +294,7 @@ FRED_SERIES: dict[str, FredSeriesConfig] = {
     "FEDFUNDS": FredSeriesConfig(id="FEDFUNDS", ttl_hours=168, transform="level"),  # weekly update sufficient
     "VIXCLS": FredSeriesConfig(id="VIXCLS", ttl_hours=24, transform="level"),
     "CPIAUCSL": FredSeriesConfig(id="CPIAUCSL", ttl_hours=168, transform="pct_change_yoy"),
-    "NAPM": FredSeriesConfig(id="NAPM", ttl_hours=168, transform="level"),  # ISM PMI
+    "INDPRO": FredSeriesConfig(id="INDPRO", ttl_hours=168, transform="pct_change_yoy"),  # Industrial Production Index (NAPM removed from FRED 2016)
     "UNRATE": FredSeriesConfig(id="UNRATE", ttl_hours=168, transform="level"),
 }
 ```
