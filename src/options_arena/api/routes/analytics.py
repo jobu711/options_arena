@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 
 from options_arena.agents import auto_tune_weights
 from options_arena.analysis.correlation import compute_correlation_matrix
@@ -35,6 +35,7 @@ from options_arena.models import (
     WinRateResult,
 )
 from options_arena.models.correlation import CorrelationMatrix
+from options_arena.models.enums import TICKER_RE
 from options_arena.services.market_data import MarketDataService
 from options_arena.services.outcome_collector import OutcomeCollector
 
@@ -152,11 +153,14 @@ async def get_scan_contracts(
 @limiter.limit("60/minute")
 async def get_ticker_contracts(
     request: Request,
-    ticker: str,
+    ticker: str = Path(),
     limit: int = Query(default=50, ge=1, le=200),
     repo: Repository = Depends(get_repo),
 ) -> list[RecommendedContract]:
     """Get recommended contracts for a specific ticker."""
+    ticker = ticker.upper()
+    if not TICKER_RE.match(ticker):
+        raise HTTPException(422, f"Invalid ticker format: {ticker!r}")
     return await repo.get_contracts_for_ticker(ticker, limit=limit)
 
 
@@ -255,6 +259,13 @@ async def get_correlation(
     ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
     if len(ticker_list) < 2:  # noqa: PLR2004
         raise HTTPException(422, "At least 2 tickers are required for correlation analysis")
+    if len(ticker_list) > 50:  # noqa: PLR2004
+        raise HTTPException(422, "Maximum 50 tickers allowed for correlation analysis")
+
+    # Validate each ticker against TICKER_RE
+    for t in ticker_list:
+        if not TICKER_RE.match(t):
+            raise HTTPException(422, f"Invalid ticker format: {t!r}")
 
     # Deduplicate
     ticker_list = list(dict.fromkeys(ticker_list))

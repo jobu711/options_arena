@@ -10,6 +10,7 @@ from options_arena.api.app import limiter
 from options_arena.api.deps import get_market_data, get_repo
 from options_arena.data import Repository
 from options_arena.models import HistoryPoint, TickerInfo, TrendingTicker
+from options_arena.models.enums import SignalDirection
 from options_arena.services.market_data import MarketDataService
 
 logger = logging.getLogger(__name__)
@@ -53,8 +54,8 @@ async def get_ticker_info(
 async def get_trending_tickers(
     request: Request,
     repo: Repository = Depends(get_repo),
-    direction: str = Query("bullish"),
+    direction: SignalDirection = Query(SignalDirection.BULLISH),
     min_scans: int = Query(3, ge=1, le=50),
 ) -> list[TrendingTicker]:
     """Get tickers trending in a consistent direction over recent scans."""
-    return await repo.get_trending_tickers(direction, min_scans=min_scans)
+    return await repo.get_trending_tickers(direction.value, min_scans=min_scans)

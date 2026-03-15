@@ -75,7 +75,7 @@ class HealthService:
                 service_name="yfinance",
                 available=False,
                 latency_ms=latency_ms,
-                error=str(exc),
+                error=type(exc).__name__,
                 checked_at=datetime.now(UTC),
             )
 
@@ -110,7 +110,7 @@ class HealthService:
                 service_name="fred",
                 available=False,
                 latency_ms=latency_ms,
-                error=str(exc),
+                error=type(exc).__name__,
                 checked_at=datetime.now(UTC),
             )
 
@@ -203,7 +203,7 @@ class HealthService:
                 service_name="groq",
                 available=False,
                 latency_ms=latency_ms,
-                error=str(exc),
+                error=type(exc).__name__,
                 checked_at=datetime.now(UTC),
             )
 
@@ -299,7 +299,7 @@ class HealthService:
                 service_name="anthropic",
                 available=False,
                 latency_ms=latency_ms,
-                error=str(exc),
+                error=type(exc).__name__,
                 checked_at=datetime.now(UTC),
             )
 
@@ -333,7 +333,7 @@ class HealthService:
                 service_name="cboe",
                 available=False,
                 latency_ms=latency_ms,
-                error=str(exc),
+                error=type(exc).__name__,
                 checked_at=datetime.now(UTC),
             )
 
@@ -372,7 +372,7 @@ class HealthService:
                 service_name="openbb",
                 available=False,
                 latency_ms=latency_ms,
-                error=str(exc),
+                error=type(exc).__name__,
                 checked_at=datetime.now(UTC),
             )
 
@@ -403,7 +403,7 @@ class HealthService:
                 service_name="intelligence",
                 available=False,
                 latency_ms=latency_ms,
-                error=str(exc),
+                error=type(exc).__name__,
                 checked_at=datetime.now(UTC),
             )
 
@@ -470,7 +470,7 @@ class HealthService:
                 service_name="cboe_chains",
                 available=False,
                 latency_ms=latency_ms,
-                error=str(exc),
+                error=type(exc).__name__,
                 checked_at=datetime.now(UTC),
             )
 
@@ -543,7 +543,7 @@ class HealthService:
                 service_name="financial_datasets",
                 available=False,
                 latency_ms=latency_ms,
-                error=str(exc),
+                error=type(exc).__name__,
                 checked_at=datetime.now(UTC),
             )
         finally:

@@ -13,9 +13,7 @@ Source priority (Context7-verified): init kwargs > env vars > field defaults.
 AppSettings() with no args is a valid production config.
 """
 
-import ipaddress
 import math
-import re
 import urllib.parse
 from typing import Self
 
@@ -376,14 +374,16 @@ class FinancialDatasetsConfig(BaseModel):
             return None
         return v
 
+    # Allowlisted hostnames for SSRF protection (prevents DNS rebinding attacks)
+    _ALLOWED_HOSTNAMES: frozenset[str] = frozenset({"api.financialdatasets.ai"})
+
     @field_validator("base_url")
     @classmethod
     def validate_base_url(cls, v: str) -> str:
-        """Validate base_url is a safe HTTPS URL pointing to a public host.
+        """Validate base_url is a safe HTTPS URL pointing to an allowed host.
 
-        Rejects non-HTTPS schemes, empty hostnames, and private/loopback
-        addresses (localhost, RFC 1918, IPv6 loopback). Does NOT perform DNS
-        resolution — uses only syntactic checks via urllib.parse and ipaddress.
+        Uses hostname allowlist to prevent DNS rebinding attacks. Syntactic-only
+        checks cannot prevent a hostname that resolves to a private IP.
         """
         parsed = urllib.parse.urlparse(v)
 
@@ -395,41 +395,12 @@ class FinancialDatasetsConfig(BaseModel):
         if not hostname:
             raise ValueError("base_url must have a non-empty hostname")
 
-        # Reject well-known loopback/private hostnames
-        if hostname == "localhost" or hostname == "[::1]":
+        # Allowlist check — prevents DNS rebinding by only permitting known-good hosts
+        if hostname not in cls._ALLOWED_HOSTNAMES:
             raise ValueError(
-                f"base_url must not point to a private/loopback address, got {hostname!r}"
+                f"base_url hostname must be one of {sorted(cls._ALLOWED_HOSTNAMES)}, "
+                f"got {hostname!r}"
             )
-
-        # Check if hostname is an IP address and reject private/loopback ranges
-        try:
-            addr = ipaddress.ip_address(hostname)
-            if addr.is_private or addr.is_loopback or addr.is_reserved:
-                raise ValueError(
-                    f"base_url must not point to a private/loopback address, got {hostname!r}"
-                )
-        except ValueError as exc:
-            # Not a valid IP literal — it's a DNS name; apply regex patterns
-            # for names that resolve to private ranges (e.g. someone naming a
-            # host "127.0.0.1.evil.com" won't match, but "127.0.0.1" will
-            # have been caught by ip_address() above).
-            if exc.args and "must not point to" in str(exc.args[0]):
-                raise
-            # Additional hostname-level checks for DNS names
-            _private_hostname_re = re.compile(
-                r"^("
-                r"localhost"
-                r"|127\.\d{1,3}\.\d{1,3}\.\d{1,3}"
-                r"|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
-                r"|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
-                r"|192\.168\.\d{1,3}\.\d{1,3}"
-                r"|0\.0\.0\.0"
-                r")$"
-            )
-            if _private_hostname_re.match(hostname):
-                raise ValueError(
-                    f"base_url must not point to a private/loopback address, got {hostname!r}"
-                ) from None
 
         return v
 
