@@ -1,7 +1,7 @@
 ---
 name: scientific-ml-integration
-description: Integrate statsmodels, scikit-learn, PyTorch Lightning, and expanded FRED data into Options Arena for ML-powered volatility forecasting, regime classification, neural pricing, and macro context
-status: planned
+description: Integrate arch, statsmodels, scikit-learn, PyTorch Lightning, and expanded FRED data into Options Arena for GARCH volatility forecasting, regime classification, neural pricing, and macro context
+status: researched
 created: 2026-03-13T00:00:00Z
 ---
 
@@ -9,7 +9,9 @@ created: 2026-03-13T00:00:00Z
 
 ## Executive Summary
 
-Integrate four scientific computing and data libraries — statsmodels, scikit-learn, PyTorch Lightning, and expanded FRED economic data — into Options Arena's existing pipeline. These additions unlock four capabilities absent from the current system: (1) GARCH/EGARCH volatility forecasting and regime detection via statsmodels, (2) ML-based market regime classification and indicator weight optimization via scikit-learn, (3) neural IV surface fitting and deep hedging via PyTorch Lightning, and (4) macro-economic context (yield curve spreads, CPI, PMI, unemployment) via expanded FRED series. Each library has a corresponding Claude Code skill installed at `.claude/skills/` providing API references and code templates.
+Integrate scientific computing and data libraries — `arch` (GARCH), statsmodels, scikit-learn, PyTorch Lightning, and expanded FRED economic data — into Options Arena's existing pipeline. These additions unlock four capabilities absent from the current system: (1) GARCH/EGARCH volatility forecasting via `arch` and Markov-switching regime detection via statsmodels, (2) ML-based market regime classification and contract clustering via scikit-learn, (3) neural IV surface fitting and trajectory forecasting via PyTorch Lightning, and (4) macro-economic context (yield curve spreads, CPI, PMI, unemployment) via expanded FRED series. Each library has a corresponding Claude Code skill installed at `.claude/skills/` providing API references and code templates.
+
+**Delivery structure**: 3 independent epics (A: Statistical Foundation, B: ML Classification, C: Neural Models) with 13 issues total across 8 new files and ~220 estimated tests. Indicator weight validation (former FR-S5) has been relocated to the `ai-agency-evolution` PRD where it belongs architecturally.
 
 **Relationship to other PRDs**: This PRD builds on foundations established by `native-quant` (HV estimators, vol surface, second-order Greeks) and `volatility-intelligence` (IV smoothing, fitted surface, mispricing detection). Statsmodels volatility forecasting extends the HV estimators in `indicators/volatility.py`. Scikit-learn regime classification enhances the existing regime detection in `indicators/regime.py`. PyTorch Lightning neural pricing complements the BSM/BAW models in `pricing/`. FRED expansion extends `services/fred.py`.
 
@@ -21,11 +23,11 @@ Options Arena computes historical volatility (close-to-close, Yang-Zhang via `na
 
 Additionally, volatility regimes (low-vol trending, high-vol mean-reverting, crisis) are detected via simple threshold heuristics in `indicators/regime.py`. Markov-switching models from statsmodels provide a statistically rigorous alternative with transition probabilities.
 
-### 2. Indicator weights are hand-tuned, regime detection is heuristic
-
-The 19 indicators in `scoring/composite.py` (`INDICATOR_WEIGHTS`) use manually assigned weights. There is no data-driven validation of whether these weights are optimal or even directionally correct. Scikit-learn feature importance analysis (Random Forest, permutation importance) can empirically validate and optimize these weights against historical outcomes.
+### 2. Regime detection is heuristic, contract analysis lacks clustering
 
 Market regime classification in `indicators/regime.py` uses fixed thresholds. ML classifiers (Random Forest, Gradient Boosting) trained on historical market data can learn non-linear regime boundaries and provide probability-calibrated regime labels that improve downstream scoring and agent context.
+
+Options flow analysis lacks anomaly detection — unusual volume/OI patterns that signal institutional activity are invisible. Contract evaluation treats each option independently with no Greek-profile clustering to reveal natural groupings (income plays, vol bets, directional leveraged positions).
 
 ### 3. Pricing and forecasting are purely parametric
 
@@ -59,16 +61,7 @@ Price trajectory forecasting for the underlying does not exist — agents have n
 - `regime_transition_prob` (probability of leaving current regime) available to agents
 - Falls back to existing heuristic regime detection on convergence failure
 
-### US-3: Analyst wants data-validated indicator weights
-**As** a system maintainer, **I want** empirical validation of the 19 indicator weights in `INDICATOR_WEIGHTS` **so that** I can confirm or adjust weights based on feature importance from historical outcomes.
-
-**Acceptance criteria:**
-- Offline analysis script in `tools/` that trains Random Forest on historical scan outcomes
-- Permutation importance scores for all 19 indicators
-- Report comparing current weights vs empirical importance
-- Optional: configurable weight profile (manual vs ML-optimized) in `ScanConfig`
-
-### US-4: Analyst wants ML-based regime classification
+### US-3: Analyst wants ML-based regime classification (was US-4)
 **As** a trader, **I want** regime classification from a trained ML model that considers multiple features simultaneously **so that** regime labels account for the interaction between volatility, trend, volume, and macro indicators.
 
 **Acceptance criteria:**
@@ -77,7 +70,7 @@ Price trajectory forecasting for the underlying does not exist — agents have n
 - Classification happens in Phase 2 (indicators) alongside existing regime heuristics
 - Model retrained periodically via offline script in `tools/`
 
-### US-5: Analyst wants contracts clustered by Greeks profile
+### US-4: Analyst wants contracts clustered by Greeks profile (was US-5)
 **As** a trader evaluating a chain, **I want** contracts grouped by their Greeks profile (delta/gamma/theta/vega clustering) **so that** I can see natural groupings — income plays vs leveraged directional bets vs vol bets.
 
 **Acceptance criteria:**
@@ -86,7 +79,7 @@ Price trajectory forecasting for the underlying does not exist — agents have n
 - Cluster context available in debate for contract selection discussion
 - Degrades to no-clustering when chain has <10 contracts
 
-### US-6: Analyst wants neural IV surface fitting
+### US-5: Analyst wants neural IV surface fitting (was US-6)
 **As** a quantitative analyst, **I want** a neural network that fits the IV surface from market data **so that** I can capture non-linear surface features (skew dynamics, kinks, event distortions) that parametric splines miss.
 
 **Acceptance criteria:**
@@ -96,7 +89,7 @@ Price trajectory forecasting for the underlying does not exist — agents have n
 - Falls back to scipy spline surface (`native-quant`) when insufficient data or GPU unavailable
 - Model checkpoint persistence for warm-start across scans
 
-### US-7: Analyst wants price trajectory forecasts
+### US-6: Analyst wants price trajectory forecasts (was US-7)
 **As** a trader, **I want** probabilistic price trajectory forecasts at target expiration dates **so that** I can see model-estimated probability of profit for recommended contracts.
 
 **Acceptance criteria:**
@@ -105,7 +98,7 @@ Price trajectory forecasting for the underlying does not exist — agents have n
 - `prob_profit_neural` indicator derived from trajectory distribution
 - Falls back to lognormal assumption (existing BSM framework) when model unavailable
 
-### US-8: Analyst wants macro context in agent debates
+### US-7: Analyst wants macro context in agent debates (was US-8)
 **As** a trader, **I want** agents to reference yield curve slope, inflation trends, and labor market data **so that** macro regime context informs the trade thesis, especially for longer-dated options.
 
 **Acceptance criteria:**
@@ -131,7 +124,7 @@ def compute_garch_forecast(
     """Fit GARCH/EGARCH model and produce h-step-ahead vol forecast.
 
     Returns None on insufficient data (<252 obs) or convergence failure.
-    Uses statsmodels arch_model under the hood.
+    Uses `arch` package (`arch >=7.0`, MIT) for GARCH/EGARCH fitting.
     """
 ```
 
@@ -198,23 +191,6 @@ def classify_regime_ml(
 **Features**: RSI, ADX, ATR/price ratio, volume ratio, IV rank, IV-HV spread, put-call ratio, Bollinger %B, MACD histogram
 **Labels**: trending-up, trending-down, mean-reverting, high-volatility, low-volatility
 **Training**: offline script using labeled historical scan data
-
-#### FR-S5: scikit-learn — Indicator Weight Validation
-
-Implement in `tools/validate_indicator_weights.py`:
-
-```python
-def analyze_feature_importance(
-    historical_data: pd.DataFrame,
-    target: str = "outcome_return",
-) -> FeatureImportanceReport:
-    """Train Random Forest on historical scan outcomes.
-    Produce permutation importance scores for all 19 indicators."""
-```
-
-- Output: report comparing `INDICATOR_WEIGHTS` vs empirical importance
-- Optional: generate optimized weight vector (stored in config, not auto-applied)
-- Run periodically as part of model maintenance, not in the live pipeline
 
 #### FR-S6: scikit-learn — Contract Clustering
 
@@ -352,10 +328,11 @@ def compute_macro_regime(macro: MacroContext) -> MacroRegimeResult:
 
 #### NFR-ML1: New Dependencies
 Unlike `native-quant` and `volatility-intelligence`, this PRD requires new packages:
-- `statsmodels` — GARCH, Markov-switching, ADF tests (Phase 1)
-- `scikit-learn` — classifiers, clustering, anomaly detection (Phase 1)
-- `pytorch-lightning` — neural network training (Phase 2)
-- `torch` — PyTorch backend for Lightning (Phase 2)
+- `arch >=7.0` — GARCH/EGARCH volatility forecasting (Epic A, standalone MIT library)
+- `statsmodels` — Markov-switching models, ADF stationarity tests (Epic A)
+- `scikit-learn` — classifiers, clustering, anomaly detection (Epic B)
+- `pytorch-lightning` — neural network training (Epic C)
+- `torch` — PyTorch backend for Lightning (Epic C)
 
 All added via `uv add` with version pins.
 
@@ -408,7 +385,7 @@ Training never happens in the scan pipeline. Only inference from pre-trained mod
 
 Skills (.claude/skills/):
 ├── statsmodels/       → FR-S1, FR-S2, FR-S3
-├── scikit-learn/      → FR-S4, FR-S5, FR-S6, FR-S7
+├── scikit-learn/      → FR-S4, FR-S6, FR-S7
 ├── pytorch-lightning/ → FR-S8, FR-S9, FR-S10
 └── fred-economic-data/→ FR-S11, FR-S12
 ```
@@ -425,7 +402,6 @@ Skills (.claude/skills/):
 | `pricing/trajectory.py` | pricing | LSTM price trajectory forecasting |
 | `models/macro.py` | models | MacroContext, MacroRegimeResult models |
 | `tools/train_regime_classifier.py` | tools | Offline regime classifier training |
-| `tools/validate_indicator_weights.py` | tools | Offline indicator weight analysis |
 
 ### Modified Files
 
@@ -435,7 +411,6 @@ Skills (.claude/skills/):
 | `indicators/flow_analytics.py` | Add Isolation Forest anomaly detection |
 | `indicators/regime.py` | Integrate Markov-switching as alternative to heuristics |
 | `scoring/contracts.py` | Add Greeks clustering call |
-| `scoring/composite.py` | Optional ML-optimized weight profile |
 | `models/analysis.py` | Add MacroContext fields, vol forecast fields to MarketContext |
 | `models/config.py` | ML feature flags on ScanConfig, PricingConfig |
 | `agents/_parsing.py` | Render macro context, vol forecast, regime probs blocks |
@@ -488,7 +463,7 @@ Price history ──→ Trajectory LSTM ──→ prob_profit_neural ──┘
 
 ### Assumptions
 - 252+ trading days of history available for most scanned tickers (required for GARCH)
-- statsmodels `arch` extension available (part of statsmodels extras)
+- `arch >=7.0` — standalone GARCH library (MIT, separate from statsmodels)
 - PyTorch Lightning can run in CPU mode (GPU optional, not required)
 - FRED API key already configured (existing `FredService` pattern)
 - Historical scan outcome data available for offline training scripts (may need to accumulate)
@@ -503,57 +478,107 @@ Price history ──→ Trajectory LSTM ──→ prob_profit_neural ──┘
 - **Backtesting framework** — historical replay of ML signals deferred
 - **GPU cluster deployment** — single-machine CPU/GPU sufficient for current scale
 - **AutoML / hyperparameter search** — manual architecture selection initially
+- **Indicator weight validation via ML** — moved to ai-agency-evolution PRD (Self-Improvement Phase 1, Epic 5)
 
-## Delivery Phases
+## Delivery Epics
 
-### Phase 1: Foundation — statsmodels + scikit-learn + FRED expansion
+### Epic A: Statistical Computation Foundation (arch + statsmodels + FRED)
 **Dependencies**: `native-quant` Wave 1 (HV estimators) should be complete.
+**New dependencies**: `arch >=7.0`, `statsmodels`
 
-| Issue | Description | New Files | Modified Files | Est. Tests |
-|-------|-------------|-----------|----------------|------------|
-| 1 | FRED service expansion + MacroContext model | 1 (`models/macro.py`) | 2 (`services/fred.py`, `models/config.py`) | ~25 |
-| 2 | GARCH/EGARCH vol forecasting + ADF tests | 1 (`indicators/vol_forecast.py`) | 1 (`models/analysis.py`) | ~30 |
-| 3 | Markov-switching regime detection | 1 (`indicators/regime_ml.py`) | 1 (`indicators/regime.py`) | ~20 |
-| 4 | Macro regime derivation + agent enrichment | 1 (`indicators/macro.py`) | 4 (`agents/fundamental_agent.py`, `agents/risk.py`, `agents/_parsing.py`, `models/analysis.py`) | ~15 |
+| Issue | FR | Description | New Files | Modified Files | Est. Tests |
+|-------|-----|-------------|-----------|----------------|------------|
+| A1 | FR-S11 | FRED service expansion + `MacroContext` model + batch fetch with per-series TTL | 1 (`models/macro.py`) | 2 (`services/fred.py`, `models/config.py`) | ~25 |
+| A2 | FR-S12 | Macro regime derivation + agent prompt enrichment (fundamental + risk agents) | 1 (`indicators/macro.py`) | 4 (`agents/fundamental_agent.py`, `agents/risk.py`, `agents/_parsing.py`, `models/analysis.py`) | ~15 |
+| A3 | FR-S1+S3 | GARCH/EGARCH vol forecasting via `arch` + ADF stationarity gate | 1 (`indicators/vol_forecast.py`) | 1 (`models/analysis.py`) | ~30 |
+| A4 | FR-S2 | Markov-switching regime detection via `statsmodels` | 1 (`indicators/regime_ml.py`) | 1 (`indicators/regime.py`) | ~20 |
+| A5 | — | Pipeline integration: wire GARCH + Markov + macro into Phase 2/3, config flags, volatility agent enrichment | 0 | 3 (`scan/phase_scoring.py`, `agents/volatility.py`, `models/config.py`) | ~15 |
 
-### Phase 2: ML Classification + Scoring — scikit-learn
-**Dependencies**: Phase 1 complete (indicators available for feature vectors).
+### Epic B: ML Classification & Scoring (scikit-learn)
+**Dependencies**: Epic A complete (indicators available for feature vectors).
+**New dependency**: `scikit-learn`
 
-| Issue | Description | New Files | Modified Files | Est. Tests |
-|-------|-------------|-----------|----------------|------------|
-| 5 | Offline regime classifier training script | 1 (`tools/train_regime_classifier.py`) | 0 | ~15 |
-| 6 | ML regime inference in pipeline | 0 | 2 (`indicators/regime_ml.py`, `models/config.py`) | ~15 |
-| 7 | Indicator weight validation script | 1 (`tools/validate_indicator_weights.py`) | 0 | ~10 |
-| 8 | Contract Greeks clustering | 1 (`scoring/clustering.py`) | 1 (`scoring/contracts.py`) | ~15 |
-| 9 | Flow anomaly detection | 0 | 1 (`indicators/flow_analytics.py`) | ~10 |
+| Issue | FR | Description | New Files | Modified Files | Est. Tests |
+|-------|-----|-------------|-----------|----------------|------------|
+| B1 | FR-S4a | Offline regime classifier training script (`tools/train_regime_classifier.py`) | 1 (`tools/train_regime_classifier.py`) | 0 | ~15 |
+| B2 | FR-S4b | ML regime inference in pipeline + config flags | 0 | 2 (`indicators/regime_ml.py`, `models/config.py`) | ~15 |
+| B3 | FR-S6 | Contract Greeks clustering (K-means in `scoring/clustering.py`) | 1 (`scoring/clustering.py`) | 1 (`scoring/contracts.py`) | ~15 |
+| B4 | FR-S7 | Flow anomaly detection (Isolation Forest in `indicators/flow_analytics.py`) | 0 | 1 (`indicators/flow_analytics.py`) | ~10 |
 
-### Phase 3: Neural Models — PyTorch Lightning
-**Dependencies**: Phase 1-2 complete. `native-quant` Wave 2 (vol surface) complete.
+### Epic C: Neural Models (PyTorch Lightning)
+**Dependencies**: Epic A-B complete. `native-quant` Wave 2 (vol surface) complete.
+**New dependencies**: `pytorch-lightning`, `torch` (optional extras)
 
-| Issue | Description | New Files | Modified Files | Est. Tests |
-|-------|-------------|-----------|----------------|------------|
-| 10 | Neural IV surface model + training | 1 (`pricing/neural_surface.py`) | 1 (`models/config.py`) | ~20 |
-| 11 | Neural surface pipeline integration | 0 | 2 (`indicators/vol_surface.py`, `scan/phase_options.py`) | ~10 |
-| 12 | LSTM trajectory forecasting model | 1 (`pricing/trajectory.py`) | 1 (`models/analysis.py`) | ~20 |
-| 13 | Trajectory integration + agent enrichment | 0 | 3 (`agents/volatility.py`, `agents/_parsing.py`, `models/config.py`) | ~10 |
+| Issue | FR | Description | New Files | Modified Files | Est. Tests |
+|-------|-----|-------------|-----------|----------------|------------|
+| C1 | FR-S8a | Neural IV surface model + training harness (`pricing/neural_surface.py`) | 1 (`pricing/neural_surface.py`) | 1 (`models/config.py`) | ~20 |
+| C2 | FR-S8b | Neural surface pipeline integration + spline fallback | 0 | 2 (`indicators/vol_surface.py`, `scan/phase_options.py`) | ~10 |
+| C3 | FR-S9a | LSTM trajectory forecasting model (`pricing/trajectory.py`) | 1 (`pricing/trajectory.py`) | 1 (`models/analysis.py`) | ~20 |
+| C4 | FR-S9b | Trajectory integration + `prob_profit_neural` + agent enrichment | 0 | 3 (`agents/volatility.py`, `agents/_parsing.py`, `models/config.py`) | ~10 |
 
-### Phase Summary
+### Epic Summary
 
-| Phase | Focus | Issues | New Files | Modified Files | Est. Tests |
-|-------|-------|--------|-----------|----------------|------------|
-| 1 | Foundation (statsmodels + FRED) | 4 | 4 | 8 | ~90 |
-| 2 | ML Classification (scikit-learn) | 5 | 3 | 4 | ~65 |
-| 3 | Neural Models (PyTorch Lightning) | 4 | 2 | 7 | ~60 |
-| **Total** | | **13** | **9** | **19** | **~215** |
+| Epic | Focus | Issues | New Files | Est. Tests |
+|------|-------|--------|-----------|------------|
+| A | Statistical Computation (arch + statsmodels + FRED) | 5 | 4 | ~105 |
+| B | ML Classification (scikit-learn) | 4 | 2 | ~55 |
+| C | Neural Models (PyTorch Lightning) | 4 | 2 | ~60 |
+| **Total** | | **13** | **8** | **~220** |
 
 ```
-Phase 1: Issues 1-4 (statsmodels + FRED)
-    │
+Epic A: Statistical Foundation (5 issues)
+    │   FRED → macro regime → GARCH → Markov → pipeline wiring
     ▼
-Phase 2: Issues 5-9 (scikit-learn) ──── Issues 5,7 are offline tools (parallel)
-    │
+Epic B: ML Classification (4 issues)
+    │   regime training → inference → clustering → anomaly detection
     ▼
-Phase 3: Issues 10-13 (PyTorch Lightning) ──── Issues 10,12 are model code (parallel)
+Epic C: Neural Models (4 issues)
+        surface model → surface integration → trajectory model → trajectory integration
+```
+
+Note: Issue A3 merges FR-S1 (GARCH) + FR-S3 (ADF stationarity) since ADF is a gate for GARCH fitting. This yields 13 issues from 12 unique FRs.
+
+## Cross-PRD Coordination
+
+This PRD and `ai-agency-evolution` are architecturally distinct (capabilities vs intelligence) but share integration points. These contracts prevent merge conflicts:
+
+### Contract 1: WeightSnapshot Schema (owned by ai-agency)
+
+- **scientific-ml** adds new ML indicators to `INDICATOR_WEIGHTS` with static weight redistribution (maintains `sum == 1.0`)
+- **ai-agency** Epic 5 extends `WeightSnapshot` with `WeightType.INDICATOR` and builds the dynamic tuning loop
+- **Rule**: scientific-ml does NOT modify `WeightSnapshot` or auto-tune infrastructure
+
+### Contract 2: Agent Context Rendering (additive convention)
+
+- Both PRDs append independent `render_*_context()` functions to `agents/_parsing.py`
+- Each function is self-contained, returns `str | None`, called by orchestrator
+- **scientific-ml**: `render_macro_context()`, vol forecast fields in `render_volatility_context()`
+- **ai-agency**: `render_learned_patterns()` for strategy memory injection
+
+### Contract 3: Volatility Agent Dual Modification (non-conflicting sections)
+
+- **scientific-ml** modifies system prompt content + `DebateDeps` fields (vol forecast context)
+- **ai-agency** modifies tool registration + adds `DeskDeps` for interactive mode
+- Agent operates in one mode at a time (debate vs interactive) — no runtime conflict
+
+### Dependency Graph (cross-PRD)
+
+```
+        scientific-ml                          ai-agency
+        =============                          =========
+
+     Epic A: Statistical         ···soft···>  Epic 1: Desk Foundation
+     (FRED, GARCH, Markov)       (Vol desk gains garch_forecast tool)
+           |
+           v
+     Epic B: ML Classification   ···soft···>  Epic 5: Weights (P1)
+     (regime, clustering)        (more indicators to tune)
+           |
+           v
+     Epic C: Neural Models
+     (IV surface, trajectory)
+
+No hard cross-PRD dependencies. All soft deps degrade gracefully to None.
 ```
 
 ## References
@@ -562,7 +587,6 @@ Phase 3: Issues 10-13 (PyTorch Lightning) ──── Issues 10,12 are model co
 - Nelson (1991) "Conditional Heteroskedasticity in Asset Returns" — EGARCH model
 - Hamilton (1989) "A New Approach to the Economic Analysis of Nonstationary Time Series" — Markov-switching
 - Dickey & Fuller (1979) "Distribution of the Estimators for Autoregressive Time Series" — ADF test
-- Breiman (2001) "Random Forests" — feature importance methodology
 - Hochreiter & Schmetthuber (1997) "Long Short-Term Memory" — LSTM architecture
 - Buehler et al. (2019) "Deep Hedging" — neural hedging framework
 - `.claude/skills/statsmodels/` — statsmodels API reference and time series patterns

@@ -1,0 +1,351 @@
+{
+  "metadata": {
+    "description": "Academic known-values for technical indicator validation",
+    "version": "1.0.0",
+    "date": "2026-03-14",
+    "note": "Indicators use pandas EWM (Wilder smoothing via alpha=1/period) which differs from textbook SMA-seeded smoothing in early periods but converges after ~50 bars. Reference values are for converged behavior."
+  },
+  "rsi": [
+    {
+      "source": "Wilder (1978) 'New Concepts in Technical Trading Systems' — RSI definition",
+      "description": "All gains, no losses — RSI should be 100",
+      "input": {
+        "close": [40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55],
+        "period": 14
+      },
+      "expected": {
+        "warmup_nan_count": 14,
+        "last_value": 100.0,
+        "note": "When avg_loss = 0, RSI = 100 by definition"
+      }
+    },
+    {
+      "source": "Wilder (1978) — RSI for monotonically decreasing prices",
+      "description": "All losses, no gains — RSI should be 0",
+      "input": {
+        "close": [55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41, 40],
+        "period": 14
+      },
+      "expected": {
+        "warmup_nan_count": 14,
+        "last_value": 0.0,
+        "note": "When avg_gain = 0, RS = 0 so RSI = 100 - 100/(1+0) = 0"
+      }
+    },
+    {
+      "source": "Wilder (1978) — RSI for alternating gains and losses (equal magnitude)",
+      "description": "Equal avg_gain and avg_loss — RSI should be 50",
+      "input": {
+        "close": [100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101],
+        "period": 14
+      },
+      "expected": {
+        "warmup_nan_count": 14,
+        "last_value_approx": 50.0,
+        "tolerance": 0.5,
+        "note": "Equal gains/losses converge to RSI ~ 50"
+      }
+    },
+    {
+      "source": "Wilder (1978) — RSI range is [0, 100]",
+      "description": "RSI is bounded between 0 and 100 for any valid input",
+      "input": {
+        "close": [100, 105, 98, 103, 97, 106, 94, 108, 92, 110, 95, 102, 99, 104, 96, 107],
+        "period": 14
+      },
+      "expected": {
+        "range_min": 0.0,
+        "range_max": 100.0
+      }
+    }
+  ],
+  "macd": [
+    {
+      "source": "Appel (1979) 'The Moving Average Convergence Divergence Trading Method'",
+      "description": "MACD histogram for constant price series is zero (EMA12 == EMA26)",
+      "input": {
+        "close_length": 50,
+        "close_value": 100.0,
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9
+      },
+      "expected": {
+        "warmup_nan_count": 33,
+        "last_value": 0.0,
+        "note": "MACD line = EMA12 - EMA26 = 0 for constant price; histogram = 0"
+      }
+    },
+    {
+      "source": "Appel (1979) — MACD for linearly increasing prices",
+      "description": "Steadily increasing prices produce positive MACD (fast EMA > slow EMA)",
+      "input": {
+        "close_start": 100,
+        "close_end": 150,
+        "close_length": 50,
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9
+      },
+      "expected": {
+        "last_value_positive": true,
+        "note": "Fast EMA responds quicker to uptrend, producing positive MACD line"
+      }
+    },
+    {
+      "source": "Appel (1979) — MACD for linearly decreasing prices",
+      "description": "Steadily decreasing prices produce negative MACD",
+      "input": {
+        "close_start": 150,
+        "close_end": 100,
+        "close_length": 50,
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9
+      },
+      "expected": {
+        "last_value_negative": true,
+        "note": "Fast EMA drops quicker, producing negative MACD line"
+      }
+    }
+  ],
+  "bollinger_bands": [
+    {
+      "source": "Bollinger (2001) 'Bollinger on Bollinger Bands' — width for constant price",
+      "description": "Constant price has zero standard deviation, so BB width = 0",
+      "input": {
+        "close_length": 25,
+        "close_value": 100.0,
+        "period": 20,
+        "num_std": 2.0
+      },
+      "expected": {
+        "last_value": 0.0,
+        "note": "stddev = 0 for constant prices, so upper - lower = 0"
+      }
+    },
+    {
+      "source": "Bollinger (2001) — BB width uses population stddev (ddof=0)",
+      "description": "Known price series with hand-calculable stddev",
+      "input": {
+        "close": [100, 102, 98, 101, 99, 103, 97, 104, 96, 105, 95, 106, 94, 107, 93, 108, 92, 109, 91, 110],
+        "period": 20,
+        "num_std": 2.0
+      },
+      "expected": {
+        "width_positive": true,
+        "uses_ddof_0": true,
+        "note": "BB width = (upper - lower) / middle = 2 * num_std * std / middle"
+      }
+    },
+    {
+      "source": "Bollinger (2001) — BB width proportional to volatility",
+      "description": "Higher price variance produces wider bands",
+      "input_low_vol": {
+        "close": [100, 100.5, 99.5, 100.5, 99.5, 100.5, 99.5, 100.5, 99.5, 100.5, 99.5, 100.5, 99.5, 100.5, 99.5, 100.5, 99.5, 100.5, 99.5, 100.5],
+        "period": 20,
+        "num_std": 2.0
+      },
+      "input_high_vol": {
+        "close": [100, 105, 95, 105, 95, 105, 95, 105, 95, 105, 95, 105, 95, 105, 95, 105, 95, 105, 95, 105],
+        "period": 20,
+        "num_std": 2.0
+      },
+      "expected": {
+        "high_vol_width_greater": true,
+        "note": "BB width should be larger for more volatile series"
+      }
+    }
+  ],
+  "adx": [
+    {
+      "source": "Wilder (1978) — ADX for strong trend (monotonically increasing)",
+      "description": "Strong uptrend produces high ADX (above 25 threshold)",
+      "input": {
+        "prices_type": "monotonically_increasing",
+        "start": 100,
+        "end": 200,
+        "length": 50,
+        "period": 14
+      },
+      "expected": {
+        "warmup_nan_count": 28,
+        "last_value_above": 25.0,
+        "note": "Strong trend should produce ADX > 25"
+      }
+    },
+    {
+      "source": "Wilder (1978) — ADX for flat/ranging market",
+      "description": "Oscillating prices produce low ADX",
+      "input": {
+        "prices_type": "oscillating",
+        "values": [100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101, 100, 101],
+        "period": 14
+      },
+      "expected": {
+        "last_value_below": 25.0,
+        "note": "No clear trend in oscillating market"
+      }
+    },
+    {
+      "source": "Wilder (1978) — ADX range is [0, 100]",
+      "description": "ADX is bounded between 0 and 100",
+      "input": {
+        "prices_type": "any_valid",
+        "period": 14
+      },
+      "expected": {
+        "range_min": 0.0,
+        "range_max": 100.0
+      }
+    }
+  ],
+  "atr_percent": [
+    {
+      "source": "Wilder (1978) — ATR definition: True Range smoothed",
+      "description": "ATR for constant OHLC equals zero (no range)",
+      "input": {
+        "high": 100.0,
+        "low": 100.0,
+        "close": 100.0,
+        "length": 20,
+        "period": 14
+      },
+      "expected": {
+        "last_value": 0.0,
+        "note": "No price range means TR=0 for every bar"
+      }
+    },
+    {
+      "source": "Wilder (1978) — ATR is always non-negative",
+      "description": "True range is max of three non-negative values",
+      "input": {
+        "prices_type": "random_valid",
+        "period": 14
+      },
+      "expected": {
+        "all_values_non_negative": true
+      }
+    },
+    {
+      "source": "Wilder (1978) — ATR% increases with volatility",
+      "description": "Wider high-low ranges produce larger ATR%",
+      "input_low_vol": {
+        "high_low_spread": 0.5,
+        "period": 14
+      },
+      "input_high_vol": {
+        "high_low_spread": 5.0,
+        "period": 14
+      },
+      "expected": {
+        "high_vol_atr_greater": true
+      }
+    }
+  ],
+  "williams_r": [
+    {
+      "source": "Williams — %R for price at highest high",
+      "description": "When close equals the highest high of the period, %R = 0",
+      "input": {
+        "close_at_high": true,
+        "period": 14
+      },
+      "expected": {
+        "value": 0.0,
+        "note": "%R = (HH - close) / (HH - LL) * -100 = 0 when close = HH"
+      }
+    },
+    {
+      "source": "Williams — %R for price at lowest low",
+      "description": "When close equals the lowest low of the period, %R = -100",
+      "input": {
+        "close_at_low": true,
+        "period": 14
+      },
+      "expected": {
+        "value": -100.0,
+        "note": "%R = (HH - LL) / (HH - LL) * -100 = -100 when close = LL"
+      }
+    },
+    {
+      "source": "Williams — %R range is [-100, 0]",
+      "description": "%R is bounded between -100 and 0",
+      "input": {
+        "prices_type": "any_valid",
+        "period": 14
+      },
+      "expected": {
+        "range_min": -100.0,
+        "range_max": 0.0
+      }
+    }
+  ],
+  "stochastic_rsi": [
+    {
+      "source": "Chande & Kroll (1994) 'The New Technical Trader'",
+      "description": "StochRSI range is [0, 100]",
+      "input": {
+        "prices_type": "any_valid",
+        "rsi_period": 14,
+        "stoch_period": 14
+      },
+      "expected": {
+        "range_min": 0.0,
+        "range_max": 100.0,
+        "warmup_nan_count": 27
+      }
+    },
+    {
+      "source": "Chande & Kroll (1994) — StochRSI for constant RSI is 50 (zero range)",
+      "description": "When RSI is flat over the stoch window, StochRSI = 50",
+      "input": {
+        "prices_type": "constant_rsi",
+        "rsi_period": 14,
+        "stoch_period": 14
+      },
+      "expected": {
+        "value": 50.0,
+        "note": "RSI range = 0, division guard returns 50"
+      }
+    }
+  ],
+  "rate_of_change": [
+    {
+      "source": "StockCharts — ROC = (close - close_n) / close_n * 100",
+      "description": "Price doubles over period -> ROC = 100%",
+      "input": {
+        "close_current": 200.0,
+        "close_n_periods_ago": 100.0,
+        "period": 12
+      },
+      "expected": {
+        "value": 100.0
+      }
+    },
+    {
+      "source": "StockCharts — ROC for unchanged price is 0",
+      "description": "Price unchanged -> ROC = 0%",
+      "input": {
+        "close_current": 100.0,
+        "close_n_periods_ago": 100.0,
+        "period": 12
+      },
+      "expected": {
+        "value": 0.0
+      }
+    },
+    {
+      "source": "StockCharts — ROC for halved price is -50%",
+      "description": "Price halves over period -> ROC = -50%",
+      "input": {
+        "close_current": 50.0,
+        "close_n_periods_ago": 100.0,
+        "period": 12
+      },
+      "expected": {
+        "value": -50.0
+      }
+    }
+  ]
+}

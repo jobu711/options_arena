@@ -3,6 +3,7 @@ name: Nightly
 on:
   schedule:
     - cron: "0 4 * * *"  # Daily at 04:00 UTC
+    - cron: "0 6 * * 1"  # Monday at 06:00 UTC (weekly benchmark)
   workflow_dispatch:       # Allow manual trigger
 
 jobs:
@@ -20,3 +21,31 @@ jobs:
           python-version: "3.13"
       - run: uv sync --frozen
       - run: uv run pytest -n auto -q --tb=short
+
+  weekly-benchmark:
+    name: "Weekly Performance Benchmark"
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 6 * * 1' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --frozen
+      - name: Run performance benchmarks
+        run: uv run pytest -m audit_performance --benchmark-enable --benchmark-autosave -q --timeout=120
+      - name: Check for performance regressions
+        if: always()
+        run: |
+          echo "::notice::Benchmark results saved. Review artifacts for >20% regressions."
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.run_id }}
+          path: .benchmarks/
+          retention-days: 90

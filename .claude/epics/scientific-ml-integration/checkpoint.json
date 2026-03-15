@@ -1,0 +1,12 @@
+{
+  "epic": "scientific-ml-integration",
+  "phase": "restructured",
+  "last_command": "PRD restructured: 3 epics (A/B/C), FR-S5 relocated to ai-agency, GARCH lib corrected, cross-PRD contracts added",
+  "last_updated": "2026-03-14T20:00:00Z",
+  "completed_phases": ["prd-created", "research", "restructured"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "Split into 3 right-sized epics: A (Statistical Foundation, 5 issues, arch+statsmodels+FRED), B (ML Classification, 4 issues, scikit-learn), C (Neural Models, 4 issues, PyTorch Lightning). FR-S5 (indicator weight validation) moved to ai-agency-evolution Epic 5. Cross-PRD contracts established for WeightSnapshot, context rendering, and Volatility Agent."
+}

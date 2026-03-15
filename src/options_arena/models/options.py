@@ -137,6 +137,7 @@ class OptionContract(BaseModel):
     greeks: OptionGreeks | None = None
     bid_iv: float | None = None
     ask_iv: float | None = None
+    smoothed_iv: float | None = None
     greeks_source: GreeksSource | None = None
 
     @field_validator("strike")
@@ -177,6 +178,14 @@ class OptionContract(BaseModel):
         """Ensure bid_iv/ask_iv is finite and non-negative when provided."""
         if v is not None and (not math.isfinite(v) or v < 0.0):
             raise ValueError(f"IV must be finite and >= 0, got {v}")
+        return v
+
+    @field_validator("smoothed_iv")
+    @classmethod
+    def validate_smoothed_iv(cls, v: float | None) -> float | None:
+        """Ensure smoothed_iv is finite and strictly positive when provided."""
+        if v is not None and (not math.isfinite(v) or v <= 0.0):
+            raise ValueError(f"smoothed_iv must be finite and > 0, got {v}")
         return v
 
     @computed_field  # type: ignore[prop-decorator]

@@ -59,6 +59,8 @@ jobs:
       - name: Dependency audit
         run: uv run pip-audit
       - run: uv run pytest -m "not exhaustive" -n auto -x -q --tb=short
+      - name: Run mathematical audit tests
+        run: uv run pytest -m "audit_correctness or audit_stability" -q --timeout=60
 
   frontend:
     name: "Gate 4: Frontend"

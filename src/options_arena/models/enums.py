@@ -136,12 +136,14 @@ class ScanSource(StrEnum):
 class GreeksSource(StrEnum):
     """Source of Greeks values on an option contract.
 
-    COMPUTED — locally computed via ``pricing/dispatch.py`` (BAW or BSM).
-    MARKET   — sourced from market data provider (not used in MVP).
+    COMPUTED  — locally computed via ``pricing/dispatch.py`` (BAW or BSM).
+    MARKET    — sourced from market data provider (not used in MVP).
+    SMOOTHED  — IV smoothed via put-call parity spread weighting.
     """
 
     COMPUTED = "computed"
     MARKET = "market"
+    SMOOTHED = "smoothed"
 
 
 class VolAssessment(StrEnum):
@@ -304,6 +306,23 @@ SECTOR_ALIASES: dict[str, GICSSector] = {
     "information_technology": GICSSector.INFORMATION_TECHNOLOGY,
     "real_estate": GICSSector.REAL_ESTATE,
 }
+
+
+class AuditSeverity(StrEnum):
+    """Severity level for mathematical computation audit findings."""
+
+    CRITICAL = "critical"
+    WARNING = "warning"
+    INFO = "info"
+
+
+class AuditLayer(StrEnum):
+    """Audit layer classifying the type of mathematical audit test."""
+
+    CORRECTNESS = "correctness"
+    STABILITY = "stability"
+    PERFORMANCE = "performance"
+    DISCOVERY = "discovery"
 
 
 class GICSIndustryGroup(StrEnum):

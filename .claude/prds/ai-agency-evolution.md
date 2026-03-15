@@ -433,7 +433,8 @@ options-arena agency learn playbook
 
 ### External
 - PydanticAI `@agent.tool` support (already available, unused)
-- `arch >=7.0` (MIT) — GARCH/EGARCH volatility forecasting for Volatility desk tools. scipy/numpy already present, low integration risk.
+- `arch >=7.0` (MIT) — GARCH/EGARCH volatility forecasting for Volatility desk tools. Installed by scientific-ml Epic A; agency is a consumer.
+- `scikit-learn` — Random Forest feature importance for indicator weight validation (Epic 5, FR-S5 relocated from scientific-ml PRD). Installed by scientific-ml Epic B if sequenced first; otherwise add directly.
 - No new external API services required
 
 ### Future Integration Candidates (Not for Initial Epics)
@@ -449,14 +450,41 @@ options-arena agency learn playbook
 | 2: Advisor + Routing | Advisor agent, intent classification, query persistence, API + CLI | 3-4 | Epic 1 |
 | 3: All Desks Online | Remaining 4 desks + Research desk (new, ReACT with tools) | 4-5 | Epic 1 |
 | 4: Monitoring & Alerts | Scheduler, watchers, triggers, alert persistence, WebSocket delivery | 4-5 | Epic 2 |
-| 5: Self-Improvement P1 — Weights | Extended auto-tune + weight history + dashboard | 2-3 | Epics 1-2 |
+| 5: Self-Improvement P1 — Weights | Extended auto-tune + weight history + dashboard + **offline RF-based indicator weight validation (from scientific-ml FR-S5)** | 3-4 | Epics 1-2 |
 | 6: Self-Improvement P2 — Prompts | Prompt versioning, A/B testing, accuracy tracking | 3-4 | Epic 5 |
 | 7: Self-Improvement P3 — Strategy | Outcome pattern mining, strategy rules, human review | 3-4 | Epic 6 |
 | 8: Agency Frontend | Chat UI, desk selector, alert dashboard, learning dashboard | 5-6 | Epics 2-4 |
 
-**Total: ~27-35 issues across 8 epics.**
+**Total: ~28-36 issues across 8 epics.**
 
 Parallelization: Epics 1-3 can partially overlap. Epic 4 can start after Epic 2. Epic 8 can start after Epic 2. Epics 5-7 are sequential.
+
+## Cross-PRD Coordination
+
+This PRD and `scientific-ml-integration` are architecturally distinct (intelligence vs capabilities) but share integration points. These contracts prevent merge conflicts:
+
+### Contract 1: WeightSnapshot Schema (owned by this PRD)
+
+- **ai-agency** Epic 5 owns `WeightSnapshot` with `WeightType.INDICATOR` and builds the dynamic tuning loop
+- **scientific-ml** adds new ML indicators to `INDICATOR_WEIGHTS` with static weight redistribution (maintains `sum == 1.0`)
+- **Rule**: scientific-ml does NOT modify `WeightSnapshot` or auto-tune infrastructure
+
+### Contract 2: Agent Context Rendering (additive convention)
+
+- Both PRDs append independent `render_*_context()` functions to `agents/_parsing.py`
+- Each function is self-contained, returns `str | None`, called by orchestrator
+- **ai-agency**: `render_learned_patterns()` for strategy memory injection
+- **scientific-ml**: `render_macro_context()`, vol forecast fields in `render_volatility_context()`
+
+### Contract 3: Volatility Agent Dual Modification (non-conflicting sections)
+
+- **ai-agency** modifies tool registration + adds `DeskDeps` for interactive mode
+- **scientific-ml** modifies system prompt content + `DebateDeps` fields (vol forecast context)
+- Agent operates in one mode at a time (debate vs interactive) — no runtime conflict
+
+### FR-S5 Relocation Note
+
+Indicator weight validation via ML (Random Forest feature importance on historical outcomes) was originally FR-S5 in `scientific-ml-integration`. It has been relocated to this PRD's Epic 5 (Self-Improvement Phase 1 — Weights) because its *purpose* is intelligence/learning, not capability. The implementation (`tools/validate_indicator_weights.py`) uses scikit-learn but serves the self-improvement loop, not the computation layer.
 
 ## Competitive Landscape
 

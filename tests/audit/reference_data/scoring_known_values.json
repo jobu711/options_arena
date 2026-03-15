@@ -1,0 +1,199 @@
+{
+  "metadata": {
+    "description": "Known-values for scoring algorithm validation",
+    "version": "1.0.0",
+    "date": "2026-03-14"
+  },
+  "percentile_rank_normalize": [
+    {
+      "source": "Percentile rank definition: rank / count * 100",
+      "description": "Uniformly distributed values produce evenly spaced percentile ranks",
+      "input": {
+        "values": [10.0, 20.0, 30.0, 40.0, 50.0],
+        "indicator_name": "rsi"
+      },
+      "expected": {
+        "ranks_monotonically_increasing": true,
+        "range_min": 0.0,
+        "range_max": 100.0,
+        "note": "Lowest gets rank 0 or ~0, highest gets rank ~100"
+      }
+    },
+    {
+      "source": "Percentile rank: identical values get same rank",
+      "description": "All equal values produce same percentile rank",
+      "input": {
+        "values": [50.0, 50.0, 50.0, 50.0, 50.0],
+        "indicator_name": "rsi"
+      },
+      "expected": {
+        "all_ranks_equal": true
+      }
+    },
+    {
+      "source": "Percentile rank: single value",
+      "description": "Single value gets some defined percentile (edge case)",
+      "input": {
+        "values": [42.0],
+        "indicator_name": "rsi"
+      },
+      "expected": {
+        "rank_finite": true
+      }
+    }
+  ],
+  "inverted_indicators": [
+    {
+      "source": "Scoring CLAUDE.md — inverted indicators flip after normalization",
+      "description": "bb_width, atr_pct, keltner_width are inverted: value = 100 - value",
+      "indicators": ["bb_width", "atr_pct", "keltner_width", "chain_spread_pct"],
+      "expected": {
+        "high_raw_value_gets_low_percentile": true,
+        "note": "For inverted indicators, higher raw value = worse signal = lower normalized score"
+      }
+    }
+  ],
+  "composite_score": [
+    {
+      "source": "Geometric mean composite scoring from scoring/CLAUDE.md",
+      "description": "All indicators at 50th percentile produce composite ~50",
+      "input": {
+        "all_indicators_value": 50.0
+      },
+      "expected": {
+        "composite_approx": 50.0,
+        "tolerance": 5.0,
+        "note": "Geometric mean of equal values = that value"
+      }
+    },
+    {
+      "source": "Geometric mean: floor value 0.5 prevents log(0)",
+      "description": "Zero-valued indicators get floor of 0.5 in geometric mean",
+      "input": {
+        "has_zero_indicator": true
+      },
+      "expected": {
+        "composite_positive": true,
+        "note": "Floor of 0.5 ensures geometric mean never hits zero"
+      }
+    },
+    {
+      "source": "Composite score range is [1.0, 100.0] with 0.0 for no data",
+      "description": "Valid inputs produce score in [1.0, 100.0]",
+      "expected": {
+        "range_min": 0.0,
+        "range_max": 100.0
+      }
+    }
+  ],
+  "direction_determination": [
+    {
+      "source": "scoring/direction.py — ADX gate: weak trend returns NEUTRAL",
+      "description": "ADX below threshold (15.0) always returns NEUTRAL regardless of other signals",
+      "input": {
+        "adx": 10.0,
+        "rsi": 75.0,
+        "sma_alignment": 0.8
+      },
+      "expected": {
+        "direction": "NEUTRAL",
+        "note": "ADX < 15 gates all directional signals"
+      }
+    },
+    {
+      "source": "scoring/direction.py — strong RSI bullish + aligned SMA",
+      "description": "RSI > 70 (overbought) + SMA > 0.5 produces BULLISH",
+      "input": {
+        "adx": 30.0,
+        "rsi": 75.0,
+        "sma_alignment": 0.8
+      },
+      "expected": {
+        "direction": "BULLISH",
+        "note": "RSI overbought gives +2, SMA bullish gives +1 => bullish_score=3 > bearish_score=0"
+      }
+    },
+    {
+      "source": "scoring/direction.py — strong RSI bearish + aligned SMA",
+      "description": "RSI < 30 (oversold) + SMA < -0.5 produces BEARISH",
+      "input": {
+        "adx": 30.0,
+        "rsi": 25.0,
+        "sma_alignment": -0.8
+      },
+      "expected": {
+        "direction": "BEARISH",
+        "note": "RSI oversold gives bear +2, SMA bearish gives bear +1 => bearish_score=3"
+      }
+    },
+    {
+      "source": "scoring/direction.py — RSI above midpoint but below overbought",
+      "description": "RSI between 50 and 70 gives mild bullish signal",
+      "input": {
+        "adx": 30.0,
+        "rsi": 60.0,
+        "sma_alignment": 0.0
+      },
+      "expected": {
+        "direction": "BULLISH",
+        "note": "RSI > 50 gives +1, SMA at 0 gives nothing => bullish_score=1 > 0"
+      }
+    },
+    {
+      "source": "scoring/direction.py — tiebreaker uses SMA alignment",
+      "description": "Equal scores with positive SMA breaks tie to BULLISH",
+      "input": {
+        "adx": 30.0,
+        "rsi": 50.0,
+        "sma_alignment": 0.8,
+        "supertrend": -1.0
+      },
+      "expected": {
+        "direction": "BULLISH",
+        "note": "SMA +1 bull, supertrend -1 bear => tie. SMA > 0 breaks to BULLISH"
+      }
+    },
+    {
+      "source": "scoring/direction.py — NaN inputs return NEUTRAL",
+      "description": "Non-finite inputs always produce NEUTRAL",
+      "input": {
+        "adx": "NaN",
+        "rsi": 50.0,
+        "sma_alignment": 0.0
+      },
+      "expected": {
+        "direction": "NEUTRAL"
+      }
+    },
+    {
+      "source": "scoring/direction.py — supertrend and ROC confirmation",
+      "description": "Supertrend +1 and ROC > 5 confirm bullish",
+      "input": {
+        "adx": 30.0,
+        "rsi": 60.0,
+        "sma_alignment": 0.8,
+        "supertrend": 1.0,
+        "roc": 10.0
+      },
+      "expected": {
+        "direction": "BULLISH",
+        "note": "RSI mild +1, SMA +1, ST +1, ROC +1 => bullish_score=4"
+      }
+    },
+    {
+      "source": "scoring/direction.py — both scores zero returns NEUTRAL",
+      "description": "ADX above threshold but RSI at midpoint, no other signals",
+      "input": {
+        "adx": 30.0,
+        "rsi": 50.0,
+        "sma_alignment": 0.0,
+        "supertrend": null,
+        "roc": null
+      },
+      "expected": {
+        "direction": "NEUTRAL",
+        "note": "RSI exactly at midpoint triggers neither branch => both scores = 0"
+      }
+    }
+  ]
+}

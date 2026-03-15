@@ -29,7 +29,7 @@ from options_arena.models.scoring import DimensionalScores
 
 
 class IndicatorSignals(BaseModel):
-    """65 named indicator fields (18 original + 1 MACD + 40 DSE + 2 liquidity + 4 native quant).
+    """68 named indicator fields (18 + 1 MACD + 40 DSE + 2 liq + 4 quant + 3 surface).
 
     Replaces ``dict[str, float]`` on TickerScore.
 
@@ -136,6 +136,11 @@ class IndicatorSignals(BaseModel):
     skew_25d: float | None = None  # 25-delta skew (put IV - call IV)
     smile_curvature: float | None = None  # butterfly spread curvature measure
     prob_above_current: float | None = None  # risk-neutral probability of spot > current price
+
+    # --- Volatility Intelligence: Surface Mispricing (3 new) ---
+    iv_surface_residual: float | None = None
+    surface_fit_r2: float | None = None
+    surface_is_1d: float | None = None  # 0.0=2D, 1.0=1D (stored as float for normalization)
 
     @model_validator(mode="before")
     @classmethod

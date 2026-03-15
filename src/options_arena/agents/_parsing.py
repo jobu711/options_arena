@@ -11,7 +11,8 @@ import logging
 import math
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict
 from pydantic_ai.usage import RunUsage
@@ -408,7 +409,8 @@ def _render_identity_block(ctx: MarketContext) -> list[str]:
 
     # Earnings warning — appended when next earnings is within 7 days
     if ctx.next_earnings is not None:
-        days_to_earnings = (ctx.next_earnings - date.today()).days
+        market_today = datetime.now(ZoneInfo("America/New_York")).date()
+        days_to_earnings = (ctx.next_earnings - market_today).days
         if days_to_earnings >= 0:
             lines.append(f"NEXT EARNINGS: {ctx.next_earnings.isoformat()} ({days_to_earnings}d)")
             if days_to_earnings <= 7:
@@ -526,6 +528,23 @@ def render_volatility_context(ctx: MarketContext) -> str:
         rendered = _render_optional(label, value, fmt)
         if rendered is not None:
             nq_vol_lines.append(rendered)
+
+    # Surface mispricing (volatility-intelligence epic)
+    if ctx.iv_surface_residual is not None and math.isfinite(ctx.iv_surface_residual):
+        z = ctx.iv_surface_residual
+        if abs(z) > 2.0:
+            classification = "significantly overpriced" if z > 0 else "significantly underpriced"
+        elif z > 0.5:
+            classification = "overpriced"
+        elif z < -0.5:
+            classification = "underpriced"
+        else:
+            classification = "fair"
+        nq_vol_lines.append(f"IV VS SURFACE: {z:+.2f} std devs ({classification})")
+    rendered_r2 = _render_optional("SURFACE R²", ctx.surface_fit_r2, ".2f")
+    if rendered_r2 is not None:
+        nq_vol_lines.append(rendered_r2)
+
     if nq_vol_lines:
         lines.append("")
         lines.append("## HV & Vol Surface")
@@ -1007,7 +1026,8 @@ def render_context_block(ctx: MarketContext) -> str:
 
     # Earnings warning — appended when next earnings is within 7 days
     if ctx.next_earnings is not None:
-        days_to_earnings = (ctx.next_earnings - date.today()).days
+        market_today = datetime.now(ZoneInfo("America/New_York")).date()
+        days_to_earnings = (ctx.next_earnings - market_today).days
         if days_to_earnings >= 0:
             lines.append(f"NEXT EARNINGS: {ctx.next_earnings.isoformat()} ({days_to_earnings}d)")
             if days_to_earnings <= 7:

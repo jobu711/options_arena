@@ -13,7 +13,10 @@ Source priority (Context7-verified): init kwargs > env vars > field defaults.
 AppSettings() with no args is a valid production config.
 """
 
+import ipaddress
 import math
+import re
+import urllib.parse
 from typing import Self
 
 from pydantic import BaseModel, SecretStr, field_validator, model_validator
@@ -45,6 +48,7 @@ class ScanConfig(BaseModel):
     enable_flow_analytics: bool = True
     enable_fundamental: bool = True
     enable_regime: bool = True
+    fit_vol_surface: bool = True
 
     # Consolidated filter spec — all pre-scan filter fields
     filters: ScanFilterSpec = ScanFilterSpec()
@@ -78,6 +82,7 @@ class PricingConfig(BaseModel):
     delta_target: float = 0.35
     iv_solver_tol: float = 1e-6
     iv_solver_max_iter: int = 50
+    use_parity_smoothing: bool = True
 
     @model_validator(mode="after")
     def validate_all_finite(self) -> Self:
@@ -170,9 +175,7 @@ class DebateConfig(BaseModel):
     @field_validator("thinking_budget_tokens")
     @classmethod
     def validate_thinking_budget_tokens(cls, v: int) -> int:
-        """Ensure thinking_budget_tokens is finite and within [1024, 128000]."""
-        if not math.isfinite(v):
-            raise ValueError(f"thinking_budget_tokens must be finite, got {v}")
+        """Ensure thinking_budget_tokens is within [1024, 128000]."""
         if not 1024 <= v <= 128_000:
             raise ValueError(f"thinking_budget_tokens must be in [1024, 128000], got {v}")
         return v
@@ -371,6 +374,63 @@ class FinancialDatasetsConfig(BaseModel):
         """Treat blank or whitespace-only API keys as unset (None)."""
         if isinstance(v, str) and not v.strip():
             return None
+        return v
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, v: str) -> str:
+        """Validate base_url is a safe HTTPS URL pointing to a public host.
+
+        Rejects non-HTTPS schemes, empty hostnames, and private/loopback
+        addresses (localhost, RFC 1918, IPv6 loopback). Does NOT perform DNS
+        resolution — uses only syntactic checks via urllib.parse and ipaddress.
+        """
+        parsed = urllib.parse.urlparse(v)
+
+        # Require HTTPS scheme
+        if parsed.scheme != "https":
+            raise ValueError(f"base_url must use https scheme, got {parsed.scheme!r}")
+
+        hostname = parsed.hostname  # lowercased by urlparse, strips brackets from IPv6
+        if not hostname:
+            raise ValueError("base_url must have a non-empty hostname")
+
+        # Reject well-known loopback/private hostnames
+        if hostname == "localhost" or hostname == "[::1]":
+            raise ValueError(
+                f"base_url must not point to a private/loopback address, got {hostname!r}"
+            )
+
+        # Check if hostname is an IP address and reject private/loopback ranges
+        try:
+            addr = ipaddress.ip_address(hostname)
+            if addr.is_private or addr.is_loopback or addr.is_reserved:
+                raise ValueError(
+                    f"base_url must not point to a private/loopback address, got {hostname!r}"
+                )
+        except ValueError as exc:
+            # Not a valid IP literal — it's a DNS name; apply regex patterns
+            # for names that resolve to private ranges (e.g. someone naming a
+            # host "127.0.0.1.evil.com" won't match, but "127.0.0.1" will
+            # have been caught by ip_address() above).
+            if exc.args and "must not point to" in str(exc.args[0]):
+                raise
+            # Additional hostname-level checks for DNS names
+            _private_hostname_re = re.compile(
+                r"^("
+                r"localhost"
+                r"|127\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+                r"|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+                r"|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
+                r"|192\.168\.\d{1,3}\.\d{1,3}"
+                r"|0\.0\.0\.0"
+                r")$"
+            )
+            if _private_hostname_re.match(hostname):
+                raise ValueError(
+                    f"base_url must not point to a private/loopback address, got {hostname!r}"
+                ) from None
+
         return v
 
     @field_validator("request_timeout")

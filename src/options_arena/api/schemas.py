@@ -14,6 +14,8 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from options_arena.models import (
+    INDUSTRY_GROUP_ALIASES,
+    SECTOR_ALIASES,
     TICKER_RE,
     AgentResponse,
     ContrarianThesis,
@@ -30,7 +32,6 @@ from options_arena.models import (
     SignalDirection,
     TradeThesis,
 )
-from options_arena.models.enums import INDUSTRY_GROUP_ALIASES, SECTOR_ALIASES
 
 # ---------------------------------------------------------------------------
 # Scan schemas (#126, #162)
@@ -311,6 +312,15 @@ class TickerDetail(BaseModel):
     direction: SignalDirection
     contracts: list[RecommendedContract]
 
+    @field_validator("composite_score")
+    @classmethod
+    def _validate_composite_score(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError(f"composite_score must be finite, got {v}")
+        if not 0.0 <= v <= 100.0:
+            raise ValueError(f"composite_score must be in [0, 100], got {v}")
+        return v
+
 
 # ---------------------------------------------------------------------------
 # Debate schemas (#123)
@@ -432,13 +442,34 @@ class DebateResultDetail(BaseModel):
     target_vanna: float | None = None
     target_charm: float | None = None
     target_vomma: float | None = None
+    # Volatility Intelligence: Surface Mispricing (from MarketContext)
+    iv_surface_residual: float | None = None
+    surface_fit_r2: float | None = None
+    surface_is_1d: bool | None = None
 
     @field_validator(
-        "pe_ratio", "forward_pe", "peg_ratio", "price_to_book", "debt_to_equity",
-        "revenue_growth", "profit_margin", "net_call_premium", "net_put_premium",
-        "news_sentiment_score", "enrichment_ratio", "citation_density",
-        "agent_agreement_score", "hv_yang_zhang", "skew_25d", "smile_curvature",
-        "prob_above_current", "target_vanna", "target_charm", "target_vomma",
+        "pe_ratio",
+        "forward_pe",
+        "peg_ratio",
+        "price_to_book",
+        "debt_to_equity",
+        "revenue_growth",
+        "profit_margin",
+        "net_call_premium",
+        "net_put_premium",
+        "news_sentiment_score",
+        "enrichment_ratio",
+        "citation_density",
+        "agent_agreement_score",
+        "hv_yang_zhang",
+        "skew_25d",
+        "smile_curvature",
+        "prob_above_current",
+        "target_vanna",
+        "target_charm",
+        "target_vomma",
+        "iv_surface_residual",
+        "surface_fit_r2",
     )
     @classmethod
     def _validate_finite(cls, v: float | None) -> float | None:
@@ -451,6 +482,13 @@ class DebateResultDetail(BaseModel):
     def _validate_prob_above_current(cls, v: float | None) -> float | None:
         if v is not None and not 0.0 <= v <= 1.0:
             raise ValueError("prob_above_current must be between 0.0 and 1.0")
+        return v
+
+    @field_validator("surface_fit_r2")
+    @classmethod
+    def _validate_surface_fit_r2(cls, v: float | None) -> float | None:
+        if v is not None and not 0.0 <= v <= 1.0:
+            raise ValueError("surface_fit_r2 must be between 0.0 and 1.0")
         return v
 
     @field_validator("created_at")
@@ -508,6 +546,16 @@ class BatchTickerResult(BaseModel):
     direction: SignalDirection | None = None
     confidence: float | None = None
     error: str | None = None
+
+    @field_validator("confidence")
+    @classmethod
+    def _validate_confidence(cls, v: float | None) -> float | None:
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"confidence must be finite, got {v}")
+            if not 0.0 <= v <= 1.0:
+                raise ValueError(f"confidence must be in [0, 1], got {v}")
+        return v
 
 
 # ---------------------------------------------------------------------------
@@ -592,6 +640,15 @@ class MetadataStats(BaseModel):
     with_sector: int
     with_industry_group: int
     coverage: float  # with_sector / total, 0.0 if total == 0
+
+    @field_validator("coverage")
+    @classmethod
+    def _validate_coverage(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError(f"coverage must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"coverage must be in [0, 1], got {v}")
+        return v
 
 
 class IndexStarted(BaseModel):

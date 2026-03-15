@@ -4,6 +4,7 @@ Re-exports all public models and enums from the ``models`` package.
 Consumers import from the package: ``from options_arena.models import OptionContract``.
 """
 
+from options_arena.models.audit import AuditFinding, AuditLayerSummary, AuditReport
 from options_arena.models.analysis import (
     AgentPrediction,
     AgentResponse,
@@ -57,6 +58,8 @@ from options_arena.models.enums import (
     SECTOR_ALIASES,
     SECTOR_TO_INDUSTRY_GROUPS,
     TICKER_RE,
+    AuditLayer,
+    AuditSeverity,
     CatalystImpact,
     DividendSource,
     ExerciseStyle,
@@ -121,6 +124,8 @@ from options_arena.models.scoring import DimensionalScores, DirectionSignal
 
 __all__ = [
     # Enums
+    "AuditLayer",
+    "AuditSeverity",
     "CatalystImpact",
     "DividendSource",
     "ExerciseStyle",
@@ -245,4 +250,8 @@ __all__ = [
     # Metadata
     "MetadataCoverage",
     "TickerMetadata",
+    # Audit
+    "AuditFinding",
+    "AuditLayerSummary",
+    "AuditReport",
 ]

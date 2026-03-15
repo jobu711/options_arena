@@ -5,3 +5,4 @@
 {"epic":"service-layer-unification","completed":"2026-03-10T17:00:00Z","tasks":7,"planned_hours":21,"proxy_hours":0.6,"ratio":0.03,"tests_added":38,"files_changed":10,"insertions":1519,"post_merge_fixes":0}
 {"epic":"agent-intelligence-loop","completed":"2026-03-10T20:30:00Z","planned_effort":"M","proxy_hours":1.5,"issues":7,"tests_added":48,"lines_added":1825,"regressions":0,"agent_launches":7,"agent_retries":0}
 {"epic":"pre-scan-filters","completed":"2026-03-11T17:33:00Z","tasks":6,"planned_hours":35,"proxy_hours":3.4,"ratio":0.10,"tests_added":110,"files_changed":55,"insertions":4132,"deletions":1023,"post_merge_fixes":0}
+{"epic":"mathematical-computation-audit","completed":"2026-03-14T18:00:00Z","tasks":8,"planned_hours":80,"proxy_hours":2.4,"ratio":0.03,"tests_added":1702,"files_changed":92,"insertions":18645,"deletions":473,"post_merge_fixes":2}

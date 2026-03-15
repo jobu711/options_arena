@@ -355,6 +355,12 @@ def build_market_context(
         skew_25d=signals.skew_25d,
         smile_curvature=signals.smile_curvature,
         prob_above_current=signals.prob_above_current,
+        # --- Volatility Intelligence: Surface Mispricing ---
+        iv_surface_residual=signals.iv_surface_residual,
+        surface_fit_r2=signals.surface_fit_r2,
+        surface_is_1d=(
+            bool(signals.surface_is_1d >= 0.5) if signals.surface_is_1d is not None else None
+        ),
         # --- DSE: Direction confidence ---
         direction_confidence=ticker_score.direction_confidence,
         # --- Financial Datasets enrichment (fd_* fields) ---
