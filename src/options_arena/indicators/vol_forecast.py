@@ -97,7 +97,7 @@ def compute_garch_forecast(
     returns: pd.Series,
     p: int = 1,
     q: int = 1,
-    horizon: int = 5,
+    horizon: int = 1,
 ) -> float | None:
     """GARCH(p,q) h-step-ahead volatility forecast.
 
@@ -112,7 +112,7 @@ def compute_garch_forecast(
             Requires at least 252 observations.
         p: GARCH lag order for conditional variance (default 1).
         q: ARCH lag order for squared residuals (default 1).
-        horizon: Forecast horizon in trading days (default 5).
+        horizon: Forecast horizon in trading days (default 1).
 
     Returns:
         Annualized volatility forecast as float, or ``None`` if insufficient
@@ -173,7 +173,7 @@ def compute_egarch_forecast(
     p: int = 1,
     o: int = 1,
     q: int = 1,
-    horizon: int = 5,
+    horizon: int = 1,
 ) -> float | None:
     """EGARCH(p,o,q) h-step-ahead volatility forecast.
 
@@ -190,7 +190,7 @@ def compute_egarch_forecast(
         o: Leverage/asymmetry order (default 1). Captures the "o" parameter
             in the EGARCH specification.
         q: ARCH lag order for standardized residuals (default 1).
-        horizon: Forecast horizon in trading days (default 5).
+        horizon: Forecast horizon in trading days (default 1).
 
     Returns:
         Annualized volatility forecast as float, or ``None`` if insufficient

@@ -80,20 +80,27 @@ def compute_markov_regime(
 ) -> MarkovRegimeOutput | None:
     """Fit a Markov-switching regression model and classify the current regime.
 
-    Fits ``MarkovRegression(returns, k_regimes=k_regimes)`` with ``search_reps=20``
-    for robust convergence. Regimes are sorted by estimated variance: lowest
-    variance -> ``"low_vol"``, middle -> ``"normal"``, highest -> ``"high_vol"``.
+    Fits ``MarkovRegression(returns, k_regimes=k_regimes, switching_variance=True)``
+    with ``search_reps=20`` for robust convergence. Regimes are sorted by estimated
+    variance: lowest variance -> ``"low_vol"``, middle -> ``"normal"``, highest ->
+    ``"high_vol"``.
 
     Args:
         returns: Daily log returns series. Requires at least 252 observations
             after dropping NaN values.
-        k_regimes: Number of latent regimes to estimate (default 3).
+        k_regimes: Number of latent regimes to estimate (2 or 3).
 
     Returns:
         ``MarkovRegimeOutput`` with current regime, smoothed probabilities,
         transition matrix, and regime label, or ``None`` if insufficient data,
         missing statsmodels, or convergence failure.
+
+    Raises:
+        ValueError: If ``k_regimes`` is not 2 or 3.
     """
+    if k_regimes not in {2, 3}:
+        raise ValueError("k_regimes must be 2 or 3")
+
     markov_cls = _get_markov_regression()
     if markov_cls is None:
         return None
@@ -108,7 +115,7 @@ def compute_markov_regime(
         return None
 
     try:
-        model = markov_cls(clean.to_numpy(), k_regimes=k_regimes)
+        model = markov_cls(clean.to_numpy(), k_regimes=k_regimes, switching_variance=True)
         results = model.fit(search_reps=_SEARCH_REPS, disp=False)
 
         # Smoothed marginal probabilities: (T, k_regimes) array

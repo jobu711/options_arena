@@ -49,6 +49,7 @@ def _make_ohlcv_bars(n: int = 300) -> list[OHLCV]:
 class TestMLPipelineDisabled:
     """Integration tests verifying ML indicators are absent with default config."""
 
+    @pytest.mark.critical
     def test_default_ml_config_all_disabled(self) -> None:
         """Default MLConfig has all feature flags False."""
         config = MLConfig()
@@ -56,6 +57,7 @@ class TestMLPipelineDisabled:
         assert config.enable_markov is False
         assert config.enable_macro is False
 
+    @pytest.mark.critical
     def test_default_scan_config_ml_disabled(self) -> None:
         """Default ScanConfig has ML disabled."""
         config = ScanConfig()

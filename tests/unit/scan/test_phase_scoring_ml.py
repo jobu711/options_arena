@@ -99,8 +99,8 @@ async def test_garch_populates_vol_forecast_when_enabled() -> None:
             ml_config=ml_config,
         )
 
-    assert signals.vol_forecast_garch == 0.25
-    assert signals.vol_forecast_egarch == 0.28
+    assert signals.vol_forecast_garch == pytest.approx(0.25)
+    assert signals.vol_forecast_egarch == pytest.approx(0.28)
     mock_garch.assert_called_once()
 
 
@@ -170,9 +170,9 @@ async def test_iv_vs_forecast_spread_computed() -> None:
             ml_config=ml_config,
         )
 
-    assert signals.vol_forecast_garch == 0.25
+    assert signals.vol_forecast_garch == pytest.approx(0.25)
     assert signals.iv_vs_forecast_spread is not None
-    assert math.isclose(signals.iv_vs_forecast_spread, 0.05, abs_tol=1e-9)
+    assert signals.iv_vs_forecast_spread == pytest.approx(0.05, abs=1e-9)
 
 
 @pytest.mark.asyncio
@@ -192,7 +192,7 @@ async def test_iv_vs_forecast_spread_none_without_ewma() -> None:
             ml_config=ml_config,
         )
 
-    assert signals.vol_forecast_garch == 0.25
+    assert signals.vol_forecast_garch == pytest.approx(0.25)
     assert signals.iv_vs_forecast_spread is None
 
 
@@ -224,9 +224,9 @@ async def test_markov_populates_regime_when_enabled() -> None:
             ml_config=ml_config,
         )
 
-    assert signals.regime_markov_label == 1.0  # "normal" -> 1.0
+    assert signals.regime_markov_label == pytest.approx(1.0)  # "normal" -> 1.0
     assert signals.regime_transition_prob is not None
-    assert math.isclose(signals.regime_transition_prob, 0.85, abs_tol=1e-9)
+    assert signals.regime_transition_prob == pytest.approx(0.85, abs=1e-9)
 
 
 @pytest.mark.asyncio
@@ -300,11 +300,11 @@ async def test_ml_indicators_computed_for_tickers_with_sufficient_data() -> None
             ml_config=ml_config,
         )
 
-    assert signals.vol_forecast_garch == 0.20
-    assert signals.vol_forecast_egarch == 0.22
-    assert signals.regime_markov_label == 0.0  # "low_vol" -> 0.0
+    assert signals.vol_forecast_garch == pytest.approx(0.20)
+    assert signals.vol_forecast_egarch == pytest.approx(0.22)
+    assert signals.regime_markov_label == pytest.approx(0.0)  # "low_vol" -> 0.0
     assert signals.regime_transition_prob is not None
-    assert math.isclose(signals.regime_transition_prob, 0.95, abs_tol=1e-9)
+    assert signals.regime_transition_prob == pytest.approx(0.95, abs=1e-9)
 
 
 @pytest.mark.asyncio

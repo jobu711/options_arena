@@ -48,6 +48,7 @@ def _make_context(**overrides: object) -> MarketContext:
 class TestFullMacroData:
     """Tests when all 4 macro fields are present."""
 
+    @pytest.mark.critical
     def test_all_fields_rendered(self) -> None:
         """All 4 macro fields should appear in output."""
         ctx = _make_context(

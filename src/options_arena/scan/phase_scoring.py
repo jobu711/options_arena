@@ -213,7 +213,9 @@ async def _compute_ml_indicators(
         ohlcv_map: Ticker -> OHLCV bars from Phase 1.
         ml_config: ML feature flags and hyperparameters.
     """
-    ml_count = 0
+    # Build per-ticker ML tasks and run them concurrently via asyncio.gather
+    # to avoid O(tickers) serial wall-clock time.
+    eligible: list[tuple[str, IndicatorSignals, pd.Series]] = []
     for ticker, signals in raw_signals.items():
         ohlcv_list = ohlcv_map.get(ticker)
         if ohlcv_list is None or len(ohlcv_list) < 252:
@@ -226,16 +228,22 @@ async def _compute_ml_indicators(
         close_arr = close_series.to_numpy(dtype=float)
         log_returns = np.log(close_arr[1:] / close_arr[:-1]) * 100.0
         returns_series = pd.Series(log_returns, index=close_series.index[1:])
+        eligible.append((ticker, signals, returns_series))
 
-        # --- GARCH / EGARCH volatility forecasts ---
+    if not eligible:
+        logger.info("ML indicators computed for 0 tickers")
+        return
+
+    async def _process_ticker(
+        signals: IndicatorSignals,
+        returns_series: pd.Series,
+    ) -> None:
         if ml_config.enable_garch:
             await _compute_garch_for_ticker(
                 signals=signals,
                 returns_series=returns_series,
                 ml_config=ml_config,
             )
-
-        # --- Markov-switching regime detection ---
         if ml_config.enable_markov:
             await _compute_markov_for_ticker(
                 signals=signals,
@@ -243,9 +251,10 @@ async def _compute_ml_indicators(
                 ml_config=ml_config,
             )
 
-        ml_count += 1
+    tasks = [_process_ticker(signals, returns) for _, signals, returns in eligible]
+    await asyncio.gather(*tasks, return_exceptions=True)
 
-    logger.info("ML indicators computed for %d tickers", ml_count)
+    logger.info("ML indicators computed for %d tickers", len(eligible))
 
 
 async def _compute_garch_for_ticker(

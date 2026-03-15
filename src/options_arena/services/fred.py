@@ -13,6 +13,7 @@ same never-raises pattern.
 
 import asyncio
 import json as _json
+import math
 from datetime import UTC, datetime, timedelta
 from typing import NamedTuple
 
@@ -341,6 +342,10 @@ class FredService(ServiceBase[ServiceConfig]):
             return None
 
         raw_value = float(value_str)
+
+        if not math.isfinite(raw_value):
+            self._log.warning("FRED returned non-finite value %r for %s", value_str, series_id)
+            return None
 
         self._log.info("Fetched FRED %s: %s", series_id, value_str)
         return raw_value

@@ -5,6 +5,7 @@ per-series TTL, transform application, and never-raises contract.
 """
 
 import json
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -135,31 +136,35 @@ def cache(service_config_with_key: ServiceConfig) -> ServiceCache:
 
 
 @pytest.fixture
-def fred_service(
+async def fred_service(
     service_config_with_key: ServiceConfig,
     pricing_config: PricingConfig,
     cache: ServiceCache,
-) -> FredService:
+) -> AsyncIterator[FredService]:
     """FredService with API key configured."""
-    return FredService(
+    service = FredService(
         config=service_config_with_key,
         pricing_config=pricing_config,
         cache=cache,
     )
+    yield service
+    await service.close()
 
 
 @pytest.fixture
-def fred_service_no_key(
+async def fred_service_no_key(
     service_config_no_key: ServiceConfig,
     pricing_config: PricingConfig,
     cache: ServiceCache,
-) -> FredService:
+) -> AsyncIterator[FredService]:
     """FredService with no API key."""
-    return FredService(
+    service = FredService(
         config=service_config_no_key,
         pricing_config=pricing_config,
         cache=cache,
     )
+    yield service
+    await service.close()
 
 
 # ---------------------------------------------------------------------------

@@ -10,6 +10,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 
+import pytest
+
 from options_arena.agents._parsing import render_volatility_context
 from options_arena.models.analysis import MarketContext
 from options_arena.models.enums import ExerciseStyle, MacdSignal, SignalDirection
@@ -42,6 +44,7 @@ def _make_context(**overrides: object) -> MarketContext:
 class TestGARCHForecastRendering:
     """Test GARCH forecast lines in render_volatility_context()."""
 
+    @pytest.mark.critical
     def test_garch_forecast_rendered_when_present(self) -> None:
         """GARCH forecast line appears when vol_forecast_garch is set."""
         ctx = _make_context(vol_forecast_garch=0.25)
@@ -54,22 +57,25 @@ class TestGARCHForecastRendering:
         output = render_volatility_context(ctx)
         assert "GARCH FORECAST" not in output
 
-    def test_garch_forecast_not_rendered_when_nan(self) -> None:
-        """GARCH forecast line absent when vol_forecast_garch is NaN."""
-        ctx = _make_context(vol_forecast_garch=float("nan"))
-        output = render_volatility_context(ctx)
-        assert "GARCH FORECAST" not in output
+    def test_garch_forecast_rejects_nan(self) -> None:
+        """MarketContext rejects NaN for vol_forecast_garch at model boundary."""
+        from pydantic import ValidationError
 
-    def test_garch_forecast_not_rendered_when_inf(self) -> None:
-        """GARCH forecast line absent when vol_forecast_garch is Inf."""
-        ctx = _make_context(vol_forecast_garch=float("inf"))
-        output = render_volatility_context(ctx)
-        assert "GARCH FORECAST" not in output
+        with pytest.raises(ValidationError, match="must be finite"):
+            _make_context(vol_forecast_garch=float("nan"))
+
+    def test_garch_forecast_rejects_inf(self) -> None:
+        """MarketContext rejects Inf for vol_forecast_garch at model boundary."""
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError, match="must be finite"):
+            _make_context(vol_forecast_garch=float("inf"))
 
 
 class TestIVSpreadRendering:
     """Test IV-vs-GARCH forecast spread lines in render_volatility_context()."""
 
+    @pytest.mark.critical
     def test_iv_spread_rendered_when_present(self) -> None:
         """IV spread line appears when iv_vs_forecast_spread is set."""
         ctx = _make_context(iv_vs_forecast_spread=0.05)

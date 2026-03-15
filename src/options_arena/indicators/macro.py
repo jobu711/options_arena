@@ -18,6 +18,8 @@ import logging
 import math
 from typing import NamedTuple
 
+from options_arena.models.enums import MacroRegime
+
 logger = logging.getLogger(__name__)
 
 # Minimum completeness ratio required to classify a regime.
@@ -33,11 +35,11 @@ class MacroClassification(NamedTuple):
     """Pure result of macro regime classification — no Pydantic dependency.
 
     Attributes:
-        regime: One of ``"expansionary"``, ``"contractionary"``, ``"transitional"``.
+        regime: ``MacroRegime`` enum value (expansionary, contractionary, transitional).
         confidence: Classification confidence in [0.0, 1.0].
     """
 
-    regime: str
+    regime: MacroRegime
     confidence: float
 
 
@@ -97,24 +99,28 @@ def compute_macro_regime(
 
         if spread_negative and unemployment_high:
             # Inverted yield curve + high unemployment = contraction
-            confidence = _compute_confidence(yield_spread, unemployment, regime="contractionary")
+            confidence = _compute_confidence(
+                yield_spread, unemployment, regime=MacroRegime.CONTRACTIONARY
+            )
             return MacroClassification(
-                regime="contractionary",
+                regime=MacroRegime.CONTRACTIONARY,
                 confidence=confidence,
             )
 
         if spread_positive and unemployment_low:
             # Normal yield curve + low unemployment = expansion
-            confidence = _compute_confidence(yield_spread, unemployment, regime="expansionary")
+            confidence = _compute_confidence(
+                yield_spread, unemployment, regime=MacroRegime.EXPANSIONARY
+            )
             return MacroClassification(
-                regime="expansionary",
+                regime=MacroRegime.EXPANSIONARY,
                 confidence=confidence,
             )
 
     # Mixed signals or missing key data → transitional
     confidence = _transitional_confidence(yield_spread, unemployment)
     return MacroClassification(
-        regime="transitional",
+        regime=MacroRegime.TRANSITIONAL,
         confidence=confidence,
     )
 
@@ -123,7 +129,7 @@ def _compute_confidence(
     yield_spread: float,
     unemployment: float,
     *,
-    regime: str,
+    regime: MacroRegime,
 ) -> float:
     """Compute classification confidence based on signal strength.
 
@@ -142,7 +148,7 @@ def _compute_confidence(
     spread_strength = min(abs(yield_spread) / 0.02, 1.0)  # normalize by 200bps
 
     # Unemployment strength: how far from threshold
-    if regime == "contractionary":
+    if regime == MacroRegime.CONTRACTIONARY:
         unemp_strength = min(
             (unemployment - _UNEMPLOYMENT_HIGH) / 0.02, 1.0
         )  # normalize by 2pp above threshold
