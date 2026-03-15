@@ -1,7 +1,7 @@
 ---
 name: multi-leg-strategies
 description: Multi-leg option strategy builder — construction, P&L, Greeks aggregation, and IV-regime-based selection
-status: backlog
+status: planned
 created: 2026-03-11T01:57:51Z
 ---
 

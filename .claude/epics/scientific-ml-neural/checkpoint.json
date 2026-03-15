@@ -1,0 +1,12 @@
+{
+  "epic": "scientific-ml-neural",
+  "phase": "planning",
+  "last_command": "split from scientific-ml-integration",
+  "last_updated": "2026-03-15T14:00:00Z",
+  "completed_phases": ["planning"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": ["scientific-ml-statistical A1 (config infra) must complete first"],
+  "notes": "Epic C of scientific-ml-integration. Neural models: PyTorch Lightning (MLP IV surface, LSTM trajectory). Depends on Epic A config infra only — can run in parallel with Epic B. Separate 'neural' dependency group due to ~2GB torch size."
+}

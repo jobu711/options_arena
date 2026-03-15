@@ -1,0 +1,12 @@
+{
+  "epic": "multi-leg-strategies",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync multi-leg-strategies",
+  "last_updated": "2026-03-15T14:03:00Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}
