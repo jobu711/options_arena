@@ -39,8 +39,9 @@ ALL_PROMPTS: list[tuple[str, str]] = [
     ("contrarian", CONTRARIAN_SYSTEM_PROMPT),
 ]
 
-# Maximum character budget for any single prompt before few-shot examples
-TOKEN_BUDGET_CHARS = 8500
+# Maximum character budget for any single prompt before few-shot examples.
+# Raised from 8500 to 9000 to accommodate persona identity framing (#529).
+TOKEN_BUDGET_CHARS = 9000
 
 # Regex to detect raw f-string placeholders like {variable_name}
 # Excludes JSON schema examples like {"key": ...} and {0.0-1.0}
