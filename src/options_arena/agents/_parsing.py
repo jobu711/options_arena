@@ -1067,6 +1067,14 @@ def render_context_block(
         if pop_str is not None:
             lines.append(pop_str)
 
+    # --- Position Sizing Guidance (FR-C5) ---
+    if ctx.position_size_pct is not None and math.isfinite(ctx.position_size_pct):
+        lines.append("")
+        lines.append("## Position Sizing Guidance")
+        lines.append(f"SUGGESTED ALLOCATION: {ctx.position_size_pct:.1%}")
+        if ctx.position_size_rationale:
+            lines.append(f"RATIONALE: {ctx.position_size_rationale}")
+
     # Earnings warning — appended when next earnings is within 7 days
     if ctx.next_earnings is not None:
         market_today = datetime.now(ZoneInfo("America/New_York")).date()

@@ -452,6 +452,39 @@ class FinancialDatasetsConfig(BaseModel):
         return self
 
 
+class PositionSizingConfig(BaseModel):
+    """Volatility-regime-aware position sizing configuration.
+
+    Maps annualized IV to allocation tiers with linear interpolation within
+    tiers and an optional correlation penalty. Tier boundaries and allocation
+    percentages are configurable.
+
+    Tier mapping (defaults):
+        Tier 1: IV < 15%  -> 25% allocation ("low")
+        Tier 2: 15% <= IV < 30% -> 17.5-25% allocation ("moderate", linear interp)
+        Tier 3: 30% <= IV < 50% -> 10-17.5% allocation ("elevated", linear interp)
+        Tier 4: IV >= 50% -> 5% hard cap ("extreme")
+    """
+
+    tier1_iv_max: float = 0.15
+    tier1_alloc: float = 0.25
+    tier2_iv_max: float = 0.30
+    tier2_alloc: float = 0.175
+    tier3_iv_max: float = 0.50
+    tier3_alloc: float = 0.10
+    tier4_alloc: float = 0.05
+    high_corr_threshold: float = 0.70
+    corr_penalty: float = 0.50
+
+    @model_validator(mode="after")
+    def validate_all_finite(self) -> Self:
+        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
+        for name, value in self.__dict__.items():
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+        return self
+
+
 class SpreadConfig(BaseModel):
     """Spread strategy configuration — controls multi-leg strategy construction.
 
@@ -562,3 +595,4 @@ class AppSettings(BaseSettings):
     analytics: AnalyticsConfig = AnalyticsConfig()
     financial_datasets: FinancialDatasetsConfig = FinancialDatasetsConfig()
     spread: SpreadConfig = SpreadConfig()
+    position_sizing: PositionSizingConfig = PositionSizingConfig()

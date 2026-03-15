@@ -54,6 +54,7 @@ from options_arena.agents.model_config import build_debate_model
 from options_arena.agents.risk import risk_agent
 from options_arena.agents.trend_agent import trend_agent
 from options_arena.agents.volatility import volatility_agent
+from options_arena.analysis.position_sizing import compute_position_size
 from options_arena.data.repository import Repository
 from options_arena.models import (
     AgentAccuracyReport,
@@ -1472,6 +1473,13 @@ async def run_debate(
         context.spread_max_loss = spread_analysis.max_loss
         context.spread_pop = spread_analysis.pop_estimate
         context.spread_risk_reward = spread_analysis.risk_reward_ratio
+
+    # --- Position Sizing (FR-C5): vol-regime-aware allocation guidance ---
+    iv_for_sizing = context.atm_iv_30d or context.hv_yang_zhang
+    if iv_for_sizing is not None:
+        sizing_result = compute_position_size(iv_for_sizing)
+        context.position_size_pct = sizing_result.final_allocation_pct
+        context.position_size_rationale = sizing_result.rationale
 
     # --- Constraint pre-check (FR-C4) ---
     constraint_warnings_text: str | None = None

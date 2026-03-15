@@ -190,6 +190,10 @@ class MarketContext(BaseModel):
     spread_pop: float | None = None  # Probability of profit [0.0, 1.0]
     spread_risk_reward: float | None = None
 
+    # --- Position Sizing (from volatility-regime algorithm) ---
+    position_size_pct: float | None = None  # [0.0, 1.0] suggested allocation
+    position_size_rationale: str | None = None
+
     # --- Financial Datasets enrichment (fd_* prefix) ---
     fd_revenue: float | None = None
     fd_net_income: float | None = None
@@ -439,6 +443,8 @@ class MarketContext(BaseModel):
         # Spread strategy
         "spread_pop",
         "spread_risk_reward",
+        # Position sizing
+        "position_size_pct",
         # Financial Datasets enrichment
         "fd_revenue",
         "fd_net_income",
@@ -927,3 +933,71 @@ class ContractConstraint(BaseModel):
     violation_type: ConstraintViolationType
     detail: str
     severity: ConstraintSeverity
+
+
+# Valid volatility tier labels for position sizing
+_VOL_TIER_LABELS = frozenset({"low", "moderate", "elevated", "extreme"})
+
+
+class PositionSizeResult(BaseModel):
+    """Result of volatility-regime-aware position sizing computation.
+
+    Frozen (immutable after construction) -- represents a completed sizing result.
+    All float fields validated for ``math.isfinite()``.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    vol_regime_tier: int  # 1-4
+    vol_regime_label: str  # "low", "moderate", "elevated", "extreme"
+    annualized_iv: float
+    base_allocation_pct: float  # [0.0, 1.0]
+    correlation_adjustment: float  # [0.5, 1.0]
+    final_allocation_pct: float  # base * adjustment
+    rationale: str
+
+    @field_validator("vol_regime_tier")
+    @classmethod
+    def validate_vol_regime_tier(cls, v: int) -> int:
+        """Ensure vol_regime_tier is within [1, 4]."""
+        if not 1 <= v <= 4:
+            raise ValueError(f"vol_regime_tier must be in [1, 4], got {v}")
+        return v
+
+    @field_validator("vol_regime_label")
+    @classmethod
+    def validate_vol_regime_label(cls, v: str) -> str:
+        """Ensure vol_regime_label is one of the valid tier labels."""
+        if v not in _VOL_TIER_LABELS:
+            raise ValueError(f"vol_regime_label must be one of {_VOL_TIER_LABELS}, got {v!r}")
+        return v
+
+    @field_validator(
+        "annualized_iv", "base_allocation_pct", "correlation_adjustment", "final_allocation_pct"
+    )
+    @classmethod
+    def validate_finite_float(cls, v: float) -> float:
+        """Ensure float fields are finite."""
+        if not math.isfinite(v):
+            raise ValueError(f"must be finite, got {v}")
+        return v
+
+    @field_validator("base_allocation_pct", "final_allocation_pct")
+    @classmethod
+    def validate_allocation_range(cls, v: float) -> float:
+        """Ensure allocation percentages are within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"allocation must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"allocation must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("correlation_adjustment")
+    @classmethod
+    def validate_correlation_adjustment_range(cls, v: float) -> float:
+        """Ensure correlation_adjustment is within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"correlation_adjustment must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"correlation_adjustment must be in [0.0, 1.0], got {v}")
+        return v
