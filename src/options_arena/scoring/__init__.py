@@ -5,6 +5,7 @@ Modules:
     composite     -- Weighted geometric mean composite scoring.
     direction     -- BULLISH / BEARISH / NEUTRAL signal classification.
     contracts     -- Contract filtering, Greeks dispatch, delta targeting.
+    spreads       -- Multi-leg strategy construction and selection engine.
 """
 
 from options_arena.scoring.composite import (
@@ -37,6 +38,7 @@ from options_arena.scoring.normalization import (
     normalize_single_ticker,
     percentile_rank_normalize,
 )
+from options_arena.scoring.spreads import select_strategy
 
 __all__: list[str] = [
     # normalization
@@ -66,4 +68,6 @@ __all__: list[str] = [
     "compute_greeks",
     "select_by_delta",
     "recommend_contracts",
+    # spreads
+    "select_strategy",
 ]
