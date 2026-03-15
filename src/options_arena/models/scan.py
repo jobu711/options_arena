@@ -1,7 +1,7 @@
 """Scan pipeline models for Options Arena.
 
 Three models for the scan pipeline:
-  IndicatorSignals -- 71 named indicator fields replacing ``dict[str, float]``.
+  IndicatorSignals -- 73 named indicator fields replacing ``dict[str, float]``.
   ScanRun          -- metadata for a completed scan run (frozen).
   TickerScore      -- scored ticker with typed indicator signals.
 
@@ -29,7 +29,9 @@ from options_arena.models.scoring import DimensionalScores
 
 
 class IndicatorSignals(BaseModel):
-    """71 named indicator fields (18 + 1 MACD + 40 DSE + 2 liq + 4 quant + 3 surface + 3 ML).
+    """73 named indicator fields.
+
+    Breakdown: 18 + 1 MACD + 40 DSE + 2 liq + 4 quant + 3 surface + 3 ML + 2 regime ML.
 
     Replaces ``dict[str, float]`` on TickerScore.
 
@@ -146,6 +148,10 @@ class IndicatorSignals(BaseModel):
     vol_forecast_garch: float | None = None  # GARCH(1,1) annualized vol forecast
     vol_forecast_egarch: float | None = None  # EGARCH(1,1,1) annualized vol forecast
     iv_vs_forecast_spread: float | None = None  # ATM IV minus GARCH forecast (positive = IV rich)
+
+    # --- ML: Regime Detection (2 new) ---
+    regime_markov_label: float | None = None  # 0.0=low_vol, 1.0=normal, 2.0=high_vol
+    regime_transition_prob: float | None = None  # probability of staying in current regime
 
     @model_validator(mode="before")
     @classmethod
