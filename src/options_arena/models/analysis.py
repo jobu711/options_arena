@@ -36,12 +36,15 @@ from pydantic import (
 from options_arena.models._validators import validate_non_empty_list, validate_unit_interval
 from options_arena.models.enums import (
     CatalystImpact,
+    ConstraintSeverity,
+    ConstraintViolationType,
     ExerciseStyle,
     MacdSignal,
     RiskLevel,
     SentimentLabel,
     SignalDirection,
     SpreadType,
+    ValuationSignal,
     VolAssessment,
 )
 from options_arena.models.scoring import DimensionalScores
@@ -188,6 +191,10 @@ class MarketContext(BaseModel):
     spread_pop: float | None = None  # Probability of profit [0.0, 1.0]
     spread_risk_reward: float | None = None
 
+    # --- Position Sizing (from volatility-regime algorithm) ---
+    position_size_pct: float | None = None  # [0.0, 1.0] suggested allocation
+    position_size_rationale: str | None = None
+
     # --- Financial Datasets enrichment (fd_* prefix) ---
     fd_revenue: float | None = None
     fd_net_income: float | None = None
@@ -205,6 +212,19 @@ class MarketContext(BaseModel):
     fd_earnings_growth: float | None = None
     fd_ev_to_ebitda: float | None = None
     fd_free_cash_flow_yield: float | None = None
+
+    # --- Financial Datasets enrichment: valuation model inputs (fd_* prefix) ---
+    fd_free_cash_flow: float | None = None  # absolute FCF (not yield)
+    fd_capex: float | None = None
+    fd_depreciation_amortization: float | None = None
+    fd_book_value_per_share: float | None = None
+    fd_roe: float | None = None  # return on equity, decimal fraction
+    fd_shares_outstanding: float | None = None
+
+    # --- Multi-Methodology Valuation summary ---
+    valuation_signal: ValuationSignal | None = None
+    valuation_margin_of_safety: float | None = None
+    valuation_fair_value: float | None = None
 
     def completeness_ratio(self) -> float:
         """Fraction of optional context fields that are populated (not None).
@@ -352,6 +372,12 @@ class MarketContext(BaseModel):
             self.fd_earnings_growth,
             self.fd_ev_to_ebitda,
             self.fd_free_cash_flow_yield,
+            self.fd_free_cash_flow,
+            self.fd_capex,
+            self.fd_depreciation_amortization,
+            self.fd_book_value_per_share,
+            self.fd_roe,
+            self.fd_shares_outstanding,
         ]
         populated = sum(1 for f in fd_fields if f is not None)
         return populated / len(fd_fields)
@@ -437,6 +463,8 @@ class MarketContext(BaseModel):
         # Spread strategy
         "spread_pop",
         "spread_risk_reward",
+        # Position sizing
+        "position_size_pct",
         # Financial Datasets enrichment
         "fd_revenue",
         "fd_net_income",
@@ -454,6 +482,16 @@ class MarketContext(BaseModel):
         "fd_earnings_growth",
         "fd_ev_to_ebitda",
         "fd_free_cash_flow_yield",
+        # Financial Datasets enrichment: valuation model inputs
+        "fd_free_cash_flow",
+        "fd_capex",
+        "fd_depreciation_amortization",
+        "fd_book_value_per_share",
+        "fd_roe",
+        "fd_shares_outstanding",
+        # Multi-Methodology Valuation summary
+        "valuation_margin_of_safety",
+        "valuation_fair_value",
     )
     @classmethod
     def validate_optional_finite(cls, v: float | None) -> float | None:
@@ -909,3 +947,87 @@ class AgentPrediction(BaseModel):
     def _validate_confidence(cls, v: float) -> float:
         """Ensure confidence is finite and within [0.0, 1.0]."""
         return validate_unit_interval(v, "confidence")
+
+
+class ContractConstraint(BaseModel):
+    """A single constraint violation detected during contract pre-check.
+
+    Frozen (immutable after construction) -- represents a completed violation finding.
+    Hard violations disqualify contracts from debate; soft violations inject caution
+    warnings into agent context.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    contract_label: str  # "AAPL 200C 2026-04-18"
+    violation_type: ConstraintViolationType
+    detail: str
+    severity: ConstraintSeverity
+
+
+# Valid volatility tier labels for position sizing
+_VOL_TIER_LABELS = frozenset({"low", "moderate", "elevated", "extreme"})
+
+
+class PositionSizeResult(BaseModel):
+    """Result of volatility-regime-aware position sizing computation.
+
+    Frozen (immutable after construction) -- represents a completed sizing result.
+    All float fields validated for ``math.isfinite()``.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    vol_regime_tier: int  # 1-4
+    vol_regime_label: str  # "low", "moderate", "elevated", "extreme"
+    annualized_iv: float
+    base_allocation_pct: float  # [0.0, 1.0]
+    correlation_adjustment: float  # [0.5, 1.0]
+    final_allocation_pct: float  # base * adjustment
+    rationale: str
+
+    @field_validator("vol_regime_tier")
+    @classmethod
+    def validate_vol_regime_tier(cls, v: int) -> int:
+        """Ensure vol_regime_tier is within [1, 4]."""
+        if not 1 <= v <= 4:
+            raise ValueError(f"vol_regime_tier must be in [1, 4], got {v}")
+        return v
+
+    @field_validator("vol_regime_label")
+    @classmethod
+    def validate_vol_regime_label(cls, v: str) -> str:
+        """Ensure vol_regime_label is one of the valid tier labels."""
+        if v not in _VOL_TIER_LABELS:
+            raise ValueError(f"vol_regime_label must be one of {_VOL_TIER_LABELS}, got {v!r}")
+        return v
+
+    @field_validator(
+        "annualized_iv", "base_allocation_pct", "correlation_adjustment", "final_allocation_pct"
+    )
+    @classmethod
+    def validate_finite_float(cls, v: float) -> float:
+        """Ensure float fields are finite."""
+        if not math.isfinite(v):
+            raise ValueError(f"must be finite, got {v}")
+        return v
+
+    @field_validator("base_allocation_pct", "final_allocation_pct")
+    @classmethod
+    def validate_allocation_range(cls, v: float) -> float:
+        """Ensure allocation percentages are within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"allocation must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"allocation must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("correlation_adjustment")
+    @classmethod
+    def validate_correlation_adjustment_range(cls, v: float) -> float:
+        """Ensure correlation_adjustment is within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"correlation_adjustment must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"correlation_adjustment must be in [0.0, 1.0], got {v}")
+        return v

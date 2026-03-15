@@ -1,273 +1,168 @@
 ---
-allowed-tools: Bash, Read, Write
+allowed-tools: Bash, Read, Write, LS
 ---
 
 # Epic Merge
 
-Merge completed epic from worktree back to main branch.
+Merge completed epic branch/worktree back to main, or close an epic without git ops.
 
 ## Usage
 ```
 /pm:epic-merge <epic_name>
+/pm:epic-merge <epic_name> --no-branch
 ```
+
+- **Default**: full git merge + cleanup + archive + GitHub close
+- **`--no-branch`**: skip all git operations, only update progress/status, close GitHub issues, and archive. Use when the epic was worked on directly in main or the branch was already merged.
 
 ## Quick Check
 
-1. **Verify worktree exists:**
+1. **Parse flags:** Check if `$ARGUMENTS` contains `--no-branch`. Strip to get `<epic_name>`.
+2. **Verify epic exists:** `test -f .claude/epics/$ARGUMENTS/epic.md`
+3. **If default mode:** Check worktree/branch exists:
    ```bash
-   git worktree list | grep "epic-$ARGUMENTS" || echo "❌ No worktree for epic: $ARGUMENTS"
+   git worktree list | grep "epic-$ARGUMENTS" || git branch -a | grep "epic/$ARGUMENTS"
    ```
-
-2. **Check for active agents:**
-   Read `.claude/epics/$ARGUMENTS/execution-status.md`
-   If active agents exist: "⚠️ Active agents detected. Stop them first with: /pm:epic-stop $ARGUMENTS"
+4. **Check for active agents:** Read `.claude/epics/$ARGUMENTS/execution-status.md` if it exists.
 
 ## Instructions
 
-### 0. Check for Verification Report (soft gate)
+### 0. Check Verification Report (soft gate)
 
-Before proceeding, check if a verification report exists:
 - If `.claude/epics/$ARGUMENTS/verification-report.md` does NOT exist:
   - Display: "No verification report found. Consider running /pm:epic-verify $ARGUMENTS first."
   - Ask user: "Continue without verification? (yes/no)"
-  - If no: stop and suggest running `/pm:epic-verify $ARGUMENTS`
 - If it DOES exist:
-  - Read the frontmatter to extract `passed`, `warned`, `failed`, `coverage`
+  - Read frontmatter for `passed`, `warned`, `failed`, `coverage`
   - Display: "Verification: {passed}/{total} PASS, {warned} WARN, {failed} FAIL ({coverage}% coverage)"
-  - If `failed > 0`: warn "There are FAIL items in verification. Review report before merging."
+  - If `failed > 0`: warn user before proceeding
 
-### 1. Pre-Merge Validation
+### 1. Refresh Epic Progress (absorbs epic-refresh)
 
-Navigate to worktree and check status:
+Scan all task files in `.claude/epics/$ARGUMENTS/`:
+- Count total tasks, closed tasks, open tasks
+- Calculate progress: `(closed / total) * 100`, round to integer
+- Determine status: 0% = backlog, 0-100% = in-progress, 100% = completed
+
+Update epic.md frontmatter:
+```yaml
+status: {calculated_status}
+progress: {calculated_progress}%
+updated: {current ISO datetime}
+```
+
+If epic has GitHub issue, sync task checkboxes:
 ```bash
-cd ../epic-$ARGUMENTS
+epic_issue={from frontmatter github: field}
+# Update checkbox state for each task in the epic body
+gh issue edit $epic_issue --body-file /tmp/epic-body.md
+```
+
+### 2. Pre-Merge Validation (skip if --no-branch)
+
+```bash
+# Find epic location (worktree or branch)
+if git worktree list | grep -q "epic-$ARGUMENTS"; then
+  cd ../epic-$ARGUMENTS
+else
+  git checkout epic/$ARGUMENTS
+fi
 
 # Check for uncommitted changes
 if [[ $(git status --porcelain) ]]; then
-  echo "⚠️ Uncommitted changes in worktree:"
-  git status --short
-  echo "Commit or stash changes before merging"
+  echo "Uncommitted changes detected. Commit or stash before merging."
   exit 1
 fi
 
-# Check branch status
 git fetch origin
 git status -sb
 ```
 
-### 2. Run Tests (Optional but Recommended)
+### 3. Run Tests (skip if --no-branch)
 
 ```bash
-# Look for test commands based on project type
-if [ -f package.json ]; then
-  npm test || echo "⚠️ Tests failed. Continue anyway? (yes/no)"
-elif [ -f pom.xml ]; then
-  mvn test || echo "⚠️ Tests failed. Continue anyway? (yes/no)"
-elif [ -f build.gradle ] || [ -f build.gradle.kts ]; then
-  ./gradlew test || echo "⚠️ Tests failed. Continue anyway? (yes/no)"
-elif [ -f composer.json ]; then
-  ./vendor/bin/phpunit || echo "⚠️ Tests failed. Continue anyway? (yes/no)"
-elif [ -f *.sln ] || [ -f *.csproj ]; then
-  dotnet test || echo "⚠️ Tests failed. Continue anyway? (yes/no)"
-elif [ -f Cargo.toml ]; then
-  cargo test || echo "⚠️ Tests failed. Continue anyway? (yes/no)"
-elif [ -f go.mod ]; then
-  go test ./... || echo "⚠️ Tests failed. Continue anyway? (yes/no)"
-elif [ -f Gemfile ]; then
-  bundle exec rspec || bundle exec rake test || echo "⚠️ Tests failed. Continue anyway? (yes/no)"
-elif [ -f pubspec.yaml ]; then
-  flutter test || echo "⚠️ Tests failed. Continue anyway? (yes/no)"
-elif [ -f Package.swift ]; then
-  swift test || echo "⚠️ Tests failed. Continue anyway? (yes/no)"
-elif [ -f CMakeLists.txt ]; then
-  cd build && ctest || echo "⚠️ Tests failed. Continue anyway? (yes/no)"
-elif [ -f Makefile ]; then
-  make test || echo "⚠️ Tests failed. Continue anyway? (yes/no)"
-fi
+uv run pytest -m "not exhaustive" -n auto -q
 ```
 
-### 3. Update Epic Documentation
-
-Get current datetime: `date -u +"%Y-%m-%dT%H:%M:%SZ"`
-
-Update `.claude/epics/$ARGUMENTS/epic.md`:
-- Set status to "completed"
-- Update completion date
-- Add final summary
-
-### 4. Attempt Merge
+### 4. Attempt Merge (skip if --no-branch)
 
 ```bash
-# Return to main repository
 cd {main-repo-path}
-
-# Ensure main is up to date
-git checkout main
-git pull origin main
-
-# Attempt merge
-echo "Merging epic/$ARGUMENTS to main..."
-git merge epic/$ARGUMENTS --no-ff -m "Merge epic: $ARGUMENTS
-
-Completed features:
-# Generate feature list
-feature_list=""
-if [ -d ".claude/epics/$ARGUMENTS" ]; then
-  cd .claude/epics/$ARGUMENTS
-  for task_file in [0-9]*.md; do
-    [ -f "$task_file" ] || continue
-    task_name=$(grep '^name:' "$task_file" | cut -d: -f2 | sed 's/^ *//')
-    feature_list="$feature_list\n- $task_name"
-  done
-  cd - > /dev/null
-fi
-
-echo "$feature_list"
-
-# Extract epic issue number
-epic_github_line=$(grep 'github:' .claude/epics/$ARGUMENTS/epic.md 2>/dev/null || true)
-if [ -n "$epic_github_line" ]; then
-  epic_issue=$(echo "$epic_github_line" | grep -oE '[0-9]+' || true)
-  if [ -n "$epic_issue" ]; then
-    echo "\nCloses epic #$epic_issue"
-  fi
-fi"
+git checkout main && git pull origin main
+git merge epic/$ARGUMENTS --no-ff -m "Merge epic: $ARGUMENTS"
 ```
 
-### 5. Handle Merge Conflicts
+If merge conflicts: show conflicted files and options (resolve, abort).
 
-If merge fails with conflicts:
+### 5. Post-Merge Cleanup (skip if --no-branch)
+
 ```bash
-# Check conflict status
-git status
-
-echo "
-❌ Merge conflicts detected!
-
-Conflicts in:
-$(git diff --name-only --diff-filter=U)
-
-Options:
-1. Resolve manually:
-   - Edit conflicted files
-   - git add {files}
-   - git commit
-   
-2. Abort merge:
-   git merge --abort
-   
-3. Get help:
-   /pm:epic-resolve $ARGUMENTS
-
-Worktree preserved at: ../epic-$ARGUMENTS
-"
-exit 1
-```
-
-### 6. Post-Merge Cleanup
-
-If merge succeeds:
-```bash
-# Push to remote
 git push origin main
 
-# Clean up worktree
-git worktree remove ../epic-$ARGUMENTS
-echo "✅ Worktree removed: ../epic-$ARGUMENTS"
+# Remove worktree if it exists
+if git worktree list | grep -q "epic-$ARGUMENTS"; then
+  git worktree remove ../epic-$ARGUMENTS
+fi
 
 # Delete branch
 git branch -d epic/$ARGUMENTS
 git push origin --delete epic/$ARGUMENTS 2>/dev/null || true
-
-# Archive epic locally
-mkdir -p .claude/epics/archived/
-mv .claude/epics/$ARGUMENTS .claude/epics/archived/
-echo "✅ Epic archived: .claude/epics/archived/$ARGUMENTS"
 ```
 
-### 7. Update GitHub Issues
+### 6. Update Epic Status (absorbs epic-close)
 
-Close related issues:
+Get current datetime. Update `.claude/epics/$ARGUMENTS/epic.md`:
+```yaml
+status: completed
+progress: 100%
+updated: {current ISO datetime}
+completed: {current ISO datetime}
+```
+
+If epic references a PRD, update its status to "complete".
+
+### 7. Close GitHub Issues
+
 ```bash
-# Get issue numbers from epic
-# Extract epic issue number
-epic_github_line=$(grep 'github:' .claude/epics/archived/$ARGUMENTS/epic.md 2>/dev/null || true)
-if [ -n "$epic_github_line" ]; then
-  epic_issue=$(echo "$epic_github_line" | grep -oE '[0-9]+$' || true)
-else
-  epic_issue=""
-fi
-
 # Close epic issue
 gh issue close $epic_issue -c "Epic completed and merged to main"
 
-# Close task issues
-for task_file in .claude/epics/archived/$ARGUMENTS/[0-9]*.md; do
-  [ -f "$task_file" ] || continue
-  # Extract task issue number
-  task_github_line=$(grep 'github:' "$task_file" 2>/dev/null || true)
-  if [ -n "$task_github_line" ]; then
-    issue_num=$(echo "$task_github_line" | grep -oE '[0-9]+$' || true)
-  else
-    issue_num=""
-  fi
-  if [ ! -z "$issue_num" ]; then
-    gh issue close $issue_num -c "Completed in epic merge"
-  fi
+# Close all task issues
+for task_file in .claude/epics/$ARGUMENTS/[0-9]*.md; do
+  issue_num={extract from github: field}
+  gh issue close $issue_num -c "Completed in epic merge"
 done
 ```
 
-### 8. Final Output
+### 8. Archive
+
+```bash
+mkdir -p .claude/epics/archived/
+mv .claude/epics/$ARGUMENTS .claude/epics/archived/
+```
+
+### 9. Output
 
 ```
-✅ Epic Merged Successfully: $ARGUMENTS
+Epic Merged: $ARGUMENTS
 
-Summary:
-  Branch: epic/$ARGUMENTS → main
+{If default mode}:
+  Branch: epic/$ARGUMENTS -> main
   Commits merged: {count}
   Files changed: {count}
-  Issues closed: {count}
-  
-Cleanup completed:
-  ✓ Worktree removed
-  ✓ Branch deleted
-  ✓ Epic archived
-  ✓ GitHub issues closed
-  
-Next steps:
-  - Deploy changes if needed
-  - Start new epic: /pm:prd-new {feature}
-  - View completed work: git log --oneline -20
-```
 
-## Conflict Resolution Help
+Progress: {progress}% ({closed}/{total} tasks)
+Issues closed: {count}
+Worktree/branch: cleaned up
+Epic: archived to .claude/epics/archived/$ARGUMENTS
 
-If conflicts need resolution:
-```
-The epic branch has conflicts with main.
-
-This typically happens when:
-- Main has changed since epic started
-- Multiple epics modified same files
-- Dependencies were updated
-
-To resolve:
-1. Open conflicted files
-2. Look for <<<<<<< markers
-3. Choose correct version or combine
-4. Remove conflict markers
-5. git add {resolved files}
-6. git commit
-7. git push
-
-Or abort and try later:
-  git merge --abort
+Next: /pm:prd-new {feature} or /pm:next
 ```
 
 ## Important Notes
 
-- Always check for uncommitted changes first
-- Run tests before merging when possible
-- Use --no-ff to preserve epic history
+- `--no-branch` mode runs steps 0, 1, 6, 7, 8 only (skips git merge/cleanup)
+- Progress refresh (step 1) runs in both modes — this replaces the old `epic-refresh` command
+- Epic close logic (step 6) runs in both modes — this replaces the old `epic-close` command
+- Use `--no-ff` to preserve epic history in merge commits
 - Archive epic data instead of deleting
-- Close GitHub issues to maintain sync

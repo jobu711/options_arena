@@ -73,107 +73,39 @@ the specified severity and increment the corresponding counter.
 
 ### A. Agent Registry & Inventory (checks 1-5)
 
-**Check 1: Agent census**
-- **Action**: Glob `.claude/agents/*.md` to list all agent definition files.
-- **For each file**: Read the file and extract: agent name (filename), tools listed,
-  model tier, and tier classification (T1-T5).
-- **Pass**: All agent files are readable and contain a recognizable role/scope section.
-- **Fail**: Any agent file is empty, missing, or has no discernible scope description.
-- **Severity**: P3
-- **Finding**: `[REGISTRY] .claude/agents/{name}.md — Agent file has no scope description. Impact: Cannot verify non-overlap or coverage. Fix: Add scope description with IN/OUT columns.`
+| # | Check | Action | Pass | Sev |
+|---|-------|--------|------|-----|
+| 1 | Agent census | Glob `.claude/agents/*.md`, read each for scope/tools/tier | All readable with scope section | P3 |
+| 2 | Skill census | Glob `.claude/commands/*.md` + `**/*.md`, verify `allowed-tools` + `description` in frontmatter | Valid frontmatter on all commands | P3 |
+| 3 | Orphan detection | For each agent, Grep commands for references to that agent name | Every agent referenced by ≥1 command | P2 |
+| 4 | Phantom references | Grep commands for agent names, verify each exists in `.claude/agents/` | All referenced agents have definition files | P1 |
+| 5 | Coordination sync | Compare agents in `.claude/guides/agent-coordination.md` vs actual `.claude/agents/` files | Lists match bidirectionally | P2 |
 
-**Check 2: Skill census**
-- **Action**: Glob `.claude/commands/*.md` and `.claude/commands/**/*.md` to list all
-  slash command files (skills).
-- **For each file**: Read the frontmatter to extract `allowed-tools` and `description`.
-- **Pass**: All command files have valid frontmatter with `allowed-tools` and `description`.
-- **Fail**: Any command file is missing frontmatter or required fields.
-- **Severity**: P3
-- **Finding**: `[REGISTRY] .claude/commands/{name}.md — Missing frontmatter field: {field}. Impact: Command may not function correctly. Fix: Add {field} to YAML frontmatter.`
-
-**Check 3: Orphan detection**
-- **Action**: For each agent in `.claude/agents/*.md`, Grep across all command files
-  (`.claude/commands/**/*.md`) for references to that agent name (the filename stem
-  without `.md`).
-- **Pass**: Every agent is referenced by at least one command.
-- **Fail**: Agent is defined but never referenced by any command.
-- **Severity**: P2
-- **Finding**: `[REGISTRY] .claude/agents/{name}.md — Orphaned agent: defined but never referenced by any command. Impact: Agent exists but is never invoked. Fix: Reference from a command or remove if obsolete.`
-
-**Check 4: Phantom references**
-- **Action**: Grep all command files (`.claude/commands/**/*.md`) for agent name
-  patterns (look for backtick-quoted names matching known agent filenames, and any
-  name that looks like an agent reference but does not correspond to a file in
-  `.claude/agents/`).
-- **Pass**: Every agent name referenced in commands exists in `.claude/agents/`.
-- **Fail**: A command references an agent that has no definition file.
-- **Severity**: P1
-- **Finding**: `[REGISTRY] .claude/commands/{command}.md — Phantom reference to agent "{name}" which does not exist in .claude/agents/. Impact: Command will fail when trying to invoke this agent. Fix: Create the agent definition or fix the reference.`
-
-**Check 5: New agent validation**
-- **Action**: Read `.claude/guides/agent-coordination.md` (if it exists). Extract the
-  list of agents mentioned in the coordination guide. Compare against the actual agent
-  files from Check 1.
-- **Pass**: Agent list in coordination guide matches actual agent files.
-- **Fail (a)**: Agent exists in `.claude/agents/` but is not listed in the coordination guide.
-- **Fail (b)**: Agent listed in the coordination guide but has no file in `.claude/agents/`.
-- **Severity**: P2
-- **Finding**: `[REGISTRY] .claude/agents/{name}.md — Agent {exists in/missing from} coordination guide but {missing from/exists in} agent directory. Impact: Coordination guide is out of sync. Fix: Update .claude/guides/agent-coordination.md to match actual agent inventory.`
+Finding tag: `[REGISTRY]`
+- Check 1: `[REGISTRY] .claude/agents/{name}.md — No scope description. Impact: Cannot verify non-overlap. Fix: Add scope with IN/OUT columns.`
+- Check 2: `[REGISTRY] .claude/commands/{name}.md — Missing frontmatter field: {field}. Fix: Add to YAML frontmatter.`
+- Check 3: `[REGISTRY] .claude/agents/{name}.md — Orphaned agent: never referenced. Fix: Reference from a command or remove.`
+- Check 4: `[REGISTRY] .claude/commands/{cmd}.md — Phantom reference to "{name}" which does not exist. Fix: Create agent or fix reference.`
+- Check 5: `[REGISTRY] .claude/agents/{name}.md — {exists in/missing from} coordination guide. Fix: Update agent-coordination.md.`
 
 ---
 
 ### B. Scope Boundaries & Overlap (checks 6-10)
 
-**Check 6: Scope extraction**
-- **Action**: For each T1 auditor agent (architect-reviewer, code-reviewer,
-  security-auditor, bug-auditor, db-auditor, dep-auditor, oa-python-reviewer), read
-  its agent file and extract the IN scope and OUT scope descriptions.
-- **Pass**: Each T1 auditor has clearly defined IN and OUT scope sections.
-- **Fail**: A T1 auditor is missing IN scope, OUT scope, or both.
-- **Severity**: P2
-- **Finding**: `[SCOPE] .claude/agents/{name}.md — Missing {IN/OUT} scope definition. Impact: Cannot verify non-overlap guarantee. Fix: Add explicit IN scope and OUT scope sections.`
+| # | Check | Action | Pass | Sev |
+|---|-------|--------|------|-----|
+| 6 | Scope extraction | For each T1 auditor, read agent file for IN/OUT scope sections | Each T1 has both IN and OUT scope | P2 |
+| 7 | Overlap matrix | Cross-compare T1 IN scopes for shared concern domains (async, security, SQL, types, architecture, deps, pricing, NaN) | No two T1 agents claim same concern | P2 |
+| 8 | Module coverage | Glob `src/options_arena/*/`, cross-ref against agent-coordination.md mapping | Every module has ≥1 auditor, no duplicate concern | P2 |
+| 9 | Boundary table sync | Compare CLAUDE.md Architecture Boundaries table vs agent-coordination.md module list | Same module set in both tables | P3 |
+| 10 | Concern dedup | Grep agents + commands for common patterns (`ruff`, `mypy`, `NaN`, `isfinite`, `frozen=True`, `UTC validator`) | No check duplicated between agent and command | P3 |
 
-**Check 7: Overlap matrix**
-- **Action**: Using the scope descriptions from Check 6, cross-compare all T1 auditor
-  pairs. Look for keywords/concerns that appear in the IN scope of two different agents.
-  Key concern domains to check: "async", "security", "SQL/database", "types/models",
-  "boundaries/architecture", "dependencies", "pricing/scoring", "NaN".
-- **Pass**: No two T1 auditors claim the same concern domain in their IN scope.
-- **Fail**: Two or more T1 auditors have overlapping IN scope on the same concern.
-- **Severity**: P2
-- **Finding**: `[SCOPE] .claude/agents/{a}.md + .claude/agents/{b}.md — Overlapping scope: both claim "{concern}" in IN scope. Impact: Parallel execution may produce duplicate findings. Fix: Reassign "{concern}" to one agent and add it to the other's OUT scope.`
-
-**Check 8: Module coverage map**
-- **Action**: List all top-level modules under `src/options_arena/` using Glob
-  `src/options_arena/*/`. Read the module-to-agent mapping from
-  `.claude/guides/agent-coordination.md`. For each module, check if it has at least
-  one assigned auditor in the mapping.
-- **Pass**: Every module has at least one auditor assigned. No module has 2+ auditors
-  covering the same concern type.
-- **Fail (a)**: Module has zero auditors assigned.
-- **Fail (b)**: Module has 2+ auditors assigned for the same concern.
-- **Severity**: P2
-- **Finding**: `[SCOPE] src/options_arena/{module}/ — {No auditor assigned | Multiple auditors ({names}) assigned for same concern}. Impact: {Gaps in audit coverage | Duplicate findings}. Fix: Update module-to-agent mapping in agent-coordination.md.`
-
-**Check 9: Boundary table sync**
-- **Action**: Read the "Architecture Boundaries" table from `CLAUDE.md` (the table with
-  Module, Responsibility, Can Access, Cannot Access columns). Read the module-to-agent
-  mapping from `.claude/guides/agent-coordination.md`. Verify every module in the
-  boundary table appears in the agent mapping, and vice versa.
-- **Pass**: Both tables cover the same set of modules.
-- **Fail**: A module appears in one table but not the other.
-- **Severity**: P3
-- **Finding**: `[SCOPE] {module} — Present in {CLAUDE.md boundary table | agent-coordination.md} but missing from {the other}. Impact: Inconsistent documentation. Fix: Sync both tables.`
-
-**Check 10: Concern deduplication**
-- **Action**: Grep all agent files and all command files for common check patterns
-  (e.g., "ruff", "mypy", "NaN", "isfinite", "frozen=True", "UTC validator"). If the
-  same specific validation check appears in both an agent definition AND a command
-  definition, it is a redundant check.
-- **Pass**: No specific validation check is duplicated between agents and commands.
-- **Fail**: Same check logic appears in multiple places.
-- **Severity**: P3
-- **Finding**: `[SCOPE] {file1} + {file2} — Both check for "{pattern}". Impact: Redundant validation wastes execution time. Fix: Assign check to one location only.`
+Finding tag: `[SCOPE]`
+- Check 6: `[SCOPE] .claude/agents/{name}.md — Missing {IN/OUT} scope. Fix: Add explicit scope sections.`
+- Check 7: `[SCOPE] .claude/agents/{a}.md + {b}.md — Both claim "{concern}". Fix: Reassign to one agent.`
+- Check 8: `[SCOPE] src/options_arena/{module}/ — {No auditor | Multiple auditors for same concern}. Fix: Update mapping.`
+- Check 9: `[SCOPE] {module} — Present in {one table} but missing from {other}. Fix: Sync both tables.`
+- Check 10: `[SCOPE] {file1} + {file2} — Both check for "{pattern}". Fix: Assign to one location only.`
 
 ---
 
@@ -232,142 +164,56 @@ the specified severity and increment the corresponding counter.
 
 ### D. Output Format Consistency (checks 16-19)
 
-**Check 16: YAML preamble schema**
-- **Action**: For each T1 auditor, check if its instructions or the `/full-audit`
-  command define the expected output preamble. The standard schema requires these fields:
-  `agent`, `status`, `timestamp`, `scope`, `findings` (with `critical`, `high`,
-  `medium`, `low` subcounts).
-- **Pass**: All auditors are instructed to emit the standard YAML preamble schema.
-- **Fail**: An auditor's instructions omit required preamble fields.
-- **Severity**: P3
-- **Finding**: `[FORMAT] .claude/agents/{name}.md — Output instructions missing YAML preamble field: {field}. Impact: /full-audit consolidation cannot parse this agent's report. Fix: Add standard preamble schema to agent instructions.`
+| # | Check | Action | Pass | Sev |
+|---|-------|--------|------|-----|
+| 16 | YAML preamble | Verify T1 output instructions include: `agent`, `status`, `timestamp`, `scope`, `findings` (with `critical`/`high`/`medium`/`low`) | All auditors emit standard schema | P3 |
+| 17 | Severity alignment | Grep agents for non-standard terms (`severe`, `warning`, `info`, `minor`, `major`, `blocker`) | All use only critical/high/medium/low | P3 |
+| 18 | Finding format | Grep agents for structured format: `[category] file:line — Description. Impact. Fix.` | All agents specify structured format | P3 |
+| 19 | Dedup readiness | Verify each agent's finding format includes file:line references | All findings have location refs | P3 |
 
-**Check 17: Severity alignment**
-- **Action**: Grep all agent files for severity level terms. The standard levels are:
-  `critical`, `high`, `medium`, `low` (case-insensitive). Check if any agent uses
-  non-standard terms like `severe`, `warning`, `info`, `minor`, `major`, `blocker`.
-- **Pass**: All agents use only the 4 standard severity levels.
-- **Fail**: An agent uses non-standard severity terminology.
-- **Severity**: P3
-- **Finding**: `[FORMAT] .claude/agents/{name}.md — Uses non-standard severity "{term}" instead of critical/high/medium/low. Impact: Inconsistent severity classification across audit reports. Fix: Normalize to standard 4-level severity scale.`
-
-**Check 18: Finding format**
-- **Action**: Grep all agent files for the expected finding format pattern. Findings
-  should follow: `[category] file:line -- Description. Impact: ... Fix: ...` or a
-  close variant with the key components (category tag, file location, description,
-  impact, and fix).
-- **Pass**: All agents specify a structured finding format in their instructions.
-- **Fail**: An agent has no defined finding format or uses a freeform format.
-- **Severity**: P3
-- **Finding**: `[FORMAT] .claude/agents/{name}.md — No structured finding format specified. Impact: Findings cannot be machine-parsed for deduplication. Fix: Add finding format: [category] file:line -- Description. Impact. Fix.`
-
-**Check 19: Deduplication readiness**
-- **Action**: Check that each agent's finding format includes file:line references.
-  Without these, `/full-audit` cannot deduplicate findings across agents.
-- **Pass**: All agents include file:line in their finding format.
-- **Fail**: An agent's findings lack location references.
-- **Severity**: P3
-- **Finding**: `[FORMAT] .claude/agents/{name}.md — Finding format lacks file:line references. Impact: /full-audit cannot deduplicate overlapping findings. Fix: Include file:line location in every finding.`
+Finding tag: `[FORMAT]`
+- Check 16: `[FORMAT] .claude/agents/{name}.md — Missing YAML preamble field: {field}. Fix: Add standard preamble schema.`
+- Check 17: `[FORMAT] .claude/agents/{name}.md — Uses non-standard severity "{term}". Fix: Normalize to critical/high/medium/low.`
+- Check 18: `[FORMAT] .claude/agents/{name}.md — No structured finding format. Fix: Add [category] file:line format.`
+- Check 19: `[FORMAT] .claude/agents/{name}.md — Findings lack file:line references. Fix: Include location in every finding.`
 
 ---
 
 ### E. Coordination Efficiency (checks 20-25)
 
-**Check 20: Redundant checks**
-- **Action**: Compare the checks performed by `/devops-audit` (this command) against
-  checks listed in agent definitions. Identify any case where both a command and an
-  agent perform the same validation on the same files.
-- **Also check**: `/daily-audit` and other audit-related commands for overlap with agent
-  audit scopes.
-- **Pass**: No command duplicates an agent's check.
-- **Fail**: A command performs the same check that an agent already covers.
-- **Severity**: P3
-- **Finding**: `[EFFICIENCY] .claude/commands/{command}.md + .claude/agents/{agent}.md — Both perform "{check}" validation. Impact: Wasted execution time. Fix: Remove from command and rely on agent, or vice versa.`
+| # | Check | Action | Pass | Sev |
+|---|-------|--------|------|-----|
+| 20 | Redundant checks | Compare `/devops-audit` checks vs agent definitions for same validations on same files | No command duplicates an agent's check | P3 |
+| 21 | Mapping completeness | Read agent-coordination.md mapping, Glob `src/options_arena/*/`, verify every module has a row | All modules mapped | P2 |
+| 22 | Tier classification | For each agent, verify tier in coordination guide matches tool access (T1=read-only, T3+=write) | Tier consistent with tools | P4 |
+| 23 | Model cost optimization | Flag agents using opus for command-execution or checklist tasks (should use inherit/sonnet) | Model tiers match complexity | P4 |
+| 24 | Skill-agent coupling | Check if commands spawn agents unnecessarily (task achievable with direct tool calls) | Agent spawns justified by complexity | P4 |
+| 25 | Coverage gaps | Enumerate concern domains (security, async, quality, architecture, DB, deps, quant, devops, testing, docs, frontend), verify coverage | Every domain covered | P2 |
 
-**Check 21: Agent-to-module mapping completeness**
-- **Action**: Read `.claude/guides/agent-coordination.md` and extract the module-to-agent
-  mapping table. Glob all modules under `src/options_arena/*/`. Verify every module
-  directory appears in the mapping.
-- **Pass**: Every `src/options_arena/` subdirectory has a row in the mapping table.
-- **Fail**: A module directory exists but has no mapping entry.
-- **Severity**: P2
-- **Finding**: `[EFFICIENCY] src/options_arena/{module}/ — Not listed in agent-coordination.md module-to-agent mapping. Impact: No agent is responsible for auditing this module. Fix: Add module row to mapping table.`
-
-**Check 22: Tier classification**
-- **Action**: For each agent in `.claude/agents/*.md`, check if it appears in the
-  agent-coordination guide under a specific tier (T1-T5). Also verify the tier matches
-  the agent's actual tool access (T1 should be read-only, T3+ should be write-capable).
-- **Pass**: Every agent has a tier classification consistent with its tool access.
-- **Fail (a)**: Agent has no tier classification.
-- **Fail (b)**: Agent's tier contradicts its tool access (e.g., T1 with write tools).
-- **Severity**: P4
-- **Finding**: `[EFFICIENCY] .claude/agents/{name}.md — {No tier classification | Tier {tier} contradicts tool access: has {tools}}. Impact: Unclear execution model. Fix: Assign correct tier in agent-coordination.md.`
-
-**Check 23: Model cost optimization**
-- **Action**: For each agent, read its model assignment from the coordination guide.
-  Flag cases where an expensive model (opus) is used for tasks that primarily run
-  commands and summarize output (should use inherit) or follow explicit checklists
-  (should use sonnet).
-- **Pass**: Model assignments follow the cost optimization guidelines.
-- **Fail**: An agent uses a more expensive model than its task complexity warrants.
-- **Severity**: P4
-- **Finding**: `[EFFICIENCY] .claude/agents/{name}.md — Uses {model} but task is primarily {command execution | checklist following}. Impact: Unnecessary cost. Fix: Consider downgrading to {recommended_model}.`
-
-**Check 24: Skill-agent coupling**
-- **Action**: For each command file, check if it spawns agents. Identify commands that
-  spawn agents unnecessarily (the command could perform the check directly with its
-  own tools) or commands that spawn too many agents for a simple task.
-- **Pass**: Agent spawns are justified by task complexity.
-- **Fail**: A command spawns an agent for a task it could do directly.
-- **Severity**: P4
-- **Finding**: `[EFFICIENCY] .claude/commands/{command}.md — Spawns agent "{name}" for a task achievable with direct tool calls. Impact: Unnecessary overhead. Fix: Perform check directly in command.`
-
-**Check 25: Coverage gaps**
-- **Action**: Enumerate all project concern domains: security, async/concurrency, code
-  quality, architecture, database, dependencies, pricing/quant, devops/CI, testing,
-  documentation, frontend. For each, verify at least one agent or command covers it.
-- **Pass**: Every concern domain has coverage.
-- **Fail**: A concern domain has no agent or command coverage.
-- **Severity**: P2
-- **Finding**: `[EFFICIENCY] — No agent or command covers concern domain: "{domain}". Impact: Blind spot in audit coverage. Fix: Create an agent or command for this domain.`
+Finding tag: `[EFFICIENCY]`
+- Check 20: `[EFFICIENCY] .claude/commands/{cmd}.md + .claude/agents/{agent}.md — Both perform "{check}". Fix: Remove from one.`
+- Check 21: `[EFFICIENCY] src/options_arena/{module}/ — Not in agent-coordination.md mapping. Fix: Add module row.`
+- Check 22: `[EFFICIENCY] .claude/agents/{name}.md — Tier {tier} contradicts tool access. Fix: Assign correct tier.`
+- Check 23: `[EFFICIENCY] .claude/agents/{name}.md — Uses {model} but task is {type}. Fix: Downgrade to {recommended}.`
+- Check 24: `[EFFICIENCY] .claude/commands/{cmd}.md — Spawns "{agent}" unnecessarily. Fix: Use direct tool calls.`
+- Check 25: `[EFFICIENCY] — No coverage for domain: "{domain}". Fix: Create agent or command.`
 
 ---
 
 ### F. Change Detection (checks 26-29)
 
-**Check 26: Agent diff**
-- **Action**: Run `git log --oneline -20 -- .claude/agents/` to see recent changes to
-  agent definition files. Note added, removed, or modified agents.
-- **Pass**: No unexpected changes (informational — always log results).
-- **Fail**: N/A — this is informational. Record as P4 if any agents were recently
-  added without corresponding coordination guide updates.
-- **Severity**: P4
-- **Finding**: `[CHANGE] .claude/agents/{name}.md — Recently {added|modified|deleted} ({commit_hash}) but coordination guide not updated. Impact: Documentation drift. Fix: Update agent-coordination.md.`
+| # | Check | Action | Pass | Sev |
+|---|-------|--------|------|-----|
+| 26 | Agent diff | `git log --oneline -20 -- .claude/agents/`, note added/modified/deleted | Informational — always log; P4 if coordination guide not updated | P4 |
+| 27 | Skill diff | `git log --oneline -20 -- .claude/commands/`, note changes | Informational — record changes | P4 |
+| 28 | Scope drift | For agents modified in last 20 commits, compare current scope vs coordination guide | Scope still matches guide description | P2 |
+| 29 | New module coverage | `git log --oneline -20 -- src/options_arena/`, check for new dirs, cross-ref agent mapping | New modules have agent coverage | P2 |
 
-**Check 27: Skill diff**
-- **Action**: Run `git log --oneline -20 -- .claude/commands/` to see recent changes to
-  command files. Note added, removed, or modified commands.
-- **Pass**: No unexpected changes (informational).
-- **Fail**: N/A — informational. Record changes for the report.
-- **Severity**: P4
-- **Finding**: `[CHANGE] .claude/commands/{name}.md — Recently {added|modified|deleted} ({commit_hash}). Impact: Informational. Fix: Review if changes are intentional.`
-
-**Check 28: Scope drift**
-- **Action**: For agents modified in the last 20 commits (from Check 26), read the
-  current file and compare its scope keywords against the coordination guide's scope
-  description. Flag if the agent's scope has expanded into another agent's territory.
-- **Pass**: Modified agents' scopes still match the coordination guide.
-- **Fail**: An agent's scope has drifted from its coordination guide description.
-- **Severity**: P2
-- **Finding**: `[CHANGE] .claude/agents/{name}.md — Scope has drifted: now includes "{concern}" which belongs to {other_agent}. Impact: Scope overlap introduced. Fix: Revert scope expansion or update coordination guide to reassign concern.`
-
-**Check 29: New module coverage**
-- **Action**: Run `git log --oneline -20 -- src/options_arena/` and look for new
-  directories (modules) added. Cross-reference against the module-to-agent mapping.
-- **Pass**: All recently added modules have agent coverage.
-- **Fail**: A new module was added without being assigned to any agent.
-- **Severity**: P2
-- **Finding**: `[CHANGE] src/options_arena/{module}/ — New module added ({commit_hash}) but not in agent-coordination.md mapping. Impact: No audit coverage for new module. Fix: Add module to mapping table.`
+Finding tag: `[CHANGE]`
+- Check 26: `[CHANGE] .claude/agents/{name}.md — Recently {action} ({hash}) but coordination guide not updated. Fix: Update guide.`
+- Check 27: `[CHANGE] .claude/commands/{name}.md — Recently {action} ({hash}). Impact: Informational.`
+- Check 28: `[CHANGE] .claude/agents/{name}.md — Scope drifted: now includes "{concern}" belonging to {other}. Fix: Revert or reassign.`
+- Check 29: `[CHANGE] src/options_arena/{module}/ — New module ({hash}) not in mapping. Fix: Add to mapping table.`
 
 ---
 
@@ -482,23 +328,6 @@ the specified severity and increment the corresponding counter.
 
 ---
 
-## Priority Mapping Reference
-
-Use these severity levels when recording findings:
-
-- **P1 (Critical)**: Write tools on T1 auditors, phantom agent references, parallel
-  writers on same files, CI gates broken/missing, version mismatch, broken hooks,
-  missing entry point, wrong build system
-- **P2 (High)**: Scope overlap between agents, unmapped modules, orphaned agents,
-  agents defined but not launched by `/full-audit`, broken fan-out pattern, config
-  drift from CLAUDE.md, missing nightly workflow
-- **P3 (Medium)**: Inconsistent output formats, stale coordination guide, redundant
-  checks, context budget overruns, missing scope descriptions, missing frontmatter
-- **P4 (Low)**: Suboptimal model selection, missing tier classification, documentation
-  drift, cost optimization suggestions, informational change detection
-
----
-
 ## Phase 2: Dynamic Probes (5 checks)
 
 Launch all 5 probes in parallel using background Bash commands (each with a 30-second
@@ -596,13 +425,6 @@ available, skip the probe and record it as a P4 informational finding — never 
 - **Finding (skip)**: `[TESTS] pytest collection — Test collection failed. Impact: Cannot verify test tier coverage. Fix: Run "uv run pytest --collect-only" manually to diagnose.`
 
 ---
-
-**Phase 2 execution pattern**:
-1. Run all 5 pre-checks (checks 40 and 42 need tool availability verification).
-2. Launch all 5 probes as background Bash commands simultaneously.
-3. Wait for all probes to complete (they will each finish or timeout at 30s).
-4. Parse each probe's output and add findings to the accumulated list.
-5. Continue to Phase 3.
 
 ## Phase 3: Gap Analysis & Report (5 checks)
 
@@ -725,16 +547,6 @@ findings:
 
 Every severity section MUST be included in the report, even if it has no findings (use
 "No findings." in that case). The report file is overwritten on each run (idempotent).
-
----
-
-## Report Output
-
-After completing all checks in Phases 1-3, Check 49 handles writing the consolidated
-report to `.claude/audits/AUDIT_DEVOPS.md`. The report format is specified in Check 49
-above. The report file is overwritten on each run (idempotent), never appended.
-
-Ensure the `.claude/audits/` directory exists before writing (created in Setup step 1).
 
 ---
 

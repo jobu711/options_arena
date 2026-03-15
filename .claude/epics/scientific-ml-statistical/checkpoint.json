@@ -1,9 +1,9 @@
 {
   "epic": "scientific-ml-statistical",
-  "phase": "planning",
-  "last_command": "split from scientific-ml-integration",
-  "last_updated": "2026-03-15T14:00:00Z",
-  "completed_phases": ["planning"],
+  "phase": "synced",
+  "last_command": "/pm:epic-sync scientific-ml-statistical",
+  "last_updated": "2026-03-15T20:35:00Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
   "current_task": null,
   "tasks_completed": [],
   "tasks_in_progress": [],

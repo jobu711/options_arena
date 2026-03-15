@@ -46,6 +46,7 @@ from options_arena.models import (
     SignalDirection,
     TradeThesis,
 )
+from options_arena.models.enums import TICKER_RE
 from options_arena.models.financial_datasets import FinancialDatasetsPackage
 from options_arena.models.intelligence import IntelligencePackage
 from options_arena.models.openbb import (
@@ -636,7 +637,10 @@ async def list_debates(
 ) -> list[DebateResultSummary]:
     """List past debate summaries."""
     if ticker is not None:
-        rows = await repo.get_debates_for_ticker(ticker.upper(), limit=limit)
+        ticker_upper = ticker.upper()
+        if not TICKER_RE.match(ticker_upper):
+            raise HTTPException(422, f"Invalid ticker format: {ticker!r}")
+        rows = await repo.get_debates_for_ticker(ticker_upper, limit=limit)
     else:
         rows = await repo.get_recent_debates(limit=limit)
 

@@ -13,9 +13,7 @@ Source priority (Context7-verified): init kwargs > env vars > field defaults.
 AppSettings() with no args is a valid production config.
 """
 
-import ipaddress
 import math
-import re
 import urllib.parse
 from typing import Self
 
@@ -26,6 +24,11 @@ from options_arena.models.enums import (
     LLMProvider,
 )
 from options_arena.models.filters import ScanFilterSpec
+
+# Allowlisted hostnames for Financial Datasets SSRF protection.
+# Module-level constant (not class attribute) to avoid Pydantic v2 ModelPrivateAttr
+# descriptor semantics on leading-underscore annotated attributes.
+ALLOWED_FINANCIAL_DATASETS_HOSTNAMES: frozenset[str] = frozenset({"api.financialdatasets.ai"})
 
 
 class ScanConfig(BaseModel):
@@ -379,11 +382,10 @@ class FinancialDatasetsConfig(BaseModel):
     @field_validator("base_url")
     @classmethod
     def validate_base_url(cls, v: str) -> str:
-        """Validate base_url is a safe HTTPS URL pointing to a public host.
+        """Validate base_url is a safe HTTPS URL pointing to an allowed host.
 
-        Rejects non-HTTPS schemes, empty hostnames, and private/loopback
-        addresses (localhost, RFC 1918, IPv6 loopback). Does NOT perform DNS
-        resolution — uses only syntactic checks via urllib.parse and ipaddress.
+        Uses hostname allowlist to prevent DNS rebinding attacks. Syntactic-only
+        checks cannot prevent a hostname that resolves to a private IP.
         """
         parsed = urllib.parse.urlparse(v)
 
@@ -395,41 +397,13 @@ class FinancialDatasetsConfig(BaseModel):
         if not hostname:
             raise ValueError("base_url must have a non-empty hostname")
 
-        # Reject well-known loopback/private hostnames
-        if hostname == "localhost" or hostname == "[::1]":
+        # Allowlist check — prevents DNS rebinding by only permitting known-good hosts
+        if hostname not in ALLOWED_FINANCIAL_DATASETS_HOSTNAMES:
             raise ValueError(
-                f"base_url must not point to a private/loopback address, got {hostname!r}"
+                f"base_url hostname must be one of "
+                f"{sorted(ALLOWED_FINANCIAL_DATASETS_HOSTNAMES)}, "
+                f"got {hostname!r}"
             )
-
-        # Check if hostname is an IP address and reject private/loopback ranges
-        try:
-            addr = ipaddress.ip_address(hostname)
-            if addr.is_private or addr.is_loopback or addr.is_reserved:
-                raise ValueError(
-                    f"base_url must not point to a private/loopback address, got {hostname!r}"
-                )
-        except ValueError as exc:
-            # Not a valid IP literal — it's a DNS name; apply regex patterns
-            # for names that resolve to private ranges (e.g. someone naming a
-            # host "127.0.0.1.evil.com" won't match, but "127.0.0.1" will
-            # have been caught by ip_address() above).
-            if exc.args and "must not point to" in str(exc.args[0]):
-                raise
-            # Additional hostname-level checks for DNS names
-            _private_hostname_re = re.compile(
-                r"^("
-                r"localhost"
-                r"|127\.\d{1,3}\.\d{1,3}\.\d{1,3}"
-                r"|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
-                r"|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
-                r"|192\.168\.\d{1,3}\.\d{1,3}"
-                r"|0\.0\.0\.0"
-                r")$"
-            )
-            if _private_hostname_re.match(hostname):
-                raise ValueError(
-                    f"base_url must not point to a private/loopback address, got {hostname!r}"
-                ) from None
 
         return v
 
@@ -442,6 +416,39 @@ class FinancialDatasetsConfig(BaseModel):
         if v <= 0.0:
             raise ValueError(f"request_timeout must be > 0, got {v}")
         return v
+
+    @model_validator(mode="after")
+    def validate_all_finite(self) -> Self:
+        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
+        for name, value in self.__dict__.items():
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+        return self
+
+
+class PositionSizingConfig(BaseModel):
+    """Volatility-regime-aware position sizing configuration.
+
+    Maps annualized IV to allocation tiers with linear interpolation within
+    tiers and an optional correlation penalty. Tier boundaries and allocation
+    percentages are configurable.
+
+    Tier mapping (defaults):
+        Tier 1: IV < 15%  -> 25% allocation ("low")
+        Tier 2: 15% <= IV < 30% -> 17.5-25% allocation ("moderate", linear interp)
+        Tier 3: 30% <= IV < 50% -> 10-17.5% allocation ("elevated", linear interp)
+        Tier 4: IV >= 50% -> 5% hard cap ("extreme")
+    """
+
+    tier1_iv_max: float = 0.15
+    tier1_alloc: float = 0.25
+    tier2_iv_max: float = 0.30
+    tier2_alloc: float = 0.175
+    tier3_iv_max: float = 0.50
+    tier3_alloc: float = 0.10
+    tier4_alloc: float = 0.05
+    high_corr_threshold: float = 0.70
+    corr_penalty: float = 0.50
 
     @model_validator(mode="after")
     def validate_all_finite(self) -> Self:
@@ -562,3 +569,4 @@ class AppSettings(BaseSettings):
     analytics: AnalyticsConfig = AnalyticsConfig()
     financial_datasets: FinancialDatasetsConfig = FinancialDatasetsConfig()
     spread: SpreadConfig = SpreadConfig()
+    position_sizing: PositionSizingConfig = PositionSizingConfig()

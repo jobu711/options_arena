@@ -4,88 +4,99 @@ allowed-tools: Bash, Read, LS
 
 # Issue Show
 
-Display issue and sub-issues with detailed information.
+Display issue details. Use `--brief` for a compact summary or batch view.
 
 ## Usage
 ```
 /pm:issue-show <issue_number>
+/pm:issue-show <issue_number> --brief
+/pm:issue-show --brief 123,124,125
 ```
 
 ## Instructions
 
-You are displaying comprehensive information about a GitHub issue and related sub-issues for: **Issue #$ARGUMENTS**
+Parse `$ARGUMENTS` for `--brief` flag and issue number(s). Support comma-separated list with `--brief`.
 
-### 1. Fetch Issue Data
-- Use `gh issue view #$ARGUMENTS` to get GitHub issue details
-- Look for local task file: first check `.claude/epics/*/$ARGUMENTS.md` (new naming)
-- If not found, search for file with `github:.*issues/$ARGUMENTS` in frontmatter (old naming)
-- Check for related issues and sub-tasks
+---
 
-### 2. Issue Overview
-Display issue header:
-```
-🎫 Issue #$ARGUMENTS: {Issue Title}
-   Status: {open/closed}
-   Labels: {labels}
-   Assignee: {assignee}
-   Created: {creation_date}
-   Updated: {last_update}
-   
-📝 Description:
-{issue_description}
-```
+### Full View (default, single issue)
 
-### 3. Local File Mapping
-If local task file exists:
+#### 1. Fetch Issue Data
+- `gh issue view $ARGUMENTS --json number,title,state,labels,assignees,createdAt,updatedAt,body`
+- Look for local task file: `.claude/epics/*/$ARGUMENTS.md` or search frontmatter `github:.*issues/$ARGUMENTS`
+
+#### 2. Issue Overview
 ```
-📁 Local Files:
-   Task file: .claude/epics/{epic_name}/{task_file}
-   Updates: .claude/epics/{epic_name}/updates/$ARGUMENTS/
-   Last local update: {timestamp}
+Issue #{number}: {title}
+  Status: {open/closed}
+  Labels: {labels}
+  Assignee: {assignee}
+  Created: {date}  Updated: {date}
+
+Description:
+{body preview, first 10 lines}
 ```
 
-### 4. Sub-Issues and Dependencies
-Show related issues:
+#### 3. Local File Mapping
+If local task file found:
 ```
-🔗 Related Issues:
-   Parent Epic: #{epic_issue_number}
-   Dependencies: #{dep1}, #{dep2}
-   Blocking: #{blocked1}, #{blocked2}
-   Sub-tasks: #{sub1}, #{sub2}
+Local Files:
+  Task: .claude/epics/{epic}/{file}
+  Updates: .claude/epics/{epic}/updates/$ARGUMENTS/
 ```
 
-### 5. Recent Activity
-Display recent comments and updates:
+#### 4. Dependencies & Relations
 ```
-💬 Recent Activity:
-   {timestamp} - {author}: {comment_preview}
-   {timestamp} - {author}: {comment_preview}
-   
-   View full thread: gh issue view #$ARGUMENTS --comments
+Related:
+  Parent Epic: #{epic_issue}
+  Dependencies: #{dep1}, #{dep2}
+  Blocking: #{blocked1}
 ```
 
-### 6. Progress Tracking
-If task file exists, show progress:
+#### 5. Recent Activity
 ```
-✅ Acceptance Criteria:
-   ✅ Criterion 1 (completed)
-   🔄 Criterion 2 (in progress)
-   ⏸️ Criterion 3 (blocked)
-   □ Criterion 4 (not started)
+Recent Activity:
+  {timestamp} - {author}: {comment_preview}
+  Full thread: gh issue view #{number} --comments
 ```
 
-### 7. Quick Actions
+#### 6. Acceptance Criteria
+If task file has acceptance criteria, show progress with checkmarks.
+
+#### 7. Quick Actions
 ```
-🚀 Quick Actions:
-   Start work: /pm:issue-start $ARGUMENTS
-   Sync updates: /pm:issue-sync $ARGUMENTS
-   Add comment: gh issue comment #$ARGUMENTS --body "your comment"
-   View in browser: gh issue view #$ARGUMENTS --web
+Actions:
+  Start: /pm:issue-start $ARGUMENTS
+  Sync:  /pm:issue-sync $ARGUMENTS
+  Close: /pm:issue-close $ARGUMENTS
+  Web:   gh issue view #$ARGUMENTS --web
 ```
 
-### 8. Error Handling
-- Handle invalid issue numbers gracefully
-- Check for network/authentication issues
-- Provide helpful error messages and alternatives
+---
 
-Provide comprehensive issue information to help developers understand context and current status for Issue #$ARGUMENTS.
+### Brief View (`--brief`, supports batch)
+
+For each issue number in the comma-separated list:
+
+```bash
+gh issue view {num} --json number,title,state,labels,assignees,updatedAt
+```
+
+Output 6-line compact summary per issue:
+
+```
+#{number} {title}
+  State: {OPEN/CLOSED}  Labels: {labels}
+  Assignee: {assignee}  Updated: {date}
+  Epic: {epic_name or "none"}
+  Local: {task file path or "not found"}
+  Next: /pm:issue-start {number}
+```
+
+When batch (multiple issues), output them sequentially separated by a blank line.
+
+## Error Handling
+
+- Invalid issue numbers: "Issue #{num} not found on GitHub"
+- Network errors: show gh error and suggest `gh auth status`
+- Missing local files: show GitHub data only, note "No local task file"

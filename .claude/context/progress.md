@@ -7,7 +7,7 @@
 - **Tests**: 4,522 Python (24K+ parametrized) + 107 E2E (17 spec files)
 - **GitHub issues**: 6+ open (financialdatasets-ai #393-#399), 490+ closed
 - **CI**: GitHub Actions (4 gates: lint, typecheck, tests, frontend)
-- **CLI**: `options-arena scan`, `health`, `universe` (+ `index`), `debate` (+ `--batch`, `--export`, `--provider`), `serve`, `watchlist`, `outcomes` (collect, summary, backtest, equity-curve)
+- **CLI**: `options-arena scan`, `health`, `universe` (+ `index`), `debate` (+ `--batch`, `--export`, `--provider`), `serve`, `outcomes` (collect, summary, backtest, equity-curve)
 - **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
 - **AI providers**: Groq (default, `GROQ_API_KEY`) + Anthropic (`ANTHROPIC_API_KEY`, `--provider anthropic`)
 - **Claude Code infra**: 7 audit agents, `/full-audit` parallel orchestration, `/fix-loop` iterative repair, `/compound` knowledge capture, `docs/solutions/` institutional memory

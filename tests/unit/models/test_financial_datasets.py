@@ -430,14 +430,14 @@ class TestFinancialDatasetsConfig:
         config = FinancialDatasetsConfig(
             enabled=False,
             api_key="fd_test_key_123",
-            base_url="https://custom.api.example.com",
+            base_url="https://api.financialdatasets.ai",
             request_timeout=30.0,
             cache_ttl=7200,
         )
         assert config.enabled is False
         assert config.api_key is not None
         assert config.api_key.get_secret_value() == "fd_test_key_123"
-        assert config.base_url == "https://custom.api.example.com"
+        assert config.base_url == "https://api.financialdatasets.ai"
         assert config.request_timeout == pytest.approx(30.0)
         assert config.cache_ttl == 7200
 

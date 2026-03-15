@@ -1183,3 +1183,74 @@ class WeightSnapshot(BaseModel):
         if len(v) == 0:
             raise ValueError("weights must not be empty")
         return v
+
+
+# ---------------------------------------------------------------------------
+# Risk-adjusted performance metrics
+# ---------------------------------------------------------------------------
+
+
+class RiskAdjustedMetrics(BaseModel):
+    """Risk-adjusted performance metrics over a lookback period.
+
+    Standard portfolio performance measures: Sharpe ratio, Sortino ratio,
+    and maximum drawdown. Allows users to evaluate recommendation quality
+    beyond raw P&L.
+
+    All ratio fields are ``None`` when there is insufficient data to compute
+    them (fewer than ``min_trades`` trades, zero standard deviation, or zero
+    downside deviation).
+
+    Attributes:
+        lookback_days: Number of calendar days in the lookback window.
+        total_trades: Number of trades with outcome data in the window.
+        sharpe_ratio: Annualized Sharpe ratio (None if insufficient data or std == 0).
+        sortino_ratio: Annualized Sortino ratio (None if insufficient data or downside std == 0).
+        max_drawdown_pct: Maximum peak-to-trough drawdown as percentage (positive means loss).
+        max_drawdown_date: Date of the trough of the maximum drawdown (None if no trades).
+        annualized_return_pct: Annualized return percentage (None if no trades).
+        risk_free_rate: Risk-free rate used for excess return calculation.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    lookback_days: int
+    total_trades: int
+    sharpe_ratio: float | None = None
+    sortino_ratio: float | None = None
+    max_drawdown_pct: float | None = None
+    max_drawdown_date: date | None = None
+    annualized_return_pct: float | None = None
+    risk_free_rate: float
+
+    @field_validator("lookback_days")
+    @classmethod
+    def validate_lookback_positive(cls, v: int) -> int:
+        """Ensure lookback_days is positive."""
+        if v < 1:
+            raise ValueError(f"lookback_days must be >= 1, got {v}")
+        return v
+
+    @field_validator("total_trades")
+    @classmethod
+    def validate_total_trades_non_negative(cls, v: int) -> int:
+        """Ensure total_trades is non-negative."""
+        if v < 0:
+            raise ValueError(f"total_trades must be >= 0, got {v}")
+        return v
+
+    @field_validator("sharpe_ratio", "sortino_ratio", "max_drawdown_pct", "annualized_return_pct")
+    @classmethod
+    def validate_optional_float_finite(cls, v: float | None) -> float | None:
+        """Ensure optional float fields are finite when provided."""
+        if v is not None and not math.isfinite(v):
+            raise ValueError(f"must be finite, got {v}")
+        return v
+
+    @field_validator("risk_free_rate")
+    @classmethod
+    def validate_risk_free_rate_finite(cls, v: float) -> float:
+        """Ensure risk_free_rate is finite."""
+        if not math.isfinite(v):
+            raise ValueError(f"risk_free_rate must be finite, got {v}")
+        return v

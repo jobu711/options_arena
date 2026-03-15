@@ -12,11 +12,13 @@ import math
 from pathlib import Path
 from typing import Annotated
 
+import pandas as pd
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from options_arena.agents import auto_tune_weights
+from options_arena.analysis.correlation import compute_correlation_matrix
 from options_arena.cli.app import app
 from options_arena.data import Database, Repository
 from options_arena.models.config import AppSettings
@@ -677,3 +679,212 @@ async def _equity_curve_async(direction: str | None, period: int | None) -> None
         raise typer.Exit(code=1) from exc
     finally:
         await db.close()
+
+
+# ---------------------------------------------------------------------------
+# Risk-adjusted performance metrics
+# ---------------------------------------------------------------------------
+
+
+@outcomes_app.command(name="risk-metrics")
+def risk_metrics_cmd(
+    lookback_days: int = typer.Option(365, "--lookback-days", help="Number of days to look back"),
+) -> None:
+    """Show risk-adjusted performance metrics (Sharpe, Sortino, max drawdown)."""
+    asyncio.run(_risk_metrics_async(lookback_days))
+
+
+async def _risk_metrics_async(lookback_days: int) -> None:
+    """Display risk-adjusted metrics as a Rich table."""
+    settings = AppSettings()
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    if settings.data.db_path:
+        db_path = Path(settings.data.db_path)
+    else:
+        db_path = _DATA_DIR / "options_arena.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    db = Database(db_path)
+
+    try:
+        await db.connect()
+        repo = Repository(db)
+        metrics = await repo.get_risk_adjusted_metrics(lookback_days=lookback_days)
+
+        console.print(f"\n[bold]Risk-Adjusted Metrics ({lookback_days}-day lookback)[/bold]\n")
+
+        table = Table(show_header=False, padding=(0, 2))
+        table.add_column("Metric", style="bold white")
+        table.add_column("Value", justify="right", style="cyan")
+
+        table.add_row("Total trades", str(metrics.total_trades))
+        table.add_row("Risk-free rate", f"{metrics.risk_free_rate:.2%}")
+        table.add_row(
+            "Sharpe ratio",
+            f"{metrics.sharpe_ratio:.3f}"
+            if metrics.sharpe_ratio is not None and math.isfinite(metrics.sharpe_ratio)
+            else "--",
+        )
+        table.add_row(
+            "Sortino ratio",
+            f"{metrics.sortino_ratio:.3f}"
+            if metrics.sortino_ratio is not None and math.isfinite(metrics.sortino_ratio)
+            else "--",
+        )
+        table.add_row(
+            "Max drawdown",
+            f"{metrics.max_drawdown_pct:.2f}%"
+            if metrics.max_drawdown_pct is not None and math.isfinite(metrics.max_drawdown_pct)
+            else "--",
+        )
+        table.add_row(
+            "Max drawdown date",
+            str(metrics.max_drawdown_date) if metrics.max_drawdown_date is not None else "--",
+        )
+        table.add_row(
+            "Annualized return",
+            f"{metrics.annualized_return_pct:+.2f}%"
+            if metrics.annualized_return_pct is not None
+            and math.isfinite(metrics.annualized_return_pct)
+            else "--",
+        )
+
+        console.print(table)
+
+    except Exception as exc:
+        logger.exception("Risk metrics display failed")
+        err_console.print(
+            "[red]Risk metrics failed. Check logs/options_arena.log for details.[/red]"
+        )
+        raise typer.Exit(code=1) from exc
+    finally:
+        await db.close()
+
+
+# ---------------------------------------------------------------------------
+# Portfolio correlation matrix
+# ---------------------------------------------------------------------------
+
+
+@outcomes_app.command("correlation")
+def correlation_cmd(
+    tickers: Annotated[
+        str | None,
+        typer.Option("--tickers", help="Comma-separated tickers (e.g. AAPL,MSFT)"),
+    ] = None,
+) -> None:
+    """Show pairwise correlation matrix for specified tickers."""
+    asyncio.run(_correlation_async(tickers))
+
+
+async def _correlation_async(tickers_str: str | None) -> None:
+    """Compute and display portfolio correlation matrix."""
+    if tickers_str is None or not tickers_str.strip():
+        err_console.print("[red]No tickers specified. Use --tickers AAPL,MSFT,GOOG[/red]")
+        raise typer.Exit(code=1)
+
+    ticker_list = [t.strip().upper() for t in tickers_str.split(",") if t.strip()]
+    # Deduplicate
+    ticker_list = list(dict.fromkeys(ticker_list))
+
+    if len(ticker_list) < 2:  # noqa: PLR2004
+        err_console.print("[red]At least 2 tickers are required for correlation analysis.[/red]")
+        raise typer.Exit(code=1)
+
+    settings = AppSettings()
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    cache = ServiceCache(settings.service)
+    limiter = RateLimiter(
+        settings.service.rate_limit_rps, settings.service.max_concurrent_requests
+    )
+    market_data: MarketDataService | None = None
+
+    try:
+        market_data = MarketDataService(settings.service, cache, limiter)
+
+        err_console.print(f"[cyan]Fetching price data for {', '.join(ticker_list)}...[/cyan]")
+
+        # Fetch OHLCV for each ticker
+        price_data: dict[str, pd.DataFrame] = {}
+        batch_result = await market_data.fetch_batch_ohlcv(ticker_list, period="1y")
+        for item in batch_result.succeeded():
+            if item.data:
+                rows = [{"date": bar.date, "Close": float(bar.close)} for bar in item.data]
+                df = pd.DataFrame(rows).set_index("date")
+                price_data[item.ticker] = df
+
+        failed_tickers = [item.ticker for item in batch_result.failed()]
+        if failed_tickers:
+            err_console.print(f"[yellow]Failed to fetch: {', '.join(failed_tickers)}[/yellow]")
+
+        if len(price_data) < 2:  # noqa: PLR2004
+            err_console.print(
+                "[red]Insufficient data: fewer than 2 tickers have valid price history.[/red]"
+            )
+            raise typer.Exit(code=1)
+
+        result = compute_correlation_matrix(price_data, min_overlap=30)
+
+        if not result.pairs:
+            console.print(
+                "[yellow]No pairs with sufficient overlapping data (>= 30 days).[/yellow]"
+            )
+            return
+
+        # Build a Rich table showing the correlation matrix
+        table = Table(title="Portfolio Correlation Matrix (Pearson, log returns)")
+
+        # First column for row ticker
+        table.add_column("", style="bold white", no_wrap=True)
+        for ticker in result.tickers:
+            table.add_column(ticker, justify="right", style="cyan")
+
+        # Build lookup for quick access
+        pair_lookup: dict[tuple[str, str], float] = {}
+        for pair in result.pairs:
+            pair_lookup[(pair.ticker_a, pair.ticker_b)] = pair.correlation
+            pair_lookup[(pair.ticker_b, pair.ticker_a)] = pair.correlation
+
+        for row_ticker in result.tickers:
+            row_values: list[str] = []
+            for col_ticker in result.tickers:
+                if row_ticker == col_ticker:
+                    row_values.append("[bold]1.000[/bold]")
+                else:
+                    corr = pair_lookup.get((row_ticker, col_ticker))
+                    if corr is not None:
+                        if corr >= 0.7:  # noqa: PLR2004
+                            style = "[red]"
+                        elif corr >= 0.3:  # noqa: PLR2004
+                            style = "[yellow]"
+                        elif corr <= -0.3:
+                            style = "[green]"
+                        else:
+                            style = "[dim]"
+                        row_values.append(f"{style}{corr:+.3f}[/{style.strip('[').strip(']')}]")
+                    else:
+                        row_values.append("[dim]--[/dim]")
+            table.add_row(row_ticker, *row_values)
+
+        console.print(table)
+
+        # Summary statistics
+        if result.avg_correlation is not None:
+            console.print(
+                f"\n[dim]Average correlation: {result.avg_correlation:+.3f} "
+                f"({result.pair_count} pairs)[/dim]"
+            )
+
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        logger.exception("Correlation analysis failed")
+        err_console.print(
+            "[red]Correlation analysis failed. Check logs/options_arena.log for details.[/red]"
+        )
+        raise typer.Exit(code=1) from exc
+    finally:
+        if market_data is not None:
+            await market_data.close()
+        await cache.close()

@@ -4,59 +4,66 @@ allowed-tools: Bash, Read, Write, LS, Task
 
 # Epic Start
 
-Launch parallel agents to work on epic tasks in a shared branch.
+Launch parallel agents to work on epic tasks in a shared branch or worktree.
 
 ## Usage
 ```
 /pm:epic-start <epic_name>
+/pm:epic-start <epic_name> --worktree
 ```
 
 ## Quick Check
 
 1. **Verify epic exists:**
    ```bash
-   test -f .claude/epics/$ARGUMENTS/epic.md || echo "❌ Epic not found. Run: /pm:prd-parse $ARGUMENTS"
+   test -f .claude/epics/$ARGUMENTS/epic.md || echo "Epic not found. Run: /pm:prd-parse $ARGUMENTS"
    ```
 
 2. **Check GitHub sync:**
    Look for `github:` field in epic frontmatter.
-   If missing: "❌ Epic not synced. Run: /pm:epic-sync $ARGUMENTS first"
+   If missing: "Epic not synced. Run: /pm:epic-sync $ARGUMENTS first"
 
-3. **Check for branch:**
-   ```bash
-   git branch -a | grep "epic/$ARGUMENTS"
-   ```
-
-4. **Check for uncommitted changes:**
+3. **Check for uncommitted changes:**
    ```bash
    git status --porcelain
    ```
-   If output is not empty: "❌ You have uncommitted changes. Please commit or stash them before starting an epic"
+   If output is not empty: "You have uncommitted changes. Please commit or stash them before starting an epic"
+
+4. **Parse flags:** Check if `$ARGUMENTS` contains `--worktree`. Strip the flag to get `<epic_name>`.
 
 ## Instructions
 
-### 1. Create or Enter Branch
+### 1. Create or Enter Branch / Worktree
 
-Follow `/rules/branch-operations.md`:
+**If `--worktree` flag is present** — follow `/rules/worktree-operations.md`:
 
 ```bash
-# Check for uncommitted changes
+if ! git worktree list | grep -q "epic-$ARGUMENTS"; then
+  git checkout main && git pull origin main
+  git worktree add ../epic-$ARGUMENTS -b epic/$ARGUMENTS
+  echo "Created worktree: ../epic-$ARGUMENTS"
+else
+  echo "Using existing worktree: ../epic-$ARGUMENTS"
+fi
+```
+
+**Otherwise (default)** — follow `/rules/branch-operations.md`:
+
+```bash
 if [ -n "$(git status --porcelain)" ]; then
-  echo "❌ You have uncommitted changes. Please commit or stash them before starting an epic."
+  echo "You have uncommitted changes. Please commit or stash them first."
   exit 1
 fi
 
-# If branch doesn't exist, create it
 if ! git branch -a | grep -q "epic/$ARGUMENTS"; then
-  git checkout main
-  git pull origin main
+  git checkout main && git pull origin main
   git checkout -b epic/$ARGUMENTS
   git push -u origin epic/$ARGUMENTS
-  echo "✅ Created branch: epic/$ARGUMENTS"
+  echo "Created branch: epic/$ARGUMENTS"
 else
   git checkout epic/$ARGUMENTS
   git pull origin epic/$ARGUMENTS
-  echo "✅ Using existing branch: epic/$ARGUMENTS"
+  echo "Using existing branch: epic/$ARGUMENTS"
 fi
 ```
 
@@ -204,8 +211,9 @@ As agents complete streams:
 ## Output Format
 
 ```
-🚀 Epic Execution Started: $ARGUMENTS
+Epic Execution Started: $ARGUMENTS
 
+{If --worktree}: Worktree: ../epic-$ARGUMENTS
 Branch: epic/$ARGUMENTS
 
 Launching {total} agents across {issue_count} issues:
@@ -240,30 +248,19 @@ Continue with other agents? (yes/no)
 
 If uncommitted changes are found:
 ```
-❌ You have uncommitted changes. Please commit or stash them before starting an epic.
-
-To commit changes:
-  git add .
-  git commit -m "Your commit message"
-
-To stash changes:
-  git stash push -m "Work in progress"
-  # (Later restore with: git stash pop)
+You have uncommitted changes. Please commit or stash them first.
 ```
 
-If branch creation fails:
+If branch/worktree creation fails:
 ```
-❌ Cannot create branch
-  {git error message}
-
-Try: git branch -d epic/$ARGUMENTS
-Or: Check existing branches with: git branch -a
+Cannot create branch/worktree: {git error message}
+Check existing with: git branch -a / git worktree list
 ```
 
 ## Important Notes
 
-- Follow `/rules/branch-operations.md` for git operations
+- Default mode: shared branch. Use `--worktree` for isolated worktree.
+- Follow `/rules/branch-operations.md` (branch) or `/rules/worktree-operations.md` (worktree)
 - Follow `/rules/agent-coordination.md` for parallel work
-- Agents work in the SAME branch (not separate branches)
+- Agents work in the SAME branch/worktree (not separate ones)
 - Maximum parallel agents should be reasonable (e.g., 5-10)
-- Monitor system resources if launching many agents

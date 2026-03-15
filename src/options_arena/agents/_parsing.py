@@ -334,6 +334,8 @@ class DebateDeps:
     all_prior_outputs: str | None = None  # Formatted text for contrarian (Phase 3)
     # --- Multi-leg strategy ---
     spread_analysis: SpreadAnalysis | None = None  # Algorithmic spread recommendation
+    # --- Constraint pre-check ---
+    constraint_warnings: str | None = None  # Rendered constraint warnings for agents
 
 
 class DebateResult(BaseModel):
@@ -717,6 +719,21 @@ def render_fundamental_context(ctx: MarketContext) -> str:
         lines.append("## Growth & Valuation")
         lines.extend(growth_lines)
 
+    # --- Multi-Methodology Valuation ---
+    valuation_lines: list[str] = []
+    if ctx.valuation_signal is not None:
+        valuation_lines.append(f"VALUATION SIGNAL: {ctx.valuation_signal.value.upper()}")
+    if ctx.valuation_fair_value is not None and math.isfinite(ctx.valuation_fair_value):
+        valuation_lines.append(f"COMPOSITE FAIR VALUE: ${ctx.valuation_fair_value:,.2f}")
+    if ctx.valuation_margin_of_safety is not None and math.isfinite(
+        ctx.valuation_margin_of_safety
+    ):
+        valuation_lines.append(f"MARGIN OF SAFETY: {ctx.valuation_margin_of_safety * 100:+.1f}%")
+    if valuation_lines:
+        lines.append("")
+        lines.append("## Multi-Model Valuation")
+        lines.extend(valuation_lines)
+
     # --- Analyst Intelligence ---
     analyst_lines: list[str | None] = [
         _render_optional("ANALYST TARGET MEAN", ctx.analyst_target_mean, ",.2f"),
@@ -771,12 +788,23 @@ def render_fundamental_context(ctx: MarketContext) -> str:
     return "\n".join(lines)
 
 
-def render_context_block(ctx: MarketContext) -> str:
+def render_context_block(
+    ctx: MarketContext,
+    constraint_warnings: str | None = None,
+) -> str:
     """Render MarketContext as flat key-value text for agent consumption.
 
     Agents parse flat text better than JSON. Each line is a labeled value
     that agents can reference in their arguments. Optional fields (indicators,
     Greeks, contract mid) are omitted when None or non-finite.
+
+    Parameters
+    ----------
+    ctx
+        Market context snapshot.
+    constraint_warnings
+        Optional rendered constraint warnings to append. Produced by
+        ``agents.constraints.render_constraint_warnings()``.
     """
     # Static block — always present
     lines: list[str] = [
@@ -1054,6 +1082,14 @@ def render_context_block(ctx: MarketContext) -> str:
         if pop_str is not None:
             lines.append(pop_str)
 
+    # --- Position Sizing Guidance (FR-C5) ---
+    if ctx.position_size_pct is not None and math.isfinite(ctx.position_size_pct):
+        lines.append("")
+        lines.append("## Position Sizing Guidance")
+        lines.append(f"SUGGESTED ALLOCATION: {ctx.position_size_pct:.1%}")
+        if ctx.position_size_rationale:
+            lines.append(f"RATIONALE: {ctx.position_size_rationale}")
+
     # Earnings warning — appended when next earnings is within 7 days
     if ctx.next_earnings is not None:
         market_today = datetime.now(ZoneInfo("America/New_York")).date()
@@ -1073,6 +1109,11 @@ def render_context_block(ctx: MarketContext) -> str:
             "Note: Enrichment data not available for this ticker. "
             "Analysis based on scan-derived indicators."
         )
+
+    # Constraint warnings — appended when contract pre-check found violations
+    if constraint_warnings:
+        lines.append("")
+        lines.append(constraint_warnings)
 
     return "\n".join(lines)
 

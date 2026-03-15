@@ -114,10 +114,8 @@ task time in half.
 | `/pm:issue-start` | Start working on a GitHub issue |
 | `/pm:epic-start` | Start an epic with full setup |
 | `/testing:run` | Run tests with analysis |
-| `/analyze` | Deep code analysis |
 | `/bug` | Structured bug fix workflow |
 | `/simplify` | Review changed code for quality |
-| `/daily-audit` | End-of-day commit audit |
 | `/context:prime` | Load project context |
 
 {{TASK_DESCRIPTION}}

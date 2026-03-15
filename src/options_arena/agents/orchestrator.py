@@ -43,6 +43,10 @@ from options_arena.agents._parsing import (
     render_trend_context,
     render_volatility_context,
 )
+from options_arena.agents.constraints import (
+    check_contract_constraints,
+    render_constraint_warnings,
+)
 from options_arena.agents.contrarian_agent import contrarian_agent
 from options_arena.agents.flow_agent import flow_agent
 from options_arena.agents.fundamental_agent import fundamental_agent
@@ -50,6 +54,8 @@ from options_arena.agents.model_config import build_debate_model
 from options_arena.agents.risk import risk_agent
 from options_arena.agents.trend_agent import trend_agent
 from options_arena.agents.volatility import volatility_agent
+from options_arena.analysis.position_sizing import compute_position_size
+from options_arena.analysis.valuation import FDData, compute_composite_valuation
 from options_arena.data.repository import Repository
 from options_arena.models import (
     AgentAccuracyReport,
@@ -69,6 +75,7 @@ from options_arena.models import (
     MarketContext,
     NewsSentimentSnapshot,
     OptionContract,
+    OptionsFilters,
     Quote,
     RiskAssessment,
     SignalDirection,
@@ -473,6 +480,24 @@ def build_market_context(
             if fd_package
             and fd_package.metrics
             and fd_package.metrics.free_cash_flow_yield is not None
+            else None
+        ),
+        # --- Financial Datasets enrichment: valuation model inputs ---
+        # NOTE: capex, D&A, absolute FCF, and book_value_per_share are not yet on
+        # the FD models — they will be added by FinancialDatasets epic #393.
+        # For now these remain None; shares_outstanding and ROE are available.
+        fd_shares_outstanding=(
+            float(fd_package.balance_sheet.shares_outstanding)
+            if fd_package
+            and fd_package.balance_sheet
+            and fd_package.balance_sheet.shares_outstanding is not None
+            else None
+        ),
+        fd_roe=(
+            fd_package.metrics.return_on_equity
+            if fd_package
+            and fd_package.metrics
+            and fd_package.metrics.return_on_equity is not None
             else None
         ),
     )
@@ -1397,6 +1422,7 @@ async def run_debate(
     intelligence: IntelligencePackage | None = None,
     fd_package: FinancialDatasetsPackage | None = None,
     spread_analysis: SpreadAnalysis | None = None,
+    options_filters: OptionsFilters | None = None,
 ) -> DebateResult:
     """Run 6-agent debate protocol. Falls back to data-driven on failure — never raises.
 
@@ -1434,6 +1460,10 @@ async def run_debate(
         Optional pre-computed FundamentalThesis from a fundamental agent.
     spread_analysis
         Optional algorithmic spread recommendation from the spread engine.
+    options_filters
+        Optional option chain filters for constraint pre-check. When provided,
+        contracts are validated against hard/soft constraint rules and warnings
+        are injected into agent context.
 
     Returns
     -------
@@ -1462,6 +1492,61 @@ async def run_debate(
         context.spread_max_loss = spread_analysis.max_loss
         context.spread_pop = spread_analysis.pop_estimate
         context.spread_risk_reward = spread_analysis.risk_reward_ratio
+
+    # --- Position Sizing (FR-C5): vol-regime-aware allocation guidance ---
+    iv_for_sizing = context.atm_iv_30d or context.hv_yang_zhang
+    if iv_for_sizing is not None:
+        sizing_result = compute_position_size(iv_for_sizing)
+        context.position_size_pct = sizing_result.final_allocation_pct
+        context.position_size_rationale = sizing_result.rationale
+
+    # --- Multi-Methodology Valuation (FR-C6) ---
+    if context.fd_net_income is not None or context.fd_free_cash_flow is not None:
+        try:
+            fd_data = FDData(
+                net_income=context.fd_net_income,
+                depreciation_amortization=context.fd_depreciation_amortization,
+                capex=context.fd_capex,
+                free_cash_flow=context.fd_free_cash_flow,
+                revenue_growth=context.fd_revenue_growth,
+                earnings_growth=context.fd_earnings_growth,
+                ev_to_ebitda=context.fd_ev_to_ebitda,
+                book_value_per_share=context.fd_book_value_per_share,
+                roe=context.fd_roe,
+                shares_outstanding=context.fd_shares_outstanding,
+            )
+            valuation = compute_composite_valuation(
+                ticker=context.ticker,
+                current_price=float(context.current_price),
+                fd=fd_data,
+            )
+            context.valuation_signal = valuation.valuation_signal
+            context.valuation_margin_of_safety = valuation.composite_margin_of_safety
+            context.valuation_fair_value = valuation.composite_fair_value
+            logger.info(
+                "Valuation for %s: signal=%s, MoS=%.1f%%, fair_value=$%.2f",
+                context.ticker,
+                valuation.valuation_signal or "N/A",
+                (valuation.composite_margin_of_safety or 0.0) * 100,
+                valuation.composite_fair_value or 0.0,
+            )
+        except Exception:
+            logger.warning("Valuation computation failed for %s", context.ticker, exc_info=True)
+
+    # --- Constraint pre-check (FR-C4) ---
+    constraint_warnings_text: str | None = None
+    if options_filters is not None and contracts:
+        constraint_violations = check_contract_constraints(contracts, options_filters)
+        if constraint_violations:
+            constraint_warnings_text = render_constraint_warnings(constraint_violations)
+            hard_count = sum(1 for v in constraint_violations if v.severity.value == "hard")
+            soft_count = len(constraint_violations) - hard_count
+            logger.info(
+                "Constraint pre-check for %s: %d hard, %d soft violations",
+                context.ticker,
+                hard_count,
+                soft_count,
+            )
 
     completeness = context.completeness_ratio()
     _log_completeness_breakdown(context, completeness)
@@ -1510,6 +1595,7 @@ async def run_debate(
                 fundamental_output,
                 vote_weights=vote_weights,
                 spread_analysis=spread_analysis,
+                constraint_warnings=constraint_warnings_text,
             ),
             timeout=config.max_total_duration,
         )
@@ -1644,6 +1730,7 @@ async def _run_debate_pipeline(
     fundamental_output: FundamentalThesis | None,
     vote_weights: VoteWeights | None = None,
     spread_analysis: SpreadAnalysis | None = None,
+    constraint_warnings: str | None = None,
 ) -> DebateResult:
     """Run the 6-agent pipeline. Raises on total failure."""
     model = build_debate_model(config)
@@ -1656,7 +1743,7 @@ async def _run_debate_pipeline(
     vol_context = render_volatility_context(context)
     flow_context = render_flow_context(context)
     fund_context = render_fundamental_context(context)
-    full_context = render_context_block(context)
+    full_context = render_context_block(context, constraint_warnings=constraint_warnings)
 
     # ---------------------------------------------------------------
     # Phase 1: parallel — trend + volatility always; flow + fundamental
@@ -1666,6 +1753,7 @@ async def _run_debate_pipeline(
         context=context,
         ticker_score=ticker_score,
         contracts=contracts,
+        constraint_warnings=constraint_warnings,
     )
 
     # Build coroutines for local Phase 1 agents
@@ -1683,6 +1771,7 @@ async def _run_debate_pipeline(
         context=context,
         ticker_score=ticker_score,
         contracts=contracts,
+        constraint_warnings=constraint_warnings,
     )
     vol_coro = asyncio.wait_for(
         volatility_agent.run(
@@ -1712,6 +1801,7 @@ async def _run_debate_pipeline(
             context=context,
             ticker_score=ticker_score,
             contracts=contracts,
+            constraint_warnings=constraint_warnings,
         )
         flow_coro = asyncio.wait_for(
             flow_agent.run(
@@ -1731,6 +1821,7 @@ async def _run_debate_pipeline(
             context=context,
             ticker_score=ticker_score,
             contracts=contracts,
+            constraint_warnings=constraint_warnings,
         )
         fundamental_coro = asyncio.wait_for(
             fundamental_agent.run(
@@ -1876,6 +1967,7 @@ async def _run_debate_pipeline(
             volatility_thesis=vol_thesis,
             flow_thesis=flow_output,
             fundamental_thesis=fundamental_output,
+            constraint_warnings=constraint_warnings,
         )
         risk_result = await asyncio.wait_for(
             risk_agent.run(
@@ -1921,6 +2013,7 @@ async def _run_debate_pipeline(
                 fundamental_thesis=fundamental_output,
                 risk_assessment=risk_output,
                 all_prior_outputs=prior_text,
+                constraint_warnings=constraint_warnings,
             )
             contrarian_result = await asyncio.wait_for(
                 contrarian_agent.run(

@@ -1,4 +1,4 @@
-"""Correctness tests for all 5 orchestration math functions vs analytical solutions.
+"""Correctness tests for all 7 orchestration math functions vs analytical solutions.
 
 Tests cover:
   - compute_agreement_score: fraction of directional agents agreeing with majority
@@ -6,6 +6,8 @@ Tests cover:
   - _log_odds_pool: Bordley (1982) weighted log-odds confidence pooling
   - synthesize_verdict: verdict synthesis (mathematical invariants only)
   - classify_macd_signal: MACD signal classification
+  - _get_majority_direction: majority vote from agent directions
+  - compute_citation_density: fraction of context labels cited in agent text
 
 Reference data loaded from ``tests/audit/reference_data/orchestration_known_values.json``.
 """
@@ -18,7 +20,9 @@ from pathlib import Path
 
 import pytest
 
+from options_arena.agents._parsing import compute_citation_density
 from options_arena.agents.orchestrator import (
+    _get_majority_direction,
     _log_odds_pool,
     _vote_entropy,
     classify_macd_signal,
@@ -395,3 +399,71 @@ class TestSynthesizeVerdictInvariants:
         two = _log_odds_pool([0.8, 0.8], [0.2, 0.2])
         four = _log_odds_pool([0.8, 0.8, 0.8, 0.8], [0.2, 0.2, 0.2, 0.2])
         assert four > two
+
+
+# ---------------------------------------------------------------------------
+# _get_majority_direction
+# ---------------------------------------------------------------------------
+
+
+class TestGetMajorityDirectionCorrectness:
+    """Correctness tests for _get_majority_direction."""
+
+    def test_empty_returns_neutral(self) -> None:
+        """Empty input returns NEUTRAL."""
+        assert _get_majority_direction({}) == SignalDirection.NEUTRAL
+
+    def test_unanimous_bullish(self) -> None:
+        """All bullish returns BULLISH."""
+        dirs = {"a": SignalDirection.BULLISH, "b": SignalDirection.BULLISH}
+        assert _get_majority_direction(dirs) == SignalDirection.BULLISH
+
+    def test_unanimous_bearish(self) -> None:
+        """All bearish returns BEARISH."""
+        dirs = {"a": SignalDirection.BEARISH, "b": SignalDirection.BEARISH}
+        assert _get_majority_direction(dirs) == SignalDirection.BEARISH
+
+    def test_tie_returns_neutral(self) -> None:
+        """Equal bullish/bearish votes returns NEUTRAL."""
+        dirs = {"a": SignalDirection.BULLISH, "b": SignalDirection.BEARISH}
+        assert _get_majority_direction(dirs) == SignalDirection.NEUTRAL
+
+    def test_majority_with_neutral_votes(self) -> None:
+        """Neutral votes don't count toward bull/bear majority."""
+        dirs = {
+            "a": SignalDirection.BULLISH,
+            "b": SignalDirection.BULLISH,
+            "c": SignalDirection.NEUTRAL,
+        }
+        assert _get_majority_direction(dirs) == SignalDirection.BULLISH
+
+
+# ---------------------------------------------------------------------------
+# compute_citation_density
+# ---------------------------------------------------------------------------
+
+
+class TestComputeCitationDensityCorrectness:
+    """Correctness tests for compute_citation_density."""
+
+    def test_all_cited_returns_one(self) -> None:
+        """All labels cited gives density 1.0."""
+        context = "RSI(14): 55\nMACD: bullish"
+        text = "RSI(14) is strong and MACD confirms"
+        assert compute_citation_density(context, text) == pytest.approx(1.0)
+
+    def test_none_cited_returns_zero(self) -> None:
+        """No labels cited gives density 0.0."""
+        context = "RSI(14): 55\nMACD: bullish"
+        text = "The stock looks good based on fundamentals"
+        assert compute_citation_density(context, text) == pytest.approx(0.0)
+
+    def test_half_cited_returns_half(self) -> None:
+        """Half labels cited gives density 0.5."""
+        context = "RSI(14): 55\nMACD: bullish"
+        text = "RSI(14) shows momentum"
+        assert compute_citation_density(context, text) == pytest.approx(0.5)
+
+    def test_empty_context_returns_zero(self) -> None:
+        """Empty context block returns 0.0."""
+        assert compute_citation_density("", "some text") == pytest.approx(0.0)

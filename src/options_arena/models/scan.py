@@ -142,6 +142,9 @@ class IndicatorSignals(BaseModel):
     surface_fit_r2: float | None = None
     surface_is_1d: float | None = None  # 0.0=2D, 1.0=1D (stored as float for normalization)
 
+    # --- Regime Detection ---
+    hurst_exponent: float | None = None  # Hurst exponent via R/S analysis [0, 1]
+
     @model_validator(mode="before")
     @classmethod
     def _normalize_non_finite(cls, data: dict[str, object]) -> dict[str, object]:

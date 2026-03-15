@@ -37,16 +37,13 @@ phase for user approval before proceeding.
 
 ## Phase 2: Fix P1 Issues
 
-1. Announce: "Phase 2/5: Addressing P1 issues..."
-2. For EACH P1 finding:
-   a. Show the finding: agent, file:line, description, proposed fix
-   b. **Ask user**: "Apply this fix?" / "Skip" / "Custom fix"
-   c. If approved, apply using Edit tool
-   d. Show brief diff summary
-3. After all P1s addressed, re-audit ONLY changed files with relevant agents.
-   Read `.claude/commands/fix-loop.md` for the agent-to-module mapping to select
-   which auditors are relevant for each changed file's module
-4. If new P1s found, repeat (max 2 iterations)
+1. Announce: "Phase 2/5: Addressing P1 issues via fix-loop..."
+2. If P1 count from Phase 1 is 0, skip to Phase 3.
+3. Use the Skill tool: `skill="fix-loop"`, `args="src/options_arena/"`.
+   fix-loop reads `.claude/audits/FULL_AUDIT.md`, presents P1-P4 findings,
+   asks user what to fix (fix all / fix P1 / fix specific numbers / stop),
+   applies approved fixes, re-audits changed files, iterates up to 3 times.
+4. After fix-loop completes, note what was fixed vs deferred for the PR body.
 
 **STOP** — Show what was fixed/skipped. Ask: "Proceed to verification?" / "Abort"
 
@@ -143,7 +140,7 @@ EOF
 1. STOP at every phase boundary — never proceed without user approval
 2. Never skip Phase 3 (verification) — it's the quality gate
 3. If verification fails and user can't fix, abort cleanly (no broken PR)
-4. P1 fixes require individual user approval — no batch auto-fix
+4. P1 fixes require user approval via fix-loop — user chooses fix scope
 5. Don't push to main/master directly — always create PR
 6. Include deferred findings in PR body so reviewers know what's pending
 7. If no P1 findings in Phase 1, skip Phase 2 and proceed to Phase 3

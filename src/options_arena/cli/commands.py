@@ -11,7 +11,7 @@ import logging
 import signal
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import typer
 from rich.console import Console
@@ -67,6 +67,8 @@ from options_arena.services.universe import UniverseService
 if TYPE_CHECKING:
     from options_arena.agents import DebateResult
     from options_arena.models import DimensionalScores
+    from options_arena.models.market_data import OHLCV, Quote, TickerInfo
+    from options_arena.services.options_data import ExpirationChain
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -733,9 +735,27 @@ async def _debate_single(
     risk_free_task = fred.fetch_risk_free_rate()
     chains_task = options_data.fetch_chain_all_expirations(ticker)
 
-    quote, ticker_info, ohlcv_list, risk_free_rate, chain_results = await asyncio.gather(
-        quote_task, info_task, ohlcv_task, risk_free_task, chains_task
+    gather_results = await asyncio.gather(
+        quote_task,
+        info_task,
+        ohlcv_task,
+        risk_free_task,
+        chains_task,
+        return_exceptions=True,
     )
+    # Re-raise the first exception with context (gather prevents one failure from
+    # cancelling the other tasks, but we still need all critical results)
+    for result in gather_results:
+        if isinstance(result, BaseException):
+            raise RuntimeError(
+                f"Data fetch failed: {type(result).__name__}"
+            ) from result
+    # Exception check above guarantees all values are their expected types
+    quote = cast("Quote", gather_results[0])
+    ticker_info = cast("TickerInfo", gather_results[1])
+    ohlcv_list = cast("list[OHLCV]", gather_results[2])
+    risk_free_rate = cast("float", gather_results[3])
+    chain_results = cast("list[ExpirationChain]", gather_results[4])
 
     # Compute raw indicators from OHLCV data so the debate context gets
     # actual values (e.g., RSI=65.3) instead of percentile-ranked values
@@ -795,11 +815,29 @@ async def _debate_single(
     flow: UnusualFlowSnapshot | None = None
     sentiment: NewsSentimentSnapshot | None = None
     if openbb_svc is not None:
-        fundamentals, flow, sentiment = await asyncio.gather(
+        openbb_results = await asyncio.gather(
             openbb_svc.fetch_fundamentals(ticker_score.ticker),
             openbb_svc.fetch_unusual_flow(ticker_score.ticker),
             openbb_svc.fetch_news_sentiment(ticker_score.ticker),
+            return_exceptions=True,
         )
+        # OpenBB services follow never-raises contract, but guard against unexpected errors
+        if not isinstance(openbb_results[0], BaseException):
+            fundamentals = openbb_results[0]
+        else:
+            logger.warning("OpenBB fundamentals unavailable: %s", type(openbb_results[0]).__name__)
+            logger.debug("OpenBB fundamentals error detail", exc_info=openbb_results[0])
+        if not isinstance(openbb_results[1], BaseException):
+            flow = openbb_results[1]
+        else:
+            logger.warning("OpenBB flow unavailable: %s", type(openbb_results[1]).__name__)
+            logger.debug("OpenBB flow error detail", exc_info=openbb_results[1])
+        if not isinstance(openbb_results[2], BaseException):
+            sentiment = openbb_results[2]
+        else:
+            logger.warning("OpenBB sentiment unavailable: %s", type(openbb_results[2]).__name__)
+            logger.debug("OpenBB sentiment error detail", exc_info=openbb_results[2])
+            sentiment = None
 
     # Fetch intelligence data (never raises -- returns None on error)
     from options_arena.models.intelligence import IntelligencePackage  # noqa: PLC0415

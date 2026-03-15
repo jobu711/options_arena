@@ -7,11 +7,13 @@ Consumers import from the package: ``from options_arena.models import OptionCont
 from options_arena.models.analysis import (
     AgentPrediction,
     AgentResponse,
+    ContractConstraint,
     ContrarianThesis,
     ExtendedTradeThesis,
     FlowThesis,
     FundamentalThesis,
     MarketContext,
+    PositionSizeResult,
     RiskAssessment,
     TradeThesis,
     VolatilityThesis,
@@ -34,6 +36,7 @@ from options_arena.models.analytics import (
     NormalizationStats,
     PerformanceSummary,
     RecommendedContract,
+    RiskAdjustedMetrics,
     ScoreCalibrationBucket,
     SectorPerformanceResult,
     WeightSnapshot,
@@ -49,11 +52,13 @@ from options_arena.models.config import (
     IntelligenceConfig,
     LogConfig,
     OpenBBConfig,
+    PositionSizingConfig,
     PricingConfig,
     ScanConfig,
     ServiceConfig,
     SpreadConfig,
 )
+from options_arena.models.correlation import CorrelationMatrix, PairwiseCorrelation
 from options_arena.models.enums import (
     INDUSTRY_GROUP_ALIASES,
     SECTOR_ALIASES,
@@ -62,6 +67,8 @@ from options_arena.models.enums import (
     AuditLayer,
     AuditSeverity,
     CatalystImpact,
+    ConstraintSeverity,
+    ConstraintViolationType,
     DividendSource,
     ExerciseStyle,
     GICSIndustryGroup,
@@ -83,6 +90,7 @@ from options_arena.models.enums import (
     SentimentLabel,
     SignalDirection,
     SpreadType,
+    ValuationSignal,
     VolAssessment,
     VolRegime,
 )
@@ -128,12 +136,15 @@ from options_arena.models.options import (
 from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
 from options_arena.models.scan_delta import ScanDiff, TickerDelta
 from options_arena.models.scoring import DimensionalScores, DirectionSignal
+from options_arena.models.valuation import CompositeValuation, ValuationModelResult
 
 __all__ = [
     # Enums
     "AuditLayer",
     "AuditSeverity",
     "CatalystImpact",
+    "ConstraintSeverity",
+    "ConstraintViolationType",
     "DividendSource",
     "ExerciseStyle",
     "GICSIndustryGroup",
@@ -158,6 +169,7 @@ __all__ = [
     "SentimentLabel",
     "SignalDirection",
     "SpreadType",
+    "ValuationSignal",
     "VolAssessment",
     "VolRegime",
     # Market data
@@ -173,11 +185,13 @@ __all__ = [
     # Analysis
     "AgentPrediction",
     "AgentResponse",
+    "ContractConstraint",
     "ContrarianThesis",
     "ExtendedTradeThesis",
     "FlowThesis",
     "FundamentalThesis",
     "MarketContext",
+    "PositionSizeResult",
     "RiskAssessment",
     "TradeThesis",
     "VolatilityThesis",
@@ -199,6 +213,7 @@ __all__ = [
     "NormalizationStats",
     "PerformanceSummary",
     "RecommendedContract",
+    "RiskAdjustedMetrics",
     "ScoreCalibrationBucket",
     "SectorPerformanceResult",
     "WeightSnapshot",
@@ -222,6 +237,7 @@ __all__ = [
     "IntelligenceConfig",
     "LogConfig",
     "OpenBBConfig",
+    "PositionSizingConfig",
     "PricingConfig",
     "ScanConfig",
     "ServiceConfig",
@@ -259,8 +275,14 @@ __all__ = [
     # Metadata
     "MetadataCoverage",
     "TickerMetadata",
+    # Valuation
+    "CompositeValuation",
+    "ValuationModelResult",
     # Audit
     "AuditFinding",
     "AuditLayerSummary",
     "AuditReport",
+    # Correlation
+    "CorrelationMatrix",
+    "PairwiseCorrelation",
 ]
