@@ -297,6 +297,18 @@ SECTOR_ALIASES: dict[str, GICSSector] = {
 }
 
 
+class VolRegimeTier(StrEnum):
+    """Volatility regime tier label for position sizing.
+
+    Maps to vol_regime_tier integers: LOW=1, MODERATE=2, ELEVATED=3, EXTREME=4.
+    """
+
+    LOW = "low"
+    MODERATE = "moderate"
+    ELEVATED = "elevated"
+    EXTREME = "extreme"
+
+
 class ConstraintViolationType(StrEnum):
     """Type of constraint violation detected during contract pre-check.
 
@@ -378,6 +390,13 @@ class AuditLayer(StrEnum):
     STABILITY = "stability"
     PERFORMANCE = "performance"
     DISCOVERY = "discovery"
+
+
+class SurfaceMethod(StrEnum):
+    """IV surface fitting method selection."""
+
+    SPLINE = "spline"
+    NEURAL = "neural"
 
 
 class GICSIndustryGroup(StrEnum):

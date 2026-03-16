@@ -21,6 +21,7 @@ dependencies = [
     "rich>=14.3",
     "scipy>=1.17",
     "slowapi>=0.1.9",
+    "tenacity>=9.1.4",
     "typer>=0.24",
     "uvicorn[standard]>=0.41.0",
     "yfinance>=1.2",
@@ -34,6 +35,14 @@ ml = [
     "scikit-learn>=1.5,<2",
     "statsmodels>=0.14,<0.15",
 ]
+neural = [
+    "lightning>=2.4,<3.0",
+    "torch>=2.5,<3.0",
+]
+# NOTE: openbb extra omitted — OpenBB SDK pins fastapi<0.129 and ruff<0.14,
+# which conflicts with our fastapi>=0.133.1 and ruff>=0.15. Users who want
+# OpenBB enrichment should install openbb + vaderSentiment separately.
+# The service layer uses guarded imports (try/except ImportError).
 
 [project.scripts]
 options-arena = "options_arena.cli:app"
@@ -79,7 +88,7 @@ warn_return_any = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["arch.*", "joblib.*", "openbb.*", "sklearn.*", "statsmodels.*", "yfinance.*"]
+module = ["arch.*", "joblib.*", "lightning.*", "openbb.*", "sklearn.*", "statsmodels.*", "torch.*", "vaderSentiment.*", "yfinance.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
@@ -95,3 +104,13 @@ markers = [
     "audit_stability: Numerical stability audit tests",
     "audit_performance: Performance benchmark audit tests",
 ]
+
+# --- UV Source Configuration ---
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

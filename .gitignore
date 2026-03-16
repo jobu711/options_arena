@@ -41,6 +41,8 @@ data/*.sqlite
 
 # ML model cache (trained offline, not committed)
 data/model_cache/*.pkl
+data/model_cache/*.ckpt
+data/model_cache/lightning_logs/
 
 # Coverage
 htmlcov/

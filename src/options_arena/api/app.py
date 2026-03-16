@@ -281,11 +281,13 @@ def _register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(TickerNotFoundError)
     async def _ticker_not_found(request: object, exc: TickerNotFoundError) -> JSONResponse:
-        return JSONResponse(status_code=404, content={"detail": str(exc)})
+        logger.warning("Ticker not found: %s", exc)
+        return JSONResponse(status_code=404, content={"detail": "Ticker not found"})
 
     @app.exception_handler(InsufficientDataError)
     async def _insufficient_data(request: object, exc: InsufficientDataError) -> JSONResponse:
-        return JSONResponse(status_code=422, content={"detail": str(exc)})
+        logger.warning("Insufficient data: %s", exc)
+        return JSONResponse(status_code=422, content={"detail": "Insufficient market data"})
 
     @app.exception_handler(DataSourceUnavailableError)
     async def _data_source_unavailable(
@@ -299,4 +301,5 @@ def _register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RateLimitExceededError)
     async def _rate_limit_exceeded(request: object, exc: RateLimitExceededError) -> JSONResponse:
-        return JSONResponse(status_code=429, content={"detail": str(exc)})
+        logger.warning("Rate limit exceeded: %s", exc)
+        return JSONResponse(status_code=429, content={"detail": "Too many requests"})

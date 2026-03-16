@@ -46,6 +46,7 @@ from options_arena.models.enums import (
     SpreadType,
     ValuationSignal,
     VolAssessment,
+    VolRegimeTier,
 )
 from options_arena.models.scoring import DimensionalScores
 
@@ -223,6 +224,9 @@ class MarketContext(BaseModel):
     valuation_signal: ValuationSignal | None = None
     valuation_margin_of_safety: float | None = None
     valuation_fair_value: float | None = None
+
+    # --- Neural trajectory P(profit) ---
+    prob_profit_neural: float | None = None
 
     def completeness_ratio(self) -> float:
         """Fraction of optional context fields that are populated (not None).
@@ -423,8 +427,7 @@ class MarketContext(BaseModel):
         "target_vanna",
         "target_charm",
         "target_vomma",
-        # DSE direction confidence
-        "direction_confidence",
+        # DSE direction confidence — has its own [0,1] range validator
         # Native Quant: HV & vol surface (prob_above_current has its own validator)
         "hv_yang_zhang",
         "skew_25d",
@@ -437,13 +440,10 @@ class MarketContext(BaseModel):
         "iv_vs_forecast_spread",
         # ML Flow Anomaly Detection
         "flow_anomaly_score",
-        # ML GBM Regime Classification
-        "ml_regime_confidence",
-        # Spread strategy
-        "spread_pop",
+        # ML GBM Regime Classification — ml_regime_confidence has its own [0,1] validator
+        # Spread strategy — spread_pop has its own [0,1] validator
         "spread_risk_reward",
-        # Position sizing
-        "position_size_pct",
+        # Position sizing — position_size_pct has its own [0,1] validator
         # Financial Datasets enrichment
         "fd_revenue",
         "fd_net_income",
@@ -475,6 +475,8 @@ class MarketContext(BaseModel):
         "yield_spread",
         "fed_funds_rate",
         "vix_level",
+        # Neural trajectory
+        "prob_profit_neural",
     )
     @classmethod
     def validate_optional_finite(cls, v: float | None) -> float | None:
@@ -494,6 +496,17 @@ class MarketContext(BaseModel):
                 raise ValueError(f"prob_above_current must be in [0, 1], got {v}")
         return v
 
+    @field_validator("prob_profit_neural")
+    @classmethod
+    def validate_prob_profit_neural(cls, v: float | None) -> float | None:
+        """Ensure prob_profit_neural is finite and within [0.0, 1.0] when provided."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"prob_profit_neural must be finite, got {v}")
+            if not 0.0 <= v <= 1.0:
+                raise ValueError(f"prob_profit_neural must be in [0, 1], got {v}")
+        return v
+
     @field_validator("surface_fit_r2")
     @classmethod
     def validate_surface_fit_r2(cls, v: float | None) -> float | None:
@@ -503,6 +516,34 @@ class MarketContext(BaseModel):
                 raise ValueError(f"surface_fit_r2 must be finite, got {v}")
             if not 0.0 <= v <= 1.0:
                 raise ValueError(f"surface_fit_r2 must be in [0, 1], got {v}")
+        return v
+
+    @field_validator(
+        "direction_confidence",
+        "ml_regime_confidence",
+        "position_size_pct",
+        "insider_buy_ratio",
+        "institutional_pct",
+    )
+    @classmethod
+    def validate_optional_unit_intervals(cls, v: float | None) -> float | None:
+        """Ensure probability/percentage fields are finite and within [0.0, 1.0]."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"must be finite, got {v}")
+            if not 0.0 <= v <= 1.0:
+                raise ValueError(f"must be in [0, 1], got {v}")
+        return v
+
+    @field_validator("spread_pop")
+    @classmethod
+    def validate_spread_pop(cls, v: float | None) -> float | None:
+        """Ensure spread_pop (probability of profit) is finite and within [0.0, 1.0]."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"spread_pop must be finite, got {v}")
+            if not 0.0 <= v <= 1.0:
+                raise ValueError(f"spread_pop must be in [0, 1], got {v}")
         return v
 
     @field_validator("contract_mid")
@@ -949,7 +990,7 @@ class ContractConstraint(BaseModel):
 
 
 # Valid volatility tier labels for position sizing
-_VOL_TIER_LABELS = frozenset({"low", "moderate", "elevated", "extreme"})
+_VOL_TIER_LABELS = frozenset(VolRegimeTier)
 
 
 class PositionSizeResult(BaseModel):
@@ -962,7 +1003,7 @@ class PositionSizeResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     vol_regime_tier: int  # 1-4
-    vol_regime_label: str  # "low", "moderate", "elevated", "extreme"
+    vol_regime_label: VolRegimeTier
     annualized_iv: float
     base_allocation_pct: float  # [0.0, 1.0]
     correlation_adjustment: float  # [0.5, 1.0]
@@ -975,14 +1016,6 @@ class PositionSizeResult(BaseModel):
         """Ensure vol_regime_tier is within [1, 4]."""
         if not 1 <= v <= 4:
             raise ValueError(f"vol_regime_tier must be in [1, 4], got {v}")
-        return v
-
-    @field_validator("vol_regime_label")
-    @classmethod
-    def validate_vol_regime_label(cls, v: str) -> str:
-        """Ensure vol_regime_label is one of the valid tier labels."""
-        if v not in _VOL_TIER_LABELS:
-            raise ValueError(f"vol_regime_label must be one of {_VOL_TIER_LABELS}, got {v!r}")
         return v
 
     @field_validator(

@@ -91,6 +91,8 @@ class OptionsResult(BaseModel):
         macro_yield_spread: 10Y-2Y yield spread from FRED (``None`` when macro disabled).
         macro_fed_funds_rate: Federal funds rate from FRED (``None`` when macro disabled).
         macro_vix_level: VIX level from FRED (``None`` when macro disabled).
+        prob_profit_neural: Ticker to neural trajectory P(profit) mapping
+            (populated when config.ml.enable_trajectory is True and model succeeds).
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -106,6 +108,9 @@ class OptionsResult(BaseModel):
     macro_yield_spread: float | None = None
     macro_fed_funds_rate: float | None = None
     macro_vix_level: float | None = None
+
+    # Neural trajectory P(profit) (populated when config.ml.enable_trajectory is True)
+    prob_profit_neural: dict[str, float] = Field(default_factory=dict)
 
 
 class ScanResult(BaseModel):

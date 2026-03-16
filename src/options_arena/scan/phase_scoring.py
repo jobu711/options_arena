@@ -256,7 +256,11 @@ async def _compute_ml_indicators(
             )
 
     tasks = [_process_ticker(signals, returns) for _, signals, returns in eligible]
-    await asyncio.gather(*tasks, return_exceptions=True)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for i, result in enumerate(results):
+        if isinstance(result, BaseException):
+            ticker = eligible[i][0]
+            logger.warning("ML indicator computation failed for %s: %s", ticker, result)
 
     logger.info("ML indicators computed for %d tickers", len(eligible))
 

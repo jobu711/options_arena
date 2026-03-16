@@ -590,6 +590,11 @@ def render_volatility_context(ctx: MarketContext) -> str:
         if pop_str is not None:
             lines.append(pop_str)
 
+    # Neural surface comparison — volatility agent is the natural consumer
+    neural_surface_block = _render_neural_surface_comparison(ctx)
+    if neural_surface_block:
+        lines.append(neural_surface_block)
+
     return "\n".join(lines)
 
 
@@ -806,6 +811,54 @@ def render_macro_context(ctx: MarketContext) -> str | None:
         return None
 
     return "\n".join(["", "## Macro Environment", *macro_lines])
+
+
+def _render_neural_context(ctx: MarketContext) -> str:
+    """Render neural trajectory probability context when available.
+
+    Uses ``_render_optional()`` with ``math.isfinite()`` guard. Returns empty
+    string when ``prob_profit_neural`` is ``None`` or non-finite, so agents see
+    no noise when neural features are disabled.
+    """
+    rendered = _render_optional("NEURAL P(PROFIT)", ctx.prob_profit_neural, ".1%")
+    if rendered is None:
+        return ""
+    return "\n".join(["", "## Neural Trajectory", rendered])
+
+
+def _render_neural_surface_comparison(ctx: MarketContext) -> str:
+    """Render spline vs neural surface R-squared comparison when both available.
+
+    Compares ``surface_fit_r2`` (spline) with ``neural_surface_r2`` (neural MLP)
+    when both fields are populated. Returns empty string when either is missing.
+
+    Note: ``neural_surface_r2`` must be populated on ``MarketContext`` for this
+    comparison to render. ``prob_profit_neural`` (trajectory model) is NOT used
+    as a proxy — trajectory and neural surface are independent features.
+    """
+    spline_r2 = ctx.surface_fit_r2
+    if spline_r2 is None or not math.isfinite(spline_r2):
+        return ""
+
+    # Gate on a dedicated neural surface field, not the trajectory proxy.
+    neural_r2 = getattr(ctx, "neural_surface_r2", None)
+    if neural_r2 is None:
+        return ""
+
+    lines: list[str] = [
+        "",
+        "## Surface Model Comparison",
+        f"SPLINE SURFACE R²: {spline_r2:.2f}",
+        f"NEURAL SURFACE R²: {neural_r2:.2f}",
+    ]
+    if neural_r2 > spline_r2:
+        lines.append("NEURAL ADVANTAGE: Neural model provides better fit")
+    elif spline_r2 >= 0.8:
+        lines.append("FIT QUALITY: Good — spline captures IV surface well")
+    else:
+        lines.append("FIT QUALITY: Moderate — consider neural model for better fit")
+
+    return "\n".join(lines)
 
 
 def render_context_block(
@@ -1080,6 +1133,11 @@ def render_context_block(
         lines.append(f"SUGGESTED ALLOCATION: {ctx.position_size_pct:.1%}")
         if ctx.position_size_rationale:
             lines.append(f"RATIONALE: {ctx.position_size_rationale}")
+
+    # --- Neural Trajectory Probability ---
+    neural_block = _render_neural_context(ctx)
+    if neural_block:
+        lines.append(neural_block)
 
     # Earnings warning — appended when next earnings is within 7 days
     if ctx.next_earnings is not None:

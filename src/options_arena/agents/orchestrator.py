@@ -127,6 +127,7 @@ def build_market_context(
     macro_yield_spread: float | None = None,
     macro_fed_funds_rate: float | None = None,
     macro_vix_level: float | None = None,
+    prob_profit_neural: float | None = None,
 ) -> MarketContext:
     """Map scan pipeline output to ``MarketContext`` for agent consumption.
 
@@ -459,6 +460,8 @@ def build_market_context(
         yield_spread=macro_yield_spread,
         fed_funds_rate=macro_fed_funds_rate,
         vix_level=macro_vix_level,
+        # --- Neural Trajectory ---
+        prob_profit_neural=prob_profit_neural,
     )
 
 
@@ -1383,6 +1386,7 @@ async def run_debate(
     macro_yield_spread: float | None = None,
     macro_fed_funds_rate: float | None = None,
     macro_vix_level: float | None = None,
+    prob_profit_neural: float | None = None,
 ) -> DebateResult:
     """Run 6-agent debate protocol. Falls back to data-driven on failure — never raises.
 
@@ -1443,6 +1447,7 @@ async def run_debate(
         macro_yield_spread=macro_yield_spread,
         macro_fed_funds_rate=macro_fed_funds_rate,
         macro_vix_level=macro_vix_level,
+        prob_profit_neural=prob_profit_neural,
     )
 
     # Populate flat spread fields on MarketContext from SpreadAnalysis

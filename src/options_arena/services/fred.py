@@ -157,8 +157,9 @@ class FredService(ServiceBase[ServiceConfig]):
     ) -> None:
         super().__init__(config, cache, limiter=None)
         self._log.addFilter(_FredKeyRedactingFilter())
-        # Also filter httpx logger which may log request URLs with API key
+        # Also filter httpx/httpcore loggers which may log request URLs with API key
         logging.getLogger("httpx").addFilter(_FredKeyRedactingFilter())
+        logging.getLogger("httpcore").addFilter(_FredKeyRedactingFilter())
         self._pricing_config = pricing_config
         self._cached_rate: CachedRate | None = None
         self._client = httpx.AsyncClient(

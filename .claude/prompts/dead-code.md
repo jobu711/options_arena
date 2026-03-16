@@ -10,7 +10,7 @@ obscures the signal paths that generate real value.
 
 <context>
 This is a full-codebase audit of Options Arena — an AI-powered options analysis tool
-with 8 debate agents, 18+ technical indicators, BSM/BAW pricing, a 4-phase scan
+with 8 debate agents, 50+ technical indicators, BSM/BAW pricing, a 4-phase scan
 pipeline, and a Vue 3 frontend. The codebase has grown through 34 epics across 9
 development phases. Accumulated complexity is expected.
 

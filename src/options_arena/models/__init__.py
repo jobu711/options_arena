@@ -92,9 +92,11 @@ from options_arena.models.enums import (
     ScanSource,
     SignalDirection,
     SpreadType,
+    SurfaceMethod,
     ValuationSignal,
     VolAssessment,
     VolRegime,
+    VolRegimeTier,
 )
 from options_arena.models.filters import (
     OptionsFilters,
@@ -166,9 +168,11 @@ __all__ = [
     "ScanSource",
     "SignalDirection",
     "SpreadType",
+    "SurfaceMethod",
     "ValuationSignal",
     "VolAssessment",
     "VolRegime",
+    "VolRegimeTier",
     # Market data
     "OHLCV",
     "Quote",

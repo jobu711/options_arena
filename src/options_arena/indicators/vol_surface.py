@@ -21,11 +21,16 @@ References:
 - Gatheral (2006) "The Volatility Surface: A Practitioner's Guide"
 """
 
+from __future__ import annotations
+
 import logging
 import math
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from options_arena.models.config import MLConfig
 from scipy.interpolate import SmoothBivariateSpline
 from scipy.stats import norm as _norm
 
@@ -38,6 +43,7 @@ logger = logging.getLogger(__name__)
 _MIN_CONTRACTS_TIER2: int = 3
 _MIN_CONTRACTS_TIER1: int = 6
 _MIN_UNIQUE_DTES_TIER1: int = 2
+_MIN_CONTRACTS_NEURAL: int = 30
 _ATM_MONEYNESS_TOL: float = 0.05  # 5% of spot
 _25D_MONEYNESS_CALL: float = 0.05  # approximate log-moneyness for 25-delta call
 _25D_MONEYNESS_PUT: float = -0.05  # approximate log-moneyness for 25-delta put
@@ -105,6 +111,8 @@ def compute_vol_surface(
     spot: float,
     risk_free_rate: float = 0.05,
     dividend_yield: float = 0.0,
+    surface_method: str = "spline",
+    ml_config: MLConfig | None = None,
 ) -> VolSurfaceResult:
     """Compute implied volatility surface analytics with tiered fallback.
 
@@ -122,6 +130,13 @@ def compute_vol_surface(
         Current underlying price.
     risk_free_rate
         Annualized risk-free rate (decimal).  Default 0.05.
+    dividend_yield
+        Continuous dividend yield (decimal).  Default 0.0.
+    surface_method
+        Surface fitting method: ``"spline"`` (default) uses
+        ``SmoothBivariateSpline``; ``"neural"`` uses a PyTorch Lightning MLP
+        from ``pricing.neural_surface``.  Neural requires >= 30 valid data
+        points and torch/lightning installed; falls back to spline on failure.
 
     Returns
     -------
@@ -145,6 +160,16 @@ def compute_vol_surface(
         return _NONE_RESULT
 
     unique_dtes = np.unique(dtes_f[dtes_f > 0])
+
+    # ----- Neural surface path (when configured and data sufficient) -----
+    if surface_method == "neural" and n_contracts >= _MIN_CONTRACTS_NEURAL:
+        neural_result = _try_neural_surface(
+            strikes_f, ivs_f, dtes_f, types_f, spot, risk_free_rate, dividend_yield, ml_config
+        )
+        if neural_result is not None:
+            return neural_result
+        # Fall through to spline/standalone on neural failure
+        logger.debug("Neural surface failed; falling back to spline path")
 
     # ----- Tier 1: fitted surface -----
     if n_contracts >= _MIN_CONTRACTS_TIER1 and len(unique_dtes) >= _MIN_UNIQUE_DTES_TIER1:
@@ -185,6 +210,86 @@ def compute_vol_surface(
         fitted_dtes=None,
         is_1d_fallback=False,
         is_standalone_fallback=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Neural surface helper
+# ---------------------------------------------------------------------------
+
+
+def _try_neural_surface(
+    strikes: np.ndarray,
+    ivs: np.ndarray,
+    dtes: np.ndarray,
+    option_types: np.ndarray,
+    spot: float,
+    risk_free_rate: float,
+    dividend_yield: float,
+    ml_config: MLConfig | None = None,
+) -> VolSurfaceResult | None:
+    """Attempt to fit the IV surface via the neural MLP model.
+
+    Uses a guarded import of ``fit_neural_surface`` from ``pricing.neural_surface``.
+    Translates ``NeuralSurfaceResult`` into ``VolSurfaceResult`` on success,
+    preserving standalone-computed skew_25d, smile_curvature, and
+    prob_above_current (which the neural model does not produce).
+
+    Returns ``None`` if torch/lightning are not installed, neural fit fails,
+    or the result has non-finite R-squared.
+    """
+    try:
+        from options_arena.pricing.neural_surface import fit_neural_surface
+    except ImportError:
+        logger.debug("pricing.neural_surface not importable; skipping neural path")
+        return None
+
+    try:
+        neural_result = fit_neural_surface(strikes, ivs, dtes, spot, config=ml_config)
+    except Exception:
+        logger.debug("fit_neural_surface raised an exception", exc_info=True)
+        return None
+
+    if neural_result is None:
+        return None
+
+    # Validate R-squared is finite
+    if not math.isfinite(neural_result.r_squared):
+        logger.debug("Neural surface R-squared non-finite; rejecting result")
+        return None
+
+    # Re-apply the same positivity filter that fit_neural_surface uses internally
+    # so that fitted_strikes/fitted_dtes stay aligned with the neural z_scores.
+    neural_mask = (strikes > 0.0) & (ivs > 0.0) & (dtes > 0.0)
+    neural_strikes = strikes[neural_mask]
+    neural_dtes = dtes[neural_mask]
+
+    # Compute standalone analytics that the neural model does not produce
+    skew = _standalone_skew_25d(strikes, ivs, option_types, spot)
+    curvature = _standalone_smile_curvature(strikes, ivs, spot)
+    prob = _standalone_implied_move(
+        strikes, ivs, option_types, spot, risk_free_rate, dtes, dividend_yield
+    )
+
+    # Derive ATM IVs from standalone method (neural model produces per-point
+    # fitted values but not ATM term-structure interpolation)
+    atm_30 = _standalone_atm_iv(strikes, ivs, dtes, spot, target_dte=30)
+    atm_60 = _standalone_atm_iv(strikes, ivs, dtes, spot, target_dte=60)
+
+    return VolSurfaceResult(
+        skew_25d=skew,
+        smile_curvature=curvature,
+        prob_above_current=prob,
+        atm_iv_30d=atm_30,
+        atm_iv_60d=atm_60,
+        fitted_ivs=neural_result.fitted_ivs,
+        residuals=neural_result.residuals,
+        z_scores=neural_result.z_scores,
+        r_squared=neural_result.r_squared,
+        fitted_strikes=neural_strikes,
+        fitted_dtes=neural_dtes,
+        is_1d_fallback=False,
+        is_standalone_fallback=False,
     )
 
 

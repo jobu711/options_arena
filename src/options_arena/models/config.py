@@ -22,6 +22,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from options_arena.models.enums import (
     LLMProvider,
+    SurfaceMethod,
 )
 from options_arena.models.filters import ScanFilterSpec
 
@@ -37,6 +38,10 @@ class MLConfig(BaseModel):
     All features default to disabled (``False``). When enabled, the scan pipeline
     calls the corresponding indicator functions (GARCH, Markov, macro). Parameters
     control model hyperparameters. Override via ``ARENA_SCAN__ML__ENABLE_GARCH=true``.
+
+    Neural surface fields control the optional PyTorch Lightning IV surface model.
+    When ``enable_neural_surface`` is ``True`` and ``surface_method`` is ``"neural"``,
+    the pipeline uses an MLP to fit the IV surface instead of the spline.
     """
 
     enable_garch: bool = False
@@ -45,10 +50,21 @@ class MLConfig(BaseModel):
     enable_flow_anomaly: bool = False
     enable_clustering: bool = False
     enable_ml_regime: bool = False
+    enable_trajectory: bool = False
     garch_p: int = 1
     garch_q: int = 1
     markov_n_regimes: int = 3
     contract_n_clusters: int = 4
+    trajectory_horizons: list[int] = [30, 60, 90]
+    trajectory_sequence_length: int = 60
+    trajectory_hidden_dim: int = 128
+
+    # Neural IV surface model (optional [neural] extra: lightning + torch)
+    enable_neural_surface: bool = False
+    surface_method: SurfaceMethod = SurfaceMethod.SPLINE
+    model_cache_dir: str = "data/model_cache"
+    neural_surface_epochs: int = 100
+    neural_surface_lr: float = 0.001
 
     @field_validator("garch_p", "garch_q")
     @classmethod
@@ -72,6 +88,59 @@ class MLConfig(BaseModel):
         """Ensure contract cluster count is in [2, 10]."""
         if not 2 <= v <= 10:
             raise ValueError(f"contract_n_clusters must be in [2, 10], got {v}")
+        return v
+
+    @field_validator("neural_surface_epochs")
+    @classmethod
+    def _validate_neural_surface_epochs(cls, v: int) -> int:
+        """Ensure neural_surface_epochs is in [10, 500]."""
+        if not 10 <= v <= 500:
+            raise ValueError(f"neural_surface_epochs must be in [10, 500], got {v}")
+        return v
+
+    @field_validator("neural_surface_lr")
+    @classmethod
+    def _validate_neural_surface_lr(cls, v: float) -> float:
+        """Ensure neural_surface_lr is finite and positive."""
+        if not math.isfinite(v):
+            raise ValueError(f"neural_surface_lr must be finite, got {v}")
+        if v <= 0.0:
+            raise ValueError(f"neural_surface_lr must be > 0, got {v}")
+        return v
+
+    @model_validator(mode="after")
+    def _validate_surface_method_consistency(self) -> Self:
+        """Warn if surface_method is 'neural' but enable_neural_surface is False."""
+        if self.surface_method == SurfaceMethod.NEURAL and not self.enable_neural_surface:
+            # Auto-enable neural surface when method is set to neural
+            object.__setattr__(self, "enable_neural_surface", True)
+        return self
+
+    @field_validator("trajectory_horizons")
+    @classmethod
+    def _validate_trajectory_horizons(cls, v: list[int]) -> list[int]:
+        """Ensure trajectory horizons are non-empty and all positive integers."""
+        if not v:
+            raise ValueError("trajectory_horizons must contain at least one horizon")
+        for h in v:
+            if h < 1:
+                raise ValueError(f"trajectory horizon must be >= 1, got {h}")
+        return v
+
+    @field_validator("trajectory_sequence_length")
+    @classmethod
+    def _validate_trajectory_sequence_length(cls, v: int) -> int:
+        """Ensure trajectory_sequence_length is within [20, 252]."""
+        if not 20 <= v <= 252:
+            raise ValueError(f"trajectory_sequence_length must be in [20, 252], got {v}")
+        return v
+
+    @field_validator("trajectory_hidden_dim")
+    @classmethod
+    def _validate_trajectory_hidden_dim(cls, v: int) -> int:
+        """Ensure trajectory_hidden_dim is within [32, 512]."""
+        if not 32 <= v <= 512:
+            raise ValueError(f"trajectory_hidden_dim must be in [32, 512], got {v}")
         return v
 
 

@@ -1,8 +1,3 @@
----
-allowed-tools: Read, Glob, Grep, Bash, Agent, Write
-description: "Audit the full codebase for dead code, redundancies, algorithmic improvements, low-alpha signals, and complexity reduction"
----
-
 <role>
 You are a senior software architect specializing in codebase forensics and complexity
 economics. You've led multiple "code diet" initiatives at trading firms where every
@@ -15,7 +10,7 @@ obscures the signal paths that generate real value.
 
 <context>
 This is a full-codebase audit of Options Arena — an AI-powered options analysis tool
-with 8 debate agents, 18+ technical indicators, BSM/BAW pricing, a 4-phase scan
+with 8 debate agents, 50+ technical indicators, BSM/BAW pricing, a 4-phase scan
 pipeline, and a Vue 3 frontend. The codebase has grown through 34 epics across 9
 development phases. Accumulated complexity is expected.
 
@@ -62,10 +57,6 @@ Functions fall into tiers:
 Perform a comprehensive dead-code and complexity audit of the entire Options Arena
 codebase. Identify code that should be removed, simplified, or replaced with better
 algorithmic approaches. Produce a prioritized action plan organized by impact.
-
-Arguments: `$ARGUMENTS` may contain:
-- `<module>` — audit a specific module (e.g., `scoring`, `indicators`, `services`)
-- `all` or no argument — audit the full codebase (default)
 
 Specifically:
 1. Find truly dead code — functions, classes, imports, model fields never referenced
