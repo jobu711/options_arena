@@ -30,6 +30,7 @@ dependencies = [
 pdf = ["weasyprint>=63.0"]
 ml = [
     "arch>=8.0,<9",
+    "joblib>=1.4,<2",
     "scikit-learn>=1.5,<2",
     "statsmodels>=0.14,<0.15",
 ]

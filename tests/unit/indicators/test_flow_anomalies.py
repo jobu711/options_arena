@@ -74,17 +74,26 @@ def _make_anomalous_chain(n: int = 30) -> pd.DataFrame:
 class TestDetectFlowAnomalies:
     """Tests for detect_flow_anomalies() function."""
 
+    @pytest.mark.critical
     def test_detects_anomaly_in_synthetic_chain(self) -> None:
-        """Verify anomaly detection on chain with injected outlier row."""
+        """Verify anomaly detection on chain with injected outlier row.
+
+        The injected outlier should pull the chain-level score lower than a
+        normal chain's score, proving the detector senses the anomaly.
+        """
         if _get_isolation_forest() is None:
             pytest.skip("scikit-learn not installed")
 
-        chain = _make_anomalous_chain(40)
-        result = detect_flow_anomalies(chain, avg_volume_20d=300.0)
+        anomalous_chain = _make_anomalous_chain(40)
+        normal_chain = _make_normal_chain(40)
+        result = detect_flow_anomalies(anomalous_chain, avg_volume_20d=300.0)
+        baseline = detect_flow_anomalies(normal_chain, avg_volume_20d=300.0)
         assert result is not None
+        assert baseline is not None
         assert isinstance(result, FlowAnomalyResult)
-        # The anomaly score should be finite
         assert math.isfinite(result.anomaly_score)
+        # Outlier should produce a lower (more anomalous) score than baseline
+        assert result.anomaly_score < baseline.anomaly_score
 
     def test_returns_none_with_fewer_than_20_rows(self) -> None:
         """Verify None when chain has <20 rows."""

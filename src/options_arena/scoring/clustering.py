@@ -298,35 +298,37 @@ def cluster_contracts_by_greeks(
             except Exception:  # noqa: BLE001
                 logger.debug("Silhouette score computation failed", exc_info=True)
 
-        # Build per-cluster index lists and compute centroids in original scale
-        cluster_index_map: dict[int, list[int]] = {k: [] for k in range(effective_k)}
+        # Build per-cluster index lists — only for populated cluster IDs.
+        # KMeans can produce fewer distinct labels than n_clusters with
+        # duplicate/identical samples (scikit-learn ConvergenceWarning).
+        populated_ids = sorted({int(label) for label in cluster_labels})
+        cluster_index_map: dict[int, list[int]] = {k: [] for k in populated_ids}
         for row_idx, cluster_id in enumerate(cluster_labels):
             cluster_index_map[int(cluster_id)].append(valid_indices[row_idx])
 
+        actual_k = len(populated_ids)
+
         # Compute centroids in original (un-normalized) scale
         centroids_raw: list[list[float]] = []
-        for k in range(effective_k):
+        for k in populated_ids:
             member_rows = [
                 feature_rows[row_idx]
                 for row_idx, cid in enumerate(cluster_labels)
                 if int(cid) == k
             ]
-            if member_rows:
-                centroid = [float(np.mean([r[feat] for r in member_rows])) for feat in range(4)]
-            else:
-                centroid = [0.0, 0.0, 0.0, 0.0]
+            centroid = [float(np.mean([r[feat] for r in member_rows])) for feat in range(4)]
             centroids_raw.append(centroid)
 
         # Assign semantic labels
-        semantic_labels = _assign_labels(centroids_raw, effective_k)
+        semantic_labels = _assign_labels(centroids_raw, actual_k)
 
         # Build ContractCluster models
         clusters: list[ContractCluster] = []
-        for k in range(effective_k):
-            centroid_vals = centroids_raw[k]
+        for i, k in enumerate(populated_ids):
+            centroid_vals = centroids_raw[i]
             clusters.append(
                 ContractCluster(
-                    label=semantic_labels[k],
+                    label=semantic_labels[i],
                     contract_indices=sorted(cluster_index_map[k]),
                     centroid=GreeksCentroid(
                         delta=centroid_vals[0],
@@ -339,7 +341,7 @@ def cluster_contracts_by_greeks(
 
         return ClusteringResult(
             clusters=clusters,
-            n_clusters=effective_k,
+            n_clusters=actual_k,
             silhouette_score=sil_score,
         )
 

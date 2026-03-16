@@ -75,35 +75,35 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
         cache = ServiceCache(settings.service)
         _closeable.append(cache)
-        limiter = RateLimiter(
+        rate_limiter = RateLimiter(
             settings.service.rate_limit_rps, settings.service.max_concurrent_requests
         )
 
-        market_data = MarketDataService(settings.service, cache, limiter)
+        market_data = MarketDataService(settings.service, cache, rate_limiter)
         _closeable.append(market_data)
         options_data = OptionsDataService(
             settings.service,
             settings.scan.filters.options,
             cache,
-            limiter,
+            rate_limiter,
             openbb_config=settings.openbb,
         )
         _closeable.append(options_data)
         fred = FredService(settings.service, settings.pricing, cache)
         _closeable.append(fred)
-        universe = UniverseService(settings.service, cache, limiter)
+        universe = UniverseService(settings.service, cache, rate_limiter)
         _closeable.append(universe)
 
         # OpenBB enrichment service — created only when enabled in config
         openbb_svc: OpenBBService | None = None
         if settings.openbb.enabled:
-            openbb_svc = OpenBBService(settings.openbb, cache, limiter)
+            openbb_svc = OpenBBService(settings.openbb, cache, rate_limiter)
             _closeable.append(openbb_svc)
 
         # Intelligence service — created only when enabled in config
         intelligence_svc: IntelligenceService | None = None
         if settings.intelligence.enabled:
-            intelligence_svc = IntelligenceService(settings.intelligence, cache, limiter)
+            intelligence_svc = IntelligenceService(settings.intelligence, cache, rate_limiter)
             _closeable.append(intelligence_svc)
 
         # Financial Datasets service — created only when enabled and API key set
@@ -112,7 +112,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             fd_svc = FinancialDatasetsService(
                 config=settings.financial_datasets,
                 cache=cache,
-                limiter=limiter,
+                limiter=rate_limiter,
             )
             _closeable.append(fd_svc)
     except Exception:
@@ -129,7 +129,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.db = db
     app.state.repo = repo
     app.state.cache = cache
-    app.state.limiter = limiter
+    app.state.rate_limiter = rate_limiter
     app.state.market_data = market_data
     app.state.options_data = options_data
     app.state.fred = fred
