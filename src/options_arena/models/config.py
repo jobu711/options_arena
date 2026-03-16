@@ -49,10 +49,14 @@ class MLConfig(BaseModel):
     enable_flow_anomaly: bool = False
     enable_clustering: bool = False
     enable_ml_regime: bool = False
+    enable_trajectory: bool = False
     garch_p: int = 1
     garch_q: int = 1
     markov_n_regimes: int = 3
     contract_n_clusters: int = 4
+    trajectory_horizons: list[int] = [30, 60, 90]
+    trajectory_sequence_length: int = 60
+    trajectory_hidden_dim: int = 128
 
     # Neural IV surface model (optional [neural] extra: lightning + torch)
     enable_neural_surface: bool = False
@@ -110,6 +114,31 @@ class MLConfig(BaseModel):
             # Auto-enable neural surface when method is set to neural
             object.__setattr__(self, "enable_neural_surface", True)
         return self
+
+    @field_validator("trajectory_horizons")
+    @classmethod
+    def _validate_trajectory_horizons(cls, v: list[int]) -> list[int]:
+        """Ensure all trajectory horizons are positive integers."""
+        for h in v:
+            if h < 1:
+                raise ValueError(f"trajectory horizon must be >= 1, got {h}")
+        return v
+
+    @field_validator("trajectory_sequence_length")
+    @classmethod
+    def _validate_trajectory_sequence_length(cls, v: int) -> int:
+        """Ensure trajectory_sequence_length is within [20, 252]."""
+        if not 20 <= v <= 252:
+            raise ValueError(f"trajectory_sequence_length must be in [20, 252], got {v}")
+        return v
+
+    @field_validator("trajectory_hidden_dim")
+    @classmethod
+    def _validate_trajectory_hidden_dim(cls, v: int) -> int:
+        """Ensure trajectory_hidden_dim is within [32, 512]."""
+        if not 32 <= v <= 512:
+            raise ValueError(f"trajectory_hidden_dim must be in [32, 512], got {v}")
+        return v
 
 
 class ScanConfig(BaseModel):
