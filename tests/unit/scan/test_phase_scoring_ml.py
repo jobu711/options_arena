@@ -10,7 +10,6 @@ Validates:
 
 from __future__ import annotations
 
-import math
 from unittest.mock import patch
 
 import pandas as pd
