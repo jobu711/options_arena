@@ -59,7 +59,6 @@ from options_arena.services.fred import FredService
 from options_arena.services.health import HealthService
 from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.market_data import MarketDataService
-from options_arena.services.openbb_service import OpenBBService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.services.universe import UniverseService
@@ -469,7 +468,6 @@ def debate(
     ),
     export: str | None = typer.Option(None, "--export", help="Export format: md"),
     export_dir: str = typer.Option("./reports", "--export-dir", help="Export output directory"),
-    no_openbb: bool = typer.Option(False, "--no-openbb", help="Skip OpenBB enrichment"),
     no_recon: bool = typer.Option(False, "--no-recon", help="Skip intelligence fetching"),
     provider: LLMProvider = typer.Option(  # noqa: B008
         LLMProvider.GROQ, "--provider", help="LLM provider: groq (free) or anthropic"
@@ -498,7 +496,6 @@ def debate(
             _batch_async(
                 batch_limit,
                 fallback_only,
-                no_openbb=no_openbb,
                 no_recon=no_recon,
                 provider=provider,
             )
@@ -512,7 +509,6 @@ def debate(
                 fallback_only,
                 export,
                 export_dir,
-                no_openbb=no_openbb,
                 no_recon=no_recon,
                 provider=provider,
             )
@@ -523,7 +519,6 @@ async def _batch_async(
     batch_limit: int,
     fallback_only: bool,
     *,
-    no_openbb: bool = False,
     no_recon: bool = False,
     provider: LLMProvider = LLMProvider.GROQ,
 ) -> None:
@@ -541,7 +536,6 @@ async def _batch_async(
     market_data: MarketDataService | None = None
     options_data: OptionsDataService | None = None
     fred: FredService | None = None
-    openbb_svc: OpenBBService | None = None
     intelligence_svc: IntelligenceService | None = None
     fd_svc: FinancialDatasetsService | None = None
 
@@ -578,9 +572,6 @@ async def _batch_async(
             openbb_config=settings.openbb,
         )
         fred = FredService(settings.service, settings.pricing, cache)
-
-        if not no_openbb and settings.openbb.enabled:
-            openbb_svc = OpenBBService(settings.openbb, cache, limiter)
 
         if not no_recon and settings.intelligence.enabled:
             intelligence_svc = IntelligenceService(settings.intelligence, cache, limiter)
@@ -622,7 +613,6 @@ async def _batch_async(
                     fred,
                     repo,
                     fallback_only=fallback_only,
-                    openbb_svc=openbb_svc,
                     intelligence_svc=intelligence_svc,
                     fd_svc=fd_svc,
                 )
@@ -660,8 +650,6 @@ async def _batch_async(
             await fd_svc.close()
         if intelligence_svc is not None:
             await intelligence_svc.close()
-        if openbb_svc is not None:
-            await openbb_svc.close()
         if market_data is not None:
             await market_data.close()
         if options_data is not None:
@@ -702,7 +690,6 @@ async def _debate_single(
     repo: Repository,
     *,
     fallback_only: bool = False,
-    openbb_svc: OpenBBService | None = None,
     intelligence_svc: IntelligenceService | None = None,
     fd_svc: FinancialDatasetsService | None = None,
 ) -> DebateResult:
@@ -720,8 +707,8 @@ async def _debate_single(
         fred: Pre-created FRED service.
         repo: Database repository for debate persistence.
         fallback_only: If True, force data-driven path by using near-zero timeouts.
-        openbb_svc: Optional OpenBB service for enrichment data (fundamentals, flow, sentiment).
         intelligence_svc: Optional intelligence service for analyst/insider/institutional data.
+        fd_svc: Optional Financial Datasets service for fundamental data enrichment.
 
     Returns:
         DebateResult with agent responses, thesis, usage, and duration.
@@ -802,41 +789,6 @@ async def _debate_single(
         len(contracts),
     )
 
-    # Fetch OpenBB enrichment data concurrently (never raises — returns None on error)
-    from options_arena.models.openbb import (  # noqa: PLC0415
-        FundamentalSnapshot,
-        NewsSentimentSnapshot,
-        UnusualFlowSnapshot,
-    )
-
-    fundamentals: FundamentalSnapshot | None = None
-    flow: UnusualFlowSnapshot | None = None
-    sentiment: NewsSentimentSnapshot | None = None
-    if openbb_svc is not None:
-        openbb_results = await asyncio.gather(
-            openbb_svc.fetch_fundamentals(ticker_score.ticker),
-            openbb_svc.fetch_unusual_flow(ticker_score.ticker),
-            openbb_svc.fetch_news_sentiment(ticker_score.ticker),
-            return_exceptions=True,
-        )
-        # OpenBB services follow never-raises contract, but guard against unexpected errors
-        if not isinstance(openbb_results[0], BaseException):
-            fundamentals = openbb_results[0]
-        else:
-            logger.warning("OpenBB fundamentals unavailable: %s", type(openbb_results[0]).__name__)
-            logger.debug("OpenBB fundamentals error detail", exc_info=openbb_results[0])
-        if not isinstance(openbb_results[1], BaseException):
-            flow = openbb_results[1]
-        else:
-            logger.warning("OpenBB flow unavailable: %s", type(openbb_results[1]).__name__)
-            logger.debug("OpenBB flow error detail", exc_info=openbb_results[1])
-        if not isinstance(openbb_results[2], BaseException):
-            sentiment = openbb_results[2]
-        else:
-            logger.warning("OpenBB sentiment unavailable: %s", type(openbb_results[2]).__name__)
-            logger.debug("OpenBB sentiment error detail", exc_info=openbb_results[2])
-            sentiment = None
-
     # Fetch intelligence data (never raises -- returns None on error)
     from options_arena.models.intelligence import IntelligencePackage  # noqa: PLC0415
 
@@ -885,9 +837,6 @@ async def _debate_single(
         config=config,
         repository=repo,
         dimensional_scores=dim_scores,
-        fundamentals=fundamentals,
-        flow=flow,
-        sentiment=sentiment,
         intelligence=intel,
         fd_package=fd_package,
     )
@@ -900,7 +849,6 @@ async def _debate_async(
     export: str | None = None,
     export_dir: str = "./reports",
     *,
-    no_openbb: bool = False,
     no_recon: bool = False,
     provider: LLMProvider = LLMProvider.GROQ,
 ) -> None:
@@ -918,7 +866,6 @@ async def _debate_async(
     market_data: MarketDataService | None = None
     options_data: OptionsDataService | None = None
     fred: FredService | None = None
-    openbb_svc: OpenBBService | None = None
     intelligence_svc: IntelligenceService | None = None
     fd_svc: FinancialDatasetsService | None = None
 
@@ -967,9 +914,6 @@ async def _debate_async(
         )
         fred = FredService(settings.service, settings.pricing, cache)
 
-        if not no_openbb and settings.openbb.enabled:
-            openbb_svc = OpenBBService(settings.openbb, cache, limiter)
-
         if not no_recon and settings.intelligence.enabled:
             intelligence_svc = IntelligenceService(settings.intelligence, cache, limiter)
 
@@ -991,7 +935,6 @@ async def _debate_async(
             fred=fred,
             repo=repo,
             fallback_only=fallback_only,
-            openbb_svc=openbb_svc,
             intelligence_svc=intelligence_svc,
             fd_svc=fd_svc,
         )
@@ -1023,8 +966,6 @@ async def _debate_async(
             await fd_svc.close()
         if intelligence_svc is not None:
             await intelligence_svc.close()
-        if openbb_svc is not None:
-            await openbb_svc.close()
         if market_data is not None:
             await market_data.close()
         if options_data is not None:

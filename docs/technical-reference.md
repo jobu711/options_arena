@@ -44,17 +44,17 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `MarketContext` | model |  | 55 | Snapshot of ticker state for analysis and debate agents. |
-| `AgentResponse` | model | `frozen=True` | 565 | Structured response from a debate agent. |
-| `TradeThesis` | model | `frozen=True` | 602 | Final trade recommendation produced by the debate system. |
-| `VolatilityThesis` | model | `frozen=True` | 690 | Structured output from the Volatility Agent. |
-| `FlowThesis` | model | `frozen=True` | 737 | Structured output from the Flow Agent. |
-| `RiskAssessment` | model | `frozen=True` | 768 | Expanded risk assessment output from the Risk Agent. |
-| `FundamentalThesis` | model | `frozen=True` | 813 | Structured output from the Fundamental Agent. |
-| `ContrarianThesis` | model | `frozen=True` | 845 | Structured output from the Contrarian Agent. |
-| `ExtendedTradeThesis` | model | `(TradeThesis)` | 875 | Extended trade thesis with contrarian dissent, agreement scoring, and dimensional scores. |
-| `AgentPrediction` | model | `frozen=True` | 920 | Per-agent prediction record for accuracy tracking. |
-| `ContractConstraint` | model | `frozen=True` | 952 | A single constraint violation detected during contract pre-check. |
-| `PositionSizeResult` | model | `frozen=True` | 972 | Result of volatility-regime-aware position sizing computation. |
+| `AgentResponse` | model | `frozen=True` | 548 | Structured response from a debate agent. |
+| `TradeThesis` | model | `frozen=True` | 585 | Final trade recommendation produced by the debate system. |
+| `VolatilityThesis` | model | `frozen=True` | 673 | Structured output from the Volatility Agent. |
+| `FlowThesis` | model | `frozen=True` | 720 | Structured output from the Flow Agent. |
+| `RiskAssessment` | model | `frozen=True` | 751 | Expanded risk assessment output from the Risk Agent. |
+| `FundamentalThesis` | model | `frozen=True` | 796 | Structured output from the Fundamental Agent. |
+| `ContrarianThesis` | model | `frozen=True` | 828 | Structured output from the Contrarian Agent. |
+| `ExtendedTradeThesis` | model | `(TradeThesis)` | 858 | Extended trade thesis with contrarian dissent, agreement scoring, and dimensional scores. |
+| `AgentPrediction` | model | `frozen=True` | 903 | Per-agent prediction record for accuracy tracking. |
+| `ContractConstraint` | model | `frozen=True` | 935 | A single constraint violation detected during contract pre-check. |
+| `PositionSizeResult` | model | `frozen=True` | 955 | Result of volatility-regime-aware position sizing computation. |
 
 #### models/analytics.py
 
@@ -96,19 +96,21 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `ScanConfig` | model |  | 29 | Scan pipeline configuration — scoring thresholds, timeouts, toggles, and filters. |
-| `PricingConfig` | model |  | 71 | Options pricing configuration — delta targeting and IV solver parameters. |
-| `ServiceConfig` | model |  | 94 | External service configuration — timeouts, rate limits, cache TTLs. |
-| `LogConfig` | model |  | 127 | Logging configuration — controls JSON mode for structured logging. |
-| `DataConfig` | model |  | 133 | Data layer configuration — controls database path. |
-| `DebateConfig` | model |  | 139 | AI debate configuration — controls LLM provider, timeouts, and fallback behavior. |
-| `IntelligenceConfig` | model |  | 282 | Intelligence data configuration — controls yfinance intelligence fetching. |
-| `AnalyticsConfig` | model |  | 311 | Analytics persistence configuration — controls outcome collection and batch sizing. |
-| `FinancialDatasetsConfig` | model |  | 354 | Financial Datasets AI configuration — controls optional fundamental data enrichment. |
-| `PositionSizingConfig` | model |  | 426 | Volatility-regime-aware position sizing configuration. |
-| `SpreadConfig` | model |  | 459 | Spread strategy configuration — controls multi-leg strategy construction. |
-| `OpenBBConfig` | model |  | 521 | OpenBB Platform SDK configuration — controls optional enrichment data. |
-| `AppSettings` | model |  | 543 | Root application settings — the sole BaseSettings subclass. |
+| `ALLOWED_FINANCIAL_DATASETS_HOSTNAMES` | const | `frozenset[str]` | 31 |  |
+| `MLConfig` | model |  | 34 | Machine learning feature flags and parameters. |
+| `ScanConfig` | model |  | 78 | Scan pipeline configuration — scoring thresholds, timeouts, toggles, and filters. |
+| `PricingConfig` | model |  | 126 | Options pricing configuration — delta targeting and IV solver parameters. |
+| `ServiceConfig` | model |  | 149 | External service configuration — timeouts, rate limits, cache TTLs. |
+| `LogConfig` | model |  | 182 | Logging configuration — controls JSON mode for structured logging. |
+| `DataConfig` | model |  | 188 | Data layer configuration — controls database path. |
+| `DebateConfig` | model |  | 194 | AI debate configuration — controls LLM provider, timeouts, and fallback behavior. |
+| `IntelligenceConfig` | model |  | 337 | Intelligence data configuration — controls yfinance intelligence fetching. |
+| `AnalyticsConfig` | model |  | 366 | Analytics persistence configuration — controls outcome collection and batch sizing. |
+| `FinancialDatasetsConfig` | model |  | 409 | Financial Datasets AI configuration — controls optional fundamental data enrichment. |
+| `PositionSizingConfig` | model |  | 479 | Volatility-regime-aware position sizing configuration. |
+| `SpreadConfig` | model |  | 512 | Spread strategy configuration — controls multi-leg strategy construction. |
+| `OpenBBConfig` | model |  | 574 | CBOE chain provider configuration (legacy name retained for settings compat). |
+| `AppSettings` | model |  | 588 | Root application settings — the sole BaseSettings subclass. |
 
 #### models/correlation.py
 
@@ -140,20 +142,21 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `IVTermStructureShape` | StrEnum | CONTANGO, FLAT, BACKWARDATION | 180 | IV term structure shape classification. |
 | `RiskLevel` | StrEnum | LOW, MODERATE, HIGH, EXTREME | 188 | Quantified risk level for risk assessment. |
 | `CatalystImpact` | StrEnum | LOW, MODERATE, HIGH | 197 | Expected impact of upcoming catalysts (earnings, dividends, etc.). |
-| `SentimentLabel` | StrEnum | BULLISH, BEARISH, NEUTRAL | 205 | Sentiment classification for news or social media analysis. |
-| `OutcomeCollectionMethod` | StrEnum | MARKET, INTRINSIC, EXPIRED_WORTHLESS | 216 | Method used to collect contract outcome data. |
-| `GreeksGroupBy` | StrEnum | DIRECTION, SECTOR | 229 | Grouping column for Greeks P&L decomposition. |
-| `LLMProvider` | StrEnum | GROQ, ANTHROPIC | 240 | LLM provider for AI debate agents. |
-| `GICSSector` | StrEnum | 11 values (COMMUNICATION_SERVICES ... UTILITIES) | 251 | Global Industry Classification Standard (GICS) sectors. |
-| `SECTOR_ALIASES` | const | dict[str, GICSSector] | 271 |  |
-| `ConstraintViolationType` | StrEnum | EXPIRED, DTE_TOO_SHORT, OI_TOO_LOW, SPREAD_TOO_WIDE, ZERO_BID, VOLUME_TOO_LOW | 311 | Type of constraint violation detected during contract pre-check. |
-| `ConstraintSeverity` | StrEnum | HARD, SOFT | 327 | Severity level for constraint violations. |
-| `ValuationSignal` | StrEnum | UNDERVALUED, FAIRLY_VALUED, OVERVALUED | 338 | Composite valuation classification from multi-methodology analysis. |
-| `AuditSeverity` | StrEnum | CRITICAL, WARNING, INFO | 351 | Severity level for mathematical computation audit findings. |
-| `AuditLayer` | StrEnum | CORRECTNESS, STABILITY, PERFORMANCE, DISCOVERY | 359 | Audit layer classifying the type of mathematical audit test. |
-| `GICSIndustryGroup` | StrEnum | 26 values (TELECOMMUNICATION_SERVICES ... UTILITIES) | 368 | GICS Industry Groups (2023 standard). |
-| `INDUSTRY_GROUP_ALIASES` | const | dict[str, GICSIndustryGroup] | 414 |  |
-| `SECTOR_TO_INDUSTRY_GROUPS` | const | dict[GICSSector, list[GICSIndustryGroup]] | 725 |  |
+| `OutcomeCollectionMethod` | StrEnum | MARKET, INTRINSIC, EXPIRED_WORTHLESS | 205 | Method used to collect contract outcome data. |
+| `GreeksGroupBy` | StrEnum | DIRECTION, SECTOR | 218 | Grouping column for Greeks P&L decomposition. |
+| `LLMProvider` | StrEnum | GROQ, ANTHROPIC | 229 | LLM provider for AI debate agents. |
+| `GICSSector` | StrEnum | 11 values (COMMUNICATION_SERVICES ... UTILITIES) | 240 | Global Industry Classification Standard (GICS) sectors. |
+| `SECTOR_ALIASES` | const | dict[str, GICSSector] | 260 |  |
+| `ConstraintViolationType` | StrEnum | EXPIRED, DTE_TOO_SHORT, OI_TOO_LOW, SPREAD_TOO_WIDE, ZERO_BID, VOLUME_TOO_LOW | 300 | Type of constraint violation detected during contract pre-check. |
+| `ConstraintSeverity` | StrEnum | HARD, SOFT | 316 | Severity level for constraint violations. |
+| `ValuationSignal` | StrEnum | UNDERVALUED, FAIRLY_VALUED, OVERVALUED | 327 | Composite valuation classification from multi-methodology analysis. |
+| `MacroRegime` | StrEnum | EXPANSIONARY, CONTRACTIONARY, TRANSITIONAL | 340 | Macro-economic regime classification from FRED indicators. |
+| `FredTransform` | StrEnum | PCT_TO_DECIMAL, YOY_PCT_CHANGE, PASSTHROUGH | 353 | Transform applied to raw FRED series values. |
+| `AuditSeverity` | StrEnum | CRITICAL, WARNING, INFO | 366 | Severity level for mathematical computation audit findings. |
+| `AuditLayer` | StrEnum | CORRECTNESS, STABILITY, PERFORMANCE, DISCOVERY | 374 | Audit layer classifying the type of mathematical audit test. |
+| `GICSIndustryGroup` | StrEnum | 26 values (TELECOMMUNICATION_SERVICES ... UTILITIES) | 383 | GICS Industry Groups (2023 standard). |
+| `INDUSTRY_GROUP_ALIASES` | const | dict[str, GICSIndustryGroup] | 429 |  |
+| `SECTOR_TO_INDUSTRY_GROUPS` | const | dict[GICSSector, list[GICSIndustryGroup]] | 740 |  |
 
 #### models/filters.py
 
@@ -200,6 +203,15 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `InstitutionalSnapshot` | model | `frozen=True` | 318 | Institutional ownership data for a ticker. |
 | `IntelligencePackage` | model | `frozen=True` | 383 | Combined intelligence data for a ticker. |
 
+#### models/macro.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `FredSeriesConfig` | class | `(NamedTuple)` | 25 | Configuration for a single FRED data series. |
+| `MacroContext` | model | `frozen=True` | 57 | Frozen snapshot of macro-economic indicators from FRED. |
+| `MacroSignals` | model | `frozen=True` | 113 | Frozen per-indicator signals that contributed to regime classification. |
+| `MacroRegimeResult` | model | `frozen=True` | 153 | Frozen result of macro regime classification. |
+
 #### models/market_data.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -215,16 +227,6 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `TickerMetadata` | model | `frozen=True` | 18 | Cached sector, industry group, and market-cap classification for a ticker. |
 | `MetadataCoverage` | model | `frozen=True` | 44 | Coverage statistics for the ticker metadata index. |
 
-#### models/openbb.py
-
-| Symbol | Kind | Signature | Line | Description |
-|--------|------|-----------|------|-------------|
-| `FundamentalSnapshot` | model | `frozen=True` | 22 | Point-in-time fundamental metrics for a ticker. |
-| `UnusualFlowSnapshot` | model | `frozen=True` | 69 | Point-in-time unusual options/dark-pool flow data for a ticker. |
-| `NewsHeadline` | model | `frozen=True` | 103 | Single news headline with VADER sentiment score. |
-| `NewsSentimentSnapshot` | model | `frozen=True` | 135 | Aggregated news sentiment for a ticker. |
-| `OpenBBHealthStatus` | model | `frozen=True` | 179 | Health status of OpenBB data providers. |
-
 #### models/options.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -239,9 +241,9 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `IndicatorSignals` | model |  | 31 | 68 named indicator fields (18 + 1 MACD + 40 DSE + 2 liq + 4 quant + 3 surface). |
-| `ScanRun` | model | `frozen=True` | 163 | Metadata for a completed scan run. |
-| `TickerScore` | model |  | 200 | Scored ticker from the scan pipeline. |
+| `IndicatorSignals` | model |  | 31 | 75 named indicator fields. |
+| `ScanRun` | model | `frozen=True` | 182 | Metadata for a completed scan run. |
+| `TickerScore` | model |  | 219 | Scored ticker from the scan pipeline. |
 
 #### models/scan_delta.py
 
@@ -278,11 +280,13 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `compute_gex` | func | `(chain_calls: pd.DataFrame, chain_puts: pd.DataFrame, spot: float) -> float | None` | 16 | Net Gamma Exposure (GEX). |
-| `compute_oi_concentration` | func | `(chain: pd.DataFrame) -> float | None` | 78 | OI concentration: max_strike_OI / total_OI. |
-| `compute_unusual_activity` | func | `(chain: pd.DataFrame) -> float | None` | 104 | Unusual activity score: premium-weighted volume/OI for strikes where vol > 2x OI. |
-| `compute_max_pain_magnet` | func | `(spot: float, max_pain: float | None) -> float | None` | 147 | Max pain magnet strength: 1 - (\|spot - max_pain\| / spot). |
-| `compute_dollar_volume_trend` | func | `(close: pd.Series, volume: pd.Series, period: int = 20) -> float | None` | 172 | 20-day slope of dollar volume (close x volume). |
+| `FlowAnomalyResult` | class | `(NamedTuple)` | 33 | Output of Isolation Forest flow anomaly detection. |
+| `compute_gex` | func | `(chain_calls: pd.DataFrame, chain_puts: pd.DataFrame, spot: float) -> float | None` | 58 | Net Gamma Exposure (GEX). |
+| `compute_oi_concentration` | func | `(chain: pd.DataFrame) -> float | None` | 120 | OI concentration: max_strike_OI / total_OI. |
+| `compute_unusual_activity` | func | `(chain: pd.DataFrame) -> float | None` | 146 | Unusual activity score: premium-weighted volume/OI for strikes where vol > 2x OI. |
+| `compute_max_pain_magnet` | func | `(spot: float, max_pain: float | None) -> float | None` | 189 | Max pain magnet strength: 1 - (\|spot - max_pain\| / spot). |
+| `compute_dollar_volume_trend` | func | `(close: pd.Series, volume: pd.Series, period: int = 20) -> float | None` | 214 | 20-day slope of dollar volume (close x volume). |
+| `detect_flow_anomalies` | func | `(chain: pd.DataFrame, avg_volume_20d: float | None = None) -> FlowAnomalyResult | None` | 345 | Detect anomalous options flow patterns using Isolation Forest. |
 
 #### indicators/fundamental.py
 
@@ -304,9 +308,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `compute_hv_parkinson` | func | `(high: pd.Series, low: pd.Series, period: int = 20) -> float | None` | 25 | Parkinson (1980) historical volatility estimator using high-low range. |
-| `compute_hv_rogers_satchell` | func | `(open_: pd.Series, high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20) -> float ...` | 87 | Rogers-Satchell (1991) historical volatility estimator. |
-| `compute_hv_yang_zhang` | func | `(open_: pd.Series, high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20) -> float ...` | 150 | Yang-Zhang (2000) historical volatility estimator. |
+| `compute_hv_yang_zhang` | func | `(open_: pd.Series, high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20) -> float ...` | 26 | Yang-Zhang (2000) historical volatility estimator. |
 
 #### indicators/iv_analytics.py
 
@@ -325,6 +327,13 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `compute_vix_correlation` | func | `(ticker_returns: pd.Series, vix_changes: pd.Series) -> float | None` | 331 | Rolling 60-day correlation between ticker returns and VIX changes. |
 | `compute_expected_move` | func | `(spot: float, atm_iv: float | None, dte: int) -> float | None` | 371 | Expected move: spot * atm_iv * sqrt(dte / 365). |
 | `compute_expected_move_ratio` | func | `(iv_em: float | None, avg_actual_move: float | None) -> float | None` | 404 | Ratio of IV-implied expected move to average actual move. |
+
+#### indicators/macro.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `MacroClassification` | class | `(NamedTuple)` | 34 | Pure result of macro regime classification — no Pydantic dependency. |
+| `compute_macro_regime` | func | `(*, yield_spread_10y2y: float | None, unemployment_rate: float | None, fed_funds_rate: float | No...` | 46 | Classify the macro economic regime from FRED indicators. |
 
 #### indicators/moving_averages.py
 
@@ -359,13 +368,22 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `classify_market_regime` | func | `(vix: float, vix_sma_20: float, spx_returns_20d: float, spx_sma_slope: float) -> MarketRegime` | 22 | Classify market regime based on VIX and SPX metrics. |
-| `compute_vix_term_structure` | func | `(vix: float, vix3m: float | None) -> float | None` | 73 | VIX term structure: (VIX3M - VIX) / VIX. |
-| `compute_risk_on_off` | func | `(hyg_return: float | None, lqd_return: float | None) -> float | None` | 100 | Risk-on/off score: HYG 20-day return minus LQD 20-day return. |
-| `compute_sector_momentum` | func | `(sector_etf_return: float | None, spx_return: float) -> float | None` | 123 | Sector relative momentum: sector ETF 20-day return minus SPX 20-day return. |
-| `compute_rs_vs_spx` | func | `(ticker_returns: pd.Series, spx_returns: pd.Series, period: int = 60) -> float | None` | 146 | Relative strength vs SPX: cumulative return ratio over period. |
-| `compute_correlation_regime_shift` | func | `(ticker_returns: pd.Series, spx_returns: pd.Series, short_window: int = 20, long_window: int = 60...` | 192 | Correlation regime shift: short-window minus long-window correlation. |
-| `compute_volume_profile_skew` | func | `(close: pd.Series, volume: pd.Series, period: int = 20) -> float | None` | 232 | Volume profile skew: volume-weighted price vs simple average price. |
+| `compute_vix_term_structure` | func | `(vix: float, vix3m: float | None) -> float | None` | 20 | VIX term structure: (VIX3M - VIX) / VIX. |
+| `compute_risk_on_off` | func | `(hyg_return: float | None, lqd_return: float | None) -> float | None` | 47 | Risk-on/off score: HYG 20-day return minus LQD 20-day return. |
+| `compute_sector_momentum` | func | `(sector_etf_return: float | None, spx_return: float) -> float | None` | 70 | Sector relative momentum: sector ETF 20-day return minus SPX 20-day return. |
+| `compute_rs_vs_spx` | func | `(ticker_returns: pd.Series, spx_returns: pd.Series, period: int = 60) -> float | None` | 93 | Relative strength vs SPX: cumulative return ratio over period. |
+| `compute_correlation_regime_shift` | func | `(ticker_returns: pd.Series, spx_returns: pd.Series, short_window: int = 20, long_window: int = 60...` | 139 | Correlation regime shift: short-window minus long-window correlation. |
+| `compute_volume_profile_skew` | func | `(close: pd.Series, volume: pd.Series, period: int = 20) -> float | None` | 179 | Volume profile skew: volume-weighted price vs simple average price. |
+
+#### indicators/regime_ml.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `MarkovRegimeOutput` | class | `(NamedTuple)` | 54 | Output of Markov-switching regime detection. |
+| `RegimeClassification` | class | `(NamedTuple)` | 71 | Output of ML-based regime classification. |
+| `compute_markov_regime` | func | `(returns: pd.Series, k_regimes: int = _DEFAULT_K_REGIMES) -> MarkovRegimeOutput | None` | 96 | Fit a Markov-switching regression model and classify the current regime. |
+| `map_regime_label_to_market_regime` | func | `(label: str) -> MarketRegime` | 212 | Map a Markov regime label to the ``MarketRegime`` enum. |
+| `classify_regime_ml` | func | `(signals: Any, model_path: Path | None = None) -> RegimeClassification | None` | 334 | Classify the current market regime using a pre-trained GBM model. |
 
 #### indicators/trend.py
 
@@ -379,14 +397,21 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `compute_rsi_divergence` | func | `(close: pd.Series, rsi: pd.Series, lookback: int = 14) -> float | None` | 360 | RSI divergence detector. |
 | `compute_adx_exhaustion` | func | `(adx_series: pd.Series, threshold: float = 40.0) -> float | None` | 450 | ADX exhaustion signal. |
 
+#### indicators/vol_forecast.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `test_stationarity` | func | `(returns: pd.Series) -> tuple[bool, float] | None` | 57 | Augmented Dickey-Fuller stationarity test on a returns series. |
+| `compute_garch_forecast` | func | `(returns: pd.Series, p: int = 1, q: int = 1, horizon: int = 1) -> float | None` | 94 | GARCH(p,q) h-step-ahead volatility forecast. |
+
 #### indicators/vol_surface.py
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `VolSurfaceResult` | class | `(NamedTuple)` | 51 | Result of volatility surface computation. |
 | `compute_vol_surface` | func | `(strikes: np.ndarray, ivs: np.ndarray, dtes: np.ndarray, option_types: np.ndarray, spot: float, r...` | 100 | Compute implied volatility surface analytics with tiered fallback. |
-| `VolSurfaceIndicators` | class | `(NamedTuple)` | 622 | Indicator signals derived from fitted vol surface. |
-| `compute_surface_indicators` | func | `(result: VolSurfaceResult, contract_strike: float, contract_dte: float, strikes: np.ndarray | Non...` | 643 | Map per-contract z-scores from fitted surface to indicator signals. |
+| `VolSurfaceIndicators` | class | `(NamedTuple)` | 629 | Indicator signals derived from fitted vol surface. |
+| `compute_surface_indicators` | func | `(result: VolSurfaceResult, contract_strike: float, contract_dte: float, strikes: np.ndarray | Non...` | 650 | Map per-contract z-scores from fitted surface to indicator signals. |
 
 #### indicators/volatility.py
 
@@ -519,10 +544,11 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `CachedRate` | class | `(NamedTuple)` | 27 | A cached risk-free rate with its fetch timestamp. |
-| `FredService` | class | `(ServiceBase[ServiceConfig])` | 34 | Fetches the 10-year Treasury yield from FRED as a risk-free rate proxy. |
-| `.fetch_risk_free_rate` | async method | `() -> float` | 68 | Fetch 10-year Treasury yield as a decimal fraction (0.045 = 4.5%). |
-| `.close` | async method | `() -> None` | 91 | Close the httpx client. |
+| `CachedRate` | class | `(NamedTuple)` | 129 | A cached risk-free rate with its fetch timestamp. |
+| `FredService` | class | `(ServiceBase[ServiceConfig])` | 136 | Fetches the 10-year Treasury yield from FRED as a risk-free rate proxy. |
+| `.fetch_risk_free_rate` | async method | `() -> float` | 176 | Fetch 10-year Treasury yield as a decimal fraction (0.045 = 4.5%). |
+| `.fetch_macro_context` | async method | `() -> MacroContext` | 199 | Batch-fetch 8 FRED series and return a ``MacroContext`` snapshot. |
+| `.close` | async method | `() -> None` | 217 | Close the httpx client. |
 
 #### services/health.py
 
@@ -534,12 +560,11 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `.check_groq` | async method | `() -> HealthStatus` | 117 | Check Groq API availability by listing models. |
 | `.check_anthropic` | async method | `() -> HealthStatus` | 210 | Check Anthropic API availability by listing models. |
 | `.check_cboe` | async method | `() -> HealthStatus` | 306 | Check CBOE CSV download endpoint reachability with HTTP HEAD. |
-| `.check_openbb` | async method | `() -> HealthStatus` | 340 | Check OpenBB SDK availability via guarded import. |
-| `.check_intelligence` | async method | `() -> HealthStatus` | 379 | Check intelligence data availability via yfinance analyst price targets. |
-| `.check_cboe_chains` | async method | `() -> HealthStatus` | 410 | Test CBOE chain endpoint with a known ticker (AAPL). |
-| `.check_financial_datasets` | async method | `() -> HealthStatus` | 477 | Check Financial Datasets API health by fetching AAPL metrics. |
-| `.check_all` | async method | `() -> list[HealthStatus]` | 555 | Run all health checks concurrently. |
-| `.close` | async method | `() -> None` | 606 | Close the shared httpx client. |
+| `.check_intelligence` | async method | `() -> HealthStatus` | 340 | Check intelligence data availability via yfinance analyst price targets. |
+| `.check_cboe_chains` | async method | `() -> HealthStatus` | 371 | Test CBOE chain endpoint with a known ticker (AAPL). |
+| `.check_financial_datasets` | async method | `() -> HealthStatus` | 438 | Check Financial Datasets API health by fetching AAPL metrics. |
+| `.check_all` | async method | `() -> list[HealthStatus]` | 516 | Run all health checks concurrently. |
+| `.close` | async method | `() -> None` | 565 | Close the shared httpx client. |
 
 #### services/helpers.py
 
@@ -582,16 +607,6 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `.fetch_universe_data` | async method | `() -> UniverseData` | 642 | Fetch reference data for regime/macro indicators. |
 | `.fetch_batch_daily_changes` | async method | `(tickers: list[str]) -> list[BatchQuote]` | 771 | Fetch daily price changes for multiple tickers in concurrent chunks. |
 
-#### services/openbb_service.py
-
-| Symbol | Kind | Signature | Line | Description |
-|--------|------|-----------|------|-------------|
-| `OpenBBService` | class | `(ServiceBase[OpenBBConfig])` | 61 | Enrichment service wrapping the OpenBB Platform SDK. |
-| `.sdk_available` | property | `() -> bool` | 84 | Whether the OpenBB SDK is importable. |
-| `.fetch_fundamentals` | async method | `(ticker: str) -> FundamentalSnapshot | None` | 88 | Fetch fundamental metrics for a ticker. |
-| `.fetch_unusual_flow` | async method | `(ticker: str) -> UnusualFlowSnapshot | None` | 156 | Fetch unusual options/dark-pool flow data for a ticker. |
-| `.fetch_news_sentiment` | async method | `(ticker: str, limit: int = 10) -> NewsSentimentSnapshot | None` | 230 | Fetch recent news and compute VADER sentiment for a ticker. |
-
 #### services/options_data.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -602,10 +617,10 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `.fetch_chain` | async method | `(ticker: str, expiration: date) -> list[OptionContract]` | 281 | Fetch the option chain for a specific expiration date. |
 | `ExpirationChain` | model |  | 355 | Option contracts for a single expiration date. |
 | `OptionsDataService` | class | `(ServiceBase[ServiceConfig])` | 367 | Fetches option chains with provider orchestration and fallback. |
-| `.fetch_expirations` | async method | `(ticker: str) -> list[date]` | 474 | Fetch available option expiration dates for a ticker. |
-| `.fetch_chain` | async method | `(ticker: str, expiration: date) -> list[OptionContract]` | 524 | Fetch the option chain for a specific expiration date. |
-| `.fetch_chain_all_expirations` | async method | `(ticker: str) -> list[ExpirationChain]` | 657 | Fetch option chains for all available expirations concurrently. |
-| `.close` | async method | `() -> None` | 702 | Clean up resources. Closes all providers that have a ``close`` method. |
+| `.fetch_expirations` | async method | `(ticker: str) -> list[date]` | 475 | Fetch available option expiration dates for a ticker. |
+| `.fetch_chain` | async method | `(ticker: str, expiration: date) -> list[OptionContract]` | 525 | Fetch the option chain for a specific expiration date. |
+| `.fetch_chain_all_expirations` | async method | `(ticker: str) -> list[ExpirationChain]` | 660 | Fetch option chains for all available expirations concurrently. |
+| `.close` | async method | `() -> None` | 705 | Clean up resources. Closes all providers that have a ``close`` method. |
 
 #### services/outcome_collector.py
 
@@ -657,13 +672,22 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 ### 1.6 `scoring/` — Normalization, Composite, Contracts
 
+#### scoring/clustering.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `GreeksCentroid` | model | `frozen=True` | 80 | Centroid of a contract cluster in Greeks space. |
+| `ContractCluster` | model | `frozen=True` | 103 | A cluster of option contracts grouped by Greeks similarity. |
+| `ClusteringResult` | model | `frozen=True` | 119 | Result of Greeks-based contract clustering. |
+| `cluster_contracts_by_greeks` | func | `(contracts: list[OptionContract], n_clusters: int = 4) -> ClusteringResult` | 221 | Cluster option contracts by their Greeks using K-means. |
+
 #### scoring/composite.py
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `INDICATOR_WEIGHTS` | const | `dict[str, tuple[float, str]]` | 32 |  |
-| `composite_score` | func | `(signals: IndicatorSignals, active_indicators: set[str] | None = None) -> float` | 83 | Compute a weighted geometric mean composite score for a single ticker. |
-| `score_universe` | func | `(universe: dict[str, IndicatorSignals]) -> list[TickerScore]` | 132 | Score and rank an entire universe of tickers. |
+| `composite_score` | func | `(signals: IndicatorSignals, active_indicators: set[str] | None = None) -> float` | 86 | Compute a weighted geometric mean composite score for a single ticker. |
+| `score_universe` | func | `(universe: dict[str, IndicatorSignals]) -> list[TickerScore]` | 135 | Score and rank an entire universe of tickers. |
 
 #### scoring/contracts.py
 
@@ -680,11 +704,11 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `FAMILY_INDICATOR_MAP` | const | `dict[str, list[str]]` | 23 |  |
-| `DEFAULT_FAMILY_WEIGHTS` | const | `dict[str, float]` | 127 |  |
-| `REGIME_WEIGHT_PROFILES` | const | `dict[MarketRegime, dict[str, float]]` | 142 |  |
-| `compute_dimensional_scores` | func | `(signals: IndicatorSignals) -> DimensionalScores` | 191 | Compute 8 per-family sub-scores from IndicatorSignals. |
-| `apply_regime_weights` | func | `(scores: DimensionalScores, regime: MarketRegime | None = None, enable_regime_weights: bool = Fal...` | 226 | Compute weighted composite from dimensional scores. |
-| `compute_direction_signal` | func | `(signals: IndicatorSignals, direction: SignalDirection) -> DirectionSignal` | 278 | Compute continuous direction confidence via z-test on mean shift. |
+| `DEFAULT_FAMILY_WEIGHTS` | const | `dict[str, float]` | 133 |  |
+| `REGIME_WEIGHT_PROFILES` | const | `dict[MarketRegime, dict[str, float]]` | 148 |  |
+| `compute_dimensional_scores` | func | `(signals: IndicatorSignals) -> DimensionalScores` | 197 | Compute 8 per-family sub-scores from IndicatorSignals. |
+| `apply_regime_weights` | func | `(scores: DimensionalScores, regime: MarketRegime | None = None, enable_regime_weights: bool = Fal...` | 232 | Compute weighted composite from dimensional scores. |
+| `compute_direction_signal` | func | `(signals: IndicatorSignals, direction: SignalDirection) -> DirectionSignal` | 284 | Compute continuous direction confidence via z-test on mean shift. |
 
 #### scoring/direction.py
 
@@ -801,16 +825,16 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `.get_recent_scans` | async method | `(limit: int = 10) -> list[ScanRun]` | 137 | Get the N most recent ScanRuns, newest first. |
 | `.get_score_history` | async method | `(ticker: str, limit: int = 20) -> list[HistoryPoint]` | 206 | Get score history for a ticker across recent scans. |
 | `.get_trending_tickers` | async method | `(direction: str, min_scans: int = 3) -> list[TrendingTicker]` | 237 | Find tickers with consistent direction over consecutive recent scans. |
-| `.get_last_debate_dates` | async method | `(tickers: list[str]) -> dict[str, datetime]` | 323 | Get the most recent debate date for each ticker in a single query. |
+| `.get_last_debate_dates` | async method | `(tickers: list[str]) -> dict[str, datetime]` | 333 | Get the most recent debate date for each ticker in a single query. |
 
 #### data/_spreads.py
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `SpreadsMixin` | class | `(RepositoryBase)` | 29 | Spread recommendation CRUD operations. |
-| `.save_spread_recommendation` | async method | `(scan_run_id: int, ticker: str, spread: SpreadAnalysis, *, commit: bool = True) -> int` | 32 | Persist a SpreadAnalysis with all its legs. |
-| `.get_spread_recommendations` | async method | `(scan_run_id: int) -> list[SpreadAnalysis]` | 120 | Retrieve all spread analyses for a scan run. |
-| `.get_spread_for_ticker` | async method | `(scan_run_id: int, ticker: str) -> SpreadAnalysis | None` | 156 | Retrieve the spread analysis for a specific ticker in a scan run. |
+| `SpreadsMixin` | class | `(RepositoryBase)` | 30 | Spread recommendation CRUD operations. |
+| `.save_spread_recommendation` | async method | `(scan_run_id: int, ticker: str, spread: SpreadAnalysis, *, commit: bool = True) -> int` | 33 | Persist a SpreadAnalysis with all its legs. |
+| `.get_spread_recommendations` | async method | `(scan_run_id: int) -> list[SpreadAnalysis]` | 121 | Retrieve all spread analyses for a scan run. |
+| `.get_spread_for_ticker` | async method | `(scan_run_id: int, ticker: str) -> SpreadAnalysis | None` | 157 | Retrieve the spread analysis for a specific ticker in a scan run. |
 
 #### data/database.py
 
@@ -852,10 +876,11 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `_render_identity_block` | func | `(ctx: MarketContext) -> list[str]` | 392 | Shared identity fields for all domain-specific renderers. |
 | `render_trend_context` | func | `(ctx: MarketContext) -> str` | 430 | Render domain-specific context for the Trend agent. |
 | `render_volatility_context` | func | `(ctx: MarketContext) -> str` | 473 | Render domain-specific context for the Volatility agent. |
-| `render_flow_context` | func | `(ctx: MarketContext) -> str` | 586 | Render domain-specific context for the Flow agent. |
-| `render_fundamental_context` | func | `(ctx: MarketContext) -> str` | 636 | Render domain-specific context for the Fundamental agent. |
-| `render_context_block` | func | `(ctx: MarketContext, constraint_warnings: str | None = None) -> str` | 791 | Render MarketContext as flat key-value text for agent consumption. |
-| `compute_citation_density` | func | `(context_block: str, *texts: str) -> float` | 1125 | Compute fraction of context labels referenced in agent output text. |
+| `render_flow_context` | func | `(ctx: MarketContext) -> str` | 596 | Render domain-specific context for the Flow agent. |
+| `render_fundamental_context` | func | `(ctx: MarketContext) -> str` | 643 | Render domain-specific context for the Fundamental agent. |
+| `render_macro_context` | func | `(ctx: MarketContext) -> str | None` | 781 | Render macro-economic context for agent consumption. |
+| `render_context_block` | func | `(ctx: MarketContext, constraint_warnings: str | None = None) -> str` | 811 | Render MarketContext as flat key-value text for agent consumption. |
+| `compute_citation_density` | func | `(context_block: str, *texts: str) -> float` | 1116 | Compute fraction of context labels referenced in agent output text. |
 
 #### agents/bear.py
 
@@ -876,7 +901,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `check_contract_constraints` | func | `(contracts: list[OptionContract], filters: OptionsFilters) -> list[ContractConstraint]` | 45 | Check contracts against hard and soft constraint rules. |
-| `render_constraint_warnings` | func | `(violations: list[ContractConstraint]) -> str` | 148 | Render constraint violations as delimited text for agent prompt injection. |
+| `render_constraint_warnings` | func | `(violations: list[ContractConstraint]) -> str` | 149 | Render constraint violations as delimited text for agent prompt injection. |
 
 #### agents/contrarian_agent.py
 
@@ -896,8 +921,8 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `fundamental_dynamic_prompt` | async func | `(ctx: RunContext[DebateDeps]) -> str` | 36 | Return the fundamental system prompt, injecting bull/bear arguments if available. |
-| `clean_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: FundamentalThesis) -> FundamentalThesis` | 56 | Strip ``<think>`` tags from LLM output via shared helper. |
+| `fundamental_dynamic_prompt` | async func | `(ctx: RunContext[DebateDeps]) -> str` | 37 | Return the fundamental system prompt, injecting bull/bear arguments if available. |
+| `clean_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: FundamentalThesis) -> FundamentalThesis` | 61 | Strip ``<think>`` tags from LLM output via shared helper. |
 
 #### agents/model_config.py
 
@@ -909,18 +934,18 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `DebatePhase` | StrEnum |  | 95 | Phases of the AI debate pipeline, reported via progress callback. |
-| `should_debate` | func | `(ticker_score: TickerScore, config: DebateConfig) -> bool` | 109 | Return False if signal is too weak for meaningful AI debate. |
-| `build_market_context` | func | `(ticker_score: TickerScore, quote: Quote, ticker_info: TickerInfo, contracts: list[OptionContract...` | 120 | Map scan pipeline output to ``MarketContext`` for agent consumption. |
-| `classify_macd_signal` | func | `(macd_value: float | None) -> MacdSignal` | 545 | Classify a centered MACD value into a signal. |
-| `extract_agent_predictions` | func | `(debate_id: int, result: DebateResult, recommended_contract_id: int | None = None) -> list[AgentP...` | 771 | Extract per-agent predictions from a DebateResult for accuracy tracking. |
-| `AGENT_VOTE_WEIGHTS` | const | `VoteWeights` | 969 |  |
-| `compute_auto_tune_weights` | func | `(accuracy: list[AgentAccuracyReport]) -> VoteWeights` | 979 | Compute auto-tuned vote weights from agent accuracy data. |
-| `auto_tune_weights` | async func | `(repo: Repository, window_days: int = 90, dry_run: bool = False) -> list[AgentWeightsComparison]` | 1014 | Orchestrate end-to-end auto-tune: accuracy -> weights -> compare -> persist. |
-| `compute_agreement_score` | func | `(agent_directions: dict[str, SignalDirection]) -> float` | 1075 | Compute fraction of directional agents agreeing with the majority. |
-| `synthesize_verdict` | func | `(agent_outputs: dict[str, AgentResponse | FlowThesis ..., risk_assessment: RiskAssessment | None,...` | 1255 | Algorithmic verdict synthesis from all agent outputs. |
-| `run_debate` | async func | `(ticker_score: TickerScore, contracts: list[OptionContract], quote: Quote, ticker_info: TickerInf...` | 1408 | Run 6-agent debate protocol. Falls back to data-driven on failure — never raises. |
-| `effective_batch_ticker_delay` | func | `(config: DebateConfig) -> float` | 1685 | Return inter-ticker batch delay, auto-adjusted for Anthropic provider. |
+| `DebatePhase` | StrEnum |  | 93 | Phases of the AI debate pipeline, reported via progress callback. |
+| `should_debate` | func | `(ticker_score: TickerScore, config: DebateConfig) -> bool` | 107 | Return False if signal is too weak for meaningful AI debate. |
+| `build_market_context` | func | `(ticker_score: TickerScore, quote: Quote, ticker_info: TickerInfo, contracts: list[OptionContract...` | 118 | Map scan pipeline output to ``MarketContext`` for agent consumption. |
+| `classify_macd_signal` | func | `(macd_value: float | None) -> MacdSignal` | 504 | Classify a centered MACD value into a signal. |
+| `extract_agent_predictions` | func | `(debate_id: int, result: DebateResult, recommended_contract_id: int | None = None) -> list[AgentP...` | 730 | Extract per-agent predictions from a DebateResult for accuracy tracking. |
+| `AGENT_VOTE_WEIGHTS` | const | `VoteWeights` | 928 |  |
+| `compute_auto_tune_weights` | func | `(accuracy: list[AgentAccuracyReport]) -> VoteWeights` | 938 | Compute auto-tuned vote weights from agent accuracy data. |
+| `auto_tune_weights` | async func | `(repo: Repository, window_days: int = 90, dry_run: bool = False) -> list[AgentWeightsComparison]` | 973 | Orchestrate end-to-end auto-tune: accuracy -> weights -> compare -> persist. |
+| `compute_agreement_score` | func | `(agent_directions: dict[str, SignalDirection]) -> float` | 1034 | Compute fraction of directional agents agreeing with the majority. |
+| `synthesize_verdict` | func | `(agent_outputs: dict[str, AgentResponse | FlowThesis ..., risk_assessment: RiskAssessment | None,...` | 1214 | Algorithmic verdict synthesis from all agent outputs. |
+| `run_debate` | async func | `(ticker_score: TickerScore, contracts: list[OptionContract], quote: Quote, ticker_info: TickerInf...` | 1367 | Run 6-agent debate protocol. Falls back to data-driven on failure — never raises. |
+| `effective_batch_ticker_delay` | func | `(config: DebateConfig) -> float` | 1646 | Return inter-ticker batch delay, auto-adjusted for Anthropic provider. |
 
 #### agents/prompts/bear.py
 
@@ -974,8 +999,8 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `risk_dynamic_prompt` | async func | `(ctx: RunContext[DebateDeps]) -> str` | 35 | Return the expanded risk system prompt, injecting Phase 1 agent outputs. |
-| `clean_risk_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: RiskAssessment) -> RiskAssessment` | 90 | Strip ``<think>`` tags from RiskAssessment output via shared helper. |
+| `risk_dynamic_prompt` | async func | `(ctx: RunContext[DebateDeps]) -> str` | 36 | Return the expanded risk system prompt, injecting Phase 1 agent outputs. |
+| `clean_risk_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: RiskAssessment) -> RiskAssessment` | 95 | Strip ``<think>`` tags from RiskAssessment output via shared helper. |
 
 #### agents/trend_agent.py
 
@@ -1011,17 +1036,17 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `UniverseResult` | model |  | 33 | Phase 1 output: universe tickers + OHLCV data. |
-| `ScoringResult` | model |  | 58 | Phase 2 output: scored tickers + raw signals. |
-| `OptionsResult` | model |  | 79 | Phase 3 output: recommended contracts + risk-free rate. |
-| `ScanResult` | model |  | 100 | Final pipeline output combining all phases. |
+| `UniverseResult` | model |  | 34 | Phase 1 output: universe tickers + OHLCV data. |
+| `ScoringResult` | model |  | 59 | Phase 2 output: scored tickers + raw signals. |
+| `OptionsResult` | model |  | 80 | Phase 3 output: recommended contracts + risk-free rate. |
+| `ScanResult` | model |  | 111 | Final pipeline output combining all phases. |
 
 #### scan/phase_options.py
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `run_options_phase` | async func | `(scoring_result: ScoringResult, universe_result: UniverseResult, progress: ProgressCallback, *, f...` | 175 | Phase 3: Fetch options chains, compute Greeks, recommend contracts. |
-| `process_ticker_options` | async func | `(ticker_score: TickerScore, risk_free_rate: float, ohlcv_map: dict[str, list[OHLCV]], spx_close: ...` | 415 | Fetch chains + ticker info + earnings date for a single ticker. |
+| `run_options_phase` | async func | `(scoring_result: ScoringResult, universe_result: UniverseResult, progress: ProgressCallback, *, f...` | 176 | Phase 3: Fetch options chains, compute Greeks, recommend contracts. |
+| `process_ticker_options` | async func | `(ticker_score: TickerScore, risk_free_rate: float, ohlcv_map: dict[str, list[OHLCV]], spx_close: ...` | 452 | Fetch chains + ticker info + earnings date for a single ticker. |
 
 #### scan/phase_persist.py
 
@@ -1033,7 +1058,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `run_scoring_phase` | async func | `(universe_result: UniverseResult, progress: ProgressCallback, *, scan_config: ScanConfig, compute...` | 42 | Phase 2: Compute indicators, score universe, determine direction. |
+| `run_scoring_phase` | async func | `(universe_result: UniverseResult, progress: ProgressCallback, *, scan_config: ScanConfig, compute...` | 50 | Phase 2: Compute indicators, score universe, determine direction. |
 
 #### scan/phase_universe.py
 
@@ -1077,24 +1102,23 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `lifespan` | async func | `(app: FastAPI) -> AsyncGenerator[None]` | 49 | Create all services at startup, close them at shutdown. |
-| `create_app` | func | `() -> FastAPI` | 163 | Build and configure the FastAPI application. |
+| `lifespan` | async func | `(app: FastAPI) -> AsyncGenerator[None]` | 56 | Create all services at startup, close them at shutdown. |
+| `create_app` | func | `() -> FastAPI` | 182 | Build and configure the FastAPI application. |
 
 #### api/deps.py
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `get_repo` | func | `(request: Request) -> Repository` | 26 | Inject the typed CRUD repository. |
-| `get_market_data` | func | `(request: Request) -> MarketDataService` | 31 | Inject the market data service. |
-| `get_options_data` | func | `(request: Request) -> OptionsDataService` | 36 | Inject the options data service. |
-| `get_fred` | func | `(request: Request) -> FredService` | 41 | Inject the FRED service. |
-| `get_universe` | func | `(request: Request) -> UniverseService` | 46 | Inject the universe service. |
-| `get_settings` | func | `(request: Request) -> AppSettings` | 51 | Inject the application settings. |
-| `get_openbb` | func | `(request: Request) -> OpenBBService | None` | 56 | Inject the OpenBB enrichment service (``None`` when disabled). |
-| `get_intelligence` | func | `(request: Request) -> IntelligenceService | None` | 61 | Inject the intelligence service (``None`` when disabled). |
-| `get_financial_datasets` | func | `(request: Request) -> FinancialDatasetsService | None` | 66 | Inject the Financial Datasets service (``None`` when disabled or no API key). |
-| `get_operation_lock` | func | `(request: Request) -> asyncio.Lock` | 71 | Inject the global operation mutex. |
-| `get_outcome_collector` | func | `(request: Request) -> OutcomeCollector` | 76 | Inject the outcome collector service (created on-demand via DI). |
+| `get_repo` | func | `(request: Request) -> Repository` | 25 | Inject the typed CRUD repository. |
+| `get_market_data` | func | `(request: Request) -> MarketDataService` | 30 | Inject the market data service. |
+| `get_options_data` | func | `(request: Request) -> OptionsDataService` | 35 | Inject the options data service. |
+| `get_fred` | func | `(request: Request) -> FredService` | 40 | Inject the FRED service. |
+| `get_universe` | func | `(request: Request) -> UniverseService` | 45 | Inject the universe service. |
+| `get_settings` | func | `(request: Request) -> AppSettings` | 50 | Inject the application settings. |
+| `get_intelligence` | func | `(request: Request) -> IntelligenceService | None` | 55 | Inject the intelligence service (``None`` when disabled). |
+| `get_financial_datasets` | func | `(request: Request) -> FinancialDatasetsService | None` | 60 | Inject the Financial Datasets service (``None`` when disabled or no API key). |
+| `get_operation_lock` | func | `(request: Request) -> asyncio.Lock` | 65 | Inject the global operation mutex. |
+| `get_outcome_collector` | func | `(request: Request) -> OutcomeCollector` | 70 | Inject the outcome collector service (created on-demand via DI). |
 
 #### api/routes/analytics.py
 
@@ -1139,10 +1163,10 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `start_debate` | async func | `(request: Request, body: DebateRequest, settings: AppSettings = ..., repo: Repository = Depends(g...` | 278 | Start a single-ticker debate in the background. |
-| `start_batch_debate` | async func | `(request: Request, body: BatchDebateRequest, lock: asyncio.Lock = ..., settings: AppSettings = .....` | 574 | Start a batch debate for top N tickers from a scan. |
-| `list_debates` | async func | `(request: Request, repo: Repository = Depends(get_repo), ticker: str | None = Query(None), limit:...` | 632 | List past debate summaries. |
-| `get_debate` | async func | `(request: Request, debate_id: int, repo: Repository = Depends(get_repo)) -> DebateResultDetail` | 704 | Get full debate result by ID. |
+| `start_debate` | async func | `(request: Request, body: DebateRequest, settings: AppSettings = ..., repo: Repository = Depends(g...` | 250 | Start a single-ticker debate in the background. |
+| `start_batch_debate` | async func | `(request: Request, body: BatchDebateRequest, lock: asyncio.Lock = ..., settings: AppSettings = .....` | 524 | Start a batch debate for top N tickers from a scan. |
+| `list_debates` | async func | `(request: Request, repo: Repository = Depends(get_repo), ticker: str | None = Query(None), limit:...` | 582 | List past debate summaries. |
+| `get_debate` | async func | `(request: Request, debate_id: int, repo: Repository = Depends(get_repo)) -> DebateResultDetail` | 654 | Get full debate result by ID. |
 
 #### api/routes/export.py
 
@@ -1190,62 +1214,62 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `get_universe_stats` | async func | `(request: Request, universe: UniverseService = ...) -> UniverseStats` | 43 | Get universe statistics including ETF count. |
-| `refresh_universe` | async func | `(request: Request, universe: UniverseService = ...) -> UniverseStats` | 60 | Trigger a refresh of the universe data and return updated stats. |
-| `get_sectors` | async func | `(request: Request, universe: UniverseService = ...) -> list[SectorHierarchy]` | 78 | Return GICS sectors with nested industry groups and ticker counts. |
-| `get_preset_info` | async func | `(request: Request, universe: UniverseService = ..., repo: Repository = Depends(get_repo)) -> list...` | 136 | Return metadata for all 6 scan presets with estimated ticker counts. |
-| `get_metadata_stats` | async func | `(request: Request, repo: Repository = Depends(get_repo)) -> MetadataStats` | 302 | Return metadata coverage statistics. |
-| `start_index` | async func | `(request: Request, force: bool = Query(False), max_age: int = Query(30, ge=1), lock: asyncio.Lock...` | 318 | Trigger bulk metadata indexing as a background task. |
+| `get_universe_stats` | async func | `(request: Request, universe: UniverseService = ...) -> UniverseStats` | 46 | Get universe statistics including ETF count. |
+| `refresh_universe` | async func | `(request: Request, universe: UniverseService = ...) -> UniverseStats` | 63 | Trigger a refresh of the universe data and return updated stats. |
+| `get_sectors` | async func | `(request: Request, universe: UniverseService = ...) -> list[SectorHierarchy]` | 81 | Return GICS sectors with nested industry groups and ticker counts. |
+| `get_preset_info` | async func | `(request: Request, universe: UniverseService = ..., repo: Repository = Depends(get_repo)) -> list...` | 139 | Return metadata for all 6 scan presets with estimated ticker counts. |
+| `get_metadata_stats` | async func | `(request: Request, repo: Repository = Depends(get_repo)) -> MetadataStats` | 305 | Return metadata coverage statistics. |
+| `start_index` | async func | `(request: Request, force: bool = Query(False), max_age: int = Query(30, ge=1), lock: asyncio.Lock...` | 321 | Trigger bulk metadata indexing as a background task. |
 
 #### api/schemas.py
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `ScanRequest` | model |  | 42 | Request body for ``POST /api/scan``. |
-| `ScanStarted` | model |  | 293 | Response for ``POST /api/scan`` (202). |
-| `PaginatedResponse` | model |  | 299 | Generic paginated response wrapper. |
-| `TickerDetail` | model |  | 308 | Single ticker detail: score + recommended contracts. |
-| `SpreadLegDetail` | model |  | 334 | Individual leg in a spread strategy. |
-| `SpreadDetail` | model |  | 354 | Spread strategy recommendation with P&L analytics. |
-| `spread_detail_from_analysis` | func | `(analysis: SpreadAnalysis) -> SpreadDetail` | 375 | Convert a ``SpreadAnalysis`` model to an API ``SpreadDetail`` response. |
-| `DebateRequest` | model |  | 431 | Request body for ``POST /api/debate``. |
-| `DebateStarted` | model |  | 454 | Response for ``POST /api/debate`` (202). |
-| `DebateResultSummary` | model | `frozen=True` | 460 | Lightweight debate summary for list endpoint. |
-| `DebateResultDetail` | model |  | 491 | Full debate result returned by ``GET /api/debate/{id}``. |
-| `BatchDebateRequest` | model |  | 610 | Request body for ``POST /api/debate/batch``. |
-| `BatchDebateStarted` | model |  | 637 | Response for ``POST /api/debate/batch`` (202). |
-| `BatchTickerResult` | model |  | 644 | Per-ticker result summary in batch completion event. |
-| `ConfigResponse` | model |  | 669 | Read-only safe config values (no secrets). |
-| `CancelScanResponse` | model |  | 679 | Response for cancelling a scan. |
-| `SectorInfo` | model |  | 685 | Sector name with count of tickers in that sector. |
-| `IndustryGroupInfo` | model |  | 692 | Industry group with ticker count. |
-| `SectorHierarchy` | model |  | 699 | Sector with nested industry groups. |
-| `UniverseStats` | model |  | 707 | Universe statistics. |
-| `OperationStatus` | model |  | 720 | Response for ``GET /api/status`` — current system operation state. |
-| `OutcomeCollectionResult` | model |  | 728 | Response for ``POST /api/analytics/collect-outcomes`` (202). |
-| `MetadataStats` | model |  | 739 | Metadata coverage statistics. |
-| `IndexStarted` | model |  | 757 | Response for ``POST /api/universe/index`` (202). |
-| `PresetInfo` | model |  | 768 | Describes a scan preset for the frontend preset picker. |
-| `HeatmapTicker` | model | `frozen=True` | 782 | Single ticker entry for the S&P 500 heatmap treemap. |
+| `ScanRequest` | model |  | 41 | Request body for ``POST /api/scan``. |
+| `ScanStarted` | model |  | 292 | Response for ``POST /api/scan`` (202). |
+| `PaginatedResponse` | model |  | 298 | Generic paginated response wrapper. |
+| `TickerDetail` | model |  | 307 | Single ticker detail: score + recommended contracts. |
+| `SpreadLegDetail` | model |  | 333 | Individual leg in a spread strategy. |
+| `SpreadDetail` | model |  | 353 | Spread strategy recommendation with P&L analytics. |
+| `spread_detail_from_analysis` | func | `(analysis: SpreadAnalysis) -> SpreadDetail` | 374 | Convert a ``SpreadAnalysis`` model to an API ``SpreadDetail`` response. |
+| `DebateRequest` | model |  | 430 | Request body for ``POST /api/debate``. |
+| `DebateStarted` | model |  | 453 | Response for ``POST /api/debate`` (202). |
+| `DebateResultSummary` | model | `frozen=True` | 459 | Lightweight debate summary for list endpoint. |
+| `DebateResultDetail` | model |  | 490 | Full debate result returned by ``GET /api/debate/{id}``. |
+| `BatchDebateRequest` | model |  | 585 | Request body for ``POST /api/debate/batch``. |
+| `BatchDebateStarted` | model |  | 612 | Response for ``POST /api/debate/batch`` (202). |
+| `BatchTickerResult` | model |  | 619 | Per-ticker result summary in batch completion event. |
+| `ConfigResponse` | model |  | 644 | Read-only safe config values (no secrets). |
+| `CancelScanResponse` | model |  | 654 | Response for cancelling a scan. |
+| `SectorInfo` | model |  | 660 | Sector name with count of tickers in that sector. |
+| `IndustryGroupInfo` | model |  | 667 | Industry group with ticker count. |
+| `SectorHierarchy` | model |  | 674 | Sector with nested industry groups. |
+| `UniverseStats` | model |  | 682 | Universe statistics. |
+| `OperationStatus` | model |  | 695 | Response for ``GET /api/status`` — current system operation state. |
+| `OutcomeCollectionResult` | model |  | 703 | Response for ``POST /api/analytics/collect-outcomes`` (202). |
+| `MetadataStats` | model |  | 714 | Metadata coverage statistics. |
+| `IndexStarted` | model |  | 732 | Response for ``POST /api/universe/index`` (202). |
+| `PresetInfo` | model |  | 743 | Describes a scan preset for the frontend preset picker. |
+| `HeatmapTicker` | model | `frozen=True` | 757 | Single ticker entry for the S&P 500 heatmap treemap. |
 
 #### api/ws.py
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `WebSocketProgressBridge` | class |  | 47 | Bridges sync ``ProgressCallback`` to ``asyncio.Queue`` for WebSocket. |
-| `.complete` | method | `(scan_id: int, *, cancelled: bool, outcomes_collected: int = 0) -> None` | 62 | Signal scan completion. |
-| `.error` | method | `(message: str) -> None` | 73 | Signal an error event. |
-| `DebateProgressBridge` | class |  | 83 | Bridges ``DebateProgressCallback`` to ``asyncio.Queue`` for WebSocket. |
-| `.complete` | method | `(debate_id: int) -> None` | 99 | Signal debate completion. |
-| `.error` | method | `(message: str) -> None` | 103 | Signal an error event. |
-| `BatchProgressBridge` | class |  | 139 | Bridges batch debate progress to ``asyncio.Queue`` for WebSocket. |
-| `.agent_bridge` | method | `(ticker: str) -> _BatchAgentBridge` | 145 | Create a per-ticker agent progress bridge. |
-| `.batch_progress` | method | `(ticker: str, index: int, total: int, status: str) -> None` | 149 | Signal per-ticker batch progress. |
-| `.batch_complete` | method | `(results: Sequence[object]) -> None` | 161 | Signal batch completion with results. |
-| `.error` | method | `(message: str) -> None` | 168 | Signal an error event. |
-| `ws_scan` | async func | `(websocket: WebSocket, scan_id: int) -> None` | 179 | Stream scan progress events to the client. |
-| `ws_debate` | async func | `(websocket: WebSocket, debate_id: int) -> None` | 213 | Stream debate progress events to the client. |
-| `ws_batch` | async func | `(websocket: WebSocket, batch_id: int) -> None` | 247 | Stream batch debate progress events to the client. |
+| `.complete` | method | `(scan_id: int, *, cancelled: bool, outcomes_collected: int = 0) -> None` | 69 | Signal scan completion. |
+| `.error` | method | `(message: str) -> None` | 80 | Signal an error event. |
+| `DebateProgressBridge` | class |  | 90 | Bridges ``DebateProgressCallback`` to ``asyncio.Queue`` for WebSocket. |
+| `.complete` | method | `(debate_id: int) -> None` | 113 | Signal debate completion. |
+| `.error` | method | `(message: str) -> None` | 117 | Signal an error event. |
+| `BatchProgressBridge` | class |  | 160 | Bridges batch debate progress to ``asyncio.Queue`` for WebSocket. |
+| `.agent_bridge` | method | `(ticker: str) -> _BatchAgentBridge` | 173 | Create a per-ticker agent progress bridge. |
+| `.batch_progress` | method | `(ticker: str, index: int, total: int, status: str) -> None` | 177 | Signal per-ticker batch progress. |
+| `.batch_complete` | method | `(results: Sequence[object]) -> None` | 189 | Signal batch completion with results. |
+| `.error` | method | `(message: str) -> None` | 196 | Signal an error event. |
+| `ws_scan` | async func | `(websocket: WebSocket, scan_id: int) -> None` | 207 | Stream scan progress events to the client. |
+| `ws_debate` | async func | `(websocket: WebSocket, debate_id: int) -> None` | 241 | Stream debate progress events to the client. |
+| `ws_batch` | async func | `(websocket: WebSocket, batch_id: int) -> None` | 275 | Stream batch debate progress events to the client. |
 
 ---
 
@@ -1272,15 +1296,15 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `scan` | func | `(preset: ScanPreset = ..., top_n: int = ..., min_score: float | None = ..., sector: list[str] = ....` | 183 | Run the full scan pipeline: universe -> scoring -> options -> persist. |
-| `debate` | func | `(ticker: str | None = ..., batch: bool = ..., batch_limit: int = ..., history: bool = ..., fallba...` | 462 | Run AI debate on a scored ticker. |
-| `health` | func | `() -> None` | 1044 | Check external service availability. |
-| `refresh` | func | `() -> None` | 1087 | Force re-fetch CBOE universe and S&P 500 constituents. |
-| `list_tickers` | func | `(sector: str | None = ..., preset: ScanPreset = ...) -> None` | 1113 | Display tickers matching filters. |
-| `sectors` | func | `() -> None` | 1166 | List all 11 GICS sectors with S&P 500 ticker counts. |
-| `stats` | func | `() -> None` | 1209 | Show universe size, sector breakdown, S&P 500 count. |
-| `index` | func | `(force: bool = ..., concurrency: int = ..., max_age: int = ...) -> None` | 1245 | Bulk-index CBOE tickers to build metadata cache. |
-| `serve` | func | `(host: str = ..., port: int = ..., no_open: bool = ..., reload: bool = ...) -> None` | 1423 | Start the FastAPI web server and serve the Vue SPA. |
+| `scan` | func | `(preset: ScanPreset = ..., top_n: int = ..., min_score: float | None = ..., sector: list[str] = ....` | 182 | Run the full scan pipeline: universe -> scoring -> options -> persist. |
+| `debate` | func | `(ticker: str | None = ..., batch: bool = ..., batch_limit: int = ..., history: bool = ..., fallba...` | 461 | Run AI debate on a scored ticker. |
+| `health` | func | `() -> None` | 985 | Check external service availability. |
+| `refresh` | func | `() -> None` | 1028 | Force re-fetch CBOE universe and S&P 500 constituents. |
+| `list_tickers` | func | `(sector: str | None = ..., preset: ScanPreset = ...) -> None` | 1054 | Display tickers matching filters. |
+| `sectors` | func | `() -> None` | 1107 | List all 11 GICS sectors with S&P 500 ticker counts. |
+| `stats` | func | `() -> None` | 1150 | Show universe size, sector breakdown, S&P 500 count. |
+| `index` | func | `(force: bool = ..., concurrency: int = ..., max_age: int = ...) -> None` | 1186 | Bulk-index CBOE tickers to build metadata cache. |
+| `serve` | func | `(host: str = ..., port: int = ..., no_open: bool = ..., reload: bool = ...) -> None` | 1364 | Start the FastAPI web server and serve the Vue SPA. |
 
 #### cli/outcomes.py
 
@@ -1601,7 +1625,7 @@ Each row maps a source file to its test files and approximate test count.
 | Source File | Test File(s) | Tests |
 |------------|--------------|-------|
 | `models/_validators.py` | — | 0 |
-| `models/analysis.py` | `tests/unit/models/test_analysis.py` | 63 |
+| `models/analysis.py` | `tests/unit/models/test_analysis.py` | 58 |
 | `models/analytics.py` | `tests/unit/models/test_analytics.py` | 60 |
 | `models/audit.py` | — | 0 |
 | `models/config.py` | `tests/unit/models/test_config.py` | 112 |
@@ -1612,9 +1636,9 @@ Each row maps a source file to its test files and approximate test count.
 | `models/health.py` | `tests/unit/models/test_health.py` | 12 |
 | `models/history.py` | — | 0 |
 | `models/intelligence.py` | — | 0 |
+| `models/macro.py` | `tests/unit/models/test_macro.py` | 66 |
 | `models/market_data.py` | `tests/unit/models/test_market_data.py` | 53 |
 | `models/metadata.py` | `tests/unit/models/test_metadata.py` | 12 |
-| `models/openbb.py` | — | 0 |
 | `models/options.py` | `tests/unit/models/test_options.py` | 41 |
 | `models/scan.py` | `tests/unit/models/test_scan.py` | 31 |
 | `models/scan_delta.py` | — | 0 |
@@ -1629,13 +1653,16 @@ Each row maps a source file to its test files and approximate test count.
 | `indicators/flow_analytics.py` | `tests/unit/indicators/test_flow_analytics.py` | 42 |
 | `indicators/fundamental.py` | `tests/unit/indicators/test_fundamental.py` | 44 |
 | `indicators/hurst.py` | `tests/unit/indicators/test_hurst.py` | 16 |
-| `indicators/hv_estimators.py` | `tests/unit/indicators/test_hv_estimators.py` | 37 |
+| `indicators/hv_estimators.py` | `tests/unit/indicators/test_hv_estimators.py` | 17 |
 | `indicators/iv_analytics.py` | `tests/unit/indicators/test_iv_analytics.py` | 99 |
+| `indicators/macro.py` | `tests/unit/indicators/test_macro.py` | 23 |
 | `indicators/moving_averages.py` | `tests/unit/indicators/test_moving_averages.py` | 13 |
 | `indicators/options_specific.py` | `tests/unit/indicators/test_options_specific.py` | 34 |
 | `indicators/oscillators.py` | `tests/unit/indicators/test_oscillators.py` | 22 |
-| `indicators/regime.py` | `tests/unit/indicators/test_regime.py` | 50 |
+| `indicators/regime.py` | `tests/unit/indicators/test_regime.py` | 37 |
+| `indicators/regime_ml.py` | `tests/unit/indicators/test_regime_ml.py` | 29 |
 | `indicators/trend.py` | `tests/unit/indicators/test_trend.py` | 21 |
+| `indicators/vol_forecast.py` | `tests/unit/indicators/test_vol_forecast.py` | 29 |
 | `indicators/vol_surface.py` | `tests/unit/indicators/test_vol_surface.py` | 39 |
 | `indicators/volatility.py` | `tests/unit/indicators/test_volatility.py` | 18 |
 | `indicators/volume.py` | `tests/unit/indicators/test_volume.py` | 21 |
@@ -1664,7 +1691,6 @@ Each row maps a source file to its test files and approximate test count.
 | `services/helpers.py` | `tests/unit/services/test_helpers.py` | 38 |
 | `services/intelligence.py` | — | 0 |
 | `services/market_data.py` | `tests/unit/services/test_market_data.py` | 65 |
-| `services/openbb_service.py` | `tests/unit/services/test_openbb_service.py` | 51 |
 | `services/options_data.py` | `tests/unit/services/test_options_data.py` | 19 |
 | `services/outcome_collector.py` | `tests/unit/services/test_outcome_collector.py` | 38 |
 | `services/rate_limiter.py` | `tests/unit/services/test_rate_limiter.py` | 9 |
@@ -1674,6 +1700,7 @@ Each row maps a source file to its test files and approximate test count.
 
 | Source File | Test File(s) | Tests |
 |------------|--------------|-------|
+| `scoring/clustering.py` | `tests/unit/scoring/test_clustering.py` | 28 |
 | `scoring/composite.py` | `tests/unit/scoring/test_composite.py` | 19 |
 | `scoring/contracts.py` | `tests/unit/scoring/test_contracts.py` | 44 |
 | `scoring/dimensional.py` | `tests/unit/scoring/test_dimensional.py` | 51 |
@@ -1706,7 +1733,7 @@ Each row maps a source file to its test files and approximate test count.
 | `agents/flow_agent.py` | — | 0 |
 | `agents/fundamental_agent.py` | — | 0 |
 | `agents/model_config.py` | `tests/unit/agents/test_model_config.py` | 22 |
-| `agents/orchestrator.py` | `tests/unit/agents/test_orchestrator.py` | 60 |
+| `agents/orchestrator.py` | `tests/unit/agents/test_orchestrator.py` | 58 |
 | `agents/prompts/bear.py` | `tests/unit/agents/test_bear.py` | 14 |
 | `agents/prompts/bull.py` | `tests/unit/agents/test_bull.py` | 15 |
 | `agents/prompts/contrarian_agent.py` | — | 0 |
@@ -1775,15 +1802,15 @@ Each row maps a source file to its test files and approximate test count.
 | Module | Files | Public Symbols | Test Files | Tests |
 |--------|-------|----------------|------------|-------|
 | utils/ | 1 | 5 | 1 | 13 |
-| models/ | 20 | 132 | 12 | 567 |
-| indicators/ | 14 | 66 | 13 | 456 |
+| models/ | 20 | 134 | 13 | 628 |
+| indicators/ | 17 | 74 | 16 | 504 |
 | pricing/ | 6 | 20 | 5 | 187 |
-| services/ | 14 | 121 | 13 | 419 |
-| scoring/ | 6 | 31 | 6 | 242 |
+| services/ | 13 | 116 | 12 | 368 |
+| scoring/ | 7 | 35 | 7 | 270 |
 | data/ | 8 | 65 | 2 | 46 |
-| agents/ | 20 | 60 | 8 | 278 |
+| agents/ | 20 | 61 | 8 | 276 |
 | scan/ | 8 | 23 | 3 | 79 |
 | reporting/ | 1 | 2 | 1 | 10 |
-| api/ | 14 | 104 | 11 | 131 |
+| api/ | 14 | 103 | 11 | 131 |
 | cli/ | 6 | 39 | 3 | 27 |
-| **Total** | **118** | **668** | **78** | **2455** |
+| **Total** | **121** | **677** | **82** | **2539** |

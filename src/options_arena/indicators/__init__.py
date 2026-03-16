@@ -5,11 +5,7 @@ No API calls, no Pydantic models, no I/O.
 """
 
 from options_arena.indicators.hurst import hurst_exponent
-from options_arena.indicators.hv_estimators import (
-    compute_hv_parkinson,
-    compute_hv_rogers_satchell,
-    compute_hv_yang_zhang,
-)
+from options_arena.indicators.hv_estimators import compute_hv_yang_zhang
 from options_arena.indicators.macro import compute_macro_regime
 from options_arena.indicators.moving_averages import sma_alignment, vwap_deviation
 from options_arena.indicators.options_specific import (
@@ -29,7 +25,6 @@ from options_arena.indicators.regime_ml import (
 )
 from options_arena.indicators.trend import adx, macd, roc, supertrend
 from options_arena.indicators.vol_forecast import (
-    compute_egarch_forecast,
     compute_garch_forecast,
     test_stationarity,
 )
@@ -52,10 +47,7 @@ __all__ = [
     "adx",
     "atr_percent",
     "bb_width",
-    "compute_egarch_forecast",
     "compute_garch_forecast",
-    "compute_hv_parkinson",
-    "compute_hv_rogers_satchell",
     "compute_hv_yang_zhang",
     "classify_regime_ml",
     "compute_markov_regime",

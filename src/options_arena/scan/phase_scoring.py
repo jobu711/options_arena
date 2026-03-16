@@ -4,7 +4,7 @@ Extracted from ``ScanPipeline._phase_scoring()`` as a standalone async function.
 All config dependencies are passed as explicit parameters.
 
 Also provides ``_compute_ml_indicators()`` which enriches ``IndicatorSignals``
-with GARCH/EGARCH volatility forecasts and Markov-switching regime detection
+with GARCH volatility forecasts and Markov-switching regime detection
 when the corresponding ML feature flags are enabled on ``ScanConfig.ml``.
 """
 
@@ -180,7 +180,7 @@ async def run_scoring_phase(
 
 
 # ---------------------------------------------------------------------------
-# ML indicator computation (GARCH/EGARCH, Markov regime)
+# ML indicator computation (GARCH, Markov regime)
 # ---------------------------------------------------------------------------
 
 # Timeout for each ML computation (seconds). GARCH fitting is CPU-bound and
@@ -203,13 +203,13 @@ async def _compute_ml_indicators(
 ) -> None:
     """Enrich raw indicator signals with ML-based indicators.
 
-    Computes GARCH/EGARCH volatility forecasts and Markov-switching regime
+    Computes GARCH volatility forecasts and Markov-switching regime
     detection for each ticker when the corresponding feature flags are enabled.
     All computations run via ``asyncio.to_thread()`` with a 30-second timeout
     since ``arch`` and ``statsmodels`` are synchronous and CPU-bound.
 
     Mutates ``raw_signals`` in place — sets ``vol_forecast_garch``,
-    ``vol_forecast_egarch``, ``iv_vs_forecast_spread``, ``regime_markov_label``,
+    ``iv_vs_forecast_spread``, ``regime_markov_label``,
     and ``regime_transition_prob`` on each ticker's ``IndicatorSignals``.
 
     Args:
@@ -267,16 +267,13 @@ async def _compute_garch_for_ticker(
     returns_series: pd.Series,
     ml_config: MLConfig,
 ) -> None:
-    """Compute GARCH and EGARCH forecasts for a single ticker.
+    """Compute GARCH forecast for a single ticker.
 
     Uses ``asyncio.to_thread()`` + ``wait_for(timeout=30)`` since ``arch``
     model fitting is synchronous and CPU-bound. On timeout or failure, the
     fields remain ``None`` (graceful degradation).
     """
-    from options_arena.indicators.vol_forecast import (
-        compute_egarch_forecast,
-        compute_garch_forecast,
-    )
+    from options_arena.indicators.vol_forecast import compute_garch_forecast
 
     # GARCH(p,q) forecast
     try:
@@ -307,25 +304,6 @@ async def _compute_garch_for_ticker(
         logger.warning("GARCH forecast timed out (%.0fs)", _ML_COMPUTATION_TIMEOUT)
     except Exception:
         logger.warning("GARCH forecast failed", exc_info=True)
-
-    # EGARCH(p,o,q) forecast
-    try:
-        egarch_vol: float | None = await asyncio.wait_for(
-            asyncio.to_thread(
-                compute_egarch_forecast,
-                returns_series,
-                ml_config.garch_p,
-                1,  # o (leverage order) fixed at 1
-                ml_config.garch_q,
-            ),
-            timeout=_ML_COMPUTATION_TIMEOUT,
-        )
-        if egarch_vol is not None and math.isfinite(egarch_vol):
-            signals.vol_forecast_egarch = egarch_vol
-    except TimeoutError:
-        logger.warning("EGARCH forecast timed out (%.0fs)", _ML_COMPUTATION_TIMEOUT)
-    except Exception:
-        logger.warning("EGARCH forecast failed", exc_info=True)
 
 
 def _compute_ml_regime_classifications(

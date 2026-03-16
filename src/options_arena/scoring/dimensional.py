@@ -58,7 +58,6 @@ FAMILY_INDICATOR_MAP: dict[str, list[str]] = {
         "surface_fit_r2",
         "surface_is_1d",
         "vol_forecast_garch",
-        "vol_forecast_egarch",
         "iv_vs_forecast_spread",
     ],
     "hv_vol": [

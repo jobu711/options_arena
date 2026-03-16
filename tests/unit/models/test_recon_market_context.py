@@ -391,20 +391,7 @@ class TestExistingRatiosUnchanged:
         # 13 of 13 checkable fields populated (no contract_mid, so no Greeks)
         assert ctx.completeness_ratio() == pytest.approx(1.0)
 
-    def test_enrichment_ratio_still_works_with_openbb_fields(self) -> None:
-        """Verify enrichment_ratio still works correctly with its existing fields."""
-        ctx = _make_ctx(
-            pe_ratio=25.0,
-            forward_pe=22.0,
-            peg_ratio=1.5,
-            price_to_book=5.0,
-            debt_to_equity=0.8,
-            revenue_growth=0.15,
-            profit_margin=0.22,
-            net_call_premium=1_000_000.0,
-            net_put_premium=500_000.0,
-            options_put_call_ratio=0.75,
-            news_sentiment=0.3,
-        )
-        # 11 of 11 enrichment fields populated
-        assert ctx.enrichment_ratio() == pytest.approx(1.0)
+    def test_enrichment_ratio_returns_zero(self) -> None:
+        """Verify enrichment_ratio returns 0.0 (OpenBB fields removed)."""
+        ctx = _make_ctx()
+        assert ctx.enrichment_ratio() == pytest.approx(0.0)

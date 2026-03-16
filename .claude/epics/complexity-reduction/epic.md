@@ -1,8 +1,10 @@
 ---
 name: complexity-reduction
-status: backlog
+status: completed
 created: 2026-03-16T16:59:52Z
-progress: 0%
+updated: 2026-03-16T22:00:00Z
+completed: 2026-03-16T22:00:00Z
+progress: 100%
 prd: .claude/prds/complexity-reduction.md
 github: https://github.com/jobu711/options_arena/issues/545
 ---
@@ -75,10 +77,10 @@ Remove OpenBB from orchestrator, API, CLI, and agent parsing.
 
 ## Task Breakdown Preview
 
-- [ ] Task 1: Remove dead indicator functions + scoring/scan pipeline references + associated tests
-- [ ] Task 2: Delete OpenBB models + service, slim config, remove MarketContext fields, clean exports + health check + enums + associated tests
-- [ ] Task 3: Clean integration points — orchestrator, API, CLI, agent parsing + associated tests
-- [ ] Task 4: Remove `vaderSentiment` dependency + final verification (ruff, mypy, full test suite)
+- [x] Task 1: Remove dead indicator functions + scoring/scan pipeline references + associated tests
+- [x] Task 2: Delete OpenBB models + service, slim config, remove MarketContext fields, clean exports + health check + enums + associated tests
+- [x] Task 3: Clean integration points — orchestrator, API, CLI, agent parsing + associated tests
+- [x] Task 4: Remove `vaderSentiment` dependency + final verification (ruff, mypy, full test suite)
 
 ## Dependencies
 
@@ -105,10 +107,10 @@ Remove OpenBB from orchestrator, API, CLI, and agent parsing.
 
 ## Tasks Created
 
-- [ ] #546 - Remove dead indicator functions and pipeline references (parallel: false)
-- [ ] #547 - Delete OpenBB models, service, slim config, and clean MarketContext (parallel: false, depends: #546)
-- [ ] #548 - Clean integration points — orchestrator, API, CLI, agent parsing (parallel: false, depends: #547)
-- [ ] #549 - Remove vaderSentiment dependency and final verification (parallel: false, depends: #548)
+- [x] #546 - Remove dead indicator functions and pipeline references (parallel: false)
+- [x] #547 - Delete OpenBB models, service, slim config, and clean MarketContext (parallel: false, depends: #546)
+- [x] #548 - Clean integration points — orchestrator, API, CLI, agent parsing (parallel: false, depends: #547)
+- [x] #549 - Remove vaderSentiment dependency and final verification (parallel: false, depends: #548)
 
 Total tasks: 4
 Parallel tasks: 0

@@ -28,7 +28,6 @@ from options_arena.services.financial_datasets import FinancialDatasetsService
 from options_arena.services.fred import FredService
 from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.market_data import MarketDataService
-from options_arena.services.openbb_service import OpenBBService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.outcome_collector import OutcomeCollector
 from options_arena.services.rate_limiter import RateLimiter
@@ -94,12 +93,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         universe = UniverseService(settings.service, cache, rate_limiter)
         _closeable.append(universe)
 
-        # OpenBB enrichment service — created only when enabled in config
-        openbb_svc: OpenBBService | None = None
-        if settings.openbb.enabled:
-            openbb_svc = OpenBBService(settings.openbb, cache, rate_limiter)
-            _closeable.append(openbb_svc)
-
         # Intelligence service — created only when enabled in config
         intelligence_svc: IntelligenceService | None = None
         if settings.intelligence.enabled:
@@ -134,7 +127,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.options_data = options_data
     app.state.fred = fred
     app.state.universe = universe
-    app.state.openbb = openbb_svc
     app.state.intelligence = intelligence_svc
     app.state.financial_datasets = fd_svc
     app.state.operation_lock = asyncio.Lock()
@@ -178,8 +170,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         await fd_svc.close()
     if intelligence_svc is not None:
         await intelligence_svc.close()
-    if openbb_svc is not None:
-        await openbb_svc.close()
     await market_data.close()
     await options_data.close()
     await fred.close()

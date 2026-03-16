@@ -1,7 +1,8 @@
-"""GARCH/EGARCH volatility forecasting + ADF stationarity testing.
+"""GARCH volatility forecasting + ADF stationarity testing.
 
-Uses ``arch`` library for GARCH(1,1) and EGARCH(1,1,1) h-step-ahead volatility
-forecasts, with ``statsmodels`` ADF test as a stationarity gate.
+Uses ``arch`` library for GARCH(1,1) h-step-ahead volatility forecasts,
+with ``statsmodels`` ADF test as a stationarity gate. GARCH is the sole
+parametric volatility forecaster.
 
 Rules:
 - Takes pandas Series inputs, returns float | None or tuple.
@@ -29,9 +30,6 @@ _ADF_P_VALUE_THRESHOLD: float = 0.05
 
 # Trading days per year for annualization
 _TRADING_DAYS: int = 252
-
-# Number of simulation paths for EGARCH multi-step forecasts
-_EGARCH_SIMULATIONS: int = 1000
 
 
 def _get_arch() -> Any:  # noqa: ANN401
@@ -165,89 +163,4 @@ def compute_garch_forecast(
 
     except Exception:
         logger.warning("GARCH forecast computation failed", exc_info=True)
-        return None
-
-
-def compute_egarch_forecast(
-    returns: pd.Series,
-    p: int = 1,
-    o: int = 1,
-    q: int = 1,
-    horizon: int = 1,
-) -> float | None:
-    """EGARCH(p,o,q) h-step-ahead volatility forecast.
-
-    Fits an EGARCH model that captures volatility asymmetry (leverage effect):
-    negative shocks typically increase volatility more than positive shocks.
-
-    Reference: Nelson, D.B. (1991) "Conditional Heteroskedasticity in Asset
-    Returns: A New Approach", Econometrica, 59(2), 347-370.
-
-    Args:
-        returns: Daily percentage log returns (i.e., log(P_t/P_{t-1}) * 100).
-            Requires at least 252 observations.
-        p: GARCH lag order for log conditional variance (default 1).
-        o: Leverage/asymmetry order (default 1). Captures the "o" parameter
-            in the EGARCH specification.
-        q: ARCH lag order for standardized residuals (default 1).
-        horizon: Forecast horizon in trading days (default 1).
-
-    Returns:
-        Annualized volatility forecast as float, or ``None`` if insufficient
-        data, convergence failure, non-stationarity, or missing arch library.
-    """
-    arch_mod = _get_arch()
-    if arch_mod is None:
-        return None
-
-    clean = returns.dropna()
-    if len(clean) < _MIN_OBSERVATIONS:
-        return None
-
-    # Stationarity gate: EGARCH requires stationary returns
-    stationarity = test_stationarity(clean)
-    if stationarity is not None and not stationarity[0]:
-        logger.debug("EGARCH skipped: returns are non-stationary (p=%.4f)", stationarity[1])
-        return None
-
-    try:
-        model = arch_mod.arch_model(clean, vol="EGARCH", p=p, o=o, q=q)
-        res = model.fit(disp="off")
-
-        # Check convergence: flag != 0 means failure
-        if res.convergence_flag != 0:
-            logger.debug("EGARCH convergence failed (flag=%d)", res.convergence_flag)
-            return None
-
-        # Forecast variance h steps ahead
-        # EGARCH does not support analytic multi-step forecasts (arch library
-        # raises ValueError for horizon > 1 with analytic method). Use
-        # simulation-based forecasting for horizon > 1, analytic for horizon == 1.
-        if horizon > 1:
-            forecasts = res.forecast(
-                horizon=horizon,
-                method="simulation",
-                simulations=_EGARCH_SIMULATIONS,
-            )
-        else:
-            forecasts = res.forecast(horizon=horizon)
-        variance_df = forecasts.variance
-
-        # Last row contains the h-step forecasts; take the furthest horizon column
-        last_row = variance_df.iloc[-1]
-        forecast_variance = float(last_row.iloc[-1])
-
-        if not math.isfinite(forecast_variance) or forecast_variance <= 0.0:
-            return None
-
-        # Convert from percentage returns variance to decimal and annualize
-        annualized_vol = math.sqrt(forecast_variance / 10000.0 * _TRADING_DAYS)
-
-        if not math.isfinite(annualized_vol) or annualized_vol <= 0.0:
-            return None
-
-        return annualized_vol
-
-    except Exception:
-        logger.warning("EGARCH forecast computation failed", exc_info=True)
         return None

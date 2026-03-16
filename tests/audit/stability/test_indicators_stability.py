@@ -1,8 +1,8 @@
 """Stability tests for indicator functions: Hypothesis + extreme inputs + NaN injection.
 
 Covers oscillators (3), trend (7), volatility (3), volume (3), moving averages (2),
-iv_analytics (13), regime (7), options_specific (6), flow_analytics (5),
-hv_estimators (3), and vol_surface (2).
+iv_analytics (13), regime (6), options_specific (6), flow_analytics (5),
+hv_estimators (1), and vol_surface (2).
 Every function produces finite output for valid inputs OR raises InsufficientDataError /
 ValueError. NaN in input propagates cleanly (no silent corruption of non-NaN values).
 """
@@ -23,8 +23,6 @@ from options_arena.indicators.flow_analytics import (
     compute_unusual_activity,
 )
 from options_arena.indicators.hv_estimators import (
-    compute_hv_parkinson,
-    compute_hv_rogers_satchell,
     compute_hv_yang_zhang,
 )
 from options_arena.indicators.iv_analytics import (
@@ -53,7 +51,6 @@ from options_arena.indicators.options_specific import (
 )
 from options_arena.indicators.oscillators import rsi, stoch_rsi, williams_r
 from options_arena.indicators.regime import (
-    classify_market_regime,
     compute_correlation_regime_shift,
     compute_risk_on_off,
     compute_rs_vs_spx,
@@ -77,7 +74,7 @@ from options_arena.indicators.vol_surface import (
 )
 from options_arena.indicators.volatility import atr_percent, bb_width, keltner_width
 from options_arena.indicators.volume import ad_trend, obv_trend, relative_volume
-from options_arena.models.enums import IVTermStructureShape, MarketRegime, OptionType, VolRegime
+from options_arena.models.enums import IVTermStructureShape, OptionType, VolRegime
 from options_arena.utils.exceptions import InsufficientDataError
 
 # ---------------------------------------------------------------------------
@@ -1177,37 +1174,8 @@ class TestComputeExpectedMoveRatioStability:
 
 
 # ===========================================================================
-# Regime Stability (7 functions)
+# Regime Stability (6 functions)
 # ===========================================================================
-
-
-class TestClassifyMarketRegimeStability:
-    """Stability tests for classify_market_regime."""
-
-    @pytest.mark.audit_stability
-    def test_crisis_regime(self) -> None:
-        """VIX >= 35 produces CRISIS."""
-        assert classify_market_regime(40.0, 25.0, 0.0, 0.0) == MarketRegime.CRISIS
-
-    @pytest.mark.audit_stability
-    def test_volatile_regime(self) -> None:
-        """VIX significantly above SMA produces VOLATILE."""
-        assert classify_market_regime(30.0, 20.0, 0.0, 0.0) == MarketRegime.VOLATILE
-
-    @pytest.mark.audit_stability
-    def test_trending_regime(self) -> None:
-        """Strong directional SPX produces TRENDING."""
-        assert classify_market_regime(18.0, 17.0, 0.05, 0.1) == MarketRegime.TRENDING
-
-    @pytest.mark.audit_stability
-    def test_mean_reverting_regime(self) -> None:
-        """Default case produces MEAN_REVERTING."""
-        assert classify_market_regime(15.0, 16.0, 0.01, 0.0) == MarketRegime.MEAN_REVERTING
-
-    @pytest.mark.audit_stability
-    def test_market_regime_nan(self) -> None:
-        """NaN inputs produce MEAN_REVERTING (safe default)."""
-        assert classify_market_regime(float("nan"), 20.0, 0.0, 0.0) == MarketRegime.MEAN_REVERTING
 
 
 class TestComputeVixTermStructureStability:
@@ -1711,69 +1679,8 @@ class TestComputeDollarVolumeTrendStability:
 
 
 # ===========================================================================
-# HV Estimators Stability (3 functions)
+# HV Estimators Stability (1 function)
 # ===========================================================================
-
-
-class TestComputeHVParkinsonStability:
-    """Stability tests for compute_hv_parkinson."""
-
-    @pytest.mark.audit_stability
-    def test_hv_parkinson_valid(self) -> None:
-        """Valid OHLC data produces finite non-negative result."""
-        df = _make_ohlcv_df(30)
-        result = compute_hv_parkinson(df["high"], df["low"])
-        assert result is not None
-        assert math.isfinite(result)
-        assert result >= 0.0
-
-    @pytest.mark.audit_stability
-    def test_hv_parkinson_insufficient(self) -> None:
-        """Short series returns None."""
-        high = pd.Series([101.0] * 10)
-        low = pd.Series([99.0] * 10)
-        assert compute_hv_parkinson(high, low) is None
-
-    @pytest.mark.audit_stability
-    def test_hv_parkinson_flat(self) -> None:
-        """Flat data (high == low) produces zero vol."""
-        n = 25
-        prices = pd.Series([100.0] * n)
-        result = compute_hv_parkinson(prices, prices)
-        assert result is not None
-        assert result == pytest.approx(0.0, abs=1e-10)
-
-    @pytest.mark.audit_stability
-    def test_hv_parkinson_mismatched(self) -> None:
-        """Mismatched lengths raise ValueError."""
-        with pytest.raises(ValueError):
-            compute_hv_parkinson(pd.Series([101.0] * 25), pd.Series([99.0] * 26))
-
-
-class TestComputeHVRogersSatchellStability:
-    """Stability tests for compute_hv_rogers_satchell."""
-
-    @pytest.mark.audit_stability
-    def test_hv_rogers_satchell_valid(self) -> None:
-        """Valid OHLC data produces finite non-negative result."""
-        df = _make_ohlcv_df(30)
-        result = compute_hv_rogers_satchell(df["open"], df["high"], df["low"], df["close"])
-        assert result is not None
-        assert math.isfinite(result)
-        assert result >= 0.0
-
-    @pytest.mark.audit_stability
-    def test_hv_rogers_satchell_insufficient(self) -> None:
-        """Short series returns None."""
-        s = pd.Series([100.0] * 10)
-        assert compute_hv_rogers_satchell(s, s, s, s) is None
-
-    @pytest.mark.audit_stability
-    def test_hv_rogers_satchell_mismatched(self) -> None:
-        """Mismatched lengths raise ValueError."""
-        s = pd.Series([100.0] * 25)
-        with pytest.raises(ValueError):
-            compute_hv_rogers_satchell(s, s, s, pd.Series([100.0] * 26))
 
 
 class TestComputeHVYangZhangStability:

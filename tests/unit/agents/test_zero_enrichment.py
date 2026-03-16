@@ -119,19 +119,6 @@ class TestContextBlockEnrichmentNote:
         assert "Enrichment data not available" in text
         assert "scan-derived indicators" in text
 
-    def test_context_block_no_note_with_enrichment(
-        self,
-        mock_market_context: MarketContext,
-    ) -> None:
-        """Context block omits note when enrichment data present."""
-        # Set some enrichment fields to make enrichment_ratio > 0
-        mock_market_context.pe_ratio = 28.5
-        mock_market_context.forward_pe = 25.0
-        mock_market_context.profit_margin = 0.26
-        assert mock_market_context.enrichment_ratio() > 0.0
-        text = render_context_block(mock_market_context)
-        assert "Enrichment data not available" not in text
-
 
 # ---------------------------------------------------------------------------
 # Agreement score — 6 agents

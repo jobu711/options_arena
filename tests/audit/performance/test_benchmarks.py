@@ -1,4 +1,4 @@
-"""Performance benchmarks for all 87 mathematical functions.
+"""Performance benchmarks for all 84 mathematical functions.
 
 pytest-benchmark tests grouped by module:
 - Pricing (14): BSM price/greeks/vega/iv/second_order, BAW price/greeks/iv/second_order,
@@ -717,45 +717,13 @@ class TestIVAnalyticsBenchmarks:
 
 
 # ===========================================================================
-# Indicator Benchmarks — HV Estimators (3 functions)
+# Indicator Benchmarks — HV Estimators (1 function)
 # ===========================================================================
 
 
 @pytest.mark.audit_performance
 class TestHVEstimatorBenchmarks:
     """Historical volatility estimator benchmarks."""
-
-    @pytest.mark.benchmark(group="indicators")
-    def test_compute_hv_parkinson(
-        self,
-        benchmark: BenchmarkFixture,
-        sample_high_series: pd.Series,
-        sample_low_series: pd.Series,
-    ) -> None:
-        """Benchmark Parkinson HV estimator."""
-        from options_arena.indicators.hv_estimators import compute_hv_parkinson
-
-        benchmark(compute_hv_parkinson, sample_high_series, sample_low_series)
-
-    @pytest.mark.benchmark(group="indicators")
-    def test_compute_hv_rogers_satchell(
-        self,
-        benchmark: BenchmarkFixture,
-        sample_open_series: pd.Series,
-        sample_high_series: pd.Series,
-        sample_low_series: pd.Series,
-        sample_close_series: pd.Series,
-    ) -> None:
-        """Benchmark Rogers-Satchell HV estimator."""
-        from options_arena.indicators.hv_estimators import compute_hv_rogers_satchell
-
-        benchmark(
-            compute_hv_rogers_satchell,
-            sample_open_series,
-            sample_high_series,
-            sample_low_series,
-            sample_close_series,
-        )
 
     @pytest.mark.benchmark(group="indicators")
     def test_compute_hv_yang_zhang(
@@ -837,20 +805,13 @@ class TestFlowAnalyticsBenchmarks:
 
 
 # ===========================================================================
-# Indicator Benchmarks — Regime (7 functions)
+# Indicator Benchmarks — Regime (6 functions)
 # ===========================================================================
 
 
 @pytest.mark.audit_performance
 class TestRegimeBenchmarks:
     """Regime and macro indicator benchmarks."""
-
-    @pytest.mark.benchmark(group="indicators")
-    def test_classify_market_regime(self, benchmark: BenchmarkFixture) -> None:
-        """Benchmark market regime classification."""
-        from options_arena.indicators.regime import classify_market_regime
-
-        benchmark(classify_market_regime, 22.0, 20.0, 0.04, 0.5)
 
     @pytest.mark.benchmark(group="indicators")
     def test_compute_vix_term_structure(self, benchmark: BenchmarkFixture) -> None:

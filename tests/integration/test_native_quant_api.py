@@ -181,18 +181,6 @@ class TestSchemaBackwardCompatibility:
         assert detail.smile_curvature is None
         assert detail.prob_above_current is None
 
-    def test_existing_openbb_fields_unaffected(self) -> None:
-        """Existing OpenBB enrichment fields still work alongside native-quant."""
-        detail = _make_debate_detail(
-            pe_ratio=25.0,
-            forward_pe=22.0,
-            enrichment_ratio=0.6,
-            hv_yang_zhang=0.25,
-        )
-        assert detail.pe_ratio == pytest.approx(25.0, rel=1e-6)
-        assert detail.forward_pe == pytest.approx(22.0, rel=1e-6)
-        assert detail.enrichment_ratio == pytest.approx(0.6, rel=1e-6)
-        assert detail.hv_yang_zhang == pytest.approx(0.25, rel=1e-6)
 
 
 # ---------------------------------------------------------------------------

@@ -137,7 +137,6 @@ class TestNoData:
         ctx = _make_context(
             iv_rank=45.0,
             adx=28.0,
-            pe_ratio=18.5,
         )
         result = render_macro_context(ctx)
         assert result is None

@@ -1,7 +1,8 @@
-"""Historical volatility estimators: Parkinson, Rogers-Satchell, Yang-Zhang.
+"""Historical volatility estimator: Yang-Zhang.
 
-Three range-based volatility estimators that use OHLC data for more efficient
-volatility estimation than the standard close-to-close method.
+Yang-Zhang is the sole OHLC historical volatility estimator. It mathematically
+subsumes Parkinson (range-based) and Rogers-Satchell (drift-aware) by combining
+overnight variance, close-to-open variance, and Rogers-Satchell variance.
 
 Rules:
 - Takes pandas Series inputs, returns float | None.
@@ -20,131 +21,6 @@ from options_arena.indicators._validation import validate_aligned
 
 # Trading days per year for annualization
 _TRADING_DAYS: int = 252
-
-
-def compute_hv_parkinson(
-    high: pd.Series,
-    low: pd.Series,
-    period: int = 20,
-) -> float | None:
-    """Parkinson (1980) historical volatility estimator using high-low range.
-
-    More efficient than close-to-close because it captures intraday range
-    information. Assumes no drift and continuous trading (no overnight gaps).
-
-    Formula:
-        sigma^2 = (1 / (4 * n * ln(2))) * Sum[ln(H_i / L_i)]^2
-        Annualized sigma = sqrt(sigma^2 * 252)
-
-    Reference: Parkinson, M. (1980) "The Extreme Value Method for Estimating
-    the Variance of the Rate of Return", Journal of Business, 53(1), 61-65.
-
-    Args:
-        high: Daily high prices. Requires at least ``period + 1`` data points.
-        low: Daily low prices. Must have same length as ``high``.
-        period: Lookback window (default 20 trading days).
-
-    Returns:
-        Annualized Parkinson volatility, or ``None`` if insufficient data
-        or non-finite result.
-
-    Raises:
-        ValueError: If ``high`` and ``low`` have mismatched lengths.
-    """
-    validate_aligned(high, low)
-
-    if len(high) < period + 1:
-        return None
-
-    # Use the last `period` bars
-    h: np.ndarray = high.iloc[-period:].to_numpy(dtype=float)
-    l: np.ndarray = low.iloc[-period:].to_numpy(dtype=float)  # noqa: E741
-
-    # Guard: high and low must be positive for log
-    if np.any(h <= 0.0) or np.any(l <= 0.0):
-        return None
-
-    # Guard: high must be >= low (allow equality for flat bars)
-    if np.any(h < l):
-        return None
-
-    hl_ratio: np.ndarray = h / l
-    # Guard: division-by-zero already excluded by l > 0 check above
-
-    log_hl: np.ndarray = np.log(hl_ratio)
-    n: int = period
-
-    # Parkinson variance: (1 / (4 * n * ln(2))) * sum(ln(H/L)^2)
-    variance: float = float(np.sum(log_hl**2)) / (4.0 * n * math.log(2.0))
-
-    if not math.isfinite(variance) or variance < 0.0:
-        return None
-
-    annualized: float = math.sqrt(variance * _TRADING_DAYS)
-    return annualized if math.isfinite(annualized) else None
-
-
-def compute_hv_rogers_satchell(
-    open_: pd.Series,
-    high: pd.Series,
-    low: pd.Series,
-    close: pd.Series,
-    period: int = 20,
-) -> float | None:
-    """Rogers-Satchell (1991) historical volatility estimator.
-
-    Accounts for non-zero drift (trending markets), unlike Parkinson.
-    Uses all four OHLC prices for maximum information extraction.
-
-    Formula:
-        sigma^2 = (1/n) * Sum[ln(H/C)*ln(H/O) + ln(L/C)*ln(L/O)]
-        Annualized sigma = sqrt(sigma^2 * 252)
-
-    Reference: Rogers, L.C.G. & Satchell, S.E. (1991) "Estimating Variance
-    from High, Low and Closing Prices", Annals of Applied Probability, 1(4).
-
-    Args:
-        open_: Daily open prices.
-        high: Daily high prices.
-        low: Daily low prices.
-        close: Daily close prices.
-        period: Lookback window (default 20 trading days).
-
-    Returns:
-        Annualized Rogers-Satchell volatility, or ``None`` if insufficient data
-        or non-finite result.
-
-    Raises:
-        ValueError: If input Series have mismatched lengths.
-    """
-    validate_aligned(open_, high, low, close)
-
-    if len(open_) < period + 1:
-        return None
-
-    # Use the last `period` bars
-    o: np.ndarray = open_.iloc[-period:].to_numpy(dtype=float)
-    h: np.ndarray = high.iloc[-period:].to_numpy(dtype=float)
-    l: np.ndarray = low.iloc[-period:].to_numpy(dtype=float)  # noqa: E741
-    c: np.ndarray = close.iloc[-period:].to_numpy(dtype=float)
-
-    # Guard: all prices must be positive for log
-    if np.any(o <= 0.0) or np.any(h <= 0.0) or np.any(l <= 0.0) or np.any(c <= 0.0):
-        return None
-
-    log_hc: np.ndarray = np.log(h / c)
-    log_ho: np.ndarray = np.log(h / o)
-    log_lc: np.ndarray = np.log(l / c)
-    log_lo: np.ndarray = np.log(l / o)
-
-    n: int = period
-    variance: float = float(np.sum(log_hc * log_ho + log_lc * log_lo)) / n
-
-    if not math.isfinite(variance) or variance < 0.0:
-        return None
-
-    annualized: float = math.sqrt(variance * _TRADING_DAYS)
-    return annualized if math.isfinite(annualized) else None
 
 
 def compute_hv_yang_zhang(
