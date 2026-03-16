@@ -10,6 +10,8 @@ Tests:
   - Constructor overrides
 """
 
+import operator
+
 import pytest
 from pydantic import BaseModel, ValidationError
 from pydantic_settings import BaseSettings
@@ -92,53 +94,34 @@ class TestAppSettingsDefaults:
         settings = AppSettings()
         assert settings is not None
 
-    def test_scan_top_n_default(self) -> None:
+    @pytest.mark.parametrize(
+        "path,expected",
+        [
+            ("scan.filters.options.top_n", 50),
+            ("scan.filters.scoring.min_score", 0.0),
+            ("scan.filters.universe.min_price", 10.0),
+            ("scan.filters.options.min_dollar_volume", 10_000_000.0),
+            ("scan.filters.universe.ohlcv_min_bars", 200),
+            ("scan.filters.options.min_dte", 30),
+            ("scan.filters.options.max_dte", 365),
+            ("pricing.delta_target", 0.35),
+            ("pricing.risk_free_rate_fallback", 0.05),
+            ("service.yfinance_timeout", 15.0),
+            ("service.max_concurrent_requests", 5),
+        ],
+    )
+    def test_default_values(self, path: str, expected: object) -> None:
+        """All nested default values are correct."""
         settings = AppSettings()
-        assert settings.scan.filters.options.top_n == 50
-
-    def test_scan_min_score_default(self) -> None:
-        settings = AppSettings()
-        assert settings.scan.filters.scoring.min_score == pytest.approx(0.0)
-
-    def test_scan_min_price_default(self) -> None:
-        settings = AppSettings()
-        assert settings.scan.filters.universe.min_price == pytest.approx(10.0)
-
-    def test_scan_min_dollar_volume_default(self) -> None:
-        settings = AppSettings()
-        assert settings.scan.filters.options.min_dollar_volume == pytest.approx(10_000_000.0)
-
-    def test_scan_ohlcv_min_bars_default(self) -> None:
-        settings = AppSettings()
-        assert settings.scan.filters.universe.ohlcv_min_bars == 200
-
-    def test_pricing_delta_target_default(self) -> None:
-        settings = AppSettings()
-        assert settings.pricing.delta_target == pytest.approx(0.35)
-
-    def test_pricing_risk_free_rate_fallback_default(self) -> None:
-        settings = AppSettings()
-        assert settings.pricing.risk_free_rate_fallback == pytest.approx(0.05)
-
-    def test_options_filters_min_dte_default(self) -> None:
-        settings = AppSettings()
-        assert settings.scan.filters.options.min_dte == 30
-
-    def test_options_filters_max_dte_default(self) -> None:
-        settings = AppSettings()
-        assert settings.scan.filters.options.max_dte == 365
+        actual = operator.attrgetter(path)(settings)
+        if isinstance(expected, float):
+            assert actual == pytest.approx(expected)
+        else:
+            assert actual == expected
 
     def test_service_groq_api_key_default(self) -> None:
-        settings = AppSettings(_env_file=None)
+        settings = AppSettings()
         assert settings.service.groq_api_key is None
-
-    def test_service_yfinance_timeout_default(self) -> None:
-        settings = AppSettings()
-        assert settings.service.yfinance_timeout == pytest.approx(15.0)
-
-    def test_service_max_concurrent_requests_default(self) -> None:
-        settings = AppSettings()
-        assert settings.service.max_concurrent_requests == 5
 
 
 # ---------------------------------------------------------------------------
@@ -296,94 +279,60 @@ class TestDebateConfigDefaults:
 
     def test_debate_api_key_default_is_none(self) -> None:
         """Default api_key is None."""
-        settings = AppSettings(_env_file=None)
+        settings = AppSettings()
         assert settings.debate.api_key is None
 
-    def test_debate_config_rejects_nan_temperature(self) -> None:
-        """NaN temperature is rejected by validator."""
-        with pytest.raises(ValidationError, match="temperature must be finite"):
-            DebateConfig(temperature=float("nan"))
+    @pytest.mark.parametrize(
+        "field,bad_value,match",
+        [
+            ("temperature", float("nan"), "temperature must be finite"),
+            ("temperature", float("inf"), "temperature must be finite"),
+            ("agent_timeout", float("nan"), "timeout must be finite"),
+            ("max_total_duration", float("nan"), "timeout must be finite"),
+        ],
+    )
+    def test_debate_config_rejects_non_finite(
+        self, field: str, bad_value: float, match: str
+    ) -> None:
+        """DebateConfig rejects NaN/Inf on numeric fields."""
+        with pytest.raises(ValidationError, match=match):
+            DebateConfig(**{field: bad_value})
 
-    def test_debate_config_rejects_inf_temperature(self) -> None:
-        """Inf temperature is rejected by validator."""
-        with pytest.raises(ValidationError, match="temperature must be finite"):
-            DebateConfig(temperature=float("inf"))
+    @pytest.mark.parametrize(
+        "field,bad_value,match",
+        [
+            ("temperature", -0.1, "temperature must be in"),
+            ("temperature", 2.1, "temperature must be in"),
+            ("agent_timeout", 0.0, "timeout must be > 0"),
+            ("agent_timeout", -1.0, "timeout must be > 0"),
+            ("max_total_duration", 0.0, "timeout must be > 0"),
+            ("num_ctx", 64, "num_ctx must be in"),
+            ("num_ctx", 200_000, "num_ctx must be in"),
+            ("retries", -1, "retries must be in"),
+            ("retries", 6, "retries must be in"),
+        ],
+    )
+    def test_debate_config_rejects_out_of_bounds(
+        self, field: str, bad_value: object, match: str
+    ) -> None:
+        """DebateConfig rejects out-of-range values."""
+        with pytest.raises(ValidationError, match=match):
+            DebateConfig(**{field: bad_value})
 
-    def test_debate_config_rejects_negative_temperature(self) -> None:
-        """Negative temperature is rejected."""
-        with pytest.raises(ValidationError, match="temperature must be in"):
-            DebateConfig(temperature=-0.1)
-
-    def test_debate_config_rejects_temperature_above_2(self) -> None:
-        """Temperature > 2.0 is rejected."""
-        with pytest.raises(ValidationError, match="temperature must be in"):
-            DebateConfig(temperature=2.1)
-
-    def test_debate_config_accepts_temperature_boundary(self) -> None:
-        """Temperature 0.0 and 2.0 are accepted."""
-        config_low = DebateConfig(temperature=0.0)
-        assert config_low.temperature == pytest.approx(0.0)
-        config_high = DebateConfig(temperature=2.0)
-        assert config_high.temperature == pytest.approx(2.0)
-
-    def test_debate_config_rejects_nan_agent_timeout(self) -> None:
-        """NaN agent_timeout is rejected."""
-        with pytest.raises(ValidationError, match="timeout must be finite"):
-            DebateConfig(agent_timeout=float("nan"))
-
-    def test_debate_config_rejects_zero_agent_timeout(self) -> None:
-        """Zero agent_timeout is rejected (must be > 0)."""
-        with pytest.raises(ValidationError, match="timeout must be > 0"):
-            DebateConfig(agent_timeout=0.0)
-
-    def test_debate_config_rejects_negative_agent_timeout(self) -> None:
-        """Negative agent_timeout is rejected."""
-        with pytest.raises(ValidationError, match="timeout must be > 0"):
-            DebateConfig(agent_timeout=-1.0)
-
-    def test_debate_config_rejects_nan_max_total_duration(self) -> None:
-        """NaN max_total_duration is rejected."""
-        with pytest.raises(ValidationError, match="timeout must be finite"):
-            DebateConfig(max_total_duration=float("nan"))
-
-    def test_debate_config_rejects_zero_max_total_duration(self) -> None:
-        """Zero max_total_duration is rejected."""
-        with pytest.raises(ValidationError, match="timeout must be > 0"):
-            DebateConfig(max_total_duration=0.0)
-
-    def test_debate_config_rejects_num_ctx_below_128(self) -> None:
-        """num_ctx below 128 is rejected."""
-        with pytest.raises(ValidationError, match="num_ctx must be in"):
-            DebateConfig(num_ctx=64)
-
-    def test_debate_config_rejects_num_ctx_above_131072(self) -> None:
-        """num_ctx above 131072 is rejected."""
-        with pytest.raises(ValidationError, match="num_ctx must be in"):
-            DebateConfig(num_ctx=200_000)
-
-    def test_debate_config_accepts_num_ctx_boundary(self) -> None:
-        """num_ctx 128 and 131072 are accepted."""
-        config_low = DebateConfig(num_ctx=128)
-        assert config_low.num_ctx == 128
-        config_high = DebateConfig(num_ctx=131_072)
-        assert config_high.num_ctx == 131_072
-
-    def test_debate_config_rejects_retries_below_0(self) -> None:
-        """Negative retries rejected."""
-        with pytest.raises(ValidationError, match="retries must be in"):
-            DebateConfig(retries=-1)
-
-    def test_debate_config_rejects_retries_above_5(self) -> None:
-        """retries above 5 is rejected."""
-        with pytest.raises(ValidationError, match="retries must be in"):
-            DebateConfig(retries=6)
-
-    def test_debate_config_accepts_retries_boundary(self) -> None:
-        """retries 0 and 5 are accepted."""
-        config_low = DebateConfig(retries=0)
-        assert config_low.retries == 0
-        config_high = DebateConfig(retries=5)
-        assert config_high.retries == 5
+    @pytest.mark.parametrize(
+        "field,low,high",
+        [
+            ("temperature", 0.0, 2.0),
+            ("num_ctx", 128, 131_072),
+            ("retries", 0, 5),
+        ],
+    )
+    def test_debate_config_accepts_boundaries(self, field: str, low: object, high: object) -> None:
+        """DebateConfig accepts boundary values."""
+        config_low = DebateConfig(**{field: low})
+        assert getattr(config_low, field) == low
+        config_high = DebateConfig(**{field: high})
+        assert getattr(config_high, field) == high
 
 
 # ---------------------------------------------------------------------------
@@ -409,25 +358,19 @@ class TestDebateConfigPreScreening:
         config = DebateConfig()
         assert config.enable_rebuttal is False
 
-    def test_rejects_min_debate_score_above_100(self) -> None:
-        """min_debate_score > 100 is rejected."""
-        with pytest.raises(ValidationError, match="min_debate_score must be in"):
-            DebateConfig(min_debate_score=101.0)
-
-    def test_rejects_min_debate_score_below_0(self) -> None:
-        """Negative min_debate_score is rejected."""
-        with pytest.raises(ValidationError, match="min_debate_score must be in"):
-            DebateConfig(min_debate_score=-1.0)
-
-    def test_rejects_min_debate_score_nan(self) -> None:
-        """NaN min_debate_score is rejected."""
-        with pytest.raises(ValidationError, match="min_debate_score must be finite"):
-            DebateConfig(min_debate_score=float("nan"))
-
-    def test_rejects_min_debate_score_inf(self) -> None:
-        """Inf min_debate_score is rejected."""
-        with pytest.raises(ValidationError, match="min_debate_score must be finite"):
-            DebateConfig(min_debate_score=float("inf"))
+    @pytest.mark.parametrize(
+        "bad_value,match",
+        [
+            (101.0, "min_debate_score must be in"),
+            (-1.0, "min_debate_score must be in"),
+            (float("nan"), "min_debate_score must be finite"),
+            (float("inf"), "min_debate_score must be finite"),
+        ],
+    )
+    def test_rejects_invalid_min_debate_score(self, bad_value: float, match: str) -> None:
+        """min_debate_score rejects out-of-range and non-finite values."""
+        with pytest.raises(ValidationError, match=match):
+            DebateConfig(min_debate_score=bad_value)
 
     def test_env_override_min_debate_score(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ARENA_DEBATE__MIN_DEBATE_SCORE env var overrides default."""
@@ -450,108 +393,59 @@ class TestDebateConfigPreScreening:
 class TestDebateConfigRateLimit:
     """Tests for rate-limit resilience config fields on DebateConfig."""
 
-    def test_phase1_batch_delay_default(self) -> None:
-        """Default phase1_batch_delay is 1.0."""
+    @pytest.mark.parametrize(
+        "field,expected",
+        [
+            ("phase1_batch_delay", 1.0),
+            ("batch_ticker_delay", 5.0),
+            ("rate_limit_retries", 3),
+            ("rate_limit_max_wait", 30.0),
+            ("phase1_parallelism", 2),
+        ],
+    )
+    def test_rate_limit_defaults(self, field: str, expected: object) -> None:
+        """Rate-limit fields have correct production defaults."""
         config = DebateConfig()
-        assert config.phase1_batch_delay == pytest.approx(1.0)
+        actual = getattr(config, field)
+        if isinstance(expected, float):
+            assert actual == pytest.approx(expected)
+        else:
+            assert actual == expected
 
-    def test_batch_ticker_delay_default(self) -> None:
-        """Default batch_ticker_delay is 5.0."""
-        config = DebateConfig()
-        assert config.batch_ticker_delay == pytest.approx(5.0)
+    @pytest.mark.parametrize(
+        "field,bad_value,match",
+        [
+            ("phase1_batch_delay", float("nan"), "delay must be finite"),
+            ("phase1_batch_delay", float("inf"), "delay must be finite"),
+            ("phase1_batch_delay", -1.0, "delay must be >= 0"),
+            ("batch_ticker_delay", float("nan"), "delay must be finite"),
+            ("batch_ticker_delay", -0.5, "delay must be >= 0"),
+            ("rate_limit_retries", -1, "rate_limit_retries must be in"),
+            ("rate_limit_retries", 11, "rate_limit_retries must be in"),
+            ("rate_limit_max_wait", 0.0, "rate_limit_max_wait must be > 0"),
+            ("rate_limit_max_wait", -5.0, "rate_limit_max_wait must be > 0"),
+            ("rate_limit_max_wait", float("nan"), "rate_limit_max_wait must be finite"),
+            ("rate_limit_max_wait", float("inf"), "rate_limit_max_wait must be finite"),
+        ],
+    )
+    def test_rate_limit_rejects_invalid(self, field: str, bad_value: object, match: str) -> None:
+        """Rate-limit fields reject non-finite and out-of-range values."""
+        with pytest.raises(ValidationError, match=match):
+            DebateConfig(**{field: bad_value})
 
-    def test_rate_limit_retries_default(self) -> None:
-        """Default rate_limit_retries is 3."""
-        config = DebateConfig()
-        assert config.rate_limit_retries == 3
-
-    def test_rate_limit_max_wait_default(self) -> None:
-        """Default rate_limit_max_wait is 30.0."""
-        config = DebateConfig()
-        assert config.rate_limit_max_wait == pytest.approx(30.0)
-
-    def test_phase1_parallelism_default_is_2(self) -> None:
-        """Default phase1_parallelism changed to 2 (free tier optimized)."""
-        config = DebateConfig()
-        assert config.phase1_parallelism == 2
-
-    # --- Delay validation ---
-
-    def test_rejects_negative_phase1_batch_delay(self) -> None:
-        """Negative phase1_batch_delay is rejected."""
-        with pytest.raises(ValidationError, match="delay must be >= 0"):
-            DebateConfig(phase1_batch_delay=-1.0)
-
-    def test_accepts_zero_phase1_batch_delay(self) -> None:
-        """Zero delay is valid (disables delay)."""
-        config = DebateConfig(phase1_batch_delay=0.0)
-        assert config.phase1_batch_delay == pytest.approx(0.0)
-
-    def test_rejects_nan_phase1_batch_delay(self) -> None:
-        """NaN delay is rejected."""
-        with pytest.raises(ValidationError, match="delay must be finite"):
-            DebateConfig(phase1_batch_delay=float("nan"))
-
-    def test_rejects_inf_phase1_batch_delay(self) -> None:
-        """Inf delay is rejected."""
-        with pytest.raises(ValidationError, match="delay must be finite"):
-            DebateConfig(phase1_batch_delay=float("inf"))
-
-    def test_rejects_negative_batch_ticker_delay(self) -> None:
-        """Negative batch_ticker_delay is rejected."""
-        with pytest.raises(ValidationError, match="delay must be >= 0"):
-            DebateConfig(batch_ticker_delay=-0.5)
-
-    def test_accepts_zero_batch_ticker_delay(self) -> None:
-        """Zero batch_ticker_delay is valid."""
-        config = DebateConfig(batch_ticker_delay=0.0)
-        assert config.batch_ticker_delay == pytest.approx(0.0)
-
-    def test_rejects_nan_batch_ticker_delay(self) -> None:
-        """NaN batch_ticker_delay is rejected."""
-        with pytest.raises(ValidationError, match="delay must be finite"):
-            DebateConfig(batch_ticker_delay=float("nan"))
-
-    # --- Rate limit retries validation ---
-
-    def test_rejects_negative_rate_limit_retries(self) -> None:
-        """Negative rate_limit_retries is rejected."""
-        with pytest.raises(ValidationError, match="rate_limit_retries must be in"):
-            DebateConfig(rate_limit_retries=-1)
-
-    def test_rejects_rate_limit_retries_above_10(self) -> None:
-        """rate_limit_retries above 10 is rejected."""
-        with pytest.raises(ValidationError, match="rate_limit_retries must be in"):
-            DebateConfig(rate_limit_retries=11)
-
-    def test_accepts_rate_limit_retries_boundary(self) -> None:
-        """rate_limit_retries 0 and 10 are accepted."""
-        config_low = DebateConfig(rate_limit_retries=0)
-        assert config_low.rate_limit_retries == 0
-        config_high = DebateConfig(rate_limit_retries=10)
-        assert config_high.rate_limit_retries == 10
-
-    # --- Rate limit max wait validation ---
-
-    def test_rejects_zero_rate_limit_max_wait(self) -> None:
-        """Zero rate_limit_max_wait is rejected (must be > 0)."""
-        with pytest.raises(ValidationError, match="rate_limit_max_wait must be > 0"):
-            DebateConfig(rate_limit_max_wait=0.0)
-
-    def test_rejects_negative_rate_limit_max_wait(self) -> None:
-        """Negative rate_limit_max_wait is rejected."""
-        with pytest.raises(ValidationError, match="rate_limit_max_wait must be > 0"):
-            DebateConfig(rate_limit_max_wait=-5.0)
-
-    def test_rejects_nan_rate_limit_max_wait(self) -> None:
-        """NaN rate_limit_max_wait is rejected."""
-        with pytest.raises(ValidationError, match="rate_limit_max_wait must be finite"):
-            DebateConfig(rate_limit_max_wait=float("nan"))
-
-    def test_rejects_inf_rate_limit_max_wait(self) -> None:
-        """Inf rate_limit_max_wait is rejected."""
-        with pytest.raises(ValidationError, match="rate_limit_max_wait must be finite"):
-            DebateConfig(rate_limit_max_wait=float("inf"))
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("phase1_batch_delay", 0.0),
+            ("batch_ticker_delay", 0.0),
+            ("rate_limit_retries", 0),
+            ("rate_limit_retries", 10),
+        ],
+    )
+    def test_rate_limit_accepts_boundaries(self, field: str, value: object) -> None:
+        """Rate-limit fields accept valid boundary values."""
+        config = DebateConfig(**{field: value})
+        assert getattr(config, field) == value
 
     # --- Env var overrides ---
 
@@ -705,12 +599,6 @@ class TestLLMProviderEnum:
         assert LLMProvider.GROQ == "groq"
         assert LLMProvider.ANTHROPIC == "anthropic"
         assert len(LLMProvider) == 2
-
-    def test_provider_is_str_enum(self) -> None:
-        """LLMProvider is a StrEnum subclass."""
-        from enum import StrEnum
-
-        assert issubclass(LLMProvider, StrEnum)
 
     def test_provider_serialization_roundtrip(self) -> None:
         """StrEnum serializes to string and back."""

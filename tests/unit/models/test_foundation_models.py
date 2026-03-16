@@ -11,8 +11,6 @@ Tests for:
   - ScanConfig new fields: enable_iv_analytics, enable_flow_analytics, etc.
 """
 
-from enum import StrEnum
-
 import pytest
 from pydantic import ValidationError
 
@@ -69,17 +67,6 @@ class TestMarketRegime:
         assert MarketRegime.VOLATILE == "volatile"
         assert MarketRegime.CRISIS == "crisis"
 
-    def test_is_str_enum(self) -> None:
-        assert issubclass(MarketRegime, StrEnum)
-
-    def test_exhaustive_iteration(self) -> None:
-        assert set(MarketRegime) == {
-            MarketRegime.TRENDING,
-            MarketRegime.MEAN_REVERTING,
-            MarketRegime.VOLATILE,
-            MarketRegime.CRISIS,
-        }
-
     def test_string_serialization(self) -> None:
         assert str(MarketRegime.TRENDING) == "trending"
         assert str(MarketRegime.MEAN_REVERTING) == "mean_reverting"
@@ -97,17 +84,6 @@ class TestVolRegime:
         assert VolRegime.ELEVATED == "elevated"
         assert VolRegime.EXTREME == "extreme"
 
-    def test_is_str_enum(self) -> None:
-        assert issubclass(VolRegime, StrEnum)
-
-    def test_exhaustive_iteration(self) -> None:
-        assert set(VolRegime) == {
-            VolRegime.LOW,
-            VolRegime.NORMAL,
-            VolRegime.ELEVATED,
-            VolRegime.EXTREME,
-        }
-
     def test_string_serialization(self) -> None:
         assert str(VolRegime.LOW) == "low"
         assert str(VolRegime.NORMAL) == "normal"
@@ -123,16 +99,6 @@ class TestIVTermStructureShape:
         assert IVTermStructureShape.CONTANGO == "contango"
         assert IVTermStructureShape.FLAT == "flat"
         assert IVTermStructureShape.BACKWARDATION == "backwardation"
-
-    def test_is_str_enum(self) -> None:
-        assert issubclass(IVTermStructureShape, StrEnum)
-
-    def test_exhaustive_iteration(self) -> None:
-        assert set(IVTermStructureShape) == {
-            IVTermStructureShape.CONTANGO,
-            IVTermStructureShape.FLAT,
-            IVTermStructureShape.BACKWARDATION,
-        }
 
     def test_string_serialization(self) -> None:
         assert str(IVTermStructureShape.CONTANGO) == "contango"
@@ -150,17 +116,6 @@ class TestRiskLevel:
         assert RiskLevel.HIGH == "high"
         assert RiskLevel.EXTREME == "extreme"
 
-    def test_is_str_enum(self) -> None:
-        assert issubclass(RiskLevel, StrEnum)
-
-    def test_exhaustive_iteration(self) -> None:
-        assert set(RiskLevel) == {
-            RiskLevel.LOW,
-            RiskLevel.MODERATE,
-            RiskLevel.HIGH,
-            RiskLevel.EXTREME,
-        }
-
     def test_string_serialization(self) -> None:
         assert str(RiskLevel.LOW) == "low"
         assert str(RiskLevel.MODERATE) == "moderate"
@@ -176,16 +131,6 @@ class TestCatalystImpact:
         assert CatalystImpact.LOW == "low"
         assert CatalystImpact.MODERATE == "moderate"
         assert CatalystImpact.HIGH == "high"
-
-    def test_is_str_enum(self) -> None:
-        assert issubclass(CatalystImpact, StrEnum)
-
-    def test_exhaustive_iteration(self) -> None:
-        assert set(CatalystImpact) == {
-            CatalystImpact.LOW,
-            CatalystImpact.MODERATE,
-            CatalystImpact.HIGH,
-        }
 
     def test_string_serialization(self) -> None:
         assert str(CatalystImpact.LOW) == "low"

@@ -443,7 +443,7 @@ class TestFinancialDatasetsConfig:
 
     def test_nested_in_app_settings(self) -> None:
         """FinancialDatasetsConfig is nested in AppSettings with defaults."""
-        settings = AppSettings(_env_file=None)
+        settings = AppSettings()
         assert isinstance(settings.financial_datasets, FinancialDatasetsConfig)
         assert settings.financial_datasets.enabled is True
         assert settings.financial_datasets.api_key is None
