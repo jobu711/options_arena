@@ -73,7 +73,7 @@ class TestCheckIntelligence:
 
         assert result.available is False
         assert result.error is not None
-        assert "network failure" in result.error
+        assert "RuntimeError" in result.error
 
     @pytest.mark.asyncio
     async def test_latency_measured_on_success(self, health_service: HealthService) -> None:
@@ -186,4 +186,4 @@ class TestCheckAllIncludesIntelligence:
         intel_result = [r for r in results if r.service_name == "intelligence"]
         assert len(intel_result) == 1
         assert intel_result[0].available is False
-        assert "boom" in (intel_result[0].error or "")
+        assert "RuntimeError" in (intel_result[0].error or "")

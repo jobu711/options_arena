@@ -57,6 +57,9 @@ FAMILY_INDICATOR_MAP: dict[str, list[str]] = {
         "iv_surface_residual",
         "surface_fit_r2",
         "surface_is_1d",
+        "vol_forecast_garch",
+        "vol_forecast_egarch",
+        "iv_vs_forecast_spread",
     ],
     "hv_vol": [
         "bb_width",
@@ -72,6 +75,7 @@ FAMILY_INDICATOR_MAP: dict[str, list[str]] = {
         "unusual_activity_score",
         "max_pain_magnet",
         "dollar_volume_trend",
+        "flow_anomaly_score",
     ],
     "microstructure": [
         "obv",
@@ -97,6 +101,9 @@ FAMILY_INDICATOR_MAP: dict[str, list[str]] = {
         "sector_relative_momentum",
         "correlation_regime_shift",
         "hurst_exponent",
+        "regime_transition_prob",
+        "regime_markov_label",
+        "ml_regime_confidence",
     ],
     "risk": [
         "pop",
