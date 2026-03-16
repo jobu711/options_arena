@@ -42,7 +42,6 @@ from options_arena.models.enums import (
     MacdSignal,
     MacroRegime,
     RiskLevel,
-    SentimentLabel,
     SignalDirection,
     SpreadType,
     ValuationSignal,
@@ -107,25 +106,6 @@ class MarketContext(BaseModel):
     # Short interest — from yfinance TickerInfo
     short_ratio: float | None = None  # days to cover
     short_pct_of_float: float | None = None  # decimal fraction (no upper bound — squeezes > 1.0)
-
-    # OpenBB enrichment — fundamentals (from FundamentalSnapshot)
-    pe_ratio: float | None = None
-    forward_pe: float | None = None
-    peg_ratio: float | None = None
-    price_to_book: float | None = None
-    debt_to_equity: float | None = None
-    revenue_growth: float | None = None
-    profit_margin: float | None = None
-
-    # OpenBB enrichment — unusual flow (from UnusualFlowSnapshot)
-    net_call_premium: float | None = None
-    net_put_premium: float | None = None
-    options_put_call_ratio: float | None = None  # distinct from put_call_ratio (scan-derived)
-
-    # OpenBB enrichment — news sentiment (from NewsSentimentSnapshot)
-    news_sentiment: float | None = None  # -1.0 to 1.0
-    news_sentiment_label: SentimentLabel | None = None
-    recent_headlines: list[str] | None = None  # up to 5 headline strings
 
     # --- Arena Recon: Analyst Intelligence ---
     analyst_target_mean: float | None = None
@@ -294,26 +274,12 @@ class MarketContext(BaseModel):
         return populated / len(checkable_fields)
 
     def enrichment_ratio(self) -> float:
-        """Fraction of OpenBB enrichment fields populated (0.0-1.0).
+        """Legacy enrichment ratio — always returns 0.0.
 
-        Separate from ``completeness_ratio()`` so that OpenBB data doesn't
-        penalise debates when the SDK is disabled or unavailable.
+        OpenBB enrichment fields have been removed. This method is retained
+        for backward compatibility with callers that check enrichment_ratio().
         """
-        enrichment_fields: list[float | None] = [
-            self.pe_ratio,
-            self.forward_pe,
-            self.peg_ratio,
-            self.price_to_book,
-            self.debt_to_equity,
-            self.revenue_growth,
-            self.profit_margin,
-            self.net_call_premium,
-            self.net_put_premium,
-            self.options_put_call_ratio,
-            self.news_sentiment,
-        ]
-        populated = sum(1 for f in enrichment_fields if f is not None)
-        return populated / len(enrichment_fields)
+        return 0.0
 
     def intelligence_ratio(self) -> float:
         """Fraction of 8 intelligence fields populated (0.0-1.0).
@@ -427,18 +393,6 @@ class MarketContext(BaseModel):
         # Short interest
         "short_ratio",
         "short_pct_of_float",
-        # OpenBB enrichment float fields
-        "pe_ratio",
-        "forward_pe",
-        "peg_ratio",
-        "price_to_book",
-        "debt_to_equity",
-        "revenue_growth",
-        "profit_margin",
-        "net_call_premium",
-        "net_put_premium",
-        "options_put_call_ratio",
-        "news_sentiment",
         # Arena Recon intelligence float fields
         "analyst_target_mean",
         "analyst_target_upside_pct",

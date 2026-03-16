@@ -572,25 +572,17 @@ class SpreadConfig(BaseModel):
 
 
 class OpenBBConfig(BaseModel):
-    """OpenBB Platform SDK configuration — controls optional enrichment data.
+    """CBOE chain provider configuration (legacy name retained for settings compat).
 
-    All features default to enabled. When ``enabled`` is ``False``, the entire
-    OpenBB integration is skipped. Individual data sources can be toggled via
-    ``fundamentals_enabled``, ``unusual_flow_enabled``, and ``news_sentiment_enabled``.
+    Controls the CBOE option-chain provider backed by the OpenBB SDK.
+    Enrichment fields (fundamentals, flow, news) have been removed.
     """
 
-    enabled: bool = True
-    fundamentals_enabled: bool = True
-    unusual_flow_enabled: bool = True
-    news_sentiment_enabled: bool = True
-    fundamentals_cache_ttl: int = 3600
-    flow_cache_ttl: int = 300
-    news_cache_ttl: int = 900
-    request_timeout: int = 15
-    max_retries: int = 2
     cboe_chains_enabled: bool = True
     chains_cache_ttl: int = 60
     chain_validation_mode: bool = False
+    request_timeout: int = 15
+    max_retries: int = 2
 
 
 class AppSettings(BaseSettings):

@@ -90,7 +90,6 @@ from options_arena.models.enums import (
     RiskLevel,
     ScanPreset,
     ScanSource,
-    SentimentLabel,
     SignalDirection,
     SpreadType,
     ValuationSignal,
@@ -123,13 +122,6 @@ from options_arena.models.intelligence import (
 from options_arena.models.macro import MacroContext, MacroRegimeResult, MacroSignals
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
 from options_arena.models.metadata import MetadataCoverage, TickerMetadata
-from options_arena.models.openbb import (
-    FundamentalSnapshot,
-    NewsHeadline,
-    NewsSentimentSnapshot,
-    OpenBBHealthStatus,
-    UnusualFlowSnapshot,
-)
 from options_arena.models.options import (
     OptionContract,
     OptionGreeks,
@@ -172,7 +164,6 @@ __all__ = [
     "SECTOR_TO_INDUSTRY_GROUPS",
     "ScanPreset",
     "ScanSource",
-    "SentimentLabel",
     "SignalDirection",
     "SpreadType",
     "ValuationSignal",
@@ -269,12 +260,6 @@ __all__ = [
     "TrendingTicker",
     # Health
     "HealthStatus",
-    # OpenBB
-    "FundamentalSnapshot",
-    "NewsHeadline",
-    "NewsSentimentSnapshot",
-    "OpenBBHealthStatus",
-    "UnusualFlowSnapshot",
     # Intelligence
     "AnalystActivitySnapshot",
     "AnalystSnapshot",

@@ -613,9 +613,6 @@ def render_flow_context(ctx: MarketContext) -> str:
         ("MAX PAIN DISTANCE %", ctx.max_pain_distance, ".1f"),
         ("GEX", ctx.gex, ",.0f"),
         ("UNUSUAL ACTIVITY SCORE", ctx.unusual_activity_score, ".1f"),
-        ("NET CALL PREMIUM ($)", ctx.net_call_premium, ",.0f"),
-        ("NET PUT PREMIUM ($)", ctx.net_put_premium, ",.0f"),
-        ("OPTIONS PUT/CALL RATIO", ctx.options_put_call_ratio, ".2f"),
     ]:
         rendered = _render_optional(label, value, fmt)
         if rendered is not None:
@@ -658,13 +655,6 @@ def render_fundamental_context(ctx: MarketContext) -> str:
     # --- Fundamental Profile ---
     fundamental_lines: list[str] = []
     for label, value, fmt in [
-        ("P/E", ctx.pe_ratio, ".1f"),
-        ("FORWARD P/E", ctx.forward_pe, ".1f"),
-        ("PEG", ctx.peg_ratio, ".2f"),
-        ("P/B", ctx.price_to_book, ".2f"),
-        ("DEBT/EQUITY", ctx.debt_to_equity, ".2f"),
-        ("REVENUE GROWTH", ctx.revenue_growth, ".1%"),
-        ("PROFIT MARGIN", ctx.profit_margin, ".1%"),
         ("SHORT RATIO", ctx.short_ratio, ".2f"),
         ("SHORT % OF FLOAT", ctx.short_pct_of_float, ".1%"),
     ]:
@@ -777,16 +767,6 @@ def render_fundamental_context(ctx: MarketContext) -> str:
         lines.append("")
         lines.append("## Institutional Ownership")
         lines.append(f"INSTITUTIONAL OWNERSHIP: {ctx.institutional_pct:.1%}")
-
-    # --- News Sentiment ---
-    if ctx.news_sentiment is not None and math.isfinite(ctx.news_sentiment):
-        lines.append("")
-        lines.append("## News Sentiment")
-        label = ctx.news_sentiment_label or "neutral"
-        lines.append(f"AGGREGATE: {label.title()} ({ctx.news_sentiment:+.2f})")
-        if ctx.recent_headlines:
-            for headline in ctx.recent_headlines[:5]:
-                lines.append(f'- "{headline}"')
 
     # Dimensional score
     dim_rendered = _render_optional("FUNDAMENTAL", ctx.dim_fundamental, ".1f")
@@ -905,15 +885,8 @@ def render_context_block(
     if ctx.contract_mid is not None:
         lines.append(f"CONTRACT MID: ${ctx.contract_mid}")
 
-    # --- Fundamental Profile (OpenBB enrichment) ---
+    # --- Fundamental Profile ---
     fundamental_lines = [
-        _render_optional("P/E", ctx.pe_ratio, ".1f"),
-        _render_optional("FORWARD P/E", ctx.forward_pe, ".1f"),
-        _render_optional("PEG", ctx.peg_ratio, ".2f"),
-        _render_optional("P/B", ctx.price_to_book, ".2f"),
-        _render_optional("DEBT/EQUITY", ctx.debt_to_equity, ".2f"),
-        _render_optional("REVENUE GROWTH", ctx.revenue_growth, ".1%"),
-        _render_optional("PROFIT MARGIN", ctx.profit_margin, ".1%"),
         _render_optional("SHORT RATIO", ctx.short_ratio, ".2f"),
         _render_optional("SHORT % OF FLOAT", ctx.short_pct_of_float, ".1%"),
     ]
@@ -975,28 +948,6 @@ def render_context_block(
         lines.append("")
         lines.append("## Growth & Valuation")
         lines.extend(fd_growth_lines)
-
-    # --- Unusual Options Flow (OpenBB enrichment) ---
-    flow_lines = [
-        _render_optional("NET CALL PREMIUM ($)", ctx.net_call_premium, ",.0f"),
-        _render_optional("NET PUT PREMIUM ($)", ctx.net_put_premium, ",.0f"),
-        _render_optional("OPTIONS PUT/CALL RATIO", ctx.options_put_call_ratio, ".2f"),
-    ]
-    filtered_flow = [ln for ln in flow_lines if ln is not None]
-    if filtered_flow:
-        lines.append("")
-        lines.append("## Unusual Options Flow")
-        lines.extend(filtered_flow)
-
-    # --- News Sentiment (OpenBB enrichment) ---
-    if ctx.news_sentiment is not None and math.isfinite(ctx.news_sentiment):
-        lines.append("")
-        lines.append("## News Sentiment")
-        label = ctx.news_sentiment_label or "neutral"
-        lines.append(f"AGGREGATE: {label.title()} ({ctx.news_sentiment:+.2f})")
-        if ctx.recent_headlines:
-            for headline in ctx.recent_headlines[:5]:
-                lines.append(f'- "{headline}"')
 
     # --- Arena Recon: Analyst Intelligence ---
     analyst_lines: list[str | None] = [

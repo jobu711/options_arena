@@ -29,7 +29,6 @@ from options_arena.models import (
     MarketContext,
     SignalDirection,
 )
-from options_arena.models.enums import SentimentLabel
 
 
 def _make_context(**overrides: object) -> MarketContext:
@@ -367,9 +366,6 @@ class TestRenderFlowContext:
             max_pain_distance=3.5,
             gex=150000.0,
             unusual_activity_score=72.0,
-            net_call_premium=5000000.0,
-            net_put_premium=3000000.0,
-            options_put_call_ratio=0.75,
             relative_volume=1.3,
             dim_flow=68.0,
             dim_microstructure=55.0,
@@ -380,9 +376,6 @@ class TestRenderFlowContext:
         assert "MAX PAIN DISTANCE %: 3.5" in text
         assert "GEX: 150,000" in text
         assert "UNUSUAL ACTIVITY SCORE: 72.0" in text
-        assert "NET CALL PREMIUM ($): 5,000,000" in text
-        assert "NET PUT PREMIUM ($): 3,000,000" in text
-        assert "OPTIONS PUT/CALL RATIO: 0.75" in text
         assert "REL VOLUME: 1.3" in text
         assert "FLOW: 68.0" in text
         assert "MICROSTRUCTURE: 55.0" in text
@@ -407,9 +400,6 @@ class TestRenderFlowContext:
             max_pain_distance=None,
             gex=None,
             unusual_activity_score=None,
-            net_call_premium=None,
-            net_put_premium=None,
-            options_put_call_ratio=None,
             relative_volume=None,
             dim_flow=None,
             dim_microstructure=None,
@@ -431,15 +421,8 @@ class TestRenderFundamentalContext:
     """Tests for the Fundamental agent's domain-specific renderer."""
 
     def test_includes_fundamental_indicators(self) -> None:
-        """Verify PE, PEG, short interest, analyst data present."""
+        """Verify short interest, analyst data present."""
         ctx = _make_context(
-            pe_ratio=28.5,
-            forward_pe=25.0,
-            peg_ratio=1.8,
-            price_to_book=45.0,
-            debt_to_equity=1.5,
-            revenue_growth=0.12,
-            profit_margin=0.25,
             short_ratio=2.5,
             short_pct_of_float=0.035,
             analyst_target_mean=200.0,
@@ -450,20 +433,10 @@ class TestRenderFundamentalContext:
             insider_net_buys_90d=5,
             insider_buy_ratio=0.7,
             institutional_pct=0.72,
-            news_sentiment=0.35,
-            news_sentiment_label=SentimentLabel.BULLISH,
-            recent_headlines=["Apple announces new product"],
             dim_fundamental=70.0,
         )
         text = render_fundamental_context(ctx)
 
-        assert "P/E: 28.5" in text
-        assert "FORWARD P/E: 25.0" in text
-        assert "PEG: 1.80" in text
-        assert "P/B: 45.00" in text
-        assert "DEBT/EQUITY: 1.50" in text
-        assert "REVENUE GROWTH: 12.0%" in text
-        assert "PROFIT MARGIN: 25.0%" in text
         assert "SHORT RATIO: 2.50" in text
         assert "SHORT % OF FLOAT: 3.5%" in text
         assert "ANALYST TARGET MEAN: 200.00" in text
@@ -473,8 +446,6 @@ class TestRenderFundamentalContext:
         assert "INSIDER NET BUYS (90D): +5" in text
         assert "INSIDER BUY RATIO: 0.70" in text
         assert "INSTITUTIONAL OWNERSHIP: 72.0%" in text
-        assert "Bullish (+0.35)" in text
-        assert '"Apple announces new product"' in text
         assert "FUNDAMENTAL: 70.0" in text
 
     def test_excludes_scan_conclusions(self) -> None:
@@ -493,13 +464,6 @@ class TestRenderFundamentalContext:
     def test_handles_all_none_fundamental_fields(self) -> None:
         """Verify all-None fundamental fields produce identity block only."""
         ctx = _make_context(
-            pe_ratio=None,
-            forward_pe=None,
-            peg_ratio=None,
-            price_to_book=None,
-            debt_to_equity=None,
-            revenue_growth=None,
-            profit_margin=None,
             short_ratio=None,
             short_pct_of_float=None,
             analyst_target_mean=None,
@@ -510,7 +474,6 @@ class TestRenderFundamentalContext:
             insider_net_buys_90d=None,
             insider_buy_ratio=None,
             institutional_pct=None,
-            news_sentiment=None,
             dim_fundamental=None,
         )
         text = render_fundamental_context(ctx)
@@ -523,25 +486,6 @@ class TestRenderFundamentalContext:
         assert "News Sentiment" not in text
         assert "Signal Dimension" not in text
 
-    def test_news_sentiment_with_headlines(self) -> None:
-        """Verify news sentiment section with headlines."""
-        ctx = _make_context(
-            news_sentiment=0.5,
-            news_sentiment_label=SentimentLabel.BULLISH,
-            recent_headlines=[
-                "Strong earnings beat",
-                "New product launch",
-                "Analyst upgrade",
-            ],
-        )
-        text = render_fundamental_context(ctx)
-
-        assert "News Sentiment" in text
-        assert "Bullish (+0.50)" in text
-        assert '"Strong earnings beat"' in text
-        assert '"New product launch"' in text
-        assert '"Analyst upgrade"' in text
-
     def test_none_fundamental_fields_omitted(self) -> None:
         """Verify None fundamental fields are omitted.
 
@@ -549,15 +493,13 @@ class TestRenderFundamentalContext:
         time. This test verifies the None-handling path instead.
         """
         ctx = _make_context(
-            pe_ratio=None,
-            forward_pe=None,
-            peg_ratio=None,
+            short_ratio=None,
+            short_pct_of_float=None,
         )
         text = render_fundamental_context(ctx)
 
-        assert "P/E:" not in text
-        assert "FORWARD P/E:" not in text
-        assert "PEG:" not in text
+        assert "SHORT RATIO:" not in text
+        assert "SHORT % OF FLOAT:" not in text
 
 
 # ---------------------------------------------------------------------------
@@ -620,7 +562,6 @@ class TestNoDomainRendererHasScanConclusions:
             adx=30.0,
             iv_rank=80.0,
             put_call_ratio=0.9,
-            pe_ratio=25.0,
             dim_trend=60.0,
             dim_iv_vol=70.0,
             dim_flow=55.0,

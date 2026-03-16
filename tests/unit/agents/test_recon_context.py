@@ -364,20 +364,15 @@ class TestSecondOrderGreeksSection:
 class TestFullContextBlock:
     """Tests for ordering and interaction of all 7 new sections."""
 
-    def test_new_sections_appear_after_openbb(self) -> None:
-        """New sections appear after News Sentiment section."""
+    def test_new_sections_ordering(self) -> None:
+        """Analyst Intelligence appears before Signal Dimensions."""
         ctx = _make_ctx(
-            news_sentiment=0.42,
-            news_sentiment_label="bullish",
             analyst_target_mean=215.50,
             dim_trend=72.5,
         )
         block = render_context_block(ctx)
-        # News Sentiment should come before Analyst Intelligence
-        sentiment_pos = block.index("## News Sentiment")
         analyst_pos = block.index("## Analyst Intelligence")
         dim_pos = block.index("## Signal Dimensions (0-100)")
-        assert sentiment_pos < analyst_pos
         assert analyst_pos < dim_pos
 
     def test_new_sections_appear_before_earnings_warning(self) -> None:

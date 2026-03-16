@@ -169,11 +169,9 @@ def _make_service_patches() -> dict[str, MagicMock]:
 
 def _make_mock_request(
     intelligence_svc: AsyncMock | None = None,
-    openbb_svc: AsyncMock | None = None,
 ) -> MagicMock:
     """Create a mock Request with app.state populated."""
     request = MagicMock()
-    request.app.state.openbb = openbb_svc
     request.app.state.intelligence = intelligence_svc
     request.app.state.financial_datasets = None
     request.app.state.debate_queues = {}
@@ -197,7 +195,6 @@ class TestAPILifespanIntelligence:
             patch("options_arena.api.app.AppSettings") as mock_settings_cls,
             patch("options_arena.api.app.Database") as mock_db_cls,
             patch("options_arena.api.app.Repository"),
-            patch("options_arena.api.app.OpenBBService") as mock_openbb_cls,
             patch("options_arena.api.app.IntelligenceService") as mock_intel_cls,
             patch(
                 "options_arena.api.app.MarketDataService",
@@ -217,7 +214,6 @@ class TestAPILifespanIntelligence:
             patch("options_arena.api.app.FinancialDatasetsService"),
         ):
             mock_settings = MagicMock()
-            mock_settings.openbb.enabled = True
             mock_settings.financial_datasets.enabled = False
             mock_settings.intelligence = IntelligenceConfig(enabled=True)
             mock_settings.data.db_path = str(tmp_path / "test.db")
@@ -228,9 +224,6 @@ class TestAPILifespanIntelligence:
 
             mock_cache = AsyncMock()
             mock_cache_cls.return_value = mock_cache
-
-            # OpenBB needs AsyncMock instance so await close() works
-            mock_openbb_cls.return_value = AsyncMock()
 
             mock_intel_svc = AsyncMock()
             mock_intel_cls.return_value = mock_intel_svc
@@ -248,7 +241,6 @@ class TestAPILifespanIntelligence:
             patch("options_arena.api.app.AppSettings") as mock_settings_cls,
             patch("options_arena.api.app.Database") as mock_db_cls,
             patch("options_arena.api.app.Repository"),
-            patch("options_arena.api.app.OpenBBService") as mock_openbb_cls,
             patch("options_arena.api.app.IntelligenceService") as mock_intel_cls,
             patch(
                 "options_arena.api.app.MarketDataService",
@@ -268,7 +260,6 @@ class TestAPILifespanIntelligence:
             patch("options_arena.api.app.FinancialDatasetsService"),
         ):
             mock_settings = MagicMock()
-            mock_settings.openbb.enabled = True
             mock_settings.financial_datasets.enabled = False
             mock_settings.intelligence = IntelligenceConfig(enabled=False)
             mock_settings.data.db_path = str(tmp_path / "test.db")
@@ -279,9 +270,6 @@ class TestAPILifespanIntelligence:
 
             mock_cache = AsyncMock()
             mock_cache_cls.return_value = mock_cache
-
-            # OpenBB needs AsyncMock instance so await close() works
-            mock_openbb_cls.return_value = AsyncMock()
 
             app = FastAPI()
             async with lifespan(app):
@@ -296,7 +284,6 @@ class TestAPILifespanIntelligence:
             patch("options_arena.api.app.AppSettings") as mock_settings_cls,
             patch("options_arena.api.app.Database") as mock_db_cls,
             patch("options_arena.api.app.Repository"),
-            patch("options_arena.api.app.OpenBBService") as mock_openbb_cls,
             patch("options_arena.api.app.IntelligenceService") as mock_intel_cls,
             patch(
                 "options_arena.api.app.MarketDataService",
@@ -316,7 +303,6 @@ class TestAPILifespanIntelligence:
             patch("options_arena.api.app.FinancialDatasetsService"),
         ):
             mock_settings = MagicMock()
-            mock_settings.openbb.enabled = True
             mock_settings.financial_datasets.enabled = False
             mock_settings.intelligence = IntelligenceConfig(enabled=True)
             mock_settings.data.db_path = str(tmp_path / "test.db")
@@ -327,9 +313,6 @@ class TestAPILifespanIntelligence:
 
             mock_cache = AsyncMock()
             mock_cache_cls.return_value = mock_cache
-
-            # OpenBB needs AsyncMock instance so await close() works
-            mock_openbb_cls.return_value = AsyncMock()
 
             mock_intel_svc = AsyncMock()
             mock_intel_cls.return_value = mock_intel_svc

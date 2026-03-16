@@ -202,12 +202,10 @@ class TestDebateAsyncIntelligence:
     @patch("options_arena.cli.commands.Database")
     @patch("options_arena.cli.commands.ServiceCache")
     @patch("options_arena.cli.commands.RateLimiter")
-    @patch("options_arena.cli.commands.OpenBBService")
     @patch("options_arena.cli.commands.IntelligenceService")
     async def test_creates_intelligence_service_when_enabled(
         self,
         mock_intel_cls: MagicMock,
-        mock_openbb_cls: MagicMock,
         mock_limiter_cls: MagicMock,
         mock_cache_cls: MagicMock,
         mock_db_cls: MagicMock,
@@ -239,9 +237,7 @@ class TestDebateAsyncIntelligence:
 
         mock_debate_single.return_value = _make_debate_result()
 
-        await _debate_async(
-            "AAPL", history=False, fallback_only=False, no_openbb=True, no_recon=False
-        )
+        await _debate_async("AAPL", history=False, fallback_only=False, no_recon=False)
 
         mock_intel_cls.assert_called_once()
 
@@ -254,12 +250,10 @@ class TestDebateAsyncIntelligence:
     @patch("options_arena.cli.commands.Database")
     @patch("options_arena.cli.commands.ServiceCache")
     @patch("options_arena.cli.commands.RateLimiter")
-    @patch("options_arena.cli.commands.OpenBBService")
     @patch("options_arena.cli.commands.IntelligenceService")
     async def test_skips_intelligence_when_no_recon(
         self,
         mock_intel_cls: MagicMock,
-        mock_openbb_cls: MagicMock,
         mock_limiter_cls: MagicMock,
         mock_cache_cls: MagicMock,
         mock_db_cls: MagicMock,
@@ -288,9 +282,7 @@ class TestDebateAsyncIntelligence:
 
         mock_debate_single.return_value = _make_debate_result()
 
-        await _debate_async(
-            "AAPL", history=False, fallback_only=False, no_openbb=True, no_recon=True
-        )
+        await _debate_async("AAPL", history=False, fallback_only=False, no_recon=True)
 
         mock_intel_cls.assert_not_called()
 
@@ -303,12 +295,10 @@ class TestDebateAsyncIntelligence:
     @patch("options_arena.cli.commands.Database")
     @patch("options_arena.cli.commands.ServiceCache")
     @patch("options_arena.cli.commands.RateLimiter")
-    @patch("options_arena.cli.commands.OpenBBService")
     @patch("options_arena.cli.commands.IntelligenceService")
     async def test_skips_intelligence_when_config_disabled(
         self,
         mock_intel_cls: MagicMock,
-        mock_openbb_cls: MagicMock,
         mock_limiter_cls: MagicMock,
         mock_cache_cls: MagicMock,
         mock_db_cls: MagicMock,
@@ -340,9 +330,7 @@ class TestDebateAsyncIntelligence:
 
         mock_debate_single.return_value = _make_debate_result()
 
-        await _debate_async(
-            "AAPL", history=False, fallback_only=False, no_openbb=True, no_recon=False
-        )
+        await _debate_async("AAPL", history=False, fallback_only=False, no_recon=False)
 
         mock_intel_cls.assert_not_called()
 
@@ -355,12 +343,10 @@ class TestDebateAsyncIntelligence:
     @patch("options_arena.cli.commands.Database")
     @patch("options_arena.cli.commands.ServiceCache")
     @patch("options_arena.cli.commands.RateLimiter")
-    @patch("options_arena.cli.commands.OpenBBService")
     @patch("options_arena.cli.commands.IntelligenceService")
     async def test_intelligence_service_closed_on_success(
         self,
         mock_intel_cls: MagicMock,
-        mock_openbb_cls: MagicMock,
         mock_limiter_cls: MagicMock,
         mock_cache_cls: MagicMock,
         mock_db_cls: MagicMock,
@@ -392,9 +378,7 @@ class TestDebateAsyncIntelligence:
 
         mock_debate_single.return_value = _make_debate_result()
 
-        await _debate_async(
-            "AAPL", history=False, fallback_only=False, no_openbb=True, no_recon=False
-        )
+        await _debate_async("AAPL", history=False, fallback_only=False, no_recon=False)
 
         mock_intel_svc.close.assert_awaited_once()
 
@@ -407,12 +391,10 @@ class TestDebateAsyncIntelligence:
     @patch("options_arena.cli.commands.Database")
     @patch("options_arena.cli.commands.ServiceCache")
     @patch("options_arena.cli.commands.RateLimiter")
-    @patch("options_arena.cli.commands.OpenBBService")
     @patch("options_arena.cli.commands.IntelligenceService")
     async def test_intelligence_service_closed_on_error(
         self,
         mock_intel_cls: MagicMock,
-        mock_openbb_cls: MagicMock,
         mock_limiter_cls: MagicMock,
         mock_cache_cls: MagicMock,
         mock_db_cls: MagicMock,
@@ -449,7 +431,6 @@ class TestDebateAsyncIntelligence:
                 "AAPL",
                 history=False,
                 fallback_only=False,
-                no_openbb=True,
                 no_recon=False,
             )
 
@@ -514,7 +495,6 @@ class TestDebateSingleIntelligence:
             options_data=mock_options_data,
             fred=mock_fred,
             repo=mock_repo,
-            openbb_svc=None,
             intelligence_svc=mock_intel_svc,
         )
 
@@ -570,7 +550,6 @@ class TestDebateSingleIntelligence:
             options_data=mock_options_data,
             fred=mock_fred,
             repo=mock_repo,
-            openbb_svc=None,
             intelligence_svc=mock_intel_svc,
         )
 
@@ -623,7 +602,6 @@ class TestDebateSingleIntelligence:
             options_data=mock_options_data,
             fred=mock_fred,
             repo=mock_repo,
-            openbb_svc=None,
             intelligence_svc=None,
         )
 
@@ -648,12 +626,10 @@ class TestBatchAsyncIntelligence:
     @patch("options_arena.cli.commands.Database")
     @patch("options_arena.cli.commands.ServiceCache")
     @patch("options_arena.cli.commands.RateLimiter")
-    @patch("options_arena.cli.commands.OpenBBService")
     @patch("options_arena.cli.commands.IntelligenceService")
     async def test_batch_creates_intelligence_service(
         self,
         mock_intel_cls: MagicMock,
-        mock_openbb_cls: MagicMock,
         mock_limiter_cls: MagicMock,
         mock_cache_cls: MagicMock,
         mock_db_cls: MagicMock,
@@ -685,7 +661,7 @@ class TestBatchAsyncIntelligence:
 
         mock_debate_single.return_value = _make_debate_result()
 
-        await _batch_async(batch_limit=1, fallback_only=False, no_openbb=True, no_recon=False)
+        await _batch_async(batch_limit=1, fallback_only=False, no_recon=False)
 
         mock_intel_cls.assert_called_once()
         mock_intel_svc.close.assert_awaited_once()
@@ -699,12 +675,10 @@ class TestBatchAsyncIntelligence:
     @patch("options_arena.cli.commands.Database")
     @patch("options_arena.cli.commands.ServiceCache")
     @patch("options_arena.cli.commands.RateLimiter")
-    @patch("options_arena.cli.commands.OpenBBService")
     @patch("options_arena.cli.commands.IntelligenceService")
     async def test_batch_skips_intelligence_when_no_recon(
         self,
         mock_intel_cls: MagicMock,
-        mock_openbb_cls: MagicMock,
         mock_limiter_cls: MagicMock,
         mock_cache_cls: MagicMock,
         mock_db_cls: MagicMock,
@@ -733,6 +707,6 @@ class TestBatchAsyncIntelligence:
 
         mock_debate_single.return_value = _make_debate_result()
 
-        await _batch_async(batch_limit=1, fallback_only=False, no_openbb=True, no_recon=True)
+        await _batch_async(batch_limit=1, fallback_only=False, no_recon=True)
 
         mock_intel_cls.assert_not_called()

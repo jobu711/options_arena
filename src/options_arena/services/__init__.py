@@ -17,7 +17,6 @@ from options_arena.services.market_data import (
     MarketDataService,
     TickerOHLCVResult,
 )
-from options_arena.services.openbb_service import OpenBBService
 from options_arena.services.options_data import (
     ChainProvider,
     ExpirationChain,
@@ -49,7 +48,6 @@ __all__ = [
     "HealthService",
     "IntelligenceService",
     "MarketDataService",
-    "OpenBBService",
     "OptionsDataService",
     "OutcomeCollector",
     "RateLimiter",

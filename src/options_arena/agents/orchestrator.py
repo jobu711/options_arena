@@ -68,13 +68,11 @@ from options_arena.models import (
     ExerciseStyle,
     ExtendedTradeThesis,
     FlowThesis,
-    FundamentalSnapshot,
     FundamentalThesis,
     LLMProvider,
     MacdSignal,
     MacroRegime,
     MarketContext,
-    NewsSentimentSnapshot,
     OptionContract,
     OptionsFilters,
     Quote,
@@ -84,7 +82,6 @@ from options_arena.models import (
     TickerInfo,
     TickerScore,
     TradeThesis,
-    UnusualFlowSnapshot,
     VolatilityThesis,
 )
 from options_arena.models.financial_datasets import FinancialDatasetsPackage
@@ -124,9 +121,6 @@ def build_market_context(
     ticker_info: TickerInfo,
     contracts: list[OptionContract],
     next_earnings: date | None = None,
-    fundamentals: FundamentalSnapshot | None = None,
-    flow: UnusualFlowSnapshot | None = None,
-    sentiment: NewsSentimentSnapshot | None = None,
     intelligence: IntelligencePackage | None = None,
     fd_package: FinancialDatasetsPackage | None = None,
     macro_regime: MacroRegime | None = None,
@@ -228,54 +222,6 @@ def build_market_context(
         # Short interest
         short_ratio=ticker_info.short_ratio,
         short_pct_of_float=ticker_info.short_pct_of_float,
-        # Fundamental ratios — FD > OpenBB > None priority for 7 overlapping fields
-        pe_ratio=(
-            fd_package.metrics.pe_ratio
-            if fd_package and fd_package.metrics and fd_package.metrics.pe_ratio is not None
-            else (fundamentals.pe_ratio if fundamentals else None)
-        ),
-        forward_pe=(
-            fd_package.metrics.forward_pe
-            if fd_package and fd_package.metrics and fd_package.metrics.forward_pe is not None
-            else (fundamentals.forward_pe if fundamentals else None)
-        ),
-        peg_ratio=(
-            fd_package.metrics.peg_ratio
-            if fd_package and fd_package.metrics and fd_package.metrics.peg_ratio is not None
-            else (fundamentals.peg_ratio if fundamentals else None)
-        ),
-        price_to_book=(
-            fd_package.metrics.price_to_book
-            if fd_package and fd_package.metrics and fd_package.metrics.price_to_book is not None
-            else (fundamentals.price_to_book if fundamentals else None)
-        ),
-        debt_to_equity=(
-            fd_package.metrics.debt_to_equity
-            if fd_package and fd_package.metrics and fd_package.metrics.debt_to_equity is not None
-            else (fundamentals.debt_to_equity if fundamentals else None)
-        ),
-        revenue_growth=(
-            fd_package.metrics.revenue_growth
-            if fd_package and fd_package.metrics and fd_package.metrics.revenue_growth is not None
-            else (fundamentals.revenue_growth if fundamentals else None)
-        ),
-        profit_margin=(
-            fd_package.metrics.profit_margin
-            if fd_package and fd_package.metrics and fd_package.metrics.profit_margin is not None
-            else (fundamentals.profit_margin if fundamentals else None)
-        ),
-        # OpenBB enrichment — unusual flow
-        net_call_premium=flow.net_call_premium if flow else None,
-        net_put_premium=flow.net_put_premium if flow else None,
-        options_put_call_ratio=flow.put_call_ratio if flow else None,
-        # OpenBB enrichment — news sentiment
-        news_sentiment=sentiment.aggregate_sentiment if sentiment else None,
-        news_sentiment_label=(sentiment.sentiment_label if sentiment else None),
-        recent_headlines=(
-            [h.title for h in sentiment.headlines[:5]]
-            if sentiment and sentiment.headlines
-            else None
-        ),
         # --- Arena Recon: Intelligence fields ---
         analyst_target_mean=(
             intelligence.analyst.target_mean if intelligence and intelligence.analyst else None
@@ -1429,9 +1375,6 @@ async def run_debate(
     dimensional_scores: DimensionalScores | None = None,
     flow_output: FlowThesis | None = None,
     fundamental_output: FundamentalThesis | None = None,
-    fundamentals: FundamentalSnapshot | None = None,
-    flow: UnusualFlowSnapshot | None = None,
-    sentiment: NewsSentimentSnapshot | None = None,
     intelligence: IntelligencePackage | None = None,
     fd_package: FinancialDatasetsPackage | None = None,
     spread_analysis: SpreadAnalysis | None = None,
@@ -1494,9 +1437,6 @@ async def run_debate(
         ticker_info,
         contracts,
         next_earnings=ticker_score.next_earnings,
-        fundamentals=fundamentals,
-        flow=flow,
-        sentiment=sentiment,
         intelligence=intelligence,
         fd_package=fd_package,
         macro_regime=macro_regime,

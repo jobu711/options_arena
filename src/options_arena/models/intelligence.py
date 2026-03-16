@@ -10,7 +10,7 @@ Frozen Pydantic v2 models representing intelligence snapshots from yfinance:
   IntelligencePackage     — combined intelligence data for a ticker.
 
 All models are frozen (immutable), have NaN/Inf validators on float fields,
-and UTC validators on datetime fields. Follows the same pattern as openbb.py.
+and UTC validators on datetime fields.
 """
 
 import math

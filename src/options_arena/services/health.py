@@ -337,45 +337,6 @@ class HealthService:
                 checked_at=datetime.now(UTC),
             )
 
-    async def check_openbb(self) -> HealthStatus:
-        """Check OpenBB SDK availability via guarded import.
-
-        Returns ``available=True`` if the ``openbb`` package is importable.
-        Does NOT make a live API call — only checks SDK installation.
-        """
-        start = time.monotonic()
-        try:
-            from openbb import obb  # noqa: F401
-
-            latency_ms = (time.monotonic() - start) * 1000
-            logger.info("OpenBB health check OK (%.1fms)", latency_ms)
-            return HealthStatus(
-                service_name="openbb",
-                available=True,
-                latency_ms=latency_ms,
-                checked_at=datetime.now(UTC),
-            )
-        except ImportError:
-            latency_ms = (time.monotonic() - start) * 1000
-            logger.info("OpenBB SDK not installed")
-            return HealthStatus(
-                service_name="openbb",
-                available=False,
-                latency_ms=latency_ms,
-                error="OpenBB SDK not installed",
-                checked_at=datetime.now(UTC),
-            )
-        except Exception as exc:
-            latency_ms = (time.monotonic() - start) * 1000
-            logger.warning("OpenBB health check failed: %s", exc)
-            return HealthStatus(
-                service_name="openbb",
-                available=False,
-                latency_ms=latency_ms,
-                error=type(exc).__name__,
-                checked_at=datetime.now(UTC),
-            )
-
     async def check_intelligence(self) -> HealthStatus:
         """Check intelligence data availability via yfinance analyst price targets.
 
@@ -566,7 +527,6 @@ class HealthService:
             self.check_groq(),
             self.check_anthropic(),
             self.check_cboe(),
-            self.check_openbb(),
             self.check_cboe_chains(),
             self.check_intelligence(),
         ]
@@ -576,7 +536,6 @@ class HealthService:
             "groq",
             "anthropic",
             "cboe",
-            "openbb",
             "cboe_chains",
             "intelligence",
         ]

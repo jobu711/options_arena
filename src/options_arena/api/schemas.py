@@ -28,7 +28,6 @@ from options_arena.models import (
     RiskAssessment,
     ScanPreset,
     ScanSource,
-    SentimentLabel,
     SignalDirection,
     SpreadAnalysis,
     TradeThesis,
@@ -521,19 +520,6 @@ class DebateResultDetail(BaseModel):
     contrarian_response: ContrarianThesis | None = None
     # Scan linkage
     scan_run_id: int | None = None
-    # OpenBB enrichment (extracted from MarketContext)
-    pe_ratio: float | None = None
-    forward_pe: float | None = None
-    peg_ratio: float | None = None
-    price_to_book: float | None = None
-    debt_to_equity: float | None = None
-    revenue_growth: float | None = None
-    profit_margin: float | None = None
-    net_call_premium: float | None = None
-    net_put_premium: float | None = None
-    news_sentiment_score: float | None = None
-    news_sentiment_label: SentimentLabel | None = None
-    enrichment_ratio: float | None = None
     # Native Quant: HV & vol surface metrics (extracted from MarketContext)
     hv_yang_zhang: float | None = None
     skew_25d: float | None = None
@@ -551,17 +537,6 @@ class DebateResultDetail(BaseModel):
     spread: SpreadDetail | None = None
 
     @field_validator(
-        "pe_ratio",
-        "forward_pe",
-        "peg_ratio",
-        "price_to_book",
-        "debt_to_equity",
-        "revenue_growth",
-        "profit_margin",
-        "net_call_premium",
-        "net_put_premium",
-        "news_sentiment_score",
-        "enrichment_ratio",
         "citation_density",
         "agent_agreement_score",
         "hv_yang_zhang",

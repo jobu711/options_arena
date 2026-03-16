@@ -425,13 +425,6 @@ class TestCheckAnthropic:
             latency_ms=40.0,
             checked_at=_utc_now(),
         )
-        openbb_status = HealthStatus(
-            service_name="openbb",
-            available=False,
-            latency_ms=5.0,
-            error="OpenBB SDK not installed",
-            checked_at=_utc_now(),
-        )
         cboe_chains_status = HealthStatus(
             service_name="cboe_chains",
             available=False,
@@ -450,13 +443,12 @@ class TestCheckAnthropic:
         service.check_groq = AsyncMock(return_value=groq_status)  # type: ignore[method-assign]
         service.check_anthropic = AsyncMock(return_value=anthropic_status)  # type: ignore[method-assign]
         service.check_cboe = AsyncMock(return_value=cboe_status)  # type: ignore[method-assign]
-        service.check_openbb = AsyncMock(return_value=openbb_status)  # type: ignore[method-assign]
         service.check_cboe_chains = AsyncMock(return_value=cboe_chains_status)  # type: ignore[method-assign]
         service.check_intelligence = AsyncMock(return_value=intel_status)  # type: ignore[method-assign]
 
         results = await service.check_all()
 
-        assert len(results) == 8
+        assert len(results) == 7
         names = {r.service_name for r in results}
         assert "anthropic" in names
         anthropic_result = next(r for r in results if r.service_name == "anthropic")
@@ -542,12 +534,6 @@ class TestCheckAll:
             latency_ms=40.0,
             checked_at=_utc_now(),
         )
-        openbb_status = HealthStatus(
-            service_name="openbb",
-            available=True,
-            latency_ms=10.0,
-            checked_at=_utc_now(),
-        )
         cboe_chains_status = HealthStatus(
             service_name="cboe_chains",
             available=False,
@@ -566,18 +552,17 @@ class TestCheckAll:
         service.check_groq = AsyncMock(return_value=groq_status)  # type: ignore[method-assign]
         service.check_anthropic = AsyncMock(return_value=anthropic_status)  # type: ignore[method-assign]
         service.check_cboe = AsyncMock(return_value=cboe_status)  # type: ignore[method-assign]
-        service.check_openbb = AsyncMock(return_value=openbb_status)  # type: ignore[method-assign]
         service.check_cboe_chains = AsyncMock(return_value=cboe_chains_status)  # type: ignore[method-assign]
         service.check_intelligence = AsyncMock(return_value=intel_status)  # type: ignore[method-assign]
 
         results = await service.check_all()
 
-        assert len(results) == 8
+        assert len(results) == 7
         assert all(isinstance(r, HealthStatus) for r in results)
 
     @pytest.mark.asyncio
     async def test_partial_failure(self, service: HealthService) -> None:
-        """Three succeed, five fail: all 8 HealthStatus objects returned with correct flags."""
+        """Three succeed, four fail: all 7 HealthStatus objects returned with correct flags."""
         yf_status = HealthStatus(
             service_name="yfinance",
             available=True,
@@ -610,13 +595,6 @@ class TestCheckAll:
             error="HTTP 503",
             checked_at=_utc_now(),
         )
-        openbb_status = HealthStatus(
-            service_name="openbb",
-            available=False,
-            latency_ms=5.0,
-            error="OpenBB SDK not installed",
-            checked_at=_utc_now(),
-        )
         cboe_chains_status = HealthStatus(
             service_name="cboe_chains",
             available=False,
@@ -636,20 +614,18 @@ class TestCheckAll:
         service.check_groq = AsyncMock(return_value=groq_status)  # type: ignore[method-assign]
         service.check_anthropic = AsyncMock(return_value=anthropic_status)  # type: ignore[method-assign]
         service.check_cboe = AsyncMock(return_value=cboe_status)  # type: ignore[method-assign]
-        service.check_openbb = AsyncMock(return_value=openbb_status)  # type: ignore[method-assign]
         service.check_cboe_chains = AsyncMock(return_value=cboe_chains_status)  # type: ignore[method-assign]
         service.check_intelligence = AsyncMock(return_value=intel_status)  # type: ignore[method-assign]
 
         results = await service.check_all()
 
-        assert len(results) == 8
+        assert len(results) == 7
         names_available = {r.service_name: r.available for r in results}
         assert names_available["yfinance"] is True
         assert names_available["fred"] is False
         assert names_available["groq"] is True
         assert names_available["anthropic"] is True
         assert names_available["cboe"] is False
-        assert names_available["openbb"] is False
         assert names_available["cboe_chains"] is False
         assert names_available["intelligence"] is False
 
@@ -666,13 +642,6 @@ class TestCheckAll:
             service_name="anthropic",
             available=True,
             latency_ms=25.0,
-            checked_at=_utc_now(),
-        )
-        openbb_status = HealthStatus(
-            service_name="openbb",
-            available=False,
-            latency_ms=5.0,
-            error="OpenBB SDK not installed",
             checked_at=_utc_now(),
         )
         cboe_chains_status = HealthStatus(
@@ -693,13 +662,12 @@ class TestCheckAll:
         service.check_groq = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
         service.check_anthropic = AsyncMock(return_value=anthropic_status)  # type: ignore[method-assign]
         service.check_cboe = AsyncMock(return_value=yf_status)  # type: ignore[method-assign]
-        service.check_openbb = AsyncMock(return_value=openbb_status)  # type: ignore[method-assign]
         service.check_cboe_chains = AsyncMock(return_value=cboe_chains_status)  # type: ignore[method-assign]
         service.check_intelligence = AsyncMock(return_value=intel_status)  # type: ignore[method-assign]
 
         results = await service.check_all()
 
-        assert len(results) == 8
+        assert len(results) == 7
         fred_result = results[1]  # second in the list (order preserved)
         assert fred_result.service_name == "fred"
         assert fred_result.available is False
@@ -892,7 +860,6 @@ class TestCheckFinancialDatasets:
             "check_groq": "groq",
             "check_anthropic": "anthropic",
             "check_cboe": "cboe",
-            "check_openbb": "openbb",
             "check_cboe_chains": "cboe_chains",
             "check_intelligence": "intelligence",
             "check_financial_datasets": "financial_datasets",
@@ -930,7 +897,6 @@ class TestCheckFinancialDatasets:
             "check_groq": "groq",
             "check_anthropic": "anthropic",
             "check_cboe": "cboe",
-            "check_openbb": "openbb",
             "check_cboe_chains": "cboe_chains",
             "check_intelligence": "intelligence",
         }
@@ -968,7 +934,6 @@ class TestCheckFinancialDatasets:
             "check_groq": "groq",
             "check_anthropic": "anthropic",
             "check_cboe": "cboe",
-            "check_openbb": "openbb",
             "check_cboe_chains": "cboe_chains",
             "check_intelligence": "intelligence",
             "check_financial_datasets": "financial_datasets",

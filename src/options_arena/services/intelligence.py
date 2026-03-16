@@ -1,7 +1,7 @@
 """Intelligence data service for Options Arena.
 
 Fetches analyst targets, recommendations, upgrades/downgrades, insider transactions,
-institutional holders, and news headlines from yfinance. Mirrors the OpenBB service
+institutional holders, and news headlines from yfinance. Uses standard service
 pattern: class-based DI, never-raises contract, cache-first, rate-limited.
 
 Inherits from :class:`ServiceBase[IntelligenceConfig]` for standardised
@@ -38,7 +38,7 @@ class IntelligenceService(ServiceBase[IntelligenceConfig]):
     """Fetches intelligence data from yfinance with caching and rate limiting.
 
     Never raises -- every method returns typed data or ``None`` on any error.
-    Follows the same DI pattern as ``OpenBBService`` and ``MarketDataService``.
+    Follows the same DI pattern as ``MarketDataService``.
 
     Inherits from :class:`ServiceBase[IntelligenceConfig]` for standardised
     ``_config``, ``_cache``, ``_limiter``, ``_log``, and ``close()``.

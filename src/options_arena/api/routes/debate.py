@@ -49,16 +49,10 @@ from options_arena.models import (
 from options_arena.models.enums import TICKER_RE
 from options_arena.models.financial_datasets import FinancialDatasetsPackage
 from options_arena.models.intelligence import IntelligencePackage
-from options_arena.models.openbb import (
-    FundamentalSnapshot,
-    NewsSentimentSnapshot,
-    UnusualFlowSnapshot,
-)
 from options_arena.scoring import compute_dimensional_scores, normalize_single_ticker
 from options_arena.services import MarketDataService, OptionsDataService
 from options_arena.services.financial_datasets import FinancialDatasetsService
 from options_arena.services.intelligence import IntelligenceService
-from options_arena.services.openbb_service import OpenBBService
 
 logger = logging.getLogger(__name__)
 
@@ -172,25 +166,6 @@ async def _run_debate_background(
         except Exception:
             logger.warning("Could not compute dimensional scores for %s", ticker, exc_info=True)
 
-        # Fetch OpenBB enrichment (never-raises — methods return None on error)
-        openbb_svc: OpenBBService | None = getattr(request.app.state, "openbb", None)
-        fundamentals: FundamentalSnapshot | None = None
-        flow: UnusualFlowSnapshot | None = None
-        sentiment: NewsSentimentSnapshot | None = None
-        if openbb_svc is not None:
-            _openbb_results = await asyncio.gather(
-                openbb_svc.fetch_fundamentals(ticker),
-                openbb_svc.fetch_unusual_flow(ticker),
-                openbb_svc.fetch_news_sentiment(ticker),
-                return_exceptions=True,
-            )
-            if not isinstance(_openbb_results[0], BaseException):
-                fundamentals = _openbb_results[0]
-            if not isinstance(_openbb_results[1], BaseException):
-                flow = _openbb_results[1]
-            if not isinstance(_openbb_results[2], BaseException):
-                sentiment = _openbb_results[2]
-
         # Fetch intelligence data (never raises — returns None on error)
         intelligence_svc: IntelligenceService | None = getattr(
             request.app.state, "intelligence", None
@@ -216,9 +191,6 @@ async def _run_debate_background(
             repository=None,  # Route handles persistence — avoid double save
             progress=bridge,
             dimensional_scores=dim_scores,
-            fundamentals=fundamentals,
-            flow=flow,
-            sentiment=sentiment,
             intelligence=intel,
             fd_package=fd_package,
         )
@@ -447,25 +419,6 @@ async def _run_batch_debate_background(
                         "Could not compute dimensional scores for %s", ticker, exc_info=True
                     )
 
-                # Fetch OpenBB enrichment (never-raises — methods return None on error)
-                batch_openbb: OpenBBService | None = getattr(request.app.state, "openbb", None)
-                batch_fundamentals: FundamentalSnapshot | None = None
-                batch_flow: UnusualFlowSnapshot | None = None
-                batch_sentiment: NewsSentimentSnapshot | None = None
-                if batch_openbb is not None:
-                    _batch_openbb_results = await asyncio.gather(
-                        batch_openbb.fetch_fundamentals(ticker),
-                        batch_openbb.fetch_unusual_flow(ticker),
-                        batch_openbb.fetch_news_sentiment(ticker),
-                        return_exceptions=True,
-                    )
-                    if not isinstance(_batch_openbb_results[0], BaseException):
-                        batch_fundamentals = _batch_openbb_results[0]
-                    if not isinstance(_batch_openbb_results[1], BaseException):
-                        batch_flow = _batch_openbb_results[1]
-                    if not isinstance(_batch_openbb_results[2], BaseException):
-                        batch_sentiment = _batch_openbb_results[2]
-
                 # Fetch intelligence data (never raises — returns None on error)
                 batch_intel_svc: IntelligenceService | None = getattr(
                     request.app.state, "intelligence", None
@@ -496,9 +449,6 @@ async def _run_batch_debate_background(
                     repository=None,  # Route handles persistence — avoid double save
                     progress=agent_bridge,
                     dimensional_scores=batch_dim_scores,
-                    fundamentals=batch_fundamentals,
-                    flow=batch_flow,
-                    sentiment=batch_sentiment,
                     intelligence=batch_intel,
                     fd_package=batch_fd_package,
                 )
@@ -741,7 +691,6 @@ async def get_debate(
                     exc_info=True,
                 )
 
-    # Extract OpenBB enrichment from MarketContext (already parsed by Repository)
     mc = row.market_context
 
     # Fetch spread data if debate is linked to a scan (#521)
@@ -790,19 +739,6 @@ async def get_debate(
             ContrarianThesis, row.contrarian_json, "contrarian_json", debate_id
         ),
         scan_run_id=row.scan_run_id,
-        # OpenBB enrichment fields
-        pe_ratio=mc.pe_ratio if mc else None,
-        forward_pe=mc.forward_pe if mc else None,
-        peg_ratio=mc.peg_ratio if mc else None,
-        price_to_book=mc.price_to_book if mc else None,
-        debt_to_equity=mc.debt_to_equity if mc else None,
-        revenue_growth=mc.revenue_growth if mc else None,
-        profit_margin=mc.profit_margin if mc else None,
-        net_call_premium=mc.net_call_premium if mc else None,
-        net_put_premium=mc.net_put_premium if mc else None,
-        news_sentiment_score=mc.news_sentiment if mc else None,
-        news_sentiment_label=(mc.news_sentiment_label if mc else None),
-        enrichment_ratio=mc.enrichment_ratio() if mc else None,
         # Native Quant: HV & vol surface metrics
         hv_yang_zhang=mc.hv_yang_zhang if mc else None,
         skew_25d=mc.skew_25d if mc else None,
