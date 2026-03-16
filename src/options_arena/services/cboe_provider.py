@@ -4,9 +4,9 @@ Fetches option chains from the CBOE data source using the OpenBB derivatives
 API. Maps CBOE data to typed ``OptionContract`` models with native Greeks
 (when available), ``bid_iv``/``ask_iv``, and ``greeks_source=GreeksSource.MARKET``.
 
-Uses the same guarded-import pattern as ``openbb_service.py`` — the system runs
-identically without the OpenBB SDK installed (``available`` property returns
-``False``). Implements the ``ChainProvider`` protocol from ``options_data.py``.
+Uses a guarded-import pattern — the system runs identically without the OpenBB SDK
+installed (``available`` property returns ``False``).  Implements the ``ChainProvider``
+protocol from ``options_data.py``.
 
 Class-based DI with ``config``, ``cache``, ``limiter`` — same pattern as all
 other service classes.

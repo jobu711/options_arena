@@ -34,10 +34,6 @@ ml = [
     "scikit-learn>=1.5,<2",
     "statsmodels>=0.14,<0.15",
 ]
-# NOTE: openbb extra omitted — OpenBB SDK pins fastapi<0.129 and ruff<0.14,
-# which conflicts with our fastapi>=0.133.1 and ruff>=0.15. Users who want
-# OpenBB enrichment should install openbb + vaderSentiment separately.
-# The service layer uses guarded imports (try/except ImportError).
 
 [project.scripts]
 options-arena = "options_arena.cli:app"
@@ -83,7 +79,7 @@ warn_return_any = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["arch.*", "joblib.*", "openbb.*", "sklearn.*", "statsmodels.*", "vaderSentiment.*", "yfinance.*"]
+module = ["arch.*", "joblib.*", "openbb.*", "sklearn.*", "statsmodels.*", "yfinance.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
