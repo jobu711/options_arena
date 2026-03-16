@@ -8,3 +8,4 @@
 {"epic":"mathematical-computation-audit","completed":"2026-03-14T18:00:00Z","tasks":8,"planned_hours":80,"proxy_hours":2.4,"ratio":0.03,"tests_added":1702,"files_changed":92,"insertions":18645,"deletions":473,"post_merge_fixes":2}
 {"epic":"scientific-ml-statistical","completed":"2026-03-15T22:00:00Z","tasks":5,"planned_hours":35,"proxy_hours":1.5,"ratio":0.04,"tests_added":189,"files_changed":22,"insertions":1452,"deletions":381,"post_merge_fixes":0}
 {"epic":"scientific-ml-classification","completed":"2026-03-16T10:47:27Z","tasks":4,"planned_hours":18,"proxy_hours":1.2,"ratio":0.07,"tests_added":91,"files_changed":39,"insertions":3564,"deletions":61,"post_merge_fixes":1}
+{"epic":"scientific-ml-neural","completed":"2026-03-16T20:30:00Z","tasks":4,"planned_hours":22,"proxy_hours":1.1,"ratio":0.05,"tests_added":97,"files_changed":15,"insertions":3223,"deletions":1,"post_merge_fixes":0}

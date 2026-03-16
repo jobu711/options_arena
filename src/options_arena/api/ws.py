@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 
 _LOOPBACK_HOSTS: frozenset[str] = frozenset({"127.0.0.1", "localhost", "::1", "[::1]"})
 
+# Per-endpoint-type connection limits to prevent resource exhaustion (P1 security).
+_MAX_WS_CONNECTIONS_PER_TYPE = 10
+_scan_ws_count = 0
+_debate_ws_count = 0
+_batch_ws_count = 0
+
 
 def _is_loopback_origin(origin: str) -> bool:
     """Check whether *origin* refers to a loopback address.
@@ -206,17 +212,24 @@ class BatchProgressBridge:
 @router.websocket("/ws/scan/{scan_id}")
 async def ws_scan(websocket: WebSocket, scan_id: int) -> None:
     """Stream scan progress events to the client."""
+    global _scan_ws_count  # noqa: PLW0603
     origin = websocket.headers.get("origin", "")
     if not origin or not _is_loopback_origin(origin):
         with contextlib.suppress(Exception):
             await websocket.close(code=4003)
         return
+    if _scan_ws_count >= _MAX_WS_CONNECTIONS_PER_TYPE:
+        with contextlib.suppress(Exception):
+            await websocket.close(code=4008)
+        return
     await websocket.accept()
+    _scan_ws_count += 1
     scan_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
         websocket.app.state, "scan_queues", {}
     )
     queue = scan_queues.get(scan_id)
     if queue is None:
+        _scan_ws_count -= 1
         with contextlib.suppress(Exception):
             await websocket.close(code=4004)
         return
@@ -233,6 +246,7 @@ async def ws_scan(websocket: WebSocket, scan_id: int) -> None:
     except WebSocketDisconnect:
         logger.debug("WebSocket scan/%d disconnected", scan_id)
     finally:
+        _scan_ws_count -= 1
         with contextlib.suppress(Exception):
             await websocket.close()
 
@@ -240,17 +254,24 @@ async def ws_scan(websocket: WebSocket, scan_id: int) -> None:
 @router.websocket("/ws/debate/{debate_id}")
 async def ws_debate(websocket: WebSocket, debate_id: int) -> None:
     """Stream debate progress events to the client."""
+    global _debate_ws_count  # noqa: PLW0603
     origin = websocket.headers.get("origin", "")
     if not origin or not _is_loopback_origin(origin):
         with contextlib.suppress(Exception):
             await websocket.close(code=4003)
         return
+    if _debate_ws_count >= _MAX_WS_CONNECTIONS_PER_TYPE:
+        with contextlib.suppress(Exception):
+            await websocket.close(code=4008)
+        return
     await websocket.accept()
+    _debate_ws_count += 1
     debate_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
         websocket.app.state, "debate_queues", {}
     )
     queue = debate_queues.get(debate_id)
     if queue is None:
+        _debate_ws_count -= 1
         with contextlib.suppress(Exception):
             await websocket.close(code=4004)
         return
@@ -267,6 +288,7 @@ async def ws_debate(websocket: WebSocket, debate_id: int) -> None:
     except WebSocketDisconnect:
         logger.debug("WebSocket debate/%d disconnected", debate_id)
     finally:
+        _debate_ws_count -= 1
         with contextlib.suppress(Exception):
             await websocket.close()
 
@@ -274,17 +296,24 @@ async def ws_debate(websocket: WebSocket, debate_id: int) -> None:
 @router.websocket("/ws/batch/{batch_id}")
 async def ws_batch(websocket: WebSocket, batch_id: int) -> None:
     """Stream batch debate progress events to the client."""
+    global _batch_ws_count  # noqa: PLW0603
     origin = websocket.headers.get("origin", "")
     if not origin or not _is_loopback_origin(origin):
         with contextlib.suppress(Exception):
             await websocket.close(code=4003)
         return
+    if _batch_ws_count >= _MAX_WS_CONNECTIONS_PER_TYPE:
+        with contextlib.suppress(Exception):
+            await websocket.close(code=4008)
+        return
     await websocket.accept()
+    _batch_ws_count += 1
     batch_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
         websocket.app.state, "batch_queues", {}
     )
     queue = batch_queues.get(batch_id)
     if queue is None:
+        _batch_ws_count -= 1
         with contextlib.suppress(Exception):
             await websocket.close(code=4004)
         return
@@ -301,5 +330,6 @@ async def ws_batch(websocket: WebSocket, batch_id: int) -> None:
     except WebSocketDisconnect:
         logger.debug("WebSocket batch/%d disconnected", batch_id)
     finally:
+        _batch_ws_count -= 1
         with contextlib.suppress(Exception):
             await websocket.close()
