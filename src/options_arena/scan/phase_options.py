@@ -337,6 +337,11 @@ async def run_options_phase(
     except Exception:
         logger.warning("Failed to extract SPX close series; rs_vs_spx will be None", exc_info=True)
 
+    # Step 3c: Resolve surface method from config (double-gated: enable flag + method)
+    surface_method: str = "spline"
+    if scan_config.ml.enable_neural_surface and scan_config.ml.surface_method == "neural":
+        surface_method = "neural"
+
     # Step 4: Per-ticker options processing with semaphore-bounded concurrency
     # A semaphore limits concurrent chains-in-flight, allowing all tickers to
     # start immediately while preventing rate-limiter overload.
@@ -379,6 +384,7 @@ async def run_options_phase(
                             universe_filters=universe_filters,
                             pricing_config=pricing_config,
                             spread_config=spread_config,
+                            surface_method=surface_method,
                         ),
                         timeout=per_ticker_timeout,
                     )
@@ -464,6 +470,7 @@ async def process_ticker_options(
     spread_config: SpreadConfig | None = None,
     recommend_contracts_fn: RecommendContractsFn | None = None,
     map_yfinance_fn: MapYfinanceFn | None = None,
+    surface_method: str = "spline",
 ) -> tuple[str, list[OptionContract], date | None, Decimal | None, SpreadAnalysis | None]:
     """Fetch chains + ticker info + earnings date for a single ticker.
 
@@ -496,6 +503,8 @@ async def process_ticker_options(
             by ``ScanPipeline`` wrappers for test-patching compatibility).
         map_yfinance_fn: Optional override for ``map_yfinance_to_metadata`` (used
             by ``ScanPipeline`` wrappers for test-patching compatibility).
+        surface_method: Surface fitting method (``"spline"`` or ``"neural"``).
+            Passed through to ``compute_vol_surface()``.  Default ``"spline"``.
 
     Returns:
         Tuple of (ticker, recommended contracts, next_earnings_date | None,
@@ -629,6 +638,7 @@ async def process_ticker_options(
                         spot,
                         risk_free_rate,
                         ticker_info.dividend_yield,
+                        surface_method=surface_method,
                     )
             except Exception:
                 logger.warning(
