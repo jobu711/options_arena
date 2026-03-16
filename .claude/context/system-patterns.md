@@ -152,4 +152,24 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **Frontend**: `MarketHeatmap.vue` — client-side squarify treemap layout, color-coded by % change
 - **State**: Pinia `heatmap` store with async fetch + caching
 
+### Statistical ML Pipeline Pattern (Optional `[ml]` Extra)
+- **Guarded imports**: `indicators/vol_forecast.py`, `regime_ml.py`, `macro.py` use try/except ImportError — return `None` when `arch`/`statsmodels` not installed
+- **Config-gated**: `MLConfig.enabled` master toggle + per-feature toggles (`garch_enabled`, `regime_enabled`, `macro_enabled`)
+- **GARCH/EGARCH**: `fit_garch_forecast()` returns `VolForecast` (annualized vol, conditional vol, forecast horizon). ADF stationarity test pre-check.
+- **Markov-switching**: `fit_regime_model()` returns `RegimeState` (current regime, transition probs, regime means/vols). 2-regime model (low-vol/high-vol).
+- **Macro regime**: `derive_macro_regime()` aggregates FRED series into `MacroRegime` enum (expansion/contraction/transition/uncertainty). YoY changes for GDP, CPI.
+- **Hurst exponent**: `compute_hurst_exponent()` via R/S analysis — mean-reverting (<0.5), random walk (0.5), trending (>0.5)
+- **Pipeline integration**: `phase_scoring.py` conditionally runs ML indicators in Phase 2; results injected into `ScoringResult.ml_indicators`
+- **Agent enrichment**: `render_*_context()` functions append ML results to domain-specific agent prompts
+
+### Agent Constraints Pattern
+- `constraints.py`: Structured output validation for debate agents — enforces score ranges, direction consistency, citation requirements
+- Applied post-generation; violations logged but don't reject output (soft constraints)
+
+### Competitive Analysis Modules (`analysis/`)
+- `valuation.py`: DCF, DDM, residual income, Graham number — pure computation, no I/O
+- `correlation.py`: Cross-asset correlation matrices, rolling correlation windows
+- `performance.py`: Risk-adjusted returns (Sharpe, Sortino, Calmar), drawdown analysis
+- `position_sizing.py`: Kelly criterion, fractional Kelly, position limits
+
 For detailed algorithm specs, see `system-patterns-reference.md`.

@@ -5,7 +5,7 @@ created: 2026-03-15T14:00:00Z
 progress: 0%
 prd: .claude/prds/scientific-ml-integration.md
 parent: .claude/epics/scientific-ml-integration
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/539
 ---
 
 # Epic B: ML Classification & Scoring (scikit-learn)
@@ -124,3 +124,18 @@ B1 must precede B2. B3 and B4 are independent of each other and B1/B2.
 | Contract clustering populated | >60% of chains with 10+ contracts |
 | Existing test suite | 100% pass (zero regressions) |
 | Default config behavior | Identical to current — all features off |
+
+## Tasks Created
+- [ ] #540 - Offline Regime Classifier Training Script (parallel: false)
+- [ ] #541 - ML Regime Inference in Pipeline (parallel: false, depends: #540)
+- [ ] #542 - Contract Greeks Clustering (parallel: true)
+- [ ] #543 - Flow Anomaly Detection (parallel: true)
+
+Total tasks: 4
+Parallel tasks: 2 (#542, #543)
+Sequential tasks: 2 (#540 → #541)
+Estimated total effort: 15-22 hours
+
+## Test Coverage Plan
+Total test files planned: 4
+Total test cases planned: ~57 (15 + 15 + 15 + 12)

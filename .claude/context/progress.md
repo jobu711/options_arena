@@ -2,10 +2,10 @@
 
 ## Current State
 
-- **Version**: 2.8.0 — Native quant + DevOps audit infrastructure
-- **All 9 phases + 32 epics**: Complete and merged to master
-- **Tests**: 4,522 Python (24K+ parametrized) + 107 E2E (17 spec files)
-- **GitHub issues**: 6+ open (financialdatasets-ai #393-#399), 490+ closed
+- **Version**: 2.8.0 — Statistical ML pipeline + competitive audit
+- **All 9 phases + 34 epics**: Complete and merged to master
+- **Tests**: 4,816 Python (27K parametrized) + 107 E2E (17 spec files)
+- **GitHub issues**: 6+ open (financialdatasets-ai #393-#399), 530+ closed
 - **CI**: GitHub Actions (4 gates: lint, typecheck, tests, frontend)
 - **CLI**: `options-arena scan`, `health`, `universe` (+ `index`), `debate` (+ `--batch`, `--export`, `--provider`), `serve`, `outcomes` (collect, summary, backtest, equity-curve)
 - **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
@@ -19,8 +19,10 @@
 
 ## Recently Completed
 
-- **DevOps audit epic** (2026-03-14): Issues #495-#497, PR #498. 3-phase `/devops-audit` command (static analysis, dynamic probes, gap analysis). New commands: `/full-audit`, `/fix-loop`, `/release-prep`, `/compound`. New agents: architect-reviewer, oa-python-reviewer, learnings-researcher, spec-analyzer. Scope boundary hardening.
-- **Native quant epic** (2026-03-13): Issues #486-#492. Vol surface analysis (`analysis/` module), second-order Greeks (vanna, charm, vomma), HV estimators, probability models. Migration 032. API enrichment with vol surface + Greeks guidance in debate prompts. `docs/solutions/` knowledge capture infra.
+- **Scientific ML Statistical epic** (2026-03-15): Issues #533-#537, PR #538. GARCH/EGARCH vol forecasting, Markov-switching regime detection, FRED macro pipeline (GDP, unemployment, CPI, yield curve), Hurst exponent, scan pipeline integration. Optional `[ml]` extra (`arch`, `statsmodels`). Agent prompts enriched with macro/regime/vol-forecast context.
+- **Competitive audit epic** (2026-03-15): Issues #524-#530. Valuation models (DCF, DDM, residual income, Graham), correlation analysis, performance analytics, position sizing (Kelly criterion). New `analysis/` submodules. Agent constraints system for structured output validation.
+- **DevOps audit epic** (2026-03-14): 3-phase `/devops-audit`, `/full-audit`, `/fix-loop`, `/release-prep`, `/compound`. 7 audit agents + scope boundary hardening.
+- **Native quant epic** (2026-03-13): Vol surface analysis, second-order Greeks, HV estimators, probability models. `docs/solutions/` knowledge capture infra.
 
 ## Future Work
 

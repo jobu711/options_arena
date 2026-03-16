@@ -16,7 +16,7 @@
 | yfinance | >=1.2.0 | Market data: OHLCV, options chains, quotes |
 | httpx | >=0.28.1 | Async HTTP client for FRED, Groq health checks |
 | scipy | >=1.17.0 | BSM pricing (`stats.norm.cdf`/`.pdf`), BAW IV solver (`optimize.brentq`) |
-| pydantic-ai | >=1.62.0 | Type-safe agent framework for AI debate agents |
+| pydantic-ai-slim[groq,anthropic] | >=1.62,<2.0 | Type-safe agent framework for AI debate agents |
 | typer | >=0.24.0 | CLI framework with subcommands |
 | rich | >=14.3.2 | Terminal output formatting (tables, colors, progress) |
 | pydantic-settings | >=2.13.0 | Configuration management |
@@ -25,6 +25,9 @@
 | fastapi | >=0.133.1 | REST API + WebSocket backend |
 | uvicorn[standard] | >=0.41.0 | ASGI server for FastAPI |
 
+| arch | >=8.0,<9 | GARCH/EGARCH volatility forecasting (optional `[ml]`) |
+| statsmodels | >=0.14,<0.15 | Markov-switching regime detection, ADF tests (optional `[ml]`) |
+
 For web/optional/dev deps, build system, and tool config: `.claude/guides/dependency-reference.md`
 
 ## External Services
@@ -32,7 +35,7 @@ For web/optional/dev deps, build system, and tool config: `.claude/guides/depend
 | Service | Module | Protocol | Purpose | Fallback |
 |---------|--------|----------|---------|----------|
 | Yahoo Finance | `market_data.py`, `options_data.py` | yfinance via `asyncio.to_thread` | OHLCV, quotes, ticker info, option chains | N/A (required) |
-| FRED | `fred.py` | httpx REST API | 10yr Treasury risk-free rate | `PricingConfig.risk_free_rate_fallback` (5%) |
+| FRED | `fred.py` | httpx REST API | Risk-free rate + macro series (GDP, CPI, unemployment, yield curve) | Fallback defaults per series |
 | CBOE | `universe.py`, `cboe_provider.py` | httpx CSV + OpenBB SDK | Optionable universe + option chains (primary) | Cached list (24h TTL) / yfinance fallback |
 | GitHub CSV | `universe.py` | httpx + `pd.read_csv` via `asyncio.to_thread` | S&P 500 constituents + GICS sectors | Cached list (24h TTL) |
 | Groq | `agents/orchestrator.py`, `health.py` | PydanticAI + GroqProvider (cloud API) | LLM debate agents (llama-3.3-70b-versatile) | Data-driven verdict |

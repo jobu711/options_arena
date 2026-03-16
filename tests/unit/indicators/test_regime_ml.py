@@ -382,6 +382,6 @@ class TestIndicatorSignalsMarkovFields:
         assert restored.regime_markov_label == pytest.approx(2.0)
         assert restored.regime_transition_prob == pytest.approx(0.92)
 
-    def test_total_field_count_is_73(self) -> None:
-        """IndicatorSignals should now have exactly 73 fields."""
-        assert len(IndicatorSignals.model_fields) == 73
+    def test_total_field_count_is_74(self) -> None:
+        """IndicatorSignals should now have exactly 74 fields."""
+        assert len(IndicatorSignals.model_fields) == 74
