@@ -158,6 +158,9 @@ class IndicatorSignals(BaseModel):
     regime_markov_label: float | None = None  # 0.0=low_vol, 1.0=normal, 2.0=high_vol
     regime_transition_prob: float | None = None  # probability of staying in current regime
 
+    # --- ML: Flow Anomaly Detection ---
+    flow_anomaly_score: float | None = None  # Isolation Forest decision function score
+
     @model_validator(mode="before")
     @classmethod
     def _normalize_non_finite(cls, data: dict[str, object]) -> dict[str, object]:

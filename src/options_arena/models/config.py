@@ -42,9 +42,12 @@ class MLConfig(BaseModel):
     enable_garch: bool = False
     enable_markov: bool = False
     enable_macro: bool = False
+    enable_flow_anomaly: bool = False
+    enable_clustering: bool = False
     garch_p: int = 1
     garch_q: int = 1
     markov_n_regimes: int = 3
+    contract_n_clusters: int = 4
 
     @field_validator("garch_p", "garch_q")
     @classmethod
@@ -60,6 +63,14 @@ class MLConfig(BaseModel):
         """Ensure Markov regime count is in [2, 5]."""
         if not 2 <= v <= 5:
             raise ValueError(f"markov_n_regimes must be in [2, 5], got {v}")
+        return v
+
+    @field_validator("contract_n_clusters")
+    @classmethod
+    def _validate_contract_n_clusters(cls, v: int) -> int:
+        """Ensure contract cluster count is in [2, 10]."""
+        if not 2 <= v <= 10:
+            raise ValueError(f"contract_n_clusters must be in [2, 10], got {v}")
         return v
 
 

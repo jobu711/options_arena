@@ -200,6 +200,9 @@ class MarketContext(BaseModel):
     vol_forecast_garch: float | None = None  # GARCH annualized vol forecast
     iv_vs_forecast_spread: float | None = None  # EWMA vol - GARCH forecast (positive = vol rich)
 
+    # --- ML Flow Anomaly Detection ---
+    flow_anomaly_score: float | None = None  # Isolation Forest decision function score
+
     # --- Macro Context (FRED) ---
     macro_regime: MacroRegime | None = None
     yield_spread: float | None = None  # 10Y-2Y spread (decimal fraction)
@@ -474,6 +477,8 @@ class MarketContext(BaseModel):
         # ML Volatility Forecasts
         "vol_forecast_garch",
         "iv_vs_forecast_spread",
+        # ML Flow Anomaly Detection
+        "flow_anomaly_score",
         # Spread strategy
         "spread_pop",
         "spread_risk_reward",
