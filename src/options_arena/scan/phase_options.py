@@ -38,6 +38,7 @@ from options_arena.models import (
     IndicatorSignals,
     MacroRegime,
     MarketRegime,
+    MLConfig,
     OptionContract,
     OptionType,
     PricingConfig,
@@ -426,6 +427,46 @@ async def run_options_phase(
         len(top_scores),
     )
 
+    # --- Neural Trajectory P(profit) ---
+    # Compute prob_profit_neural for each recommended ticker when enabled.
+    # Requires OHLCV data (last 60 bars) and a recommended contract (spot + strike).
+    prob_profit_neural: dict[str, float] = {}
+    if scan_config.ml.enable_trajectory and recommendations:
+        for ticker, contracts in recommendations.items():
+            if not contracts:
+                continue
+            ohlcv_list = ohlcv_map.get(ticker)
+            seq_len = scan_config.ml.trajectory_sequence_length
+            if ohlcv_list is None or len(ohlcv_list) < seq_len:
+                logger.debug(
+                    "Trajectory skipped for %s: insufficient OHLCV data (%d < %d)",
+                    ticker,
+                    len(ohlcv_list) if ohlcv_list else 0,
+                    seq_len,
+                )
+                continue
+            try:
+                prob = await _compute_trajectory_prob(
+                    ohlcv_list=ohlcv_list,
+                    spot=float(entry_prices.get(ticker, contracts[0].strike)),
+                    strike=float(contracts[0].strike),
+                    dte=contracts[0].dte,
+                    ml_config=scan_config.ml,
+                )
+                if prob is not None:
+                    prob_profit_neural[ticker] = prob
+                    logger.debug(
+                        "Trajectory P(profit) for %s: %.1f%%",
+                        ticker,
+                        prob * 100,
+                    )
+            except Exception:
+                logger.debug(
+                    "Trajectory computation failed for %s; continuing without",
+                    ticker,
+                    exc_info=True,
+                )
+
     # Normalize Phase 3 fields (raw domain values -> 0-100 percentile ranks)
     # so they are on the same scale as Phase 2 normalized fields.
     if len(top_scores) >= 2:
@@ -447,6 +488,7 @@ async def run_options_phase(
         macro_yield_spread=macro_yield_spread,
         macro_fed_funds_rate=macro_fed_funds_rate,
         macro_vix_level=macro_vix_level,
+        prob_profit_neural=prob_profit_neural,
     )
 
 
@@ -988,3 +1030,84 @@ def _recompute_dimensional_scores(
                 ts.ticker,
                 exc_info=True,
             )
+
+
+async def _compute_trajectory_prob(
+    ohlcv_list: list[OHLCV],
+    spot: float,
+    strike: float,
+    dte: int,
+    ml_config: MLConfig,
+) -> float | None:
+    """Compute neural trajectory P(profit) for a single ticker.
+
+    Builds 8-feature sequences from OHLCV data, calls ``fit_trajectory_model()``
+    via ``asyncio.to_thread()`` + ``asyncio.wait_for(timeout=5.0)`` to keep the
+    event loop responsive, then derives P(S_T > strike) from the fitted LSTM.
+
+    Returns ``None`` when torch/lightning are missing, data is insufficient,
+    fitting fails, or the call times out.  Never raises.
+    """
+    from options_arena.pricing.trajectory import compute_prob_profit, fit_trajectory_model
+
+    seq_len = ml_config.trajectory_sequence_length
+
+    # Build 8-feature flat vectors from OHLCV bars:
+    # [open, high, low, close, volume, daily_return, range_pct, volume_change]
+    features_seq: list[list[float]] = []
+    target_returns: list[list[float]] = []
+    horizons = ml_config.trajectory_horizons
+
+    for i in range(seq_len, len(ohlcv_list)):
+        flat: list[float] = []
+        for j in range(i - seq_len, i):
+            bar = ohlcv_list[j]
+            o_val, h_val, l_val, c_val, v_val = (
+                float(bar.open),
+                float(bar.high),
+                float(bar.low),
+                float(bar.close),
+                float(bar.volume),
+            )
+            prev_bar = ohlcv_list[max(0, j - 1)]
+            prev_c = float(prev_bar.close)
+            daily_ret = (c_val - prev_c) / prev_c if prev_c > 0 else 0.0
+            range_pct = (h_val - l_val) / c_val if c_val > 0 else 0.0
+            prev_v = float(prev_bar.volume)
+            vol_chg = (v_val - prev_v) / prev_v if prev_v > 0 else 0.0
+            flat.extend([o_val, h_val, l_val, c_val, v_val, daily_ret, range_pct, vol_chg])
+        features_seq.append(flat)
+
+        # Target returns: log return at each horizon from bar i
+        targets: list[float] = []
+        for horizon in horizons:
+            future_idx = i + horizon
+            if future_idx < len(ohlcv_list):
+                c_now = float(ohlcv_list[i].close)
+                c_fut = float(ohlcv_list[future_idx].close)
+                if c_now > 0 and c_fut > 0:
+                    targets.append(math.log(c_fut / c_now))
+                else:
+                    targets.append(0.0)
+            else:
+                targets.append(0.0)
+        target_returns.append(targets)
+
+    if len(features_seq) < 2:
+        return None
+
+    # Run synchronous torch inference off the event loop with timeout
+    forecasts = await asyncio.wait_for(
+        asyncio.to_thread(
+            fit_trajectory_model,
+            features_seq,
+            target_returns,
+            ml_config,
+        ),
+        timeout=5.0,
+    )
+
+    if forecasts is None:
+        return None
+
+    return compute_prob_profit(forecasts, spot, strike, dte)
