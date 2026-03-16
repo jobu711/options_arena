@@ -849,39 +849,34 @@ def _render_neural_context(ctx: MarketContext) -> str:
 def _render_neural_surface_comparison(ctx: MarketContext) -> str:
     """Render spline vs neural surface R-squared comparison when both available.
 
-    Compares ``surface_fit_r2`` (spline) with neural surface R-squared if the
-    neural surface was used (detected via ``prob_profit_neural`` being populated
-    as a proxy for the neural pipeline having run). Returns empty string when
-    neural surface was not used or data is missing.
+    Compares ``surface_fit_r2`` (spline) with ``neural_surface_r2`` (neural MLP)
+    when both fields are populated. Returns empty string when either is missing.
 
-    Note: The current ``MarketContext`` does not carry a separate
-    ``neural_surface_r2`` field. When only the spline R-squared is available,
-    the comparison is skipped. This function is forward-compatible — when a
-    ``neural_surface_r2`` field is added in a future task, the comparison
-    logic here will be extended.
+    Note: ``neural_surface_r2`` must be populated on ``MarketContext`` for this
+    comparison to render. ``prob_profit_neural`` (trajectory model) is NOT used
+    as a proxy — trajectory and neural surface are independent features.
     """
-    # surface_fit_r2 is the spline fit quality
     spline_r2 = ctx.surface_fit_r2
     if spline_r2 is None or not math.isfinite(spline_r2):
         return ""
 
-    # Without a separate neural_surface_r2 field on MarketContext, we report
-    # the spline R-squared with a note that neural surface was active.
-    # The neural pipeline having run is signaled by prob_profit_neural being set.
-    if ctx.prob_profit_neural is None:
+    # Gate on a dedicated neural surface field, not the trajectory proxy.
+    neural_r2 = getattr(ctx, "neural_surface_r2", None)
+    if neural_r2 is None:
         return ""
 
     lines: list[str] = [
         "",
         "## Surface Model Comparison",
         f"SPLINE SURFACE R²: {spline_r2:.2f}",
+        f"NEURAL SURFACE R²: {neural_r2:.2f}",
     ]
-    if spline_r2 >= 0.8:
+    if neural_r2 > spline_r2:
+        lines.append("NEURAL ADVANTAGE: Neural model provides better fit")
+    elif spline_r2 >= 0.8:
         lines.append("FIT QUALITY: Good — spline captures IV surface well")
-    elif spline_r2 >= 0.5:
-        lines.append("FIT QUALITY: Moderate — neural model may offer better fit")
     else:
-        lines.append("FIT QUALITY: Poor — neural model likely provides superior fit")
+        lines.append("FIT QUALITY: Moderate — consider neural model for better fit")
 
     return "\n".join(lines)
 

@@ -15,13 +15,14 @@ AppSettings() with no args is a valid production config.
 
 import math
 import urllib.parse
-from typing import Literal, Self
+from typing import Self
 
 from pydantic import BaseModel, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from options_arena.models.enums import (
     LLMProvider,
+    SurfaceMethod,
 )
 from options_arena.models.filters import ScanFilterSpec
 
@@ -60,7 +61,7 @@ class MLConfig(BaseModel):
 
     # Neural IV surface model (optional [neural] extra: lightning + torch)
     enable_neural_surface: bool = False
-    surface_method: Literal["spline", "neural"] = "spline"
+    surface_method: SurfaceMethod = SurfaceMethod.SPLINE
     model_cache_dir: str = "data/model_cache"
     neural_surface_epochs: int = 100
     neural_surface_lr: float = 0.001
@@ -110,7 +111,7 @@ class MLConfig(BaseModel):
     @model_validator(mode="after")
     def _validate_surface_method_consistency(self) -> Self:
         """Warn if surface_method is 'neural' but enable_neural_surface is False."""
-        if self.surface_method == "neural" and not self.enable_neural_surface:
+        if self.surface_method == SurfaceMethod.NEURAL and not self.enable_neural_surface:
             # Auto-enable neural surface when method is set to neural
             object.__setattr__(self, "enable_neural_surface", True)
         return self
@@ -118,7 +119,9 @@ class MLConfig(BaseModel):
     @field_validator("trajectory_horizons")
     @classmethod
     def _validate_trajectory_horizons(cls, v: list[int]) -> list[int]:
-        """Ensure all trajectory horizons are positive integers."""
+        """Ensure trajectory horizons are non-empty and all positive integers."""
+        if not v:
+            raise ValueError("trajectory_horizons must contain at least one horizon")
         for h in v:
             if h < 1:
                 raise ValueError(f"trajectory horizon must be >= 1, got {h}")

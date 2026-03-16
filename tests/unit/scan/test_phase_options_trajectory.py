@@ -103,7 +103,8 @@ class TestComputeTrajectoryProb:
     @pytest.mark.asyncio
     async def test_trajectory_called_when_enabled(self) -> None:
         """Verify trajectory model called when enable_trajectory=True."""
-        ohlcv = _make_ohlcv_bars("AAPL", n=100)
+        # Need enough bars for seq_len(60) + max_horizon(90) + 2 valid samples
+        ohlcv = _make_ohlcv_bars("AAPL", n=200)
         ml_config = _make_ml_config(enable_trajectory=True)
 
         mock_forecasts = [
@@ -131,7 +132,7 @@ class TestComputeTrajectoryProb:
     @pytest.mark.asyncio
     async def test_trajectory_returns_none_on_failure(self) -> None:
         """Verify pipeline continues when trajectory model returns None."""
-        ohlcv = _make_ohlcv_bars("AAPL", n=100)
+        ohlcv = _make_ohlcv_bars("AAPL", n=200)
         ml_config = _make_ml_config(enable_trajectory=True)
 
         with patch(_PATCH_FIT, return_value=None):
@@ -170,7 +171,7 @@ class TestComputeTrajectoryProb:
         timeout is gracefully handled at the pipeline level. At the helper
         level, TimeoutError is expected to propagate.
         """
-        ohlcv = _make_ohlcv_bars("AAPL", n=100)
+        ohlcv = _make_ohlcv_bars("AAPL", n=200)
         ml_config = _make_ml_config(enable_trajectory=True)
 
         with (
@@ -192,7 +193,7 @@ class TestComputeTrajectoryProb:
     @pytest.mark.asyncio
     async def test_prob_profit_populated(self) -> None:
         """Verify prob_profit_neural value is correctly returned."""
-        ohlcv = _make_ohlcv_bars("AAPL", n=100)
+        ohlcv = _make_ohlcv_bars("AAPL", n=200)
         ml_config = _make_ml_config(enable_trajectory=True)
 
         mock_forecasts = [
@@ -216,8 +217,9 @@ class TestComputeTrajectoryProb:
     @pytest.mark.asyncio
     async def test_feature_building_uses_correct_sequence_length(self) -> None:
         """Verify feature sequences respect trajectory_sequence_length config."""
-        # Use seq_len=20 (minimum allowed by validator) with n=50 bars
-        ohlcv = _make_ohlcv_bars("AAPL", n=50)
+        # Need n >= seq_len + max_horizon + expected_samples
+        # seq_len=20, max_horizon=30, want 30 samples → n=80
+        ohlcv = _make_ohlcv_bars("AAPL", n=80)
         ml_config = MLConfig(
             enabled=True,
             enable_trajectory=True,
@@ -253,5 +255,5 @@ class TestComputeTrajectoryProb:
         features = captured_features[0]
         # Each feature vector should be seq_len * 8 = 20 * 8 = 160 elements
         assert len(features[0]) == 20 * 8
-        # Number of samples: len(ohlcv) - seq_len = 50 - 20 = 30
+        # Valid samples: n - seq_len - max_horizon = 80 - 20 - 30 = 30
         assert len(features) == 30

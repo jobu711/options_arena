@@ -26,6 +26,10 @@ _MAX_WS_CONNECTIONS_PER_TYPE = 10
 _scan_ws_count = 0
 _debate_ws_count = 0
 _batch_ws_count = 0
+# Locks to make connection-limit reservation atomic (prevents TOCTOU race).
+_scan_ws_lock = asyncio.Lock()
+_debate_ws_lock = asyncio.Lock()
+_batch_ws_lock = asyncio.Lock()
 
 
 def _is_loopback_origin(origin: str) -> bool:
@@ -218,18 +222,23 @@ async def ws_scan(websocket: WebSocket, scan_id: int) -> None:
         with contextlib.suppress(Exception):
             await websocket.close(code=4003)
         return
-    if _scan_ws_count >= _MAX_WS_CONNECTIONS_PER_TYPE:
-        with contextlib.suppress(Exception):
-            await websocket.close(code=4008)
-        return
+    # Atomically reserve capacity before accepting the connection.
+    reserved = False
+    async with _scan_ws_lock:
+        if _scan_ws_count >= _MAX_WS_CONNECTIONS_PER_TYPE:
+            with contextlib.suppress(Exception):
+                await websocket.close(code=4008)
+            return
+        _scan_ws_count += 1
+        reserved = True
     await websocket.accept()
-    _scan_ws_count += 1
     scan_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
         websocket.app.state, "scan_queues", {}
     )
     queue = scan_queues.get(scan_id)
     if queue is None:
-        _scan_ws_count -= 1
+        async with _scan_ws_lock:
+            _scan_ws_count -= 1
         with contextlib.suppress(Exception):
             await websocket.close(code=4004)
         return
@@ -246,7 +255,10 @@ async def ws_scan(websocket: WebSocket, scan_id: int) -> None:
     except WebSocketDisconnect:
         logger.debug("WebSocket scan/%d disconnected", scan_id)
     finally:
-        _scan_ws_count -= 1
+        if reserved:
+            async with _scan_ws_lock:
+                _scan_ws_count -= 1
+        scan_queues.pop(scan_id, None)
         with contextlib.suppress(Exception):
             await websocket.close()
 
@@ -260,18 +272,22 @@ async def ws_debate(websocket: WebSocket, debate_id: int) -> None:
         with contextlib.suppress(Exception):
             await websocket.close(code=4003)
         return
-    if _debate_ws_count >= _MAX_WS_CONNECTIONS_PER_TYPE:
-        with contextlib.suppress(Exception):
-            await websocket.close(code=4008)
-        return
+    reserved = False
+    async with _debate_ws_lock:
+        if _debate_ws_count >= _MAX_WS_CONNECTIONS_PER_TYPE:
+            with contextlib.suppress(Exception):
+                await websocket.close(code=4008)
+            return
+        _debate_ws_count += 1
+        reserved = True
     await websocket.accept()
-    _debate_ws_count += 1
     debate_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
         websocket.app.state, "debate_queues", {}
     )
     queue = debate_queues.get(debate_id)
     if queue is None:
-        _debate_ws_count -= 1
+        async with _debate_ws_lock:
+            _debate_ws_count -= 1
         with contextlib.suppress(Exception):
             await websocket.close(code=4004)
         return
@@ -288,7 +304,10 @@ async def ws_debate(websocket: WebSocket, debate_id: int) -> None:
     except WebSocketDisconnect:
         logger.debug("WebSocket debate/%d disconnected", debate_id)
     finally:
-        _debate_ws_count -= 1
+        if reserved:
+            async with _debate_ws_lock:
+                _debate_ws_count -= 1
+        debate_queues.pop(debate_id, None)
         with contextlib.suppress(Exception):
             await websocket.close()
 
@@ -302,18 +321,22 @@ async def ws_batch(websocket: WebSocket, batch_id: int) -> None:
         with contextlib.suppress(Exception):
             await websocket.close(code=4003)
         return
-    if _batch_ws_count >= _MAX_WS_CONNECTIONS_PER_TYPE:
-        with contextlib.suppress(Exception):
-            await websocket.close(code=4008)
-        return
+    reserved = False
+    async with _batch_ws_lock:
+        if _batch_ws_count >= _MAX_WS_CONNECTIONS_PER_TYPE:
+            with contextlib.suppress(Exception):
+                await websocket.close(code=4008)
+            return
+        _batch_ws_count += 1
+        reserved = True
     await websocket.accept()
-    _batch_ws_count += 1
     batch_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
         websocket.app.state, "batch_queues", {}
     )
     queue = batch_queues.get(batch_id)
     if queue is None:
-        _batch_ws_count -= 1
+        async with _batch_ws_lock:
+            _batch_ws_count -= 1
         with contextlib.suppress(Exception):
             await websocket.close(code=4004)
         return
@@ -330,6 +353,9 @@ async def ws_batch(websocket: WebSocket, batch_id: int) -> None:
     except WebSocketDisconnect:
         logger.debug("WebSocket batch/%d disconnected", batch_id)
     finally:
-        _batch_ws_count -= 1
+        if reserved:
+            async with _batch_ws_lock:
+                _batch_ws_count -= 1
+        batch_queues.pop(batch_id, None)
         with contextlib.suppress(Exception):
             await websocket.close()

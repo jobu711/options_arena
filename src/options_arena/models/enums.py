@@ -403,6 +403,13 @@ class AuditLayer(StrEnum):
     DISCOVERY = "discovery"
 
 
+class SurfaceMethod(StrEnum):
+    """IV surface fitting method selection."""
+
+    SPLINE = "spline"
+    NEURAL = "neural"
+
+
 class GICSIndustryGroup(StrEnum):
     """GICS Industry Groups (2023 standard).
 

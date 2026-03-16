@@ -232,17 +232,27 @@ def fit_trajectory_model(
         )
         return None
 
-    # Validate all inputs are finite
+    # Validate all inputs are finite (handles both flat and nested list formats)
     for i, seq in enumerate(features_seq):
-        if len(seq) != seq_len * 8:
-            # Flat sequence expected: seq_len * input_dim
-            # Also accept nested list format
-            pass
         for val in seq:
-            if not math.isfinite(val):
+            if isinstance(val, list):
+                # Nested format: (n_samples, seq_len, 8) — validate inner elements
+                for inner_val in val:
+                    if not math.isfinite(inner_val):
+                        logger.debug("Non-finite value in features_seq at sample %d", i)
+                        return None
+            elif not math.isfinite(val):
                 logger.debug("Non-finite value in features_seq at sample %d", i)
                 return None
     for i, ret in enumerate(target_returns):
+        if len(ret) != n_horizons:
+            logger.debug(
+                "Invalid target horizon width at sample %d: expected %d, got %d",
+                i,
+                n_horizons,
+                len(ret),
+            )
+            return None
         for val in ret:
             if not math.isfinite(val):
                 logger.debug("Non-finite value in target_returns at sample %d", i)

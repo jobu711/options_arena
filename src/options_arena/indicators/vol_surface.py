@@ -21,11 +21,16 @@ References:
 - Gatheral (2006) "The Volatility Surface: A Practitioner's Guide"
 """
 
+from __future__ import annotations
+
 import logging
 import math
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from options_arena.models.config import MLConfig
 from scipy.interpolate import SmoothBivariateSpline
 from scipy.stats import norm as _norm
 
@@ -107,6 +112,7 @@ def compute_vol_surface(
     risk_free_rate: float = 0.05,
     dividend_yield: float = 0.0,
     surface_method: str = "spline",
+    ml_config: MLConfig | None = None,
 ) -> VolSurfaceResult:
     """Compute implied volatility surface analytics with tiered fallback.
 
@@ -158,7 +164,7 @@ def compute_vol_surface(
     # ----- Neural surface path (when configured and data sufficient) -----
     if surface_method == "neural" and n_contracts >= _MIN_CONTRACTS_NEURAL:
         neural_result = _try_neural_surface(
-            strikes_f, ivs_f, dtes_f, types_f, spot, risk_free_rate, dividend_yield
+            strikes_f, ivs_f, dtes_f, types_f, spot, risk_free_rate, dividend_yield, ml_config
         )
         if neural_result is not None:
             return neural_result
@@ -220,6 +226,7 @@ def _try_neural_surface(
     spot: float,
     risk_free_rate: float,
     dividend_yield: float,
+    ml_config: MLConfig | None = None,
 ) -> VolSurfaceResult | None:
     """Attempt to fit the IV surface via the neural MLP model.
 
@@ -238,7 +245,7 @@ def _try_neural_surface(
         return None
 
     try:
-        neural_result = fit_neural_surface(strikes, ivs, dtes, spot)
+        neural_result = fit_neural_surface(strikes, ivs, dtes, spot, config=ml_config)
     except Exception:
         logger.debug("fit_neural_surface raised an exception", exc_info=True)
         return None
@@ -250,6 +257,12 @@ def _try_neural_surface(
     if not math.isfinite(neural_result.r_squared):
         logger.debug("Neural surface R-squared non-finite; rejecting result")
         return None
+
+    # Re-apply the same positivity filter that fit_neural_surface uses internally
+    # so that fitted_strikes/fitted_dtes stay aligned with the neural z_scores.
+    neural_mask = (strikes > 0.0) & (ivs > 0.0) & (dtes > 0.0)
+    neural_strikes = strikes[neural_mask]
+    neural_dtes = dtes[neural_mask]
 
     # Compute standalone analytics that the neural model does not produce
     skew = _standalone_skew_25d(strikes, ivs, option_types, spot)
@@ -273,8 +286,8 @@ def _try_neural_surface(
         residuals=neural_result.residuals,
         z_scores=neural_result.z_scores,
         r_squared=neural_result.r_squared,
-        fitted_strikes=strikes,
-        fitted_dtes=dtes,
+        fitted_strikes=neural_strikes,
+        fitted_dtes=neural_dtes,
         is_1d_fallback=False,
         is_standalone_fallback=False,
     )

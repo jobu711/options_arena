@@ -207,42 +207,53 @@ def fit_neural_surface(
         logger.warning("fit_neural_surface: invalid spot=%.4f", spot)
         return None
 
-    # Filter NaN/Inf/non-positive values
-    valid_mask = (
-        np.isfinite(strikes)
-        & np.isfinite(ivs)
-        & np.isfinite(dtes)
-        & (strikes > 0.0)
-        & (ivs > 0.0)
-        & (dtes > 0.0)
-    )
-    strikes_f = strikes[valid_mask]
-    ivs_f = ivs[valid_mask]
-    dtes_f = dtes[valid_mask]
-
-    n_samples = len(ivs_f)
-    if n_samples < _MIN_SAMPLES:
-        logger.debug("fit_neural_surface: insufficient data (%d < %d)", n_samples, _MIN_SAMPLES)
-        return None
-
-    # Resolve config defaults
-    epochs = 100
-    lr = 0.001
-    cache_dir: str | None = None
-    if config is not None:
-        epochs = config.neural_surface_epochs
-        lr = config.neural_surface_lr
-        cache_dir = config.model_cache_dir
-
-    # Transform to feature space
-    log_moneyness = np.log(strikes_f / spot).astype(np.float32)
-    dte_normalized = (dtes_f / 365.0).astype(np.float32)
-    iv_targets = ivs_f.astype(np.float32)
-
-    # Stack features: (N, 2)
-    features = np.column_stack([log_moneyness, dte_normalized])
-
     try:
+        # Validate array shapes match before composing mask
+        if strikes.shape != ivs.shape or strikes.shape != dtes.shape:
+            logger.debug(
+                "fit_neural_surface: mismatched shapes strikes=%s ivs=%s dtes=%s",
+                strikes.shape,
+                ivs.shape,
+                dtes.shape,
+            )
+            return None
+
+        # Filter NaN/Inf/non-positive values
+        valid_mask = (
+            np.isfinite(strikes)
+            & np.isfinite(ivs)
+            & np.isfinite(dtes)
+            & (strikes > 0.0)
+            & (ivs > 0.0)
+            & (dtes > 0.0)
+        )
+        strikes_f = strikes[valid_mask]
+        ivs_f = ivs[valid_mask]
+        dtes_f = dtes[valid_mask]
+
+        n_samples = len(ivs_f)
+        if n_samples < _MIN_SAMPLES:
+            logger.debug(
+                "fit_neural_surface: insufficient data (%d < %d)", n_samples, _MIN_SAMPLES
+            )
+            return None
+
+        # Resolve config defaults
+        epochs = 100
+        lr = 0.001
+        cache_dir: str | None = None
+        if config is not None:
+            epochs = config.neural_surface_epochs
+            lr = config.neural_surface_lr
+            cache_dir = config.model_cache_dir
+
+        # Transform to feature space
+        log_moneyness = np.log(strikes_f / spot).astype(np.float32)
+        dte_normalized = (dtes_f / 365.0).astype(np.float32)
+        iv_targets = ivs_f.astype(np.float32)
+
+        # Stack features: (N, 2)
+        features = np.column_stack([log_moneyness, dte_normalized])
         # Build dataset and dataloader
         x_tensor = torch.tensor(features, dtype=torch.float32)
         y_tensor = torch.tensor(iv_targets.reshape(-1, 1), dtype=torch.float32)

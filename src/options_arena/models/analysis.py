@@ -564,7 +564,13 @@ class MarketContext(BaseModel):
                 raise ValueError(f"surface_fit_r2 must be in [0, 1], got {v}")
         return v
 
-    @field_validator("direction_confidence", "ml_regime_confidence", "position_size_pct")
+    @field_validator(
+        "direction_confidence",
+        "ml_regime_confidence",
+        "position_size_pct",
+        "insider_buy_ratio",
+        "institutional_pct",
+    )
     @classmethod
     def validate_optional_unit_intervals(cls, v: float | None) -> float | None:
         """Ensure probability/percentage fields are finite and within [0.0, 1.0]."""

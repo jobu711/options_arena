@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.13"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -1420,6 +1420,7 @@ dependencies = [
     { name = "rich" },
     { name = "scipy" },
     { name = "slowapi" },
+    { name = "tenacity" },
     { name = "typer" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "yfinance" },
@@ -1480,6 +1481,7 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.17" },
     { name = "slowapi", specifier = ">=0.1.9" },
     { name = "statsmodels", marker = "extra == 'ml'", specifier = ">=0.14,<0.15" },
+    { name = "tenacity", specifier = ">=9.1.4" },
     { name = "torch", marker = "extra == 'neural'", specifier = ">=2.5,<3.0", index = "https://download.pytorch.org/whl/cpu" },
     { name = "typer", specifier = ">=0.24" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0" },
@@ -2585,6 +2587,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/a2/23/6305d76764b3a3fca71bf9606fb25e5568c5b1054b71aadcd247a7686313/tach-0.33.4-cp37-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:c2d93d86412575e9b2b6a1ad3db055bb89847b034dd529e0ad941cc235e030ec", size = 4667498, upload-time = "2026-02-24T11:49:28.455Z" },
     { url = "https://files.pythonhosted.org/packages/bb/c6/3bf3ddcc60c9c2987a7ffcaeee95b4bb944068152e5c2d978e9102e25ca9/tach-0.33.4-cp37-abi3-win32.whl", hash = "sha256:0b9096e513e861c61eee6a8174405bc99a7f7e2fab8793102ecbc5dd95419012", size = 3493047, upload-time = "2026-02-24T11:49:18.775Z" },
     { url = "https://files.pythonhosted.org/packages/87/a7/aa92f09fb9ef7aaba32a1dcf0f401ab48e038eb2f35462bb835305ac5d24/tach-0.33.4-cp37-abi3-win_amd64.whl", hash = "sha256:e7a588314b337d8636de4b1c4c2e745adde8c103955ba4d2456833d30f9ae5b9", size = 3800620, upload-time = "2026-02-24T11:49:17.309Z" },
+]
+
+[[package]]
+name = "tenacity"
+version = "9.1.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/47/c6/ee486fd809e357697ee8a44d3d69222b344920433d3b6666ccd9b374630c/tenacity-9.1.4.tar.gz", hash = "sha256:adb31d4c263f2bd041081ab33b498309a57c77f9acf2db65aadf0898179cf93a", size = 49413, upload-time = "2026-02-07T10:45:33.841Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d7/c1/eb8f9debc45d3b7918a32ab756658a0904732f75e555402972246b0b8e71/tenacity-9.1.4-py3-none-any.whl", hash = "sha256:6095a360c919085f28c6527de529e76a06ad89b23659fa881ae0649b867a9d55", size = 28926, upload-time = "2026-02-07T10:45:32.24Z" },
 ]
 
 [[package]]

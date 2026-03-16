@@ -45,6 +45,7 @@ from options_arena.models import (
     ScanConfig,
     SpreadAnalysis,
     SpreadConfig,
+    SurfaceMethod,
     TickerScore,
 )
 from options_arena.models.filters import OptionsFilters, UniverseFilters
@@ -339,9 +340,10 @@ async def run_options_phase(
         logger.warning("Failed to extract SPX close series; rs_vs_spx will be None", exc_info=True)
 
     # Step 3c: Resolve surface method from config (double-gated: enable flag + method)
-    surface_method: str = "spline"
-    if scan_config.ml.enable_neural_surface and scan_config.ml.surface_method == "neural":
-        surface_method = "neural"
+    surface_method: SurfaceMethod = SurfaceMethod.SPLINE
+    ml = scan_config.ml
+    if ml.enable_neural_surface and ml.surface_method == SurfaceMethod.NEURAL:
+        surface_method = SurfaceMethod.NEURAL
 
     # Step 4: Per-ticker options processing with semaphore-bounded concurrency
     # A semaphore limits concurrent chains-in-flight, allowing all tickers to
@@ -386,6 +388,7 @@ async def run_options_phase(
                             pricing_config=pricing_config,
                             spread_config=spread_config,
                             surface_method=surface_method,
+                            ml_config=scan_config.ml,
                         ),
                         timeout=per_ticker_timeout,
                     )
@@ -512,7 +515,8 @@ async def process_ticker_options(
     spread_config: SpreadConfig | None = None,
     recommend_contracts_fn: RecommendContractsFn | None = None,
     map_yfinance_fn: MapYfinanceFn | None = None,
-    surface_method: str = "spline",
+    surface_method: SurfaceMethod = SurfaceMethod.SPLINE,
+    ml_config: MLConfig | None = None,
 ) -> tuple[str, list[OptionContract], date | None, Decimal | None, SpreadAnalysis | None]:
     """Fetch chains + ticker info + earnings date for a single ticker.
 
@@ -681,6 +685,7 @@ async def process_ticker_options(
                         risk_free_rate,
                         ticker_info.dividend_yield,
                         surface_method=surface_method,
+                        ml_config=ml_config,
                     )
             except Exception:
                 logger.warning(
@@ -1078,17 +1083,21 @@ async def _compute_trajectory_prob(
             flat.extend([o_val, h_val, l_val, c_val, v_val, daily_ret, range_pct, vol_chg])
         features_seq.append(flat)
 
-        # Target returns: log return at each horizon from bar i
+        # Target returns: log return at each horizon from bar i.
+        # Drop samples where any horizon extends beyond available data to avoid
+        # training against fabricated zero targets that bias the model.
+        max_horizon = max(horizons)
+        if i + max_horizon >= len(ohlcv_list):
+            # Incomplete sample — discard features too to keep lists aligned
+            features_seq.pop()
+            continue
         targets: list[float] = []
         for horizon in horizons:
             future_idx = i + horizon
-            if future_idx < len(ohlcv_list):
-                c_now = float(ohlcv_list[i].close)
-                c_fut = float(ohlcv_list[future_idx].close)
-                if c_now > 0 and c_fut > 0:
-                    targets.append(math.log(c_fut / c_now))
-                else:
-                    targets.append(0.0)
+            c_now = float(ohlcv_list[i].close)
+            c_fut = float(ohlcv_list[future_idx].close)
+            if c_now > 0 and c_fut > 0:
+                targets.append(math.log(c_fut / c_now))
             else:
                 targets.append(0.0)
         target_returns.append(targets)
