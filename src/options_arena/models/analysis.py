@@ -244,6 +244,9 @@ class MarketContext(BaseModel):
     valuation_margin_of_safety: float | None = None
     valuation_fair_value: float | None = None
 
+    # --- Neural trajectory P(profit) ---
+    prob_profit_neural: float | None = None
+
     def completeness_ratio(self) -> float:
         """Fraction of optional context fields that are populated (not None).
 
@@ -521,6 +524,8 @@ class MarketContext(BaseModel):
         "yield_spread",
         "fed_funds_rate",
         "vix_level",
+        # Neural trajectory
+        "prob_profit_neural",
     )
     @classmethod
     def validate_optional_finite(cls, v: float | None) -> float | None:
@@ -538,6 +543,17 @@ class MarketContext(BaseModel):
                 raise ValueError(f"prob_above_current must be finite, got {v}")
             if not 0.0 <= v <= 1.0:
                 raise ValueError(f"prob_above_current must be in [0, 1], got {v}")
+        return v
+
+    @field_validator("prob_profit_neural")
+    @classmethod
+    def validate_prob_profit_neural(cls, v: float | None) -> float | None:
+        """Ensure prob_profit_neural is finite and within [0.0, 1.0] when provided."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"prob_profit_neural must be finite, got {v}")
+            if not 0.0 <= v <= 1.0:
+                raise ValueError(f"prob_profit_neural must be in [0, 1], got {v}")
         return v
 
     @field_validator("surface_fit_r2")
