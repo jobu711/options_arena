@@ -29,9 +29,10 @@ from options_arena.models.scoring import DimensionalScores
 
 
 class IndicatorSignals(BaseModel):
-    """73 named indicator fields.
+    """76 named indicator fields.
 
-    Breakdown: 18 + 1 MACD + 40 DSE + 2 liq + 4 quant + 3 surface + 3 ML + 2 regime ML.
+    Breakdown: 19 core + 40 DSE + 2 liq + 4 quant + 3 surface + 1 hurst
+    + 3 ML vol + 2 ML regime + 1 ML GBM regime + 1 ML flow anomaly.
 
     Replaces ``dict[str, float]`` on TickerScore.
 
@@ -157,6 +158,9 @@ class IndicatorSignals(BaseModel):
     # --- ML: Regime Detection (2 new) ---
     regime_markov_label: float | None = None  # 0.0=low_vol, 1.0=normal, 2.0=high_vol
     regime_transition_prob: float | None = None  # probability of staying in current regime
+
+    # --- ML: GBM Regime Classification ---
+    ml_regime_confidence: float | None = None  # GBM classifier max class probability
 
     # --- ML: Flow Anomaly Detection ---
     flow_anomaly_score: float | None = None  # Isolation Forest decision function score

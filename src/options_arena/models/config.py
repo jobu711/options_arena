@@ -44,6 +44,7 @@ class MLConfig(BaseModel):
     enable_macro: bool = False
     enable_flow_anomaly: bool = False
     enable_clustering: bool = False
+    enable_ml_regime: bool = False
     garch_p: int = 1
     garch_q: int = 1
     markov_n_regimes: int = 3

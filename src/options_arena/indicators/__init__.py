@@ -22,6 +22,8 @@ from options_arena.indicators.options_specific import (
 from options_arena.indicators.oscillators import rsi, stoch_rsi, williams_r
 from options_arena.indicators.regime_ml import (
     MarkovRegimeOutput,
+    RegimeClassification,
+    classify_regime_ml,
     compute_markov_regime,
     map_regime_label_to_market_regime,
 )
@@ -42,6 +44,7 @@ from options_arena.indicators.volume import ad_trend, obv_trend, relative_volume
 
 __all__ = [
     "MarkovRegimeOutput",
+    "RegimeClassification",
     "VolSurfaceIndicators",
     "VolSurfaceResult",
     "ad_trend",
@@ -54,6 +57,7 @@ __all__ = [
     "compute_hv_parkinson",
     "compute_hv_rogers_satchell",
     "compute_hv_yang_zhang",
+    "classify_regime_ml",
     "compute_markov_regime",
     "compute_surface_indicators",
     "compute_vol_surface",
