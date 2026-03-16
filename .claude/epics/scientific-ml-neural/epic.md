@@ -5,7 +5,7 @@ created: 2026-03-15T14:00:00Z
 progress: 0%
 prd: .claude/prds/scientific-ml-integration.md
 parent: .claude/epics/scientific-ml-integration
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/550
 ---
 
 # Epic C: Neural Models (PyTorch Lightning)
@@ -129,3 +129,24 @@ C1 and C3 can run in parallel. C2 depends on C1. C4 depends on C1 and C3.
 | Trajectory inference latency | <100ms per ticker |
 | Existing test suite | 100% pass (zero regressions) |
 | Default config behavior | Identical to current — all features off |
+
+## Tasks Created
+- [ ] #551 - Neural IV Surface Model (parallel: true)
+- [ ] #552 - Neural Surface Pipeline Integration (parallel: false, depends: #551)
+- [ ] #553 - LSTM Trajectory Forecasting Model (parallel: true)
+- [ ] #554 - Trajectory Integration + Agent Enrichment (parallel: false, depends: #551, #553)
+
+Total tasks: 4
+Parallel tasks: 2 (#551, #553)
+Sequential tasks: 2 (#552, #554)
+Estimated total effort: 19-25 hours
+
+## Test Coverage Plan
+Total test files planned: 5
+Total test cases planned: ~56
+- `tests/unit/pricing/test_neural_surface.py` (~14 cases)
+- `tests/unit/pricing/test_trajectory.py` (~20 cases)
+- `tests/unit/indicators/test_neural_vol_surface.py` (~6 cases)
+- `tests/unit/scan/test_phase_options_neural.py` (~3 cases)
+- `tests/unit/agents/test_neural_context.py` (~8 cases)
+- `tests/unit/scan/test_phase_options_trajectory.py` (~5 cases)
