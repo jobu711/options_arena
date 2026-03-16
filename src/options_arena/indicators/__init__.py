@@ -10,6 +10,7 @@ from options_arena.indicators.hv_estimators import (
     compute_hv_rogers_satchell,
     compute_hv_yang_zhang,
 )
+from options_arena.indicators.macro import compute_macro_regime
 from options_arena.indicators.moving_averages import sma_alignment, vwap_deviation
 from options_arena.indicators.options_specific import (
     iv_percentile,
@@ -19,7 +20,17 @@ from options_arena.indicators.options_specific import (
     put_call_ratio_volume,
 )
 from options_arena.indicators.oscillators import rsi, stoch_rsi, williams_r
+from options_arena.indicators.regime_ml import (
+    MarkovRegimeOutput,
+    compute_markov_regime,
+    map_regime_label_to_market_regime,
+)
 from options_arena.indicators.trend import adx, macd, roc, supertrend
+from options_arena.indicators.vol_forecast import (
+    compute_egarch_forecast,
+    compute_garch_forecast,
+    test_stationarity,
+)
 from options_arena.indicators.vol_surface import (
     VolSurfaceIndicators,
     VolSurfaceResult,
@@ -30,15 +41,20 @@ from options_arena.indicators.volatility import atr_percent, bb_width, keltner_w
 from options_arena.indicators.volume import ad_trend, obv_trend, relative_volume
 
 __all__ = [
+    "MarkovRegimeOutput",
     "VolSurfaceIndicators",
     "VolSurfaceResult",
     "ad_trend",
+    "compute_macro_regime",
     "adx",
     "atr_percent",
     "bb_width",
+    "compute_egarch_forecast",
+    "compute_garch_forecast",
     "compute_hv_parkinson",
     "compute_hv_rogers_satchell",
     "compute_hv_yang_zhang",
+    "compute_markov_regime",
     "compute_surface_indicators",
     "compute_vol_surface",
     "hurst_exponent",
@@ -46,6 +62,7 @@ __all__ = [
     "iv_rank",
     "keltner_width",
     "macd",
+    "map_regime_label_to_market_regime",
     "max_pain",
     "obv_trend",
     "put_call_ratio_oi",
@@ -56,6 +73,7 @@ __all__ = [
     "sma_alignment",
     "stoch_rsi",
     "supertrend",
+    "test_stationarity",
     "vwap_deviation",
     "williams_r",
 ]

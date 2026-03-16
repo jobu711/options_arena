@@ -40,6 +40,7 @@ from options_arena.models.enums import (
     ConstraintViolationType,
     ExerciseStyle,
     MacdSignal,
+    MacroRegime,
     RiskLevel,
     SentimentLabel,
     SignalDirection,
@@ -194,6 +195,16 @@ class MarketContext(BaseModel):
     # --- Position Sizing (from volatility-regime algorithm) ---
     position_size_pct: float | None = None  # [0.0, 1.0] suggested allocation
     position_size_rationale: str | None = None
+
+    # --- ML Volatility Forecasts ---
+    vol_forecast_garch: float | None = None  # GARCH annualized vol forecast
+    iv_vs_forecast_spread: float | None = None  # EWMA vol - GARCH forecast (positive = vol rich)
+
+    # --- Macro Context (FRED) ---
+    macro_regime: MacroRegime | None = None
+    yield_spread: float | None = None  # 10Y-2Y spread (decimal fraction)
+    fed_funds_rate: float | None = None  # Federal funds rate (decimal fraction)
+    vix_level: float | None = None  # CBOE VIX index level (not percentage)
 
     # --- Financial Datasets enrichment (fd_* prefix) ---
     fd_revenue: float | None = None
@@ -460,6 +471,9 @@ class MarketContext(BaseModel):
         # Volatility Intelligence: Surface Mispricing
         # (surface_fit_r2 has its own range validator; iv_surface_residual checked here)
         "iv_surface_residual",
+        # ML Volatility Forecasts
+        "vol_forecast_garch",
+        "iv_vs_forecast_spread",
         # Spread strategy
         "spread_pop",
         "spread_risk_reward",
@@ -492,6 +506,10 @@ class MarketContext(BaseModel):
         # Multi-Methodology Valuation summary
         "valuation_margin_of_safety",
         "valuation_fair_value",
+        # Macro context (FRED) — macro_regime is str, not validated here
+        "yield_spread",
+        "fed_funds_rate",
+        "vix_level",
     )
     @classmethod
     def validate_optional_finite(cls, v: float | None) -> float | None:

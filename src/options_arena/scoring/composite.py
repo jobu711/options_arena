@@ -30,39 +30,42 @@ logger = logging.getLogger(__name__)
 # Field names match IndicatorSignals fields exactly.
 # Individual weights sum to 1.0.
 INDICATOR_WEIGHTS: dict[str, tuple[float, str]] = {
-    # Oscillators
-    "rsi": (0.065, "oscillators"),
-    "stochastic_rsi": (0.05, "oscillators"),
-    "williams_r": (0.05, "oscillators"),
-    # Trend
-    "adx": (0.065, "trend"),
-    "roc": (0.02, "trend"),
-    "supertrend": (0.05, "trend"),
-    "macd": (0.05, "trend"),
+    # Oscillators (scaled by 0.96 to accommodate ML indicators)
+    "rsi": (0.0624, "oscillators"),
+    "stochastic_rsi": (0.048, "oscillators"),
+    "williams_r": (0.048, "oscillators"),
+    # Trend (scaled by 0.96 to accommodate ML indicators)
+    "adx": (0.0624, "trend"),
+    "roc": (0.0288, "trend"),
+    "supertrend": (0.048, "trend"),
+    "macd": (0.048, "trend"),
     # Volatility
-    "atr_pct": (0.045, "volatility"),
-    "bb_width": (0.05, "volatility"),
-    "keltner_width": (0.04, "volatility"),
+    "atr_pct": (0.0432, "volatility"),
+    "bb_width": (0.048, "volatility"),
+    "keltner_width": (0.0384, "volatility"),
     # Volume
-    "obv": (0.045, "volume"),
-    "ad": (0.05, "volume"),
-    "relative_volume": (0.05, "volume"),
+    "obv": (0.0432, "volume"),
+    "ad": (0.048, "volume"),
+    "relative_volume": (0.048, "volume"),
     # Moving Averages
-    "sma_alignment": (0.07, "moving_averages"),
-    "vwap_deviation": (0.05, "moving_averages"),
+    "sma_alignment": (0.0672, "moving_averages"),
+    "vwap_deviation": (0.048, "moving_averages"),
     # Options
-    "iv_rank": (0.05, "options"),
-    "iv_percentile": (0.05, "options"),
-    "put_call_ratio": (0.02, "options"),
-    "max_pain_distance": (0.03, "options"),
+    "iv_rank": (0.048, "options"),
+    "iv_percentile": (0.048, "options"),
+    "put_call_ratio": (0.0288, "options"),
+    "max_pain_distance": (0.0288, "options"),
     # Liquidity
-    "chain_spread_pct": (0.03, "liquidity"),
-    "chain_oi_depth": (0.02, "liquidity"),
+    "chain_spread_pct": (0.0288, "liquidity"),
+    "chain_oi_depth": (0.0192, "liquidity"),
     # Vol Surface
-    "skew_25d": (0.02, "vol_surface"),
-    "smile_curvature": (0.01, "vol_surface"),
-    # Regime
-    "hurst_exponent": (0.02, "regime"),
+    "skew_25d": (0.0192, "vol_surface"),
+    "smile_curvature": (0.0096, "vol_surface"),
+    # Regime Detection
+    "hurst_exponent": (0.01, "regime"),
+    # ML Indicators (GARCH vol forecast, Markov regime stability)
+    "vol_forecast_garch": (0.02, "ml_volatility"),
+    "regime_transition_prob": (0.01, "ml_regime"),
 }
 
 # Validate weights sum to 1.0 at import time — catches drift before any scoring runs.

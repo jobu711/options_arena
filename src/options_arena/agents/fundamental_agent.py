@@ -18,6 +18,7 @@ from pydantic_ai import Agent, RunContext
 from options_arena.agents._parsing import (
     DebateDeps,
     build_cleaned_fundamental_thesis,
+    render_macro_context,
 )
 from options_arena.agents.prompts.fundamental_agent import FUNDAMENTAL_SYSTEM_PROMPT
 from options_arena.models import FundamentalThesis
@@ -41,6 +42,10 @@ async def fundamental_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
     to prevent instruction bleed.
     """
     base = FUNDAMENTAL_SYSTEM_PROMPT
+    # Inject macro context when available
+    macro_block = render_macro_context(ctx.deps.context)
+    if macro_block is not None:
+        base += f"\n\n<<<MACRO_CONTEXT>>>\n{macro_block}\n<<<END_MACRO_CONTEXT>>>"
     if ctx.deps.bull_response is not None:
         base += (
             f"\n\n<<<BULL_ARGUMENT>>>\n{ctx.deps.bull_response.argument}\n<<<END_BULL_ARGUMENT>>>"

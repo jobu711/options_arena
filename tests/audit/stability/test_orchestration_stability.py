@@ -401,6 +401,7 @@ class TestOrchestrationNaNInjection:
 class TestGetMajorityDirectionStability:
     """Stability tests for _get_majority_direction."""
 
+    @pytest.mark.audit_stability
     @given(
         directions=st.dictionaries(
             keys=st.text(min_size=1, max_size=5),
@@ -412,9 +413,7 @@ class TestGetMajorityDirectionStability:
         )
     )
     @settings(max_examples=100)
-    def test_always_returns_valid_direction(
-        self, directions: dict[str, SignalDirection]
-    ) -> None:
+    def test_always_returns_valid_direction(self, directions: dict[str, SignalDirection]) -> None:
         """Output is always a valid SignalDirection."""
         result = _get_majority_direction(directions)
         assert result in {
@@ -432,6 +431,7 @@ class TestGetMajorityDirectionStability:
 class TestComputeCitationDensityStability:
     """Stability tests for compute_citation_density."""
 
+    @pytest.mark.audit_stability
     @given(
         context=st.text(min_size=0, max_size=200),
         text=st.text(min_size=0, max_size=200),
@@ -443,6 +443,7 @@ class TestComputeCitationDensityStability:
         assert isinstance(result, float)
         assert 0.0 <= result <= 1.0
 
+    @pytest.mark.audit_stability
     def test_empty_inputs_no_crash(self) -> None:
         """Empty strings produce 0.0 without errors."""
         assert compute_citation_density("", "") == pytest.approx(0.0)

@@ -31,6 +31,38 @@ from options_arena.models.filters import ScanFilterSpec
 ALLOWED_FINANCIAL_DATASETS_HOSTNAMES: frozenset[str] = frozenset({"api.financialdatasets.ai"})
 
 
+class MLConfig(BaseModel):
+    """Machine learning feature flags and parameters.
+
+    All features default to disabled (``False``). When enabled, the scan pipeline
+    calls the corresponding indicator functions (GARCH, Markov, macro). Parameters
+    control model hyperparameters. Override via ``ARENA_SCAN__ML__ENABLE_GARCH=true``.
+    """
+
+    enable_garch: bool = False
+    enable_markov: bool = False
+    enable_macro: bool = False
+    garch_p: int = 1
+    garch_q: int = 1
+    markov_n_regimes: int = 3
+
+    @field_validator("garch_p", "garch_q")
+    @classmethod
+    def _validate_garch_order(cls, v: int) -> int:
+        """Ensure GARCH order parameters are in [1, 5]."""
+        if not 1 <= v <= 5:
+            raise ValueError(f"GARCH order must be in [1, 5], got {v}")
+        return v
+
+    @field_validator("markov_n_regimes")
+    @classmethod
+    def _validate_markov_regimes(cls, v: int) -> int:
+        """Ensure Markov regime count is in [2, 5]."""
+        if not 2 <= v <= 5:
+            raise ValueError(f"markov_n_regimes must be in [2, 5], got {v}")
+        return v
+
+
 class ScanConfig(BaseModel):
     """Scan pipeline configuration — scoring thresholds, timeouts, toggles, and filters.
 
@@ -52,6 +84,9 @@ class ScanConfig(BaseModel):
     enable_fundamental: bool = True
     enable_regime: bool = True
     fit_vol_surface: bool = True
+
+    # ML feature flags and parameters (all disabled by default)
+    ml: MLConfig = MLConfig()
 
     # Consolidated filter spec — all pre-scan filter fields
     filters: ScanFilterSpec = ScanFilterSpec()

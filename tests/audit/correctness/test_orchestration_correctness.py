@@ -406,6 +406,7 @@ class TestSynthesizeVerdictInvariants:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.audit_correctness
 class TestGetMajorityDirectionCorrectness:
     """Correctness tests for _get_majority_direction."""
 
@@ -443,6 +444,7 @@ class TestGetMajorityDirectionCorrectness:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.audit_correctness
 class TestComputeCitationDensityCorrectness:
     """Correctness tests for compute_citation_density."""
 

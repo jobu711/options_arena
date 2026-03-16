@@ -36,6 +36,7 @@ from options_arena.indicators.vol_surface import (
 )
 from options_arena.models import (
     IndicatorSignals,
+    MacroRegime,
     MarketRegime,
     OptionContract,
     OptionType,
@@ -272,6 +273,38 @@ async def run_options_phase(
     risk_free_rate: float = await fred.fetch_risk_free_rate()
     logger.info("Risk-free rate: %.4f", risk_free_rate)
 
+    # Step 3a: Macro context (FRED) — fetched once for entire scan when enabled
+    macro_regime: MacroRegime | None = None
+    macro_yield_spread: float | None = None
+    macro_fed_funds_rate: float | None = None
+    macro_vix_level: float | None = None
+
+    if scan_config.ml.enable_macro:
+        try:
+            from options_arena.indicators.macro import compute_macro_regime
+
+            macro_ctx = await fred.fetch_macro_context()
+            classification = compute_macro_regime(
+                yield_spread_10y2y=macro_ctx.yield_spread_10y2y,
+                unemployment_rate=macro_ctx.unemployment_rate,
+                fed_funds_rate=macro_ctx.fed_funds_rate,
+                vix=macro_ctx.vix,
+                cpi_yoy=macro_ctx.cpi_yoy,
+                completeness_ratio=macro_ctx.completeness_ratio(),
+            )
+            if classification is not None:
+                macro_regime = MacroRegime(classification.regime)
+                logger.info(
+                    "Macro regime: %s (confidence=%.2f)",
+                    macro_regime,
+                    classification.confidence,
+                )
+            macro_yield_spread = macro_ctx.yield_spread_10y2y
+            macro_fed_funds_rate = macro_ctx.fed_funds_rate
+            macro_vix_level = macro_ctx.vix
+        except Exception:
+            logger.warning("Macro context fetch/compute failed; continuing without", exc_info=True)
+
     # Step 3b: Extract SPX close series for relative-strength indicators
     # SPX data may be available from Phase 1 OHLCV if "^GSPC" was in the universe,
     # otherwise we attempt a lightweight fetch. Failure is non-fatal.
@@ -404,6 +437,10 @@ async def run_options_phase(
         earnings_dates=earnings_dates,
         entry_prices=entry_prices,
         spread_analyses=spread_analyses,
+        macro_regime=macro_regime,
+        macro_yield_spread=macro_yield_spread,
+        macro_fed_funds_rate=macro_fed_funds_rate,
+        macro_vix_level=macro_vix_level,
     )
 
 

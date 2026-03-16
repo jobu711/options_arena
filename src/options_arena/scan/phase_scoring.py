@@ -2,14 +2,20 @@
 
 Extracted from ``ScanPipeline._phase_scoring()`` as a standalone async function.
 All config dependencies are passed as explicit parameters.
+
+Also provides ``_compute_ml_indicators()`` which enriches ``IndicatorSignals``
+with GARCH/EGARCH volatility forecasts and Markov-switching regime detection
+when the corresponding ML feature flags are enabled on ``ScanConfig.ml``.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from collections.abc import Callable
 
+import numpy as np
 import pandas as pd
 
 from options_arena.models import (
@@ -18,6 +24,8 @@ from options_arena.models import (
     ScanConfig,
     TickerScore,
 )
+from options_arena.models.config import MLConfig
+from options_arena.models.market_data import OHLCV
 from options_arena.scan.indicators import (
     INDICATOR_REGISTRY,
     IndicatorSpec,
@@ -83,6 +91,14 @@ async def run_scoring_phase(
             await asyncio.sleep(0)
 
     logger.info("Computed indicators for %d tickers", len(raw_signals))
+
+    # Step 1b: Compute ML indicators (GARCH/EGARCH, Markov regime) when enabled
+    if scan_config.ml.enable_garch or scan_config.ml.enable_markov:
+        await _compute_ml_indicators(
+            raw_signals=raw_signals,
+            ohlcv_map=universe_result.ohlcv_map,
+            ml_config=scan_config.ml,
+        )
 
     # Log per-indicator success rates for diagnostics
     if raw_signals:
@@ -157,3 +173,194 @@ async def run_scoring_phase(
         raw_signals=raw_signals,
         normalization_stats=norm_stats,
     )
+
+
+# ---------------------------------------------------------------------------
+# ML indicator computation (GARCH/EGARCH, Markov regime)
+# ---------------------------------------------------------------------------
+
+# Timeout for each ML computation (seconds). GARCH fitting is CPU-bound and
+# can take several seconds on long return series.
+_ML_COMPUTATION_TIMEOUT: float = 30.0
+
+# Markov regime label mapping to float for IndicatorSignals storage
+_MARKOV_LABEL_TO_FLOAT: dict[str, float] = {
+    "low_vol": 0.0,
+    "normal": 1.0,
+    "high_vol": 2.0,
+}
+
+
+async def _compute_ml_indicators(
+    *,
+    raw_signals: dict[str, IndicatorSignals],
+    ohlcv_map: dict[str, list[OHLCV]],
+    ml_config: MLConfig,
+) -> None:
+    """Enrich raw indicator signals with ML-based indicators.
+
+    Computes GARCH/EGARCH volatility forecasts and Markov-switching regime
+    detection for each ticker when the corresponding feature flags are enabled.
+    All computations run via ``asyncio.to_thread()`` with a 30-second timeout
+    since ``arch`` and ``statsmodels`` are synchronous and CPU-bound.
+
+    Mutates ``raw_signals`` in place — sets ``vol_forecast_garch``,
+    ``vol_forecast_egarch``, ``iv_vs_forecast_spread``, ``regime_markov_label``,
+    and ``regime_transition_prob`` on each ticker's ``IndicatorSignals``.
+
+    Args:
+        raw_signals: Ticker -> IndicatorSignals mapping (mutated in place).
+        ohlcv_map: Ticker -> OHLCV bars from Phase 1.
+        ml_config: ML feature flags and hyperparameters.
+    """
+    # Build per-ticker ML tasks and run them concurrently via asyncio.gather
+    # to avoid O(tickers) serial wall-clock time.
+    eligible: list[tuple[str, IndicatorSignals, pd.Series]] = []
+    for ticker, signals in raw_signals.items():
+        ohlcv_list = ohlcv_map.get(ticker)
+        if ohlcv_list is None or len(ohlcv_list) < 252:
+            continue
+
+        df = ohlcv_to_dataframe(ohlcv_list)
+        close_series: pd.Series = df["close"]
+
+        # Build percentage log returns for GARCH and Markov models
+        close_arr = close_series.to_numpy(dtype=float)
+        log_returns = np.log(close_arr[1:] / close_arr[:-1]) * 100.0
+        returns_series = pd.Series(log_returns, index=close_series.index[1:])
+        eligible.append((ticker, signals, returns_series))
+
+    if not eligible:
+        logger.info("ML indicators computed for 0 tickers")
+        return
+
+    async def _process_ticker(
+        signals: IndicatorSignals,
+        returns_series: pd.Series,
+    ) -> None:
+        if ml_config.enable_garch:
+            await _compute_garch_for_ticker(
+                signals=signals,
+                returns_series=returns_series,
+                ml_config=ml_config,
+            )
+        if ml_config.enable_markov:
+            await _compute_markov_for_ticker(
+                signals=signals,
+                returns_series=returns_series,
+                ml_config=ml_config,
+            )
+
+    tasks = [_process_ticker(signals, returns) for _, signals, returns in eligible]
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+    logger.info("ML indicators computed for %d tickers", len(eligible))
+
+
+async def _compute_garch_for_ticker(
+    *,
+    signals: IndicatorSignals,
+    returns_series: pd.Series,
+    ml_config: MLConfig,
+) -> None:
+    """Compute GARCH and EGARCH forecasts for a single ticker.
+
+    Uses ``asyncio.to_thread()`` + ``wait_for(timeout=30)`` since ``arch``
+    model fitting is synchronous and CPU-bound. On timeout or failure, the
+    fields remain ``None`` (graceful degradation).
+    """
+    from options_arena.indicators.vol_forecast import (
+        compute_egarch_forecast,
+        compute_garch_forecast,
+    )
+
+    # GARCH(p,q) forecast
+    try:
+        garch_vol: float | None = await asyncio.wait_for(
+            asyncio.to_thread(
+                compute_garch_forecast,
+                returns_series,
+                ml_config.garch_p,
+                ml_config.garch_q,
+            ),
+            timeout=_ML_COMPUTATION_TIMEOUT,
+        )
+        if garch_vol is not None and math.isfinite(garch_vol):
+            signals.vol_forecast_garch = garch_vol
+
+            # Compute IV vs GARCH forecast spread when both are available.
+            # iv_rank serves as a proxy for current market IV level (0-100 scale,
+            # not directly comparable) — instead use ewma_vol_forecast or hv_20d
+            # as a crude market IV proxy if atm_iv is unavailable at this phase.
+            # The actual ATM IV is populated in Phase 3; for Phase 2, we use
+            # ewma_vol_forecast (annualized) if available.
+            ewma = signals.ewma_vol_forecast
+            if ewma is not None and math.isfinite(ewma):
+                spread = ewma - garch_vol
+                if math.isfinite(spread):
+                    signals.iv_vs_forecast_spread = spread
+    except TimeoutError:
+        logger.warning("GARCH forecast timed out (%.0fs)", _ML_COMPUTATION_TIMEOUT)
+    except Exception:
+        logger.warning("GARCH forecast failed", exc_info=True)
+
+    # EGARCH(p,o,q) forecast
+    try:
+        egarch_vol: float | None = await asyncio.wait_for(
+            asyncio.to_thread(
+                compute_egarch_forecast,
+                returns_series,
+                ml_config.garch_p,
+                1,  # o (leverage order) fixed at 1
+                ml_config.garch_q,
+            ),
+            timeout=_ML_COMPUTATION_TIMEOUT,
+        )
+        if egarch_vol is not None and math.isfinite(egarch_vol):
+            signals.vol_forecast_egarch = egarch_vol
+    except TimeoutError:
+        logger.warning("EGARCH forecast timed out (%.0fs)", _ML_COMPUTATION_TIMEOUT)
+    except Exception:
+        logger.warning("EGARCH forecast failed", exc_info=True)
+
+
+async def _compute_markov_for_ticker(
+    *,
+    signals: IndicatorSignals,
+    returns_series: pd.Series,
+    ml_config: MLConfig,
+) -> None:
+    """Compute Markov-switching regime for a single ticker.
+
+    Uses ``asyncio.to_thread()`` + ``wait_for(timeout=30)`` since
+    ``statsmodels`` Markov regression fitting is synchronous and CPU-bound.
+    On timeout or failure, the fields remain ``None``.
+    """
+    from options_arena.indicators.regime_ml import compute_markov_regime
+
+    try:
+        # Use decimal returns (not percentage) for Markov model
+        decimal_returns = returns_series / 100.0
+        result = await asyncio.wait_for(
+            asyncio.to_thread(
+                compute_markov_regime,
+                decimal_returns,
+                ml_config.markov_n_regimes,
+            ),
+            timeout=_ML_COMPUTATION_TIMEOUT,
+        )
+        if result is not None:
+            label_float = _MARKOV_LABEL_TO_FLOAT.get(result.regime_label)
+            if label_float is not None:
+                signals.regime_markov_label = label_float
+
+            # Transition probability: probability of staying in current regime
+            current = result.current_regime
+            if 0 <= current < len(result.transition_matrix):
+                stay_prob = result.transition_matrix[current][current]
+                if math.isfinite(stay_prob):
+                    signals.regime_transition_prob = stay_prob
+    except TimeoutError:
+        logger.warning("Markov regime timed out (%.0fs)", _ML_COMPUTATION_TIMEOUT)
+    except Exception:
+        logger.warning("Markov regime detection failed", exc_info=True)

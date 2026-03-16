@@ -22,6 +22,7 @@ from options_arena.models import (
     GICSIndustryGroup,
     GICSSector,
     IndicatorSignals,
+    MacroRegime,
     NormalizationStats,
     OptionContract,
     ScanRun,
@@ -86,6 +87,10 @@ class OptionsResult(BaseModel):
         entry_prices: Ticker to spot price at scan time (captured from TickerInfo.current_price).
         spread_analyses: Ticker to multi-leg spread analysis mapping (populated when
             SpreadConfig.enabled is True and select_strategy returns a result).
+        macro_regime: Classified macro regime label (``None`` when macro disabled).
+        macro_yield_spread: 10Y-2Y yield spread from FRED (``None`` when macro disabled).
+        macro_fed_funds_rate: Federal funds rate from FRED (``None`` when macro disabled).
+        macro_vix_level: VIX level from FRED (``None`` when macro disabled).
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -95,6 +100,12 @@ class OptionsResult(BaseModel):
     earnings_dates: dict[str, date] = Field(default_factory=dict)
     entry_prices: dict[str, Decimal] = Field(default_factory=dict)
     spread_analyses: dict[str, SpreadAnalysis] = Field(default_factory=dict)
+
+    # Macro context (populated when config.ml.enable_macro is True)
+    macro_regime: MacroRegime | None = None
+    macro_yield_spread: float | None = None
+    macro_fed_funds_rate: float | None = None
+    macro_vix_level: float | None = None
 
 
 class ScanResult(BaseModel):

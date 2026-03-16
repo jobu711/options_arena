@@ -72,6 +72,7 @@ from options_arena.models import (
     FundamentalThesis,
     LLMProvider,
     MacdSignal,
+    MacroRegime,
     MarketContext,
     NewsSentimentSnapshot,
     OptionContract,
@@ -128,6 +129,10 @@ def build_market_context(
     sentiment: NewsSentimentSnapshot | None = None,
     intelligence: IntelligencePackage | None = None,
     fd_package: FinancialDatasetsPackage | None = None,
+    macro_regime: MacroRegime | None = None,
+    macro_yield_spread: float | None = None,
+    macro_fed_funds_rate: float | None = None,
+    macro_vix_level: float | None = None,
 ) -> MarketContext:
     """Map scan pipeline output to ``MarketContext`` for agent consumption.
 
@@ -363,6 +368,9 @@ def build_market_context(
         skew_25d=signals.skew_25d,
         smile_curvature=signals.smile_curvature,
         prob_above_current=signals.prob_above_current,
+        # --- ML Volatility Forecasts ---
+        vol_forecast_garch=signals.vol_forecast_garch,
+        iv_vs_forecast_spread=signals.iv_vs_forecast_spread,
         # --- Volatility Intelligence: Surface Mispricing ---
         iv_surface_residual=signals.iv_surface_residual,
         surface_fit_r2=signals.surface_fit_r2,
@@ -500,6 +508,11 @@ def build_market_context(
             and fd_package.metrics.return_on_equity is not None
             else None
         ),
+        # --- Macro Context (FRED) ---
+        macro_regime=macro_regime,
+        yield_spread=macro_yield_spread,
+        fed_funds_rate=macro_fed_funds_rate,
+        vix_level=macro_vix_level,
     )
 
 
@@ -1423,6 +1436,10 @@ async def run_debate(
     fd_package: FinancialDatasetsPackage | None = None,
     spread_analysis: SpreadAnalysis | None = None,
     options_filters: OptionsFilters | None = None,
+    macro_regime: MacroRegime | None = None,
+    macro_yield_spread: float | None = None,
+    macro_fed_funds_rate: float | None = None,
+    macro_vix_level: float | None = None,
 ) -> DebateResult:
     """Run 6-agent debate protocol. Falls back to data-driven on failure — never raises.
 
@@ -1482,6 +1499,10 @@ async def run_debate(
         sentiment=sentiment,
         intelligence=intelligence,
         fd_package=fd_package,
+        macro_regime=macro_regime,
+        macro_yield_spread=macro_yield_spread,
+        macro_fed_funds_rate=macro_fed_funds_rate,
+        macro_vix_level=macro_vix_level,
     )
 
     # Populate flat spread fields on MarketContext from SpreadAnalysis
