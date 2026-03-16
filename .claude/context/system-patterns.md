@@ -46,11 +46,11 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **FRED/OpenBB never raise**: return fallback/None on error.
 
 ### PydanticAI Agent Pattern
-- Module-level `Agent[Deps, OutputType]` instances (bull, bear, risk, volatility) — no classes
+- Module-level `Agent[Deps, OutputType]` instances (all 8 agents) — no classes
 - `model=None` at init, actual model passed at `agent.run(model=...)` time (enables `TestModel`)
-- `@dataclass` deps (`DebateDeps`), `output_type=PydanticModel` for structured JSON output
-- `retries=2`, `model_settings=ModelSettings(extra_body={"num_ctx": 8192})`
-- `@agent.output_validator` delegates to shared helpers: `build_cleaned_agent_response()` (bull/bear) and `build_cleaned_trade_thesis()` (risk) — strips `<think>` tags without costly retries
+- `@dataclass` deps (`DebateDeps` with 16 fields), `output_type=PydanticModel` for structured JSON output
+- `retries=2`, `model_settings` passed at run time via `_build_model_settings()` (per-provider)
+- `@agent.output_validator` on all 8 agents — delegates to shared helpers: `build_cleaned_agent_response()` (most agents) and `build_cleaned_risk_assessment()` (risk) — strips `<think>` tags without costly retries
 - **Shared prompt appendix**: `PROMPT_RULES_APPENDIX` appended to all agent prompts.
 - **Multi-provider dispatch**: `build_debate_model()` in `model_config.py` dispatches on `LLMProvider` enum — `GroqModel` (default) or `AnthropicModel`. Conditional `ModelSettings` for extended thinking on Anthropic. `--provider` CLI flag selects at runtime.
 - **Single debate path**: `run_debate()` — 6-agent pipeline, no legacy code paths.

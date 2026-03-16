@@ -21,7 +21,7 @@ risk assessment. Data-driven fallback when the LLM provider is unreachable.
 - **Async**: `asyncio` + `httpx` — debate loop, data fetching, and scan pipeline are async
 - **Models**: Pydantic v2 — all structured data crosses module boundaries as typed models, never raw dicts
 - **Config**: `pydantic-settings` v2 — single `AppSettings(BaseSettings)` root, nested `BaseModel` submodels
-- **AI SDK**: `pydantic-ai` + Groq (cloud Llama 3.3 70B). See `agents/CLAUDE.md`
+- **AI SDK**: `pydantic-ai` + Groq (default) / Anthropic (`--provider anthropic`). See `agents/CLAUDE.md`
 - **Pricing**: `scipy` — BSM (Merton 1973) + BAW (Barone-Adesi-Whaley 1987) for American options
 - **CLI**: `typer` + `rich` — subcommands, Rich tables, progress bars, colored terminal output
 - **Data**: `pandas` + `numpy` for indicators, `yfinance` wrapped in services, `aiosqlite` for persistence
@@ -31,7 +31,7 @@ risk assessment. Data-driven fallback when the LLM provider is unreachable.
 ```
 src/options_arena/
     cli/          # Typer CLI entry point                    → has own CLAUDE.md
-    agents/       # PydanticAI debate agents (Groq)           → has own CLAUDE.md
+    agents/       # PydanticAI debate agents (Groq/Anthropic)  → has own CLAUDE.md
       prompts/    #   Prompt templates & versioning          → has own CLAUDE.md
     models/       # Pydantic models, enums, config           → has own CLAUDE.md
     pricing/      # BSM + BAW option pricing & Greeks        → has own CLAUDE.md

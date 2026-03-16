@@ -13,8 +13,13 @@ approval.
 
 ## Usage
 ```
-/brainstorming <feature_name>
+/brainstorming <description>
 ```
+
+Examples:
+- `/brainstorming add user authentication to the app`
+- `/brainstorming I want real-time market data streaming`
+- `/brainstorming user-auth` (kebab-case still works)
 
 ## Required Rules
 
@@ -71,7 +76,7 @@ You MUST create a task for each of these items and complete them in order:
 2. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
 3. **Propose 2-3 approaches** — with trade-offs and your recommendation
 4. **Present design** — in sections scaled to complexity, get user approval
-5. **Write PRD** — save to `.claude/prds/$ARGUMENTS.md`
+5. **Write PRD** — save to `.claude/prds/FEATURE_SLUG.md`
 6. **Spec review** — dispatch code-reviewer agent to verify PRD completeness
 7. **User reviews PRD** — ask user to review before proceeding
 8. **Suggest next steps** — `/pm:prd-research` or `/pm:prd-parse`
@@ -91,17 +96,26 @@ Explore context → Ask questions (one at a time, multiple turns)
 
 ### Preflight (silent — do not narrate)
 
-1. **Validate feature name format:**
-   - Must contain only lowercase letters, numbers, and hyphens
-   - Must start with a letter
-   - If invalid: "Feature name must be kebab-case (lowercase letters, numbers, hyphens).
-     Examples: user-auth, payment-v2, notification-system"
+1. **Empty input guard:**
+   - If `$ARGUMENTS` is empty or whitespace, respond with:
+     "Please provide a feature description. Examples: `/brainstorming add dark mode`,
+     `/brainstorming user-auth`"
+   - **STOP and do not continue.**
 
-2. **Check for existing PRD:**
-   - Check if `.claude/prds/$ARGUMENTS.md` already exists
-   - If it exists, tell the user: "PRD '$ARGUMENTS' already exists. Let me know if you
+2. **Derive FEATURE_SLUG from `$ARGUMENTS`:**
+   - If input is already kebab-case (only lowercase letters, numbers, hyphens; starts with
+     a letter) → use it directly as `FEATURE_SLUG`
+   - Otherwise → extract a 2-4 word kebab-case slug that captures the core concept:
+     - "add user authentication to the app" → `user-auth`
+     - "I want real-time market data streaming" → `realtime-streaming`
+     - "improve the scan pipeline performance" → `scan-performance`
+   - Store the original `$ARGUMENTS` as `FEATURE_DESCRIPTION` for use in context exploration
+
+3. **Check for existing PRD:**
+   - Check if `.claude/prds/FEATURE_SLUG.md` already exists
+   - If it exists, tell the user: "PRD 'FEATURE_SLUG' already exists. Let me know if you
      want to overwrite it, or use a different name. You can also run
-     `/pm:prd-parse $ARGUMENTS` to create an epic from the existing PRD."
+     `/pm:prd-parse FEATURE_SLUG` to create an epic from the existing PRD."
    - **STOP and wait for the user's response before continuing.**
 
 3. **Verify directory structure:**
@@ -110,7 +124,7 @@ Explore context → Ask questions (one at a time, multiple turns)
 ### Context Exploration (silent — do not narrate individual steps)
 
 - Read `CLAUDE.md`, `.claude/context/progress.md`, `.claude/context/system-patterns.md`
-- Glob for files related to the feature name (`$ARGUMENTS`)
+- Glob for files related to keywords from `FEATURE_DESCRIPTION`
 - Check recent git commits (`git log --oneline -20`)
 - Scan existing PRDs in `.claude/prds/` for related work
 - Look at open GitHub issues if relevant (`gh issue list` if available)
@@ -238,17 +252,17 @@ Once the user approves the design, write the PRD and wrap up.
 
 **Get the real current datetime** by running: `date -u +"%Y-%m-%dT%H:%M:%SZ"`
 
-**Write the PRD** to `.claude/prds/$ARGUMENTS.md` with this format:
+**Write the PRD** to `.claude/prds/FEATURE_SLUG.md` with this format:
 
 ```markdown
 ---
-name: $ARGUMENTS
+name: FEATURE_SLUG
 description: [Brief one-line description]
 status: backlog
 created: [Real ISO datetime from system]
 ---
 
-# PRD: $ARGUMENTS
+# PRD: FEATURE_SLUG
 
 ## Executive Summary
 [Value proposition — what and why, derived from Phase 1 answers]
@@ -309,7 +323,7 @@ After writing the PRD, dispatch a code-reviewer agent to verify completeness:
 ```
 Agent tool (code-reviewer):
   prompt: |
-    Review the PRD at `.claude/prds/$ARGUMENTS.md` for completeness.
+    Review the PRD at `.claude/prds/FEATURE_SLUG.md` for completeness.
     Check for: TODOs, placeholders, "TBD", incomplete sections, internal
     contradictions, missing edge cases, ambiguous requirements, YAGNI
     violations, scope creep. Report status: Approved or Issues Found.
@@ -321,7 +335,7 @@ If issues are found, fix them and re-dispatch (max 3 iterations, then surface to
 
 After the spec review passes, ask the user to review:
 
-> PRD written to `.claude/prds/$ARGUMENTS.md`. Please review it and let me know if
+> PRD written to `.claude/prds/FEATURE_SLUG.md`. Please review it and let me know if
 > you want any changes before we proceed.
 
 **STOP HERE. Wait for the user's response.**
@@ -332,11 +346,11 @@ If they request changes, make them and re-run the spec review. Only proceed once
 
 Once the user approves:
 
-1. Confirm: "PRD finalized: `.claude/prds/$ARGUMENTS.md`"
+1. Confirm: "PRD finalized: `.claude/prds/FEATURE_SLUG.md`"
 2. Show a 3-line summary of what was captured
 3. Suggest next steps:
-   > Ready to research the codebase? Run: `/pm:prd-research $ARGUMENTS`
-   > (Or skip research and go directly to: `/pm:prd-parse $ARGUMENTS`)
+   > Ready to research the codebase? Run: `/pm:prd-research FEATURE_SLUG`
+   > (Or skip research and go directly to: `/pm:prd-parse FEATURE_SLUG`)
 
 ## Working in an Existing Codebase
 

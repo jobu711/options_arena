@@ -4,9 +4,10 @@
 
 Six-agent AI debate system for qualitative options analysis. Trend, Volatility, Flow,
 Fundamental, Risk, and Contrarian agents run in a 4-phase pipeline via PydanticAI,
-transforming quantitative scan results into human-readable reasoning. Uses **Groq**
-cloud API (Llama 3.3 70B) as the sole LLM provider. Data-driven fallback when the
-LLM provider is unreachable ensures the tool always produces a verdict.
+transforming quantitative scan results into human-readable reasoning. Multi-provider:
+**Groq** (default, Llama 3.3 70B) or **Anthropic** (Claude, `--provider anthropic`).
+Data-driven fallback when the LLM provider is unreachable ensures the tool always
+produces a verdict.
 
 Agents have **no knowledge of each other** — the orchestrator coordinates them.
 The orchestrator does **not fetch data** — the caller (CLI/API) provides all inputs.
@@ -16,8 +17,8 @@ The orchestrator does **not fetch data** — the caller (CLI/API) provides all i
 | File | Purpose | Pattern |
 |------|---------|---------|
 | `CLAUDE.md` | Module conventions and rules | — |
-| `model_config.py` | `build_debate_model()` — Groq-only model builder | Config utility |
-| `_parsing.py` | `DebateDeps`, `DebateResult`, `strip_think_tags()`, `PROMPT_RULES_APPENDIX`, `build_cleaned_agent_response()`, `build_cleaned_trade_thesis()`, `render_context_block()` | Internal |
+| `model_config.py` | `build_debate_model()` — multi-provider model builder (Groq/Anthropic) | Config utility |
+| `_parsing.py` | `DebateDeps`, `DebateResult`, `strip_think_tags()`, `PROMPT_RULES_APPENDIX`, `build_cleaned_agent_response()`, `build_cleaned_risk_assessment()`, `render_context_block()` | Internal |
 | `bull.py` | Bull agent + system prompt + output validator | PydanticAI Agent |
 | `bear.py` | Bear agent + dynamic prompt (receives bull argument) | PydanticAI Agent |
 | `risk.py` | `risk_agent` — portfolio risk, position sizing, hedging | PydanticAI Agent |
@@ -64,7 +65,7 @@ at `agent.run(model=...)` time.
 
 ```python
 from dataclasses import dataclass
-from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.settings import ModelSettings
 
 from options_arena.agents._parsing import DebateDeps
@@ -72,16 +73,15 @@ from options_arena.models import AgentResponse
 
 # Context7-verified: Agent.__init__ params:
 #   model (default None), output_type, retries (default 1),
-#   deps_type, model_settings, instructions
+#   deps_type, instructions, model_settings, tools, end_strategy
 bull_agent: Agent[DebateDeps, AgentResponse] = Agent(
     model=None,                         # overridden per-run
     deps_type=DebateDeps,               # Context7-verified: type-checks deps in run()
     output_type=AgentResponse,          # Context7-verified: enforces structured JSON output
     retries=2,                          # Context7-verified: default is 1, override to 2
-    model_settings=ModelSettings(
-        extra_body={"num_ctx": 8192},   # Context7-verified: extra_body typed as `object`
-    ),
 )
+# model_settings passed at run time: agent.run(model_settings=settings)
+# Built by _build_model_settings() in orchestrator.py per provider
 ```
 
 ### System Prompt Decorator (Context7-Verified)
@@ -91,22 +91,23 @@ Two forms — bare decorator for static prompts, `dynamic=True` for runtime-depe
 ```python
 # Static prompt — evaluated once, cached for message_history reuse
 # Context7-verified: bare decorator, no-arg function returning str
-@bull_agent.system_prompt
-def bull_system_prompt() -> str:
-    return BULL_SYSTEM_PROMPT
+@trend_agent.system_prompt
+def trend_system_prompt() -> str:
+    return TREND_SYSTEM_PROMPT
 
 # Dynamic prompt — re-evaluated even when message_history is provided
 # Context7-verified: dynamic=True, takes RunContext[Deps], sync or async
-@bear_agent.system_prompt(dynamic=True)
-async def bear_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
-    base = BEAR_SYSTEM_PROMPT
-    if ctx.deps.opponent_argument:
-        base += f"\n\n<<<BULL_ARGUMENT>>>\n{ctx.deps.opponent_argument}\n<<<END_BULL_ARGUMENT>>>"
+@bull_agent.system_prompt(dynamic=True)
+async def bull_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
+    base = BULL_SYSTEM_PROMPT
+    if ctx.deps.bear_counter_argument:
+        base += f"\n\n<<<BEAR_COUNTER>>>\n{ctx.deps.bear_counter_argument}\n<<<END>>>"
     return base
 ```
 
-**When to use `dynamic=True`**: Bear and Risk agents need runtime data (opponent arguments)
-injected into their prompts. Bull uses a static prompt (no opponent argument yet).
+**When to use `dynamic=True`**: Bull (rebuttal mode), Bear, and Risk agents need runtime
+data (opponent arguments, prior outputs) injected into their prompts. Agents with no
+runtime injection (e.g., trend) use the bare decorator.
 
 ### Output Validator — Strip Think Tags (Context7-Verified)
 
@@ -125,9 +126,9 @@ async def clean_think_tags(
     return build_cleaned_agent_response(output)
 ```
 
-For the risk agent (which outputs `TradeThesis`), use `build_cleaned_trade_thesis()` instead.
+For the risk agent (which outputs `RiskAssessment`), use `build_cleaned_risk_assessment()` instead.
 
-**All three agents** must have this validator. Llama 3.1 8B sometimes emits `<think>` tags
+**All 8 agents** must have this validator. Llama 3.x sometimes emits `<think>` tags
 from its reasoning trace. `strip_think_tags()` falls back to the original text if stripping
 would produce an empty string.
 
@@ -176,9 +177,20 @@ class DebateDeps:
     context: MarketContext
     ticker_score: TickerScore
     contracts: list[OptionContract]
-    opponent_argument: str | None = None      # For bear (receives bull's text)
+    # Phase coordination fields (set by orchestrator between phases)
+    opponent_argument: str | None = None        # Bear receives bull's text
+    bear_counter_argument: str | None = None    # Bull rebuttal receives bear's text
     bull_response: AgentResponse | None = None  # For risk agent
     bear_response: AgentResponse | None = None  # For risk agent
+    bull_rebuttal: AgentResponse | None = None  # Optional rebuttal output
+    vol_response: AgentResponse | None = None   # Volatility Phase 1 output
+    trend_response: AgentResponse | None = None # Trend Phase 1 output
+    flow_thesis: FlowThesis | None = None       # Flow Phase 1 output
+    fundamental_thesis: FundamentalThesis | None = None  # Fundamental Phase 1 output
+    risk_assessment: RiskAssessment | None = None  # Risk Phase 2 output
+    all_prior_outputs: str | None = None        # Contrarian receives all prior text
+    spread_analysis: str | None = None
+    constraint_warnings: list[str] | None = None
 ```
 
 **Why `@dataclass` not Pydantic**: PydanticAI's `deps_type` expects a plain type. Dataclass
@@ -197,10 +209,17 @@ class DebateResult(BaseModel):
     context: MarketContext
     bull_response: AgentResponse
     bear_response: AgentResponse
+    bull_rebuttal: AgentResponse | None = None
+    vol_response: AgentResponse | None = None
+    flow_response: AgentResponse | None = None
+    fundamental_response: AgentResponse | None = None
+    risk_response: AgentResponse | None = None
+    contrarian_response: AgentResponse | None = None
     thesis: TradeThesis
     total_usage: RunUsage        # from pydantic_ai — accumulated via __add__
     duration_ms: int
     is_fallback: bool            # True if data-driven, False if AI-generated
+    citation_density: float | None = None  # fraction of context labels cited
 ```
 
 **Pydantic BaseModel**: Enables FastAPI auto-serialization via `model_dump_json()`.
@@ -214,10 +233,11 @@ Persistence serializes the Pydantic sub-models individually; stores
 ## RunUsage Accumulation (Context7-Verified)
 
 ```python
-# Context7-verified: RunUsage fields:
+# Context7-verified: RunUsage fields (pydantic-ai >=1.62):
 #   requests: int, input_tokens: int, output_tokens: int,
 #   cache_write_tokens: int, cache_read_tokens: int,
-#   tool_calls: int, details: dict[str, int]
+#   input_audio_tokens: int, cache_audio_read_tokens: int,
+#   output_audio_tokens: int, tool_calls: int, details: dict[str, int]
 # Context7-verified: RunUsage.__add__ sums all fields
 total_usage = bull_result.usage() + bear_result.usage() + risk_result.usage()
 ```
@@ -226,20 +246,23 @@ total_usage = bull_result.usage() + bear_result.usage() + risk_result.usage()
 
 ## Model Configuration
 
-Single-provider (Groq-only). No provider abstraction.
+Multi-provider dispatch via `LLMProvider` enum in `model_config.py`.
 
 ```python
 from pydantic_ai.models import Model
 
 def build_debate_model(config: DebateConfig) -> Model:
-    """Build a PydanticAI model backed by Groq cloud API."""
-    api_key = _resolve_api_key(config)
-    if api_key is None:
-        raise ValueError("Groq API key required. Set GROQ_API_KEY env var.")
-    return GroqModel(config.model, provider=GroqProvider(api_key=api_key))
+    """Build a PydanticAI model — dispatches on LLMProvider enum."""
+    match config.provider:
+        case LLMProvider.GROQ:
+            return GroqModel(config.model, provider=GroqProvider(api_key=api_key))
+        case LLMProvider.ANTHROPIC:
+            return AnthropicModel(config.anthropic_model, provider=AnthropicProvider(api_key=api_key))
 ```
 
-API key priority: `config.api_key` > `GROQ_API_KEY` env > ValueError.
+API key priority: `config.api_key` > `GROQ_API_KEY`/`ANTHROPIC_API_KEY` env > ValueError.
+`model_settings` built per-provider: `_build_model_settings()` returns `ModelSettings`
+for Groq, `AnthropicModelSettings` (with extended thinking) for Anthropic.
 
 ---
 
@@ -378,7 +401,7 @@ def render_context_block(ctx: MarketContext) -> str:
 
 ```python
 class DebateConfig(BaseModel):
-    """AI debate configuration — Groq-only."""
+    """AI debate configuration — multi-provider (Groq default, Anthropic optional)."""
     model: str = "llama-3.3-70b-versatile"
     api_key: str | None = None
     agent_timeout: float = 60.0            # per-agent timeout (seconds)
@@ -495,9 +518,9 @@ Mark with `@pytest.mark.integration`. Skipped by default; run with `pytest -m in
    `model=None` at init, pass `GroqModel` at `agent.run(model=...)` time. This enables
    `TestModel` override in tests.
 
-7. **Forgetting the `<think>` tag validator** — All three agents need `@agent.output_validator`
-   that delegates to `build_cleaned_agent_response()` (bull/bear) or
-   `build_cleaned_trade_thesis()` (risk) from `_parsing.py`. Do NOT inline the stripping
+7. **Forgetting the `<think>` tag validator** — All 8 agents need `@agent.output_validator`
+   that delegates to `build_cleaned_agent_response()` (most agents) or
+   `build_cleaned_risk_assessment()` (risk) from `_parsing.py`. Do NOT inline the stripping
    logic — use the shared helpers. Do NOT use `ModelRetry` — stripping is far cheaper.
 
 8. **`markup=True` in Rich panels** — Agent argument text may contain `[brackets]` from
@@ -518,8 +541,8 @@ Mark with `@pytest.mark.integration`. Skipped by default; run with `pytest -m in
 13. **Parallel agent execution** — Phase 1 agents (Trend, Volatility, Flow, Fundamental)
     run in parallel via `asyncio.gather`. Phase 2 (Risk) and Phase 3 (Contrarian) are sequential.
 
-14. **Forgetting `dynamic=True` on bear/risk prompts** — Bear and risk prompts depend on
-    runtime deps (opponent arguments). Without `dynamic=True`, the prompt is cached from the
-    first run and won't include the injected arguments.
+14. **Forgetting `dynamic=True` on bull/bear/risk prompts** — Bull (rebuttal), bear, and risk
+    prompts depend on runtime deps (opponent arguments, prior outputs). Without `dynamic=True`,
+    the prompt is cached from the first run and won't include the injected arguments.
 
 15. **`print()` in agent code** — Use `logging.getLogger(__name__)`. Only `cli/` uses `print()`.

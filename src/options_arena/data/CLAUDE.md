@@ -53,7 +53,8 @@ External:
 ```python
 import aiosqlite
 
-# Open connection — returns Connection object
+# Open connection — supports both direct await and async-with context manager.
+# This project uses direct await with explicit close() lifecycle.
 db = await aiosqlite.connect(db_path)
 
 # Configure for performance
