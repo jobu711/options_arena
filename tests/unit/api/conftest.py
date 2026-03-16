@@ -93,7 +93,7 @@ def test_app(
     # Initialize app.state attributes normally set by lifespan.
     # Route handlers no longer use hasattr/getattr fallbacks (AUDIT-014).
     app.state.cache = MagicMock()
-    app.state.limiter = MagicMock()
+    app.state.rate_limiter = MagicMock()
     app.state.scan_counter = 0
     app.state.active_scans = {}
     app.state.scan_queues = {}

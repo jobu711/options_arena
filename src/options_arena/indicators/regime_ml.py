@@ -1,14 +1,17 @@
-"""Markov-switching regime detection via Hamilton (1989) regime-switching model.
+"""Markov-switching regime detection and ML-based regime classification.
 
-Uses ``statsmodels.tsa.regime_switching.markov_regression.MarkovRegression`` to
-identify latent volatility regimes in return series. Complements the rule-based
-``classify_market_regime()`` in ``regime.py`` with a statistical approach.
+Two complementary approaches to market regime identification:
+
+1. **Markov-switching** (Hamilton 1989): Uses ``statsmodels`` ``MarkovRegression`` to
+   identify latent volatility regimes in return series.
+2. **ML classification** (GBM): Loads a pre-trained Gradient Boosting model from disk
+   and classifies regimes from the Phase 2 indicator feature vector.
 
 Rules:
-- Takes pandas Series input, returns NamedTuple | None.
+- Takes pandas Series / IndicatorSignals input, returns NamedTuple | None.
 - NO Pydantic models, NO API calls -- pure math on pre-fetched data.
-- Guarded import: returns None when ``statsmodels`` not installed.
-- Returns None on insufficient data (<252 obs) or convergence failure.
+- Guarded imports: returns None when ``statsmodels`` / ``joblib`` / ``sklearn`` not installed.
+- Returns None on insufficient data, missing model, or any failure.
 
 Reference: Hamilton, J.D. (1989) "A New Approach to the Economic Analysis of
 Nonstationary Time Series and the Business Cycle", Econometrica, 57(2), 357-384.
@@ -17,6 +20,8 @@ Nonstationary Time Series and the Business Cycle", Econometrica, 57(2), 357-384.
 from __future__ import annotations
 
 import logging
+import math
+from pathlib import Path
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -61,6 +66,20 @@ class MarkovRegimeOutput(NamedTuple):
     regime_probabilities: list[float]
     transition_matrix: list[list[float]]
     regime_label: str
+
+
+class RegimeClassification(NamedTuple):
+    """Output of ML-based regime classification.
+
+    Attributes:
+        predicted_regime: The winning class label (e.g., ``"trending_up"``).
+        probabilities: Class probability for each regime label.
+        confidence: Max probability across classes (the winning class probability).
+    """
+
+    predicted_regime: str
+    probabilities: dict[str, float]
+    confidence: float
 
 
 def _get_markov_regression() -> Any:  # noqa: ANN401
@@ -206,3 +225,170 @@ def map_regime_label_to_market_regime(label: str) -> MarketRegime:
         ``MarketRegime.MEAN_REVERTING`` for unknown labels.
     """
     return _REGIME_TO_MARKET_REGIME.get(label, MarketRegime.MEAN_REVERTING)
+
+
+# ---------------------------------------------------------------------------
+# ML regime classification (GBM-based)
+# ---------------------------------------------------------------------------
+
+# 9 indicator feature names — same as tools/train_regime_classifier.py.
+# Duplicated here to keep the indicator module independent of the tools/ package.
+_ML_FEATURE_NAMES: list[str] = [
+    "rsi",
+    "adx",
+    "atr_pct",
+    "relative_volume",
+    "iv_rank",
+    "bb_width",
+    "put_call_ratio",
+    "roc",
+    "sma_alignment",
+]
+
+# Default model path (project root / data / model_cache / regime_classifier.pkl)
+_DEFAULT_MODEL_PATH: Path = (
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "data"
+    / "model_cache"
+    / "regime_classifier.pkl"
+)
+
+# Module-level model cache — avoids re-loading the model on every call.
+_cached_model: Any = None
+_cached_model_path: Path | None = None
+
+
+def _get_joblib() -> Any:  # noqa: ANN401
+    """Attempt to import ``joblib``. Returns the module or ``None``."""
+    try:
+        import joblib
+
+        return joblib
+    except ImportError:
+        logger.info("joblib not installed -- ML regime classification disabled")
+        return None
+
+
+def _load_model(path: Path | None) -> Any:  # noqa: ANN401
+    """Load and cache a pre-trained regime classifier from disk.
+
+    Uses module-level ``_cached_model`` / ``_cached_model_path`` to avoid
+    re-loading the model on every call. Returns ``None`` on any failure
+    (missing file, import error, corrupt file).
+
+    Args:
+        path: Path to the serialized model file. Defaults to
+            ``data/model_cache/regime_classifier.pkl``.
+
+    Returns:
+        Loaded model instance or ``None``.
+    """
+    global _cached_model, _cached_model_path  # noqa: PLW0603
+
+    resolved = path or _DEFAULT_MODEL_PATH
+
+    # Return cached model if path matches
+    if _cached_model is not None and _cached_model_path == resolved:
+        return _cached_model
+
+    joblib = _get_joblib()
+    if joblib is None:
+        return None
+
+    try:
+        if not resolved.exists():
+            logger.debug("ML regime model not found at %s", resolved)
+            return None
+
+        model: object = joblib.load(resolved)
+        _cached_model = model
+        _cached_model_path = resolved
+        logger.info("Loaded ML regime model from %s", resolved)
+        return model
+    except Exception:
+        logger.warning("Failed to load ML regime model from %s", resolved, exc_info=True)
+        return None
+
+
+def _extract_ml_features(
+    signals: Any,  # noqa: ANN401  (IndicatorSignals, but we avoid circular imports)
+) -> np.ndarray[Any, np.dtype[np.floating[Any]]] | None:
+    """Extract a 9-element feature vector from ``IndicatorSignals``.
+
+    Returns a 1-D numpy array of shape ``(9,)`` with values in the same order
+    as ``_ML_FEATURE_NAMES``, or ``None`` if any required field is ``None`` or
+    non-finite.
+    """
+    values: list[float] = []
+    for name in _ML_FEATURE_NAMES:
+        val = getattr(signals, name, None)
+        if val is None:
+            return None
+        fval = float(val)
+        if not math.isfinite(fval):
+            return None
+        values.append(fval)
+    return np.array(values, dtype=np.float64)
+
+
+def classify_regime_ml(
+    signals: Any,  # noqa: ANN401  (IndicatorSignals)
+    model_path: Path | None = None,
+) -> RegimeClassification | None:
+    """Classify the current market regime using a pre-trained GBM model.
+
+    Extracts the same 9-feature vector used during training (RSI, ADX, ATR%,
+    relative volume, IV rank, BB width, put/call ratio, ROC, SMA alignment)
+    and calls ``predict_proba()`` on the loaded model.
+
+    Returns ``None`` on **any** failure: missing model file, missing sklearn/joblib,
+    incomplete signals, NaN features, or prediction error.
+
+    Args:
+        signals: Typed indicator signals from the scan pipeline.
+        model_path: Optional path to the serialized model file. Defaults to
+            ``data/model_cache/regime_classifier.pkl``.
+
+    Returns:
+        ``RegimeClassification`` with predicted regime, class probabilities, and
+        confidence (max probability), or ``None`` on failure.
+    """
+    # Extract feature vector
+    features = _extract_ml_features(signals)
+    if features is None:
+        logger.debug("ML regime classification skipped: incomplete feature vector")
+        return None
+
+    # Load model (cached)
+    model = _load_model(model_path)
+    if model is None:
+        return None
+
+    try:
+        # predict_proba returns (n_samples, n_classes) — we have 1 sample
+        proba: np.ndarray[Any, np.dtype[np.floating[Any]]] = model.predict_proba(
+            features.reshape(1, -1)
+        )
+        classes: list[str] = list(model.classes_)
+
+        # Build probability dict
+        prob_row = proba[0]
+        probabilities: dict[str, float] = {}
+        for cls_label, prob in zip(classes, prob_row, strict=True):
+            probabilities[str(cls_label)] = float(prob)
+
+        # Confidence = max probability
+        confidence = float(np.max(prob_row))
+
+        # Predicted regime = class with highest probability
+        predicted_idx = int(np.argmax(prob_row))
+        predicted_regime = str(classes[predicted_idx])
+
+        return RegimeClassification(
+            predicted_regime=predicted_regime,
+            probabilities=probabilities,
+            confidence=confidence,
+        )
+    except Exception:
+        logger.warning("ML regime classification failed", exc_info=True)
+        return None

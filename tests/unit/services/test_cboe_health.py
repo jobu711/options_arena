@@ -180,7 +180,7 @@ class TestCBOEHealthCheck:
         assert result.latency_ms is not None
         assert result.latency_ms >= 0.0
         assert result.error is not None
-        assert "CBOE endpoint down" in result.error
+        assert "RuntimeError" in result.error
 
     @pytest.mark.asyncio
     async def test_check_all_includes_cboe_chains(

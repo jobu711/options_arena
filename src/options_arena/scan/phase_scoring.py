@@ -100,6 +100,10 @@ async def run_scoring_phase(
             ml_config=scan_config.ml,
         )
 
+    # Step 1c: ML regime classification (GBM) when enabled
+    if scan_config.ml.enable_ml_regime:
+        _compute_ml_regime_classifications(raw_signals)
+
     # Log per-indicator success rates for diagnostics
     if raw_signals:
         indicator_fields = [spec.field_name for spec in INDICATOR_REGISTRY]
@@ -322,6 +326,34 @@ async def _compute_garch_for_ticker(
         logger.warning("EGARCH forecast timed out (%.0fs)", _ML_COMPUTATION_TIMEOUT)
     except Exception:
         logger.warning("EGARCH forecast failed", exc_info=True)
+
+
+def _compute_ml_regime_classifications(
+    raw_signals: dict[str, IndicatorSignals],
+) -> None:
+    """Enrich raw signals with GBM regime classification confidence.
+
+    Calls ``classify_regime_ml()`` for each ticker and stores the confidence
+    value on ``IndicatorSignals.ml_regime_confidence``. Failures are silently
+    skipped (confidence remains ``None``).
+
+    Args:
+        raw_signals: Ticker -> IndicatorSignals mapping (mutated in place).
+    """
+    from options_arena.indicators.regime_ml import classify_regime_ml
+
+    classified = 0
+    for signals in raw_signals.values():
+        result = classify_regime_ml(signals)
+        if result is not None:
+            signals.ml_regime_confidence = result.confidence
+            classified += 1
+
+    logger.info(
+        "ML regime classification computed for %d/%d tickers",
+        classified,
+        len(raw_signals),
+    )
 
 
 async def _compute_markov_for_ticker(

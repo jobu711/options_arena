@@ -79,7 +79,7 @@ def hierarchy_app() -> create_app:
 
     # Initialize app.state attributes
     app.state.cache = MagicMock()
-    app.state.limiter = MagicMock()
+    app.state.rate_limiter = MagicMock()
     app.state.scan_counter = 0
     app.state.active_scans = {}
     app.state.scan_queues = {}
@@ -204,7 +204,7 @@ class TestScoreFilteringByIndustryGroup:
         app.dependency_overrides[get_settings] = lambda: AppSettings()
 
         app.state.cache = MagicMock()
-        app.state.limiter = MagicMock()
+        app.state.rate_limiter = MagicMock()
         app.state.scan_counter = 0
         app.state.active_scans = {}
         app.state.scan_queues = {}

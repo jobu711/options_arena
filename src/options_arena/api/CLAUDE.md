@@ -357,18 +357,29 @@ requests to match).
 ## Static File Serving (Production)
 
 ```python
-# app.py — mount AFTER API routes so /api/* takes precedence
+# app.py — mount /assets for hashed static files, catch-all GET for SPA
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pathlib import Path
 
 WEB_DIST = Path(__file__).resolve().parent.parent.parent.parent / "web" / "dist"
 
 if WEB_DIST.exists():
-    app.mount("/", StaticFiles(directory=WEB_DIST, html=True), name="spa")
+    # Hashed assets get their own StaticFiles mount
+    app.mount("/assets", StaticFiles(directory=WEB_DIST / "assets"), name="static-assets")
+
+    # Catch-all GET serves static files if they exist, else index.html for Vue Router
+    @app.get("/{path:path}", include_in_schema=False)
+    async def spa_fallback(path: str) -> FileResponse:
+        file_path = (WEB_DIST / path).resolve()
+        if path and file_path.is_relative_to(WEB_DIST) and file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(WEB_DIST / "index.html")
 ```
 
-`html=True` makes StaticFiles serve `index.html` for any path not matching a static file,
-enabling Vue Router's history mode.
+**Why not `StaticFiles(html=True)`**: `html=True` only serves `index.html` for directory
+paths, NOT for arbitrary SPA routes like `/scan` or `/debate/123`. The catch-all GET route
+correctly serves `index.html` for any non-file path, enabling Vue Router history mode.
 
 ---
 

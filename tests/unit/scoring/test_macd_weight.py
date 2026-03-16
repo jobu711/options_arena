@@ -30,13 +30,13 @@ class TestMacdWeight:
         assert category == "trend"
 
     def test_macd_weight_value(self) -> None:
-        """Verify MACD has weight of 0.05."""
+        """Verify MACD has weight of 0.048 (0.05 * 0.96 scaling for ML indicators)."""
         weight, _category = INDICATOR_WEIGHTS["macd"]
-        assert weight == pytest.approx(0.05, abs=1e-9)
+        assert weight == pytest.approx(0.048, rel=1e-4)
 
-    def test_total_weight_count_is_24(self) -> None:
-        """Verify INDICATOR_WEIGHTS has 24 entries.
+    def test_total_weight_count_is_26(self) -> None:
+        """Verify INDICATOR_WEIGHTS has 26 entries.
 
-        Breakdown: 19 original + 2 liquidity + 2 vol surface + 1 regime.
+        Breakdown: 19 original + 2 liquidity + 2 vol surface + 1 regime + 2 ML.
         """
-        assert len(INDICATOR_WEIGHTS) == 24
+        assert len(INDICATOR_WEIGHTS) == 26

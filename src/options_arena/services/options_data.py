@@ -404,6 +404,7 @@ class OptionsDataService(ServiceBase[ServiceConfig]):
         self._options_filters = options_filters
         self._openbb_config = openbb_config
         self._validation_mode = openbb_config is not None and openbb_config.chain_validation_mode
+        self._background_tasks: set[asyncio.Task[None]] = set()
 
         # When a custom provider is injected (tests), use it as the sole provider
         if provider is not None:
@@ -560,11 +561,13 @@ class OptionsDataService(ServiceBase[ServiceConfig]):
                     and self._yfinance_provider is not None
                     and not isinstance(provider, YFinanceChainProvider)
                 ):
-                    asyncio.create_task(
+                    task = asyncio.create_task(
                         self._validate_chain(
                             ticker, expiration, primary_result, self._yfinance_provider
                         )
                     )
+                    task.add_done_callback(self._background_tasks.discard)
+                    self._background_tasks.add(task)
                 return primary_result
             except TimeoutError:
                 self._log.warning(

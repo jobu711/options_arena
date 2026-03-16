@@ -747,9 +747,7 @@ async def _debate_single(
     # cancelling the other tasks, but we still need all critical results)
     for result in gather_results:
         if isinstance(result, BaseException):
-            raise RuntimeError(
-                f"Data fetch failed: {type(result).__name__}"
-            ) from result
+            raise RuntimeError(f"Data fetch failed: {type(result).__name__}") from result
     # Exception check above guarantees all values are their expected types
     quote = cast("Quote", gather_results[0])
     ticker_info = cast("TickerInfo", gather_results[1])

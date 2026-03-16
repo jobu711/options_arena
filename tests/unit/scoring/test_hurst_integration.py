@@ -1,5 +1,7 @@
 """Verify hurst_exponent is properly wired into the scoring system."""
 
+import pytest
+
 from options_arena.models.scan import IndicatorSignals
 from options_arena.scoring.composite import INDICATOR_WEIGHTS
 from options_arena.scoring.normalization import DOMAIN_BOUNDS, INVERTED_INDICATORS
@@ -14,10 +16,10 @@ class TestHurstScoringIntegration:
         assert abs(total - 1.0) < 1e-9
 
     def test_hurst_in_weights(self) -> None:
-        """hurst_exponent has weight 0.02 in regime category."""
+        """hurst_exponent has weight 0.01 in regime category."""
         assert "hurst_exponent" in INDICATOR_WEIGHTS
         weight, category = INDICATOR_WEIGHTS["hurst_exponent"]
-        assert weight == 0.02
+        assert weight == pytest.approx(0.01, rel=1e-4)
         assert category == "regime"
 
     def test_hurst_in_domain_bounds(self) -> None:
@@ -47,11 +49,11 @@ class TestHurstScoringIntegration:
         assert signals.hurst_exponent == 0.65
 
     def test_roc_weight_reduced(self) -> None:
-        """roc weight reduced from 0.03 to 0.02 for redistribution."""
+        """roc weight scaled to 0.0288 (0.03 * 0.96 for ML redistribution)."""
         weight, _ = INDICATOR_WEIGHTS["roc"]
-        assert weight == 0.02
+        assert weight == pytest.approx(0.0288, rel=1e-4)
 
     def test_put_call_ratio_weight_reduced(self) -> None:
-        """put_call_ratio weight reduced from 0.03 to 0.02 for redistribution."""
+        """put_call_ratio weight scaled to 0.0288 (0.03 * 0.96 for ML redistribution)."""
         weight, _ = INDICATOR_WEIGHTS["put_call_ratio"]
-        assert weight == 0.02
+        assert weight == pytest.approx(0.0288, rel=1e-4)

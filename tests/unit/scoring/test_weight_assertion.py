@@ -17,12 +17,12 @@ def test_indicator_weights_sum_to_one() -> None:
     assert total == pytest.approx(1.0, abs=1e-9)
 
 
-def test_indicator_weights_has_24_entries() -> None:
-    """INDICATOR_WEIGHTS has exactly 24 entries.
+def test_indicator_weights_has_26_entries() -> None:
+    """INDICATOR_WEIGHTS has exactly 26 entries.
 
-    Breakdown: 19 original + 2 liquidity + 2 vol surface + 1 regime.
+    Breakdown: 19 original + 2 liquidity + 2 vol surface + 1 regime + 2 ML.
     """
-    assert len(INDICATOR_WEIGHTS) == 24
+    assert len(INDICATOR_WEIGHTS) == 26
 
 
 def test_all_weights_are_positive() -> None:

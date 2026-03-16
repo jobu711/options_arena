@@ -13,7 +13,9 @@ same never-raises pattern.
 
 import asyncio
 import json as _json
+import logging
 import math
+import re
 from datetime import UTC, datetime, timedelta
 from typing import NamedTuple
 
@@ -24,6 +26,28 @@ from options_arena.models.enums import FredTransform
 from options_arena.models.macro import FredSeriesConfig, MacroContext
 from options_arena.services.base import ServiceBase
 from options_arena.services.cache import TTL_REFERENCE, ServiceCache
+
+# Log filter to redact FRED API keys from any log message (belt-and-suspenders)
+_API_KEY_PATTERN = re.compile(r"api_key=[A-Za-z0-9]+")
+
+
+class _FredKeyRedactingFilter(logging.Filter):
+    """Redact FRED API keys from log records to prevent accidental leakage."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str) and "api_key=" in record.msg:
+            record.msg = _API_KEY_PATTERN.sub("api_key=REDACTED", record.msg)
+        if record.args:
+            args = record.args if isinstance(record.args, tuple) else (record.args,)
+            new_args = tuple(
+                _API_KEY_PATTERN.sub("api_key=REDACTED", str(a))
+                if isinstance(a, str) and "api_key=" in a
+                else a
+                for a in args
+            )
+            record.args = new_args
+        return True
+
 
 # FRED API constants
 _FRED_API_URL: str = "https://api.stlouisfed.org/fred/series/observations"
@@ -132,6 +156,9 @@ class FredService(ServiceBase[ServiceConfig]):
         cache: ServiceCache,
     ) -> None:
         super().__init__(config, cache, limiter=None)
+        self._log.addFilter(_FredKeyRedactingFilter())
+        # Also filter httpx logger which may log request URLs with API key
+        logging.getLogger("httpx").addFilter(_FredKeyRedactingFilter())
         self._pricing_config = pricing_config
         self._cached_rate: CachedRate | None = None
         self._client = httpx.AsyncClient(

@@ -11,6 +11,7 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
+from typing import Protocol
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,6 +33,13 @@ from options_arena.services.options_data import OptionsDataService
 from options_arena.services.outcome_collector import OutcomeCollector
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.services.universe import UniverseService
+
+
+class _Closeable(Protocol):
+    """Protocol for services that can be closed during startup cleanup."""
+
+    async def close(self) -> None: ...
+
 
 # Module-level limiter instance used by route decorators
 limiter = Limiter(key_func=get_remote_address)
@@ -56,51 +64,72 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         db_path = _DATA_DIR / "options_arena.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    db = Database(db_path)
-    await db.connect()
-    repo = Repository(db)
+    # Track created resources for cleanup on startup failure
+    _closeable: list[_Closeable] = []
 
-    cache = ServiceCache(settings.service)
-    limiter = RateLimiter(
-        settings.service.rate_limit_rps, settings.service.max_concurrent_requests
-    )
+    try:
+        db = Database(db_path)
+        await db.connect()
+        _closeable.append(db)
+        repo = Repository(db)
 
-    market_data = MarketDataService(settings.service, cache, limiter)
-    options_data = OptionsDataService(
-        settings.service,
-        settings.scan.filters.options,
-        cache,
-        limiter,
-        openbb_config=settings.openbb,
-    )
-    fred = FredService(settings.service, settings.pricing, cache)
-    universe = UniverseService(settings.service, cache, limiter)
-
-    # OpenBB enrichment service — created only when enabled in config
-    openbb_svc: OpenBBService | None = None
-    if settings.openbb.enabled:
-        openbb_svc = OpenBBService(settings.openbb, cache, limiter)
-
-    # Intelligence service — created only when enabled in config
-    intelligence_svc: IntelligenceService | None = None
-    if settings.intelligence.enabled:
-        intelligence_svc = IntelligenceService(settings.intelligence, cache, limiter)
-
-    # Financial Datasets service — created only when enabled and API key set
-    fd_svc: FinancialDatasetsService | None = None
-    if settings.financial_datasets.enabled and settings.financial_datasets.api_key is not None:
-        fd_svc = FinancialDatasetsService(
-            config=settings.financial_datasets,
-            cache=cache,
-            limiter=limiter,
+        cache = ServiceCache(settings.service)
+        _closeable.append(cache)
+        rate_limiter = RateLimiter(
+            settings.service.rate_limit_rps, settings.service.max_concurrent_requests
         )
+
+        market_data = MarketDataService(settings.service, cache, rate_limiter)
+        _closeable.append(market_data)
+        options_data = OptionsDataService(
+            settings.service,
+            settings.scan.filters.options,
+            cache,
+            rate_limiter,
+            openbb_config=settings.openbb,
+        )
+        _closeable.append(options_data)
+        fred = FredService(settings.service, settings.pricing, cache)
+        _closeable.append(fred)
+        universe = UniverseService(settings.service, cache, rate_limiter)
+        _closeable.append(universe)
+
+        # OpenBB enrichment service — created only when enabled in config
+        openbb_svc: OpenBBService | None = None
+        if settings.openbb.enabled:
+            openbb_svc = OpenBBService(settings.openbb, cache, rate_limiter)
+            _closeable.append(openbb_svc)
+
+        # Intelligence service — created only when enabled in config
+        intelligence_svc: IntelligenceService | None = None
+        if settings.intelligence.enabled:
+            intelligence_svc = IntelligenceService(settings.intelligence, cache, rate_limiter)
+            _closeable.append(intelligence_svc)
+
+        # Financial Datasets service — created only when enabled and API key set
+        fd_svc: FinancialDatasetsService | None = None
+        if settings.financial_datasets.enabled and settings.financial_datasets.api_key is not None:
+            fd_svc = FinancialDatasetsService(
+                config=settings.financial_datasets,
+                cache=cache,
+                limiter=rate_limiter,
+            )
+            _closeable.append(fd_svc)
+    except Exception:
+        logger.exception("Startup failed — cleaning up already-created services")
+        for svc in reversed(_closeable):
+            try:
+                await svc.close()
+            except Exception:
+                logger.warning("Cleanup failed for %s", type(svc).__name__, exc_info=True)
+        raise
 
     # Store on app.state for Depends() access
     app.state.settings = settings
     app.state.db = db
     app.state.repo = repo
     app.state.cache = cache
-    app.state.limiter = limiter
+    app.state.rate_limiter = rate_limiter
     app.state.market_data = market_data
     app.state.options_data = options_data
     app.state.fred = fred
@@ -181,16 +210,18 @@ def create_app() -> FastAPI:
             headers={"Retry-After": "60"},
         )
 
-    # CORS — allow Vite dev server
+    # CORS — allow Vite dev server (loopback only)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
             "http://localhost:5173",
             "http://127.0.0.1:5173",
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
         ],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With"],
     )
 
     # Register API routes
@@ -270,7 +301,11 @@ def _register_exception_handlers(app: FastAPI) -> None:
     async def _data_source_unavailable(
         request: object, exc: DataSourceUnavailableError
     ) -> JSONResponse:
-        return JSONResponse(status_code=503, content={"detail": str(exc)})
+        logger.warning("Data source unavailable: %s", exc)
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "External data source temporarily unavailable"},
+        )
 
     @app.exception_handler(RateLimitExceededError)
     async def _rate_limit_exceeded(request: object, exc: RateLimitExceededError) -> JSONResponse:

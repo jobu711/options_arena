@@ -54,7 +54,7 @@ async def check_services(
         settings.service,
         openbb_config=settings.openbb,
         cache=request.app.state.cache,
-        limiter=request.app.state.limiter,
+        limiter=request.app.state.rate_limiter,
     )
     try:
         return await svc.check_all()

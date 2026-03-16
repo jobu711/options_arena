@@ -104,6 +104,7 @@ def compute_vol_surface(
     option_types: np.ndarray,
     spot: float,
     risk_free_rate: float = 0.05,
+    dividend_yield: float = 0.0,
 ) -> VolSurfaceResult:
     """Compute implied volatility surface analytics with tiered fallback.
 
@@ -147,7 +148,9 @@ def compute_vol_surface(
 
     # ----- Tier 1: fitted surface -----
     if n_contracts >= _MIN_CONTRACTS_TIER1 and len(unique_dtes) >= _MIN_UNIQUE_DTES_TIER1:
-        result = _fit_surface(strikes_f, ivs_f, dtes_f, types_f, spot, risk_free_rate)
+        result = _fit_surface(
+            strikes_f, ivs_f, dtes_f, types_f, spot, risk_free_rate, dividend_yield
+        )
         if result is not None:
             return result
         # Fall through to Tier 2 on spline failure
@@ -165,6 +168,7 @@ def compute_vol_surface(
         spot,
         risk_free_rate,
         dtes_f,
+        dividend_yield,
     )
 
     return VolSurfaceResult(
@@ -196,6 +200,7 @@ def _fit_surface(
     option_types: np.ndarray,
     spot: float,
     risk_free_rate: float,
+    dividend_yield: float = 0.0,
 ) -> VolSurfaceResult | None:
     """Fit IV surface via bivariate spline and extract analytics.
 
@@ -312,6 +317,7 @@ def _fit_surface(
         spot,
         risk_free_rate,
         dtes_clean,
+        dividend_yield,
     )
 
     return VolSurfaceResult(
@@ -499,6 +505,7 @@ def _standalone_implied_move(
     spot: float,
     risk_free_rate: float,
     dtes: np.ndarray,
+    dividend_yield: float = 0.0,
 ) -> float | None:
     """Compute probability of spot being above current price via Breeden-Litzenberger.
 
@@ -551,13 +558,13 @@ def _standalone_implied_move(
         if sigma <= 0.0 or strike <= 0.0:
             call_prices[i] = 0.0
             continue
-        d1 = (math.log(spot / strike) + (risk_free_rate + 0.5 * sigma * sigma) * t) / (
-            sigma * math.sqrt(t)
-        )
+        d1 = (
+            math.log(spot / strike) + (risk_free_rate - dividend_yield + 0.5 * sigma * sigma) * t
+        ) / (sigma * math.sqrt(t))
         d2 = d1 - sigma * math.sqrt(t)
-        call_prices[i] = spot * float(_norm.cdf(d1)) - strike * math.exp(
-            -risk_free_rate * t
-        ) * float(_norm.cdf(d2))
+        call_prices[i] = spot * math.exp(-dividend_yield * t) * float(
+            _norm.cdf(d1)
+        ) - strike * math.exp(-risk_free_rate * t) * float(_norm.cdf(d2))
 
     # Approximate risk-neutral PDF via second derivative of call prices w.r.t. strike
     if n_strikes < 3:

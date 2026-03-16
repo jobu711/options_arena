@@ -80,7 +80,7 @@ class TestCheckOpenBB:
 
         assert result.service_name == "openbb"
         assert result.available is False
-        assert "SDK crash" in (result.error or "")
+        assert "RuntimeError" in (result.error or "")
 
     @pytest.mark.asyncio
     async def test_latency_measured(self, health_service: HealthService) -> None:

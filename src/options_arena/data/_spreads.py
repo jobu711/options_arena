@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sqlite3
 from datetime import date
 from decimal import Decimal
 
@@ -183,7 +184,7 @@ class SpreadsMixin(RepositoryBase):
     async def _reconstruct_spread_analysis(
         self,
         spread_id: int,
-        row: object,
+        row: sqlite3.Row,
     ) -> SpreadAnalysis | None:
         """Reconstruct a SpreadAnalysis from a spread_recommendations row + legs.
 
@@ -231,39 +232,33 @@ class SpreadsMixin(RepositoryBase):
             legs.append(leg)
 
         # Reconstruct spread
-        spread_type = SpreadType(row["spread_type"])  # type: ignore[index]
-        ticker_str = str(row["ticker"])  # type: ignore[index]
+        spread_type = SpreadType(row["spread_type"])
+        ticker_str = str(row["ticker"])
         option_spread = OptionSpread(
             spread_type=spread_type,
             legs=legs,
             ticker=ticker_str,
         )
 
-        # Reconstruct breakevens — not stored in DB, derive empty list
-        # (breakevens are a computed property of the spread, not independently persisted)
-        # For round-trip fidelity, we store a minimal placeholder.
-        # The breakevens were computed at construction time and used for PoP.
-        # After retrieval, the P&L fields are the authoritative data.
-
-        iv_regime_raw: str | None = row["iv_regime"]  # type: ignore[index]
-        rr_raw = row["risk_reward_ratio"]  # type: ignore[index]
+        iv_regime_raw: str | None = row["iv_regime"]
+        rr_raw = row["risk_reward_ratio"]
 
         return SpreadAnalysis(
             spread=option_spread,
-            net_premium=Decimal(row["net_premium"]),  # type: ignore[index]
-            max_profit=Decimal(row["max_profit"]),  # type: ignore[index]
-            max_loss=Decimal(row["max_loss"]),  # type: ignore[index]
+            net_premium=Decimal(row["net_premium"]),
+            max_profit=Decimal(row["max_profit"]),
+            max_loss=Decimal(row["max_loss"]),
             breakevens=self._deserialize_breakevens(row),
             risk_reward_ratio=float(rr_raw) if rr_raw is not None else None,
-            pop_estimate=float(row["pop_estimate"]) if row["pop_estimate"] is not None else 0.5,  # type: ignore[index]
-            strategy_rationale=str(row["strategy_rationale"] or ""),  # type: ignore[index]
+            pop_estimate=float(row["pop_estimate"]) if row["pop_estimate"] is not None else 0.5,
+            strategy_rationale=str(row["strategy_rationale"] or ""),
             iv_regime=VolRegime(iv_regime_raw) if iv_regime_raw is not None else None,
         )
 
     @staticmethod
-    def _deserialize_breakevens(row: object) -> list[Decimal]:
+    def _deserialize_breakevens(row: sqlite3.Row) -> list[Decimal]:
         """Deserialize breakevens_json column, falling back to empty list."""
-        raw: str | None = row["breakevens_json"]  # type: ignore[index]
+        raw: str | None = row["breakevens_json"]
         if raw is None:
             return [Decimal("0")]  # legacy rows without breakevens_json
         try:

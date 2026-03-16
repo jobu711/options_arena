@@ -95,9 +95,11 @@ def determine_direction(
         bearish_score += _MILD_SIGNAL_WEIGHT
 
     # Step 3: SMA alignment scoring
-    if sma_alignment > SMA_BULLISH_THRESHOLD:
+    sma_bull = cfg.sma_bullish_threshold
+    sma_bear = cfg.sma_bearish_threshold
+    if sma_alignment > sma_bull:
         bullish_score += _MILD_SIGNAL_WEIGHT
-    elif sma_alignment < SMA_BEARISH_THRESHOLD:
+    elif sma_alignment < sma_bear:
         bearish_score += _MILD_SIGNAL_WEIGHT
 
     # Step 4: Supertrend confirmation (±1 signal)
@@ -108,10 +110,11 @@ def determine_direction(
             bearish_score += _MILD_SIGNAL_WEIGHT
 
     # Step 5: ROC confirmation (strong momentum)
+    roc_thresh = cfg.roc_threshold
     if roc is not None and math.isfinite(roc):
-        if roc > ROC_THRESHOLD:
+        if roc > roc_thresh:
             bullish_score += _MILD_SIGNAL_WEIGHT
-        elif roc < -ROC_THRESHOLD:
+        elif roc < -roc_thresh:
             bearish_score += _MILD_SIGNAL_WEIGHT
 
     logger.debug(

@@ -223,8 +223,8 @@ class FredService:
 ```
 
 **Critical rules** (Context7-verified):
-- `httpx.Timeout(default, connect=, read=, write=, pool=)` — first positional arg is the
-  default. Named args override specific phases.
+- `httpx.Timeout(timeout, *, connect=, read=, write=, pool=)` — first positional arg
+  (`timeout`) sets the default for all phases. Named keyword args override specific phases.
 - `httpx.Limits(max_connections=, max_keepalive_connections=)` — connection pooling.
 - `httpx.AsyncHTTPTransport(retries=1)` — **connection-level retries only** (TCP failures).
   Does NOT retry on HTTP 429/500. Our `fetch_with_retry()` handles application-level retry.
