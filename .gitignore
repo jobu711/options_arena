@@ -36,6 +36,9 @@ reports/
 data/*.db
 data/*.sqlite
 
+# ML model cache (trained offline, not committed)
+data/model_cache/*.pkl
+
 # Coverage
 htmlcov/
 .coverage

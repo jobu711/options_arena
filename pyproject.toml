@@ -30,6 +30,7 @@ dependencies = [
 pdf = ["weasyprint>=63.0"]
 ml = [
     "arch>=8.0,<9",
+    "scikit-learn>=1.5,<2",
     "statsmodels>=0.14,<0.15",
 ]
 # NOTE: openbb extra omitted — OpenBB SDK pins fastapi<0.129 and ruff<0.14,
@@ -81,7 +82,7 @@ warn_return_any = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["arch.*", "openbb.*", "statsmodels.*", "vaderSentiment.*", "yfinance.*"]
+module = ["arch.*", "joblib.*", "openbb.*", "sklearn.*", "statsmodels.*", "vaderSentiment.*", "yfinance.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

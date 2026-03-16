@@ -8,6 +8,12 @@ Modules:
     spreads       -- Multi-leg strategy construction and selection engine.
 """
 
+from options_arena.scoring.clustering import (
+    ClusteringResult,
+    ContractCluster,
+    GreeksCentroid,
+    cluster_contracts_by_greeks,
+)
 from options_arena.scoring.composite import (
     INDICATOR_WEIGHTS,
     composite_score,
@@ -70,4 +76,9 @@ __all__: list[str] = [
     "recommend_contracts",
     # spreads
     "select_strategy",
+    # clustering
+    "cluster_contracts_by_greeks",
+    "ClusteringResult",
+    "ContractCluster",
+    "GreeksCentroid",
 ]
