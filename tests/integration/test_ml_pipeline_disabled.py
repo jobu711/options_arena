@@ -86,7 +86,6 @@ class TestMLPipelineDisabled:
 
         # Verify: no ML fields populated
         assert signals.vol_forecast_garch is None
-        assert signals.vol_forecast_egarch is None
         assert signals.iv_vs_forecast_spread is None
         assert signals.regime_markov_label is None
         assert signals.regime_transition_prob is None
@@ -107,7 +106,6 @@ class TestMLPipelineDisabled:
 
         # ML fields must still be None (never touched by compute_indicators)
         assert signals.vol_forecast_garch is None
-        assert signals.vol_forecast_egarch is None
         assert signals.iv_vs_forecast_spread is None
         assert signals.regime_markov_label is None
         assert signals.regime_transition_prob is None

@@ -1,7 +1,7 @@
 """Tests for ML indicator computation in Phase 2 scoring.
 
 Validates:
-- GARCH/EGARCH forecasts computed when ``enable_garch`` is True.
+- GARCH forecast computed when ``enable_garch`` is True.
 - Markov regime computed when ``enable_markov`` is True.
 - ML indicators skipped when feature flags are False.
 - Timeout handling for slow ML computations.
@@ -26,7 +26,6 @@ from options_arena.scan.phase_scoring import (
 # Mock paths — these functions are lazily imported inside the async helpers,
 # so we patch them at their source module, not at the phase_scoring namespace.
 _GARCH_PATH = "options_arena.indicators.vol_forecast.compute_garch_forecast"
-_EGARCH_PATH = "options_arena.indicators.vol_forecast.compute_egarch_forecast"
 _MARKOV_PATH = "options_arena.indicators.regime_ml.compute_markov_regime"
 _TIMEOUT_PATH = "options_arena.scan.phase_scoring._ML_COMPUTATION_TIMEOUT"
 
@@ -88,10 +87,7 @@ async def test_garch_populates_vol_forecast_when_enabled() -> None:
     returns = _make_returns_series(300)
     ml_config = MLConfig(enable_garch=True)
 
-    with (
-        patch(_GARCH_PATH, return_value=0.25) as mock_garch,
-        patch(_EGARCH_PATH, return_value=0.28),
-    ):
+    with patch(_GARCH_PATH, return_value=0.25) as mock_garch:
         await _compute_garch_for_ticker(
             signals=signals,
             returns_series=returns,
@@ -99,7 +95,6 @@ async def test_garch_populates_vol_forecast_when_enabled() -> None:
         )
 
     assert signals.vol_forecast_garch == pytest.approx(0.25)
-    assert signals.vol_forecast_egarch == pytest.approx(0.28)
     mock_garch.assert_called_once()
 
 
@@ -110,10 +105,7 @@ async def test_garch_leaves_none_when_returns_none() -> None:
     returns = _make_returns_series(300)
     ml_config = MLConfig(enable_garch=True)
 
-    with (
-        patch(_GARCH_PATH, return_value=None),
-        patch(_EGARCH_PATH, return_value=None),
-    ):
+    with patch(_GARCH_PATH, return_value=None):
         await _compute_garch_for_ticker(
             signals=signals,
             returns_series=returns,
@@ -121,7 +113,6 @@ async def test_garch_leaves_none_when_returns_none() -> None:
         )
 
     assert signals.vol_forecast_garch is None
-    assert signals.vol_forecast_egarch is None
 
 
 @pytest.mark.asyncio
@@ -140,7 +131,6 @@ async def test_garch_timeout_leaves_none() -> None:
 
     with (
         patch(_GARCH_PATH, side_effect=slow_garch),
-        patch(_EGARCH_PATH, return_value=None),
         patch(_TIMEOUT_PATH, 0.01),
     ):
         await _compute_garch_for_ticker(
@@ -159,10 +149,7 @@ async def test_iv_vs_forecast_spread_computed() -> None:
     returns = _make_returns_series(300)
     ml_config = MLConfig(enable_garch=True)
 
-    with (
-        patch(_GARCH_PATH, return_value=0.25),
-        patch(_EGARCH_PATH, return_value=None),
-    ):
+    with patch(_GARCH_PATH, return_value=0.25):
         await _compute_garch_for_ticker(
             signals=signals,
             returns_series=returns,
@@ -181,10 +168,7 @@ async def test_iv_vs_forecast_spread_none_without_ewma() -> None:
     returns = _make_returns_series(300)
     ml_config = MLConfig(enable_garch=True)
 
-    with (
-        patch(_GARCH_PATH, return_value=0.25),
-        patch(_EGARCH_PATH, return_value=None),
-    ):
+    with patch(_GARCH_PATH, return_value=0.25):
         await _compute_garch_for_ticker(
             signals=signals,
             returns_series=returns,
@@ -266,7 +250,6 @@ async def test_ml_indicators_skipped_when_disabled() -> None:
     )
 
     assert signals.vol_forecast_garch is None
-    assert signals.vol_forecast_egarch is None
     assert signals.regime_markov_label is None
     assert signals.regime_transition_prob is None
 
@@ -290,7 +273,6 @@ async def test_ml_indicators_computed_for_tickers_with_sufficient_data() -> None
 
     with (
         patch(_GARCH_PATH, return_value=0.20),
-        patch(_EGARCH_PATH, return_value=0.22),
         patch(_MARKOV_PATH, return_value=mock_markov),
     ):
         await _compute_ml_indicators(
@@ -300,7 +282,6 @@ async def test_ml_indicators_computed_for_tickers_with_sufficient_data() -> None
         )
 
     assert signals.vol_forecast_garch == pytest.approx(0.20)
-    assert signals.vol_forecast_egarch == pytest.approx(0.22)
     assert signals.regime_markov_label == pytest.approx(0.0)  # "low_vol" -> 0.0
     assert signals.regime_transition_prob is not None
     assert signals.regime_transition_prob == pytest.approx(0.95, abs=1e-9)

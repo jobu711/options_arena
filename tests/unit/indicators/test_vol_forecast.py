@@ -1,9 +1,8 @@
-"""Tests for GARCH/EGARCH volatility forecasting + ADF stationarity.
+"""Tests for GARCH volatility forecasting + ADF stationarity.
 
 Covers:
 - TestStationarity: stationary/non-stationary/insufficient/missing-statsmodels
 - TestGARCHForecast: synthetic data, edge cases, convergence, annualization
-- TestEGARCHForecast: synthetic data, asymmetry, convergence
 - TestIndicatorSignalsMLFields: new fields default None, non-finite normalization
 """
 
@@ -19,7 +18,6 @@ import pytest
 from options_arena.indicators.vol_forecast import (
     _get_adfuller,
     _get_arch,
-    compute_egarch_forecast,
     compute_garch_forecast,
 )
 from options_arena.indicators.vol_forecast import (
@@ -236,102 +234,6 @@ class TestGARCHForecast:
 
 
 # ===========================================================================
-# TestEGARCHForecast
-# ===========================================================================
-
-
-class TestEGARCHForecast:
-    """Tests for compute_egarch_forecast()."""
-
-    def test_synthetic_data_returns_float(self) -> None:
-        """EGARCH forecast on GARCH-like data should return a positive float."""
-        returns = _make_garch_like_returns(n=500)
-        result = compute_egarch_forecast(returns)
-        assert result is not None
-        assert isinstance(result, float)
-        assert result > 0.0
-
-    def test_insufficient_data(self) -> None:
-        """Returns None when series has fewer than 252 observations."""
-        short_returns = _make_garch_like_returns(n=200)
-        result = compute_egarch_forecast(short_returns)
-        assert result is None
-
-    def test_missing_arch(self) -> None:
-        """Returns None when arch library is not installed."""
-        with patch("options_arena.indicators.vol_forecast._get_arch", return_value=None):
-            returns = _make_garch_like_returns(n=500)
-            result = compute_egarch_forecast(returns)
-            assert result is None
-
-    def test_convergence_failure_returns_none(self) -> None:
-        """Constant series should lead to convergence failure."""
-        constant_returns = pd.Series(np.zeros(300), name="constant")
-        result = compute_egarch_forecast(constant_returns)
-        assert result is None or (isinstance(result, float) and result >= 0.0)
-
-    def test_captures_asymmetry(self) -> None:
-        """EGARCH on asymmetric data should produce a different forecast than GARCH.
-
-        While not guaranteed to differ significantly, this test verifies both
-        models produce results on the same data (EGARCH has o parameter for asymmetry).
-        """
-        # Create returns with negative skew (larger negative shocks)
-        rng = np.random.default_rng(42)
-        n = 500
-        # Mix of normal and occasional large negative shocks
-        base = rng.normal(0.0, 1.0, n)
-        # Add negative shocks at random points
-        shock_indices = rng.choice(n, size=20, replace=False)
-        base[shock_indices] -= rng.exponential(3.0, size=20)
-        returns = pd.Series(base, name="asymmetric_returns")
-
-        garch_result = compute_garch_forecast(returns)
-        egarch_result = compute_egarch_forecast(returns)
-
-        # Both should produce valid results
-        if garch_result is not None and egarch_result is not None:
-            # Both should be positive and finite
-            assert garch_result > 0.0
-            assert egarch_result > 0.0
-            assert math.isfinite(garch_result)
-            assert math.isfinite(egarch_result)
-
-    def test_result_is_annualized(self) -> None:
-        """EGARCH forecast should be in annualized volatility scale."""
-        returns = _make_garch_like_returns(n=500)
-        result = compute_egarch_forecast(returns)
-        assert result is not None
-        # Reasonable range for annualized vol
-        assert 0.001 < result < 5.0
-
-    def test_custom_horizon(self) -> None:
-        """Custom forecast horizon should produce valid results."""
-        returns = _make_garch_like_returns(n=500)
-        result_h1 = compute_egarch_forecast(returns, horizon=1)
-        result_h20 = compute_egarch_forecast(returns, horizon=20)
-
-        if result_h1 is not None and result_h20 is not None:
-            assert result_h1 > 0.0
-            assert result_h20 > 0.0
-            assert math.isfinite(result_h1)
-            assert math.isfinite(result_h20)
-
-    def test_returns_finite(self) -> None:
-        """Result must always be finite."""
-        returns = _make_garch_like_returns(n=500, seed=77)
-        result = compute_egarch_forecast(returns)
-        if result is not None:
-            assert math.isfinite(result)
-
-    def test_nonstationary_skipped(self) -> None:
-        """Returns None when input series is non-stationary."""
-        series = _make_nonstationary_series(n=500)
-        result = compute_egarch_forecast(series)
-        assert result is None
-
-
-# ===========================================================================
 # TestIndicatorSignalsMLFields
 # ===========================================================================
 
@@ -340,56 +242,47 @@ class TestIndicatorSignalsMLFields:
     """Tests for new ML fields on IndicatorSignals."""
 
     def test_new_fields_default_none(self) -> None:
-        """All 3 new ML fields should default to None."""
+        """ML fields should default to None."""
         signals = IndicatorSignals()
         assert signals.vol_forecast_garch is None
-        assert signals.vol_forecast_egarch is None
         assert signals.iv_vs_forecast_spread is None
 
     def test_fields_accept_valid_values(self) -> None:
         """New fields should accept valid float values."""
         signals = IndicatorSignals(
             vol_forecast_garch=0.25,
-            vol_forecast_egarch=0.28,
             iv_vs_forecast_spread=0.03,
         )
         assert signals.vol_forecast_garch == 0.25
-        assert signals.vol_forecast_egarch == 0.28
         assert signals.iv_vs_forecast_spread == 0.03
 
     def test_normalize_non_finite_nan(self) -> None:
         """NaN values on ML fields should be normalized to None."""
         signals = IndicatorSignals(
             vol_forecast_garch=float("nan"),
-            vol_forecast_egarch=float("nan"),
             iv_vs_forecast_spread=float("nan"),
         )
         assert signals.vol_forecast_garch is None
-        assert signals.vol_forecast_egarch is None
         assert signals.iv_vs_forecast_spread is None
 
     def test_normalize_non_finite_inf(self) -> None:
         """Inf values on ML fields should be normalized to None."""
         signals = IndicatorSignals(
             vol_forecast_garch=float("inf"),
-            vol_forecast_egarch=float("-inf"),
             iv_vs_forecast_spread=float("inf"),
         )
         assert signals.vol_forecast_garch is None
-        assert signals.vol_forecast_egarch is None
         assert signals.iv_vs_forecast_spread is None
 
     def test_serialization_roundtrip(self) -> None:
         """ML fields should survive JSON serialization roundtrip."""
         signals = IndicatorSignals(
             vol_forecast_garch=0.32,
-            vol_forecast_egarch=0.35,
             iv_vs_forecast_spread=-0.05,
         )
         json_str = signals.model_dump_json()
         restored = IndicatorSignals.model_validate_json(json_str)
         assert restored.vol_forecast_garch == pytest.approx(0.32)
-        assert restored.vol_forecast_egarch == pytest.approx(0.35)
         assert restored.iv_vs_forecast_spread == pytest.approx(-0.05)
 
     def test_negative_spread_allowed(self) -> None:

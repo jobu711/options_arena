@@ -1,8 +1,8 @@
-"""Correctness tests for all 53 indicator functions vs academic known-values.
+"""Correctness tests for all 50 indicator functions vs academic known-values.
 
 Tests cover oscillators (3), trend (7), volatility (3), volume (3),
 moving averages (2), options specific (9), iv analytics (13),
-hv estimators (3), flow analytics (5), regime (7), and vol surface (2).
+hv estimators (1), flow analytics (5), regime (6), and vol surface (2).
 
 Reference data loaded from ``tests/audit/reference_data/indicator_known_values.json``.
 """
@@ -25,8 +25,6 @@ from options_arena.indicators.flow_analytics import (
     compute_unusual_activity,
 )
 from options_arena.indicators.hv_estimators import (
-    compute_hv_parkinson,
-    compute_hv_rogers_satchell,
     compute_hv_yang_zhang,
 )
 from options_arena.indicators.iv_analytics import (
@@ -58,7 +56,6 @@ from options_arena.indicators.options_specific import (
 )
 from options_arena.indicators.oscillators import rsi, stoch_rsi, williams_r
 from options_arena.indicators.regime import (
-    classify_market_regime,
     compute_correlation_regime_shift,
     compute_risk_on_off,
     compute_rs_vs_spx,
@@ -878,27 +875,13 @@ class TestIVAnalyticsCorrectness:
 
 
 # =========================================================================
-# HV Estimators (3)
+# HV Estimators (1)
 # =========================================================================
 
 
 @pytest.mark.audit_correctness
 class TestHVEstimatorsCorrectness:
     """Historical volatility estimator correctness."""
-
-    def test_parkinson_positive(self) -> None:
-        """Parkinson (1980) -- HV estimate is positive for non-constant OHLCV."""
-        df = _make_ohlcv_df(_make_trend_series(100, 120, 30))
-        result = compute_hv_parkinson(df["High"], df["Low"])
-        assert result is not None
-        assert float(result) > 0.0
-
-    def test_rogers_satchell_positive(self) -> None:
-        """Rogers-Satchell (1991) -- HV estimate is positive."""
-        df = _make_ohlcv_df(_make_trend_series(100, 120, 30))
-        result = compute_hv_rogers_satchell(df["Open"], df["High"], df["Low"], df["Close"])
-        assert result is not None
-        assert float(result) > 0.0
 
     def test_yang_zhang_positive(self) -> None:
         """Yang-Zhang (2000) -- HV estimate is positive."""
@@ -986,24 +969,13 @@ class TestFlowAnalyticsCorrectness:
 
 
 # =========================================================================
-# Regime (7)
+# Regime (6)
 # =========================================================================
 
 
 @pytest.mark.audit_correctness
 class TestRegimeCorrectness:
     """Regime classification functions correctness."""
-
-    def test_classify_market_regime(self) -> None:
-        """Market regime classification returns valid MarketRegime."""
-        # classify_market_regime(vix, vix_sma_20, spx_returns_20d, spx_sma_slope)
-        result = classify_market_regime(
-            vix=20.0,
-            vix_sma_20=18.0,
-            spx_returns_20d=0.05,
-            spx_sma_slope=0.5,
-        )
-        assert result is not None
 
     def test_vix_term_structure(self) -> None:
         """VIX term structure returns finite value."""

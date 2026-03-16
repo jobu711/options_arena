@@ -153,9 +153,9 @@ class TestRegistryMatchesSource:
             assert callable(func), f"Registry entry {key!r} is not callable: {type(func)}"
 
     def test_registry_count(self) -> None:
-        """Registry should contain the expected number of functions (92)."""
-        assert len(MATH_FUNCTION_REGISTRY) == 92, (
-            f"Expected 92 functions in registry, got {len(MATH_FUNCTION_REGISTRY)}"
+        """Registry should contain the expected number of functions (89)."""
+        assert len(MATH_FUNCTION_REGISTRY) == 89, (
+            f"Expected 89 functions in registry, got {len(MATH_FUNCTION_REGISTRY)}"
         )
 
 

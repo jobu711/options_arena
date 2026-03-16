@@ -1,10 +1,9 @@
 """Regime and macro indicator functions.
 
-Seven indicator functions for market regime classification, VIX term structure,
-risk-on/off scoring, sector momentum, relative strength, correlation regime
-shifts, and volume profile skew.
+Six indicator functions for VIX term structure, risk-on/off scoring, sector
+momentum, relative strength, correlation regime shifts, and volume profile skew.
 
-All functions take float/Series in, return float | MarketRegime | None out.
+All functions take float/Series in, return float | None out.
 No API calls. No Pydantic models. Pure math.
 """
 
@@ -16,58 +15,6 @@ import numpy as np
 import pandas as pd
 
 from options_arena.indicators._validation import validate_aligned
-from options_arena.models.enums import MarketRegime
-
-
-def classify_market_regime(
-    vix: float,
-    vix_sma_20: float,
-    spx_returns_20d: float,
-    spx_sma_slope: float,
-) -> MarketRegime:
-    """Classify market regime based on VIX and SPX metrics.
-
-    Classification logic:
-        CRISIS     — VIX >= 35 (extreme fear)
-        VOLATILE   — VIX > vix_sma_20 * 1.2 (elevated vs recent avg)
-        TRENDING   — |spx_returns_20d| > 3% AND spx_sma_slope has same sign
-        MEAN_REVERTING — default (range-bound market)
-
-    Args:
-        vix: Current VIX level.
-        vix_sma_20: 20-day simple moving average of VIX.
-        spx_returns_20d: SPX cumulative return over 20 trading days (decimal, e.g. 0.05 = 5%).
-        spx_sma_slope: Slope of SPX 20-day SMA (positive = uptrend).
-
-    Returns:
-        MarketRegime enum value.
-    """
-    # Guard against NaN/Inf — fall through to MEAN_REVERTING would be silent & wrong
-    if (
-        not math.isfinite(vix)
-        or not math.isfinite(vix_sma_20)
-        or not math.isfinite(spx_returns_20d)
-        or not math.isfinite(spx_sma_slope)
-    ):
-        return MarketRegime.MEAN_REVERTING
-
-    # Crisis: extreme VIX
-    if vix >= 35.0:
-        return MarketRegime.CRISIS
-
-    # Volatile: VIX significantly above its recent average
-    if vix_sma_20 > 0.0 and vix > vix_sma_20 * 1.2:
-        return MarketRegime.VOLATILE
-
-    # Trending: strong directional SPX move confirmed by SMA slope
-    # Check magnitude + sign agreement: both positive or both negative
-    if abs(spx_returns_20d) > 0.03 and (
-        (spx_returns_20d > 0 and spx_sma_slope > 0) or (spx_returns_20d < 0 and spx_sma_slope < 0)
-    ):
-        return MarketRegime.TRENDING
-
-    # Default: mean-reverting / range-bound
-    return MarketRegime.MEAN_REVERTING
 
 
 def compute_vix_term_structure(

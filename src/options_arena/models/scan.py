@@ -29,10 +29,10 @@ from options_arena.models.scoring import DimensionalScores
 
 
 class IndicatorSignals(BaseModel):
-    """76 named indicator fields.
+    """75 named indicator fields.
 
     Breakdown: 19 core + 40 DSE + 2 liq + 4 quant + 3 surface + 1 hurst
-    + 3 ML vol + 2 ML regime + 1 ML GBM regime + 1 ML flow anomaly.
+    + 2 ML vol + 2 ML regime + 1 ML GBM regime + 1 ML flow anomaly.
 
     Replaces ``dict[str, float]`` on TickerScore.
 
@@ -148,9 +148,8 @@ class IndicatorSignals(BaseModel):
     # --- Regime Detection ---
     hurst_exponent: float | None = None  # Hurst exponent via R/S analysis [0, 1]
 
-    # --- ML: Volatility Forecasting (3 new) ---
+    # --- ML: Volatility Forecasting (2) ---
     vol_forecast_garch: float | None = None  # GARCH(1,1) annualized vol forecast
-    vol_forecast_egarch: float | None = None  # EGARCH(1,1,1) annualized vol forecast
     iv_vs_forecast_spread: float | None = (
         None  # EWMA vol minus GARCH forecast (positive = vol rich)
     )

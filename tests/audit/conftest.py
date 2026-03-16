@@ -1,6 +1,6 @@
 """Audit test configuration — function registry and Hypothesis profiles.
 
-``MATH_FUNCTION_REGISTRY`` maps all 87 mathematical functions in the codebase
+``MATH_FUNCTION_REGISTRY`` maps all 84 mathematical functions in the codebase
 to their callables for audit testing. Hypothesis profiles control example
 count for property-based stability tests.
 """
@@ -30,7 +30,7 @@ _REGISTRY: dict[str, Any] | None = None
 
 
 def _build_registry() -> dict[str, Any]:
-    """Build the math function registry by importing all 87 functions."""
+    """Build the math function registry by importing all 84 functions."""
     # -- Pricing: BSM (5) --
     # -- Indicators: Flow Analytics (5) --
     # -- Orchestration (5) --
@@ -49,10 +49,8 @@ def _build_registry() -> dict[str, Any]:
         compute_unusual_activity,
     )
 
-    # -- Indicators: HV Estimators (3) --
+    # -- Indicators: HV Estimators (1) --
     from options_arena.indicators.hv_estimators import (
-        compute_hv_parkinson,
-        compute_hv_rogers_satchell,
         compute_hv_yang_zhang,
     )
 
@@ -92,9 +90,8 @@ def _build_registry() -> dict[str, Any]:
     # -- Indicators: Oscillators (3) --
     from options_arena.indicators.oscillators import rsi, stoch_rsi, williams_r
 
-    # -- Indicators: Regime (7) --
+    # -- Indicators: Regime (6) --
     from options_arena.indicators.regime import (
-        classify_market_regime,
         compute_correlation_regime_shift,
         compute_risk_on_off,
         compute_rs_vs_spx,
@@ -249,9 +246,7 @@ def _build_registry() -> dict[str, Any]:
         "indicators.iv_analytics.compute_vix_correlation": compute_vix_correlation,
         "indicators.iv_analytics.compute_expected_move": compute_expected_move,
         "indicators.iv_analytics.compute_expected_move_ratio": compute_expected_move_ratio,
-        # ---- Indicators: HV Estimators (3) ----
-        "indicators.hv_estimators.compute_hv_parkinson": compute_hv_parkinson,
-        "indicators.hv_estimators.compute_hv_rogers_satchell": compute_hv_rogers_satchell,
+        # ---- Indicators: HV Estimators (1) ----
         "indicators.hv_estimators.compute_hv_yang_zhang": compute_hv_yang_zhang,
         # ---- Indicators: Flow Analytics (5) ----
         "indicators.flow_analytics.compute_gex": compute_gex,
@@ -259,8 +254,7 @@ def _build_registry() -> dict[str, Any]:
         "indicators.flow_analytics.compute_unusual_activity": compute_unusual_activity,
         "indicators.flow_analytics.compute_max_pain_magnet": compute_max_pain_magnet,
         "indicators.flow_analytics.compute_dollar_volume_trend": compute_dollar_volume_trend,
-        # ---- Indicators: Regime (7) ----
-        "indicators.regime.classify_market_regime": classify_market_regime,
+        # ---- Indicators: Regime (6) ----
         "indicators.regime.compute_vix_term_structure": compute_vix_term_structure,
         "indicators.regime.compute_risk_on_off": compute_risk_on_off,
         "indicators.regime.compute_sector_momentum": compute_sector_momentum,
