@@ -338,33 +338,3 @@ class TestContractCluster:
 # ---------------------------------------------------------------------------
 
 
-class TestConfigFlag:
-    """Tests for MLConfig clustering configuration flags."""
-
-    def test_enable_clustering_default_false(self) -> None:
-        """Verify MLConfig.enable_clustering defaults to False."""
-        config = MLConfig()
-        assert config.enable_clustering is False
-
-    def test_contract_n_clusters_default(self) -> None:
-        """Verify MLConfig.contract_n_clusters defaults to 4."""
-        config = MLConfig()
-        assert config.contract_n_clusters == 4
-
-    def test_contract_n_clusters_valid_range(self) -> None:
-        """Verify validator accepts values in [2, 10]."""
-        config_low = MLConfig(contract_n_clusters=2)
-        assert config_low.contract_n_clusters == 2
-
-        config_high = MLConfig(contract_n_clusters=10)
-        assert config_high.contract_n_clusters == 10
-
-    def test_contract_n_clusters_rejects_below_range(self) -> None:
-        """Verify validator rejects n_clusters < 2."""
-        with pytest.raises(ValidationError, match="contract_n_clusters must be in"):
-            MLConfig(contract_n_clusters=1)
-
-    def test_contract_n_clusters_rejects_above_range(self) -> None:
-        """Verify validator rejects n_clusters > 10."""
-        with pytest.raises(ValidationError, match="contract_n_clusters must be in"):
-            MLConfig(contract_n_clusters=11)

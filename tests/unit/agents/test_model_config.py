@@ -2,7 +2,6 @@
 
 Tests cover:
   - build_debate_model dispatches to Groq (default) and Anthropic
-  - _resolve_api_key priority: config > env > None (Groq legacy)
   - _resolve_groq_api_key priority: config > env > ValueError
   - _resolve_anthropic_api_key priority: config > env > ValueError
   - _build_anthropic_model returns AnthropicModel with correct model name
@@ -18,7 +17,6 @@ from pydantic_ai.models.groq import GroqModel
 
 from options_arena.agents.model_config import (
     _resolve_anthropic_api_key,
-    _resolve_api_key,
     _resolve_groq_api_key,
     build_debate_model,
 )
@@ -26,33 +24,6 @@ from options_arena.models import DebateConfig, LLMProvider
 
 # Prevent accidental real API calls
 models.ALLOW_MODEL_REQUESTS = False
-
-
-# ---------------------------------------------------------------------------
-# _resolve_api_key (legacy)
-# ---------------------------------------------------------------------------
-
-
-class TestResolveApiKey:
-    """Tests for _resolve_api_key priority resolution."""
-
-    def test_returns_none_when_no_source(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Returns None when config is None and no env var set."""
-        monkeypatch.delenv("GROQ_API_KEY", raising=False)
-        config = DebateConfig(api_key=None)
-        assert _resolve_api_key(config) is None
-
-    def test_config_key_takes_priority(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Config api_key takes priority over env var."""
-        monkeypatch.setenv("GROQ_API_KEY", "gsk_env_key")
-        config = DebateConfig(api_key="gsk_config_key")
-        assert _resolve_api_key(config) == "gsk_config_key"
-
-    def test_env_var_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """GROQ_API_KEY env var is used when config key is None."""
-        monkeypatch.setenv("GROQ_API_KEY", "gsk_env_key")
-        config = DebateConfig(api_key=None)
-        assert _resolve_api_key(config) == "gsk_env_key"
 
 
 # ---------------------------------------------------------------------------

@@ -657,13 +657,6 @@ class CancelScanResponse(BaseModel):
     status: str
 
 
-class SectorInfo(BaseModel):
-    """Sector name with count of tickers in that sector."""
-
-    name: str
-    ticker_count: int
-
-
 class IndustryGroupInfo(BaseModel):
     """Industry group with ticker count."""
 

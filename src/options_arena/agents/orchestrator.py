@@ -721,15 +721,6 @@ def _format_contract_refs(contracts: list[OptionContract]) -> list[str]:
     return refs
 
 
-def _opposite_direction(direction: SignalDirection) -> SignalDirection:
-    """Return the opposite direction, or NEUTRAL if NEUTRAL."""
-    if direction == SignalDirection.BULLISH:
-        return SignalDirection.BEARISH
-    if direction == SignalDirection.BEARISH:
-        return SignalDirection.BULLISH
-    return SignalDirection.NEUTRAL
-
-
 def extract_agent_predictions(
     debate_id: int,
     result: DebateResult,

@@ -46,14 +46,6 @@ async def fundamental_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
     macro_block = render_macro_context(ctx.deps.context)
     if macro_block is not None:
         base += f"\n\n<<<MACRO_CONTEXT>>>\n{macro_block}\n<<<END_MACRO_CONTEXT>>>"
-    if ctx.deps.bull_response is not None:
-        base += (
-            f"\n\n<<<BULL_ARGUMENT>>>\n{ctx.deps.bull_response.argument}\n<<<END_BULL_ARGUMENT>>>"
-        )
-    if ctx.deps.bear_response is not None:
-        base += (
-            f"\n\n<<<BEAR_ARGUMENT>>>\n{ctx.deps.bear_response.argument}\n<<<END_BEAR_ARGUMENT>>>"
-        )
     return base
 
 

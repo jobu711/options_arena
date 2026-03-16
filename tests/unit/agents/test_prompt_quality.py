@@ -1,4 +1,4 @@
-"""TestModel-based quality tests for all 8 debate agents.
+"""TestModel-based quality tests for all 6 debate agents.
 
 Tests cover:
   - Each agent produces valid typed output via TestModel
@@ -17,8 +17,6 @@ from pydantic_ai import models
 from pydantic_ai.models.test import TestModel
 
 from options_arena.agents._parsing import DebateDeps
-from options_arena.agents.bear import bear_agent
-from options_arena.agents.bull import bull_agent
 from options_arena.agents.contrarian_agent import contrarian_agent
 from options_arena.agents.flow_agent import flow_agent
 from options_arena.agents.fundamental_agent import fundamental_agent
@@ -36,28 +34,6 @@ from options_arena.models import (
 
 # Prevent accidental real API calls
 models.ALLOW_MODEL_REQUESTS = False
-
-
-@pytest.mark.asyncio
-async def test_bull_produces_valid_output(mock_debate_deps: DebateDeps) -> None:
-    """Bull agent returns an AgentResponse instance with valid confidence."""
-    with bull_agent.override(model=TestModel()):
-        result = await bull_agent.run(
-            "Analyze AAPL bullish case", deps=mock_debate_deps, model=TestModel()
-        )
-    assert isinstance(result.output, AgentResponse)
-    assert 0.0 <= result.output.confidence <= 1.0
-
-
-@pytest.mark.asyncio
-async def test_bear_produces_valid_output(mock_debate_deps: DebateDeps) -> None:
-    """Bear agent returns an AgentResponse instance with valid confidence."""
-    with bear_agent.override(model=TestModel()):
-        result = await bear_agent.run(
-            "Analyze AAPL bearish case", deps=mock_debate_deps, model=TestModel()
-        )
-    assert isinstance(result.output, AgentResponse)
-    assert 0.0 <= result.output.confidence <= 1.0
 
 
 @pytest.mark.asyncio

@@ -15,7 +15,6 @@ from options_arena.api.schemas import (
     PaginatedResponse,
     ScanRequest,
     ScanStarted,
-    SectorInfo,
     TickerDetail,
     UniverseStats,
 )
@@ -211,26 +210,6 @@ def test_scan_request_sectors_json_roundtrip() -> None:
     rebuilt = ScanRequest.model_validate_json(json_str)
     assert rebuilt.sectors == req.sectors
     assert rebuilt.preset == req.preset
-
-
-# ---------------------------------------------------------------------------
-# SectorInfo schema (#162)
-# ---------------------------------------------------------------------------
-
-
-def test_sector_info() -> None:
-    """SectorInfo holds name and ticker_count."""
-    info = SectorInfo(name="Information Technology", ticker_count=75)
-    assert info.name == "Information Technology"
-    assert info.ticker_count == 75
-
-
-def test_sector_info_json_roundtrip() -> None:
-    """SectorInfo survives JSON roundtrip."""
-    info = SectorInfo(name="Energy", ticker_count=21)
-    json_str = info.model_dump_json()
-    rebuilt = SectorInfo.model_validate_json(json_str)
-    assert rebuilt == info
 
 
 # ---------------------------------------------------------------------------

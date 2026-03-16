@@ -13,9 +13,7 @@ from fastapi import Request
 
 from options_arena.data import Repository
 from options_arena.models.config import AppSettings
-from options_arena.services.financial_datasets import FinancialDatasetsService
 from options_arena.services.fred import FredService
-from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.market_data import MarketDataService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.outcome_collector import OutcomeCollector
@@ -50,16 +48,6 @@ def get_universe(request: Request) -> UniverseService:
 def get_settings(request: Request) -> AppSettings:
     """Inject the application settings."""
     return cast(AppSettings, request.app.state.settings)
-
-
-def get_intelligence(request: Request) -> IntelligenceService | None:
-    """Inject the intelligence service (``None`` when disabled)."""
-    return getattr(request.app.state, "intelligence", None)
-
-
-def get_financial_datasets(request: Request) -> FinancialDatasetsService | None:
-    """Inject the Financial Datasets service (``None`` when disabled or no API key)."""
-    return getattr(request.app.state, "financial_datasets", None)
 
 
 def get_operation_lock(request: Request) -> asyncio.Lock:

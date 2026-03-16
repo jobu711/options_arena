@@ -13,7 +13,6 @@ Tests cover:
   - run_debate persists to repository when provided
   - run_debate persistence failure does not crash
   - run_debate quality gate (<0.4 fallback, <0.6 warning)
-  - _opposite_direction helper tests
   - _extract_top_signals helper tests
   - classify_macd_signal helper tests
 """
@@ -37,7 +36,6 @@ from options_arena.agents.orchestrator import (
     _build_model_settings,
     _extract_top_signals,
     _format_contract_refs,
-    _opposite_direction,
     build_market_context,
     classify_macd_signal,
     run_debate,
@@ -300,24 +298,6 @@ class TestClassifyMacdSignal:
 
     def test_none_neutral(self) -> None:
         assert classify_macd_signal(None) == MacdSignal.NEUTRAL
-
-
-# ---------------------------------------------------------------------------
-# _opposite_direction
-# ---------------------------------------------------------------------------
-
-
-class TestOppositeDirection:
-    """Tests for _opposite_direction helper."""
-
-    def test_bullish_to_bearish(self) -> None:
-        assert _opposite_direction(SignalDirection.BULLISH) == SignalDirection.BEARISH
-
-    def test_bearish_to_bullish(self) -> None:
-        assert _opposite_direction(SignalDirection.BEARISH) == SignalDirection.BULLISH
-
-    def test_neutral_stays_neutral(self) -> None:
-        assert _opposite_direction(SignalDirection.NEUTRAL) == SignalDirection.NEUTRAL
 
 
 # ---------------------------------------------------------------------------

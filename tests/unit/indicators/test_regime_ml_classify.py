@@ -342,25 +342,9 @@ class TestIndicatorSignalsField:
 
 
 class TestMarketContextFields:
-    """Tests for ml_regime and ml_regime_confidence fields on MarketContext."""
+    """Tests for ml_regime_confidence field on IndicatorSignals (MarketContext fields removed)."""
 
-    def test_ml_regime_field_exists(self) -> None:
-        """Verify ml_regime field exists on MarketContext."""
-        from options_arena.models.analysis import MarketContext
-
-        assert "ml_regime" in MarketContext.model_fields
-
-    def test_ml_regime_confidence_field_exists(self) -> None:
-        """Verify ml_regime_confidence field exists on MarketContext."""
-        from options_arena.models.analysis import MarketContext
-
-        assert "ml_regime_confidence" in MarketContext.model_fields
-
-    def test_ml_regime_confidence_rejects_nan(self) -> None:
-        """Verify ml_regime_confidence rejects NaN via validate_optional_finite."""
-        from options_arena.models.analysis import MarketContext
-
-        # We can't easily construct a full MarketContext, so test the validator
-        # by checking field_validators on the field
-        field_info = MarketContext.model_fields["ml_regime_confidence"]
-        assert field_info.default is None
+    def test_ml_regime_confidence_on_indicator_signals(self) -> None:
+        """Verify ml_regime_confidence field exists on IndicatorSignals (not MarketContext)."""
+        signals = IndicatorSignals(ml_regime_confidence=0.85)
+        assert signals.ml_regime_confidence == pytest.approx(0.85)
