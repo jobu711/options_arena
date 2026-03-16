@@ -52,16 +52,23 @@ class WebSocketProgressBridge:
     """
 
     def __init__(self) -> None:
-        self.queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+        self.queue: asyncio.Queue[dict[str, object]] = asyncio.Queue(maxsize=1000)
+
+    def _safe_put(self, event: dict[str, object]) -> None:
+        """Put event on queue, dropping oldest if full."""
+        if self.queue.full():
+            with contextlib.suppress(asyncio.QueueEmpty):
+                self.queue.get_nowait()
+        self.queue.put_nowait(event)
 
     def __call__(self, phase: ScanPhase, current: int, total: int) -> None:
-        self.queue.put_nowait(
+        self._safe_put(
             {"type": "progress", "phase": phase.value, "current": current, "total": total}
         )
 
     def complete(self, scan_id: int, *, cancelled: bool, outcomes_collected: int = 0) -> None:
         """Signal scan completion."""
-        self.queue.put_nowait(
+        self._safe_put(
             {
                 "type": "complete",
                 "scan_id": scan_id,
@@ -72,7 +79,7 @@ class WebSocketProgressBridge:
 
     def error(self, message: str) -> None:
         """Signal an error event."""
-        self.queue.put_nowait({"type": "error", "message": message})
+        self._safe_put({"type": "error", "message": message})
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +91,14 @@ class DebateProgressBridge:
     """Bridges ``DebateProgressCallback`` to ``asyncio.Queue`` for WebSocket."""
 
     def __init__(self) -> None:
-        self.queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+        self.queue: asyncio.Queue[dict[str, object]] = asyncio.Queue(maxsize=1000)
+
+    def _safe_put(self, event: dict[str, object]) -> None:
+        """Put event on queue, dropping oldest if full."""
+        if self.queue.full():
+            with contextlib.suppress(asyncio.QueueEmpty):
+                self.queue.get_nowait()
+        self.queue.put_nowait(event)
 
     def __call__(self, phase: DebatePhase, status: str, confidence: float | None) -> None:
         event: dict[str, object] = {
@@ -94,15 +108,15 @@ class DebateProgressBridge:
         }
         if confidence is not None:
             event["confidence"] = confidence
-        self.queue.put_nowait(event)
+        self._safe_put(event)
 
     def complete(self, debate_id: int) -> None:
         """Signal debate completion."""
-        self.queue.put_nowait({"type": "complete", "debate_id": debate_id})
+        self._safe_put({"type": "complete", "debate_id": debate_id})
 
     def error(self, message: str) -> None:
         """Signal an error event."""
-        self.queue.put_nowait({"type": "error", "message": message})
+        self._safe_put({"type": "error", "message": message})
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +131,13 @@ class _BatchAgentBridge:
         self._ticker = ticker
         self._queue = queue
 
+    def _safe_put(self, event: dict[str, object]) -> None:
+        """Put event on queue, dropping oldest if full."""
+        if self._queue.full():
+            with contextlib.suppress(asyncio.QueueEmpty):
+                self._queue.get_nowait()
+        self._queue.put_nowait(event)
+
     def __call__(self, phase: DebatePhase, status: str, confidence: float | None) -> None:
         event: dict[str, object] = {
             "type": "agent",
@@ -126,21 +147,28 @@ class _BatchAgentBridge:
         }
         if confidence is not None:
             event["confidence"] = confidence
-        self._queue.put_nowait(event)
+        self._safe_put(event)
 
     def complete(self, debate_id: int) -> None:
         """No-op — batch bridge handles completion."""
 
     def error(self, message: str) -> None:
         """Forward error to batch queue."""
-        self._queue.put_nowait({"type": "error", "ticker": self._ticker, "message": message})
+        self._safe_put({"type": "error", "ticker": self._ticker, "message": message})
 
 
 class BatchProgressBridge:
     """Bridges batch debate progress to ``asyncio.Queue`` for WebSocket."""
 
     def __init__(self) -> None:
-        self.queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+        self.queue: asyncio.Queue[dict[str, object]] = asyncio.Queue(maxsize=1000)
+
+    def _safe_put(self, event: dict[str, object]) -> None:
+        """Put event on queue, dropping oldest if full."""
+        if self.queue.full():
+            with contextlib.suppress(asyncio.QueueEmpty):
+                self.queue.get_nowait()
+        self.queue.put_nowait(event)
 
     def agent_bridge(self, ticker: str) -> _BatchAgentBridge:
         """Create a per-ticker agent progress bridge."""
@@ -148,7 +176,7 @@ class BatchProgressBridge:
 
     def batch_progress(self, ticker: str, index: int, total: int, status: str) -> None:
         """Signal per-ticker batch progress."""
-        self.queue.put_nowait(
+        self._safe_put(
             {
                 "type": "batch_progress",
                 "ticker": ticker,
@@ -163,11 +191,11 @@ class BatchProgressBridge:
         from options_arena.api.schemas import BatchTickerResult  # noqa: PLC0415
 
         serialized = [r.model_dump() if isinstance(r, BatchTickerResult) else r for r in results]
-        self.queue.put_nowait({"type": "batch_complete", "results": serialized})
+        self._safe_put({"type": "batch_complete", "results": serialized})
 
     def error(self, message: str) -> None:
         """Signal an error event."""
-        self.queue.put_nowait({"type": "error", "message": message})
+        self._safe_put({"type": "error", "message": message})
 
 
 # ---------------------------------------------------------------------------

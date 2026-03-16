@@ -6,6 +6,9 @@ import asyncio
 import logging
 from collections import Counter
 
+# Strong reference prevents GC of background tasks (same pattern as scan.py / debate.py)
+_background_tasks: set[asyncio.Task[None]] = set()
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from options_arena.api.app import limiter
@@ -339,7 +342,9 @@ async def start_index(
     task_id: int = request.app.state.index_counter
 
     # Background task owns the lock and releases it on completion
-    asyncio.create_task(
+    task = asyncio.create_task(
         _run_index_background(task_id, force, max_age, universe, market_data, repo, lock)
     )
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
     return IndexStarted(index_task_id=task_id)

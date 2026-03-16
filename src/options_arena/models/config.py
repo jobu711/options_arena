@@ -89,6 +89,9 @@ class ScanConfig(BaseModel):
     adx_trend_threshold: float = 15.0
     rsi_overbought: float = 70.0
     rsi_oversold: float = 30.0
+    sma_bullish_threshold: float = 0.5
+    sma_bearish_threshold: float = -0.5
+    roc_threshold: float = 5.0
     options_per_ticker_timeout: float = 120.0
     options_concurrency: int = 5
     enable_iv_analytics: bool = True

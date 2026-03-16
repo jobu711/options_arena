@@ -622,7 +622,13 @@ async def process_ticker_options(
                         dtype=float,
                     )
                     vol_result = compute_vol_surface(
-                        vs_strikes, vs_ivs, vs_dtes, vs_types, spot, risk_free_rate
+                        vs_strikes,
+                        vs_ivs,
+                        vs_dtes,
+                        vs_types,
+                        spot,
+                        risk_free_rate,
+                        ticker_info.dividend_yield,
                     )
             except Exception:
                 logger.warning(

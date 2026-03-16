@@ -265,30 +265,40 @@ class ScanMixin(RepositoryBase):
         if not candidate_rows:
             return []
 
-        # Step 3: for each candidate, check consecutive scans with same direction
+        # Step 3: batch-fetch recent history for ALL candidates (eliminates N+1)
+        candidate_tickers = [str(r["ticker"]) for r in candidate_rows]
+        candidate_scores = {str(r["ticker"]): float(r["composite_score"]) for r in candidate_rows}
+        lookback = min_scans + 10
+
+        placeholders = ",".join("?" for _ in candidate_tickers)
+        async with conn.execute(
+            "SELECT ticker, composite_score, direction FROM ("
+            "  SELECT ts.ticker, ts.composite_score, ts.direction,"
+            "    ROW_NUMBER() OVER (PARTITION BY ts.ticker ORDER BY sr.started_at DESC) AS rn"
+            "  FROM ticker_scores ts"
+            "  JOIN scan_runs sr ON ts.scan_run_id = sr.id"
+            f"  WHERE ts.ticker IN ({placeholders})"
+            ") WHERE rn <= ?"
+            " ORDER BY ticker, rn",
+            (*candidate_tickers, lookback),
+        ) as cursor:
+            all_history = await cursor.fetchall()
+
+        # Group by ticker
+        history_by_ticker: dict[str, list[tuple[float, str]]] = {}
+        for h_row in all_history:
+            tk = str(h_row["ticker"])
+            history_by_ticker.setdefault(tk, []).append(
+                (float(h_row["composite_score"]), str(h_row["direction"]))
+            )
+
+        # Step 4: count consecutive direction streaks in-memory
         trending: list[TrendingTicker] = []
-        # Pre-fetch a reasonable lookback depth to avoid per-ticker queries
-        lookback = min_scans + 10  # enough depth to count streaks
-
-        for cand_row in candidate_rows:
-            ticker_name = str(cand_row["ticker"])
-            latest_score = float(cand_row["composite_score"])
-
-            async with conn.execute(
-                "SELECT ts.composite_score, ts.direction "
-                "FROM ticker_scores ts "
-                "JOIN scan_runs sr ON ts.scan_run_id = sr.id "
-                "WHERE ts.ticker = ? "
-                "ORDER BY sr.started_at DESC "
-                "LIMIT ?",
-                (ticker_name, lookback),
-            ) as cursor:
-                history_rows = list(await cursor.fetchall())
-
-            # Count consecutive matching direction from the most recent
+        for ticker_name in candidate_tickers:
+            history = history_by_ticker.get(ticker_name, [])
             consecutive = 0
-            for h_row in history_rows:
-                if str(h_row["direction"]) == direction:
+            for _score_val, dir_val in history:
+                if dir_val == direction:
                     consecutive += 1
                 else:
                     break
@@ -296,8 +306,8 @@ class ScanMixin(RepositoryBase):
             if consecutive < min_scans:
                 continue
 
-            # Compute score_change: latest - oldest in the streak
-            oldest_score = float(history_rows[consecutive - 1]["composite_score"])
+            latest_score = candidate_scores[ticker_name]
+            oldest_score = history[consecutive - 1][0]
             score_change = latest_score - oldest_score
 
             trending.append(
