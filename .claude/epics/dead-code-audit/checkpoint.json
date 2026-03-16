@@ -1,12 +1,12 @@
 {
   "epic": "dead-code-audit",
-  "phase": "planning",
-  "last_command": "/pm:prd-parse dead-code-audit",
-  "last_updated": "2026-03-16T22:16:47Z",
-  "completed_phases": ["prd-created", "research", "planning"],
+  "phase": "synced",
+  "last_command": "/pm:epic-sync dead-code-audit",
+  "last_updated": "2026-03-16T22:53:34Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
   "current_task": null,
   "tasks_completed": [],
   "tasks_in_progress": [],
   "blockers": [],
-  "notes": "Research identified 5 PRD corrections: spread_analysis/constraint_warnings are live, DebateResult backward-compat shims need migration plan, RateLimitExceededError has API handler, compute_hurst_exponent function name mismatch, BatchOHLCVResult re-export is used by scan pipeline."
+  "notes": "6 tasks synced to GitHub. Epic #557, tasks #558-#563. All linked as sub-issues."
 }

@@ -4,7 +4,7 @@ status: backlog
 created: 2026-03-16T22:16:47Z
 progress: 0%
 prd: .claude/prds/dead-code-audit.md
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/557
 ---
 
 # Epic: dead-code-audit
@@ -100,6 +100,26 @@ For each deletion:
 7. `hurst_exponent` and Group C/D indicators produce values during scans
 8. `DebatePhase` has exactly 6 members: TREND, VOLATILITY, FLOW, FUNDAMENTAL, RISK, CONTRARIAN
 9. WebSocket debate progress reports per-agent phase names
+
+## Tasks Created
+
+- [ ] #558 - Legacy debate removal (Wave 1) (parallel: false)
+- [ ] #559 - Dead function removal (Wave 2) (parallel: false, depends: #558)
+- [ ] #560 - Re-export cleanup and deduplication (Wave 3) (parallel: false, depends: #558, #559)
+- [ ] #561 - Wire hurst_exponent into Phase 2 (parallel: true, depends: #558-#560)
+- [ ] #562 - Wire Phase 3 indicators, Groups C/D (parallel: true, depends: #558-#560)
+- [ ] #563 - Modernize DebatePhase enum + progress callback (parallel: true, depends: #558-#560)
+
+Total tasks: 6
+Sequential tasks: 3 (Waves 1-3)
+Parallel tasks: 3 (Wave 4a/4b/4c — can run concurrently after Waves 1-3)
+Estimated total effort: 14-22 hours
+
+## Test Coverage Plan
+
+Total test files planned: ~30 (delete 3, modify ~24, add ~3)
+Total test cases planned: ~15 new tests across tasks 4-6
+Test lines deleted: ~1,900 (across deleted files and removed blocks)
 
 ## Estimated Effort
 
