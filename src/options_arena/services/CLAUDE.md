@@ -20,6 +20,10 @@ and use class-based DI with explicit `close()` lifecycle.
 | `fred.py` | `FredService` — risk-free rate from FRED API | Yes |
 | `universe.py` | `UniverseService` — CBOE optionable tickers, S&P 500 constituents | Yes |
 | `health.py` | `HealthService` — pre-flight checks for all external dependencies | Yes |
+| `cboe_provider.py` | `CBOEChainProvider` — CBOE option chains via OpenBB SDK, guarded import, `ChainProvider` protocol | Yes |
+| `intelligence.py` | `IntelligenceService` — analyst targets, insider txns, institutional holders, news from yfinance | Yes |
+| `outcome_collector.py` | `OutcomeCollector` — fetches current prices, computes P&L for persisted contracts, never raises | Yes |
+| `financial_datasets.py` | `FinancialDatasetsService` — financial metrics, income statements, balance sheets from financialdatasets.ai REST API | Yes |
 | `__init__.py` | Re-exports all public classes with `__all__` | Yes |
 
 ---

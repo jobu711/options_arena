@@ -6,9 +6,6 @@ import asyncio
 import logging
 from collections import Counter
 
-# Strong reference prevents GC of background tasks (same pattern as scan.py / debate.py)
-_background_tasks: set[asyncio.Task[None]] = set()
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from options_arena.api.app import limiter
@@ -37,6 +34,9 @@ from options_arena.services import MarketDataService, UniverseService
 from options_arena.services.universe import build_sector_map, map_yfinance_to_metadata
 
 logger = logging.getLogger(__name__)
+
+# Strong reference prevents GC of background tasks (same pattern as scan.py / debate.py)
+_background_tasks: set[asyncio.Task[None]] = set()
 
 router = APIRouter(prefix="/api", tags=["universe"])
 

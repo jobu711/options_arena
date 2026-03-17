@@ -19,8 +19,7 @@ The orchestrator does **not fetch data** — the caller (CLI/API) provides all i
 | `CLAUDE.md` | Module conventions and rules | — |
 | `model_config.py` | `build_debate_model()` — multi-provider model builder (Groq/Anthropic) | Config utility |
 | `_parsing.py` | `DebateDeps`, `DebateResult`, `strip_think_tags()`, `PROMPT_RULES_APPENDIX`, `build_cleaned_agent_response()`, `build_cleaned_risk_assessment()`, `render_context_block()` | Internal |
-| `bull.py` | Bull agent + system prompt + output validator | PydanticAI Agent |
-| `bear.py` | Bear agent + dynamic prompt (receives bull argument) | PydanticAI Agent |
+| `constraints.py` | Deterministic contract constraint pre-check (hard/soft violations) before debate | Validation |
 | `risk.py` | `risk_agent` — portfolio risk, position sizing, hedging | PydanticAI Agent |
 | `trend_agent.py` | Trend agent — ADX, SuperTrend, SMA, RSI momentum analysis | PydanticAI Agent |
 | `volatility.py` | Volatility agent — IV rank/percentile, term structure, regime | PydanticAI Agent |
@@ -28,7 +27,7 @@ The orchestrator does **not fetch data** — the caller (CLI/API) provides all i
 | `fundamental_agent.py` | Fundamental agent — earnings, dividends, sector valuation | PydanticAI Agent |
 | `contrarian_agent.py` | Contrarian agent — challenges consensus, finds blind spots | PydanticAI Agent |
 | `orchestrator.py` | `run_debate()` (6-agent), `build_market_context()`, fallback logic | Coordinator |
-| `__init__.py` | Re-exports: `run_debate`, `DebateResult`, `DebateDeps`, `build_market_context`, `build_debate_model`, `render_context_block`, `should_debate`, `synthesize_verdict`, `compute_agreement_score`, `classify_macd_signal`, `DebatePhase`, `DebateProgressCallback`, `AGENT_VOTE_WEIGHTS`, plus all 6 agent instances | Standard |
+| `__init__.py` | Re-exports: `run_debate`, `DebateResult`, `DebateDeps`, `build_market_context`, `build_debate_model`, `render_context_block`, `should_debate`, `synthesize_verdict`, `compute_agreement_score`, `compute_auto_tune_weights`, `auto_tune_weights`, `classify_macd_signal`, `effective_batch_ticker_delay`, `extract_agent_predictions`, `DebatePhase`, `DebateProgressCallback`, `AGENT_VOTE_WEIGHTS`, `VoteWeights`, render helpers, plus all 6 agent instances (`trend_agent`, `volatility_agent`, `flow_agent`, `fundamental_agent`, `contrarian_agent`, `risk_agent` — note: no bull/bear agents) | Standard |
 
 ---
 
@@ -51,7 +50,7 @@ The orchestrator does **not fetch data** — the caller (CLI/API) provides all i
 | `models/` (MarketContext, AgentResponse, TradeThesis, OptionContract, enums, config) | `services/` (no data fetching) |
 | `agents/_parsing.py` (DebateDeps, DebateResult, constants) | `pricing/` (Greeks pre-computed) |
 | `data/repository` (persistence only, from orchestrator) | `indicators/`, `scoring/`, `scan/` |
-| `pydantic_ai` (Agent, RunContext, ModelRetry, ModelSettings) | Other agent modules (bull/bear/risk don't know each other) |
+| `pydantic_ai` (Agent, RunContext, ModelRetry, ModelSettings) | Other agent modules (agents don't know each other) |
 | stdlib: `asyncio`, `logging`, `time`, `os`, `dataclasses` | `cli/`, `reporting/`, `analysis/` |
 
 ---
@@ -74,7 +73,7 @@ from options_arena.models import AgentResponse
 # Context7-verified: Agent.__init__ params:
 #   model (default None), output_type, retries (default 1),
 #   deps_type, instructions, model_settings, tools, end_strategy
-bull_agent: Agent[DebateDeps, AgentResponse] = Agent(
+trend_agent: Agent[DebateDeps, AgentResponse] = Agent(
     model=None,                         # overridden per-run
     deps_type=DebateDeps,               # Context7-verified: type-checks deps in run()
     output_type=AgentResponse,          # Context7-verified: enforces structured JSON output
@@ -97,17 +96,17 @@ def trend_system_prompt() -> str:
 
 # Dynamic prompt — re-evaluated even when message_history is provided
 # Context7-verified: dynamic=True, takes RunContext[Deps], sync or async
-@bull_agent.system_prompt(dynamic=True)
-async def bull_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
-    base = BULL_SYSTEM_PROMPT
-    if ctx.deps.bear_counter_argument:
-        base += f"\n\n<<<BEAR_COUNTER>>>\n{ctx.deps.bear_counter_argument}\n<<<END>>>"
+@risk_agent.system_prompt(dynamic=True)
+async def risk_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
+    base = RISK_SYSTEM_PROMPT
+    if ctx.deps.all_prior_outputs:
+        base += f"\n\n<<<PRIOR_OUTPUTS>>>\n{ctx.deps.all_prior_outputs}\n<<<END>>>"
     return base
 ```
 
-**When to use `dynamic=True`**: Bull (rebuttal mode), Bear, and Risk agents need runtime
-data (opponent arguments, prior outputs) injected into their prompts. Agents with no
-runtime injection (e.g., trend) use the bare decorator.
+**When to use `dynamic=True`**: Risk and Contrarian agents need runtime data (prior phase
+outputs) injected into their prompts. Phase 1 agents (Trend, Volatility, Flow, Fundamental)
+with no runtime injection use the bare decorator.
 
 ### Output Validator — Strip Think Tags (Context7-Verified)
 
@@ -118,7 +117,7 @@ frozen instance. Shared helpers in `_parsing.py` deduplicate the logic:
 ```python
 from options_arena.agents._parsing import build_cleaned_agent_response
 
-@bull_agent.output_validator
+@trend_agent.output_validator
 async def clean_think_tags(
     ctx: RunContext[DebateDeps], output: AgentResponse,
 ) -> AgentResponse:
@@ -128,7 +127,7 @@ async def clean_think_tags(
 
 For the risk agent (which outputs `RiskAssessment`), use `build_cleaned_risk_assessment()` instead.
 
-**All 8 agents** must have this validator. Llama 3.x sometimes emits `<think>` tags
+**All 6 agents** must have this validator. Llama 3.x sometimes emits `<think>` tags
 from its reasoning trace. `strip_think_tags()` falls back to the original text if stripping
 would produce an empty string.
 
@@ -142,8 +141,8 @@ deps = DebateDeps(context=market_ctx, ticker_score=score, contracts=contracts)
 
 # Context7-verified: agent.run() params — model override, deps injection
 result = await asyncio.wait_for(
-    bull_agent.run(
-        f"Analyze {market_ctx.ticker} for a bullish options position.",
+    trend_agent.run(
+        f"Analyze {market_ctx.ticker} trend and momentum signals.",
         model=model,       # Context7-verified: overrides Agent.__init__ model
         deps=deps,         # Context7-verified: type-checked against deps_type
     ),
@@ -161,8 +160,8 @@ from pydantic_ai.models.test import TestModel
 
 # Context7-verified: agent.override() is a context manager
 # TestModel accepts custom_output_args for controlling structured output
-with bull_agent.override(model=TestModel()):
-    result = await bull_agent.run("test prompt", deps=deps)
+with trend_agent.override(model=TestModel()):
+    result = await trend_agent.run("test prompt", deps=deps)
     assert isinstance(result.output, AgentResponse)
 ```
 
@@ -239,7 +238,7 @@ Persistence serializes the Pydantic sub-models individually; stores
 #   input_audio_tokens: int, cache_audio_read_tokens: int,
 #   output_audio_tokens: int, tool_calls: int, details: dict[str, int]
 # Context7-verified: RunUsage.__add__ sums all fields
-total_usage = bull_result.usage() + bear_result.usage() + risk_result.usage()
+total_usage = trend_result.usage() + vol_result.usage() + risk_result.usage()
 ```
 
 ---
@@ -360,7 +359,7 @@ When Groq is unreachable or any agent fails:
 Each agent module has an inline string constant concatenated with shared appendices.
 
 ```python
-BULL_SYSTEM_PROMPT = """You are a bullish options analyst. ...\n\n""" + PROMPT_RULES_APPENDIX
+TREND_SYSTEM_PROMPT = """You are a trend and momentum analyst. ...\n\n""" + PROMPT_RULES_APPENDIX
 ```
 
 **Shared constants** (defined in `_parsing.py`, imported by each agent):
@@ -432,11 +431,11 @@ from pydantic_ai.models.test import TestModel
 models.ALLOW_MODEL_REQUESTS = False
 
 @pytest.mark.asyncio
-async def test_bull_agent_produces_valid_output() -> None:
+async def test_trend_agent_produces_valid_output() -> None:
     deps = DebateDeps(context=mock_context, ticker_score=mock_score, contracts=[mock_contract])
     # Context7-verified: agent.override(model=TestModel()) as context manager
-    with bull_agent.override(model=TestModel()):
-        result = await bull_agent.run("Analyze AAPL", deps=deps)
+    with trend_agent.override(model=TestModel()):
+        result = await trend_agent.run("Analyze AAPL", deps=deps)
     assert isinstance(result.output, AgentResponse)
     assert 0.0 <= result.output.confidence <= 1.0
 ```
@@ -446,7 +445,7 @@ async def test_bull_agent_produces_valid_output() -> None:
 ```python
 # Context7-verified: custom_output_args controls structured output fields
 test_model = TestModel(custom_output_args={
-    "agent_name": "bull",
+    "agent_name": "trend",
     "direction": "bullish",
     "confidence": 0.75,
     "argument": "Strong momentum with RSI at 65.",
@@ -455,8 +454,8 @@ test_model = TestModel(custom_output_args={
     "contracts_referenced": ["AAPL 190C 2026-04-18"],
     "model_used": "test",
 })
-with bull_agent.override(model=test_model):
-    result = await bull_agent.run("test", deps=deps)
+with trend_agent.override(model=test_model):
+    result = await trend_agent.run("test", deps=deps)
     assert result.output.confidence == 0.75
 ```
 
@@ -518,7 +517,7 @@ Mark with `@pytest.mark.integration`. Skipped by default; run with `pytest -m in
    `model=None` at init, pass `GroqModel` at `agent.run(model=...)` time. This enables
    `TestModel` override in tests.
 
-7. **Forgetting the `<think>` tag validator** — All 8 agents need `@agent.output_validator`
+7. **Forgetting the `<think>` tag validator** — All 6 agents need `@agent.output_validator`
    that delegates to `build_cleaned_agent_response()` (most agents) or
    `build_cleaned_risk_assessment()` (risk) from `_parsing.py`. Do NOT inline the stripping
    logic — use the shared helpers. Do NOT use `ModelRetry` — stripping is far cheaper.
@@ -541,8 +540,8 @@ Mark with `@pytest.mark.integration`. Skipped by default; run with `pytest -m in
 13. **Parallel agent execution** — Phase 1 agents (Trend, Volatility, Flow, Fundamental)
     run in parallel via `asyncio.gather`. Phase 2 (Risk) and Phase 3 (Contrarian) are sequential.
 
-14. **Forgetting `dynamic=True` on bull/bear/risk prompts** — Bull (rebuttal), bear, and risk
-    prompts depend on runtime deps (opponent arguments, prior outputs). Without `dynamic=True`,
+14. **Forgetting `dynamic=True` on risk/contrarian prompts** — Risk and contrarian
+    prompts depend on runtime deps (prior phase outputs). Without `dynamic=True`,
     the prompt is cached from the first run and won't include the injected arguments.
 
 15. **`print()` in agent code** — Use `logging.getLogger(__name__)`. Only `cli/` uses `print()`.

@@ -145,7 +145,7 @@ Repository.save_ticker_scores(scan_id, scores) → None  (batch insert)
 
 ---
 
-## IndicatorSpec Registry — 14 Entries (NOT 18)
+## IndicatorSpec Registry — 15 Entries (NOT 19)
 
 ### Why 15, Not 19?
 The 4 options-specific indicators (`iv_rank`, `iv_percentile`, `put_call_ratio`,

@@ -138,8 +138,6 @@ class TestVersionHeaders:
 
     # Source modules containing prompt constants — point at prompts/ submodules
     _PROMPT_SOURCES = [
-        ("bull", "options_arena.agents.prompts.bull"),
-        ("bear", "options_arena.agents.prompts.bear"),
         ("volatility", "options_arena.agents.prompts.volatility"),
         ("flow", "options_arena.agents.prompts.flow_agent"),
         ("fundamental", "options_arena.agents.prompts.fundamental_agent"),

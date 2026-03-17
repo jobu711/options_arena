@@ -323,5 +323,3 @@ def fit_neural_surface(
     except Exception:
         logger.warning("Neural surface fitting failed", exc_info=True)
         return None
-
-

@@ -15,17 +15,22 @@ events via WebSocket.
 
 | File | Purpose |
 |------|---------|
-| `__init__.py` | Re-exports `app` and `create_app()` |
+| `__init__.py` | Re-exports `create_app()` |
 | `app.py` | App factory: `create_app()`, `lifespan()`, CORS, static mount, router includes |
 | `deps.py` | `Depends()` providers: `get_repo()`, `get_market_data()`, `get_operation_lock()`, etc. |
 | `schemas.py` | API-only request/response wrappers not covered by existing models |
 | `ws.py` | WebSocket handlers: `/ws/scan/{id}`, `/ws/debate/{id}` |
+| `routes/__init__.py` | Route package docstring (registered in `app.py` via `app.include_router()`) |
 | `routes/scan.py` | Scan endpoints: start, list, results, cancel |
 | `routes/debate.py` | Debate endpoints: start (single + batch), get result, list, export |
 | `routes/universe.py` | Universe endpoints: stats, refresh |
 | `routes/health.py` | Health check endpoint |
 | `routes/config.py` | Read-only config endpoint |
 | `routes/export.py` | Debate export endpoint (Markdown/PDF download) |
+| `routes/market.py` | Market data endpoints: S&P 500 heatmap |
+| `routes/backtest.py` | Backtesting analytics endpoints: equity curve, drawdown, sector/DTE/IV performance |
+| `routes/analytics.py` | Analytics endpoints: win rate, score calibration, delta performance, outcome collection |
+| `routes/ticker.py` | Ticker-specific endpoints: score history, trending tickers, ticker info |
 
 ---
 

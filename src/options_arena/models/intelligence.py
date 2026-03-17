@@ -412,4 +412,3 @@ class IntelligencePackage(BaseModel):
         if v.tzinfo is None or v.utcoffset() != timedelta(0):
             raise ValueError("fetched_at must be UTC")
         return v
-

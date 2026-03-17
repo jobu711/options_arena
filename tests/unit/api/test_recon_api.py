@@ -329,32 +329,6 @@ class TestAPILifespanIntelligence:
 # ---------------------------------------------------------------------------
 
 
-class TestAPIDepsIntelligence:
-    """Tests for the get_intelligence dependency provider."""
-
-    def test_get_intelligence_returns_service(self) -> None:
-        """get_intelligence() returns service from app.state."""
-        from options_arena.api.deps import get_intelligence
-
-        mock_svc = AsyncMock()
-        request = MagicMock()
-        request.app.state.intelligence = mock_svc
-
-        result = get_intelligence(request)
-        assert result is mock_svc
-
-    def test_get_intelligence_returns_none_when_missing(self) -> None:
-        """get_intelligence() returns None when app.state has no intelligence."""
-        from options_arena.api.deps import get_intelligence
-
-        request = MagicMock()
-        # Simulate app.state without 'intelligence' attribute
-        del request.app.state.intelligence
-
-        result = get_intelligence(request)
-        assert result is None
-
-
 # ---------------------------------------------------------------------------
 # Debate route intelligence tests
 # ---------------------------------------------------------------------------

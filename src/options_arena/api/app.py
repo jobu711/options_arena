@@ -297,5 +297,3 @@ def _register_exception_handlers(app: FastAPI) -> None:
             status_code=503,
             content={"detail": "External data source temporarily unavailable"},
         )
-
-

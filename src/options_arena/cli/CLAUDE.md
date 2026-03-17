@@ -19,6 +19,8 @@ Rich `Console`). Every other module uses `logging.getLogger(__name__)`.
 | `commands.py` | `scan`, `health`, `universe` commands + `_scan_async()` |
 | `rendering.py` | Pure rendering functions: `render_scan_table()`, `render_health_table()`, disclaimer |
 | `progress.py` | `RichProgressCallback` class implementing `ProgressCallback` protocol |
+| `audit.py` | `audit` subcommand group: mathematical computation audit tools (pytest markers, AI discovery) |
+| `outcomes.py` | `outcomes` subcommand group: collect and summarize contract outcomes, backtesting, equity curves |
 
 If the package stays small (~300-400 lines total), collapsing `app.py` + `commands.py` into
 a single `app.py` is acceptable. Split only if any single file exceeds ~200 lines.

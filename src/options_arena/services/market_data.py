@@ -52,6 +52,7 @@ logger = logging.getLogger(__name__)
 # per-call timeout while allowing concurrent downloads for large batches.
 _BATCH_CHUNK_SIZE = 50
 
+
 class TickerOHLCVResult(BaseModel):
     """Result for a single ticker in a batch OHLCV fetch.
 

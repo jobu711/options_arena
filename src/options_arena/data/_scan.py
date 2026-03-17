@@ -329,4 +329,3 @@ class ScanMixin(RepositoryBase):
             min_scans,
         )
         return trending
-

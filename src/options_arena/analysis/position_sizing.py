@@ -32,6 +32,7 @@ import math
 
 from options_arena.models.analysis import PositionSizeResult
 from options_arena.models.config import PositionSizingConfig
+from options_arena.models.enums import VolRegimeTier
 
 
 def compute_position_size(
@@ -64,7 +65,7 @@ def compute_position_size(
     # NaN/Inf/negative IV -> Tier 4 (safest default)
     if not math.isfinite(annualized_iv) or annualized_iv < 0.0:
         tier = 4
-        label = "extreme"
+        label = VolRegimeTier.EXTREME
         base_alloc = config.tier4_alloc
         rationale = (
             f"IV is non-finite or negative ({annualized_iv}); "
@@ -73,7 +74,7 @@ def compute_position_size(
     elif annualized_iv < config.tier1_iv_max:
         # Tier 1: low volatility — full allocation
         tier = 1
-        label = "low"
+        label = VolRegimeTier.LOW
         base_alloc = config.tier1_alloc
         rationale = (
             f"IV {annualized_iv:.1%} < {config.tier1_iv_max:.0%} threshold; "
@@ -82,7 +83,7 @@ def compute_position_size(
     elif annualized_iv < config.tier2_iv_max:
         # Tier 2: moderate volatility — linear interpolation from tier1_alloc to tier2_alloc
         tier = 2
-        label = "moderate"
+        label = VolRegimeTier.MODERATE
         iv_range = config.tier2_iv_max - config.tier1_iv_max
         fraction = (annualized_iv - config.tier1_iv_max) / iv_range if iv_range > 0.0 else 1.0
         base_alloc = config.tier1_alloc + fraction * (config.tier2_alloc - config.tier1_alloc)
@@ -94,7 +95,7 @@ def compute_position_size(
     elif annualized_iv < config.tier3_iv_max:
         # Tier 3: elevated volatility — linear interpolation from tier2_alloc to tier3_alloc
         tier = 3
-        label = "elevated"
+        label = VolRegimeTier.ELEVATED
         iv_range = config.tier3_iv_max - config.tier2_iv_max
         fraction = (annualized_iv - config.tier2_iv_max) / iv_range if iv_range > 0.0 else 1.0
         base_alloc = config.tier2_alloc + fraction * (config.tier3_alloc - config.tier2_alloc)
@@ -106,7 +107,7 @@ def compute_position_size(
     else:
         # Tier 4: extreme volatility — hard cap
         tier = 4
-        label = "extreme"
+        label = VolRegimeTier.EXTREME
         base_alloc = config.tier4_alloc
         rationale = (
             f"IV {annualized_iv:.1%} >= {config.tier3_iv_max:.0%} threshold; "
