@@ -19,7 +19,3 @@ class InsufficientDataError(DataFetchError):
 
 class DataSourceUnavailableError(DataFetchError):
     """Raised when an external data source is unreachable or returns an error."""
-
-
-class RateLimitExceededError(DataFetchError):
-    """Raised when an external API rate limit has been exceeded."""

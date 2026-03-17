@@ -7,7 +7,6 @@ Verifies that all domain exceptions form the expected inheritance tree:
            -> TickerNotFoundError
            -> InsufficientDataError
            -> DataSourceUnavailableError
-           -> RateLimitExceededError
 
 Also tests isinstance behavior, message preservation, and catch-all patterns.
 """
@@ -18,7 +17,6 @@ from options_arena.utils.exceptions import (
     DataFetchError,
     DataSourceUnavailableError,
     InsufficientDataError,
-    RateLimitExceededError,
     TickerNotFoundError,
 )
 
@@ -44,10 +42,6 @@ def test_data_source_unavailable_is_data_fetch_error() -> None:
     assert issubclass(DataSourceUnavailableError, DataFetchError)
 
 
-def test_rate_limit_exceeded_is_data_fetch_error() -> None:
-    assert issubclass(RateLimitExceededError, DataFetchError)
-
-
 # --------------------------------------------------------------------------- #
 # isinstance checks (runtime behavior)
 # --------------------------------------------------------------------------- #
@@ -67,12 +61,6 @@ def test_insufficient_data_isinstance_of_data_fetch_error() -> None:
 
 def test_data_source_unavailable_isinstance_of_data_fetch_error() -> None:
     err = DataSourceUnavailableError("yfinance down")
-    assert isinstance(err, DataFetchError)
-    assert isinstance(err, Exception)
-
-
-def test_rate_limit_exceeded_isinstance_of_data_fetch_error() -> None:
-    err = RateLimitExceededError("429")
     assert isinstance(err, DataFetchError)
     assert isinstance(err, Exception)
 
@@ -104,7 +92,6 @@ def test_catch_all_catches_all_subtypes() -> None:
         TickerNotFoundError("a"),
         InsufficientDataError("b"),
         DataSourceUnavailableError("c"),
-        RateLimitExceededError("d"),
     ]
     for exc in exceptions:
         caught = False
@@ -120,11 +107,11 @@ def test_catch_all_catches_all_subtypes() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_ticker_not_found_does_not_catch_rate_limit() -> None:
+def test_ticker_not_found_does_not_catch_data_source_unavailable() -> None:
     """Sibling exceptions must not catch each other."""
     with_ticker_handler = False
     try:
-        raise RateLimitExceededError("too fast")
+        raise DataSourceUnavailableError("server down")
     except TickerNotFoundError:
         with_ticker_handler = True
     except DataFetchError:

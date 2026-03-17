@@ -1,11 +1,9 @@
 """Tests for shared prompt appendix, output validator helpers, and prompt integration.
 
 Tests cover:
-  - PROMPT_RULES_APPENDIX is present in all three agent system prompts
+  - PROMPT_RULES_APPENDIX is present in all agent system prompts
   - build_cleaned_agent_response() strips <think> tags from all text fields
-  - build_cleaned_trade_thesis() strips <think> tags from all text fields
   - build_cleaned_agent_response() returns original when no tags (identity)
-  - build_cleaned_trade_thesis() returns original when no tags (identity)
 """
 
 from __future__ import annotations
@@ -16,11 +14,8 @@ from pydantic_ai import models
 from options_arena.agents._parsing import (
     PROMPT_RULES_APPENDIX,
     build_cleaned_agent_response,
-    build_cleaned_trade_thesis,
     build_cleaned_volatility_thesis,
 )
-from options_arena.agents.bear import BEAR_SYSTEM_PROMPT
-from options_arena.agents.bull import BULL_SYSTEM_PROMPT
 from options_arena.agents.risk import RISK_SYSTEM_PROMPT
 from options_arena.models import (
     AgentResponse,
@@ -111,25 +106,13 @@ def trade_thesis_clean() -> TradeThesis:
 class TestPromptAppendixIntegration:
     """Verify PROMPT_RULES_APPENDIX is appended to all agent prompts."""
 
-    def test_bull_prompt_contains_appendix(self) -> None:
-        assert "Confidence calibration" in BULL_SYSTEM_PROMPT
-        assert "Data citation rules" in BULL_SYSTEM_PROMPT
-        assert "Domain-specific calibration" in BULL_SYSTEM_PROMPT
-
-    def test_bear_prompt_contains_appendix(self) -> None:
-        assert "Confidence calibration" in BEAR_SYSTEM_PROMPT
-        assert "Data citation rules" in BEAR_SYSTEM_PROMPT
-        assert "Domain-specific calibration" in BEAR_SYSTEM_PROMPT
-
     def test_risk_prompt_contains_appendix(self) -> None:
         assert "Confidence calibration" in RISK_SYSTEM_PROMPT
         assert "Data citation rules" in RISK_SYSTEM_PROMPT
         assert "Domain-specific calibration" in RISK_SYSTEM_PROMPT
 
     def test_appendix_content_matches_constant(self) -> None:
-        """All three prompts contain the same appendix text."""
-        assert PROMPT_RULES_APPENDIX in BULL_SYSTEM_PROMPT
-        assert PROMPT_RULES_APPENDIX in BEAR_SYSTEM_PROMPT
+        """Risk prompt contains the same appendix text."""
         assert PROMPT_RULES_APPENDIX in RISK_SYSTEM_PROMPT
 
 
@@ -175,49 +158,6 @@ class TestBuildCleanedAgentResponse:
     def test_returns_original_when_no_tags(self, agent_response_clean: AgentResponse) -> None:
         result = build_cleaned_agent_response(agent_response_clean)
         assert result is agent_response_clean  # identity check — same object
-
-
-# --- build_cleaned_trade_thesis tests ---
-
-
-class TestBuildCleanedTradeThesis:
-    """Tests for the shared TradeThesis output validator helper."""
-
-    def test_strips_think_tags_from_summary(
-        self, trade_thesis_with_think_tags: TradeThesis
-    ) -> None:
-        result = build_cleaned_trade_thesis(trade_thesis_with_think_tags)
-        assert "<think>" not in result.summary
-        assert "</think>" not in result.summary
-        assert "Moderate bullish case." in result.summary
-
-    def test_strips_think_tags_from_key_factors(
-        self, trade_thesis_with_think_tags: TradeThesis
-    ) -> None:
-        result = build_cleaned_trade_thesis(trade_thesis_with_think_tags)
-        for factor in result.key_factors:
-            assert "<think>" not in factor
-            assert "</think>" not in factor
-
-    def test_strips_think_tags_from_risk_assessment(
-        self, trade_thesis_with_think_tags: TradeThesis
-    ) -> None:
-        result = build_cleaned_trade_thesis(trade_thesis_with_think_tags)
-        assert "<think>" not in result.risk_assessment
-        assert "</think>" not in result.risk_assessment
-
-    def test_preserves_non_text_fields(self, trade_thesis_with_think_tags: TradeThesis) -> None:
-        result = build_cleaned_trade_thesis(trade_thesis_with_think_tags)
-        assert result.ticker == "AAPL"
-        assert result.direction == SignalDirection.BULLISH
-        assert result.confidence == 0.65
-        assert result.bull_score == 7.2
-        assert result.bear_score == 4.5
-        assert result.recommended_strategy is None
-
-    def test_returns_original_when_no_tags(self, trade_thesis_clean: TradeThesis) -> None:
-        result = build_cleaned_trade_thesis(trade_thesis_clean)
-        assert result is trade_thesis_clean  # identity check — same object
 
 
 # --- Volatility thesis fixtures ---

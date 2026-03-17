@@ -54,67 +54,6 @@ def _make_metadata(**overrides: object) -> TickerMetadata:
 
 
 # ---------------------------------------------------------------------------
-# upsert_ticker_metadata + get_ticker_metadata
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_upsert_and_get(repo: Repository) -> None:
-    """Store and retrieve a TickerMetadata — all fields round-trip."""
-    meta = _make_metadata()
-    await repo.upsert_ticker_metadata(meta)
-
-    result = await repo.get_ticker_metadata("AAPL")
-    assert result is not None
-    assert isinstance(result, TickerMetadata)
-    assert result.ticker == "AAPL"
-    assert result.sector == GICSSector.INFORMATION_TECHNOLOGY
-    assert result.industry_group == GICSIndustryGroup.TECHNOLOGY_HARDWARE_EQUIPMENT
-    assert result.market_cap_tier == MarketCapTier.MEGA
-    assert result.company_name == "Apple Inc."
-    assert result.raw_sector == "Technology"
-    assert result.raw_industry == "Consumer Electronics"
-    assert result.last_updated == datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC)
-
-
-@pytest.mark.asyncio
-async def test_upsert_overwrites_existing(repo: Repository) -> None:
-    """Second upsert replaces the first row for the same ticker."""
-    meta1 = _make_metadata(company_name="Apple Inc.")
-    await repo.upsert_ticker_metadata(meta1)
-
-    meta2 = _make_metadata(
-        company_name="Apple Inc. (Updated)",
-        sector=GICSSector.CONSUMER_DISCRETIONARY,
-        last_updated=datetime(2026, 3, 2, 12, 0, 0, tzinfo=UTC),
-    )
-    await repo.upsert_ticker_metadata(meta2)
-
-    result = await repo.get_ticker_metadata("AAPL")
-    assert result is not None
-    assert result.company_name == "Apple Inc. (Updated)"
-    assert result.sector == GICSSector.CONSUMER_DISCRETIONARY
-    assert result.last_updated == datetime(2026, 3, 2, 12, 0, 0, tzinfo=UTC)
-
-
-@pytest.mark.asyncio
-async def test_get_returns_none_for_missing(repo: Repository) -> None:
-    """get_ticker_metadata returns None for an unknown ticker."""
-    result = await repo.get_ticker_metadata("ZZZZZ")
-    assert result is None
-
-
-@pytest.mark.asyncio
-async def test_get_normalizes_ticker_case(repo: Repository) -> None:
-    """get_ticker_metadata('aapl') finds a row stored as 'AAPL'."""
-    await repo.upsert_ticker_metadata(_make_metadata(ticker="AAPL"))
-
-    result = await repo.get_ticker_metadata("aapl")
-    assert result is not None
-    assert result.ticker == "AAPL"
-
-
-# ---------------------------------------------------------------------------
 # upsert_ticker_metadata_batch
 # ---------------------------------------------------------------------------
 
@@ -146,9 +85,10 @@ async def test_batch_upsert_commit_false(repo: Repository) -> None:
     conn = repo._db.conn  # noqa: SLF001
     await conn.commit()
 
-    result = await repo.get_ticker_metadata("TSLA")
-    assert result is not None
-    assert result.company_name == "Tesla Inc."
+    all_meta = await repo.get_all_ticker_metadata()
+    tsla = [m for m in all_meta if m.ticker == "TSLA"]
+    assert len(tsla) == 1
+    assert tsla[0].company_name == "Tesla Inc."
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +200,8 @@ async def test_enum_roundtrip(repo: Repository) -> None:
     )
     await repo.upsert_ticker_metadata(meta)
 
-    result = await repo.get_ticker_metadata("AAPL")
+    all_meta = await repo.get_all_ticker_metadata()
+    result = next((m for m in all_meta if m.ticker == "AAPL"), None)
     assert result is not None
     assert isinstance(result.sector, GICSSector)
     assert result.sector is GICSSector.HEALTH_CARE
@@ -281,7 +222,8 @@ async def test_none_enums_roundtrip(repo: Repository) -> None:
     )
     await repo.upsert_ticker_metadata(meta)
 
-    result = await repo.get_ticker_metadata("AAPL")
+    all_meta = await repo.get_all_ticker_metadata()
+    result = next((m for m in all_meta if m.ticker == "AAPL"), None)
     assert result is not None
     assert result.sector is None
     assert result.industry_group is None

@@ -138,19 +138,23 @@ class TestRenderNeuralContext:
 
 
 class TestRenderNeuralSurfaceComparison:
-    """Tests for spline vs neural surface R-squared comparison rendering."""
+    """Tests for spline vs neural surface R-squared comparison rendering.
 
-    def test_renders_comparison_when_both_available(self) -> None:
-        """Verify spline vs neural R-squared comparison renders."""
+    The comparison function gates on ``neural_surface_r2`` (a dedicated neural
+    surface field). When this field is absent from MarketContext, the function
+    returns an empty string. ``prob_profit_neural`` (trajectory model) is NOT
+    used as a proxy.
+    """
+
+    def test_empty_when_no_neural_surface_r2(self) -> None:
+        """Verify empty string when neural_surface_r2 is not available."""
         ctx = _make_context(
             surface_fit_r2=0.85,
             prob_profit_neural=0.65,
         )
         result = _render_neural_surface_comparison(ctx)
 
-        assert "Surface Model Comparison" in result
-        assert "SPLINE SURFACE" in result
-        assert "0.85" in result
+        assert result == ""
 
     def test_empty_when_no_neural(self) -> None:
         """Verify empty string when neural surface not used."""
@@ -171,27 +175,6 @@ class TestRenderNeuralSurfaceComparison:
         result = _render_neural_surface_comparison(ctx)
 
         assert result == ""
-
-    def test_labels_good_fit(self) -> None:
-        """Verify good fit quality label for high R-squared."""
-        ctx = _make_context(surface_fit_r2=0.85, prob_profit_neural=0.65)
-        result = _render_neural_surface_comparison(ctx)
-
-        assert "Good" in result
-
-    def test_labels_moderate_fit(self) -> None:
-        """Verify moderate fit quality label for medium R-squared."""
-        ctx = _make_context(surface_fit_r2=0.65, prob_profit_neural=0.65)
-        result = _render_neural_surface_comparison(ctx)
-
-        assert "Moderate" in result
-
-    def test_labels_poor_fit(self) -> None:
-        """Verify poor fit quality label for low R-squared."""
-        ctx = _make_context(surface_fit_r2=0.3, prob_profit_neural=0.65)
-        result = _render_neural_surface_comparison(ctx)
-
-        assert "Poor" in result
 
     def test_isfinite_guard_on_r2(self) -> None:
         """Verify NaN R-squared is rejected by model validator.
@@ -217,16 +200,15 @@ class TestRenderNeuralSurfaceComparison:
 class TestVolatilityAgentNeuralContext:
     """Tests for neural surface comparison in volatility agent context."""
 
-    def test_neural_surface_in_vol_prompt(self) -> None:
-        """Verify volatility agent receives neural surface comparison."""
+    def test_no_neural_surface_comparison_without_dedicated_field(self) -> None:
+        """Verify volatility context omits surface comparison without neural_surface_r2."""
         ctx = _make_context(
             surface_fit_r2=0.75,
             prob_profit_neural=0.60,
         )
         vol_ctx = render_volatility_context(ctx)
 
-        assert "Surface Model Comparison" in vol_ctx
-        assert "SPLINE SURFACE" in vol_ctx
+        assert "Surface Model Comparison" not in vol_ctx
 
     def test_no_neural_in_default_config(self) -> None:
         """Verify no neural content in volatility prompt with default config."""

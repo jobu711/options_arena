@@ -884,17 +884,12 @@ class TestExtendedTradeThesis:
 
 
 class TestDebateConfigDSEFields:
-    """Tests for new DebateConfig fields: phase1_parallelism, enable_regime_weights."""
+    """Tests for DebateConfig fields: phase1_parallelism."""
 
     def test_phase1_parallelism_default(self) -> None:
         """Default phase1_parallelism is 2 (free tier optimized)."""
         config = DebateConfig()
         assert config.phase1_parallelism == 2
-
-    def test_enable_regime_weights_default(self) -> None:
-        """Default enable_regime_weights is False."""
-        config = DebateConfig()
-        assert config.enable_regime_weights is False
 
     def test_phase1_parallelism_valid_range(self) -> None:
         """phase1_parallelism accepts values in [1, 8]."""
@@ -912,11 +907,6 @@ class TestDebateConfigDSEFields:
         """phase1_parallelism above 8 is rejected."""
         with pytest.raises(ValidationError, match="phase1_parallelism must be in"):
             DebateConfig(phase1_parallelism=9)
-
-    def test_enable_regime_weights_true(self) -> None:
-        """enable_regime_weights can be set to True."""
-        config = DebateConfig(enable_regime_weights=True)
-        assert config.enable_regime_weights is True
 
 
 class TestScanConfigDSEFields:

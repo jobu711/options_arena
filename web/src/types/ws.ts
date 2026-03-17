@@ -27,7 +27,7 @@ export type ScanEvent = ScanProgressEvent | ScanErrorEvent | ScanCompleteEvent
 
 export interface DebateAgentEvent {
   type: 'agent'
-  name: 'bull' | 'bear' | 'rebuttal' | 'volatility' | 'risk' | 'flow' | 'fundamental' | 'contrarian'
+  name: 'trend' | 'volatility' | 'flow' | 'fundamental' | 'risk' | 'contrarian'
   status: 'started' | 'completed' | 'failed'
   confidence: number | null
 }
@@ -57,7 +57,7 @@ export interface BatchProgressEvent {
 export interface BatchAgentEvent {
   type: 'agent'
   ticker: string
-  name: 'bull' | 'bear' | 'rebuttal' | 'volatility' | 'risk' | 'flow' | 'fundamental' | 'contrarian'
+  name: 'trend' | 'volatility' | 'flow' | 'fundamental' | 'risk' | 'contrarian'
   status: 'started' | 'completed' | 'failed'
   confidence: number | null
 }

@@ -41,16 +41,7 @@ async def flow_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
     up bull and bear arguments from deps. Arguments are wrapped in delimiters
     to prevent instruction bleed.
     """
-    base = FLOW_SYSTEM_PROMPT
-    if ctx.deps.bull_response is not None:
-        base += (
-            f"\n\n<<<BULL_ARGUMENT>>>\n{ctx.deps.bull_response.argument}\n<<<END_BULL_ARGUMENT>>>"
-        )
-    if ctx.deps.bear_response is not None:
-        base += (
-            f"\n\n<<<BEAR_ARGUMENT>>>\n{ctx.deps.bear_response.argument}\n<<<END_BEAR_ARGUMENT>>>"
-        )
-    return base
+    return FLOW_SYSTEM_PROMPT
 
 
 @flow_agent.output_validator

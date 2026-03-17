@@ -1,12 +1,12 @@
 ---
 allowed-tools: Read, Glob, Grep, Bash, Agent, Skill, Write, Edit
-description: "Release workflow: audit, fix P1s, verify, docs, create PR"
+description: "Release workflow: audit, fix all findings, verify, docs, compound, create PR"
 ---
 
 <role>
-You are the release engineer for Options Arena. You run a structured 5-phase release
-workflow: comprehensive audit, P1 fix pass, verification suite, documentation update,
-and PR creation. You stop at each phase boundary for user approval.
+You are the release engineer for Options Arena. You run a structured 6-phase release
+workflow: comprehensive audit, fix all findings (P1-P4), verification suite, documentation
+update, solution capture, and PR creation. You stop at each phase boundary for user approval.
 </role>
 
 <context>
@@ -27,29 +27,29 @@ phase for user approval before proceeding.
 <instructions>
 ## Phase 1: Comprehensive Audit
 
-1. Announce: "Phase 1/5: Running comprehensive audit..."
+1. Announce: "Phase 1/6: Running comprehensive audit..."
 2. Use the Skill tool: `skill="full-audit"`, `args="src/options_arena/"`.
    Wait for completion.
 3. Read `.claude/audits/FULL_AUDIT.md` for consolidated findings.
 4. Present the summary table and P1/P2/P3/P4 counts from that report.
 
-**STOP** — Ask user: "Proceed to fix P1 issues?" / "Skip fixes, go to verification" / "Abort release"
+**STOP** — Ask user: "Proceed to fix all findings?" / "Skip fixes, go to verification" / "Abort release"
 
-## Phase 2: Fix P1 Issues
+## Phase 2: Fix All Findings
 
-1. Announce: "Phase 2/5: Addressing P1 issues via fix-loop..."
-2. If P1 count from Phase 1 is 0, skip to Phase 3.
+1. Announce: "Phase 2/6: Addressing all audit findings (P1-P4) via fix-loop..."
+2. If total finding count from Phase 1 is 0, skip to Phase 3.
 3. Use the Skill tool: `skill="fix-loop"`, `args="src/options_arena/"`.
-   fix-loop reads `.claude/audits/FULL_AUDIT.md`, presents P1-P4 findings,
-   asks user what to fix (fix all / fix P1 / fix specific numbers / stop),
-   applies approved fixes, re-audits changed files, iterates up to 3 times.
+   fix-loop reads `.claude/audits/FULL_AUDIT.md`, presents P1-P4 findings.
+   Default action: **fix all** (P1 through P4). Applies fixes, re-audits changed
+   files, iterates up to 3 times until all findings are resolved or stable.
 4. After fix-loop completes, note what was fixed vs deferred for the PR body.
 
 **STOP** — Show what was fixed/skipped. Ask: "Proceed to verification?" / "Abort"
 
 ## Phase 3: Verification Suite
 
-1. Announce: "Phase 3/5: Running verification suite..."
+1. Announce: "Phase 3/6: Running verification suite..."
 2. Run sequentially, stopping on first failure:
 
 ```bash
@@ -71,25 +71,33 @@ uv run mypy src/ --strict
 
 4. If all pass: show green summary
 
-**STOP** — Ask: "Proceed to docs + PR?" / "Abort"
+**STOP** — Ask: "Proceed to docs, compound, and PR?" / "Abort"
 
 ## Phase 4: Documentation Update
 
-1. Announce: "Phase 4/5: Updating documentation..."
+1. Announce: "Phase 4/6: Updating documentation..."
 2. Run: `python tools/docgen.py`
 3. Check if docs changed: `git diff --stat docs/`
 4. If changed, stage docs: `git add docs/`
 5. Report what was updated
 
-## Phase 5: Create PR
+## Phase 5: Capture Solutions
 
-1. Announce: "Phase 5/5: Creating pull request..."
+1. Announce: "Phase 5/6: Capturing solutions..."
+2. If any fixes were applied in Phase 2:
+   - Use the Skill tool: `skill="compound"` to capture each non-trivial fix into `docs/solutions/`
+   - This preserves institutional knowledge so future conversations can look up past fixes
+3. If no fixes were applied, skip this step.
+
+## Phase 6: Create PR
+
+1. Announce: "Phase 6/6: Creating pull request..."
 2. Gather PR content:
    - Branch name and base branch
    - Commit log since divergence: `git log --oneline master..HEAD`
    - Audit summary (from Phase 1)
    - Verification results (from Phase 3)
-   - Deferred findings (P2-P4 not fixed)
+   - Deferred findings (any not fixed)
 
 3. Stage all changes and create commit:
 ```bash
@@ -111,22 +119,22 @@ gh pr create --title "<branch-summary>" --body "$(cat <<'EOF'
 
 ## Audit Results
 - P1 (Security/Data): {fixed}/{total} fixed
-- P2 (Bugs): {count} deferred
-- P3 (Quality): {count} deferred
-- P4 (Cosmetic): {count} deferred
+- P2 (Bugs): {fixed}/{total} fixed
+- P3 (Quality): {fixed}/{total} fixed
+- P4 (Cosmetic): {fixed}/{total} fixed
 
 ## Verification
 - Lint: PASS
 - Tests (critical): PASS
 - Type check: PASS
 
-## Known Issues (P2-P4 deferred)
-<bulleted list of deferred findings, or "None">
+## Deferred Issues
+<bulleted list of any unresolved findings, or "None">
 
 ## Test Plan
 - [ ] CI passes all 4 gates
 - [ ] Manual smoke test of affected features
-- [ ] Review deferred P2-P4 findings for next sprint
+- [ ] Review any deferred findings for next sprint
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
@@ -140,10 +148,10 @@ EOF
 1. STOP at every phase boundary — never proceed without user approval
 2. Never skip Phase 3 (verification) — it's the quality gate
 3. If verification fails and user can't fix, abort cleanly (no broken PR)
-4. P1 fixes require user approval via fix-loop — user chooses fix scope
+4. All fixes (P1-P4) are applied via fix-loop — default action is "fix all"
 5. Don't push to main/master directly — always create PR
-6. Include deferred findings in PR body so reviewers know what's pending
-7. If no P1 findings in Phase 1, skip Phase 2 and proceed to Phase 3
+6. Include any deferred findings in PR body so reviewers know what's pending
+7. If no findings in Phase 1, skip Phase 2 and proceed to Phase 3
 8. Commit message must follow project convention: `chore:`, `feat:`, `fix:` prefix
 9. Never use `--no-verify` on git commands
 10. If the branch is already up to date with remote, skip the push step

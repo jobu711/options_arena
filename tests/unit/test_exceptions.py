@@ -13,7 +13,6 @@ from options_arena.utils import (
     DataFetchError,
     DataSourceUnavailableError,
     InsufficientDataError,
-    RateLimitExceededError,
     TickerNotFoundError,
 )
 
@@ -80,15 +79,6 @@ class TestDataSourceUnavailableError:
         assert "(" not in str(err)
 
 
-class TestRateLimitExceededError:
-    def test_rate_limit_exceeded_is_subclass_of_data_fetch_error(self) -> None:
-        assert issubclass(RateLimitExceededError, DataFetchError)
-
-    def test_rate_limit_exceeded_isinstance_check(self) -> None:
-        err = RateLimitExceededError("429 Too Many Requests")
-        assert isinstance(err, DataFetchError)
-
-
 class TestCatchAllWithDataFetchError:
     def test_except_data_fetch_error_catches_ticker_not_found(self) -> None:
         caught = False
@@ -110,14 +100,6 @@ class TestCatchAllWithDataFetchError:
         caught = False
         try:
             raise DataSourceUnavailableError("server down")
-        except DataFetchError:
-            caught = True
-        assert caught is True
-
-    def test_except_data_fetch_error_catches_rate_limit_exceeded(self) -> None:
-        caught = False
-        try:
-            raise RateLimitExceededError("too fast")
         except DataFetchError:
             caught = True
         assert caught is True

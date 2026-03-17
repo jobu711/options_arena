@@ -66,10 +66,10 @@ async def test_scan_bridge_multiple_events() -> None:
 async def test_debate_bridge_agent_event() -> None:
     """DebateProgressBridge queues agent events."""
     bridge = DebateProgressBridge()
-    bridge(DebatePhase.BULL, "started", None)
+    bridge(DebatePhase.TREND, "started", None)
     event = bridge.queue.get_nowait()
     assert event["type"] == "agent"
-    assert event["name"] == "bull"
+    assert event["name"] == "trend"
     assert event["status"] == "started"
     assert "confidence" not in event
 
@@ -77,7 +77,7 @@ async def test_debate_bridge_agent_event() -> None:
 async def test_debate_bridge_agent_with_confidence() -> None:
     """DebateProgressBridge includes confidence when provided."""
     bridge = DebateProgressBridge()
-    bridge(DebatePhase.BEAR, "completed", 0.75)
+    bridge(DebatePhase.VOLATILITY, "completed", 0.75)
     event = bridge.queue.get_nowait()
     assert event["confidence"] == pytest.approx(0.75)
 

@@ -329,23 +329,3 @@ class ScanMixin(RepositoryBase):
             min_scans,
         )
         return trending
-
-    async def get_last_debate_dates(self, tickers: list[str]) -> dict[str, datetime]:
-        """Get the most recent debate date for each ticker in a single query."""
-        if not tickers:
-            return {}
-        conn = self._db.conn
-        placeholders = ", ".join("?" for _ in tickers)
-        async with conn.execute(
-            "SELECT ticker, MAX(created_at) as last_debate "
-            "FROM ai_theses "
-            f"WHERE ticker IN ({placeholders}) "
-            "GROUP BY ticker",
-            tuple(tickers),
-        ) as cursor:
-            rows = await cursor.fetchall()
-        result: dict[str, datetime] = {
-            str(row["ticker"]): datetime.fromisoformat(row["last_debate"]) for row in rows
-        }
-        logger.debug("Retrieved last debate dates for %d tickers", len(result))
-        return result

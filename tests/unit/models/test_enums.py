@@ -166,29 +166,25 @@ class TestDividendSource:
 
 
 # ---------------------------------------------------------------------------
-# SpreadType (6 members)
+# SpreadType (4 members)
 # ---------------------------------------------------------------------------
 
 
 class TestSpreadType:
-    def test_spread_type_has_exactly_six_members(self) -> None:
-        assert len(SpreadType) == 6
+    def test_spread_type_has_exactly_four_members(self) -> None:
+        assert len(SpreadType) == 4
 
     def test_spread_type_values_are_lowercase(self) -> None:
         assert SpreadType.VERTICAL == "vertical"
-        assert SpreadType.CALENDAR == "calendar"
         assert SpreadType.IRON_CONDOR == "iron_condor"
         assert SpreadType.STRADDLE == "straddle"
         assert SpreadType.STRANGLE == "strangle"
-        assert SpreadType.BUTTERFLY == "butterfly"
 
     def test_spread_type_string_serialization(self) -> None:
         assert str(SpreadType.VERTICAL) == "vertical"
-        assert str(SpreadType.CALENDAR) == "calendar"
         assert str(SpreadType.IRON_CONDOR) == "iron_condor"
         assert str(SpreadType.STRADDLE) == "straddle"
         assert str(SpreadType.STRANGLE) == "strangle"
-        assert str(SpreadType.BUTTERFLY) == "butterfly"
 
 
 # ---------------------------------------------------------------------------

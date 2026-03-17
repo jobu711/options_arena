@@ -14,7 +14,6 @@ import hashlib
 import json
 import logging
 import math
-from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any, cast
@@ -31,7 +30,6 @@ from options_arena.services.base import ServiceBase
 from options_arena.services.cache import (
     TTL_EARNINGS,
     TTL_FUNDAMENTALS,
-    TTL_REFERENCE,
     ServiceCache,
 )
 from options_arena.services.helpers import (
@@ -53,39 +51,6 @@ logger = logging.getLogger(__name__)
 # Max tickers per yf.download call.  Keeps each chunk well within the
 # per-call timeout while allowing concurrent downloads for large batches.
 _BATCH_CHUNK_SIZE = 50
-
-# GICS sector → SPDR sector ETF mapping for regime/macro indicators.
-SECTOR_ETF_MAP: dict[str, str] = {
-    "Technology": "XLK",
-    "Health Care": "XLV",
-    "Financials": "XLF",
-    "Consumer Discretionary": "XLY",
-    "Communication Services": "XLC",
-    "Industrials": "XLI",
-    "Consumer Staples": "XLP",
-    "Energy": "XLE",
-    "Utilities": "XLU",
-    "Real Estate": "XLRE",
-    "Materials": "XLB",
-}
-
-
-@dataclass
-class UniverseData:
-    """Reference data for regime/macro indicators.
-
-    Fetched once per scan by ``MarketDataService.fetch_universe_data()``.
-    Individual fields are passed to ``indicators/regime.py`` functions — the
-    dataclass itself does NOT cross the service boundary into indicators.
-    """
-
-    spx_close: pd.Series[float] | None = None
-    vix_close: float | None = None
-    vix3m_close: float | None = None
-    hyg_return_20d: float | None = None
-    lqd_return_20d: float | None = None
-    spx_return_20d: float | None = None
-    sector_etf_returns: dict[str, float | None] = field(default_factory=dict)
 
 
 class TickerOHLCVResult(BaseModel):
@@ -639,117 +604,6 @@ class MarketDataService(ServiceBase[ServiceConfig]):
 
         return earnings_date
 
-    async def fetch_universe_data(self) -> UniverseData:
-        """Fetch reference data for regime/macro indicators.
-
-        Tickers: ^GSPC, ^VIX, ^VIX3M, HYG, LQD, plus 11 sector ETFs.
-        Fetched once per scan, cached with existing 2-tier caching (24h TTL).
-
-        VIX3M fallback: if ^VIX3M is unavailable, ``vix3m_close`` is ``None``.
-
-        Returns:
-            Typed :class:`UniverseData` dataclass with OHLCV for each reference ticker.
-        """
-        cache_key = "yf:universe_data:v1"
-
-        cached = await self._cache.get(cache_key)
-        if cached is not None:
-            self._log.debug("Cache hit for %s", cache_key)
-            return _deserialize_universe_data(cached)
-
-        # Define tickers to fetch
-        core_tickers = ["^GSPC", "^VIX", "^VIX3M", "HYG", "LQD"]
-        sector_tickers = list(SECTOR_ETF_MAP.values())
-        all_tickers = core_tickers + sector_tickers
-
-        # Fetch all in parallel using _yf_call pattern
-        timeout = self._config.yfinance_timeout
-
-        async def _fetch_one(symbol: str) -> tuple[str, pd.DataFrame | None]:
-            try:
-                ticker_obj = yf.Ticker(symbol)
-                df: pd.DataFrame = await self._retried_fetch(
-                    lambda: self._yf_call(ticker_obj.history, period="3mo", timeout=timeout),
-                )
-                if df.empty:
-                    self._log.debug("Empty data for universe ticker %s", symbol)
-                    return (symbol, None)
-                return (symbol, df)
-            except Exception:
-                self._log.debug("Failed to fetch universe ticker %s", symbol, exc_info=True)
-                return (symbol, None)
-
-        tasks = [_fetch_one(t) for t in all_tickers]
-        results: list[tuple[str, pd.DataFrame | None] | BaseException] = await asyncio.gather(
-            *tasks, return_exceptions=True
-        )
-
-        frames: dict[str, pd.DataFrame] = {}
-        for ticker, result in zip(all_tickers, results, strict=True):
-            if isinstance(result, BaseException):
-                self._log.debug("Universe fetch exception for %s: %s", ticker, result)
-                continue
-            _symbol, df = result
-            if df is not None:
-                frames[_symbol] = df
-
-        # Extract latest close prices and return series
-        def _latest_close(symbol: str) -> float | None:
-            df = frames.get(symbol)
-            if df is None or df.empty:
-                return None
-            close_col = df.get("Close")
-            if close_col is None or close_col.empty:
-                return None
-            val = float(close_col.iloc[-1])
-            return val if math.isfinite(val) else None
-
-        def _close_series(symbol: str) -> pd.Series | None:
-            df = frames.get(symbol)
-            if df is None or df.empty:
-                return None
-            close_col = df.get("Close")
-            if close_col is None or close_col.empty:
-                return None
-            return close_col
-
-        def _return_20d(symbol: str) -> float | None:
-            series = _close_series(symbol)
-            if series is None or len(series) < 20:
-                return None
-            current = float(series.iloc[-1])
-            past = float(series.iloc[-20])
-            if past == 0.0 or not math.isfinite(current) or not math.isfinite(past):
-                return None
-            return (current - past) / past
-
-        # Build sector ETF returns
-        sector_etf_returns: dict[str, float | None] = {}
-        for sector, etf in SECTOR_ETF_MAP.items():
-            sector_etf_returns[sector] = _return_20d(etf)
-
-        universe = UniverseData(
-            spx_close=_close_series("^GSPC"),
-            vix_close=_latest_close("^VIX"),
-            vix3m_close=_latest_close("^VIX3M"),
-            hyg_return_20d=_return_20d("HYG"),
-            lqd_return_20d=_return_20d("LQD"),
-            spx_return_20d=_return_20d("^GSPC"),
-            sector_etf_returns=sector_etf_returns,
-        )
-
-        # Cache result
-        serialized = _serialize_universe_data(universe)
-        await self._cache.set(cache_key, serialized, ttl=TTL_REFERENCE)
-
-        self._log.debug(
-            "Fetched universe data: VIX=%s, VIX3M=%s, SPX_ret=%s",
-            universe.vix_close,
-            universe.vix3m_close,
-            universe.spx_return_20d,
-        )
-        return universe
-
     async def _download_chunk(self, chunk: list[str]) -> pd.DataFrame:
         """Download a single chunk of tickers via ``yf.download``."""
         assert self._limiter is not None  # noqa: S101 — guaranteed by __init__
@@ -910,50 +764,6 @@ def _deserialize_earnings_date(data: bytes) -> date | None:
     if text == "null":
         return None
     return date.fromisoformat(text)
-
-
-def _serialize_universe_data(universe: UniverseData) -> bytes:
-    """Serialize UniverseData to bytes for cache storage.
-
-    SPX close series is serialized as a JSON array of [iso_date, value] pairs.
-    """
-    spx_list: list[list[str | float]] | None = None
-    if universe.spx_close is not None and not universe.spx_close.empty:
-        spx_list = [
-            [str(idx), float(val)]
-            for idx, val in universe.spx_close.items()
-            if math.isfinite(float(val))
-        ]
-    payload: dict[str, Any] = {
-        "spx_close": spx_list,
-        "vix_close": universe.vix_close,
-        "vix3m_close": universe.vix3m_close,
-        "hyg_return_20d": universe.hyg_return_20d,
-        "lqd_return_20d": universe.lqd_return_20d,
-        "spx_return_20d": universe.spx_return_20d,
-        "sector_etf_returns": universe.sector_etf_returns,
-    }
-    return json.dumps(payload).encode("utf-8")
-
-
-def _deserialize_universe_data(data: bytes) -> UniverseData:
-    """Deserialize bytes from cache back into a UniverseData dataclass."""
-    raw: dict[str, Any] = json.loads(data.decode("utf-8"))
-    spx_close: pd.Series[float] | None = None
-    if raw.get("spx_close") is not None:
-        pairs: list[list[str | float]] = raw["spx_close"]
-        dates = [p[0] for p in pairs]
-        values = [p[1] for p in pairs]
-        spx_close = pd.Series(values, index=pd.Index(dates))
-    return UniverseData(
-        spx_close=spx_close,
-        vix_close=raw.get("vix_close"),
-        vix3m_close=raw.get("vix3m_close"),
-        hyg_return_20d=raw.get("hyg_return_20d"),
-        lqd_return_20d=raw.get("lqd_return_20d"),
-        spx_return_20d=raw.get("spx_return_20d"),
-        sector_etf_returns=raw.get("sector_etf_returns", {}),
-    )
 
 
 def _serialize_batch_quotes(quotes: list[BatchQuote]) -> bytes:

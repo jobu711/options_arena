@@ -93,11 +93,12 @@ logger = logging.getLogger(__name__)
 class DebatePhase(StrEnum):
     """Phases of the AI debate pipeline, reported via progress callback."""
 
-    BULL = "bull"
-    BEAR = "bear"
-    REBUTTAL = "rebuttal"
+    TREND = "trend"
     VOLATILITY = "volatility"
+    FLOW = "flow"
+    FUNDAMENTAL = "fundamental"
     RISK = "risk"
+    CONTRARIAN = "contrarian"
 
 
 type DebateProgressCallback = Callable[[DebatePhase, str, float | None], None]
@@ -719,15 +720,6 @@ def _format_contract_refs(contracts: list[OptionContract]) -> list[str]:
         expiry_str = contract.expiration.isoformat()
         refs.append(f"{contract.ticker} {strike_str} {type_str} {expiry_str}")
     return refs
-
-
-def _opposite_direction(direction: SignalDirection) -> SignalDirection:
-    """Return the opposite direction, or NEUTRAL if NEUTRAL."""
-    if direction == SignalDirection.BULLISH:
-        return SignalDirection.BEARISH
-    if direction == SignalDirection.BEARISH:
-        return SignalDirection.BULLISH
-    return SignalDirection.NEUTRAL
 
 
 def extract_agent_predictions(
@@ -1690,7 +1682,7 @@ async def _run_debate_pipeline(
     contracts: list[OptionContract],
     config: DebateConfig,
     start_time: float,
-    _progress: DebateProgressCallback | None,
+    progress: DebateProgressCallback | None,
     dimensional_scores: DimensionalScores | None,
     flow_output: FlowThesis | None,
     fundamental_output: FundamentalThesis | None,
@@ -1807,6 +1799,15 @@ async def _run_debate_pipeline(
         context.ticker,
     )
 
+    # Signal "running" for all Phase 1 agents
+    if progress:
+        progress(DebatePhase.TREND, "running", None)
+        progress(DebatePhase.VOLATILITY, "running", None)
+        if "flow" in phase1_labels:
+            progress(DebatePhase.FLOW, "running", None)
+        if "fundamental" in phase1_labels:
+            progress(DebatePhase.FUNDAMENTAL, "running", None)
+
     # Respect phase1_parallelism — batch if needed (auto-adjusted for Anthropic)
     parallelism, batch_delay = _effective_phase1_settings(config)
     phase1_results: list[object | BaseException]
@@ -1838,6 +1839,8 @@ async def _run_debate_pipeline(
     if isinstance(trend_raw, BaseException):
         logger.warning("Trend agent failed for %s: %s", context.ticker, trend_raw)
         phase1_failures += 1
+        if progress:
+            progress(DebatePhase.TREND, "failed", None)
     else:
         trend_run = cast(AgentRunResult[AgentResponse], trend_raw)
         trend_output = trend_run.output
@@ -1848,12 +1851,16 @@ async def _run_debate_pipeline(
             trend_output.direction.value,
             trend_output.confidence,
         )
+        if progress:
+            progress(DebatePhase.TREND, "complete", trend_output.confidence)
 
     # --- Volatility ---
     vol_raw = phase1_results[1]
     if isinstance(vol_raw, BaseException):
         logger.warning("Volatility agent failed for %s: %s", context.ticker, vol_raw)
         phase1_failures += 1
+        if progress:
+            progress(DebatePhase.VOLATILITY, "failed", None)
     else:
         vol_run = cast(AgentRunResult[VolatilityThesis], vol_raw)
         vol_thesis = vol_run.output
@@ -1864,6 +1871,8 @@ async def _run_debate_pipeline(
             vol_thesis.iv_assessment,
             vol_thesis.confidence,
         )
+        if progress:
+            progress(DebatePhase.VOLATILITY, "complete", vol_thesis.confidence)
 
     # --- Flow (locally-run or externally-provided) ---
     if "flow" in phase1_labels:
@@ -1872,6 +1881,8 @@ async def _run_debate_pipeline(
         if isinstance(flow_raw, BaseException):
             logger.warning("Flow agent failed for %s: %s", context.ticker, flow_raw)
             phase1_failures += 1
+            if progress:
+                progress(DebatePhase.FLOW, "failed", None)
         else:
             flow_run = cast(AgentRunResult[FlowThesis], flow_raw)
             flow_output = flow_run.output
@@ -1882,6 +1893,8 @@ async def _run_debate_pipeline(
                 flow_output.direction.value,
                 flow_output.confidence,
             )
+            if progress:
+                progress(DebatePhase.FLOW, "complete", flow_output.confidence)
     elif flow_output is None:
         phase1_failures += 1
 
@@ -1892,6 +1905,8 @@ async def _run_debate_pipeline(
         if isinstance(fund_raw, BaseException):
             logger.warning("Fundamental agent failed for %s: %s", context.ticker, fund_raw)
             phase1_failures += 1
+            if progress:
+                progress(DebatePhase.FUNDAMENTAL, "failed", None)
         else:
             fund_run = cast(AgentRunResult[FundamentalThesis], fund_raw)
             fundamental_output = fund_run.output
@@ -1902,6 +1917,8 @@ async def _run_debate_pipeline(
                 fundamental_output.direction.value,
                 fundamental_output.confidence,
             )
+            if progress:
+                progress(DebatePhase.FUNDAMENTAL, "complete", fundamental_output.confidence)
     elif fundamental_output is None:
         phase1_failures += 1
 
@@ -1923,6 +1940,8 @@ async def _run_debate_pipeline(
     # Phase 2: Risk agent (sequential, receives Phase 1 outputs)
     # ---------------------------------------------------------------
     logger.info("Phase 2: running risk agent for %s", context.ticker)
+    if progress:
+        progress(DebatePhase.RISK, "running", None)
     risk_output: RiskAssessment | None = None
     try:
         risk_deps = DebateDeps(
@@ -1952,8 +1971,12 @@ async def _run_debate_pipeline(
             risk_output.risk_level.value,
             risk_output.confidence,
         )
+        if progress:
+            progress(DebatePhase.RISK, "complete", risk_output.confidence)
     except Exception as e:
         logger.warning("Risk agent failed for %s: %s", context.ticker, e)
+        if progress:
+            progress(DebatePhase.RISK, "failed", None)
 
     # ---------------------------------------------------------------
     # Phase 3: Contrarian (sequential, skip if >= 3 Phase 1 failures)
@@ -1961,6 +1984,8 @@ async def _run_debate_pipeline(
     contrarian_output: ContrarianThesis | None = None
     if phase1_failures < 3:
         logger.info("Phase 3: running contrarian agent for %s", context.ticker)
+        if progress:
+            progress(DebatePhase.CONTRARIAN, "running", None)
         try:
             prior_text = _format_prior_outputs(
                 trend_output,
@@ -1998,8 +2023,16 @@ async def _run_debate_pipeline(
                 contrarian_output.dissent_direction.value,
                 contrarian_output.dissent_confidence,
             )
+            if progress:
+                progress(
+                    DebatePhase.CONTRARIAN,
+                    "complete",
+                    contrarian_output.dissent_confidence,
+                )
         except Exception as e:
             logger.warning("Contrarian agent failed for %s: %s", context.ticker, e)
+            if progress:
+                progress(DebatePhase.CONTRARIAN, "failed", None)
     else:
         logger.info(
             "Phase 3 skipped for %s: %d Phase 1 failures (>= 3)",

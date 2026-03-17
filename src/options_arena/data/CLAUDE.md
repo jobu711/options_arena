@@ -2,9 +2,10 @@
 
 ## Purpose
 
-Async SQLite persistence for scan results, ticker scores, and migration management.
-The **only** module that touches SQLite for business data. `services/cache.py` has its
-own SQLite connection for ephemeral cache data — these are separate concerns.
+Async SQLite persistence for scan results, ticker scores, debates, analytics, metadata,
+spreads, and migration management. The **only** module that touches SQLite for business
+data. `services/cache.py` has its own SQLite connection for ephemeral cache data — these
+are separate concerns.
 
 Every public method returns typed Pydantic models from `models/`. No raw dicts, no
 tuples, no `sqlite3.Row` objects cross the package boundary.
@@ -14,13 +15,39 @@ tuples, no `sqlite3.Row` objects cross the package boundary.
 | File | Class / Purpose | Public? |
 |------|----------------|---------|
 | `database.py` | `Database` — async SQLite lifecycle, WAL mode, migration runner | Yes |
-| `repository.py` | `Repository` — typed CRUD for `ScanRun` and `TickerScore` | Yes |
-| `__init__.py` | Re-exports `Database`, `Repository` with `__all__` | Yes |
+| `repository.py` | `Repository` — mixin-composed typed CRUD (see below); also defines `DebateRow` dataclass | Yes |
+| `_base.py` | `RepositoryBase` — shared `_db` reference + `commit()` for atomic multi-step persistence | No (internal) |
+| `_scan.py` | `ScanMixin` — scan run and ticker score CRUD, score history, trending | No (internal) |
+| `_debate.py` | `DebateMixin` — debate persistence, agent predictions, calibration, auto-tune weights | No (internal) |
+| `_analytics.py` | `AnalyticsMixin` — contracts, outcomes, normalization, backtesting, performance analytics | No (internal) |
+| `_metadata.py` | `MetadataMixin` — ticker metadata upsert/query, staleness, coverage stats | No (internal) |
+| `_spreads.py` | `SpreadsMixin` — spread recommendation persistence and reconstruction | No (internal) |
+| `__init__.py` | Re-exports `Database`, `DebateRow`, `Repository` with `__all__` | Yes |
 
 External:
 | File | Purpose |
 |------|---------|
-| `data/migrations/001_initial.sql` | Initial schema (project root, not in `src/`) |
+| `data/migrations/*.sql` | 33 sequential migration files (`001_initial.sql` through `033_spread_recommendations.sql`), project root |
+
+## Mixin Decomposition
+
+`Repository` is composed from five domain-specific mixins via multiple inheritance:
+
+```
+Repository(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin)
+    └── all inherit from RepositoryBase (provides _db + commit())
+```
+
+| Mixin | Domain | Key Methods |
+|-------|--------|-------------|
+| `ScanMixin` | Scan runs + scores | `save_scan_run`, `save_ticker_scores`, `get_latest_scan`, `get_scan_by_id`, `get_scores_for_scan`, `get_recent_scans`, `get_score_history`, `get_trending_tickers` |
+| `DebateMixin` | Debates + agents | `save_debate`, `save_agent_predictions`, `get_debate_by_id`, `get_recent_debates`, `get_debates_for_ticker`, `get_agent_accuracy`, `get_agent_calibration`, `get_latest_auto_tune_weights`, `save_auto_tune_weights`, `get_weight_history` |
+| `AnalyticsMixin` | Contracts + outcomes + backtesting | `save_recommended_contracts`, `get_contracts_for_scan`, `save_normalization_stats`, `save_contract_outcomes`, `get_contracts_needing_outcomes`, `get_win_rate_by_direction`, `get_equity_curve`, `get_drawdown_series`, `get_performance_summary`, `get_risk_adjusted_metrics`, + 10 more analytics queries |
+| `MetadataMixin` | Ticker classification cache | `upsert_ticker_metadata`, `upsert_ticker_metadata_batch`, `get_all_ticker_metadata`, `get_stale_tickers`, `get_metadata_coverage` |
+| `SpreadsMixin` | Spread recommendations | `save_spread_recommendation`, `get_spread_for_ticker` |
+
+All mixins follow the same patterns: parameterized queries, `aiosqlite.Row` for named access,
+optional `commit=False` for batched atomic persistence, typed model returns.
 
 ---
 
@@ -39,10 +66,11 @@ External:
 
 | Can Import From | Cannot Import From |
 |----------------|-------------------|
-| `models/` (ScanRun, TickerScore, IndicatorSignals, ScanPreset, SignalDirection) | `services/` |
-| `utils/exceptions.py` (for custom exception, if needed) | `pricing/`, `scoring/` |
-| stdlib: `asyncio`, `logging`, `pathlib`, `json`, `datetime` | `indicators/`, `agents/` |
-| External: `aiosqlite` | `cli.py`, `reporting/` |
+| `models/` (ScanRun, TickerScore, IndicatorSignals, RecommendedContract, ContractOutcome, TickerMetadata, AgentPrediction, OptionSpread, etc.) | `services/` |
+| `analysis/performance` (for `compute_risk_adjusted_metrics` in analytics mixin) | `pricing/`, `scoring/` |
+| `utils/exceptions.py` (for custom exception, if needed) | `indicators/`, `agents/` |
+| stdlib: `asyncio`, `logging`, `pathlib`, `json`, `datetime`, `statistics`, `decimal`, `dataclasses`, `sqlite3.Row` | `cli/`, `reporting/` |
+| External: `aiosqlite`, `numpy` | `scan/` |
 
 ---
 
@@ -166,7 +194,7 @@ This table tracks which numbered migrations have been applied.
 ### Migration File Convention
 
 - Location: `data/migrations/` (project root, NOT inside `src/`)
-- Naming: `{NNN}_{description}.sql` — e.g., `001_initial.sql`, `002_add_watchlist_notes.sql`
+- Naming: `{NNN}_{description}.sql` — e.g., `001_initial.sql`, `002_debate_columns.sql` (currently 33 files, up to `033_spread_recommendations.sql`)
 - Sorted by numeric prefix: `sorted(paths, key=lambda p: int(p.stem.split("_")[0]))`
 - Each file contains one or more `CREATE TABLE` / `CREATE INDEX` statements
 - All tables use `CREATE TABLE IF NOT EXISTS` for safety
@@ -259,35 +287,28 @@ reconstruct via `Decimal(row["column"])`.
 
 ---
 
-## Repository Method Signatures
+## Repository Construction & Usage
 
 ```python
-class Repository:
-    def __init__(self, db: Database) -> None: ...
+class Repository(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin):
+    def __init__(self, db: Database) -> None:
+        self._db = db
 
-    async def save_scan_run(self, scan_run: ScanRun) -> int:
-        """Persist a ScanRun. Returns the database-assigned ID (lastrowid)."""
+    # All methods inherited from mixins — see Mixin Decomposition table above.
+    # ~50+ async methods total across the 5 mixins.
 
-    async def save_ticker_scores(self, scan_id: int, scores: list[TickerScore]) -> None:
-        """Batch-insert TickerScores for a scan run. Sets scan_run_id on each."""
-
-    async def get_latest_scan(self) -> ScanRun | None:
-        """Get the most recent ScanRun, or None if no scans exist."""
-
-    async def get_scan_by_id(self, scan_id: int) -> ScanRun | None:
-        """Get a ScanRun by its ID, or None if not found."""
-
-    async def get_scores_for_scan(self, scan_id: int) -> list[TickerScore]:
-        """Get all TickerScores for a scan run. Returns empty list if none."""
-
-    async def get_recent_scans(self, limit: int = 10) -> list[ScanRun]:
-        """Get the N most recent ScanRuns, newest first."""
+    async def commit(self) -> None:
+        """Explicit commit for atomic multi-step persistence (inherited from RepositoryBase)."""
 ```
 
-All methods:
-- Accept and return Pydantic models (not dicts, not tuples)
+`DebateRow` is a `@dataclass` defined in `_debate.py` (re-exported from `repository.py`
+and `__init__.py`). It holds raw JSON strings from the `ai_theses` table — not a Pydantic
+model because its fields contain unparsed JSON that callers deserialize on demand.
+
+All mixin methods:
+- Accept and return Pydantic models (not dicts, not tuples) — except `DebateRow`
 - Use parameterized queries (`?` placeholders) — never f-strings or string formatting
-- Call `await db.commit()` after every write
+- Support `commit=False` kwarg for batched atomic persistence (caller calls `repo.commit()`)
 - Use `aiosqlite.Row` for named column access in queries
 
 ---

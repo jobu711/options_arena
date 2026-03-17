@@ -704,6 +704,7 @@ async def process_ticker_options(
                 spx_close=spx_close,
                 ohlcv_df=ticker_df,
                 vol_result=vol_result,
+                short_ratio=ticker_info.short_ratio,
             )
 
             # Merge DSE signals into the ticker's existing signals

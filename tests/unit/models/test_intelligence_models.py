@@ -7,7 +7,7 @@ Tests cover:
 - InsiderTransaction: construction, parse_transaction_type, value NaN->None
 - InsiderSnapshot: construction, buy_ratio bounds, transactions cap
 - InstitutionalSnapshot: construction, pct fields bounded [0,1.5], top_holders cap
-- IntelligencePackage: construction, intelligence_completeness method
+- IntelligencePackage: construction, news_headlines cap, frozen, JSON roundtrip
 """
 
 from datetime import UTC, date, datetime, timedelta, timezone
@@ -821,28 +821,6 @@ class TestIntelligencePackage:
         pkg = IntelligencePackage(ticker="AAPL", fetched_at=NOW_UTC)
         with pytest.raises(ValidationError):
             pkg.ticker = "MSFT"  # type: ignore[misc]
-
-    def test_intelligence_completeness_full(self) -> None:
-        """intelligence_completeness returns 1.0 when all 5 categories populated."""
-        pkg = self._make_full_package()
-        assert pkg.intelligence_completeness() == pytest.approx(1.0)
-
-    def test_intelligence_completeness_partial(self) -> None:
-        """intelligence_completeness returns correct fraction for partial data."""
-        analyst = AnalystSnapshot(ticker="AAPL", strong_buy=10, fetched_at=NOW_UTC)
-        pkg = IntelligencePackage(
-            ticker="AAPL",
-            analyst=analyst,
-            news_headlines=["headline"],
-            fetched_at=NOW_UTC,
-        )
-        # 2 of 5 categories populated
-        assert pkg.intelligence_completeness() == pytest.approx(2 / 5)
-
-    def test_intelligence_completeness_empty(self) -> None:
-        """intelligence_completeness returns 0.0 when no categories populated."""
-        pkg = IntelligencePackage(ticker="MSFT", fetched_at=NOW_UTC)
-        assert pkg.intelligence_completeness() == pytest.approx(0.0)
 
     def test_news_headlines_capped_at_5(self) -> None:
         """news_headlines is capped at 5 when not None."""

@@ -195,6 +195,5 @@ class TestOpenBBConfigExtensions:
     def test_existing_fields_unchanged(self) -> None:
         """Verify new fields don't affect existing OpenBBConfig defaults."""
         config = OpenBBConfig()
-        assert config.enabled is True
-        assert config.fundamentals_enabled is True
+        assert config.cboe_chains_enabled is True
         assert config.request_timeout == 15

@@ -47,14 +47,11 @@ class MLConfig(BaseModel):
     enable_garch: bool = False
     enable_markov: bool = False
     enable_macro: bool = False
-    enable_flow_anomaly: bool = False
-    enable_clustering: bool = False
     enable_ml_regime: bool = False
     enable_trajectory: bool = False
     garch_p: int = 1
     garch_q: int = 1
     markov_n_regimes: int = 3
-    contract_n_clusters: int = 4
     trajectory_horizons: list[int] = [30, 60, 90]
     trajectory_sequence_length: int = 60
     trajectory_hidden_dim: int = 128
@@ -80,14 +77,6 @@ class MLConfig(BaseModel):
         """Ensure Markov regime count is in [2, 5]."""
         if not 2 <= v <= 5:
             raise ValueError(f"markov_n_regimes must be in [2, 5], got {v}")
-        return v
-
-    @field_validator("contract_n_clusters")
-    @classmethod
-    def _validate_contract_n_clusters(cls, v: int) -> int:
-        """Ensure contract cluster count is in [2, 10]."""
-        if not 2 <= v <= 10:
-            raise ValueError(f"contract_n_clusters must be in [2, 10], got {v}")
         return v
 
     @field_validator("neural_surface_epochs")
@@ -291,7 +280,6 @@ class DebateConfig(BaseModel):
     batch_ticker_delay: float = 5.0  # seconds between tickers in batch debate
     rate_limit_retries: int = 3  # max 429 retries at transport level (0 = disabled)
     rate_limit_max_wait: float = 30.0  # max single retry wait in seconds
-    enable_regime_weights: bool = False  # opt-in regime-adjusted scoring weights
     auto_tune_weights: bool = False  # opt-in auto-tuned agent vote weights from accuracy data
 
     @field_validator("thinking_budget_tokens")

@@ -11,6 +11,8 @@ contract filtering with Greeks dispatch. Receives pre-fetched data — **no API 
 | `composite.py` | Weighted geometric mean composite score per ticker |
 | `direction.py` | BULLISH / BEARISH / NEUTRAL classification |
 | `contracts.py` | Greeks dispatch, delta targeting, contract selection |
+| `dimensional.py` | 8 per-family sub-scores from `IndicatorSignals`, direction signal classification |
+| `spreads.py` | Multi-leg strategy construction (vertical, iron condor, straddle, strangle), IV regime mapping |
 | `__init__.py` | Re-exports public API |
 
 ## Architecture Rules

@@ -120,28 +120,6 @@ def build_cleaned_agent_response(output: AgentResponse) -> AgentResponse:
     )
 
 
-def build_cleaned_trade_thesis(output: TradeThesis) -> TradeThesis:
-    """Strip ``<think>`` tags from all text fields of a ``TradeThesis``.
-
-    Returns the original instance unchanged if no ``<think>`` tags are found.
-    Constructs a new frozen instance with cleaned text fields otherwise.
-    """
-    fields = [output.summary, output.risk_assessment, *output.key_factors]
-    if not any("<think>" in v or "</think>" in v for v in fields):
-        return output
-    return TradeThesis(
-        ticker=output.ticker,
-        direction=output.direction,
-        confidence=output.confidence,
-        summary=strip_think_tags(output.summary),
-        bull_score=output.bull_score,
-        bear_score=output.bear_score,
-        key_factors=[strip_think_tags(f) for f in output.key_factors],
-        risk_assessment=strip_think_tags(output.risk_assessment),
-        recommended_strategy=output.recommended_strategy,
-    )
-
-
 def build_cleaned_volatility_thesis(output: VolatilityThesis) -> VolatilityThesis:
     """Strip ``<think>`` tags from all text fields of a ``VolatilityThesis``.
 
@@ -319,12 +297,6 @@ class DebateDeps:
     context: MarketContext
     ticker_score: TickerScore
     contracts: list[OptionContract]
-    opponent_argument: str | None = None  # For bear (receives bull's text)
-    bear_counter_argument: str | None = None  # For bull rebuttal (bear's key_points as text)
-    bull_response: AgentResponse | None = None  # For risk agent
-    bear_response: AgentResponse | None = None  # For risk agent
-    bull_rebuttal: AgentResponse | None = None  # For risk agent (bull's rebuttal)
-    vol_response: VolatilityThesis | None = None  # For risk agent (vol context)
     # --- 6-agent protocol fields ---
     trend_response: AgentResponse | None = None  # Phase 1 trend output
     volatility_thesis: VolatilityThesis | None = None  # Phase 1 vol output

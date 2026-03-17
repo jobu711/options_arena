@@ -181,13 +181,6 @@ class MarketContext(BaseModel):
     vol_forecast_garch: float | None = None  # GARCH annualized vol forecast
     iv_vs_forecast_spread: float | None = None  # EWMA vol - GARCH forecast (positive = vol rich)
 
-    # --- ML Flow Anomaly Detection ---
-    flow_anomaly_score: float | None = None  # Isolation Forest decision function score
-
-    # --- ML GBM Regime Classification ---
-    ml_regime: str | None = None  # predicted regime label (e.g. "trending_up")
-    ml_regime_confidence: float | None = None  # GBM classifier max class probability
-
     # --- Macro Context (FRED) ---
     macro_regime: MacroRegime | None = None
     yield_spread: float | None = None  # 10Y-2Y spread (decimal fraction)
@@ -285,91 +278,6 @@ class MarketContext(BaseModel):
         """
         return 0.0
 
-    def intelligence_ratio(self) -> float:
-        """Fraction of 8 intelligence fields populated (0.0-1.0).
-
-        Separate from ``completeness_ratio()`` so that intelligence data
-        doesn't penalise debates when intelligence fetching is disabled.
-        """
-        intel_fields: list[object] = [
-            self.analyst_target_mean,
-            self.analyst_target_upside_pct,
-            self.analyst_consensus_score,
-            self.analyst_upgrades_30d,
-            self.analyst_downgrades_30d,
-            self.insider_net_buys_90d,
-            self.insider_buy_ratio,
-            self.institutional_pct,
-        ]
-        populated = sum(1 for f in intel_fields if f is not None)
-        return populated / len(intel_fields)
-
-    def dse_ratio(self) -> float:
-        """Fraction of 22 DSE fields populated (0.0-1.0).
-
-        Separate from ``completeness_ratio()`` so that DSE data doesn't
-        penalise debates for tickers not included in scan results.
-        """
-        dse_fields: list[float | None] = [
-            self.dim_trend,
-            self.dim_iv_vol,
-            self.dim_hv_vol,
-            self.dim_flow,
-            self.dim_microstructure,
-            self.dim_fundamental,
-            self.dim_regime,
-            self.dim_risk,
-            self.vol_regime,
-            self.iv_hv_spread,
-            self.gex,
-            self.unusual_activity_score,
-            self.skew_ratio,
-            self.vix_term_structure,
-            self.market_regime,
-            self.rsi_divergence,
-            self.expected_move,
-            self.expected_move_ratio,
-            self.target_vanna,
-            self.target_charm,
-            self.target_vomma,
-            self.direction_confidence,
-        ]
-        populated = sum(1 for f in dse_fields if f is not None)
-        return populated / len(dse_fields)
-
-    def financial_datasets_ratio(self) -> float:
-        """Fraction of fd_* fields populated (0.0 to 1.0).
-
-        Separate from ``completeness_ratio()`` so that Financial Datasets data
-        doesn't penalise debates when the service is disabled or unavailable.
-        """
-        fd_fields: list[float | None] = [
-            self.fd_revenue,
-            self.fd_net_income,
-            self.fd_gross_profit,
-            self.fd_operating_income,
-            self.fd_eps_diluted,
-            self.fd_gross_margin,
-            self.fd_operating_margin,
-            self.fd_net_margin,
-            self.fd_total_debt,
-            self.fd_total_cash,
-            self.fd_total_assets,
-            self.fd_current_ratio,
-            self.fd_revenue_growth,
-            self.fd_earnings_growth,
-            self.fd_ev_to_ebitda,
-            self.fd_free_cash_flow_yield,
-            self.fd_free_cash_flow,
-            self.fd_capex,
-            self.fd_depreciation_amortization,
-            self.fd_book_value_per_share,
-            self.fd_roe,
-            self.fd_shares_outstanding,
-        ]
-        populated = sum(1 for f in fd_fields if f is not None)
-        return populated / len(fd_fields)
-
     @field_validator("rsi_14", "target_delta", "dividend_yield", "composite_score")
     @classmethod
     def validate_required_finite(cls, v: float) -> float:
@@ -438,9 +346,6 @@ class MarketContext(BaseModel):
         # ML Volatility Forecasts
         "vol_forecast_garch",
         "iv_vs_forecast_spread",
-        # ML Flow Anomaly Detection
-        "flow_anomaly_score",
-        # ML GBM Regime Classification — ml_regime_confidence has its own [0,1] validator
         # Spread strategy — spread_pop has its own [0,1] validator
         "spread_risk_reward",
         # Position sizing — position_size_pct has its own [0,1] validator
@@ -520,7 +425,6 @@ class MarketContext(BaseModel):
 
     @field_validator(
         "direction_confidence",
-        "ml_regime_confidence",
         "position_size_pct",
         "insider_buy_ratio",
         "institutional_pct",

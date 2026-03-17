@@ -3,6 +3,9 @@
 @.claude/context/tech-context.md
 @.claude/context/progress.md
 @.claude/context/system-patterns.md
+@.claude/context/system-patterns-reference.md
+@.claude/context/product-context.md
+@.claude/context/module-summaries.md
 
 ## What This Project Does
 
@@ -287,18 +290,19 @@ Auto-generated reference: `docs/technical-reference.md` — API signatures, depe
 
 ## Context Budget Policy
 
-Auto-loaded context has a strict budget. Every line costs attention on all tasks.
+With 1M token context, the cost of loading context is near-zero but the cost of
+missing context is high (wrong code, rework, violations). Budget is generous.
 
 | Category | Current | Max |
 |----------|---------|-----|
-| CLAUDE.md | 284 lines | 350 lines |
-| @-referenced context files | 203 lines | 300 lines |
-| .claude/rules/ files | 33 lines | 400 lines |
-| **Grand total** | **520** | **1,050** |
+| CLAUDE.md | 308 lines | 500 lines |
+| @-referenced context files | 569 lines | 2,000 lines |
+| .claude/rules/ files | 109 lines | 1,000 lines |
+| **Grand total** | **986** | **3,500** |
 
 Rules:
 - `progress.md`: Current state only. Move completed work to `progress-archive.md`.
 - `system-patterns.md`: Unique patterns only. No duplication with CLAUDE.md.
-- Rules: Only universally-needed rules in `.claude/rules/`. Workflow-specific → `.claude/guides/`.
-- When adding content to any auto-loaded file, remove or move equal or greater content.
-- Verify: `wc -l CLAUDE.md .claude/context/progress.md .claude/context/system-patterns.md .claude/context/tech-context.md .claude/rules/*.md`
+- Rules: Universally-needed rules in `.claude/rules/`. Workflow-specific → `.claude/guides/`.
+- `module-summaries.md`: Condensed critical constraints from all 13 module CLAUDE.md files.
+- Verify: `wc -l CLAUDE.md .claude/context/*.md .claude/rules/*.md`

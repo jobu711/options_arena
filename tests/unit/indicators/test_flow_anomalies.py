@@ -243,20 +243,6 @@ class TestFlowAnomalyResult:
 # ---------------------------------------------------------------------------
 
 
-class TestConfigFlag:
-    """Tests for MLConfig.enable_flow_anomaly flag."""
-
-    def test_enable_flow_anomaly_default_false(self) -> None:
-        """Verify MLConfig.enable_flow_anomaly defaults to False."""
-        config = MLConfig()
-        assert config.enable_flow_anomaly is False
-
-    def test_enable_flow_anomaly_can_be_set(self) -> None:
-        """Verify enable_flow_anomaly can be set to True."""
-        config = MLConfig(enable_flow_anomaly=True)
-        assert config.enable_flow_anomaly is True
-
-
 # ---------------------------------------------------------------------------
 # TestIndicatorSignalsField
 # ---------------------------------------------------------------------------

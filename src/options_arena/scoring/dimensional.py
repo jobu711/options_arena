@@ -1,7 +1,7 @@
 """Dimensional scoring engine for the Deep Signal Engine.
 
 Computes 8 per-family sub-scores from IndicatorSignals using weighted
-mean scoped per family.  Supports regime-adjusted weights.
+mean scoped per family.
 
 Family scores are simple arithmetic means of non-None indicator values
 within each family, producing a 0--100 scale score per family.
@@ -10,7 +10,7 @@ within each family, producing a 0--100 scale score per family.
 import logging
 import math
 
-from options_arena.models.enums import MarketRegime, SignalDirection
+from options_arena.models.enums import SignalDirection
 from options_arena.models.scan import IndicatorSignals
 from options_arena.models.scoring import DimensionalScores, DirectionSignal
 
@@ -142,54 +142,6 @@ DEFAULT_FAMILY_WEIGHTS: dict[str, float] = {
 }
 
 # ---------------------------------------------------------------------------
-# Regime-adjusted weight profiles (4 regimes)
-# ---------------------------------------------------------------------------
-
-REGIME_WEIGHT_PROFILES: dict[MarketRegime, dict[str, float]] = {
-    MarketRegime.TRENDING: {
-        "trend": 0.30,
-        "iv_vol": 0.15,
-        "flow": 0.15,
-        "hv_vol": 0.05,
-        "microstructure": 0.08,
-        "fundamental": 0.10,
-        "regime": 0.07,
-        "risk": 0.10,
-    },
-    MarketRegime.MEAN_REVERTING: {
-        "trend": 0.15,
-        "iv_vol": 0.25,
-        "flow": 0.15,
-        "hv_vol": 0.08,
-        "microstructure": 0.10,
-        "fundamental": 0.10,
-        "regime": 0.07,
-        "risk": 0.10,
-    },
-    MarketRegime.VOLATILE: {
-        "trend": 0.15,
-        "iv_vol": 0.25,
-        "flow": 0.20,
-        "hv_vol": 0.05,
-        "microstructure": 0.05,
-        "fundamental": 0.08,
-        "regime": 0.07,
-        "risk": 0.15,
-    },
-    MarketRegime.CRISIS: {
-        "trend": 0.10,
-        "iv_vol": 0.15,
-        "flow": 0.15,
-        "hv_vol": 0.05,
-        "microstructure": 0.05,
-        "fundamental": 0.05,
-        "regime": 0.15,
-        "risk": 0.30,
-    },
-}
-
-
-# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -227,54 +179,6 @@ def compute_dimensional_scores(signals: IndicatorSignals) -> DimensionalScores:
             family_scores[family] = max(0.0, min(100.0, raw_mean))
 
     return DimensionalScores(**family_scores)
-
-
-def apply_regime_weights(
-    scores: DimensionalScores,
-    regime: MarketRegime | None = None,
-    enable_regime_weights: bool = False,
-) -> float:
-    """Compute weighted composite from dimensional scores.
-
-    If *enable_regime_weights* is ``True`` and *regime* is provided, use
-    the corresponding ``REGIME_WEIGHT_PROFILES`` profile.  Otherwise use
-    ``DEFAULT_FAMILY_WEIGHTS``.
-
-    Families with ``None`` scores are skipped, and their weight is
-    redistributed proportionally to the remaining families so that the
-    composite is still on a 0--100 scale.
-
-    Args:
-        scores: Per-family dimensional scores.
-        regime: Current market regime (optional).
-        enable_regime_weights: Whether to use regime-adjusted weights.
-
-    Returns:
-        Composite score clamped to [0.0, 100.0].  Returns 0.0 when all
-        family scores are ``None``.
-    """
-    if enable_regime_weights and regime is not None:
-        weights = REGIME_WEIGHT_PROFILES[regime]
-    else:
-        weights = DEFAULT_FAMILY_WEIGHTS
-
-    weighted_sum: float = 0.0
-    weight_sum: float = 0.0
-
-    for family in _FAMILY_NAMES:
-        family_score: float | None = getattr(scores, family)
-        if family_score is None:
-            continue
-        weight = weights[family]
-        weighted_sum += weight * family_score
-        weight_sum += weight
-
-    if weight_sum == 0.0:
-        return 0.0
-
-    # Renormalize so partial coverage still produces 0-100 scale
-    raw_composite = weighted_sum / weight_sum
-    return max(0.0, min(100.0, raw_composite))
 
 
 _PHI_SCALE: float = math.pi / math.sqrt(3)

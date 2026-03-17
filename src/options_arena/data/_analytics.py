@@ -212,25 +212,6 @@ class AnalyticsMixin(RepositoryBase):
             await conn.commit()
         logger.debug("Saved %d normalization stats for scan %d", len(stats), scan_id)
 
-    async def get_normalization_stats(self, scan_id: int) -> list[NormalizationStats]:
-        """Get normalization stats for a scan run.
-
-        Args:
-            scan_id: Database ID of the scan run.
-
-        Returns:
-            List of ``NormalizationStats`` models (empty if none found).
-        """
-        conn = self._db.conn
-        async with conn.execute(
-            "SELECT * FROM normalization_metadata WHERE scan_run_id = ? ORDER BY id ASC",
-            (scan_id,),
-        ) as cursor:
-            rows = await cursor.fetchall()
-        stats = [self._row_to_normalization_stats(row) for row in rows]
-        logger.debug("Retrieved %d normalization stats for scan %d", len(stats), scan_id)
-        return stats
-
     @staticmethod
     def _row_to_recommended_contract(row: Row) -> RecommendedContract:
         """Reconstruct a RecommendedContract from an aiosqlite.Row.
@@ -347,26 +328,6 @@ class AnalyticsMixin(RepositoryBase):
         await conn.commit()
         logger.debug("Saved %d contract outcomes", len(outcomes))
 
-    async def get_outcomes_for_contract(self, contract_id: int) -> list[ContractOutcome]:
-        """Get all outcomes for a recommended contract, ordered by holding_days.
-
-        Args:
-            contract_id: Database ID of the recommended contract.
-
-        Returns:
-            List of ``ContractOutcome`` models (empty if none found).
-        """
-        conn = self._db.conn
-        async with conn.execute(
-            "SELECT * FROM contract_outcomes "
-            "WHERE recommended_contract_id = ? ORDER BY holding_days ASC",
-            (contract_id,),
-        ) as cursor:
-            rows = await cursor.fetchall()
-        outcomes = [self._row_to_contract_outcome(row) for row in rows]
-        logger.debug("Retrieved %d outcomes for contract %d", len(outcomes), contract_id)
-        return outcomes
-
     async def get_contracts_needing_outcomes(
         self, holding_days: int, lookback_date: date
     ) -> list[RecommendedContract]:
@@ -402,29 +363,6 @@ class AnalyticsMixin(RepositoryBase):
             lookback_date,
         )
         return contracts
-
-    async def has_outcome(self, contract_id: int, exit_date: date) -> bool:
-        """Check if an outcome already exists for a contract and exit date.
-
-        Used for duplicate prevention before inserting new outcomes.
-
-        Args:
-            contract_id: Database ID of the recommended contract.
-            exit_date: The exit observation date.
-
-        Returns:
-            ``True`` if an outcome exists, ``False`` otherwise.
-        """
-        conn = self._db.conn
-        async with conn.execute(
-            "SELECT EXISTS("
-            "  SELECT 1 FROM contract_outcomes "
-            "  WHERE recommended_contract_id = ? AND exit_date = ?"
-            ") AS has_row",
-            (contract_id, exit_date.isoformat()),
-        ) as cursor:
-            row = await cursor.fetchone()
-        return bool(row["has_row"]) if row else False
 
     @staticmethod
     def _row_to_contract_outcome(row: Row) -> ContractOutcome:

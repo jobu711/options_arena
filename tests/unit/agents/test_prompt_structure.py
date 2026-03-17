@@ -1,4 +1,4 @@
-"""Structural regression tests for all 8 agent system prompts.
+"""Structural regression tests for all 6 agent system prompts.
 
 Tests cover:
   - Each prompt contains PROMPT_RULES_APPENDIX text
@@ -18,8 +18,6 @@ import re
 import pytest
 
 from options_arena.agents._parsing import PROMPT_RULES_APPENDIX
-from options_arena.agents.bear import BEAR_SYSTEM_PROMPT
-from options_arena.agents.bull import BULL_SYSTEM_PROMPT
 from options_arena.agents.flow_agent import FLOW_SYSTEM_PROMPT
 from options_arena.agents.fundamental_agent import FUNDAMENTAL_SYSTEM_PROMPT
 from options_arena.agents.prompts.contrarian_agent import CONTRARIAN_SYSTEM_PROMPT
@@ -27,10 +25,8 @@ from options_arena.agents.prompts.trend_agent import TREND_SYSTEM_PROMPT
 from options_arena.agents.risk import RISK_SYSTEM_PROMPT
 from options_arena.agents.volatility import VOLATILITY_SYSTEM_PROMPT
 
-# All 8 prompts as parametrize tuples: (name, prompt_constant)
+# All 6 prompts as parametrize tuples: (name, prompt_constant)
 ALL_PROMPTS: list[tuple[str, str]] = [
-    ("bull", BULL_SYSTEM_PROMPT),
-    ("bear", BEAR_SYSTEM_PROMPT),
     ("volatility", VOLATILITY_SYSTEM_PROMPT),
     ("flow", FLOW_SYSTEM_PROMPT),
     ("fundamental", FUNDAMENTAL_SYSTEM_PROMPT),
@@ -142,8 +138,6 @@ class TestVersionHeaders:
 
     # Source modules containing prompt constants — point at prompts/ submodules
     _PROMPT_SOURCES = [
-        ("bull", "options_arena.agents.prompts.bull"),
-        ("bear", "options_arena.agents.prompts.bear"),
         ("volatility", "options_arena.agents.prompts.volatility"),
         ("flow", "options_arena.agents.prompts.flow_agent"),
         ("fundamental", "options_arena.agents.prompts.fundamental_agent"),

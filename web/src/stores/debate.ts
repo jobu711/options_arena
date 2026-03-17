@@ -80,18 +80,15 @@ export const useDebateStore = defineStore('debate', () => {
     })
     currentDebateId.value = res.debate_id
 
-    // Initialize agent progress with standard agents
+    // Initialize agent progress with the 6-agent pipeline
     const agents: AgentProgressEntry[] = [
-      { name: 'bull', status: 'pending', confidence: null },
-      { name: 'bear', status: 'pending', confidence: null },
+      { name: 'trend', status: 'pending', confidence: null },
+      { name: 'volatility', status: 'pending', confidence: null },
+      { name: 'flow', status: 'pending', confidence: null },
+      { name: 'fundamental', status: 'pending', confidence: null },
       { name: 'risk', status: 'pending', confidence: null },
+      { name: 'contrarian', status: 'pending', confidence: null },
     ]
-    if (options?.enableVolatilityAgent) {
-      agents.push({ name: 'volatility', status: 'pending', confidence: null })
-    }
-    if (options?.enableRebuttal) {
-      agents.push({ name: 'rebuttal', status: 'pending', confidence: null })
-    }
     agentProgress.value = agents
     error.value = null
     return res.debate_id
@@ -142,7 +139,7 @@ export const useDebateStore = defineStore('debate', () => {
         existing.confidence = event.confidence
       }
     } else {
-      // Dynamic agent (rebuttal, volatility) — add it
+      // Dynamic agent — add it
       agentProgress.value.push({
         name: event.name,
         status: event.status as AgentProgressEntry['status'],
@@ -175,9 +172,12 @@ export const useDebateStore = defineStore('debate', () => {
       // Reset agents when starting new ticker
       if (event.status === 'started') {
         entry.agents = [
-          { name: 'bull', status: 'pending', confidence: null },
-          { name: 'bear', status: 'pending', confidence: null },
+          { name: 'trend', status: 'pending', confidence: null },
+          { name: 'volatility', status: 'pending', confidence: null },
+          { name: 'flow', status: 'pending', confidence: null },
+          { name: 'fundamental', status: 'pending', confidence: null },
           { name: 'risk', status: 'pending', confidence: null },
+          { name: 'contrarian', status: 'pending', confidence: null },
         ]
       }
     }

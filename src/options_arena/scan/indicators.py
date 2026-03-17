@@ -28,20 +28,25 @@ import numpy as np
 import pandas as pd
 
 from options_arena.indicators.flow_analytics import (
+    FlowAnomalyResult,
     compute_dollar_volume_trend,
     compute_gex,
     compute_max_pain_magnet,
     compute_oi_concentration,
     compute_unusual_activity,
+    detect_flow_anomalies,
 )
 from options_arena.indicators.fundamental import (
     compute_div_impact,
     compute_earnings_em_ratio,
     compute_earnings_impact,
     compute_iv_crush_history,
+    compute_short_interest,
 )
+from options_arena.indicators.hurst import hurst_exponent
 from options_arena.indicators.hv_estimators import compute_hv_yang_zhang
 from options_arena.indicators.iv_analytics import (
+    compute_call_skew,
     compute_ewma_vol_forecast,
     compute_expected_move,
     compute_expected_move_ratio,
@@ -49,10 +54,16 @@ from options_arena.indicators.iv_analytics import (
     compute_iv_hv_spread,
     compute_iv_term_shape,
     compute_iv_term_slope,
+    compute_put_skew,
+    compute_skew_ratio,
     compute_vol_cone_pctl,
 )
 from options_arena.indicators.moving_averages import sma_alignment, vwap_deviation
-from options_arena.indicators.options_specific import max_pain, put_call_ratio_volume
+from options_arena.indicators.options_specific import (
+    compute_spread_quality,
+    max_pain,
+    put_call_ratio_volume,
+)
 from options_arena.indicators.oscillators import rsi, stoch_rsi, williams_r
 from options_arena.indicators.regime import (
     compute_correlation_regime_shift,
@@ -309,6 +320,14 @@ def _compute_ohlcv_dse(
     except Exception:
         logger.warning("Indicator volume_profile_skew failed; setting to None", exc_info=True)
 
+    # --- hurst_exponent ---
+    try:
+        hurst = hurst_exponent(close)
+        if hurst is not None and math.isfinite(hurst):
+            signals.hurst_exponent = hurst
+    except Exception:
+        logger.warning("Indicator hurst_exponent failed; setting to None", exc_info=True)
+
 
 def compute_options_indicators(
     contracts: list[OptionContract],
@@ -420,6 +439,7 @@ def compute_phase3_indicators(
     spx_close: pd.Series | None = None,
     ohlcv_df: pd.DataFrame | None = None,
     vol_result: VolSurfaceResult | None = None,
+    short_ratio: float | None = None,
 ) -> IndicatorSignals:
     """Compute DSE indicators that require chain, ticker, or SPX data.
 
@@ -458,6 +478,9 @@ def compute_phase3_indicators(
         ``compute_vol_surface()``.  When provided, ``skew_25d``,
         ``smile_curvature``, ``prob_above_current``, and ``atm_iv_30d``
         are extracted.  ``None`` skips vol surface indicators.
+    short_ratio
+        Short interest ratio (days to cover) from ``TickerInfo.short_ratio``.
+        ``None`` when unavailable.
 
     Returns
     -------
@@ -519,6 +542,40 @@ def compute_phase3_indicators(
             atm_iv_30d = vol_result.atm_iv_30d
         if vol_result.atm_iv_60d is not None and math.isfinite(vol_result.atm_iv_60d):
             atm_iv_60d = vol_result.atm_iv_60d
+
+    # --- Group D: IV Skew Analytics (from chain 25-delta IV extraction) ---
+    # Extract 25-delta IV values from the option chain for skew metrics.
+    # These complement the aggregate skew_25d already stored from vol_result above.
+    iv_25d_put: float | None = None
+    iv_25d_call: float | None = None
+    try:
+        iv_25d_put, iv_25d_call = _extract_25d_ivs(contracts, spot)
+    except Exception:
+        logger.warning("25-delta IV extraction failed; setting to None", exc_info=True)
+
+    # put_skew_index: (IV_25d_put - IV_ATM) / IV_ATM
+    try:
+        put_skew = compute_put_skew(iv_25d_put, atm_iv_30d)
+        if put_skew is not None and math.isfinite(put_skew):
+            signals.put_skew_index = put_skew
+    except Exception:
+        logger.warning("Indicator put_skew_index failed; setting to None", exc_info=True)
+
+    # call_skew_index: (IV_25d_call - IV_ATM) / IV_ATM
+    try:
+        call_skew = compute_call_skew(iv_25d_call, atm_iv_30d)
+        if call_skew is not None and math.isfinite(call_skew):
+            signals.call_skew_index = call_skew
+    except Exception:
+        logger.warning("Indicator call_skew_index failed; setting to None", exc_info=True)
+
+    # skew_ratio: IV_25d_put / IV_25d_call
+    try:
+        sk_ratio = compute_skew_ratio(iv_25d_put, iv_25d_call)
+        if sk_ratio is not None and math.isfinite(sk_ratio):
+            signals.skew_ratio = sk_ratio
+    except Exception:
+        logger.warning("Indicator skew_ratio failed; setting to None", exc_info=True)
 
     # iv_hv_spread
     try:
@@ -624,6 +681,44 @@ def compute_phase3_indicators(
     except Exception:
         logger.warning("Indicator max_pain_magnet failed; setting to None", exc_info=True)
 
+    # --- Group C: Chain-Derived Indicators ---
+
+    # spread_quality (OI-weighted avg bid-ask spread from chain)
+    try:
+        if not chain_df.empty:
+            sq = compute_spread_quality(chain_df)
+            if sq is not None and math.isfinite(sq):
+                signals.spread_quality = sq
+    except Exception:
+        logger.warning("Indicator spread_quality failed; setting to None", exc_info=True)
+
+    # flow_anomaly_score (Isolation Forest anomaly detection on chain flow)
+    try:
+        if not chain_df.empty:
+            # Compute 20-day average volume from close_series/volume for anomaly context
+            avg_volume_20d: float | None = None
+            if ohlcv_df is not None and "volume" in ohlcv_df.columns:
+                vol_tail = ohlcv_df["volume"].iloc[-20:]
+                if len(vol_tail) >= 10:
+                    avg_volume_20d = float(vol_tail.mean())
+            anomaly_result: FlowAnomalyResult | None = detect_flow_anomalies(
+                chain_df, avg_volume_20d
+            )
+            if anomaly_result is not None and math.isfinite(anomaly_result.anomaly_score):
+                signals.flow_anomaly_score = anomaly_result.anomaly_score
+    except Exception:
+        logger.warning("Indicator flow_anomaly_score failed; setting to None", exc_info=True)
+
+    # TODO: compute_pop(d2, option_type) — requires BSM d2 parameter which is not
+    # available in Phase 3 context.  d2 is computed during Greeks calculation in
+    # pricing/dispatch.py.  Would need contract-level wiring post-recommend.
+
+    # TODO: compute_optimal_dte(theta, expected_value) — requires per-contract theta
+    # and expected value, neither of which are available at the Phase 3 aggregate level.
+
+    # TODO: compute_max_loss_ratio(contract_cost, account_risk_budget) — requires
+    # account_risk_budget which is user-specific configuration not yet in AppSettings.
+
     # --- Fundamental Indicators ---
 
     # days_to_earnings_impact
@@ -675,6 +770,14 @@ def compute_phase3_indicators(
                     signals.iv_crush_history = crush
     except Exception:
         logger.warning("Indicator iv_crush_history failed; setting to None", exc_info=True)
+
+    # short_interest_ratio (passthrough from TickerInfo.short_ratio)
+    try:
+        si = compute_short_interest(short_ratio)
+        if si is not None and math.isfinite(si):
+            signals.short_interest_ratio = si
+    except Exception:
+        logger.warning("Indicator short_interest_ratio failed; setting to None", exc_info=True)
 
     # --- Market Regime (from volatility data) ---
     try:
@@ -833,6 +936,68 @@ def _extract_atm_iv_by_dte(
     atm_iv_30d = best_30d[1] if best_30d is not None else None
     atm_iv_60d = best_60d[1] if best_60d is not None else None
     return atm_iv_30d, atm_iv_60d
+
+
+def _extract_25d_ivs(
+    contracts: list[OptionContract],
+    spot: float,
+) -> tuple[float | None, float | None]:
+    """Extract approximate 25-delta put and call IVs from the option chain.
+
+    Finds OTM puts near 95% moneyness (25-delta put proxy) and OTM calls near
+    105% moneyness (25-delta call proxy) in the 20-45 DTE bucket.  Uses
+    ``market_iv`` from yfinance as the IV source.
+
+    Parameters
+    ----------
+    contracts
+        Full option chain (all expirations, unfiltered).
+    spot
+        Current underlying price.
+
+    Returns
+    -------
+    tuple[float | None, float | None]
+        ``(iv_25d_put, iv_25d_call)`` — IV at approximate 25-delta for puts
+        and calls.  ``None`` when no suitable contract exists.
+    """
+    if not contracts or spot <= 0.0:
+        return None, None
+
+    today = date.today()
+    # Track best candidate for each: (distance_metric, iv)
+    best_put: tuple[float, float] | None = None
+    best_call: tuple[float, float] | None = None
+
+    for c in contracts:
+        dte = (c.expiration - today).days
+        if dte <= 0:
+            continue
+        # Focus on 20-45 DTE bucket (same as 30d ATM bucket)
+        if not (20 <= dte <= 45):
+            continue
+
+        iv = c.market_iv
+        if not math.isfinite(iv) or iv <= 0.0:
+            continue
+
+        moneyness = float(c.strike) / spot
+
+        # 25-delta put: OTM puts near 0.90-0.98 moneyness, target ~0.95
+        if c.option_type == OptionType.PUT and 0.85 <= moneyness <= 1.0:
+            dist = abs(moneyness - 0.95) + abs(dte - 30) * 0.01
+            if best_put is None or dist < best_put[0]:
+                best_put = (dist, iv)
+
+        # 25-delta call: OTM calls near 1.02-1.10 moneyness, target ~1.05
+        if c.option_type == OptionType.CALL and 1.0 <= moneyness <= 1.15:
+            dist = abs(moneyness - 1.05) + abs(dte - 30) * 0.01
+            if best_call is None or dist < best_call[0]:
+                best_call = (dist, iv)
+
+    iv_25d_put = best_put[1] if best_put is not None else None
+    iv_25d_call = best_call[1] if best_call is not None else None
+    return iv_25d_put, iv_25d_call
 
 
 def _contracts_to_dataframe(

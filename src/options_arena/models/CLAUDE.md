@@ -8,14 +8,28 @@ Every piece of data that crosses a module boundary is a typed model from here.
 
 | File | Contents |
 |------|----------|
-| `enums.py` | `OptionType`, `PositionSide`, `SignalDirection`, `ExerciseStyle`, `PricingModel`, `MarketCapTier`, `DividendSource`, `SpreadType`, `GreeksSource` |
+| `enums.py` | 33 StrEnum classes + `TICKER_RE`, `SECTOR_ALIASES`, `INDUSTRY_GROUP_ALIASES`, `SECTOR_TO_INDUSTRY_GROUPS` |
+| `_validators.py` | Shared validation helpers: `validate_unit_interval()`, `validate_non_empty_list()` |
 | `market_data.py` | `OHLCV`, `Quote`, `TickerInfo` |
-| `options.py` | `OptionGreeks`, `OptionContract`, `SpreadLeg`, `OptionSpread` |
-| `analysis.py` | `MarketContext`, `AgentResponse`, `TradeThesis` |
+| `options.py` | `OptionGreeks`, `OptionContract`, `SpreadLeg`, `OptionSpread`, `SpreadAnalysis` |
+| `analysis.py` | `MarketContext`, `AgentResponse`, `TradeThesis`, `VolatilityThesis`, `FlowThesis`, `RiskAssessment`, `FundamentalThesis`, `ContrarianThesis`, `ExtendedTradeThesis`, `AgentPrediction`, `ContractConstraint`, `PositionSizeResult` |
+| `analytics.py` | `RecommendedContract`, `ContractOutcome`, `NormalizationStats`, `WinRateResult`, `ScoreCalibrationBucket`, `IndicatorAttributionResult`, `HoldingPeriodResult`, `DeltaPerformanceResult`, `PerformanceSummary`, `AgentAccuracyReport`, `CalibrationBucket`, `AgentCalibrationData`, `AgentWeightsComparison`, `EquityCurvePoint`, `DrawdownPoint`, `SectorPerformanceResult`, `DTEBucketResult`, `IVRankBucketResult`, `GreeksDecompositionResult`, `HoldingPeriodComparison`, `WeightSnapshot`, `RiskAdjustedMetrics` |
 | `scan.py` | `IndicatorSignals`, `TickerScore`, `ScanRun` |
-| `config.py` | `ScanConfig`, `PricingConfig`, `ServiceConfig`, `AppSettings` |
+| `scan_delta.py` | `TickerDelta`, `ScanDiff` — computed diff between two scan runs |
+| `scoring.py` | `DimensionalScores` (8 per-family sub-scores), `DirectionSignal` |
+| `config.py` | `MLConfig`, `ScanConfig`, `PricingConfig`, `ServiceConfig`, `LogConfig`, `DataConfig`, `DebateConfig`, `IntelligenceConfig`, `AnalyticsConfig`, `FinancialDatasetsConfig`, `PositionSizingConfig`, `SpreadConfig`, `OpenBBConfig`, `AppSettings` |
 | `health.py` | `HealthStatus` |
-| `__init__.py` | Re-exports all public models and enums |
+| `history.py` | `HistoryPoint`, `TrendingTicker` — score history tracking |
+| `intelligence.py` | `AnalystSnapshot`, `UpgradeDowngrade`, `AnalystActivitySnapshot`, `InsiderTransaction`, `InsiderSnapshot`, `InstitutionalSnapshot`, `IntelligencePackage` |
+| `macro.py` | `FredSeriesConfig` (NamedTuple), `MacroContext`, `MacroSignals`, `MacroRegimeResult` |
+| `metadata.py` | `TickerMetadata`, `MetadataCoverage` — ticker classification cache |
+| `filters.py` | `UniverseFilters`, `ScoringFilters`, `OptionsFilters`, `ScanFilterSpec` — pre-scan pipeline filter specs |
+| `financial_datasets.py` | `FinancialMetricsData`, `IncomeStatementData`, `BalanceSheetData`, `FinancialDatasetsPackage` |
+| `correlation.py` | `PairwiseCorrelation`, `CorrelationMatrix` — portfolio correlation analysis |
+| `valuation.py` | `ValuationModelResult`, `CompositeValuation` — multi-methodology equity valuation |
+| `audit.py` | `AuditFinding`, `AuditLayerSummary`, `AuditReport` — math computation audit framework |
+| `constants.py` | `UNLIMITED_SENTINEL` — shared sentinel string for spread analysis |
+| `__init__.py` | Re-exports all public models, enums, and constants (~130 names) |
 
 ---
 
@@ -81,59 +95,25 @@ class RangeModel(BaseModel):
 
 ---
 
-## Enums — All Use StrEnum
+## Enums — All Use StrEnum (33 classes)
 
-```python
-from enum import StrEnum
-
-class OptionType(StrEnum):
-    CALL = "call"
-    PUT = "put"
-
-class PositionSide(StrEnum):
-    LONG = "long"
-    SHORT = "short"
-
-class SignalDirection(StrEnum):
-    BULLISH = "bullish"
-    BEARISH = "bearish"
-    NEUTRAL = "neutral"
-
-class ExerciseStyle(StrEnum):          # NEW — on every OptionContract
-    AMERICAN = "american"
-    EUROPEAN = "european"
-
-class PricingModel(StrEnum):           # NEW — on OptionGreeks
-    BSM = "bsm"
-    BAW = "baw"
-
-class MarketCapTier(StrEnum):          # NEW — replaces raw string "mid_cap"
-    MEGA = "mega"
-    LARGE = "large"
-    MID = "mid"
-    SMALL = "small"
-    MICRO = "micro"
-
-class DividendSource(StrEnum):         # NEW — provenance tracking on TickerInfo
-    FORWARD = "forward"                # yfinance info["dividendYield"]
-    TRAILING = "trailing"              # yfinance info["trailingAnnualDividendYield"]
-    COMPUTED = "computed"              # sum(get_dividends("1y")) / price
-    NONE = "none"                      # no dividend data available → 0.0
-
-class SpreadType(StrEnum):
-    VERTICAL = "vertical"
-    CALENDAR = "calendar"
-    IRON_CONDOR = "iron_condor"
-    STRADDLE = "straddle"
-    STRANGLE = "strangle"
-    BUTTERFLY = "butterfly"
-
-class GreeksSource(StrEnum):
-    COMPUTED = "computed"
-    MARKET = "market"
-```
-
+All enums in `enums.py` are Python 3.13+ `enum.StrEnum` with lowercase string values.
 Never raw strings in business logic. Always `OptionType.CALL`, `ExerciseStyle.AMERICAN`.
+
+| Category | Enums |
+|----------|-------|
+| **Core options** | `OptionType`, `PositionSide`, `ExerciseStyle`, `SpreadType` |
+| **Signals & direction** | `SignalDirection`, `MacdSignal`, `RiskLevel`, `CatalystImpact` |
+| **Pricing & Greeks** | `PricingModel`, `GreeksSource`, `GreeksGroupBy`, `SurfaceMethod` |
+| **Volatility** | `VolAssessment`, `VolRegime`, `VolRegimeTier`, `IVTermStructureShape` |
+| **Market classification** | `MarketCapTier`, `MarketRegime`, `DividendSource` |
+| **GICS taxonomy** | `GICSSector`, `GICSIndustryGroup` |
+| **Scan & pipeline** | `ScanPreset`, `ScanSource`, `OutcomeCollectionMethod` |
+| **Agent & debate** | `LLMProvider`, `ConstraintViolationType`, `ConstraintSeverity` |
+| **Valuation & macro** | `ValuationSignal`, `MacroRegime`, `FredTransform` |
+| **Audit** | `AuditSeverity`, `AuditLayer` |
+
+Also exported: `TICKER_RE` (compiled regex), `SECTOR_ALIASES`, `INDUSTRY_GROUP_ALIASES`, `SECTOR_TO_INDUSTRY_GROUPS` (lookup dicts).
 
 ---
 
@@ -501,64 +481,29 @@ Test that `Decimal("1.05")` survives a JSON roundtrip without becoming `1.050000
 
 ## Re-Export Pattern (`__init__.py`)
 
-```python
-"""Options Arena — Data Models."""
+`__init__.py` re-exports ~130 names from all submodules. Grouped by source file:
 
-from options_arena.models.enums import (
-    DividendSource,
-    ExerciseStyle,
-    GreeksSource,
-    MarketCapTier,
-    OptionType,
-    PositionSide,
-    PricingModel,
-    SignalDirection,
-    SpreadType,
-)
-from options_arena.models.market_data import OHLCV, Quote, TickerInfo
-from options_arena.models.options import OptionContract, OptionGreeks, OptionSpread, SpreadLeg
-from options_arena.models.analysis import AgentResponse, MarketContext, TradeThesis
-from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
-from options_arena.models.config import AppSettings, PricingConfig, ScanConfig, ServiceConfig
-from options_arena.models.health import HealthStatus
-
-__all__ = [
-    # Enums
-    "DividendSource",
-    "ExerciseStyle",
-    "GreeksSource",
-    "MarketCapTier",
-    "OptionType",
-    "PositionSide",
-    "PricingModel",
-    "SignalDirection",
-    "SpreadType",
-    # Market data
-    "OHLCV",
-    "Quote",
-    "TickerInfo",
-    # Options
-    "OptionContract",
-    "OptionGreeks",
-    "OptionSpread",
-    "SpreadLeg",
-    # Analysis
-    "AgentResponse",
-    "MarketContext",
-    "TradeThesis",
-    # Scan
-    "IndicatorSignals",
-    "ScanRun",
-    "TickerScore",
-    # Config
-    "AppSettings",
-    "PricingConfig",
-    "ScanConfig",
-    "ServiceConfig",
-    # Health
-    "HealthStatus",
-]
-```
+| Source file | Re-exported names |
+|-------------|-------------------|
+| `enums.py` | All 33 StrEnum classes + `TICKER_RE`, `SECTOR_ALIASES`, `INDUSTRY_GROUP_ALIASES`, `SECTOR_TO_INDUSTRY_GROUPS` |
+| `market_data.py` | `OHLCV`, `Quote`, `TickerInfo` |
+| `options.py` | `OptionContract`, `OptionGreeks`, `OptionSpread`, `SpreadAnalysis`, `SpreadLeg` |
+| `analysis.py` | `AgentPrediction`, `AgentResponse`, `ContractConstraint`, `ContrarianThesis`, `ExtendedTradeThesis`, `FlowThesis`, `FundamentalThesis`, `MarketContext`, `PositionSizeResult`, `RiskAssessment`, `TradeThesis`, `VolatilityThesis` |
+| `analytics.py` | `AgentAccuracyReport`, `AgentCalibrationData`, `AgentWeightsComparison`, `CalibrationBucket`, `ContractOutcome`, `DTEBucketResult`, `DeltaPerformanceResult`, `DrawdownPoint`, `EquityCurvePoint`, `GreeksDecompositionResult`, `HoldingPeriodComparison`, `HoldingPeriodResult`, `IVRankBucketResult`, `IndicatorAttributionResult`, `NormalizationStats`, `PerformanceSummary`, `RecommendedContract`, `RiskAdjustedMetrics`, `ScoreCalibrationBucket`, `SectorPerformanceResult`, `WeightSnapshot`, `WinRateResult` |
+| `scan.py` | `IndicatorSignals`, `ScanRun`, `TickerScore` |
+| `scan_delta.py` | `ScanDiff`, `TickerDelta` |
+| `scoring.py` | `DimensionalScores`, `DirectionSignal` |
+| `config.py` | `AnalyticsConfig`, `AppSettings`, `DataConfig`, `DebateConfig`, `FinancialDatasetsConfig`, `IntelligenceConfig`, `LogConfig`, `MLConfig`, `OpenBBConfig`, `PositionSizingConfig`, `PricingConfig`, `ScanConfig`, `ServiceConfig`, `SpreadConfig` |
+| `health.py` | `HealthStatus` |
+| `history.py` | `HistoryPoint`, `TrendingTicker` |
+| `intelligence.py` | `AnalystActivitySnapshot`, `AnalystSnapshot`, `InsiderSnapshot`, `InsiderTransaction`, `InstitutionalSnapshot`, `IntelligencePackage`, `UpgradeDowngrade` |
+| `macro.py` | `MacroContext`, `MacroRegimeResult`, `MacroSignals` |
+| `metadata.py` | `MetadataCoverage`, `TickerMetadata` |
+| `filters.py` | `OptionsFilters`, `ScanFilterSpec`, `ScoringFilters`, `UniverseFilters` |
+| `financial_datasets.py` | `BalanceSheetData`, `FinancialDatasetsPackage`, `FinancialMetricsData`, `IncomeStatementData` |
+| `correlation.py` | `CorrelationMatrix`, `PairwiseCorrelation` |
+| `valuation.py` | `CompositeValuation`, `ValuationModelResult` |
+| `audit.py` | `AuditFinding`, `AuditLayerSummary`, `AuditReport` |
 
 Consumers import from the package: `from options_arena.models import OptionContract`.
 

@@ -21,7 +21,7 @@ from options_arena.indicators.vol_forecast import (
     compute_garch_forecast,
 )
 from options_arena.indicators.vol_forecast import (
-    test_stationarity as adf_test_stationarity,
+    _test_stationarity as adf_test_stationarity,
 )
 from options_arena.models.scan import IndicatorSignals
 

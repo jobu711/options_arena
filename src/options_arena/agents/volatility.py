@@ -40,16 +40,7 @@ async def volatility_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
     up bull and bear arguments from deps. Arguments are wrapped in delimiters
     to prevent instruction bleed.
     """
-    base = VOLATILITY_SYSTEM_PROMPT
-    if ctx.deps.bull_response is not None:
-        base += (
-            f"\n\n<<<BULL_ARGUMENT>>>\n{ctx.deps.bull_response.argument}\n<<<END_BULL_ARGUMENT>>>"
-        )
-    if ctx.deps.bear_response is not None:
-        base += (
-            f"\n\n<<<BEAR_ARGUMENT>>>\n{ctx.deps.bear_response.argument}\n<<<END_BEAR_ARGUMENT>>>"
-        )
-    return base
+    return VOLATILITY_SYSTEM_PROMPT
 
 
 @volatility_agent.output_validator

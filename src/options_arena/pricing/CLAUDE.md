@@ -15,8 +15,13 @@ No pandas. `PricingConfig` supplies solver tolerances and iteration limits.
 |------|----------|
 | `bsm.py` | `bsm_price`, `bsm_greeks`, `bsm_vega`, `bsm_iv` — Merton 1973 European BSM with continuous dividend yield |
 | `american.py` | `american_price`, `american_greeks`, `american_iv` — BAW analytical approximation for American options |
-| `dispatch.py` | `option_price`, `option_greeks`, `option_iv` — unified routing by `ExerciseStyle` |
-| `__init__.py` | Re-exports `option_price`, `option_greeks`, `option_iv` (dispatch-level only) |
+| `dispatch.py` | `option_price`, `option_greeks`, `option_iv`, `option_second_order_greeks` — unified routing by `ExerciseStyle` |
+| `_common.py` | `SecondOrderGreeks` NamedTuple (vanna, charm, vomma), `validate_positive_inputs()` — shared helpers for BSM/BAW (internal) |
+| `iv_smoothing.py` | `smooth_iv_parity()` — liquidity-weighted put-call parity IV smoothing via inverse bid-ask spread weights (internal) |
+| `spreads.py` | `aggregate_spread_greeks()` — Greeks aggregation for multi-leg spreads with LONG/SHORT sign conventions |
+| `trajectory.py` | `TrajectoryLSTM` — LSTM probabilistic price path forecasting, guarded PyTorch import, optional `[neural]` extra (internal) |
+| `neural_surface.py` | Neural IV surface MLP model (log-moneyness, DTE -> IV), guarded PyTorch import, optional `[neural]` extra (internal) |
+| `__init__.py` | Re-exports dispatch functions + `SecondOrderGreeks`, `smooth_iv_parity`, `aggregate_spread_greeks` |
 
 ---
 
@@ -225,14 +230,28 @@ Same pattern for `option_greeks` and `option_iv`.
 ```python
 """Options Arena — Options pricing (BSM, BAW) and Greeks computation."""
 
-from options_arena.pricing.dispatch import option_greeks, option_iv, option_price
+from options_arena.pricing._common import SecondOrderGreeks
+from options_arena.pricing.dispatch import (
+    option_greeks, option_iv, option_price, option_second_order_greeks,
+)
+from options_arena.pricing.iv_smoothing import smooth_iv_parity
+from options_arena.pricing.spreads import aggregate_spread_greeks
 
-__all__ = ["option_greeks", "option_iv", "option_price"]
+__all__ = [
+    "SecondOrderGreeks",
+    "aggregate_spread_greeks",
+    "option_greeks",
+    "option_iv",
+    "option_price",
+    "option_second_order_greeks",
+    "smooth_iv_parity",
+]
 ```
 
-Only the dispatch-level functions are public. Direct `bsm_*` and `american_*` functions
-are internal — consumers always go through dispatch. Tests may import them directly for
-unit-level verification.
+Dispatch-level functions, `SecondOrderGreeks`, `smooth_iv_parity`, and `aggregate_spread_greeks`
+are the public API. Direct `bsm_*` and `american_*` functions are internal — consumers always
+go through dispatch. `trajectory.py` and `neural_surface.py` are internal (optional neural extras).
+Tests may import internal modules directly for unit-level verification.
 
 ---
 

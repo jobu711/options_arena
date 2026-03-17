@@ -5,13 +5,54 @@ All technical indicator calculations. Each function takes pandas Series/DataFram
 returns pandas Series/DataFrames out. No API calls. No Pydantic models. Pure math.
 
 ## Files
-- `_validation.py` — Shared input validation helpers (`validate_aligned`)
-- `oscillators.py` — RSI, Stochastic RSI, Williams %R
-- `trend.py` — Rate of Change, ADX, Supertrend, MACD
-- `volatility.py` — Bollinger Band Width, ATR%, Keltner Channel Width
-- `volume.py` — OBV Trend, Relative Volume, A/D Line Trend
-- `moving_averages.py` — SMA Alignment, VWAP Deviation
-- `options_specific.py` — IV Rank, IV Percentile, Put/Call Ratios, Max Pain
+
+### Core Technical Indicators (original 6 + validation)
+| File | Description | Key exports |
+|------|-------------|-------------|
+| `_validation.py` | Shared input validation helpers | `validate_aligned` |
+| `oscillators.py` | Momentum oscillators | `rsi`, `stoch_rsi`, `williams_r` |
+| `trend.py` | Trend-following indicators | `roc`, `adx`, `supertrend`, `macd` |
+| `volatility.py` | Volatility band indicators | `bb_width`, `atr_percent`, `keltner_width` |
+| `volume.py` | Volume-based indicators | `obv_trend`, `relative_volume`, `ad_trend` |
+| `moving_averages.py` | Price-average alignment | `sma_alignment`, `vwap_deviation` |
+| `options_specific.py` | Options chain analytics | `iv_rank`, `iv_percentile`, `put_call_ratio_volume`, `put_call_ratio_oi`, `max_pain` |
+
+### IV & Volatility Analytics
+| File | Description | Key exports |
+|------|-------------|-------------|
+| `iv_analytics.py` | 13 IV modeling functions: IV-HV spread, term structure slope/shape, put/call skew, skew ratio, vol regime classification, EWMA vol forecast, vol cone percentile, VIX correlation, expected move | `compute_iv_hv_spread`, `compute_hv_20d`, `compute_iv_term_slope`, `compute_iv_term_shape`, `compute_put_skew`, `compute_call_skew`, `compute_skew_ratio`, `classify_vol_regime`, `compute_ewma_vol_forecast`, `compute_vol_cone_pctl`, `compute_vix_correlation`, `compute_expected_move`, `compute_expected_move_ratio` |
+| `vol_surface.py` | Implied vol surface: tiered Tier 1 (SmoothBivariateSpline fitted surface, >=6 contracts, >=2 DTEs) / Tier 2 (standalone fallback: finite-difference curvature, raw 25-delta, nearest-ATM IV). Breeden-Litzenberger implied probability. References Gatheral (2006) | `VolSurfaceResult`, `VolSurfaceIndicators`, `compute_vol_surface`, `compute_surface_indicators` |
+
+### Flow Analytics
+| File | Description | Key exports |
+|------|-------------|-------------|
+| `flow_analytics.py` | Options flow analysis: GEX (gamma exposure), OI concentration, unusual activity detection, max pain magnet, dollar volume trend, Isolation Forest anomaly detection (optional sklearn) | `FlowAnomalyResult`, `compute_gex`, `compute_oi_concentration`, `compute_unusual_activity`, `compute_max_pain_magnet`, `compute_dollar_volume_trend`, `detect_flow_anomalies` |
+
+### Fundamental Catalysts
+| File | Description | Key exports |
+|------|-------------|-------------|
+| `fundamental.py` | 5 fundamental catalyst indicators: earnings EM ratio, earnings impact score (DTE-based proximity), short interest ratio, dividend impact, IV crush history. Returns `float | None` | `compute_earnings_em_ratio`, `compute_earnings_impact`, `compute_short_interest`, `compute_div_impact`, `compute_iv_crush_history` |
+
+### Regime & Macro
+| File | Description | Key exports |
+|------|-------------|-------------|
+| `regime.py` | 6 regime/macro indicators: VIX term structure, risk-on/off scoring (HYG/LQD spread), sector momentum, relative strength vs SPX, correlation regime shifts, volume profile skew | `compute_vix_term_structure`, `compute_risk_on_off`, `compute_sector_momentum`, `compute_rs_vs_spx`, `compute_correlation_regime_shift`, `compute_volume_profile_skew` |
+| `macro.py` | Macro regime classification from FRED data (yield spread, unemployment, fed funds). Rules-based: expansionary / contractionary / transitional. Returns `MacroClassification` NamedTuple | `MacroClassification`, `compute_macro_regime` |
+
+### Statistical ML Indicators (optional `[ml]` extra)
+| File | Description | Key exports |
+|------|-------------|-------------|
+| `vol_forecast.py` | GARCH(1,1) volatility forecasting + ADF stationarity gate. Requires `arch` + `statsmodels`. Guarded imports return `None` when not installed. Min 252 obs. Annualized with sqrt(252) | `compute_garch_forecast` |
+| `regime_ml.py` | Markov-switching regime detection (Hamilton 1989, `statsmodels`) + GBM classification (optional `sklearn`/`joblib`). 3 regimes: low_vol / normal / high_vol. Returns `MarkovRegimeOutput` / `RegimeClassification` | `MarkovRegimeOutput`, `RegimeClassification`, `compute_markov_regime`, `classify_regime_ml`, `map_regime_label_to_market_regime` |
+| `hv_estimators.py` | Yang-Zhang (2000) historical volatility estimator. Combines overnight, close-to-open, and Rogers-Satchell variance. Takes OHLC Series, returns annualized vol. Subsumes Parkinson and Rogers-Satchell | `compute_hv_yang_zhang` |
+| `hurst.py` | Hurst exponent via rescaled range (R/S) analysis (Mandelbrot & Wallis 1969). Classifies series as trending (H > 0.5), mean-reverting (H < 0.5), or random walk (H ~ 0.5). OLS fit with R-squared threshold gate | `hurst_exponent` |
+
+### Re-exports (`__init__.py`)
+The package re-exports functions from: `oscillators`, `trend`, `volatility`, `volume`,
+`moving_averages`, `options_specific`, `vol_surface`, `vol_forecast`, `regime_ml`,
+`hv_estimators`, `hurst`, `macro`. Note: `iv_analytics.py`, `flow_analytics.py`,
+`fundamental.py`, and `regime.py` are NOT re-exported from `__init__.py` — consumers
+import them directly from their submodules.
 
 ## Function Signature Convention
 ```python

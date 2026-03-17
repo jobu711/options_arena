@@ -118,42 +118,6 @@ class SpreadsMixin(RepositoryBase):
         )
         return spread_id
 
-    async def get_spread_recommendations(
-        self,
-        scan_run_id: int,
-    ) -> list[SpreadAnalysis]:
-        """Retrieve all spread analyses for a scan run.
-
-        Reconstructs full ``SpreadAnalysis`` objects from the database,
-        including all legs with their ``OptionContract`` models.
-
-        Args:
-            scan_run_id: Database ID of the scan run.
-
-        Returns:
-            List of ``SpreadAnalysis`` objects. Empty list if none exist.
-        """
-        conn = self._db.conn
-        async with conn.execute(
-            "SELECT * FROM spread_recommendations WHERE scan_run_id = ? ORDER BY id ASC",
-            (scan_run_id,),
-        ) as cursor:
-            spread_rows = await cursor.fetchall()
-
-        results: list[SpreadAnalysis] = []
-        for row in spread_rows:
-            spread_id = int(row["id"])
-            analysis = await self._reconstruct_spread_analysis(spread_id, row)
-            if analysis is not None:
-                results.append(analysis)
-
-        logger.debug(
-            "Retrieved %d spread recommendations for scan %d",
-            len(results),
-            scan_run_id,
-        )
-        return results
-
     async def get_spread_for_ticker(
         self,
         scan_run_id: int,

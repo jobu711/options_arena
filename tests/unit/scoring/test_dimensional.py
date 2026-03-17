@@ -2,15 +2,13 @@
 
 import pytest
 
-from options_arena.models.enums import MarketRegime, SignalDirection
+from options_arena.models.enums import SignalDirection
 from options_arena.models.scan import IndicatorSignals
 from options_arena.models.scoring import DimensionalScores, DirectionSignal
 from options_arena.scoring.dimensional import (
     _FAMILY_NAMES,
     DEFAULT_FAMILY_WEIGHTS,
     FAMILY_INDICATOR_MAP,
-    REGIME_WEIGHT_PROFILES,
-    apply_regime_weights,
     compute_dimensional_scores,
     compute_direction_signal,
 )
@@ -84,35 +82,10 @@ class TestWeightProfiles:
         """DEFAULT_FAMILY_WEIGHTS has all 8 families."""
         assert set(DEFAULT_FAMILY_WEIGHTS.keys()) == set(_FAMILY_NAMES)
 
-    @pytest.mark.parametrize("regime", list(MarketRegime))
-    def test_regime_weights_sum_to_one(self, regime: MarketRegime) -> None:
-        """Each regime weight profile sums to 1.0."""
-        profile = REGIME_WEIGHT_PROFILES[regime]
-        total = sum(profile.values())
-        assert total == pytest.approx(1.0, abs=1e-9), (
-            f"Regime {regime.value} weights sum to {total}, not 1.0"
-        )
-
-    @pytest.mark.parametrize("regime", list(MarketRegime))
-    def test_regime_weights_cover_all_families(self, regime: MarketRegime) -> None:
-        """Each regime weight profile has all 8 families."""
-        profile = REGIME_WEIGHT_PROFILES[regime]
-        assert set(profile.keys()) == set(_FAMILY_NAMES), f"Regime {regime.value} missing families"
-
-    def test_all_four_regimes_have_profiles(self) -> None:
-        """REGIME_WEIGHT_PROFILES has entries for all MarketRegime members."""
-        for regime in MarketRegime:
-            assert regime in REGIME_WEIGHT_PROFILES, f"Missing profile for regime {regime.value}"
-
     def test_all_weights_are_positive(self) -> None:
-        """Every weight in every profile is strictly positive."""
+        """Every weight in the default profile is strictly positive."""
         for family, weight in DEFAULT_FAMILY_WEIGHTS.items():
             assert weight > 0.0, f"Default weight for '{family}' is not positive: {weight}"
-        for regime, profile in REGIME_WEIGHT_PROFILES.items():
-            for family, weight in profile.items():
-                assert weight > 0.0, (
-                    f"Regime {regime.value} weight for '{family}' is not positive: {weight}"
-                )
 
 
 # ---------------------------------------------------------------------------
@@ -294,189 +267,6 @@ class TestComputeDimensionalScores:
         result = compute_dimensional_scores(signals)
         assert result.trend is not None
         assert result.trend <= 100.0
-
-
-# ---------------------------------------------------------------------------
-# apply_regime_weights
-# ---------------------------------------------------------------------------
-
-
-class TestApplyRegimeWeights:
-    """Tests for apply_regime_weights()."""
-
-    def test_default_weights_all_families(self) -> None:
-        """With all families at 60.0 and default weights, composite == 60.0."""
-        scores = DimensionalScores(
-            trend=60.0,
-            iv_vol=60.0,
-            hv_vol=60.0,
-            flow=60.0,
-            microstructure=60.0,
-            fundamental=60.0,
-            regime=60.0,
-            risk=60.0,
-        )
-        result = apply_regime_weights(scores)
-        assert result == pytest.approx(60.0, rel=1e-4)
-
-    def test_default_weights_varied_families(self) -> None:
-        """Manually compute weighted average with varied family scores."""
-        scores = DimensionalScores(
-            trend=80.0,
-            iv_vol=60.0,
-            hv_vol=40.0,
-            flow=70.0,
-            microstructure=50.0,
-            fundamental=30.0,
-            regime=90.0,
-            risk=20.0,
-        )
-        expected = (
-            0.22 * 80.0
-            + 0.20 * 60.0
-            + 0.05 * 40.0
-            + 0.18 * 70.0
-            + 0.08 * 50.0
-            + 0.10 * 30.0
-            + 0.07 * 90.0
-            + 0.10 * 20.0
-        )
-        result = apply_regime_weights(scores)
-        assert result == pytest.approx(expected, rel=1e-4)
-
-    def test_all_none_returns_zero(self) -> None:
-        """All family scores None produce composite == 0.0."""
-        scores = DimensionalScores()
-        result = apply_regime_weights(scores)
-        assert result == pytest.approx(0.0, abs=1e-9)
-
-    def test_weight_redistribution_partial_none(self) -> None:
-        """When some families are None, weights redistribute to remaining."""
-        # Only trend (0.22) and risk (0.10) present.
-        # After redistribution: trend_weight = 0.22/(0.22+0.10) = 0.6875
-        # risk_weight = 0.10/(0.22+0.10) = 0.3125
-        # composite = 0.6875*80 + 0.3125*40 = 55 + 12.5 = 67.5
-        scores = DimensionalScores(trend=80.0, risk=40.0)
-        result = apply_regime_weights(scores)
-
-        effective_weight_sum = 0.22 + 0.10
-        expected = (0.22 * 80.0 + 0.10 * 40.0) / effective_weight_sum
-        assert result == pytest.approx(expected, rel=1e-4)
-
-    def test_single_family_present(self) -> None:
-        """Single family present: composite equals that family's score."""
-        scores = DimensionalScores(flow=75.0)
-        result = apply_regime_weights(scores)
-        assert result == pytest.approx(75.0, rel=1e-4)
-
-    @pytest.mark.parametrize("regime", list(MarketRegime))
-    def test_regime_weights_uniform_scores(self, regime: MarketRegime) -> None:
-        """With all families at the same score, any regime produces that score."""
-        scores = DimensionalScores(
-            trend=50.0,
-            iv_vol=50.0,
-            hv_vol=50.0,
-            flow=50.0,
-            microstructure=50.0,
-            fundamental=50.0,
-            regime=50.0,
-            risk=50.0,
-        )
-        result = apply_regime_weights(scores, regime=regime, enable_regime_weights=True)
-        assert result == pytest.approx(50.0, rel=1e-4)
-
-    def test_trending_regime_boosts_trend(self) -> None:
-        """TRENDING regime: trend weight (0.30) > default (0.22)."""
-        scores = DimensionalScores(
-            trend=100.0,
-            iv_vol=0.0,
-            hv_vol=0.0,
-            flow=0.0,
-            microstructure=0.0,
-            fundamental=0.0,
-            regime=0.0,
-            risk=0.0,
-        )
-        default_result = apply_regime_weights(scores)
-        trending_result = apply_regime_weights(
-            scores, regime=MarketRegime.TRENDING, enable_regime_weights=True
-        )
-        # Trending should give higher composite when only trend is 100
-        assert trending_result > default_result
-
-    def test_crisis_regime_boosts_risk(self) -> None:
-        """CRISIS regime: risk weight (0.30) > default (0.10)."""
-        scores = DimensionalScores(
-            trend=0.0,
-            iv_vol=0.0,
-            hv_vol=0.0,
-            flow=0.0,
-            microstructure=0.0,
-            fundamental=0.0,
-            regime=0.0,
-            risk=100.0,
-        )
-        default_result = apply_regime_weights(scores)
-        crisis_result = apply_regime_weights(
-            scores, regime=MarketRegime.CRISIS, enable_regime_weights=True
-        )
-        # Crisis should give higher composite when only risk is 100
-        assert crisis_result > default_result
-
-    def test_enable_flag_false_ignores_regime(self) -> None:
-        """When enable_regime_weights=False, regime parameter is ignored."""
-        scores = DimensionalScores(
-            trend=100.0,
-            iv_vol=0.0,
-            hv_vol=0.0,
-            flow=0.0,
-            microstructure=0.0,
-            fundamental=0.0,
-            regime=0.0,
-            risk=0.0,
-        )
-        default_result = apply_regime_weights(scores)
-        with_regime_but_disabled = apply_regime_weights(
-            scores, regime=MarketRegime.TRENDING, enable_regime_weights=False
-        )
-        assert with_regime_but_disabled == pytest.approx(default_result, rel=1e-9)
-
-    def test_regime_none_uses_defaults(self) -> None:
-        """When regime is None (even with enable=True), default weights used."""
-        scores = DimensionalScores(trend=70.0, flow=50.0)
-        result_default = apply_regime_weights(scores)
-        result_none_regime = apply_regime_weights(scores, regime=None, enable_regime_weights=True)
-        assert result_none_regime == pytest.approx(result_default, rel=1e-9)
-
-    def test_result_clamped_to_100(self) -> None:
-        """Result is clamped to 100.0 maximum."""
-        scores = DimensionalScores(
-            trend=100.0,
-            iv_vol=100.0,
-            hv_vol=100.0,
-            flow=100.0,
-            microstructure=100.0,
-            fundamental=100.0,
-            regime=100.0,
-            risk=100.0,
-        )
-        result = apply_regime_weights(scores)
-        assert result <= 100.0
-
-    def test_result_clamped_to_zero(self) -> None:
-        """Result is clamped to 0.0 minimum."""
-        scores = DimensionalScores(
-            trend=0.0,
-            iv_vol=0.0,
-            hv_vol=0.0,
-            flow=0.0,
-            microstructure=0.0,
-            fundamental=0.0,
-            regime=0.0,
-            risk=0.0,
-        )
-        result = apply_regime_weights(scores)
-        assert result >= 0.0
 
 
 # ---------------------------------------------------------------------------
