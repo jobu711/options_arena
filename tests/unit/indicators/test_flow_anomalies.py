@@ -29,7 +29,6 @@ from options_arena.indicators.flow_analytics import (
     _get_isolation_forest,
     detect_flow_anomalies,
 )
-from options_arena.models.config import MLConfig
 from options_arena.models.scan import IndicatorSignals
 
 
