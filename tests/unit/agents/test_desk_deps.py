@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from options_arena.agents._desk_deps import DeskDeps
 
 
+@pytest.mark.critical
 class TestDeskDepsConstruction:
     """Test DeskDeps construction and defaults."""
 

@@ -892,6 +892,14 @@ class QueryIntent(BaseModel):
     query_type: QueryType
     tickers: list[str]
 
+    @field_validator("desks")
+    @classmethod
+    def validate_desks_non_empty(cls, v: list[DeskType]) -> list[DeskType]:
+        """Reject empty desks list -- at least one desk is required."""
+        if not v:
+            raise ValueError("desks must contain at least one desk")
+        return v
+
 
 class DeskResponse(BaseModel):
     """Response from a single desk agent.

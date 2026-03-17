@@ -130,6 +130,7 @@ def _make_mock_recommended_contract(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.critical
 class TestBuildToolsets:
     """Test toolset builder functions."""
 
@@ -170,6 +171,7 @@ class TestBuildToolsets:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.critical
 @pytest.mark.asyncio
 class TestFetchQuoteTool:
     """Test the fetch_quote tool wrapper."""

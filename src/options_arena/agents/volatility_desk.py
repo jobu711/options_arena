@@ -41,6 +41,12 @@ async def _vol_desk_prompt(ctx: RunContext[DeskDeps]) -> str:  # noqa: ARG001
     return DESK_VOLATILITY_PROMPT
 
 
+@vol_desk.output_validator
+async def _strip_think(ctx: RunContext[DeskDeps], output: str) -> str:  # noqa: ARG001
+    """Strip ``<think>`` tags from LLM output."""
+    return strip_think_tags(output)
+
+
 async def run_vol_desk_query(
     query: str,
     deps: DeskDeps,
@@ -62,7 +68,10 @@ async def run_vol_desk_query(
             confidence=0.0,
         )
     try:
-        limits = UsageLimits(request_limit=cfg.default_tool_budget + 2)
+        limits = UsageLimits(
+            request_limit=cfg.default_tool_budget + 2,
+            tool_calls_limit=cfg.default_tool_budget,
+        )
         result = await asyncio.wait_for(
             vol_desk.run(  # type: ignore[call-overload]
                 query,

@@ -46,6 +46,7 @@ class TestVolDeskAgent:
 class TestRunVolDeskQuery:
     """run_vol_desk_query() wrapper tests."""
 
+    @pytest.mark.critical
     async def test_produces_desk_response(self) -> None:
         deps = _make_deps()
         result = await run_vol_desk_query("What is AAPL IV?", deps, model=TestModel())

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
 
+
+@pytest.mark.critical
 class TestDeskVolatilityPrompt:
     """DESK_VOLATILITY_PROMPT quality checks."""
 

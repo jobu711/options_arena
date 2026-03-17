@@ -5,7 +5,6 @@ Covers DeskType, QueryType, QueryIntent, DeskResponse, and AgencyConfig.
 
 from __future__ import annotations
 
-import math
 from enum import StrEnum
 
 import pytest
@@ -60,6 +59,7 @@ class TestQueryType:
 class TestQueryIntent:
     """QueryIntent frozen model — parsed user query for desk routing."""
 
+    @pytest.mark.critical
     def test_construction(self) -> None:
         intent = QueryIntent(
             desks=[DeskType.TREND, DeskType.VOLATILITY],
@@ -100,6 +100,7 @@ class TestQueryIntent:
 class TestDeskResponse:
     """DeskResponse frozen model — output from a single desk agent."""
 
+    @pytest.mark.critical
     def test_construction(self) -> None:
         resp = DeskResponse(
             desk=DeskType.TREND,
@@ -110,7 +111,7 @@ class TestDeskResponse:
         assert resp.desk == DeskType.TREND
         assert resp.response == "Uptrend confirmed by ADX > 25."
         assert resp.tools_used == ["sma_alignment", "adx"]
-        assert resp.confidence == 0.85
+        assert resp.confidence == pytest.approx(0.85)
 
     def test_confidence_zero_valid(self) -> None:
         resp = DeskResponse(
@@ -119,7 +120,7 @@ class TestDeskResponse:
             tools_used=[],
             confidence=0.0,
         )
-        assert resp.confidence == 0.0
+        assert resp.confidence == pytest.approx(0.0)
 
     def test_confidence_one_valid(self) -> None:
         resp = DeskResponse(
@@ -128,7 +129,7 @@ class TestDeskResponse:
             tools_used=["iv_rank"],
             confidence=1.0,
         )
-        assert resp.confidence == 1.0
+        assert resp.confidence == pytest.approx(1.0)
 
     def test_confidence_nan_rejected(self) -> None:
         with pytest.raises(ValidationError, match="finite"):
@@ -209,9 +210,10 @@ class TestDeskResponse:
 class TestAgencyConfig:
     """AgencyConfig BaseModel — desk system configuration."""
 
+    @pytest.mark.critical
     def test_default_construction(self) -> None:
         config = AgencyConfig()
-        assert config.agent_timeout == 60.0
+        assert config.agent_timeout == pytest.approx(60.0)
         assert config.default_tool_budget == 3
         assert config.risk_tool_budget == 5
         assert config.research_tool_budget == 5
@@ -223,7 +225,7 @@ class TestAgencyConfig:
             risk_tool_budget=10,
             research_tool_budget=8,
         )
-        assert config.agent_timeout == 90.0
+        assert config.agent_timeout == pytest.approx(90.0)
         assert config.default_tool_budget == 5
         assert config.risk_tool_budget == 10
         assert config.research_tool_budget == 8
@@ -231,11 +233,11 @@ class TestAgencyConfig:
     def test_nested_on_app_settings_via_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ARENA_AGENCY__AGENT_TIMEOUT", "120.0")
         settings = AppSettings()
-        assert settings.agency.agent_timeout == 120.0
+        assert settings.agency.agent_timeout == pytest.approx(120.0)
 
     def test_default_agency_on_app_settings(self) -> None:
         settings = AppSettings()
-        assert settings.agency.agent_timeout == 60.0
+        assert settings.agency.agent_timeout == pytest.approx(60.0)
         assert settings.agency.default_tool_budget == 3
 
     def test_agent_timeout_nan_rejected(self) -> None:
