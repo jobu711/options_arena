@@ -9,6 +9,8 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
+import sqlite3
+
 import aiosqlite
 
 logger = logging.getLogger(__name__)
@@ -109,7 +111,7 @@ class Database:
             sql_content = path.read_text(encoding="utf-8")
             try:
                 await conn.executescript(sql_content)
-            except Exception as exc:
+            except sqlite3.OperationalError as exc:
                 # If migration fails with a DDL error (e.g., "duplicate column name"),
                 # it was likely partially applied in a prior run. Record it and continue.
                 err_msg = str(exc).lower()

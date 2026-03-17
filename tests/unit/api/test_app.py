@@ -12,7 +12,7 @@ def test_create_app_returns_fastapi_instance() -> None:
     """create_app() returns a configured FastAPI application."""
     app = create_app()
     assert app.title == "Options Arena"
-    assert app.version == "1.5.0"
+    assert app.version == __import__("options_arena").__version__
 
 
 def test_create_app_has_cors_middleware() -> None:
