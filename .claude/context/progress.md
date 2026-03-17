@@ -4,8 +4,8 @@
 
 - **Version**: 2.10.0 — Release hardening + full audit + math verification
 - **All 9 phases + 36 epics**: Complete and merged to master
-- **Tests**: 26,516 Python passing (27K parametrized) + 107 E2E (17 spec files)
-- **GitHub issues**: 545+ closed
+- **Tests**: 26,615 Python passing (27K+ parametrized) + 107 E2E (17 spec files)
+- **GitHub issues**: 578+ closed
 - **CI**: GitHub Actions (4 gates: lint, typecheck, tests, frontend)
 - **CLI**: `options-arena scan`, `health`, `universe` (+ `index`), `debate` (+ `--batch`, `--export`, `--provider`), `serve`, `outcomes` (collect, summary, backtest, equity-curve)
 - **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
@@ -18,6 +18,7 @@
 
 ## Recently Completed
 
+- **ai-agency-desk-foundation epic** (2026-03-17): Issues #575-#578, PR #579. Proved desk agent pattern with Volatility + Risk desks. New: `DeskDeps`, `DeskType`/`QueryType` enums, `DeskResponse`/`QueryIntent` models, `AgencyConfig`, 5 PydanticAI tool wrappers with ticker validation + NaN defense, `@output_validator` think-tag stripping. 99 new tests, 7-agent audit passed (0 P1), all P2 findings fixed. Foundation for remaining 7 AI agency epics.
 - **v2-release-prep epic** (2026-03-17): Issues #564-#571. Full audit battery (7 agents + math audit, 54 formulas verified), all P1 findings resolved, 26,516 tests passing, version bumped to 2.10.0, CHANGELOG generated, git tag `v2.10.0`.
 - **FinancialDatasets.ai epic** (#393): Deferred — 0 open GitHub issues, integration not yet started.
 - **Dead code audit epic** (2026-03-16): Issues #557-#563. Removed ~1,720 lines dead code across 17 modules, wired 8 indicators into scan pipeline, modernized DebatePhase to 6-agent enum. Deleted bull/bear agents, clustering.py, dead repo methods, dead config fields. 119 files changed, 4,933 deletions.

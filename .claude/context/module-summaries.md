@@ -12,18 +12,21 @@ Condensed from 13 module CLAUDE.md files. Read the full module CLAUDE.md for dee
 - `BaseSettings` only on `AppSettings`; sub-configs (`ScanConfig` etc.) are plain `BaseModel`
 
 ## agents/
-- 6-agent protocol: Trend, Volatility, Flow, Fundamental, Risk, Contrarian (no bull/bear)
-- No inter-agent imports — orchestrator coordinates; agents are self-contained
+- **Debate agents** (6): Trend, Volatility, Flow, Fundamental, Risk, Contrarian — structured output
+- **Desk agents** (2): `vol_desk`, `risk_desk` — `Agent[DeskDeps, str]` for interactive queries
+- No inter-agent imports — orchestrator coordinates debate; desks are independent
 - `Agent(model=None)` at init, actual model at `agent.run(model=...)` — enables TestModel
-- All 6 agents need `@output_validator` using `build_cleaned_agent_response()` (think tags)
-- `run_debate()` never raises — catches errors, returns data-driven fallback (confidence=0.3)
-- `dynamic=True` on risk/contrarian system prompts (runtime injection of prior outputs)
-- Phase 1 parallel (Trend+Vol+Flow+Fund), Phase 2 sequential (Risk), Phase 3 (Contrarian)
+- All debate agents: `@output_validator` using `build_cleaned_agent_response()` (think tags)
+- All desk agents: `@output_validator` using `strip_think_tags()` + post-run defense-in-depth
+- `run_debate()` / `run_*_desk_query()` never raise — catch all exceptions
+- Desk agents access services via `DeskDeps` (tool-based data fetching, not pre-fetched)
 - `asyncio.wait_for(agent.run(...), timeout=config.agent_timeout)` on every agent call
+- `_toolsets.py`: 5 tool wrappers with `TICKER_RE` validation, `isfinite()` guards, sanitized errors
 
 ## agents/prompts/
-- 6 prompt files (trend, volatility, flow, fundamental, risk, contrarian)
-- One `*_SYSTEM_PROMPT` constant per file, concatenated with `PROMPT_RULES_APPENDIX`
+- 6 debate prompt files + 2 desk prompt files (desk_volatility, desk_risk)
+- Debate: `*_SYSTEM_PROMPT` constant concatenated with `PROMPT_RULES_APPENDIX`
+- Desk: `DESK_*_PROMPT` constant, conversational, NO `PROMPT_RULES_APPENDIX`
 - < 8000 chars per prompt; static only — dynamic injection stays in agent modules
 
 ## services/

@@ -63,6 +63,18 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **Agent prediction persistence**: `AgentPrediction` model + migration 025 + `extract_agent_predictions()`. "bull" DB field holds trend output (legacy column name preserved for backward compat)
 - **DebatePhase enum**: 6 members (TREND, VOLATILITY, FLOW, FUNDAMENTAL, RISK, CONTRARIAN) — matches agent pipeline order. Progress callback fires before each agent run.
 
+### Desk Agent Pattern (Interactive Mode)
+- Separate from debate agents — `*_desk.py` files with `Agent[DeskDeps, str]` (plain text output)
+- `DeskDeps` `@dataclass` with service instances (market_data, options_data, fred, repo) + `tools_used: list[str]`
+- Tool wrappers in `_toolsets.py`: `build_volatility_toolset()` (3 tools), `build_risk_toolset()` (3 tools)
+- Tools: never-raise contract, `TICKER_RE` validation, `math.isfinite()` guards, sanitized error messages
+- `UsageLimits(request_limit=N+2, tool_calls_limit=N)` — budget enforcement per desk
+- `@output_validator` strips `<think>` tags at agent level; `strip_think_tags()` also in wrapper (defense-in-depth)
+- `run_*_desk_query()` wraps `agent.run()` with `asyncio.wait_for`, model=None guard, never-raises
+- Desk prompts in `agents/prompts/desk_*.py` — conversational, no `PROMPT_RULES_APPENDIX`
+- `DeskResponse` frozen model with confidence, tools_used list; `DESK_SUCCESS_CONFIDENCE = 0.7`
+- `AgencyConfig` BaseModel on `AppSettings` — `agent_timeout`, per-desk tool budgets
+
 ### Scan Pipeline & Debate Flow — See `scan/CLAUDE.md` and `agents/CLAUDE.md`
 
 ### Batch Debate & Export Patterns
