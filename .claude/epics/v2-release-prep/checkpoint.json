@@ -1,0 +1,12 @@
+{
+  "epic": "v2-release-prep",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync v2-release-prep",
+  "last_updated": "2026-03-17T03:32:04Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}
