@@ -1,8 +1,8 @@
 ---
 name: ai-agency-desk-foundation
-status: backlog
+status: complete
 created: 2026-03-17T14:37:45Z
-progress: 0%
+progress: 100%
 prd: .claude/prds/ai-agency-evolution.md
 parent_epic: ai-agency-evolution
 epic_number: 1
@@ -55,10 +55,10 @@ Prove the desk agent pattern with 2 desks (Volatility + Risk). Create `DeskDeps`
 
 ## Task Breakdown Preview
 
-- [ ] New models, enums, config (DeskType, QueryType, DeskResponse, AgencyConfig)
-- [ ] DeskDeps dataclass + base tool wrappers in _toolsets.py
-- [ ] Volatility desk agent + prompt + tests
-- [ ] Risk desk agent + prompt + tests
+- [x] New models, enums, config (DeskType, QueryType, DeskResponse, AgencyConfig)
+- [x] DeskDeps dataclass + base tool wrappers in _toolsets.py
+- [x] Volatility desk agent + prompt + tests
+- [x] Risk desk agent + prompt + tests
 
 ## Dependencies
 
@@ -73,10 +73,10 @@ Prove the desk agent pattern with 2 desks (Volatility + Risk). Create `DeskDeps`
 - ~30+ new tests
 
 ## Tasks Created
-- [ ] #575 - Agency Models, Enums, and Config (parallel: true)
-- [ ] #576 - DeskDeps Dataclass and Base Tool Wrappers (parallel: true)
-- [ ] #577 - Volatility Desk Agent + Prompt + Tests (parallel: false, depends: #575, #576)
-- [ ] #578 - Risk Desk Agent + Prompt + Tests (parallel: false, depends: #575, #576)
+- [x] #575 - Agency Models, Enums, and Config (parallel: true)
+- [x] #576 - DeskDeps Dataclass and Base Tool Wrappers (parallel: true)
+- [x] #577 - Volatility Desk Agent + Prompt + Tests (parallel: false, depends: #575, #576)
+- [x] #578 - Risk Desk Agent + Prompt + Tests (parallel: false, depends: #575, #576)
 
 Total tasks: 4
 Parallel tasks: 2 (#575, #576)

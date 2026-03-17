@@ -38,9 +38,11 @@ from options_arena.models.enums import (
     CatalystImpact,
     ConstraintSeverity,
     ConstraintViolationType,
+    DeskType,
     ExerciseStyle,
     MacdSignal,
     MacroRegime,
+    QueryType,
     RiskLevel,
     SignalDirection,
     SpreadType,
@@ -380,8 +382,7 @@ class MarketContext(BaseModel):
         "yield_spread",
         "fed_funds_rate",
         "vix_level",
-        # Neural trajectory
-        "prob_profit_neural",
+        # Neural trajectory — prob_profit_neural excluded: has dedicated [0,1] validator
     )
     @classmethod
     def validate_optional_finite(cls, v: float | None) -> float | None:
@@ -873,6 +874,50 @@ class AgentPrediction(BaseModel):
     @field_validator("confidence")
     @classmethod
     def _validate_confidence(cls, v: float) -> float:
+        """Ensure confidence is finite and within [0.0, 1.0]."""
+        return validate_unit_interval(v, "confidence")
+
+
+class QueryIntent(BaseModel):
+    """Parsed intent from a user query for desk routing.
+
+    Frozen (immutable after construction) -- represents a classified query.
+    ``desks`` lists which desk agents should handle the query.
+    ``tickers`` may be empty for general queries.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    desks: list[DeskType]
+    query_type: QueryType
+    tickers: list[str]
+
+    @field_validator("desks")
+    @classmethod
+    def validate_desks_non_empty(cls, v: list[DeskType]) -> list[DeskType]:
+        """Reject empty desks list -- at least one desk is required."""
+        if not v:
+            raise ValueError("desks must contain at least one desk")
+        return v
+
+
+class DeskResponse(BaseModel):
+    """Response from a single desk agent.
+
+    Frozen (immutable after construction) -- represents a completed desk output.
+    ``confidence`` is validated to be within [0.0, 1.0] with ``math.isfinite()`` guard.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    desk: DeskType
+    response: str
+    tools_used: list[str]
+    confidence: float
+
+    @field_validator("confidence")
+    @classmethod
+    def validate_confidence(cls, v: float) -> float:
         """Ensure confidence is finite and within [0.0, 1.0]."""
         return validate_unit_interval(v, "confidence")
 

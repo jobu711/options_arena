@@ -42,18 +42,20 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `MarketContext` | model |  | 56 | Snapshot of ticker state for analysis and debate agents. |
-| `AgentResponse` | model | `frozen=True` | 493 | Structured response from a debate agent. |
-| `TradeThesis` | model | `frozen=True` | 530 | Final trade recommendation produced by the debate system. |
-| `VolatilityThesis` | model | `frozen=True` | 618 | Structured output from the Volatility Agent. |
-| `FlowThesis` | model | `frozen=True` | 665 | Structured output from the Flow Agent. |
-| `RiskAssessment` | model | `frozen=True` | 696 | Expanded risk assessment output from the Risk Agent. |
-| `FundamentalThesis` | model | `frozen=True` | 741 | Structured output from the Fundamental Agent. |
-| `ContrarianThesis` | model | `frozen=True` | 773 | Structured output from the Contrarian Agent. |
-| `ExtendedTradeThesis` | model | `(TradeThesis)` | 803 | Extended trade thesis with contrarian dissent, agreement scoring, and dimensional scores. |
-| `AgentPrediction` | model | `frozen=True` | 848 | Per-agent prediction record for accuracy tracking. |
-| `ContractConstraint` | model | `frozen=True` | 880 | A single constraint violation detected during contract pre-check. |
-| `PositionSizeResult` | model | `frozen=True` | 900 | Result of volatility-regime-aware position sizing computation. |
+| `MarketContext` | model |  | 58 | Snapshot of ticker state for analysis and debate agents. |
+| `AgentResponse` | model | `frozen=True` | 494 | Structured response from a debate agent. |
+| `TradeThesis` | model | `frozen=True` | 531 | Final trade recommendation produced by the debate system. |
+| `VolatilityThesis` | model | `frozen=True` | 619 | Structured output from the Volatility Agent. |
+| `FlowThesis` | model | `frozen=True` | 666 | Structured output from the Flow Agent. |
+| `RiskAssessment` | model | `frozen=True` | 697 | Expanded risk assessment output from the Risk Agent. |
+| `FundamentalThesis` | model | `frozen=True` | 742 | Structured output from the Fundamental Agent. |
+| `ContrarianThesis` | model | `frozen=True` | 774 | Structured output from the Contrarian Agent. |
+| `ExtendedTradeThesis` | model | `(TradeThesis)` | 804 | Extended trade thesis with contrarian dissent, agreement scoring, and dimensional scores. |
+| `AgentPrediction` | model | `frozen=True` | 849 | Per-agent prediction record for accuracy tracking. |
+| `QueryIntent` | model | `frozen=True` | 881 | Parsed intent from a user query for desk routing. |
+| `DeskResponse` | model | `frozen=True` | 896 | Response from a single desk agent. |
+| `ContractConstraint` | model | `frozen=True` | 917 | A single constraint violation detected during contract pre-check. |
+| `PositionSizeResult` | model | `frozen=True` | 937 | Result of volatility-regime-aware position sizing computation. |
 
 #### models/analytics.py
 
@@ -109,7 +111,8 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `PositionSizingConfig` | model |  | 536 | Volatility-regime-aware position sizing configuration. |
 | `SpreadConfig` | model |  | 569 | Spread strategy configuration — controls multi-leg strategy construction. |
 | `OpenBBConfig` | model |  | 631 | CBOE chain provider configuration (legacy name retained for settings compat). |
-| `AppSettings` | model |  | 645 | Root application settings — the sole BaseSettings subclass. |
+| `AgencyConfig` | model |  | 645 | AI agency desk system configuration. |
+| `AppSettings` | model |  | 685 | Root application settings — the sole BaseSettings subclass. |
 
 #### models/constants.py
 
@@ -161,9 +164,11 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `AuditSeverity` | StrEnum | CRITICAL, WARNING, INFO | 376 | Severity level for mathematical computation audit findings. |
 | `AuditLayer` | StrEnum | CORRECTNESS, STABILITY, PERFORMANCE, DISCOVERY | 384 | Audit layer classifying the type of mathematical audit test. |
 | `SurfaceMethod` | StrEnum | SPLINE, NEURAL | 393 | IV surface fitting method selection. |
-| `GICSIndustryGroup` | StrEnum | 26 values (TELECOMMUNICATION_SERVICES ... UTILITIES) | 400 | GICS Industry Groups (2023 standard). |
-| `INDUSTRY_GROUP_ALIASES` | const | dict[str, GICSIndustryGroup] | 446 |  |
-| `SECTOR_TO_INDUSTRY_GROUPS` | const | dict[GICSSector, list[GICSIndustryGroup]] | 757 |  |
+| `DeskType` | StrEnum | TREND, VOLATILITY, FLOW, FUNDAMENTAL, RISK, CONTRARIAN, RESEARCH | 400 | Desk specialization for agency routing. |
+| `QueryType` | StrEnum | ANALYSIS, COMPARISON, STRATEGY, RISK_CHECK, GENERAL | 412 | Classification of user query intent for desk routing. |
+| `GICSIndustryGroup` | StrEnum | 26 values (TELECOMMUNICATION_SERVICES ... UTILITIES) | 422 | GICS Industry Groups (2023 standard). |
+| `INDUSTRY_GROUP_ALIASES` | const | dict[str, GICSIndustryGroup] | 468 |  |
+| `SECTOR_TO_INDUSTRY_GROUPS` | const | dict[GICSSector, list[GICSIndustryGroup]] | 779 |  |
 
 #### models/filters.py
 
@@ -840,10 +845,10 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `Database` | class |  | 21 | Async SQLite database with WAL mode and sequential migration runner. |
-| `.conn` | property | `() -> aiosqlite.Connection` | 43 | Return the live connection.  Raises ``RuntimeError`` if not connected. |
-| `.connect` | async method | `() -> None` | 49 | Open connection, configure pragmas, and run pending migrations. |
-| `.close` | async method | `() -> None` | 71 | Close the connection.  Idempotent — safe to call multiple times. |
+| `Database` | class |  | 22 | Async SQLite database with WAL mode and sequential migration runner. |
+| `.conn` | property | `() -> aiosqlite.Connection` | 44 | Return the live connection.  Raises ``RuntimeError`` if not connected. |
+| `.connect` | async method | `() -> None` | 50 | Open connection, configure pragmas, and run pending migrations. |
+| `.close` | async method | `() -> None` | 72 | Close the connection.  Idempotent — safe to call multiple times. |
 
 #### data/repository.py
 
@@ -854,6 +859,12 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 ---
 
 ### 1.8 `agents/` — PydanticAI Debate System
+
+#### agents/_desk_deps.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `DeskDeps` | dataclass |  | 19 | Dependency injection for desk agents. |
 
 #### agents/_parsing.py
 
@@ -882,6 +893,19 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `_render_neural_surface_comparison` | func | `(ctx: MarketContext) -> str` | 801 | Render spline vs neural surface R-squared comparison when both available. |
 | `render_context_block` | func | `(ctx: MarketContext, constraint_warnings: str | None = None) -> str` | 836 | Render MarketContext as flat key-value text for agent consumption. |
 | `compute_citation_density` | func | `(context_block: str, *texts: str) -> float` | 1146 | Compute fraction of context labels referenced in agent output text. |
+
+#### agents/_toolsets.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `DESK_SUCCESS_CONFIDENCE` | const | `float` | 31 |  |
+| `fetch_quote` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 46 | Fetch a real-time quote for *ticker*. |
+| `fetch_vol_surface_slice` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 85 | Fetch a volatility surface slice showing IV by strike/expiry. |
+| `compute_iv_for_strike` | async func | `(ctx: RunContext[DeskDeps], ticker: str, strike: float, expiry: str) -> str` | 142 | Find the closest strike in the chain to *strike* and show IV details. |
+| `fetch_correlation` | async func | `(ctx: RunContext[DeskDeps], ticker: str, tickers: list[str]) -> str` | 190 | Compute pairwise return correlations between *ticker* and each of *tickers*. |
+| `fetch_portfolio_exposure` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 284 | Query repository for historical recommended contracts for *ticker*. |
+| `build_volatility_toolset` | func | `() -> list[object]` | 323 | Return the tools for a Volatility Desk agent. |
+| `build_risk_toolset` | func | `() -> list[object]` | 331 | Return the tools for a Risk Desk agent. |
 
 #### agents/constraints.py
 
@@ -940,6 +964,18 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 |--------|------|-----------|------|-------------|
 | `CONTRARIAN_SYSTEM_PROMPT` | const |  | 19 |  |
 
+#### agents/prompts/desk_risk.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `DESK_RISK_PROMPT` | const | `str` | 7 |  |
+
+#### agents/prompts/desk_volatility.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `DESK_VOLATILITY_PROMPT` | const | `str` | 7 |  |
+
 #### agents/prompts/flow_agent.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -977,6 +1013,12 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `risk_dynamic_prompt` | async func | `(ctx: RunContext[DebateDeps]) -> str` | 36 | Return the expanded risk system prompt, injecting Phase 1 agent outputs. |
 | `clean_risk_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: RiskAssessment) -> RiskAssessment` | 95 | Strip ``<think>`` tags from RiskAssessment output via shared helper. |
 
+#### agents/risk_desk.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `run_risk_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object | None = None, config: AgencyConfig | None = None) ...` | 44 | Run a risk desk query with timeout and error handling. |
+
 #### agents/trend_agent.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -990,6 +1032,12 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 |--------|------|-----------|------|-------------|
 | `volatility_dynamic_prompt` | async func | `(ctx: RunContext[DebateDeps]) -> str` | 36 | Return the volatility system prompt, injecting bull/bear arguments if available. |
 | `clean_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: VolatilityThesis) -> VolatilityThesis` | 47 | Strip ``<think>`` tags from LLM output via shared helper. |
+
+#### agents/volatility_desk.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `run_vol_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object | None = None, config: AgencyConfig | None = None) ...` | 44 | Run a volatility desk query with timeout and error handling. |
 
 ---
 
@@ -1699,7 +1747,9 @@ Each row maps a source file to its test files and approximate test count.
 
 | Source File | Test File(s) | Tests |
 |------------|--------------|-------|
+| `agents/_desk_deps.py` | `tests/unit/agents/test_desk_deps.py` | 6 |
 | `agents/_parsing.py` | `tests/unit/agents/test_parsing.py` | 56 |
+| `agents/_toolsets.py` | `tests/unit/agents/test_toolsets.py` | 24 |
 | `agents/constraints.py` | `tests/unit/agents/test_constraints.py` | 18 |
 | `agents/contrarian_agent.py` | — | 0 |
 | `agents/flow_agent.py` | — | 0 |
@@ -1707,14 +1757,18 @@ Each row maps a source file to its test files and approximate test count.
 | `agents/model_config.py` | `tests/unit/agents/test_model_config.py` | 19 |
 | `agents/orchestrator.py` | `tests/unit/agents/test_orchestrator.py` | 55 |
 | `agents/prompts/contrarian_agent.py` | — | 0 |
+| `agents/prompts/desk_risk.py` | — | 0 |
+| `agents/prompts/desk_volatility.py` | — | 0 |
 | `agents/prompts/flow_agent.py` | — | 0 |
 | `agents/prompts/fundamental_agent.py` | — | 0 |
 | `agents/prompts/risk.py` | `tests/unit/agents/test_risk.py` | 13 |
 | `agents/prompts/trend_agent.py` | — | 0 |
 | `agents/prompts/volatility.py` | `tests/unit/agents/test_volatility.py` | 11 |
 | `agents/risk.py` | `tests/unit/agents/test_risk.py` | 13 |
+| `agents/risk_desk.py` | `tests/unit/agents/test_risk_desk.py` | 23 |
 | `agents/trend_agent.py` | — | 0 |
 | `agents/volatility.py` | `tests/unit/agents/test_volatility.py` | 11 |
+| `agents/volatility_desk.py` | `tests/unit/agents/test_volatility_desk.py` | 11 |
 
 ### scan/
 
@@ -1772,15 +1826,15 @@ Each row maps a source file to its test files and approximate test count.
 | Module | Files | Public Symbols | Test Files | Tests |
 |--------|-------|----------------|------------|-------|
 | utils/ | 1 | 4 | 1 | 11 |
-| models/ | 21 | 137 | 13 | 596 |
+| models/ | 21 | 142 | 13 | 596 |
 | indicators/ | 17 | 73 | 16 | 504 |
 | pricing/ | 8 | 25 | 7 | 244 |
 | services/ | 13 | 112 | 12 | 360 |
 | scoring/ | 6 | 29 | 6 | 227 |
 | data/ | 8 | 59 | 2 | 46 |
-| agents/ | 16 | 56 | 6 | 196 |
+| agents/ | 22 | 69 | 10 | 260 |
 | scan/ | 8 | 23 | 3 | 82 |
 | reporting/ | 1 | 2 | 1 | 10 |
 | api/ | 14 | 100 | 11 | 129 |
 | cli/ | 6 | 39 | 3 | 27 |
-| **Total** | **119** | **659** | **81** | **2432** |
+| **Total** | **125** | **677** | **85** | **2496** |
