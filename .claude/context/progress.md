@@ -14,7 +14,7 @@
 
 ## In Progress
 
-- **AI Agency Evolution PRD**: Drafted (`.claude/prds/ai-agency-evolution.md`), not yet parsed into epic
+- **AI Agency Evolution**: PRD revised (2026-03-17) with 3-tier tool architecture (base + analysis + ML), 8 epics parsed across 3 parallel tracks. Epics: `ai-agency-desk-foundation`, `ai-agency-advisor-routing`, `ai-agency-all-desks`, `ai-agency-weight-tuning`, `ai-agency-prompt-ab`, `ai-agency-strategy-mining`, `ai-agency-analysis-tools`, `ai-agency-ml-tools`. Status: planned, not yet decomposed into tasks.
 
 ## Recently Completed
 
@@ -29,7 +29,6 @@
 
 - Real-time market data streaming
 - Frontend unit testing (Vitest + Vue Test Utils) — E2E covered by Playwright
-- AI agency evolution (multi-model orchestration, agent self-improvement)
 
 ## Blockers
 

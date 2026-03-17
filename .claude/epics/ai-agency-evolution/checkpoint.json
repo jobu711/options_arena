@@ -1,0 +1,12 @@
+{
+  "epic": "ai-agency-evolution",
+  "phase": "planning",
+  "last_command": "/pm:prd-parse ai-agency-evolution",
+  "last_updated": "2026-03-17T14:37:45Z",
+  "completed_phases": ["prd-created", "prd-revised", "research", "planning"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "Parsed into 8 independent child epics (not 6 consolidated tasks). 3 parallel tracks: Core Agency (1-3), Self-Improvement (4-6), Tool Enrichment (7-8). PydanticAI FunctionToolset/UsageLimits verified via Context7."
+}
