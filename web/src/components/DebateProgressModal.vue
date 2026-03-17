@@ -76,11 +76,12 @@ function statusClass(status: string): string {
 }
 
 const AGENT_LABELS: Record<string, string> = {
-  bull: 'Bull Agent',
-  bear: 'Bear Agent',
-  risk: 'Risk Agent',
-  rebuttal: 'Bull Rebuttal',
+  trend: 'Trend Agent',
   volatility: 'Volatility Agent',
+  flow: 'Flow Agent',
+  fundamental: 'Fundamental Agent',
+  risk: 'Risk Agent',
+  contrarian: 'Contrarian Agent',
 }
 
 function navigateToDebate(debateId: number): void {

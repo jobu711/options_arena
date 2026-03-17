@@ -578,17 +578,18 @@ class TestDebatePhase:
     """Tests for DebatePhase enum."""
 
     def test_has_all_phases(self) -> None:
-        """DebatePhase defines exactly 5 phases."""
-        assert len(DebatePhase) == 5
+        """DebatePhase defines exactly 6 phases."""
+        assert len(DebatePhase) == 6
 
     def test_values(self) -> None:
         """DebatePhase values are lowercase strings."""
-        assert DebatePhase.BULL == "bull"
-        assert DebatePhase.BEAR == "bear"
-        assert DebatePhase.REBUTTAL == "rebuttal"
+        assert DebatePhase.TREND == "trend"
         assert DebatePhase.VOLATILITY == "volatility"
+        assert DebatePhase.FLOW == "flow"
+        assert DebatePhase.FUNDAMENTAL == "fundamental"
         assert DebatePhase.RISK == "risk"
+        assert DebatePhase.CONTRARIAN == "contrarian"
 
     def test_is_str_subclass(self) -> None:
         """DebatePhase members are str instances (StrEnum)."""
-        assert isinstance(DebatePhase.BULL, str)
+        assert isinstance(DebatePhase.TREND, str)
