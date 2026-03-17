@@ -200,7 +200,7 @@ class TestFetchQuoteTool:
         result = await fetch_quote(ctx, "AAPL")
 
         assert result.startswith("Error:")
-        assert "connection failed" in result
+        assert "AAPL" in result
 
     async def test_appends_to_tools_used_on_success(self) -> None:
         """Tool name appended to tools_used on success."""
@@ -356,7 +356,7 @@ class TestFetchPortfolioExposureTool:
         result = await fetch_portfolio_exposure(ctx, "AAPL")
 
         assert result.startswith("Error:")
-        assert "db error" in result
+        assert "AAPL" in result
         assert "fetch_portfolio_exposure" in deps.tools_used
 
     async def test_success_returns_contract_details(self) -> None:

@@ -20,7 +20,7 @@ from pydantic_ai.usage import UsageLimits
 
 from options_arena.agents._desk_deps import DeskDeps
 from options_arena.agents._parsing import strip_think_tags
-from options_arena.agents._toolsets import build_risk_toolset
+from options_arena.agents._toolsets import DESK_SUCCESS_CONFIDENCE, build_risk_toolset
 from options_arena.agents.prompts.desk_risk import DESK_RISK_PROMPT
 from options_arena.models import AgencyConfig, DeskResponse, DeskType
 
@@ -53,28 +53,31 @@ async def run_risk_desk_query(
     Returns a ``DeskResponse`` -- never raises.
     """
     cfg = config or AgencyConfig()
+    if model is None:
+        logger.warning("Risk desk query called without a model")
+        return DeskResponse(
+            desk=DeskType.RISK,
+            response="Error: no LLM model configured. Set GROQ_API_KEY or pass --provider.",
+            tools_used=list(deps.tools_used),
+            confidence=0.0,
+        )
     try:
         limits = UsageLimits(request_limit=cfg.risk_tool_budget + 2)
-        if model is not None:
-            coro = risk_desk.run(  # type: ignore[call-overload]
+        result = await asyncio.wait_for(
+            risk_desk.run(  # type: ignore[call-overload]
                 query,
                 model=model,
                 deps=deps,
                 usage_limits=limits,
-            )
-        else:
-            coro = risk_desk.run(
-                query,
-                deps=deps,
-                usage_limits=limits,
-            )
-        result = await asyncio.wait_for(coro, timeout=cfg.agent_timeout)
+            ),
+            timeout=cfg.agent_timeout,
+        )
         output = strip_think_tags(result.output)
         return DeskResponse(
             desk=DeskType.RISK,
             response=output,
             tools_used=list(deps.tools_used),
-            confidence=0.7,
+            confidence=DESK_SUCCESS_CONFIDENCE,
         )
     except TimeoutError:
         logger.warning("Risk desk query timed out after %.1fs", cfg.agent_timeout)
@@ -88,7 +91,7 @@ async def run_risk_desk_query(
         logger.warning("Risk desk query failed: %s", exc)
         return DeskResponse(
             desk=DeskType.RISK,
-            response=f"Error processing query: {exc}",
+            response="An internal error occurred processing your query.",
             tools_used=list(deps.tools_used),
             confidence=0.0,
         )

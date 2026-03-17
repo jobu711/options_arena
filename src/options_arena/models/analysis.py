@@ -382,8 +382,7 @@ class MarketContext(BaseModel):
         "yield_spread",
         "fed_funds_rate",
         "vix_level",
-        # Neural trajectory
-        "prob_profit_neural",
+        # Neural trajectory — prob_profit_neural excluded: has dedicated [0,1] validator
     )
     @classmethod
     def validate_optional_finite(cls, v: float | None) -> float | None:

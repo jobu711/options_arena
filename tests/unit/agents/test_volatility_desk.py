@@ -65,14 +65,13 @@ class TestRunVolDeskQuery:
         assert "<think>" not in result.response
         assert "The IV is elevated." in result.response
 
-    async def test_never_raises_on_error(self) -> None:
+    async def test_no_model_returns_error_response(self) -> None:
         deps = _make_deps()
-        # Don't pass model - with ALLOW_MODEL_REQUESTS=False this should error
-        # but run_vol_desk_query should catch it
+        # No model provided — early guard returns error DeskResponse
         result = await run_vol_desk_query("test", deps)
         assert isinstance(result, DeskResponse)
         assert result.confidence == 0.0
-        assert "Error" in result.response or "timed out" in result.response.lower()
+        assert "no LLM model" in result.response
 
     async def test_timeout_returns_fallback(self) -> None:
         deps = _make_deps()
@@ -94,7 +93,8 @@ class TestRunVolDeskQuery:
         assert isinstance(result, DeskResponse)
 
     async def test_successful_response_has_confidence(self) -> None:
+        from options_arena.agents._toolsets import DESK_SUCCESS_CONFIDENCE
+
         deps = _make_deps()
         result = await run_vol_desk_query("test", deps, model=TestModel())
-        # Successful responses get confidence=0.7
-        assert result.confidence == pytest.approx(0.7, abs=0.01)
+        assert result.confidence == pytest.approx(DESK_SUCCESS_CONFIDENCE, abs=0.01)
