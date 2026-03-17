@@ -6,10 +6,9 @@ cleanly.  Pure infrastructure — no business logic.
 """
 
 import logging
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
-
-import sqlite3
 
 import aiosqlite
 
