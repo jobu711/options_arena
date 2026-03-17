@@ -523,3 +523,56 @@ class TestPhase3MarketRegime:
         # With insufficient data for vol_cone, market_regime should be None
         if signals.vol_cone_percentile is None:
             assert signals.market_regime is None
+
+
+# ---------------------------------------------------------------------------
+# Hurst exponent wiring tests (Task #561)
+# ---------------------------------------------------------------------------
+
+
+class TestHurstExponentWiring:
+    """Verify hurst_exponent is wired into _compute_ohlcv_dse."""
+
+    def test_hurst_populated_with_sufficient_data(self) -> None:
+        """Verify hurst_exponent is set when close series has >200 bars."""
+        rng = np.random.default_rng(42)
+        n = 300
+        # Trending close series (cumulative sum of positive drift)
+        close = pd.Series(100.0 + np.cumsum(rng.normal(0.05, 1.0, n)))
+        volume = pd.Series(np.full(n, 1_000_000))
+        df = pd.DataFrame({"close": close, "volume": volume})
+
+        signals = IndicatorSignals()
+        from options_arena.scan.indicators import _compute_ohlcv_dse
+
+        _compute_ohlcv_dse(df, signals)
+
+        assert signals.hurst_exponent is not None
+        assert 0.0 <= signals.hurst_exponent <= 1.0
+
+    def test_hurst_none_with_insufficient_data(self) -> None:
+        """Verify hurst_exponent stays None when close series has <200 bars."""
+        close = pd.Series(np.linspace(100, 110, 50))
+        volume = pd.Series(np.full(50, 1_000_000))
+        df = pd.DataFrame({"close": close, "volume": volume})
+
+        signals = IndicatorSignals()
+        from options_arena.scan.indicators import _compute_ohlcv_dse
+
+        _compute_ohlcv_dse(df, signals)
+
+        assert signals.hurst_exponent is None
+
+    def test_hurst_nan_guarded(self) -> None:
+        """Verify non-finite hurst values don't propagate."""
+        signals = IndicatorSignals()
+
+        with patch("options_arena.scan.indicators.hurst_exponent", return_value=float("nan")):
+            from options_arena.scan.indicators import _compute_ohlcv_dse
+
+            close = pd.Series(np.linspace(100, 110, 300))
+            volume = pd.Series(np.full(300, 1_000_000))
+            df = pd.DataFrame({"close": close, "volume": volume})
+            _compute_ohlcv_dse(df, signals)
+
+        assert signals.hurst_exponent is None

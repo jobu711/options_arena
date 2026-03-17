@@ -40,6 +40,7 @@ from options_arena.indicators.fundamental import (
     compute_earnings_impact,
     compute_iv_crush_history,
 )
+from options_arena.indicators.hurst import hurst_exponent
 from options_arena.indicators.hv_estimators import compute_hv_yang_zhang
 from options_arena.indicators.iv_analytics import (
     compute_ewma_vol_forecast,
@@ -308,6 +309,14 @@ def _compute_ohlcv_dse(
             signals.volume_profile_skew = vps
     except Exception:
         logger.warning("Indicator volume_profile_skew failed; setting to None", exc_info=True)
+
+    # --- hurst_exponent ---
+    try:
+        hurst = hurst_exponent(close)
+        if hurst is not None and math.isfinite(hurst):
+            signals.hurst_exponent = hurst
+    except Exception:
+        logger.warning("Indicator hurst_exponent failed; setting to None", exc_info=True)
 
 
 def compute_options_indicators(
