@@ -27,9 +27,8 @@ from options_arena.agents.volatility import (
     VOLATILITY_SYSTEM_PROMPT,
     clean_think_tags,
     volatility_agent,
-    volatility_dynamic_prompt,
 )
-from options_arena.models import SignalDirection, SpreadType, VolatilityThesis
+from options_arena.models import SpreadType, VolatilityThesis
 
 # Prevent accidental real API calls
 models.ALLOW_MODEL_REQUESTS = False

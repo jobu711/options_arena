@@ -184,7 +184,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Options Arena",
         description="AI-powered American-style options analysis API",
-        version="1.5.0",
+        version=__import__("options_arena").__version__,
         lifespan=lifespan,
     )
 

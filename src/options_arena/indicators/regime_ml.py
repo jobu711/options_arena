@@ -300,6 +300,19 @@ def _load_model(path: Path | None) -> Any:  # noqa: ANN401
             logger.debug("ML regime model not found at %s", resolved)
             return None
 
+        # Security: when using the default (config-derived) path, validate it
+        # resolves within the project root to prevent path traversal via
+        # configurable model_cache_dir (CWE-502/CWE-918). Explicit caller-
+        # provided paths (e.g., from tests) skip this check.
+        if path is None:
+            project_root = Path(__file__).resolve().parent.parent.parent.parent
+            if not resolved.resolve().is_relative_to(project_root):
+                logger.warning(
+                    "ML regime model path %s is outside project root — refusing to load",
+                    resolved,
+                )
+                return None
+
         model: object = joblib.load(resolved)
         _cached_model = model
         _cached_model_path = resolved

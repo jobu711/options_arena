@@ -6,6 +6,7 @@ cleanly.  Pure infrastructure — no business logic.
 """
 
 import logging
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -100,9 +101,27 @@ class Database:
                     logger.debug("Migration %03d already applied, skipping", version)
                     continue
 
-            # Apply migration
+            # Apply migration. executescript() issues an implicit COMMIT before
+            # running (sqlite3 behavior). If the process crashed between executescript
+            # and the schema_version INSERT below, the migration is applied but not
+            # recorded. On restart, re-application of non-idempotent DDL (ALTER TABLE
+            # ADD COLUMN, RENAME COLUMN) would crash. We catch OperationalError and
+            # record the migration as applied to handle this crash recovery case.
             sql_content = path.read_text(encoding="utf-8")
-            await conn.executescript(sql_content)
+            try:
+                await conn.executescript(sql_content)
+            except sqlite3.OperationalError as exc:
+                # If migration fails with a DDL error (e.g., "duplicate column name"),
+                # it was likely partially applied in a prior run. Record it and continue.
+                err_msg = str(exc).lower()
+                if "duplicate column" in err_msg or "already exists" in err_msg:
+                    logger.warning(
+                        "Migration %03d appears partially applied (%s) — recording as applied",
+                        version,
+                        exc,
+                    )
+                else:
+                    raise
 
             # Record the applied migration
             applied_at = datetime.now(UTC).isoformat()
