@@ -3,7 +3,7 @@
   "phase": "executing",
   "last_command": "/pm:epic-start v2-release-prep",
   "last_updated": "2026-03-17T03:41:03Z",
-  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced", "executing"],
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
   "current_task": 565,
   "tasks_completed": [],
   "tasks_in_progress": [565],

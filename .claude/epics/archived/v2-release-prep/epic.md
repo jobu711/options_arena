@@ -1,8 +1,10 @@
 ---
 name: v2-release-prep
-status: backlog
+status: completed
 created: 2026-03-17T03:13:08Z
-progress: 0%
+updated: 2026-03-17T22:00:00Z
+completed: 2026-03-17T22:00:00Z
+progress: 100%
 prd: .claude/prds/v2-release-prep.md
 github: https://github.com/jobu711/options_arena/issues/564
 ---
@@ -57,17 +59,17 @@ Bump version to 2.10.0 across 6 locations (research identified all), generate CH
 ## Task Breakdown Preview
 
 ### Phase 1: Cleanup & Audit
-- [ ] 001: Housekeeping — clean stale worktrees, archive stale epics, resolve working tree state
-- [ ] 002: Full audit battery — `/full-audit` (7 agents) + `/math-audit` in parallel, consolidate report
-- [ ] 003: Triage & fix P1 findings — prioritize, `/fix-loop` for P1s, document P2s as known limitations
+- [x] 001: Housekeeping — clean stale worktrees, archive stale epics, resolve working tree state
+- [x] 002: Full audit battery — `/full-audit` (7 agents) + `/math-audit` in parallel, consolidate report
+- [x] 003: Triage & fix P1 findings — prioritize, `/fix-loop` for P1s, document P2s as known limitations
 
 ### Phase 2: Verification
-- [ ] 004: Test suite verification — Python tests, E2E, optional extras (`[ml]`, `[pdf]`), migration integrity
-- [ ] 005: Performance baseline — time scan pipeline, single debate, batch debate, document results
+- [x] 004: Test suite verification — Python tests, E2E, optional extras (`[ml]`, `[pdf]`), migration integrity
+- [x] 005: Performance baseline — time scan pipeline, single debate, batch debate, document results
 
 ### Phase 3: Release Cut
-- [ ] 006: Version bump & CHANGELOG — update all 6 version locations, generate CHANGELOG.md from git history
-- [ ] 007: Documentation alignment & release tag — docgen, context file alignment, final commit, git tag `v2.10.0`
+- [x] 006: Version bump & CHANGELOG — update all 6 version locations, generate CHANGELOG.md from git history
+- [x] 007: Documentation alignment & release tag — docgen, context file alignment, final commit, git tag `v2.10.0`
 
 ## Dependencies
 
@@ -101,13 +103,13 @@ Bump version to 2.10.0 across 6 locations (research identified all), generate CH
 - **Critical path**: Task 003 (P1 fix count is unknown until audits complete)
 
 ## Tasks Created
-- [ ] #565 - Housekeeping & Stale Artifact Cleanup (parallel: true)
-- [ ] #567 - Full Audit Battery (parallel: false, depends: #565)
-- [ ] #570 - Triage & Fix P1 Findings (parallel: false, depends: #567)
-- [ ] #566 - Test Suite & Migration Verification (parallel: false, depends: #570)
-- [ ] #568 - Performance Baseline (parallel: true, depends: #570)
-- [ ] #569 - Version Bump & CHANGELOG (parallel: false, depends: #566, #568)
-- [ ] #571 - Documentation Alignment & Release Tag (parallel: false, depends: #569)
+- [x] #565 - Housekeeping & Stale Artifact Cleanup (parallel: true)
+- [x] #567 - Full Audit Battery (parallel: false, depends: #565)
+- [x] #570 - Triage & Fix P1 Findings (parallel: false, depends: #567)
+- [x] #566 - Test Suite & Migration Verification (parallel: false, depends: #570)
+- [x] #568 - Performance Baseline (parallel: true, depends: #570)
+- [x] #569 - Version Bump & CHANGELOG (parallel: false, depends: #566, #568)
+- [x] #571 - Documentation Alignment & Release Tag (parallel: false, depends: #569)
 
 Total tasks: 7
 Parallel tasks: 2 (#565, #568)
