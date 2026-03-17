@@ -267,6 +267,8 @@ class ScanMixin(RepositoryBase):
 
         # Step 3: batch-fetch recent history for ALL candidates (eliminates N+1)
         candidate_tickers = [str(r["ticker"]) for r in candidate_rows]
+        if not candidate_tickers:
+            return []  # Defense-in-depth: empty list would produce invalid IN () SQL
         candidate_scores = {str(r["ticker"]): float(r["composite_score"]) for r in candidate_rows}
         lookback = min_scans + 10
 
