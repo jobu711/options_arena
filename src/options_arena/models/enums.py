@@ -397,6 +397,28 @@ class SurfaceMethod(StrEnum):
     NEURAL = "neural"
 
 
+class DeskType(StrEnum):
+    """Desk specialization for agency routing."""
+
+    TREND = "trend"
+    VOLATILITY = "volatility"
+    FLOW = "flow"
+    FUNDAMENTAL = "fundamental"
+    RISK = "risk"
+    CONTRARIAN = "contrarian"
+    RESEARCH = "research"
+
+
+class QueryType(StrEnum):
+    """Classification of user query intent for desk routing."""
+
+    ANALYSIS = "analysis"
+    COMPARISON = "comparison"
+    STRATEGY = "strategy"
+    RISK_CHECK = "risk_check"
+    GENERAL = "general"
+
+
 class GICSIndustryGroup(StrEnum):
     """GICS Industry Groups (2023 standard).
 

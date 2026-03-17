@@ -642,6 +642,38 @@ class OpenBBConfig(BaseModel):
     max_retries: int = 2
 
 
+class AgencyConfig(BaseModel):
+    """AI agency desk system configuration.
+
+    Controls timeout, tool budgets for desk agents. ``agent_timeout`` is the
+    per-agent timeout in seconds. Tool budgets limit the number of tool calls
+    each agent can make per invocation.
+    """
+
+    agent_timeout: float = 60.0
+    default_tool_budget: int = 3
+    risk_tool_budget: int = 5
+    research_tool_budget: int = 5
+
+    @field_validator("agent_timeout")
+    @classmethod
+    def validate_agent_timeout(cls, v: float) -> float:
+        """Ensure agent_timeout is finite and positive."""
+        if not math.isfinite(v):
+            raise ValueError(f"agent_timeout must be finite, got {v}")
+        if v <= 0.0:
+            raise ValueError(f"agent_timeout must be > 0, got {v}")
+        return v
+
+    @field_validator("default_tool_budget", "risk_tool_budget", "research_tool_budget")
+    @classmethod
+    def validate_tool_budget(cls, v: int) -> int:
+        """Ensure tool_budget is within [1, 20]."""
+        if not 1 <= v <= 20:
+            raise ValueError(f"tool_budget must be in [1, 20], got {v}")
+        return v
+
+
 class AppSettings(BaseSettings):
     """Root application settings — the sole BaseSettings subclass.
 
@@ -667,3 +699,4 @@ class AppSettings(BaseSettings):
     financial_datasets: FinancialDatasetsConfig = FinancialDatasetsConfig()
     spread: SpreadConfig = SpreadConfig()
     position_sizing: PositionSizingConfig = PositionSizingConfig()
+    agency: AgencyConfig = AgencyConfig()
