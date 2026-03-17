@@ -2,7 +2,7 @@
 
 ## Current State
 
-- **Version**: 2.8.0 — Statistical ML pipeline + competitive audit + dead code audit
+- **Version**: 2.10.0 — Release hardening + full audit + math verification
 - **All 9 phases + 35 epics**: Complete and merged to master
 - **Tests**: 4,816 Python (27K parametrized) + 107 E2E (17 spec files)
 - **GitHub issues**: 8 open (v2-release-prep #564-#571), 537+ closed
