@@ -8,12 +8,6 @@ Modules:
     spreads       -- Multi-leg strategy construction and selection engine.
 """
 
-from options_arena.scoring.clustering import (
-    ClusteringResult,
-    ContractCluster,
-    GreeksCentroid,
-    cluster_contracts_by_greeks,
-)
 from options_arena.scoring.composite import (
     INDICATOR_WEIGHTS,
     composite_score,
@@ -29,8 +23,6 @@ from options_arena.scoring.contracts import (
 from options_arena.scoring.dimensional import (
     DEFAULT_FAMILY_WEIGHTS,
     FAMILY_INDICATOR_MAP,
-    REGIME_WEIGHT_PROFILES,
-    apply_regime_weights,
     compute_dimensional_scores,
     compute_direction_signal,
 )
@@ -62,10 +54,8 @@ __all__: list[str] = [
     # dimensional
     "compute_dimensional_scores",
     "compute_direction_signal",
-    "apply_regime_weights",
     "FAMILY_INDICATOR_MAP",
     "DEFAULT_FAMILY_WEIGHTS",
-    "REGIME_WEIGHT_PROFILES",
     # direction
     "determine_direction",
     # contracts
@@ -76,9 +66,4 @@ __all__: list[str] = [
     "recommend_contracts",
     # spreads
     "select_strategy",
-    # clustering
-    "cluster_contracts_by_greeks",
-    "ClusteringResult",
-    "ContractCluster",
-    "GreeksCentroid",
 ]

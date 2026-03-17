@@ -85,11 +85,9 @@ class SpreadType(StrEnum):
     """Type of option spread strategy."""
 
     VERTICAL = "vertical"
-    CALENDAR = "calendar"
     IRON_CONDOR = "iron_condor"
     STRADDLE = "straddle"
     STRANGLE = "strangle"
-    BUTTERFLY = "butterfly"
 
 
 class MacdSignal(StrEnum):

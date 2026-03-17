@@ -182,7 +182,6 @@ class TestSchemaBackwardCompatibility:
         assert detail.prob_above_current is None
 
 
-
 # ---------------------------------------------------------------------------
 # JSON serialization round-trip
 # ---------------------------------------------------------------------------

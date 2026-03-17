@@ -413,18 +413,3 @@ class IntelligencePackage(BaseModel):
             raise ValueError("fetched_at must be UTC")
         return v
 
-    def intelligence_completeness(self) -> float:
-        """Fraction of the 5 intelligence categories that are populated.
-
-        Categories: analyst, analyst_activity, insider, institutional, news_headlines.
-        Returns a float in [0.0, 1.0].
-        """
-        categories = [
-            self.analyst,
-            self.analyst_activity,
-            self.insider,
-            self.institutional,
-            self.news_headlines,
-        ]
-        populated = sum(1 for c in categories if c is not None)
-        return populated / len(categories)

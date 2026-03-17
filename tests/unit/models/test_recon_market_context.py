@@ -3,8 +3,6 @@
 Tests cover:
 - 8 Arena Recon intelligence fields (analyst, insider, institutional)
 - 22 DSE fields (dimensional scores, indicators, second-order Greeks, confidence)
-- intelligence_ratio() method
-- dse_ratio() method
 - Existing completeness_ratio() and enrichment_ratio() are NOT affected by new fields
 - NaN/Inf rejection on all new float fields via validate_optional_finite
 """
@@ -167,10 +165,13 @@ class TestMarketContextDSEFields:
             assert getattr(ctx, field_name) is None, f"{field_name} should default to None"
 
     def test_dse_fields_accept_valid_floats(self) -> None:
+        # direction_confidence has a [0, 1] validator; use per-field safe values
         overrides = {name: 50.0 for name in DSE_FIELDS}
+        overrides["direction_confidence"] = 0.85
         ctx = _make_ctx(**overrides)
         for field_name in DSE_FIELDS:
-            assert getattr(ctx, field_name) == 50.0
+            expected = 0.85 if field_name == "direction_confidence" else 50.0
+            assert getattr(ctx, field_name) == expected
 
     @pytest.mark.parametrize("field_name", DSE_FIELDS)
     def test_dse_fields_reject_nan(self, field_name: str) -> None:
@@ -254,90 +255,6 @@ class TestMarketContextDSEFields:
 
 
 # ===========================================================================
-# TestIntelligenceRatio
-# ===========================================================================
-
-
-class TestIntelligenceRatio:
-    """Test the intelligence_ratio() method."""
-
-    def test_all_populated(self) -> None:
-        ctx = _make_ctx(
-            analyst_target_mean=150.0,
-            analyst_target_upside_pct=0.25,
-            analyst_consensus_score=0.5,
-            analyst_upgrades_30d=5,
-            analyst_downgrades_30d=2,
-            insider_net_buys_90d=3,
-            insider_buy_ratio=0.7,
-            institutional_pct=0.85,
-        )
-        assert ctx.intelligence_ratio() == pytest.approx(1.0)
-
-    def test_all_none(self) -> None:
-        ctx = _make_ctx()
-        assert ctx.intelligence_ratio() == pytest.approx(0.0)
-
-    def test_partial(self) -> None:
-        # 4 of 8 fields populated
-        ctx = _make_ctx(
-            analyst_target_mean=150.0,
-            analyst_target_upside_pct=0.25,
-            analyst_upgrades_30d=5,
-            insider_buy_ratio=0.7,
-        )
-        assert ctx.intelligence_ratio() == pytest.approx(4.0 / 8.0)
-
-    def test_single_field(self) -> None:
-        ctx = _make_ctx(analyst_target_mean=100.0)
-        assert ctx.intelligence_ratio() == pytest.approx(1.0 / 8.0)
-
-    def test_zero_valued_fields_count_as_populated(self) -> None:
-        """0 is not None -- a zero value means data was fetched."""
-        ctx = _make_ctx(
-            analyst_target_mean=0.0,
-            analyst_upgrades_30d=0,
-            analyst_downgrades_30d=0,
-            insider_net_buys_90d=0,
-        )
-        assert ctx.intelligence_ratio() == pytest.approx(4.0 / 8.0)
-
-
-# ===========================================================================
-# TestDSERatio
-# ===========================================================================
-
-
-class TestDSERatio:
-    """Test the dse_ratio() method."""
-
-    def test_all_populated(self) -> None:
-        overrides = {name: 50.0 for name in DSE_FIELDS}
-        ctx = _make_ctx(**overrides)
-        assert ctx.dse_ratio() == pytest.approx(1.0)
-
-    def test_all_none(self) -> None:
-        ctx = _make_ctx()
-        assert ctx.dse_ratio() == pytest.approx(0.0)
-
-    def test_partial(self) -> None:
-        # 11 of 22 fields populated
-        half_fields = DSE_FIELDS[:11]
-        overrides = {name: 42.0 for name in half_fields}
-        ctx = _make_ctx(**overrides)
-        assert ctx.dse_ratio() == pytest.approx(11.0 / 22.0)
-
-    def test_single_field(self) -> None:
-        ctx = _make_ctx(dim_trend=80.0)
-        assert ctx.dse_ratio() == pytest.approx(1.0 / 22.0)
-
-    def test_zero_valued_fields_count_as_populated(self) -> None:
-        """0.0 is not None -- a zero value means data was computed."""
-        ctx = _make_ctx(dim_trend=0.0, dim_risk=0.0, gex=0.0)
-        assert ctx.dse_ratio() == pytest.approx(3.0 / 22.0)
-
-
-# ===========================================================================
 # TestExistingRatiosUnchanged
 # ===========================================================================
 
@@ -350,9 +267,12 @@ class TestExistingRatiosUnchanged:
         ctx_base = _make_ctx()
         base_ratio = ctx_base.completeness_ratio()
 
-        # Set ALL 30 new fields to non-None values
+        # Set ALL 30 new fields to non-None values (respect [0,1] validators)
         all_new: dict[str, object] = {name: 50.0 for name in DSE_FIELDS}
+        all_new["direction_confidence"] = 0.85  # [0, 1] range
         all_new.update({name: 10.0 for name in INTELLIGENCE_FLOAT_FIELDS})
+        all_new["insider_buy_ratio"] = 0.7  # [0, 1] range
+        all_new["institutional_pct"] = 0.85  # [0, 1] range
         all_new.update({name: 5 for name in INTELLIGENCE_INT_FIELDS})
         ctx_full = _make_ctx(**all_new)
 
@@ -363,9 +283,12 @@ class TestExistingRatiosUnchanged:
         ctx_base = _make_ctx()
         base_ratio = ctx_base.enrichment_ratio()
 
-        # Set ALL 30 new fields to non-None values
+        # Set ALL 30 new fields to non-None values (respect [0,1] validators)
         all_new: dict[str, object] = {name: 50.0 for name in DSE_FIELDS}
+        all_new["direction_confidence"] = 0.85  # [0, 1] range
         all_new.update({name: 10.0 for name in INTELLIGENCE_FLOAT_FIELDS})
+        all_new["insider_buy_ratio"] = 0.7  # [0, 1] range
+        all_new["institutional_pct"] = 0.85  # [0, 1] range
         all_new.update({name: 5 for name in INTELLIGENCE_INT_FIELDS})
         ctx_full = _make_ctx(**all_new)
 

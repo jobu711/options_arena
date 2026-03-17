@@ -44,7 +44,6 @@ class TestRepositoryDecomposition:
             "get_recent_scans",
             "get_score_history",
             "get_trending_tickers",
-            "get_last_debate_dates",
             # DebateMixin
             "save_debate",
             "save_agent_predictions",
@@ -60,11 +59,8 @@ class TestRepositoryDecomposition:
             "get_contracts_for_scan",
             "get_contracts_for_ticker",
             "save_normalization_stats",
-            "get_normalization_stats",
             "save_contract_outcomes",
-            "get_outcomes_for_contract",
             "get_contracts_needing_outcomes",
-            "has_outcome",
             "get_win_rate_by_direction",
             "get_score_calibration",
             "get_indicator_attribution",
@@ -74,13 +70,11 @@ class TestRepositoryDecomposition:
             # MetadataMixin
             "upsert_ticker_metadata",
             "upsert_ticker_metadata_batch",
-            "get_ticker_metadata",
             "get_all_ticker_metadata",
             "get_stale_tickers",
             "get_metadata_coverage",
             # SpreadsMixin
             "save_spread_recommendation",
-            "get_spread_recommendations",
             "get_spread_for_ticker",
             # RepositoryBase
             "commit",

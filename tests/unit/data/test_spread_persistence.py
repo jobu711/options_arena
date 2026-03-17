@@ -236,35 +236,6 @@ class TestSpreadPersistence:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_get_spread_recommendations_empty(
-        self,
-        repo: Repository,
-        scan_run_id: int,
-    ) -> None:
-        """Verify get_spread_recommendations returns empty list when none saved."""
-        results = await repo.get_spread_recommendations(scan_run_id)
-        assert results == []
-
-    @pytest.mark.asyncio
-    async def test_get_spread_recommendations_multiple(
-        self,
-        repo: Repository,
-        scan_run_id: int,
-    ) -> None:
-        """Verify multiple spreads retrieved for same scan run."""
-        spread1 = _make_spread_with_known_decimals()
-        spread2 = make_spread_analysis(
-            strategy_rationale="Bear put debit spread",
-            iv_regime=VolRegime.ELEVATED,
-        )
-
-        await repo.save_spread_recommendation(scan_run_id, "AAPL", spread1)
-        await repo.save_spread_recommendation(scan_run_id, "MSFT", spread2)
-
-        results = await repo.get_spread_recommendations(scan_run_id)
-        assert len(results) == 2
-
-    @pytest.mark.asyncio
     async def test_spread_with_none_iv_regime(
         self,
         repo: Repository,

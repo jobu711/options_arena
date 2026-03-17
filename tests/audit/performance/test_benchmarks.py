@@ -1,11 +1,11 @@
-"""Performance benchmarks for all 84 mathematical functions.
+"""Performance benchmarks for all 83 mathematical functions.
 
 pytest-benchmark tests grouped by module:
 - Pricing (14): BSM price/greeks/vega/iv/second_order, BAW price/greeks/iv/second_order,
   dispatch price/greeks/iv/second_order, intrinsic_value
 - Indicators (57): oscillators, trend, volatility, volume, moving_averages,
   options_specific, iv_analytics, hv_estimators, flow_analytics, regime, vol_surface
-- Scoring (16): normalization, composite, direction, contracts, dimensional
+- Scoring (15): normalization, composite, direction, contracts, dimensional
 - Orchestration (5): agreement_score, vote_entropy, log_odds_pool, citation_density,
   _get_majority_direction
 
@@ -23,7 +23,6 @@ import pytest
 
 from options_arena.models.enums import (
     ExerciseStyle,
-    MarketRegime,
     OptionType,
     SignalDirection,
 )
@@ -1057,24 +1056,6 @@ class TestDimensionalBenchmarks:
         from options_arena.scoring.dimensional import compute_dimensional_scores
 
         benchmark(compute_dimensional_scores, single_ticker_signals)
-
-    @pytest.mark.benchmark(group="scoring")
-    def test_apply_regime_weights(self, benchmark: BenchmarkFixture) -> None:
-        """Benchmark regime weight application."""
-        from options_arena.models.scoring import DimensionalScores
-        from options_arena.scoring.dimensional import apply_regime_weights
-
-        scores = DimensionalScores(
-            trend=65.0,
-            iv_vol=55.0,
-            hv_vol=40.0,
-            flow=50.0,
-            microstructure=45.0,
-            fundamental=60.0,
-            regime=55.0,
-            risk=70.0,
-        )
-        benchmark(apply_regime_weights, scores, MarketRegime.TRENDING, True)
 
     @pytest.mark.benchmark(group="scoring")
     def test_compute_direction_signal(

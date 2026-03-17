@@ -1,4 +1,4 @@
-"""Tests for analytics persistence — RecommendedContract and NormalizationStats.
+"""Tests for analytics persistence — RecommendedContract.
 
 Covers:
   - RecommendedContract save/get roundtrip with all fields intact.
@@ -7,9 +7,6 @@ Covers:
   - Enum reconstruction (OptionType, ExerciseStyle, SignalDirection).
   - UNIQUE constraint enforcement on (scan_run_id, ticker, option_type, strike, expiration).
   - Batch insert of multiple contracts.
-  - NormalizationStats save/get roundtrip.
-  - Optional stats (None) stored as NULL and reconstructed.
-  - UNIQUE(scan_run_id, indicator_name) enforced.
   - Empty scan returns empty list.
   - Ticker-filtered contract query.
 """
@@ -28,7 +25,6 @@ from options_arena.data.repository import Repository
 from options_arena.models import (
     ExerciseStyle,
     GreeksSource,
-    NormalizationStats,
     OptionType,
     PricingModel,
     RecommendedContract,
@@ -109,25 +105,6 @@ def make_recommended_contract(scan_run_id: int = 1, **overrides: object) -> Reco
     }
     defaults.update(overrides)
     return RecommendedContract(**defaults)  # type: ignore[arg-type]
-
-
-def make_normalization_stats(scan_run_id: int = 1, **overrides: object) -> NormalizationStats:
-    """Build a NormalizationStats with sensible defaults."""
-    defaults: dict[str, object] = {
-        "scan_run_id": scan_run_id,
-        "indicator_name": "rsi",
-        "ticker_count": 450,
-        "min_value": 15.3,
-        "max_value": 92.7,
-        "median_value": 55.0,
-        "mean_value": 54.8,
-        "std_dev": 18.2,
-        "p25": 40.1,
-        "p75": 68.9,
-        "created_at": datetime(2026, 3, 1, 10, 5, 0, tzinfo=UTC),
-    }
-    defaults.update(overrides)
-    return NormalizationStats(**defaults)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -322,77 +299,3 @@ class TestRecommendedContractPersistence:
         assert len(loaded) == 3
         tickers = {c.ticker for c in loaded}
         assert tickers == {"AAPL", "MSFT"}
-
-
-# ---------------------------------------------------------------------------
-# NormalizationStats persistence
-# ---------------------------------------------------------------------------
-
-
-class TestNormalizationStatsPersistence:
-    """Tests for normalization stats save/get operations."""
-
-    @pytest.mark.asyncio
-    async def test_save_and_get_roundtrip(self, repo: Repository, scan_id: int) -> None:
-        """Verify normalization stats survive save -> get roundtrip."""
-        stat = make_normalization_stats(scan_run_id=scan_id)
-        await repo.save_normalization_stats(scan_id, [stat])
-
-        loaded = await repo.get_normalization_stats(scan_id)
-        assert len(loaded) == 1
-        s = loaded[0]
-        assert s.id is not None
-        assert s.scan_run_id == scan_id
-        assert s.indicator_name == "rsi"
-        assert s.ticker_count == 450
-        assert s.min_value == pytest.approx(15.3)
-        assert s.max_value == pytest.approx(92.7)
-        assert s.median_value == pytest.approx(55.0)
-        assert s.mean_value == pytest.approx(54.8)
-        assert s.std_dev == pytest.approx(18.2)
-        assert s.p25 == pytest.approx(40.1)
-        assert s.p75 == pytest.approx(68.9)
-        assert s.created_at == datetime(2026, 3, 1, 10, 5, 0, tzinfo=UTC)
-
-    @pytest.mark.asyncio
-    async def test_optional_stats_none_roundtrip(self, repo: Repository, scan_id: int) -> None:
-        """Verify None stats stored as NULL and reconstructed."""
-        stat = make_normalization_stats(
-            scan_run_id=scan_id,
-            indicator_name="iv_rank",
-            ticker_count=0,
-            min_value=None,
-            max_value=None,
-            median_value=None,
-            mean_value=None,
-            std_dev=None,
-            p25=None,
-            p75=None,
-        )
-        await repo.save_normalization_stats(scan_id, [stat])
-
-        loaded = await repo.get_normalization_stats(scan_id)
-        assert len(loaded) == 1
-        s = loaded[0]
-        assert s.min_value is None
-        assert s.max_value is None
-        assert s.median_value is None
-        assert s.mean_value is None
-        assert s.std_dev is None
-        assert s.p25 is None
-        assert s.p75 is None
-
-    @pytest.mark.asyncio
-    async def test_unique_per_indicator(self, repo: Repository, scan_id: int) -> None:
-        """Verify UNIQUE(scan_run_id, indicator_name) enforced."""
-        stat = make_normalization_stats(scan_run_id=scan_id, indicator_name="rsi")
-        await repo.save_normalization_stats(scan_id, [stat])
-
-        with pytest.raises(sqlite3.IntegrityError):
-            await repo.save_normalization_stats(scan_id, [stat])
-
-    @pytest.mark.asyncio
-    async def test_get_stats_empty(self, repo: Repository, scan_id: int) -> None:
-        """Verify empty list for scan with no normalization data."""
-        loaded = await repo.get_normalization_stats(scan_id)
-        assert loaded == []

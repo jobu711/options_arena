@@ -84,20 +84,6 @@ class MetadataMixin(RepositoryBase):
             await conn.commit()
         logger.debug("Batch-upserted %d ticker_metadata rows", len(items))
 
-    async def get_ticker_metadata(self, ticker: str) -> TickerMetadata | None:
-        """Lookup a single ``TickerMetadata`` by ticker (uppercased).
-
-        Returns ``None`` if the ticker is not in the table.
-        """
-        conn = self._db.conn
-        async with conn.execute(
-            "SELECT * FROM ticker_metadata WHERE ticker = ?", (ticker.upper(),)
-        ) as cursor:
-            row = await cursor.fetchone()
-        if row is None:
-            return None
-        return self._row_to_ticker_metadata(row)
-
     async def get_all_ticker_metadata(self) -> list[TickerMetadata]:
         """Return all rows from ``ticker_metadata`` as a list of ``TickerMetadata``."""
         conn = self._db.conn

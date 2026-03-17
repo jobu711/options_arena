@@ -7,8 +7,7 @@ Tests cover:
   - Direction (1): determine_direction
   - Contracts (5): filter_contracts, select_expiration, compute_greeks,
     select_by_delta, recommend_contracts
-  - Dimensional (3): compute_dimensional_scores, apply_regime_weights,
-    compute_direction_signal
+  - Dimensional (2): compute_dimensional_scores, compute_direction_signal
 
 Reference data loaded from ``tests/audit/reference_data/scoring_known_values.json``.
 """
@@ -16,7 +15,6 @@ Reference data loaded from ``tests/audit/reference_data/scoring_known_values.jso
 from __future__ import annotations
 
 import json
-import math
 from pathlib import Path
 
 import pytest
@@ -27,7 +25,6 @@ from options_arena.scoring.composite import INDICATOR_WEIGHTS, composite_score, 
 
 # Conditional imports for scoring modules that may need more complex setup
 from options_arena.scoring.dimensional import (
-    apply_regime_weights,
     compute_dimensional_scores,
     compute_direction_signal,
 )
@@ -386,25 +383,6 @@ class TestDimensionalScoresCorrectness:
         # DimensionalScores has family-named fields: trend, iv_vol, hv_vol, etc.
         assert hasattr(result, "trend")
         assert hasattr(result, "iv_vol")
-
-    def test_apply_regime_weights_finite(self) -> None:
-        """Regime-weighted scores are finite."""
-        from options_arena.models.enums import MarketRegime
-
-        signals = _make_signals(
-            rsi=60.0,
-            adx=25.0,
-            sma_alignment=0.3,
-            bb_width=0.05,
-        )
-        scores = compute_dimensional_scores(signals)
-        weighted = apply_regime_weights(
-            scores,
-            regime=MarketRegime.TRENDING,
-            enable_regime_weights=True,
-        )
-        assert weighted is not None
-        assert math.isfinite(weighted)
 
 
 # =========================================================================

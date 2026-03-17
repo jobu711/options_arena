@@ -275,7 +275,6 @@ def _register_exception_handlers(app: FastAPI) -> None:
     from options_arena.utils import (  # noqa: PLC0415
         DataSourceUnavailableError,
         InsufficientDataError,
-        RateLimitExceededError,
         TickerNotFoundError,
     )
 
@@ -299,7 +298,4 @@ def _register_exception_handlers(app: FastAPI) -> None:
             content={"detail": "External data source temporarily unavailable"},
         )
 
-    @app.exception_handler(RateLimitExceededError)
-    async def _rate_limit_exceeded(request: object, exc: RateLimitExceededError) -> JSONResponse:
-        logger.warning("Rate limit exceeded: %s", exc)
-        return JSONResponse(status_code=429, content={"detail": "Too many requests"})
+

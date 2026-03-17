@@ -1,6 +1,6 @@
 """Audit test configuration — function registry and Hypothesis profiles.
 
-``MATH_FUNCTION_REGISTRY`` maps all 84 mathematical functions in the codebase
+``MATH_FUNCTION_REGISTRY`` maps all 83 mathematical functions in the codebase
 to their callables for audit testing. Hypothesis profiles control example
 count for property-based stability tests.
 """
@@ -161,9 +161,8 @@ def _build_registry() -> dict[str, Any]:
         select_expiration,
     )
 
-    # -- Scoring: Dimensional (3) --
+    # -- Scoring: Dimensional (2) --
     from options_arena.scoring.dimensional import (
-        apply_regime_weights,
         compute_dimensional_scores,
         compute_direction_signal,
     )
@@ -275,9 +274,8 @@ def _build_registry() -> dict[str, Any]:
         "scoring.composite.score_universe": score_universe,
         # ---- Scoring: Direction (1) ----
         "scoring.direction.determine_direction": determine_direction,
-        # ---- Scoring: Dimensional (3) ----
+        # ---- Scoring: Dimensional (2) ----
         "scoring.dimensional.compute_dimensional_scores": compute_dimensional_scores,
-        "scoring.dimensional.apply_regime_weights": apply_regime_weights,
         "scoring.dimensional.compute_direction_signal": compute_direction_signal,
         # ---- Scoring: Contracts (5) ----
         "scoring.contracts.filter_contracts": filter_contracts,

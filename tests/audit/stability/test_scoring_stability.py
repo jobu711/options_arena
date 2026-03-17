@@ -13,7 +13,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from options_arena.models.config import ScanConfig
-from options_arena.models.enums import MarketRegime, SignalDirection
+from options_arena.models.enums import SignalDirection
 from options_arena.models.scan import IndicatorSignals
 from options_arena.scoring.composite import composite_score, score_universe
 from options_arena.scoring.contracts import (
@@ -24,7 +24,6 @@ from options_arena.scoring.contracts import (
     select_expiration,
 )
 from options_arena.scoring.dimensional import (
-    apply_regime_weights,
     compute_dimensional_scores,
     compute_direction_signal,
 )
@@ -546,45 +545,6 @@ class TestComputeDimensionalScoresStability:
             val = getattr(scores, field_name)
             if val is not None:
                 assert 0.0 <= val <= 100.0, f"{field_name} = {val}"
-
-
-class TestApplyRegimeWeightsStability:
-    """Stability tests for apply_regime_weights."""
-
-    @pytest.mark.audit_stability
-    def test_regime_weights_default(self) -> None:
-        """Default weights produce composite in [0, 100]."""
-        from options_arena.models.scoring import DimensionalScores
-
-        scores = DimensionalScores(trend=60.0, iv_vol=50.0, flow=55.0)
-        composite = apply_regime_weights(scores)
-        assert 0.0 <= composite <= 100.0
-
-    @pytest.mark.audit_stability
-    def test_regime_weights_all_none(self) -> None:
-        """All-None scores produce 0.0."""
-        from options_arena.models.scoring import DimensionalScores
-
-        scores = DimensionalScores()
-        assert apply_regime_weights(scores) == 0.0
-
-    @pytest.mark.audit_stability
-    @pytest.mark.parametrize(
-        "regime",
-        [
-            MarketRegime.TRENDING,
-            MarketRegime.MEAN_REVERTING,
-            MarketRegime.VOLATILE,
-            MarketRegime.CRISIS,
-        ],
-    )
-    def test_regime_weights_each_regime(self, regime: MarketRegime) -> None:
-        """Each regime produces composite in [0, 100]."""
-        from options_arena.models.scoring import DimensionalScores
-
-        scores = DimensionalScores(trend=70.0, iv_vol=50.0, risk=40.0)
-        composite = apply_regime_weights(scores, regime=regime, enable_regime_weights=True)
-        assert 0.0 <= composite <= 100.0
 
 
 class TestComputeDirectionSignalStability:

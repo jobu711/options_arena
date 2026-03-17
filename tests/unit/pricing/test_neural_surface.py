@@ -4,7 +4,6 @@ Tests cover:
 - IVSurfaceNet: forward shape, Softplus positivity, training_step loss
 - fit_neural_surface: synthetic data fit, insufficient data, missing deps,
   checkpoint save/load, NaN rejection, finite residuals
-- predict_iv: positive prediction, missing checkpoint
 - MLConfig neural fields: defaults, validation, surface_method consistency
 
 Uses ``pytest.importorskip("torch")`` for tests requiring torch/lightning.
@@ -29,7 +28,6 @@ from options_arena.pricing.neural_surface import (
     _get_lightning,
     _get_torch,
     fit_neural_surface,
-    predict_iv,
 )
 
 # ---------------------------------------------------------------------------
@@ -199,7 +197,7 @@ class TestFitNeuralSurface:
         assert result is None
 
     def test_checkpoint_save_load(self, tmp_path: Path) -> None:
-        """Checkpoints are saved and can be loaded for prediction."""
+        """Checkpoints are saved after fitting."""
         pytest.importorskip("torch")
         pytest.importorskip("lightning")
 
@@ -219,12 +217,6 @@ class TestFitNeuralSurface:
 
         checkpoint_path = os.path.join(cache_dir, "neural_surface.ckpt")
         assert os.path.isfile(checkpoint_path)
-
-        # Use the checkpoint for prediction
-        pred = predict_iv(0.0, 30.0 / 365.0, checkpoint_path)
-        assert pred is not None
-        assert pred > 0.0
-        assert math.isfinite(pred)
 
     def test_nan_input_rejected(self) -> None:
         """NaN values in input arrays are filtered out; returns None if too few remain."""
@@ -266,68 +258,6 @@ class TestFitNeuralSurface:
         assert np.all(np.isfinite(result.residuals))
         assert np.all(np.isfinite(result.z_scores))
         assert np.all(np.isfinite(result.fitted_ivs))
-
-
-# ---------------------------------------------------------------------------
-# TestPredictIV — inference tests
-# ---------------------------------------------------------------------------
-
-
-class TestPredictIV:
-    """Tests for the predict_iv public function."""
-
-    def test_predict_returns_positive_float(self, tmp_path: Path) -> None:
-        """predict_iv returns a positive finite float from a valid checkpoint."""
-        pytest.importorskip("torch")
-        pytest.importorskip("lightning")
-
-        strikes, ivs, dtes, spot = _make_synthetic_data(n=50)
-        cache_dir = str(tmp_path / "model_cache")
-
-        config = MLConfig(
-            enable_neural_surface=True,
-            surface_method="neural",
-            neural_surface_epochs=10,
-            neural_surface_lr=0.005,
-            model_cache_dir=cache_dir,
-        )
-
-        result = fit_neural_surface(strikes, ivs, dtes, spot, config=config)
-        assert result is not None
-
-        checkpoint_path = os.path.join(cache_dir, "neural_surface.ckpt")
-        pred = predict_iv(0.0, 30.0 / 365.0, checkpoint_path)
-        assert pred is not None
-        assert isinstance(pred, float)
-        assert pred > 0.0
-        assert math.isfinite(pred)
-
-    def test_predict_missing_checkpoint(self, tmp_path: Path) -> None:
-        """Returns None when checkpoint file does not exist."""
-        pytest.importorskip("torch")
-        pytest.importorskip("lightning")
-
-        fake_path = str(tmp_path / "nonexistent.ckpt")
-        result = predict_iv(0.0, 0.1, fake_path)
-        assert result is None
-
-    def test_predict_nan_input(self, tmp_path: Path) -> None:
-        """Returns None when inputs are NaN."""
-        pytest.importorskip("torch")
-        pytest.importorskip("lightning")
-
-        # Even with a valid checkpoint path, NaN inputs should return None
-        result = predict_iv(float("nan"), 0.1, str(tmp_path / "fake.ckpt"))
-        assert result is None
-
-        result = predict_iv(0.0, float("nan"), str(tmp_path / "fake.ckpt"))
-        assert result is None
-
-    def test_predict_torch_unavailable(self, tmp_path: Path) -> None:
-        """Returns None when torch is not installed."""
-        with patch("options_arena.pricing.neural_surface._get_torch", return_value=None):
-            result = predict_iv(0.0, 0.1, str(tmp_path / "fake.ckpt"))
-        assert result is None
 
 
 # ---------------------------------------------------------------------------
