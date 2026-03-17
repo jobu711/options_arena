@@ -32,6 +32,7 @@ from options_arena.models import (
     SpreadAnalysis,
     TradeThesis,
 )
+from options_arena.models.constants import UNLIMITED_SENTINEL
 
 # ---------------------------------------------------------------------------
 # Scan schemas (#126, #162)
@@ -327,8 +328,6 @@ class TickerDetail(BaseModel):
 # Spread schemas (#521)
 # ---------------------------------------------------------------------------
 
-_UNLIMITED_SENTINEL = "999999.99"
-
 
 class SpreadLegDetail(BaseModel):
     """Individual leg in a spread strategy."""
@@ -401,9 +400,7 @@ def spread_detail_from_analysis(analysis: SpreadAnalysis) -> SpreadDetail:
         )
 
     max_profit_str = (
-        "Unlimited"
-        if str(analysis.max_profit) == _UNLIMITED_SENTINEL
-        else str(analysis.max_profit)
+        "Unlimited" if str(analysis.max_profit) == UNLIMITED_SENTINEL else str(analysis.max_profit)
     )
 
     rr = analysis.risk_reward_ratio  # already None for non-finite (model validator)

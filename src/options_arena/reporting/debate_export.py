@@ -12,6 +12,8 @@ import math
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from options_arena.models.constants import UNLIMITED_SENTINEL
+
 if TYPE_CHECKING:
     from options_arena.agents._parsing import DebateResult
     from options_arena.models import (
@@ -242,9 +244,6 @@ def _render_contrarian_section(contra: ContrarianThesis) -> str:
     return "\n".join(lines)
 
 
-_UNLIMITED_SENTINEL = "999999.99"
-
-
 def _render_spread_section(spread: SpreadAnalysis) -> str:
     """Render a spread strategy section as Markdown.
 
@@ -270,7 +269,7 @@ def _render_spread_section(spread: SpreadAnalysis) -> str:
         )
 
     max_profit_str = (
-        "Unlimited" if str(spread.max_profit) == _UNLIMITED_SENTINEL else f"${spread.max_profit}"
+        "Unlimited" if str(spread.max_profit) == UNLIMITED_SENTINEL else f"${spread.max_profit}"
     )
 
     pop_str = f"{spread.pop_estimate:.1%}" if math.isfinite(spread.pop_estimate) else "N/A"

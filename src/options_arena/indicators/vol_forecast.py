@@ -54,7 +54,7 @@ def _get_adfuller() -> Any:  # noqa: ANN401
         return None
 
 
-def test_stationarity(returns: pd.Series) -> tuple[bool, float] | None:
+def _test_stationarity(returns: pd.Series) -> tuple[bool, float] | None:
     """Augmented Dickey-Fuller stationarity test on a returns series.
 
     Null hypothesis: the series has a unit root (non-stationary).
@@ -125,7 +125,7 @@ def compute_garch_forecast(
         return None
 
     # Stationarity gate: GARCH requires stationary returns
-    stationarity = test_stationarity(clean)
+    stationarity = _test_stationarity(clean)
     if stationarity is not None and not stationarity[0]:
         logger.debug("GARCH skipped: returns are non-stationary (p=%.4f)", stationarity[1])
         return None

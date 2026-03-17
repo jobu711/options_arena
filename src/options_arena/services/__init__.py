@@ -30,9 +30,6 @@ from options_arena.services.universe import (
     UniverseService,
     build_industry_group_map,
     build_sector_map,
-    classify_market_cap,
-    filter_by_industry_groups,
-    filter_by_sectors,
     index_tickers,
     map_yfinance_to_metadata,
 )
@@ -59,9 +56,6 @@ __all__ = [
     "YFinanceChainProvider",
     "build_industry_group_map",
     "build_sector_map",
-    "classify_market_cap",
-    "filter_by_industry_groups",
-    "filter_by_sectors",
     "index_tickers",
     "map_yfinance_to_metadata",
 ]

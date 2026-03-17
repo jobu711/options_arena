@@ -27,6 +27,7 @@ from options_arena.models import (
     TradeThesis,
     VolatilityThesis,
 )
+from options_arena.models.constants import UNLIMITED_SENTINEL
 from options_arena.models.health import HealthStatus
 from options_arena.scan.models import ScanResult
 
@@ -407,9 +408,6 @@ def render_contrarian_panel(contra: ContrarianThesis) -> Panel:
     )
 
 
-_UNLIMITED_SENTINEL = "999999.99"
-
-
 def render_spread_panel(console: Console, spread: SpreadAnalysis) -> None:
     """Render a spread strategy as a Rich table with P&L summary.
 
@@ -450,7 +448,7 @@ def render_spread_panel(console: Console, spread: SpreadAnalysis) -> None:
 
     # P&L summary
     max_profit_str = (
-        "Unlimited" if str(spread.max_profit) == _UNLIMITED_SENTINEL else f"${spread.max_profit}"
+        "Unlimited" if str(spread.max_profit) == UNLIMITED_SENTINEL else f"${spread.max_profit}"
     )
     console.print(Text(f"  Net Premium: ${spread.net_premium}"))
     console.print(Text(f"  Max Profit: {max_profit_str}  |  Max Loss: ${spread.max_loss}"))
