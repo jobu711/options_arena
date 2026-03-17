@@ -13,12 +13,10 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import TYPE_CHECKING
 
 from pydantic_ai import RunContext
 
-if TYPE_CHECKING:
-    from options_arena.agents._desk_deps import DeskDeps
+from options_arena.agents._desk_deps import DeskDeps
 
 logger = logging.getLogger(__name__)
 
