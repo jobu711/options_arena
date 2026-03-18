@@ -17,6 +17,7 @@ from datetime import date, datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
+from options_arena.models._validators import validate_unit_interval
 from options_arena.models.enums import (
     GICSIndustryGroup,
     GICSSector,
@@ -163,6 +164,13 @@ class IndicatorSignals(BaseModel):
 
     # --- ML: Flow Anomaly Detection ---
     flow_anomaly_score: float | None = None  # Isolation Forest decision function score
+
+    @field_validator("ml_regime_confidence")
+    @classmethod
+    def _validate_ml_regime_confidence(cls, v: float | None) -> float | None:
+        if v is not None:
+            v = validate_unit_interval(v, "ml_regime_confidence")
+        return v
 
     @model_validator(mode="before")
     @classmethod

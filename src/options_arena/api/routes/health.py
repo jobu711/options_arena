@@ -8,7 +8,7 @@ import logging
 from fastapi import APIRouter, Depends, Request
 
 from options_arena.api.deps import get_operation_lock, get_settings
-from options_arena.api.schemas import OperationStatus
+from options_arena.api.schemas import LivenessResponse, OperationStatus
 from options_arena.models import AppSettings, HealthStatus
 from options_arena.services.health import HealthService
 
@@ -18,9 +18,9 @@ router = APIRouter(prefix="/api", tags=["health"])
 
 
 @router.get("/health")
-async def health_check() -> dict[str, str]:
+async def health_check() -> LivenessResponse:
     """Basic liveness check."""
-    return {"status": "ok"}
+    return LivenessResponse()
 
 
 @router.get("/status")

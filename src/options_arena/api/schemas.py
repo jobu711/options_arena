@@ -25,6 +25,8 @@ from options_arena.models import (
     GICSIndustryGroup,
     GICSSector,
     MarketCapTier,
+    OptionType,
+    PositionSide,
     RecommendedContract,
     RiskAssessment,
     ScanPreset,
@@ -333,10 +335,10 @@ class TickerDetail(BaseModel):
 class SpreadLegDetail(BaseModel):
     """Individual leg in a spread strategy."""
 
-    option_type: str
+    option_type: OptionType
     strike: str  # Decimal as string for precision
     expiration: str
-    side: str  # "long" or "short"
+    side: PositionSide
     quantity: int
     bid: str | None = None
     ask: str | None = None
@@ -796,9 +798,9 @@ class HeatmapTicker(BaseModel):
 class AgencyQueryRequest(BaseModel):
     """Request body for ``POST /api/agency/query``."""
 
-    query: str = Field(min_length=1)
+    query: str = Field(min_length=1, max_length=10000)
     desk: DeskType | None = None
-    tickers: list[str] | None = None
+    tickers: list[str] | None = Field(default=None, max_length=50)
 
 
 class AgencyQueryStarted(BaseModel):
@@ -806,3 +808,9 @@ class AgencyQueryStarted(BaseModel):
 
     query_id: str
     status: str = "completed"
+
+
+class LivenessResponse(BaseModel):
+    """Basic liveness check response for ``GET /api/health``."""
+
+    status: str = "ok"
