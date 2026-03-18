@@ -391,10 +391,10 @@ def spread_detail_from_analysis(analysis: SpreadAnalysis) -> SpreadDetail:
         greeks = contract.greeks
         legs.append(
             SpreadLegDetail(
-                option_type=contract.option_type.value,
+                option_type=contract.option_type,
                 strike=str(contract.strike),
                 expiration=str(contract.expiration),
-                side=leg.side.value,
+                side=leg.side,
                 quantity=leg.quantity,
                 bid=str(contract.bid),
                 ask=str(contract.ask),

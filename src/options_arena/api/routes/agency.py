@@ -46,53 +46,58 @@ async def submit_query(
     lock: asyncio.Lock = Depends(get_operation_lock),  # noqa: B008
 ) -> AgencyResponse:
     """Submit a natural language agency query."""
-    if lock.locked():
-        raise HTTPException(409, "Another operation is in progress")
-
-    query_id = str(uuid.uuid4())
-
-    # Build PydanticAI model from debate config
     try:
-        model = build_debate_model(settings.debate)
-    except ValueError:
-        logger.warning("No LLM API key configured — desk agents will fail")
-        model = None
+        await asyncio.wait_for(lock.acquire(), timeout=0.01)
+    except TimeoutError:
+        raise HTTPException(409, "Another operation is in progress") from None
 
-    # Build AgencyQuery
-    agency_query = AgencyQuery(
-        query_id=query_id,
-        query_text=request.query,
-        created_at=datetime.now(UTC),
-        desk_override=request.desk,
-    )
+    try:
+        query_id = str(uuid.uuid4())
 
-    # Run the agency query
-    response = await run_agency_query(
-        agency_query,
-        market_data=market_data,
-        options_data=options_data,
-        fred=fred,
-        repo=repo,
-        model=model,
-        config=settings.agency,
-    )
+        # Build PydanticAI model from debate config
+        try:
+            model = build_debate_model(settings.debate)
+        except ValueError:
+            logger.warning("No LLM API key configured — desk agents will fail")
+            model = None
 
-    # Persist
-    desk_str: str | None = None
-    if response.intent.desks:
-        desk_str = ",".join(d.value for d in response.intent.desks)
+        # Build AgencyQuery
+        agency_query = AgencyQuery(
+            query_id=query_id,
+            query_text=request.query,
+            created_at=datetime.now(UTC),
+            desk_override=request.desk,
+        )
 
-    await repo.save_agency_query(
-        query_id=response.query_id,
-        query_text=response.query_text,
-        desk=desk_str,
-        tickers=response.intent.tickers,
-        intent_json=response.intent.model_dump_json(),
-        response_json=response.model_dump_json(),
-        confidence=response.confidence,
-    )
+        # Run the agency query
+        response = await run_agency_query(
+            agency_query,
+            market_data=market_data,
+            options_data=options_data,
+            fred=fred,
+            repo=repo,
+            model=model,
+            config=settings.agency,
+        )
 
-    return response
+        # Persist
+        desk_str: str | None = None
+        if response.intent.desks:
+            desk_str = ",".join(d.value for d in response.intent.desks)
+
+        await repo.save_agency_query(
+            query_id=response.query_id,
+            query_text=response.query_text,
+            desk=desk_str,
+            tickers=response.intent.tickers,
+            intent_json=response.intent.model_dump_json(),
+            response_json=response.model_dump_json(),
+            confidence=response.confidence,
+        )
+
+        return response
+    finally:
+        lock.release()
 
 
 @router.get("/query/{query_id}", response_model=AgencyResponse)
