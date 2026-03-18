@@ -5,8 +5,11 @@ Consumers import from the package: ``from options_arena.models import OptionCont
 """
 
 from options_arena.models.analysis import (
+    AgencyQuery,
+    AgencyResponse,
     AgentPrediction,
     AgentResponse,
+    Citation,
     ContractConstraint,
     ContrarianThesis,
     DeskResponse,
@@ -191,8 +194,11 @@ __all__ = [
     "SpreadAnalysis",
     "SpreadLeg",
     # Analysis
+    "AgencyQuery",
+    "AgencyResponse",
     "AgentPrediction",
     "AgentResponse",
+    "Citation",
     "ContractConstraint",
     "ContrarianThesis",
     "DeskResponse",

@@ -17,6 +17,7 @@ from options_arena.agents._parsing import (
     render_trend_context,
     render_volatility_context,
 )
+from options_arena.agents._routing import classify_intent, run_agency_query
 from options_arena.agents._toolsets import build_risk_toolset, build_volatility_toolset
 from options_arena.agents.contrarian_agent import contrarian_agent
 from options_arena.agents.flow_agent import flow_agent
@@ -47,6 +48,8 @@ __all__ = [
     "AGENT_VOTE_WEIGHTS",
     "DeskDeps",
     "VoteWeights",
+    "classify_intent",
+    "run_agency_query",
     "DebateDeps",
     "DebatePhase",
     "DebateProgressCallback",
