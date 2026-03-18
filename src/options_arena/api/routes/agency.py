@@ -69,7 +69,7 @@ async def submit_query(
             desk_override=request.desk,
         )
 
-        # Run the agency query
+        # Run the agency query (propagate explicit tickers from request)
         response = await run_agency_query(
             agency_query,
             market_data=market_data,
@@ -78,6 +78,7 @@ async def submit_query(
             repo=repo,
             model=model,
             config=settings.agency,
+            tickers_override=request.tickers,
         )
 
         # Persist

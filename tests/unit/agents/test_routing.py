@@ -6,7 +6,7 @@ multi-desk routing, defaults, and run_agency_query orchestration.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -347,6 +347,7 @@ class TestClassifyIntentEdgeCases:
 class TestRunAgencyQuery:
     """run_agency_query orchestrator -- dispatch, synthesis, never-raises."""
 
+    @pytest.mark.critical
     async def test_dispatches_to_vol_desk(self) -> None:
         """Implemented vol desk returns real DeskResponse."""
         from options_arena.agents._routing import run_agency_query
@@ -639,7 +640,9 @@ class TestRunAgencyQuery:
             config=AgencyConfig(),
         )
         assert resp.created_at.tzinfo is not None
+        assert resp.created_at.utcoffset() == timedelta(0)
 
+    @pytest.mark.critical
     async def test_multi_desk_dispatch(self) -> None:
         """Query matching both vol and risk dispatches to both desks."""
         from options_arena.agents._routing import run_agency_query

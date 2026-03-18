@@ -116,6 +116,7 @@ _QUERY_TYPE_KEYWORDS: dict[QueryType, list[str]] = {
 
 _NON_TICKER_WORDS: frozenset[str] = frozenset(
     {
+        "I",
         "IV",
         "PE",
         "GDP",
@@ -181,8 +182,8 @@ _NON_TICKER_WORDS: frozenset[str] = frozenset(
     }
 )
 
-# Regex for $TICKER extraction
-_DOLLAR_TICKER_RE = re.compile(r"\$([A-Z]{1,5})\b")
+# Regex for $TICKER extraction (case-insensitive to capture $aapl -> AAPL)
+_DOLLAR_TICKER_RE = re.compile(r"\$([A-Za-z]{1,5})\b")
 
 # Regex for standalone uppercase words (potential tickers)
 _STANDALONE_TICKER_RE = re.compile(r"\b([A-Z][A-Z0-9.\-]{0,4})\b")
@@ -234,11 +235,11 @@ def classify_intent(query: str) -> QueryIntent:
     """
     query_lower = query.lower()
 
-    # --- Desk matching ---
+    # --- Desk matching (word-boundary to prevent "vol" matching "volume") ---
     matched_desks: list[DeskType] = []
     for desk, keywords in _DESK_KEYWORDS.items():
         for kw in keywords:
-            if kw in query_lower:
+            if re.search(rf"\b{re.escape(kw)}\b", query_lower):
                 if desk not in matched_desks:
                     matched_desks.append(desk)
                 break  # one keyword match per desk is sufficient
@@ -262,9 +263,9 @@ def classify_intent(query: str) -> QueryIntent:
     # --- Ticker extraction ---
     tickers: list[str] = []
 
-    # Extract $TICKER format
+    # Extract $TICKER format (uppercase to normalize $aapl -> AAPL)
     for match in _DOLLAR_TICKER_RE.finditer(query):
-        ticker = match.group(1)
+        ticker = match.group(1).upper()
         if ticker not in tickers:
             tickers.append(ticker)
 
@@ -405,6 +406,7 @@ async def run_agency_query(
     repo: Repository,
     model: object | None,
     config: AgencyConfig,
+    tickers_override: list[str] | None = None,
 ) -> AgencyResponse:
     """Route a user query to desk agent(s) and synthesize the response.
 
@@ -448,6 +450,14 @@ async def run_agency_query(
                 desks=[query.desk_override],
                 query_type=intent.query_type,
                 tickers=intent.tickers,
+            )
+
+        # 2b. Override tickers if explicitly provided by caller
+        if tickers_override:
+            intent = QueryIntent(
+                desks=intent.desks,
+                query_type=intent.query_type,
+                tickers=tickers_override,
             )
 
         # 3. Build coroutines for each desk

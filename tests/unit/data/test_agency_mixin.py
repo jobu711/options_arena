@@ -80,6 +80,7 @@ def _make_response_json(
 class TestSaveAgencyQuery:
     """save_agency_query persists all fields and returns row ID."""
 
+    @pytest.mark.critical
     async def test_returns_row_id(self, repo: Repository) -> None:
         row_id = await repo.save_agency_query(
             query_id="test-q-582",
@@ -183,6 +184,7 @@ class TestGetAgencyQuery:
         result = await repo.get_agency_query("wrong-id")
         assert result is None
 
+    @pytest.mark.critical
     async def test_round_trip_fidelity(self, repo: Repository) -> None:
         """Write then read — all fields match."""
         intent = _make_intent_json()
@@ -237,6 +239,7 @@ class TestListAgencyQueries:
         result = await repo.list_agency_queries()
         assert result == []
 
+    @pytest.mark.critical
     async def test_returns_newest_first(self, repo: Repository) -> None:
         """Insert 3 queries with different created_at, verify ordering."""
         # We need to bypass the auto-generated created_at to control ordering.

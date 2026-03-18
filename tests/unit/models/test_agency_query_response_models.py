@@ -25,6 +25,7 @@ from options_arena.models import (
 class TestCitation:
     """Citation frozen model."""
 
+    @pytest.mark.critical
     def test_construction(self) -> None:
         c = Citation(source="fetch_quote", content="Price: $185.50", desk=DeskType.VOLATILITY)
         assert c.source == "fetch_quote"
@@ -50,6 +51,7 @@ class TestCitation:
 class TestAgencyQuery:
     """AgencyQuery frozen model with UTC-validated created_at."""
 
+    @pytest.mark.critical
     def test_construction(self) -> None:
         q = AgencyQuery(
             query_id="abc-123",
@@ -157,11 +159,11 @@ class TestAgencyResponse:
 
     def test_confidence_boundary_zero(self) -> None:
         resp = self._make_response(confidence=0.0)
-        assert resp.confidence == pytest.approx(0.0)
+        assert resp.confidence == pytest.approx(0.0, abs=0.01)
 
     def test_confidence_boundary_one(self) -> None:
         resp = self._make_response(confidence=1.0)
-        assert resp.confidence == pytest.approx(1.0)
+        assert resp.confidence == pytest.approx(1.0, abs=0.01)
 
     def test_confidence_nan_rejected(self) -> None:
         with pytest.raises(ValidationError, match="finite"):

@@ -164,6 +164,7 @@ class AgencyMixin(RepositoryBase):
         list[AgencyQueryRow]
             Raw rows ordered by ``created_at`` DESC.
         """
+        limit = max(limit, 0)
         conn = self._db.conn
         async with conn.execute(
             "SELECT * FROM agency_queries ORDER BY created_at DESC LIMIT ?",

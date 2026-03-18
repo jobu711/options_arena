@@ -141,7 +141,11 @@ async def _ask_async(
             repo=repo,
             model=model,
             config=settings.agency,
+            tickers_override=tickers,
         )
+
+        # Render response first so user sees answer even if persistence fails
+        _render_agency_response(response)
 
         # Persist
         desk_csv: str | None = None
@@ -157,9 +161,6 @@ async def _ask_async(
             response_json=response.model_dump_json(),
             confidence=response.confidence,
         )
-
-        # Render response
-        _render_agency_response(response)
 
     finally:
         if fred is not None:
