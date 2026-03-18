@@ -8,7 +8,7 @@ parent_epic: ai-agency-evolution
 epic_number: 2
 dependencies: [ai-agency-desk-foundation]
 parallelizable_with: [ai-agency-all-desks]
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/580
 ---
 
 # Epic 2: Advisor + Routing
@@ -65,6 +65,21 @@ Add the Advisor agent for intent classification, multi-desk query routing, respo
 - CLI `agency ask` works end-to-end
 - ~25+ new tests
 
+## Tasks Created
+- [ ] #581 - Advisor Intent Classification + Routing Orchestrator (parallel: true)
+- [ ] #582 - AgencyMixin + Migration 034 (parallel: true)
+- [ ] #583 - API Endpoints + CLI Commands for Agency (parallel: false, depends: #581, #582)
+- [ ] #584 - AgencyChat.vue Frontend Component (parallel: false, depends: #583)
+
+Total tasks: 4
+Parallel tasks: 2 (#581, #582)
+Sequential tasks: 2 (#583, #584)
+Estimated total effort: 26-40 hours
+
+## Test Coverage Plan
+Total test files planned: 5
+Total test cases planned: ~50+
+
 ## Estimated Effort
 
-3-4 issues, ~2 implementation sessions
+4 issues, ~2-3 implementation sessions
