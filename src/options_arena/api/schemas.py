@@ -19,6 +19,7 @@ from options_arena.models import (
     TICKER_RE,
     AgentResponse,
     ContrarianThesis,
+    DeskType,
     FlowThesis,
     FundamentalThesis,
     GICSIndustryGroup,
@@ -785,3 +786,23 @@ class HeatmapTicker(BaseModel):
         if v is not None and not math.isfinite(v):
             raise ValueError("change_pct must be finite")
         return v
+
+
+# ---------------------------------------------------------------------------
+# Agency schemas (#583)
+# ---------------------------------------------------------------------------
+
+
+class AgencyQueryRequest(BaseModel):
+    """Request body for ``POST /api/agency/query``."""
+
+    query: str = Field(min_length=1)
+    desk: DeskType | None = None
+    tickers: list[str] | None = None
+
+
+class AgencyQueryStarted(BaseModel):
+    """Response for submitted agency query."""
+
+    query_id: str
+    status: str = "completed"
