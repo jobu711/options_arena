@@ -122,4 +122,10 @@ def main(
     json_log: bool = typer.Option(False, "--json-log", help="Enable JSON-formatted file logging"),
 ) -> None:
     """Options Arena -- AI-powered American-style options analysis."""
+    # Load .env from project root so API keys are available via os.environ
+    from dotenv import load_dotenv  # noqa: PLC0415
+
+    _project_root = Path(__file__).resolve().parents[3]
+    load_dotenv(_project_root / ".env", override=True)
+
     configure_logging(verbose=verbose, json_mode=json_log)

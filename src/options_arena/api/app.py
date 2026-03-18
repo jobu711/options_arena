@@ -55,6 +55,11 @@ _WEB_DIST = _PROJECT_ROOT / "web" / "dist"
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """Create all services at startup, close them at shutdown."""
+    # Load .env from project root so API keys are available via os.environ
+    from dotenv import load_dotenv  # noqa: PLC0415
+
+    load_dotenv(_PROJECT_ROOT / ".env", override=True)
+
     settings = AppSettings()
 
     if settings.data.db_path:
