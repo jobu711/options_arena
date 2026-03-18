@@ -215,6 +215,7 @@ def create_app() -> FastAPI:
     )
 
     # Register API routes
+    from options_arena.api.routes.agency import router as agency_router  # noqa: PLC0415
     from options_arena.api.routes.analytics import router as analytics_router  # noqa: PLC0415
     from options_arena.api.routes.backtest import router as backtest_router  # noqa: PLC0415
     from options_arena.api.routes.config import router as config_router  # noqa: PLC0415
@@ -227,6 +228,7 @@ def create_app() -> FastAPI:
     from options_arena.api.routes.universe import router as universe_router  # noqa: PLC0415
     from options_arena.api.ws import router as ws_router  # noqa: PLC0415
 
+    app.include_router(agency_router)
     app.include_router(health_router)
     app.include_router(market_router)
     app.include_router(scan_router)

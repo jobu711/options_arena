@@ -53,9 +53,12 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `ExtendedTradeThesis` | model | `(TradeThesis)` | 804 | Extended trade thesis with contrarian dissent, agreement scoring, and dimensional scores. |
 | `AgentPrediction` | model | `frozen=True` | 849 | Per-agent prediction record for accuracy tracking. |
 | `QueryIntent` | model | `frozen=True` | 881 | Parsed intent from a user query for desk routing. |
-| `DeskResponse` | model | `frozen=True` | 896 | Response from a single desk agent. |
-| `ContractConstraint` | model | `frozen=True` | 917 | A single constraint violation detected during contract pre-check. |
-| `PositionSizeResult` | model | `frozen=True` | 937 | Result of volatility-regime-aware position sizing computation. |
+| `DeskResponse` | model | `frozen=True` | 904 | Response from a single desk agent. |
+| `Citation` | model | `frozen=True` | 925 | A citation from a desk agent response. |
+| `AgencyQuery` | model | `frozen=True` | 939 | A user query submitted to the agency routing system. |
+| `AgencyResponse` | model | `frozen=True` | 962 | Synthesized response from the agency routing system. |
+| `ContractConstraint` | model | `frozen=True` | 995 | A single constraint violation detected during contract pre-check. |
+| `PositionSizeResult` | model | `frozen=True` | 1015 | Result of volatility-regime-aware position sizing computation. |
 
 #### models/analytics.py
 
@@ -253,9 +256,9 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `IndicatorSignals` | model |  | 31 | 75 named indicator fields. |
-| `ScanRun` | model | `frozen=True` | 182 | Metadata for a completed scan run. |
-| `TickerScore` | model |  | 219 | Scored ticker from the scan pipeline. |
+| `IndicatorSignals` | model |  | 32 | 75 named indicator fields. |
+| `ScanRun` | model | `frozen=True` | 190 | Metadata for a completed scan run. |
+| `TickerScore` | model |  | 227 | Scored ticker from the scan pipeline. |
 
 #### models/scan_delta.py
 
@@ -757,6 +760,16 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 ### 1.7 `data/` — SQLite Persistence
 
+#### data/_agency.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `AgencyQueryRow` | dataclass |  | 22 | Raw row from the ``agency_queries`` table. |
+| `AgencyMixin` | class | `(RepositoryBase)` | 40 | CRUD operations for agency queries. |
+| `.save_agency_query` | async method | `(query_id: str, query_text: str, desk: str | None, tickers: list[str], intent_json: str, response...` | 53 | Persist an agency query and its response. |
+| `.get_agency_query` | async method | `(query_id: str) -> AgencyQueryRow | None` | 119 | Retrieve a stored agency query by ``query_id``. |
+| `.list_agency_queries` | async method | `(limit: int = 20) -> list[AgencyQueryRow]` | 154 | List recent agency queries, newest first. |
+
 #### data/_analytics.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -854,7 +867,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `Repository` | class | `(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin)` | 24 | Typed CRUD for all persistence domains. |
+| `Repository` | class | `(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin, AgencyMixin)` | 25 | Typed CRUD for all persistence domains. |
 
 ---
 
@@ -894,6 +907,13 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `render_context_block` | func | `(ctx: MarketContext, constraint_warnings: str | None = None) -> str` | 836 | Render MarketContext as flat key-value text for agent consumption. |
 | `compute_citation_density` | func | `(context_block: str, *texts: str) -> float` | 1146 | Compute fraction of context labels referenced in agent output text. |
 
+#### agents/_routing.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `classify_intent` | func | `(query: str) -> QueryIntent` | 219 | Classify a natural-language query into desk routing intent. |
+| `run_agency_query` | async func | `(query: AgencyQuery, *, market_data: MarketDataService, options_data: OptionsDataService, fred: F...` | 399 | Route a user query to desk agent(s) and synthesize the response. |
+
 #### agents/_toolsets.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -903,9 +923,9 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `fetch_vol_surface_slice` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 85 | Fetch a volatility surface slice showing IV by strike/expiry. |
 | `compute_iv_for_strike` | async func | `(ctx: RunContext[DeskDeps], ticker: str, strike: float, expiry: str) -> str` | 142 | Find the closest strike in the chain to *strike* and show IV details. |
 | `fetch_correlation` | async func | `(ctx: RunContext[DeskDeps], ticker: str, tickers: list[str]) -> str` | 190 | Compute pairwise return correlations between *ticker* and each of *tickers*. |
-| `fetch_portfolio_exposure` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 284 | Query repository for historical recommended contracts for *ticker*. |
-| `build_volatility_toolset` | func | `() -> list[object]` | 323 | Return the tools for a Volatility Desk agent. |
-| `build_risk_toolset` | func | `() -> list[object]` | 331 | Return the tools for a Risk Desk agent. |
+| `fetch_portfolio_exposure` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 288 | Query repository for historical recommended contracts for *ticker*. |
+| `build_volatility_toolset` | func | `() -> list[object]` | 327 | Return the tools for a Volatility Desk agent. |
+| `build_risk_toolset` | func | `() -> list[object]` | 335 | Return the tools for a Risk Desk agent. |
 
 #### agents/constraints.py
 
@@ -1017,7 +1037,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `run_risk_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object | None = None, config: AgencyConfig | None = None) ...` | 44 | Run a risk desk query with timeout and error handling. |
+| `run_risk_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object | None = None, config: AgencyConfig | None = None) ...` | 50 | Run a risk desk query with timeout and error handling. |
 
 #### agents/trend_agent.py
 
@@ -1037,7 +1057,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `run_vol_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object | None = None, config: AgencyConfig | None = None) ...` | 44 | Run a volatility desk query with timeout and error handling. |
+| `run_vol_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object | None = None, config: AgencyConfig | None = None) ...` | 50 | Run a volatility desk query with timeout and error handling. |
 
 ---
 
@@ -1141,6 +1161,14 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `get_operation_lock` | func | `(request: Request) -> asyncio.Lock` | 53 | Inject the global operation mutex. |
 | `get_outcome_collector` | func | `(request: Request) -> OutcomeCollector` | 58 | Inject the outcome collector service (created on-demand via DI). |
 
+#### api/routes/agency.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `submit_query` | async func | `(request: AgencyQueryRequest, repo: Repository = Depends(get_repo), market_data: MarketDataServic...` | 39 | Submit a natural language agency query. |
+| `get_query` | async func | `(query_id: str, repo: Repository = Depends(get_repo)) -> AgencyResponse` | 104 | Retrieve a persisted agency query response by ID. |
+| `list_queries` | async func | `(limit: int = ..., repo: Repository = Depends(get_repo)) -> list[AgencyResponse]` | 116 | List recent agency queries. |
+
 #### api/routes/analytics.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -1199,7 +1227,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `health_check` | async func | `() -> dict[str, str]` | 21 | Basic liveness check. |
+| `health_check` | async func | `() -> LivenessResponse` | 21 | Basic liveness check. |
 | `get_status` | async func | `(request: Request, lock: asyncio.Lock = ...) -> OperationStatus` | 27 | Return current operation status so frontend can sync after browser refresh. |
 | `check_services` | async func | `(request: Request, settings: AppSettings = ...) -> list[HealthStatus]` | 44 | Run all health checks and return service statuses. |
 
@@ -1246,31 +1274,34 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `ScanRequest` | model |  | 42 | Request body for ``POST /api/scan``. |
-| `ScanStarted` | model |  | 293 | Response for ``POST /api/scan`` (202). |
-| `PaginatedResponse` | model |  | 299 | Generic paginated response wrapper. |
-| `TickerDetail` | model |  | 308 | Single ticker detail: score + recommended contracts. |
-| `SpreadLegDetail` | model |  | 332 | Individual leg in a spread strategy. |
-| `SpreadDetail` | model |  | 352 | Spread strategy recommendation with P&L analytics. |
-| `spread_detail_from_analysis` | func | `(analysis: SpreadAnalysis) -> SpreadDetail` | 373 | Convert a ``SpreadAnalysis`` model to an API ``SpreadDetail`` response. |
-| `DebateRequest` | model |  | 427 | Request body for ``POST /api/debate``. |
-| `DebateStarted` | model |  | 450 | Response for ``POST /api/debate`` (202). |
-| `DebateResultSummary` | model | `frozen=True` | 456 | Lightweight debate summary for list endpoint. |
-| `DebateResultDetail` | model |  | 487 | Full debate result returned by ``GET /api/debate/{id}``. |
-| `BatchDebateRequest` | model |  | 582 | Request body for ``POST /api/debate/batch``. |
-| `BatchDebateStarted` | model |  | 609 | Response for ``POST /api/debate/batch`` (202). |
-| `BatchTickerResult` | model |  | 616 | Per-ticker result summary in batch completion event. |
-| `ConfigResponse` | model |  | 641 | Read-only safe config values (no secrets). |
-| `CancelScanResponse` | model |  | 651 | Response for cancelling a scan. |
-| `IndustryGroupInfo` | model |  | 657 | Industry group with ticker count. |
-| `SectorHierarchy` | model |  | 664 | Sector with nested industry groups. |
-| `UniverseStats` | model |  | 672 | Universe statistics. |
-| `OperationStatus` | model |  | 685 | Response for ``GET /api/status`` — current system operation state. |
-| `OutcomeCollectionResult` | model |  | 693 | Response for ``POST /api/analytics/collect-outcomes`` (202). |
-| `MetadataStats` | model |  | 704 | Metadata coverage statistics. |
-| `IndexStarted` | model |  | 722 | Response for ``POST /api/universe/index`` (202). |
-| `PresetInfo` | model |  | 733 | Describes a scan preset for the frontend preset picker. |
-| `HeatmapTicker` | model | `frozen=True` | 747 | Single ticker entry for the S&P 500 heatmap treemap. |
+| `ScanRequest` | model |  | 45 | Request body for ``POST /api/scan``. |
+| `ScanStarted` | model |  | 296 | Response for ``POST /api/scan`` (202). |
+| `PaginatedResponse` | model |  | 302 | Generic paginated response wrapper. |
+| `TickerDetail` | model |  | 311 | Single ticker detail: score + recommended contracts. |
+| `SpreadLegDetail` | model |  | 335 | Individual leg in a spread strategy. |
+| `SpreadDetail` | model |  | 355 | Spread strategy recommendation with P&L analytics. |
+| `spread_detail_from_analysis` | func | `(analysis: SpreadAnalysis) -> SpreadDetail` | 376 | Convert a ``SpreadAnalysis`` model to an API ``SpreadDetail`` response. |
+| `DebateRequest` | model |  | 430 | Request body for ``POST /api/debate``. |
+| `DebateStarted` | model |  | 453 | Response for ``POST /api/debate`` (202). |
+| `DebateResultSummary` | model | `frozen=True` | 459 | Lightweight debate summary for list endpoint. |
+| `DebateResultDetail` | model |  | 490 | Full debate result returned by ``GET /api/debate/{id}``. |
+| `BatchDebateRequest` | model |  | 585 | Request body for ``POST /api/debate/batch``. |
+| `BatchDebateStarted` | model |  | 612 | Response for ``POST /api/debate/batch`` (202). |
+| `BatchTickerResult` | model |  | 619 | Per-ticker result summary in batch completion event. |
+| `ConfigResponse` | model |  | 644 | Read-only safe config values (no secrets). |
+| `CancelScanResponse` | model |  | 654 | Response for cancelling a scan. |
+| `IndustryGroupInfo` | model |  | 660 | Industry group with ticker count. |
+| `SectorHierarchy` | model |  | 667 | Sector with nested industry groups. |
+| `UniverseStats` | model |  | 675 | Universe statistics. |
+| `OperationStatus` | model |  | 688 | Response for ``GET /api/status`` — current system operation state. |
+| `OutcomeCollectionResult` | model |  | 696 | Response for ``POST /api/analytics/collect-outcomes`` (202). |
+| `MetadataStats` | model |  | 707 | Metadata coverage statistics. |
+| `IndexStarted` | model |  | 725 | Response for ``POST /api/universe/index`` (202). |
+| `PresetInfo` | model |  | 736 | Describes a scan preset for the frontend preset picker. |
+| `HeatmapTicker` | model | `frozen=True` | 750 | Single ticker entry for the S&P 500 heatmap treemap. |
+| `AgencyQueryRequest` | model |  | 798 | Request body for ``POST /api/agency/query``. |
+| `AgencyQueryStarted` | model |  | 806 | Response for submitted agency query. |
+| `LivenessResponse` | model |  | 813 | Basic liveness check response for ``GET /api/health``. |
 
 #### api/ws.py
 
@@ -1294,6 +1325,13 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 ---
 
 ### 1.12 `cli/` — Typer CLI
+
+#### cli/agency.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `ask` | func | `(query: Annotated[str, typer.Argument(help='N..., desk: Annotated[str | None, typer.Option('-... ...` | 38 | Submit a query to the AI agency desk system. |
+| `history` | func | `(limit: Annotated[int, typer.Option('--limit'... = 20) -> None` | 51 | Show recent agency queries. |
 
 #### cli/app.py
 
@@ -1734,6 +1772,7 @@ Each row maps a source file to its test files and approximate test count.
 
 | Source File | Test File(s) | Tests |
 |------------|--------------|-------|
+| `data/_agency.py` | — | 0 |
 | `data/_analytics.py` | — | 0 |
 | `data/_base.py` | — | 0 |
 | `data/_debate.py` | — | 0 |
@@ -1749,6 +1788,7 @@ Each row maps a source file to its test files and approximate test count.
 |------------|--------------|-------|
 | `agents/_desk_deps.py` | `tests/unit/agents/test_desk_deps.py` | 6 |
 | `agents/_parsing.py` | `tests/unit/agents/test_parsing.py` | 56 |
+| `agents/_routing.py` | `tests/unit/agents/test_routing.py` | 58 |
 | `agents/_toolsets.py` | `tests/unit/agents/test_toolsets.py` | 24 |
 | `agents/constraints.py` | `tests/unit/agents/test_constraints.py` | 18 |
 | `agents/contrarian_agent.py` | — | 0 |
@@ -1795,6 +1835,7 @@ Each row maps a source file to its test files and approximate test count.
 |------------|--------------|-------|
 | `api/app.py` | `tests/unit/api/test_app.py` | 3 |
 | `api/deps.py` | `tests/unit/api/test_deps.py` | 7 |
+| `api/routes/agency.py` | `tests/unit/api/test_agency_routes.py` | 10 |
 | `api/routes/analytics.py` | `tests/unit/api/test_analytics_routes.py` | 21 |
 | `api/routes/backtest.py` | — | 0 |
 | `api/routes/config.py` | — | 0 |
@@ -1812,6 +1853,7 @@ Each row maps a source file to its test files and approximate test count.
 
 | Source File | Test File(s) | Tests |
 |------------|--------------|-------|
+| `cli/agency.py` | — | 0 |
 | `cli/app.py` | — | 0 |
 | `cli/audit.py` | — | 0 |
 | `cli/commands.py` | `tests/unit/cli/test_commands.py` | 15 |
@@ -1826,15 +1868,15 @@ Each row maps a source file to its test files and approximate test count.
 | Module | Files | Public Symbols | Test Files | Tests |
 |--------|-------|----------------|------------|-------|
 | utils/ | 1 | 4 | 1 | 11 |
-| models/ | 21 | 142 | 13 | 596 |
+| models/ | 21 | 145 | 13 | 596 |
 | indicators/ | 17 | 73 | 16 | 504 |
 | pricing/ | 8 | 25 | 7 | 244 |
 | services/ | 13 | 112 | 12 | 360 |
 | scoring/ | 6 | 29 | 6 | 227 |
-| data/ | 8 | 59 | 2 | 46 |
-| agents/ | 22 | 69 | 10 | 260 |
+| data/ | 9 | 64 | 2 | 46 |
+| agents/ | 23 | 71 | 11 | 318 |
 | scan/ | 8 | 23 | 3 | 82 |
 | reporting/ | 1 | 2 | 1 | 10 |
-| api/ | 14 | 100 | 11 | 129 |
-| cli/ | 6 | 39 | 3 | 27 |
-| **Total** | **125** | **677** | **85** | **2496** |
+| api/ | 15 | 106 | 12 | 139 |
+| cli/ | 7 | 41 | 3 | 27 |
+| **Total** | **129** | **695** | **87** | **2564** |

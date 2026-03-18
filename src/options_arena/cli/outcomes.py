@@ -115,7 +115,7 @@ async def _outcomes_collect_async(holding_days: int | None) -> None:
                 if row:
                     ticker = str(row["ticker"])
             except Exception:
-                pass
+                logger.debug("Failed to lookup ticker name", exc_info=True)
 
             stock_ret = (
                 f"{outcome.stock_return_pct:+.1f}%"

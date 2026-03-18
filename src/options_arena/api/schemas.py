@@ -19,11 +19,14 @@ from options_arena.models import (
     TICKER_RE,
     AgentResponse,
     ContrarianThesis,
+    DeskType,
     FlowThesis,
     FundamentalThesis,
     GICSIndustryGroup,
     GICSSector,
     MarketCapTier,
+    OptionType,
+    PositionSide,
     RecommendedContract,
     RiskAssessment,
     ScanPreset,
@@ -332,10 +335,10 @@ class TickerDetail(BaseModel):
 class SpreadLegDetail(BaseModel):
     """Individual leg in a spread strategy."""
 
-    option_type: str
+    option_type: OptionType
     strike: str  # Decimal as string for precision
     expiration: str
-    side: str  # "long" or "short"
+    side: PositionSide
     quantity: int
     bid: str | None = None
     ask: str | None = None
@@ -388,10 +391,10 @@ def spread_detail_from_analysis(analysis: SpreadAnalysis) -> SpreadDetail:
         greeks = contract.greeks
         legs.append(
             SpreadLegDetail(
-                option_type=contract.option_type.value,
+                option_type=contract.option_type,
                 strike=str(contract.strike),
                 expiration=str(contract.expiration),
-                side=leg.side.value,
+                side=leg.side,
                 quantity=leg.quantity,
                 bid=str(contract.bid),
                 ask=str(contract.ask),
@@ -785,3 +788,29 @@ class HeatmapTicker(BaseModel):
         if v is not None and not math.isfinite(v):
             raise ValueError("change_pct must be finite")
         return v
+
+
+# ---------------------------------------------------------------------------
+# Agency schemas (#583)
+# ---------------------------------------------------------------------------
+
+
+class AgencyQueryRequest(BaseModel):
+    """Request body for ``POST /api/agency/query``."""
+
+    query: str = Field(min_length=1, max_length=10000)
+    desk: DeskType | None = None
+    tickers: list[str] | None = Field(default=None, max_length=50)
+
+
+class AgencyQueryStarted(BaseModel):
+    """Response for submitted agency query."""
+
+    query_id: str
+    status: str = "completed"
+
+
+class LivenessResponse(BaseModel):
+    """Basic liveness check response for ``GET /api/health``."""
+
+    status: str = "ok"

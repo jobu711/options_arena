@@ -922,6 +922,76 @@ class DeskResponse(BaseModel):
         return validate_unit_interval(v, "confidence")
 
 
+class Citation(BaseModel):
+    """A citation from a desk agent response.
+
+    Frozen (immutable after construction) -- represents a data point referenced
+    in an agent's analysis.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    source: str  # e.g., "fetch_quote", "compute_iv_for_strike"
+    content: str  # the cited data point
+    desk: DeskType  # which desk produced this citation
+
+
+class AgencyQuery(BaseModel):
+    """A user query submitted to the agency routing system.
+
+    Frozen (immutable after construction) -- represents a completed query submission.
+    ``query_id`` is a UUID4 string assigned at creation time.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    query_id: str
+    query_text: str
+    created_at: datetime
+    desk_override: DeskType | None = None
+
+    @field_validator("created_at")
+    @classmethod
+    def _validate_created_at_utc(cls, v: datetime) -> datetime:
+        """Ensure created_at is UTC."""
+        if v.tzinfo is None or v.utcoffset() != timedelta(0):
+            raise ValueError("created_at must be UTC")
+        return v
+
+
+class AgencyResponse(BaseModel):
+    """Synthesized response from the agency routing system.
+
+    Frozen (immutable after construction). Combines desk responses into a single
+    coherent output with merged citations and weighted confidence.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    query_id: str
+    query_text: str
+    intent: QueryIntent
+    desk_responses: list[DeskResponse]
+    synthesis: str
+    citations: list[Citation]
+    confidence: float
+    created_at: datetime
+
+    @field_validator("confidence")
+    @classmethod
+    def _validate_confidence(cls, v: float) -> float:
+        """Ensure confidence is finite and within [0.0, 1.0]."""
+        return validate_unit_interval(v, "confidence")
+
+    @field_validator("created_at")
+    @classmethod
+    def _validate_created_at_utc(cls, v: datetime) -> datetime:
+        """Ensure created_at is UTC."""
+        if v.tzinfo is None or v.utcoffset() != timedelta(0):
+            raise ValueError("created_at must be UTC")
+        return v
+
+
 class ContractConstraint(BaseModel):
     """A single constraint violation detected during contract pre-check.
 

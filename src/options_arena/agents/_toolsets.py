@@ -228,9 +228,13 @@ async def fetch_correlation(
                 logger.debug("Could not fetch OHLCV for %s in correlation", t)
                 return (t, None)
 
-        results = await asyncio.gather(*[_fetch(t) for t in all_tickers])
+        results = await asyncio.gather(*[_fetch(t) for t in all_tickers], return_exceptions=True)
         close_series: dict[str, list[float]] = {
-            t: prices for t, prices in results if prices is not None
+            t: prices
+            for r in results
+            if not isinstance(r, BaseException)
+            for t, prices in [r]
+            if prices is not None
         }
 
         if ticker not in close_series:

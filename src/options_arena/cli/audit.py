@@ -463,7 +463,13 @@ async def _math_audit_async(
     # Run each layer sequentially (subprocess-based, no async benefit)
     summaries: list[AuditLayerSummary] = []
     for layer in layers_to_run:
-        layer_result = await asyncio.to_thread(_run_audit_layer, layer)
+        try:
+            layer_result = await asyncio.wait_for(
+                asyncio.to_thread(_run_audit_layer, layer), timeout=300
+            )
+        except TimeoutError:
+            err_console.print(f"[red]Audit layer {layer.value} timed out after 300s[/red]")
+            continue
         summary = _build_layer_summary(layer_result, MATH_FUNCTION_COUNT)
         summaries.append(summary)
 
