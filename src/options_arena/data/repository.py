@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 
+from ._agency import AgencyMixin, AgencyQueryRow
 from ._analytics import AnalyticsMixin
 from ._debate import DebateMixin, DebateRow
 from ._metadata import MetadataMixin
@@ -17,16 +18,23 @@ from .database import Database
 
 logger = logging.getLogger(__name__)
 
-# Re-export DebateRow so existing imports from .repository still work
-__all__ = ["DebateRow", "Repository"]
+# Re-export data-layer row types so existing imports from .repository still work
+__all__ = ["AgencyQueryRow", "DebateRow", "Repository"]
 
 
-class Repository(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin):
+class Repository(
+    ScanMixin,
+    DebateMixin,
+    AnalyticsMixin,
+    MetadataMixin,
+    SpreadsMixin,
+    AgencyMixin,
+):
     """Typed CRUD for all persistence domains.
 
     Composed via mixins — each domain in its own file.
     MRO: Repository -> ScanMixin -> DebateMixin -> AnalyticsMixin
-      -> MetadataMixin -> SpreadsMixin -> RepositoryBase
+      -> MetadataMixin -> SpreadsMixin -> AgencyMixin -> RepositoryBase
 
     Parameters
     ----------

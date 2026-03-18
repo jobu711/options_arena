@@ -7,6 +7,7 @@ and class hierarchy after the Repository monolith was split into mixins.
 from __future__ import annotations
 
 from options_arena.data import Database, DebateRow, Repository
+from options_arena.data._agency import AgencyMixin
 from options_arena.data._analytics import AnalyticsMixin
 from options_arena.data._base import RepositoryBase
 from options_arena.data._debate import DebateMixin
@@ -28,6 +29,7 @@ class TestRepositoryDecomposition:
             "AnalyticsMixin",
             "MetadataMixin",
             "SpreadsMixin",
+            "AgencyMixin",
             "RepositoryBase",
             "object",
         ]
@@ -76,6 +78,10 @@ class TestRepositoryDecomposition:
             # SpreadsMixin
             "save_spread_recommendation",
             "get_spread_for_ticker",
+            # AgencyMixin
+            "save_agency_query",
+            "get_agency_query",
+            "list_agency_queries",
             # RepositoryBase
             "commit",
         }
@@ -105,7 +111,14 @@ class TestRepositoryDecomposition:
 
     def test_all_mixins_inherit_repository_base(self) -> None:
         """Every mixin inherits from RepositoryBase."""
-        for mixin in (ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin):
+        for mixin in (
+            ScanMixin,
+            DebateMixin,
+            AnalyticsMixin,
+            MetadataMixin,
+            SpreadsMixin,
+            AgencyMixin,
+        ):
             assert issubclass(mixin, RepositoryBase), f"{mixin.__name__} missing RepositoryBase"
 
     def test_database_not_needed_for_class_construction(self) -> None:
