@@ -18,10 +18,17 @@ from options_arena.agents._parsing import (
     render_volatility_context,
 )
 from options_arena.agents._routing import classify_intent, run_agency_query
-from options_arena.agents._toolsets import build_risk_toolset, build_volatility_toolset
+from options_arena.agents._toolsets import (
+    build_contrarian_toolset,
+    build_fundamental_toolset,
+    build_risk_toolset,
+    build_volatility_toolset,
+)
 from options_arena.agents.contrarian_agent import contrarian_agent
+from options_arena.agents.contrarian_desk import contrarian_desk, run_contrarian_desk_query
 from options_arena.agents.flow_agent import flow_agent
 from options_arena.agents.fundamental_agent import fundamental_agent
+from options_arena.agents.fundamental_desk import fundamental_desk, run_fundamental_desk_query
 from options_arena.agents.model_config import build_debate_model
 from options_arena.agents.orchestrator import (
     AGENT_VOTE_WEIGHTS,
@@ -55,18 +62,22 @@ __all__ = [
     "DebateProgressCallback",
     "DebateResult",
     "auto_tune_weights",
+    "build_contrarian_toolset",
     "build_debate_model",
+    "build_fundamental_toolset",
     "build_market_context",
     "build_risk_toolset",
     "build_volatility_toolset",
     "classify_macd_signal",
     "compute_agreement_score",
     "compute_auto_tune_weights",
+    "contrarian_agent",
+    "contrarian_desk",
     "effective_batch_ticker_delay",
     "extract_agent_predictions",
-    "contrarian_agent",
     "flow_agent",
     "fundamental_agent",
+    "fundamental_desk",
     "render_context_block",
     "render_flow_context",
     "render_fundamental_context",
@@ -74,7 +85,9 @@ __all__ = [
     "render_trend_context",
     "render_volatility_context",
     "risk_desk",
+    "run_contrarian_desk_query",
     "run_debate",
+    "run_fundamental_desk_query",
     "run_risk_desk_query",
     "run_vol_desk_query",
     "should_debate",

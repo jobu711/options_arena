@@ -17,6 +17,8 @@ import re
 from datetime import UTC, datetime
 
 from options_arena.agents._desk_deps import DeskDeps
+from options_arena.agents.contrarian_desk import run_contrarian_desk_query
+from options_arena.agents.fundamental_desk import run_fundamental_desk_query
 from options_arena.agents.risk_desk import run_risk_desk_query
 from options_arena.agents.volatility_desk import run_vol_desk_query
 from options_arena.data.repository import Repository
@@ -309,6 +311,28 @@ async def _run_risk(
     return await run_risk_desk_query(query, deps, model=model, config=config)
 
 
+async def _run_fundamental(
+    query: str,
+    deps: DeskDeps,
+    *,
+    model: object | None,
+    config: AgencyConfig,
+) -> DeskResponse:
+    """Delegate to run_fundamental_desk_query."""
+    return await run_fundamental_desk_query(query, deps, model=model, config=config)
+
+
+async def _run_contrarian(
+    query: str,
+    deps: DeskDeps,
+    *,
+    model: object | None,
+    config: AgencyConfig,
+) -> DeskResponse:
+    """Delegate to run_contrarian_desk_query."""
+    return await run_contrarian_desk_query(query, deps, model=model, config=config)
+
+
 async def _run_unimplemented(
     desk: DeskType,
 ) -> DeskResponse:
@@ -316,14 +340,16 @@ async def _run_unimplemented(
     return DeskResponse(
         desk=desk,
         response=f"{desk.value.title()} desk is not yet implemented. "
-        f"Available desks: volatility, risk.",
+        f"Available desks: volatility, risk, fundamental, contrarian.",
         tools_used=[],
         confidence=0.0,
     )
 
 
 # Map implemented desks to their runners
-_IMPLEMENTED_DESKS: frozenset[DeskType] = frozenset({DeskType.VOLATILITY, DeskType.RISK})
+_IMPLEMENTED_DESKS: frozenset[DeskType] = frozenset(
+    {DeskType.VOLATILITY, DeskType.RISK, DeskType.FUNDAMENTAL, DeskType.CONTRARIAN}
+)
 
 
 def _extract_citations(
@@ -488,6 +514,18 @@ async def run_agency_query(
                     coroutines.append(
                         asyncio.ensure_future(
                             _run_risk(query.query_text, deps, model=model, config=config)
+                        )
+                    )
+                elif desk == DeskType.FUNDAMENTAL:
+                    coroutines.append(
+                        asyncio.ensure_future(
+                            _run_fundamental(query.query_text, deps, model=model, config=config)
+                        )
+                    )
+                elif desk == DeskType.CONTRARIAN:
+                    coroutines.append(
+                        asyncio.ensure_future(
+                            _run_contrarian(query.query_text, deps, model=model, config=config)
                         )
                     )
             else:

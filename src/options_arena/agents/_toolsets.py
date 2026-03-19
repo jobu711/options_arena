@@ -338,3 +338,205 @@ def build_risk_toolset() -> list[object]:
     Tools: ``fetch_quote``, ``fetch_correlation``, ``fetch_portfolio_exposure``.
     """
     return [fetch_quote, fetch_correlation, fetch_portfolio_exposure]
+
+
+# ---------------------------------------------------------------------------
+# Tool: fetch_earnings_history
+# ---------------------------------------------------------------------------
+
+
+async def fetch_earnings_history(ctx: RunContext[DeskDeps], ticker: str) -> str:
+    """Fetch fundamental data and next earnings date for *ticker*.
+
+    Returns sector, industry, market cap, dividend yield, 52-week range,
+    and next earnings date.
+    """
+    tool_name = "fetch_earnings_history"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        info = await ctx.deps.market_data.fetch_ticker_info(ticker)
+
+        lines: list[str] = [f"Fundamentals for {ticker} ({info.company_name}):"]
+        lines.append(f"  Sector: {info.sector}")
+        lines.append(f"  Industry: {info.industry}")
+
+        if info.market_cap is not None:
+            lines.append(f"  Market Cap: ${info.market_cap:,}")
+        else:
+            lines.append("  Market Cap: N/A")
+
+        if info.market_cap_tier is not None:
+            lines.append(f"  Cap Tier: {info.market_cap_tier.value}")
+
+        div_pct = info.dividend_yield * 100
+        lines.append(f"  Dividend Yield: {div_pct:.2f}%")
+        lines.append(f"  Current Price: ${info.current_price}")
+        lines.append(f"  52W High: ${info.fifty_two_week_high}")
+        lines.append(f"  52W Low: ${info.fifty_two_week_low}")
+
+        if info.short_ratio is not None and math.isfinite(info.short_ratio):
+            lines.append(f"  Short Ratio: {info.short_ratio:.2f}")
+        if info.short_pct_of_float is not None and math.isfinite(info.short_pct_of_float):
+            lines.append(f"  Short % of Float: {info.short_pct_of_float * 100:.1f}%")
+
+        # Next earnings date
+        try:
+            earnings_date = await ctx.deps.market_data.fetch_earnings_date(ticker)
+            if earnings_date is not None:
+                lines.append(f"  Next Earnings: {earnings_date.isoformat()}")
+            else:
+                lines.append("  Next Earnings: N/A")
+        except Exception:
+            logger.debug("Could not fetch earnings date for %s", ticker)
+            lines.append("  Next Earnings: N/A")
+
+        ctx.deps.tools_used.append(tool_name)
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("fetch_earnings_history failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not fetch fundamentals for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: fetch_sector_comparison
+# ---------------------------------------------------------------------------
+
+
+async def fetch_sector_comparison(ctx: RunContext[DeskDeps], ticker: str) -> str:
+    """Fetch fundamental metrics for *ticker* with sector context.
+
+    Returns the ticker's key metrics alongside its sector label for
+    fundamental comparison.
+    """
+    tool_name = "fetch_sector_comparison"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        info = await ctx.deps.market_data.fetch_ticker_info(ticker)
+
+        lines: list[str] = [
+            f"Sector comparison for {ticker} ({info.sector}):",
+            f"  Company: {info.company_name}",
+            f"  Industry: {info.industry}",
+            f"  Current Price: ${info.current_price}",
+        ]
+
+        if info.market_cap is not None:
+            lines.append(f"  Market Cap: ${info.market_cap:,}")
+        else:
+            lines.append("  Market Cap: N/A")
+
+        if info.market_cap_tier is not None:
+            lines.append(f"  Cap Tier: {info.market_cap_tier.value}")
+
+        div_pct = info.dividend_yield * 100
+        lines.append(f"  Dividend Yield: {div_pct:.2f}%")
+
+        # 52-week range context
+        high = float(info.fifty_two_week_high)
+        low = float(info.fifty_two_week_low)
+        current = float(info.current_price)
+        if high > low:
+            range_pct = (current - low) / (high - low) * 100
+            lines.append(f"  Position in 52W Range: {range_pct:.1f}%")
+
+        ctx.deps.tools_used.append(tool_name)
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("fetch_sector_comparison failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not fetch sector comparison for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: fetch_debate_history
+# ---------------------------------------------------------------------------
+
+
+async def fetch_debate_history(
+    ctx: RunContext[DeskDeps],
+    ticker: str,
+    limit: int = 3,
+) -> str:
+    """Fetch prior AI debate history for *ticker*.
+
+    Returns direction, confidence, and summary from the most recent debates.
+
+    Args:
+        ticker: Underlying ticker symbol.
+        limit: Maximum number of debates to return (default 3).
+    """
+    import json as _json
+
+    tool_name = "fetch_debate_history"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        debates = await ctx.deps.repo.get_debates_for_ticker(ticker, limit=limit)
+        if not debates:
+            ctx.deps.tools_used.append(tool_name)
+            return f"No prior debate history found for {ticker}"
+
+        lines: list[str] = [f"Recent debate history for {ticker} ({len(debates)} debates):"]
+        for debate in debates:
+            date_str = debate.created_at.strftime("%Y-%m-%d %H:%M")
+            fallback_label = " [FALLBACK]" if debate.is_fallback else ""
+
+            direction = "N/A"
+            confidence = "N/A"
+            summary = "N/A"
+
+            if debate.verdict_json is not None:
+                try:
+                    verdict = _json.loads(debate.verdict_json)
+                    direction = verdict.get("direction", "N/A")
+                    raw_conf = verdict.get("confidence")
+                    if raw_conf is not None and isinstance(raw_conf, (int, float)):
+                        confidence = f"{float(raw_conf):.0%}"
+                    summary_text = verdict.get("summary", "")
+                    # Truncate long summaries
+                    if len(summary_text) > 120:  # noqa: PLR2004
+                        summary = summary_text[:117] + "..."
+                    elif summary_text:
+                        summary = summary_text
+                except (ValueError, TypeError):
+                    logger.debug("Could not parse verdict_json for debate %d", debate.id)
+
+            lines.append(
+                f"  [{date_str}]{fallback_label} Direction: {direction} | Confidence: {confidence}"
+            )
+            if summary != "N/A":
+                lines.append(f"    Summary: {summary}")
+
+        ctx.deps.tools_used.append(tool_name)
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("fetch_debate_history failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not fetch debate history for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Toolset builders (continued)
+# ---------------------------------------------------------------------------
+
+
+def build_fundamental_toolset() -> list[object]:
+    """Return the tools for a Fundamental Desk agent.
+
+    Tools: ``fetch_quote``, ``fetch_earnings_history``, ``fetch_sector_comparison``.
+    """
+    return [fetch_quote, fetch_earnings_history, fetch_sector_comparison]
+
+
+def build_contrarian_toolset() -> list[object]:
+    """Return the tools for a Contrarian Desk agent.
+
+    Tools: ``fetch_quote``, ``fetch_debate_history``.
+    """
+    return [fetch_quote, fetch_debate_history]
