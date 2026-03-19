@@ -412,8 +412,8 @@ class TestRunAgencyQuery:
             risk_resps = [r for r in resp.desk_responses if r.desk == DeskType.RISK]
             assert len(risk_resps) >= 1
 
-    async def test_unimplemented_desk_returns_error_response(self) -> None:
-        """Unimplemented desks return error DeskResponse with confidence=0.0."""
+    async def test_trend_desk_no_model_returns_error(self) -> None:
+        """Trend desk with no model returns error DeskResponse with confidence=0.0."""
         from options_arena.agents._routing import run_agency_query
 
         query = AgencyQuery(
@@ -434,13 +434,9 @@ class TestRunAgencyQuery:
         trend_resp = [r for r in resp.desk_responses if r.desk == DeskType.TREND]
         assert len(trend_resp) == 1
         assert trend_resp[0].confidence == pytest.approx(0.0)
-        assert (
-            "not yet implemented" in trend_resp[0].response.lower()
-            or "unavailable" in trend_resp[0].response.lower()
-        )
 
-    async def test_unimplemented_flow_desk(self) -> None:
-        """Flow desk is not yet implemented."""
+    async def test_flow_desk_no_model_returns_error(self) -> None:
+        """Flow desk with no model returns error DeskResponse with confidence=0.0."""
         from options_arena.agents._routing import run_agency_query
 
         query = AgencyQuery(

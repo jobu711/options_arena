@@ -18,9 +18,15 @@ from options_arena.agents._parsing import (
     render_volatility_context,
 )
 from options_arena.agents._routing import classify_intent, run_agency_query
-from options_arena.agents._toolsets import build_risk_toolset, build_volatility_toolset
+from options_arena.agents._toolsets import (
+    build_flow_toolset,
+    build_risk_toolset,
+    build_trend_toolset,
+    build_volatility_toolset,
+)
 from options_arena.agents.contrarian_agent import contrarian_agent
 from options_arena.agents.flow_agent import flow_agent
+from options_arena.agents.flow_desk import flow_desk, run_flow_desk_query
 from options_arena.agents.fundamental_agent import fundamental_agent
 from options_arena.agents.model_config import build_debate_model
 from options_arena.agents.orchestrator import (
@@ -41,6 +47,7 @@ from options_arena.agents.orchestrator import (
 )
 from options_arena.agents.risk_desk import risk_desk, run_risk_desk_query
 from options_arena.agents.trend_agent import trend_agent
+from options_arena.agents.trend_desk import run_trend_desk_query, trend_desk
 from options_arena.agents.volatility import volatility_agent
 from options_arena.agents.volatility_desk import run_vol_desk_query, vol_desk
 
@@ -56,8 +63,10 @@ __all__ = [
     "DebateResult",
     "auto_tune_weights",
     "build_debate_model",
+    "build_flow_toolset",
     "build_market_context",
     "build_risk_toolset",
+    "build_trend_toolset",
     "build_volatility_toolset",
     "classify_macd_signal",
     "compute_agreement_score",
@@ -66,6 +75,7 @@ __all__ = [
     "extract_agent_predictions",
     "contrarian_agent",
     "flow_agent",
+    "flow_desk",
     "fundamental_agent",
     "render_context_block",
     "render_flow_context",
@@ -75,11 +85,14 @@ __all__ = [
     "render_volatility_context",
     "risk_desk",
     "run_debate",
+    "run_flow_desk_query",
     "run_risk_desk_query",
+    "run_trend_desk_query",
     "run_vol_desk_query",
     "should_debate",
     "synthesize_verdict",
     "trend_agent",
+    "trend_desk",
     "vol_desk",
     "volatility_agent",
 ]
