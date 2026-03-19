@@ -8,7 +8,7 @@ parent_epic: ai-agency-evolution
 epic_number: 3
 dependencies: [ai-agency-desk-foundation]
 parallelizable_with: [ai-agency-advisor-routing]
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/586
 ---
 
 # Epic 3: All Desks Online
@@ -67,3 +67,29 @@ Build the remaining 5 desk agents (Trend, Flow, Fundamental, Contrarian, Researc
 ## Estimated Effort
 
 4-5 issues, ~2-3 implementation sessions
+
+## Tasks Created
+
+- [ ] #587 - Trend + Flow desk agents with tools, prompts, and unit tests (parallel: true)
+- [ ] #588 - Fundamental + Contrarian desk agents with tools, prompts, and unit tests (parallel: true)
+- [ ] #589 - Research desk with curated cross-domain tools (parallel: false, depends: #587, #588)
+- [ ] #590 - Routing wiring, re-exports, and integration tests for all 7 desks (parallel: false, depends: #587, #588, #589)
+- [ ] #591 - DeskSelector.vue frontend component (parallel: false, depends: #590)
+
+Total tasks: 5
+Parallel tasks: 2 (#587, #588)
+Sequential tasks: 3 (#589, #590, #591)
+Estimated total effort: 16-24 hours
+
+## Test Coverage Plan
+
+Total test files planned: 6
+- tests/unit/agents/test_trend_desk.py
+- tests/unit/agents/test_flow_desk.py
+- tests/unit/agents/test_fundamental_desk.py
+- tests/unit/agents/test_contrarian_desk.py
+- tests/unit/agents/test_research_desk.py
+- tests/unit/agents/test_routing_all_desks.py
+- tests/integration/test_all_desks_integration.py
+
+Total test cases planned: ~55+
