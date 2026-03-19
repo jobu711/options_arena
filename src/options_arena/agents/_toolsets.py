@@ -361,6 +361,13 @@ async def fetch_related_ohlcv(
         period: Data period — ``"6mo"`` (default), ``"1y"``, ``"3mo"``.
     """
     tool_name = "fetch_related_ohlcv"
+    _ALLOWED_PERIODS = {"3mo", "6mo", "1y"}
+    if period not in _ALLOWED_PERIODS:
+        ctx.deps.tools_used.append(tool_name)
+        return (
+            f"Error: unsupported period {period!r}. "
+            f"Supported: {', '.join(sorted(_ALLOWED_PERIODS))}"
+        )
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
         return err
@@ -798,6 +805,8 @@ async def fetch_debate_history(
     import json as _json
 
     tool_name = "fetch_debate_history"
+    # Clamp limit to prevent unbounded DB queries from LLM-controlled input
+    limit = min(max(1, limit), 20)
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
         return err
@@ -821,7 +830,11 @@ async def fetch_debate_history(
                     verdict = _json.loads(debate.verdict_json)
                     direction = verdict.get("direction", "N/A")
                     raw_conf = verdict.get("confidence")
-                    if raw_conf is not None and isinstance(raw_conf, (int, float)):
+                    if (
+                        raw_conf is not None
+                        and isinstance(raw_conf, (int, float))
+                        and math.isfinite(float(raw_conf))
+                    ):
                         confidence = f"{float(raw_conf):.0%}"
                     summary_text = verdict.get("summary", "")
                     # Truncate long summaries

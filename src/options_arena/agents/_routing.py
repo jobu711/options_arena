@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from collections.abc import Awaitable
 from datetime import UTC, datetime
 
 from options_arena.agents._desk_deps import DeskDeps
@@ -543,12 +544,24 @@ async def run_agency_query(
         tickers = intent.tickers or [""]
         primary_ticker = tickers[0] if tickers else ""
 
-        coroutines: list[asyncio.Task[DeskResponse]] = []
+        # Dispatch table: DeskType -> runner coroutine factory
+        _desk_runners = {
+            DeskType.VOLATILITY: _run_vol,
+            DeskType.RISK: _run_risk,
+            DeskType.TREND: _run_trend,
+            DeskType.FLOW: _run_flow,
+            DeskType.FUNDAMENTAL: _run_fundamental,
+            DeskType.CONTRARIAN: _run_contrarian,
+            DeskType.RESEARCH: _run_research,
+        }
+
+        awaitables: list[Awaitable[DeskResponse]] = []
         desk_order: list[DeskType] = []
 
         for desk in intent.desks:
             desk_order.append(desk)
-            if desk in _IMPLEMENTED_DESKS:
+            runner = _desk_runners.get(desk)
+            if runner is not None:
                 deps = DeskDeps(
                     query=query.query_text,
                     ticker=primary_ticker,
@@ -557,53 +570,12 @@ async def run_agency_query(
                     fred=fred,
                     repo=repo,
                 )
-                if desk == DeskType.VOLATILITY:
-                    coroutines.append(
-                        asyncio.ensure_future(
-                            _run_vol(query.query_text, deps, model=model, config=config)
-                        )
-                    )
-                elif desk == DeskType.RISK:
-                    coroutines.append(
-                        asyncio.ensure_future(
-                            _run_risk(query.query_text, deps, model=model, config=config)
-                        )
-                    )
-                elif desk == DeskType.TREND:
-                    coroutines.append(
-                        asyncio.ensure_future(
-                            _run_trend(query.query_text, deps, model=model, config=config)
-                        )
-                    )
-                elif desk == DeskType.FLOW:
-                    coroutines.append(
-                        asyncio.ensure_future(
-                            _run_flow(query.query_text, deps, model=model, config=config)
-                        )
-                    )
-                elif desk == DeskType.FUNDAMENTAL:
-                    coroutines.append(
-                        asyncio.ensure_future(
-                            _run_fundamental(query.query_text, deps, model=model, config=config)
-                        )
-                    )
-                elif desk == DeskType.CONTRARIAN:
-                    coroutines.append(
-                        asyncio.ensure_future(
-                            _run_contrarian(query.query_text, deps, model=model, config=config)
-                        )
-                    )
-                elif desk == DeskType.RESEARCH:
-                    coroutines.append(
-                        asyncio.ensure_future(
-                            _run_research(query.query_text, deps, model=model, config=config)
-                        )
-                    )
+                awaitables.append(runner(query.query_text, deps, model=model, config=config))
             else:
-                coroutines.append(asyncio.ensure_future(_run_unimplemented(desk)))
+                awaitables.append(_run_unimplemented(desk))
 
-        # 4. Dispatch with return_exceptions=True
-        results = await asyncio.gather(*coroutines, return_exceptions=True)
+        # 4. Dispatch atomically — no orphan risk from ensure_future
+        results = await asyncio.gather(*awaitables, return_exceptions=True)
 
         # 5. Collect responses (handle exceptions from gather)
         desk_responses: list[DeskResponse] = []

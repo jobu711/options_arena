@@ -37,7 +37,7 @@ The orchestrator does **not fetch data** — the caller (CLI/API) provides all i
 |------|--------|
 | **No inter-agent imports** | No agent module imports from any other agent module. Each agent is self-contained. |
 | **Orchestrator coordinates** | Only `orchestrator.py` imports from agent modules. Agents import from `_parsing.py` and `prompts/` only. |
-| **No data fetching** | Agents and orchestrator receive pre-fetched data. No `httpx`, `yfinance`, or service imports. |
+| **No data fetching (debate agents)** | Debate agents and orchestrator receive pre-fetched data. No `httpx`, `yfinance`, or service imports. Desk agent tool wrappers (`_toolsets.py`) MAY access `services/` and `indicators/` for on-demand computation — this is the desk pattern, distinct from debate agents. |
 | **No pricing** | Agents never import from `pricing/`. All Greeks arrive pre-computed on `OptionContract.greeks`. |
 | **Typed boundaries** | `run_debate()` returns `DebateResult`. Agent outputs are `AgentResponse` or `TradeThesis`. No raw dicts. |
 | **Logging only** | `logging.getLogger(__name__)` — never `print()`. Log agent start/complete/fail, token usage, fallback. |
@@ -49,7 +49,8 @@ The orchestrator does **not fetch data** — the caller (CLI/API) provides all i
 |----------------|-------------------|
 | `models/` (MarketContext, AgentResponse, TradeThesis, OptionContract, enums, config) | `services/` (no data fetching) |
 | `agents/_parsing.py` (DebateDeps, DebateResult, constants) | `pricing/` (Greeks pre-computed) |
-| `data/repository` (persistence only, from orchestrator) | `indicators/`, `scoring/`, `scan/` |
+| `data/repository` (persistence only, from orchestrator + desk tools) | `scoring/`, `scan/` |
+| `indicators/` (desk tool wrappers in `_toolsets.py` only — lazy imports) | — |
 | `pydantic_ai` (Agent, RunContext, ModelRetry, ModelSettings) | Other agent modules (agents don't know each other) |
 | stdlib: `asyncio`, `logging`, `time`, `os`, `dataclasses` | `cli/`, `reporting/`, `analysis/` |
 
