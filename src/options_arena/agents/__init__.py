@@ -22,6 +22,7 @@ from options_arena.agents._toolsets import (
     build_contrarian_toolset,
     build_flow_toolset,
     build_fundamental_toolset,
+    build_research_toolset,
     build_risk_toolset,
     build_trend_toolset,
     build_volatility_toolset,
@@ -49,6 +50,7 @@ from options_arena.agents.orchestrator import (
     should_debate,
     synthesize_verdict,
 )
+from options_arena.agents.research_desk import research_desk, run_research_desk_query
 from options_arena.agents.risk_desk import risk_desk, run_risk_desk_query
 from options_arena.agents.trend_agent import trend_agent
 from options_arena.agents.trend_desk import run_trend_desk_query, trend_desk
@@ -71,6 +73,7 @@ __all__ = [
     "build_flow_toolset",
     "build_fundamental_toolset",
     "build_market_context",
+    "build_research_toolset",
     "build_risk_toolset",
     "build_trend_toolset",
     "build_volatility_toolset",
@@ -91,8 +94,10 @@ __all__ = [
     "render_macro_context",
     "render_trend_context",
     "render_volatility_context",
+    "research_desk",
     "risk_desk",
     "run_contrarian_desk_query",
+    "run_research_desk_query",
     "run_debate",
     "run_flow_desk_query",
     "run_fundamental_desk_query",

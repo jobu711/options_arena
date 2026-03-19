@@ -881,3 +881,21 @@ def build_contrarian_toolset() -> list[object]:
     Tools: ``fetch_quote``, ``fetch_debate_history``.
     """
     return [fetch_quote, fetch_debate_history]
+
+
+def build_research_toolset() -> list[object]:
+    """Return the tools for a Research Desk agent.
+
+    Curated cross-domain tools (6 total): ``fetch_quote``,
+    ``fetch_vol_surface_slice``, ``fetch_chain_summary``,
+    ``fetch_earnings_history``, ``compute_indicator_on_demand``,
+    ``fetch_debate_history``.
+    """
+    return [
+        fetch_quote,
+        fetch_vol_surface_slice,
+        fetch_chain_summary,
+        fetch_earnings_history,
+        compute_indicator_on_demand,
+        fetch_debate_history,
+    ]

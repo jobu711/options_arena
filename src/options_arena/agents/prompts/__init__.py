@@ -2,6 +2,7 @@
 
 from options_arena.agents.prompts.contrarian_agent import CONTRARIAN_SYSTEM_PROMPT
 from options_arena.agents.prompts.desk_flow import DESK_FLOW_PROMPT
+from options_arena.agents.prompts.desk_research import DESK_RESEARCH_PROMPT
 from options_arena.agents.prompts.desk_risk import DESK_RISK_PROMPT
 from options_arena.agents.prompts.desk_trend import DESK_TREND_PROMPT
 from options_arena.agents.prompts.desk_volatility import DESK_VOLATILITY_PROMPT
@@ -14,6 +15,7 @@ from options_arena.agents.prompts.volatility import VOLATILITY_SYSTEM_PROMPT
 __all__ = [
     "CONTRARIAN_SYSTEM_PROMPT",
     "DESK_FLOW_PROMPT",
+    "DESK_RESEARCH_PROMPT",
     "DESK_RISK_PROMPT",
     "DESK_TREND_PROMPT",
     "DESK_VOLATILITY_PROMPT",
