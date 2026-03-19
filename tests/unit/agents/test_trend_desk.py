@@ -47,9 +47,7 @@ class TestRunTrendDeskQuery:
     @pytest.mark.critical
     async def test_produces_desk_response(self) -> None:
         deps = _make_deps()
-        result = await run_trend_desk_query(
-            "What is AAPL trend?", deps, model=TestModel()
-        )
+        result = await run_trend_desk_query("What is AAPL trend?", deps, model=TestModel())
         assert isinstance(result, DeskResponse)
         assert result.desk == DeskType.TREND
 
@@ -61,9 +59,7 @@ class TestRunTrendDeskQuery:
 
     async def test_think_tags_stripped(self) -> None:
         deps = _make_deps()
-        test_model = TestModel(
-            custom_output_text="<think>reasoning</think>The trend is bullish."
-        )
+        test_model = TestModel(custom_output_text="<think>reasoning</think>The trend is bullish.")
         result = await run_trend_desk_query("Analyze trend", deps, model=test_model)
         assert "<think>" not in result.response
         assert "The trend is bullish." in result.response
@@ -80,9 +76,7 @@ class TestRunTrendDeskQuery:
         deps = _make_deps()
         config = AgencyConfig(agent_timeout=0.001)  # Extremely short timeout
         # TestModel is fast so we might not timeout, but the code path is exercised
-        result = await run_trend_desk_query(
-            "test", deps, model=TestModel(), config=config
-        )
+        result = await run_trend_desk_query("test", deps, model=TestModel(), config=config)
         assert isinstance(result, DeskResponse)
 
     async def test_tools_used_tracked(self) -> None:
@@ -94,9 +88,7 @@ class TestRunTrendDeskQuery:
     async def test_custom_config_respected(self) -> None:
         deps = _make_deps()
         config = AgencyConfig(agent_timeout=120.0, default_tool_budget=5)
-        result = await run_trend_desk_query(
-            "test", deps, model=TestModel(), config=config
-        )
+        result = await run_trend_desk_query("test", deps, model=TestModel(), config=config)
         assert isinstance(result, DeskResponse)
 
     async def test_successful_response_has_confidence(self) -> None:

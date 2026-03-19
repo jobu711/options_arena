@@ -15,9 +15,7 @@ from options_arena.models import AgencyConfig, DeskResponse, DeskType
 models.ALLOW_MODEL_REQUESTS = False
 
 
-def _make_deps(
-    query: str = "Challenge AAPL consensus", ticker: str = "AAPL"
-) -> DeskDeps:
+def _make_deps(query: str = "Challenge AAPL consensus", ticker: str = "AAPL") -> DeskDeps:
     return DeskDeps(
         query=query,
         ticker=ticker,
@@ -82,9 +80,7 @@ class TestRunContrarianDeskQuery:
         deps = _make_deps()
         config = AgencyConfig(agent_timeout=0.001)  # Extremely short timeout
         # TestModel is fast so we might not timeout, but the code path is exercised
-        result = await run_contrarian_desk_query(
-            "test", deps, model=TestModel(), config=config
-        )
+        result = await run_contrarian_desk_query("test", deps, model=TestModel(), config=config)
         assert isinstance(result, DeskResponse)
 
     async def test_tools_used_tracked(self) -> None:
@@ -96,9 +92,7 @@ class TestRunContrarianDeskQuery:
     async def test_custom_config_respected(self) -> None:
         deps = _make_deps()
         config = AgencyConfig(agent_timeout=120.0, contrarian_tool_budget=4)
-        result = await run_contrarian_desk_query(
-            "test", deps, model=TestModel(), config=config
-        )
+        result = await run_contrarian_desk_query("test", deps, model=TestModel(), config=config)
         assert isinstance(result, DeskResponse)
 
     async def test_uses_contrarian_tool_budget(self) -> None:

@@ -61,9 +61,7 @@ class TestRunFundamentalDeskQuery:
 
     async def test_think_tags_stripped(self) -> None:
         deps = _make_deps()
-        test_model = TestModel(
-            custom_output_text="<think>reasoning</think>The P/E is reasonable."
-        )
+        test_model = TestModel(custom_output_text="<think>reasoning</think>The P/E is reasonable.")
         result = await run_fundamental_desk_query("Analyze", deps, model=test_model)
         assert "<think>" not in result.response
         assert "The P/E is reasonable." in result.response
@@ -80,9 +78,7 @@ class TestRunFundamentalDeskQuery:
         deps = _make_deps()
         config = AgencyConfig(agent_timeout=0.001)  # Extremely short timeout
         # TestModel is fast so we might not timeout, but the code path is exercised
-        result = await run_fundamental_desk_query(
-            "test", deps, model=TestModel(), config=config
-        )
+        result = await run_fundamental_desk_query("test", deps, model=TestModel(), config=config)
         assert isinstance(result, DeskResponse)
 
     async def test_tools_used_tracked(self) -> None:
@@ -94,9 +90,7 @@ class TestRunFundamentalDeskQuery:
     async def test_custom_config_respected(self) -> None:
         deps = _make_deps()
         config = AgencyConfig(agent_timeout=120.0, default_tool_budget=5)
-        result = await run_fundamental_desk_query(
-            "test", deps, model=TestModel(), config=config
-        )
+        result = await run_fundamental_desk_query("test", deps, model=TestModel(), config=config)
         assert isinstance(result, DeskResponse)
 
     async def test_uses_default_tool_budget(self) -> None:

@@ -115,7 +115,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `SpreadConfig` | model |  | 569 | Spread strategy configuration — controls multi-leg strategy construction. |
 | `OpenBBConfig` | model |  | 631 | CBOE chain provider configuration (legacy name retained for settings compat). |
 | `AgencyConfig` | model |  | 645 | AI agency desk system configuration. |
-| `AppSettings` | model |  | 685 | Root application settings — the sole BaseSettings subclass. |
+| `AppSettings` | model |  | 691 | Root application settings — the sole BaseSettings subclass. |
 
 #### models/constants.py
 
@@ -911,21 +911,33 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `classify_intent` | func | `(query: str) -> QueryIntent` | 219 | Classify a natural-language query into desk routing intent. |
-| `run_agency_query` | async func | `(query: AgencyQuery, *, market_data: MarketDataService, options_data: OptionsDataService, fred: F...` | 399 | Route a user query to desk agent(s) and synthesize the response. |
+| `classify_intent` | func | `(query: str) -> QueryIntent` | 235 | Classify a natural-language query into desk routing intent. |
+| `run_agency_query` | async func | `(query: AgencyQuery, *, market_data: MarketDataService, options_data: OptionsDataService, fred: F...` | 480 | Route a user query to desk agent(s) and synthesize the response. |
 
 #### agents/_toolsets.py
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `DESK_SUCCESS_CONFIDENCE` | const | `float` | 31 |  |
-| `fetch_quote` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 46 | Fetch a real-time quote for *ticker*. |
-| `fetch_vol_surface_slice` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 85 | Fetch a volatility surface slice showing IV by strike/expiry. |
-| `compute_iv_for_strike` | async func | `(ctx: RunContext[DeskDeps], ticker: str, strike: float, expiry: str) -> str` | 142 | Find the closest strike in the chain to *strike* and show IV details. |
-| `fetch_correlation` | async func | `(ctx: RunContext[DeskDeps], ticker: str, tickers: list[str]) -> str` | 190 | Compute pairwise return correlations between *ticker* and each of *tickers*. |
-| `fetch_portfolio_exposure` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 288 | Query repository for historical recommended contracts for *ticker*. |
-| `build_volatility_toolset` | func | `() -> list[object]` | 327 | Return the tools for a Volatility Desk agent. |
-| `build_risk_toolset` | func | `() -> list[object]` | 335 | Return the tools for a Risk Desk agent. |
+| `DESK_SUCCESS_CONFIDENCE` | const | `float` | 32 |  |
+| `fetch_quote` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 47 | Fetch a real-time quote for *ticker*. |
+| `fetch_vol_surface_slice` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 86 | Fetch a volatility surface slice showing IV by strike/expiry. |
+| `compute_iv_for_strike` | async func | `(ctx: RunContext[DeskDeps], ticker: str, strike: float, expiry: str) -> str` | 143 | Find the closest strike in the chain to *strike* and show IV details. |
+| `fetch_correlation` | async func | `(ctx: RunContext[DeskDeps], ticker: str, tickers: list[str]) -> str` | 191 | Compute pairwise return correlations between *ticker* and each of *tickers*. |
+| `fetch_portfolio_exposure` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 289 | Query repository for historical recommended contracts for *ticker*. |
+| `build_volatility_toolset` | func | `() -> list[object]` | 328 | Return the tools for a Volatility Desk agent. |
+| `build_risk_toolset` | func | `() -> list[object]` | 336 | Return the tools for a Risk Desk agent. |
+| `fetch_related_ohlcv` | async func | `(ctx: RunContext[DeskDeps], ticker: str, period: str = '6mo') -> str` | 349 | Fetch recent OHLCV bars for *ticker*. |
+| `compute_indicator_on_demand` | async func | `(ctx: RunContext[DeskDeps], ticker: str, indicator: str) -> str` | 403 | Compute a technical indicator on demand for *ticker*. |
+| `fetch_chain_summary` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 528 | Fetch an option chain summary for *ticker*. |
+| `fetch_unusual_activity` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 606 | Detect unusual options activity for *ticker*. |
+| `fetch_earnings_history` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 680 | Fetch fundamental data and next earnings date for *ticker*. |
+| `fetch_sector_comparison` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 740 | Fetch fundamental metrics for *ticker* with sector context. |
+| `fetch_debate_history` | async func | `(ctx: RunContext[DeskDeps], ticker: str, limit: int = 3) -> str` | 792 | Fetch prior AI debate history for *ticker*. |
+| `build_trend_toolset` | func | `() -> list[object]` | 867 | Return the tools for a Trend Desk agent. |
+| `build_flow_toolset` | func | `() -> list[object]` | 875 | Return the tools for a Flow Desk agent. |
+| `build_fundamental_toolset` | func | `() -> list[object]` | 883 | Return the tools for a Fundamental Desk agent. |
+| `build_contrarian_toolset` | func | `() -> list[object]` | 891 | Return the tools for a Contrarian Desk agent. |
+| `build_research_toolset` | func | `() -> list[object]` | 899 | Return the tools for a Research Desk agent. |
 
 #### agents/constraints.py
 
@@ -941,6 +953,12 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `contrarian_dynamic_prompt` | async func | `(ctx: RunContext[DebateDeps]) -> str` | 37 | Return the contrarian system prompt, injecting all prior agent outputs. |
 | `clean_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: ContrarianThesis) -> ContrarianThesis` | 56 | Strip ``<think>`` tags from LLM output via shared helper. |
 
+#### agents/contrarian_desk.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `run_contrarian_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object | None = None, config: AgencyConfig | None = None) ...` | 51 | Run a contrarian desk query with timeout and error handling. |
+
 #### agents/flow_agent.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -948,12 +966,24 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `flow_dynamic_prompt` | async func | `(ctx: RunContext[DebateDeps]) -> str` | 37 | Return the flow system prompt, injecting bull/bear arguments if available. |
 | `clean_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: FlowThesis) -> FlowThesis` | 48 | Strip ``<think>`` tags from LLM output via shared helper. |
 
+#### agents/flow_desk.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `run_flow_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object | None = None, config: AgencyConfig | None = None) ...` | 50 | Run a flow desk query with timeout and error handling. |
+
 #### agents/fundamental_agent.py
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `fundamental_dynamic_prompt` | async func | `(ctx: RunContext[DebateDeps]) -> str` | 37 | Return the fundamental system prompt, injecting bull/bear arguments if available. |
 | `clean_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: FundamentalThesis) -> FundamentalThesis` | 53 | Strip ``<think>`` tags from LLM output via shared helper. |
+
+#### agents/fundamental_desk.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `run_fundamental_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object | None = None, config: AgencyConfig | None = None) ...` | 50 | Run a fundamental desk query with timeout and error handling. |
 
 #### agents/model_config.py
 
@@ -984,11 +1014,41 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 |--------|------|-----------|------|-------------|
 | `CONTRARIAN_SYSTEM_PROMPT` | const |  | 19 |  |
 
+#### agents/prompts/desk_contrarian.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `DESK_CONTRARIAN_PROMPT` | const | `str` | 8 |  |
+
+#### agents/prompts/desk_flow.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `DESK_FLOW_PROMPT` | const | `str` | 7 |  |
+
+#### agents/prompts/desk_fundamental.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `DESK_FUNDAMENTAL_PROMPT` | const | `str` | 7 |  |
+
+#### agents/prompts/desk_research.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `DESK_RESEARCH_PROMPT` | const | `str` | 8 |  |
+
 #### agents/prompts/desk_risk.py
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `DESK_RISK_PROMPT` | const | `str` | 7 |  |
+
+#### agents/prompts/desk_trend.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `DESK_TREND_PROMPT` | const | `str` | 7 |  |
 
 #### agents/prompts/desk_volatility.py
 
@@ -1026,6 +1086,12 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 |--------|------|-----------|------|-------------|
 | `VOLATILITY_SYSTEM_PROMPT` | const |  | 20 |  |
 
+#### agents/research_desk.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `run_research_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object | None = None, config: AgencyConfig | None = None) ...` | 51 | Run a research desk query with timeout and error handling. |
+
 #### agents/risk.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -1045,6 +1111,12 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 |--------|------|-----------|------|-------------|
 | `trend_system_prompt` | func | `() -> str` | 36 | Return the trend agent system prompt. |
 | `clean_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: AgentResponse) -> AgentResponse` | 45 | Strip ``<think>`` tags from LLM output via shared helper. |
+
+#### agents/trend_desk.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `run_trend_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object | None = None, config: AgencyConfig | None = None) ...` | 50 | Run a trend desk query with timeout and error handling. |
 
 #### agents/volatility.py
 
@@ -1146,7 +1218,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `lifespan` | async func | `(app: FastAPI) -> AsyncGenerator[None]` | 56 | Create all services at startup, close them at shutdown. |
-| `create_app` | func | `() -> FastAPI` | 182 | Build and configure the FastAPI application. |
+| `create_app` | func | `() -> FastAPI` | 187 | Build and configure the FastAPI application. |
 
 #### api/deps.py
 
@@ -1166,8 +1238,8 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `submit_query` | async func | `(request: AgencyQueryRequest, repo: Repository = Depends(get_repo), market_data: MarketDataServic...` | 39 | Submit a natural language agency query. |
-| `get_query` | async func | `(query_id: str, repo: Repository = Depends(get_repo)) -> AgencyResponse` | 104 | Retrieve a persisted agency query response by ID. |
-| `list_queries` | async func | `(limit: int = ..., repo: Repository = Depends(get_repo)) -> list[AgencyResponse]` | 116 | List recent agency queries. |
+| `get_query` | async func | `(query_id: str, repo: Repository = Depends(get_repo)) -> AgencyResponse` | 105 | Retrieve a persisted agency query response by ID. |
+| `list_queries` | async func | `(limit: int = ..., repo: Repository = Depends(get_repo)) -> list[AgencyResponse]` | 117 | List recent agency queries. |
 
 #### api/routes/analytics.py
 
@@ -1792,21 +1864,31 @@ Each row maps a source file to its test files and approximate test count.
 | `agents/_toolsets.py` | `tests/unit/agents/test_toolsets.py` | 24 |
 | `agents/constraints.py` | `tests/unit/agents/test_constraints.py` | 18 |
 | `agents/contrarian_agent.py` | — | 0 |
+| `agents/contrarian_desk.py` | `tests/unit/agents/test_contrarian_desk.py` | 22 |
 | `agents/flow_agent.py` | — | 0 |
+| `agents/flow_desk.py` | `tests/unit/agents/test_flow_desk.py` | 20 |
 | `agents/fundamental_agent.py` | — | 0 |
+| `agents/fundamental_desk.py` | `tests/unit/agents/test_fundamental_desk.py` | 21 |
 | `agents/model_config.py` | `tests/unit/agents/test_model_config.py` | 19 |
 | `agents/orchestrator.py` | `tests/unit/agents/test_orchestrator.py` | 55 |
 | `agents/prompts/contrarian_agent.py` | — | 0 |
+| `agents/prompts/desk_contrarian.py` | — | 0 |
+| `agents/prompts/desk_flow.py` | — | 0 |
+| `agents/prompts/desk_fundamental.py` | — | 0 |
+| `agents/prompts/desk_research.py` | — | 0 |
 | `agents/prompts/desk_risk.py` | — | 0 |
+| `agents/prompts/desk_trend.py` | — | 0 |
 | `agents/prompts/desk_volatility.py` | — | 0 |
 | `agents/prompts/flow_agent.py` | — | 0 |
 | `agents/prompts/fundamental_agent.py` | — | 0 |
 | `agents/prompts/risk.py` | `tests/unit/agents/test_risk.py` | 13 |
 | `agents/prompts/trend_agent.py` | — | 0 |
 | `agents/prompts/volatility.py` | `tests/unit/agents/test_volatility.py` | 11 |
+| `agents/research_desk.py` | `tests/unit/agents/test_research_desk.py` | 21 |
 | `agents/risk.py` | `tests/unit/agents/test_risk.py` | 13 |
 | `agents/risk_desk.py` | `tests/unit/agents/test_risk_desk.py` | 23 |
 | `agents/trend_agent.py` | — | 0 |
+| `agents/trend_desk.py` | `tests/unit/agents/test_trend_desk.py` | 20 |
 | `agents/volatility.py` | `tests/unit/agents/test_volatility.py` | 11 |
 | `agents/volatility_desk.py` | `tests/unit/agents/test_volatility_desk.py` | 11 |
 
@@ -1874,9 +1956,9 @@ Each row maps a source file to its test files and approximate test count.
 | services/ | 13 | 112 | 12 | 360 |
 | scoring/ | 6 | 29 | 6 | 227 |
 | data/ | 9 | 64 | 2 | 46 |
-| agents/ | 23 | 71 | 11 | 318 |
+| agents/ | 33 | 93 | 16 | 422 |
 | scan/ | 8 | 23 | 3 | 82 |
 | reporting/ | 1 | 2 | 1 | 10 |
 | api/ | 15 | 106 | 12 | 139 |
 | cli/ | 7 | 41 | 3 | 27 |
-| **Total** | **129** | **695** | **87** | **2564** |
+| **Total** | **139** | **717** | **92** | **2668** |
