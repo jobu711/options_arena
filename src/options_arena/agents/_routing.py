@@ -20,6 +20,7 @@ from options_arena.agents._desk_deps import DeskDeps
 from options_arena.agents.contrarian_desk import run_contrarian_desk_query
 from options_arena.agents.flow_desk import run_flow_desk_query
 from options_arena.agents.fundamental_desk import run_fundamental_desk_query
+from options_arena.agents.research_desk import run_research_desk_query
 from options_arena.agents.risk_desk import run_risk_desk_query
 from options_arena.agents.trend_desk import run_trend_desk_query
 from options_arena.agents.volatility_desk import run_vol_desk_query
@@ -100,6 +101,15 @@ _DESK_KEYWORDS: dict[DeskType, list[str]] = {
         "sentiment",
         "overcrowded",
         "reversal",
+    ],
+    DeskType.RESEARCH: [
+        "research",
+        "overview",
+        "summary",
+        "broad",
+        "comprehensive",
+        "multi",
+        "cross",
     ],
 }
 
@@ -357,14 +367,25 @@ async def _run_contrarian(
     return await run_contrarian_desk_query(query, deps, model=model, config=config)
 
 
+async def _run_research(
+    query: str,
+    deps: DeskDeps,
+    *,
+    model: object | None,
+    config: AgencyConfig,
+) -> DeskResponse:
+    """Delegate to run_research_desk_query."""
+    return await run_research_desk_query(query, deps, model=model, config=config)
+
+
 async def _run_unimplemented(
     desk: DeskType,
 ) -> DeskResponse:
     """Return an error DeskResponse for desks not yet implemented."""
     return DeskResponse(
         desk=desk,
-        response=f"{desk.value.title()} desk is not yet implemented. "
-        f"Available desks: volatility, risk, trend, flow, fundamental, contrarian.",
+        response="All desks are available. Supported: volatility, risk, trend, flow, "
+        "fundamental, contrarian, research.",
         tools_used=[],
         confidence=0.0,
     )
@@ -379,6 +400,7 @@ _IMPLEMENTED_DESKS: frozenset[DeskType] = frozenset(
         DeskType.FLOW,
         DeskType.FUNDAMENTAL,
         DeskType.CONTRARIAN,
+        DeskType.RESEARCH,
     }
 )
 
@@ -470,8 +492,8 @@ async def run_agency_query(
     Orchestration flow:
     1. Classify intent (or use desk_override if set).
     2. Dispatch to desk(s) via asyncio.gather with return_exceptions=True.
-    3. For implemented desks (vol, risk): call desk runners.
-    4. For unimplemented desks: return error DeskResponse(confidence=0.0).
+    3. For implemented desks (all 7): call desk runners.
+    4. For unrecognized desks: return error DeskResponse(confidence=0.0).
     5. Synthesize AgencyResponse with merged citations and averaged confidence.
     6. Never raises -- catches all exceptions, returns error AgencyResponse.
 
@@ -569,6 +591,12 @@ async def run_agency_query(
                     coroutines.append(
                         asyncio.ensure_future(
                             _run_contrarian(query.query_text, deps, model=model, config=config)
+                        )
+                    )
+                elif desk == DeskType.RESEARCH:
+                    coroutines.append(
+                        asyncio.ensure_future(
+                            _run_research(query.query_text, deps, model=model, config=config)
                         )
                     )
             else:

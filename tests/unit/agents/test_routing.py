@@ -504,8 +504,8 @@ class TestRunAgencyQuery:
         assert len(contra_resp) == 1
         assert contra_resp[0].confidence == pytest.approx(0.0)
 
-    async def test_unimplemented_research_desk(self) -> None:
-        """Research desk is not yet implemented."""
+    async def test_research_desk_no_model_returns_error(self) -> None:
+        """Research desk with no model returns error DeskResponse with confidence=0.0."""
         from options_arena.agents._routing import run_agency_query
 
         query = AgencyQuery(
