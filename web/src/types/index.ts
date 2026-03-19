@@ -28,6 +28,14 @@ export type {
 } from './backtest'
 export type { AgentWeightsComparison, WeightSnapshot } from './weights'
 export type {
+  DeskInfo,
+  DeskResponseData,
+  QueryIntent,
+  Citation,
+  AgencyResponse,
+  AgencyQueryRequest,
+} from './agency'
+export type {
   ScanProgressEvent,
   ScanErrorEvent,
   ScanCompleteEvent,
