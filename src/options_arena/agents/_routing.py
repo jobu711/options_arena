@@ -17,7 +17,9 @@ import re
 from datetime import UTC, datetime
 
 from options_arena.agents._desk_deps import DeskDeps
+from options_arena.agents.flow_desk import run_flow_desk_query
 from options_arena.agents.risk_desk import run_risk_desk_query
+from options_arena.agents.trend_desk import run_trend_desk_query
 from options_arena.agents.volatility_desk import run_vol_desk_query
 from options_arena.data.repository import Repository
 from options_arena.models import (
@@ -309,6 +311,28 @@ async def _run_risk(
     return await run_risk_desk_query(query, deps, model=model, config=config)
 
 
+async def _run_trend(
+    query: str,
+    deps: DeskDeps,
+    *,
+    model: object | None,
+    config: AgencyConfig,
+) -> DeskResponse:
+    """Delegate to run_trend_desk_query."""
+    return await run_trend_desk_query(query, deps, model=model, config=config)
+
+
+async def _run_flow(
+    query: str,
+    deps: DeskDeps,
+    *,
+    model: object | None,
+    config: AgencyConfig,
+) -> DeskResponse:
+    """Delegate to run_flow_desk_query."""
+    return await run_flow_desk_query(query, deps, model=model, config=config)
+
+
 async def _run_unimplemented(
     desk: DeskType,
 ) -> DeskResponse:
@@ -316,14 +340,16 @@ async def _run_unimplemented(
     return DeskResponse(
         desk=desk,
         response=f"{desk.value.title()} desk is not yet implemented. "
-        f"Available desks: volatility, risk.",
+        f"Available desks: volatility, risk, trend, flow.",
         tools_used=[],
         confidence=0.0,
     )
 
 
 # Map implemented desks to their runners
-_IMPLEMENTED_DESKS: frozenset[DeskType] = frozenset({DeskType.VOLATILITY, DeskType.RISK})
+_IMPLEMENTED_DESKS: frozenset[DeskType] = frozenset(
+    {DeskType.VOLATILITY, DeskType.RISK, DeskType.TREND, DeskType.FLOW}
+)
 
 
 def _extract_citations(
@@ -488,6 +514,18 @@ async def run_agency_query(
                     coroutines.append(
                         asyncio.ensure_future(
                             _run_risk(query.query_text, deps, model=model, config=config)
+                        )
+                    )
+                elif desk == DeskType.TREND:
+                    coroutines.append(
+                        asyncio.ensure_future(
+                            _run_trend(query.query_text, deps, model=model, config=config)
+                        )
+                    )
+                elif desk == DeskType.FLOW:
+                    coroutines.append(
+                        asyncio.ensure_future(
+                            _run_flow(query.query_text, deps, model=model, config=config)
                         )
                     )
             else:
