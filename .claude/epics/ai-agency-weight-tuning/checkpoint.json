@@ -1,0 +1,12 @@
+{
+  "epic": "ai-agency-weight-tuning",
+  "phase": "executing",
+  "last_command": "/pm:epic-start ai-agency-weight-tuning",
+  "last_updated": "2026-03-20T13:10:26Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced", "executing"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}
