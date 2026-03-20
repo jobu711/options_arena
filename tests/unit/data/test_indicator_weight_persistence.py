@@ -31,13 +31,9 @@ class TestIndicatorWeightPersistence:
         """Save indicator weights and retrieve via get_weight_history."""
         weights = {"rsi": 0.08, "adx": 0.06, "bb_width": 0.05}
         static = {"rsi": 0.065, "adx": 0.065, "bb_width": 0.05}
-        await repo.save_indicator_weights(
-            weights, static, window_days=90, accuracy=0.72
-        )
+        await repo.save_indicator_weights(weights, static, window_days=90, accuracy=0.72)
 
-        history = await repo.get_weight_history(
-            limit=10, weight_type=WeightType.INDICATOR
-        )
+        history = await repo.get_weight_history(limit=10, weight_type=WeightType.INDICATOR)
         assert len(history) == 1
         snap = history[0]
         assert snap.weight_type == WeightType.INDICATOR
@@ -59,14 +55,10 @@ class TestIndicatorWeightPersistence:
         await repo.save_auto_tune_weights(vote_weights, window_days=90)
 
         # Save indicator weights
-        await repo.save_indicator_weights(
-            {"rsi": 0.08}, {"rsi": 0.065}, window_days=90
-        )
+        await repo.save_indicator_weights({"rsi": 0.08}, {"rsi": 0.065}, window_days=90)
 
         # Filter for vote only
-        vote_history = await repo.get_weight_history(
-            limit=10, weight_type=WeightType.VOTE
-        )
+        vote_history = await repo.get_weight_history(limit=10, weight_type=WeightType.VOTE)
         for snap in vote_history:
             assert snap.weight_type == WeightType.VOTE
 
@@ -84,9 +76,7 @@ class TestIndicatorWeightPersistence:
             ],
             window_days=90,
         )
-        await repo.save_indicator_weights(
-            {"rsi": 0.08}, {"rsi": 0.065}, window_days=90
-        )
+        await repo.save_indicator_weights({"rsi": 0.08}, {"rsi": 0.065}, window_days=90)
 
         indicator_history = await repo.get_weight_history(
             limit=10, weight_type=WeightType.INDICATOR
@@ -108,9 +98,7 @@ class TestIndicatorWeightPersistence:
             ],
             window_days=90,
         )
-        await repo.save_indicator_weights(
-            {"rsi": 0.08}, {"rsi": 0.065}, window_days=90
-        )
+        await repo.save_indicator_weights({"rsi": 0.08}, {"rsi": 0.065}, window_days=90)
 
         all_history = await repo.get_weight_history(limit=10, weight_type=None)
         assert len(all_history) == 2  # One vote snapshot + one indicator snapshot
@@ -121,9 +109,7 @@ class TestIndicatorWeightPersistence:
             {"rsi": 0.08}, {"rsi": 0.065}, window_days=60, accuracy=0.85
         )
 
-        history = await repo.get_weight_history(
-            limit=10, weight_type=WeightType.INDICATOR
-        )
+        history = await repo.get_weight_history(limit=10, weight_type=WeightType.INDICATOR)
         assert history[0].accuracy_at_time == pytest.approx(0.85)
 
     async def test_accuracy_at_time_none_for_votes(self, repo: Repository) -> None:
@@ -141,9 +127,7 @@ class TestIndicatorWeightPersistence:
             window_days=90,
         )
 
-        history = await repo.get_weight_history(
-            limit=10, weight_type=WeightType.VOTE
-        )
+        history = await repo.get_weight_history(limit=10, weight_type=WeightType.VOTE)
         assert len(history) == 1
         assert history[0].accuracy_at_time is None
 
@@ -151,7 +135,5 @@ class TestIndicatorWeightPersistence:
         """Empty dict does not insert any rows."""
         await repo.save_indicator_weights({}, {}, window_days=90)
 
-        history = await repo.get_weight_history(
-            limit=10, weight_type=WeightType.INDICATOR
-        )
+        history = await repo.get_weight_history(limit=10, weight_type=WeightType.INDICATOR)
         assert history == []

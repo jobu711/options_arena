@@ -57,16 +57,16 @@ from options_arena.agents.volatility import volatility_agent
 from options_arena.analysis.position_sizing import compute_position_size
 from options_arena.analysis.valuation import FDData, compute_composite_valuation
 from options_arena.data.repository import Repository
-from options_arena.learning.weight_tuner import (
+from options_arena.learning import (
     AGENT_VOTE_WEIGHTS as AGENT_VOTE_WEIGHTS,
 )
-from options_arena.learning.weight_tuner import (
+from options_arena.learning import (
     VoteWeights as VoteWeights,
 )
-from options_arena.learning.weight_tuner import (
+from options_arena.learning import (
     auto_tune_weights as auto_tune_weights,
 )
-from options_arena.learning.weight_tuner import (
+from options_arena.learning import (
     compute_auto_tune_weights as compute_auto_tune_weights,
 )
 from options_arena.models import (

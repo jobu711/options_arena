@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from itertools import groupby
 from sqlite3 import Row
 
 from options_arena.models import (
@@ -595,8 +596,6 @@ class DebateMixin(RepositoryBase):
             return []
 
         # Group rows by created_at timestamp (Python-side)
-        from itertools import groupby
-
         snapshots: list[WeightSnapshot] = []
         for ts_str, group in groupby(rows, key=lambda r: r["created_at"]):
             group_rows = list(group)
@@ -615,7 +614,7 @@ class DebateMixin(RepositoryBase):
 
             # Read weight_type from first row (all rows in a group share it)
             row_wt = group_rows[0]["weight_type"]
-            wt = WeightType(row_wt) if row_wt else WeightType.VOTE
+            wt = WeightType(row_wt) if row_wt is not None else WeightType.VOTE
 
             row_acc = group_rows[0]["accuracy_at_time"]
             acc = float(row_acc) if row_acc is not None else None

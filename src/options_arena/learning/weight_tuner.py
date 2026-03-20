@@ -35,6 +35,9 @@ logger = logging.getLogger(__name__)
 # Mapping from agent name to its directional vote weight.
 type VoteWeights = dict[str, float]
 
+# Mapping from indicator field name to its composite weight.
+type IndicatorWeights = dict[str, float]
+
 # Agent vote weights for verdict synthesis.
 # Directional weights sum to 0.85 — unnormalized weights are correct for
 # Bordley 1982 log-odds pooling.
@@ -90,11 +93,7 @@ async def auto_tune_weights(
 ) -> list[AgentWeightsComparison]:
     """Orchestrate end-to-end auto-tune: accuracy -> weights -> compare -> persist.
 
-    Connects existing primitives into a working flow:
-    1. Fetch per-agent accuracy from the repository.
-    2. Compute auto-tuned weights via ``compute_auto_tune_weights()``.
-    3. Build ``AgentWeightsComparison`` for each agent (manual vs auto).
-    4. Optionally persist the results (skipped when *dry_run* is ``True``).
+    Never-raises: catches all exceptions, logs, returns empty list.
 
     Args:
         repo: Repository instance for DB access.
@@ -105,6 +104,23 @@ async def auto_tune_weights(
         List of ``AgentWeightsComparison`` — one per agent with tuned weights.
         Empty list when no accuracy data meets the minimum sample threshold.
     """
+    try:
+        return await _auto_tune_weights_inner(repo, window_days, dry_run)
+    except Exception:
+        logger.warning(
+            "Vote weight auto-tune failed (window=%d)",
+            window_days,
+            exc_info=True,
+        )
+        return []
+
+
+async def _auto_tune_weights_inner(
+    repo: Repository,
+    window_days: int,
+    dry_run: bool,
+) -> list[AgentWeightsComparison]:
+    """Inner implementation — may raise."""
     accuracy = await repo.get_agent_accuracy(window_days=window_days)
 
     # Skip persistence when no agent has enough scored outcomes
@@ -181,14 +197,14 @@ def _pearson_r(xs: list[float], ys: list[float]) -> float | None:
     return r if math.isfinite(r) else None
 
 
-def _static_indicator_weights() -> dict[str, float]:
+def _static_indicator_weights() -> IndicatorWeights:
     """Extract the weight-only values from INDICATOR_WEIGHTS."""
     return {name: w for name, (w, _cat) in INDICATOR_WEIGHTS.items()}
 
 
 def compute_indicator_tune_weights(
     samples: list[tuple[IndicatorSignals, float]],
-) -> dict[str, float]:
+) -> IndicatorWeights:
     """Compute optimized indicator weights from signal-P&L correlations.
 
     For each indicator field on :class:`IndicatorSignals`, computes Pearson *r*
@@ -348,8 +364,14 @@ async def _auto_tune_indicator_weights_inner(
         for name in field_names
     ]
 
+    # Compute accuracy as win rate (fraction of positive P&L outcomes)
+    positive_count = sum(1 for _, pnl in pairs if pnl > 0)
+    accuracy = positive_count / len(pairs) if pairs else None
+
     if not dry_run:
-        await repo.save_indicator_weights(tuned, static, window_days=window_days)
+        await repo.save_indicator_weights(
+            tuned, static, window_days=window_days, accuracy=accuracy
+        )
 
     logger.info(
         "Indicator weights tuned for %d indicators (%d samples, window=%d, dry_run=%s)",

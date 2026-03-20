@@ -49,9 +49,7 @@ async def get_weight_history(
         try:
             wt = WeightType(weight_type)
         except ValueError as exc:
-            raise HTTPException(
-                422, f"Invalid weight_type: {weight_type!r}. Use 'vote' or 'indicator'."
-            ) from exc
+            raise HTTPException(422, "Invalid weight_type. Use 'vote' or 'indicator'.") from exc
 
     return await repo.get_weight_history(limit=limit, weight_type=wt)
 
@@ -90,10 +88,10 @@ async def trigger_indicator_tune(
 
     Requires the operation mutex (409 if another scan/debate is running).
     """
-    if lock.locked():
-        raise HTTPException(409, "Another operation is in progress")
-
-    await lock.acquire()
+    try:
+        await asyncio.wait_for(lock.acquire(), timeout=0.01)
+    except TimeoutError:
+        raise HTTPException(409, "Another operation is in progress") from None
     try:
         return await auto_tune_indicator_weights(repo, window_days=window, dry_run=dry_run)
     finally:

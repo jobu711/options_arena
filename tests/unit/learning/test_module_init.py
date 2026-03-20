@@ -40,6 +40,7 @@ class TestPublicApiExports:
 
         expected = {
             "AGENT_VOTE_WEIGHTS",
+            "IndicatorWeights",
             "VoteWeights",
             "auto_tune_indicator_weights",
             "auto_tune_weights",

@@ -8,6 +8,9 @@ from options_arena.learning.weight_tuner import (
     AGENT_VOTE_WEIGHTS as AGENT_VOTE_WEIGHTS,
 )
 from options_arena.learning.weight_tuner import (
+    IndicatorWeights as IndicatorWeights,
+)
+from options_arena.learning.weight_tuner import (
     VoteWeights as VoteWeights,
 )
 from options_arena.learning.weight_tuner import (
@@ -25,6 +28,7 @@ from options_arena.learning.weight_tuner import (
 
 __all__ = [
     "AGENT_VOTE_WEIGHTS",
+    "IndicatorWeights",
     "VoteWeights",
     "auto_tune_indicator_weights",
     "auto_tune_weights",

@@ -1224,6 +1224,22 @@ class LearningStatus(BaseModel):
             raise ValueError("timestamp must be UTC")
         return v
 
+    @field_validator("accuracy_at_last_tune")
+    @classmethod
+    def validate_accuracy_finite(cls, v: float | None) -> float | None:
+        """Ensure accuracy is finite when present."""
+        if v is not None and not math.isfinite(v):
+            raise ValueError(f"accuracy_at_last_tune must be finite, got {v}")
+        return v
+
+    @field_validator("vote_agent_count", "indicator_count")
+    @classmethod
+    def validate_counts_non_negative(cls, v: int) -> int:
+        """Ensure counts are non-negative."""
+        if v < 0:
+            raise ValueError(f"count must be >= 0, got {v}")
+        return v
+
 
 class IndicatorWeightComparison(BaseModel):
     """Static vs tuned weight comparison for a single indicator.
@@ -1243,17 +1259,22 @@ class IndicatorWeightComparison(BaseModel):
     @field_validator("static_weight", "tuned_weight")
     @classmethod
     def validate_weight_finite(cls, v: float) -> float:
-        """Ensure weights are finite."""
+        """Ensure weights are finite and non-negative."""
         if not math.isfinite(v):
             raise ValueError(f"weight must be finite, got {v}")
+        if v < 0.0:
+            raise ValueError(f"weight must be >= 0, got {v}")
         return v
 
     @field_validator("pearson_r")
     @classmethod
-    def validate_pearson_finite(cls, v: float | None) -> float | None:
-        """Ensure pearson_r is finite when present."""
-        if v is not None and not math.isfinite(v):
-            raise ValueError(f"pearson_r must be finite, got {v}")
+    def validate_pearson_bounded(cls, v: float | None) -> float | None:
+        """Ensure pearson_r is finite and in [-1, 1] when present."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"pearson_r must be finite, got {v}")
+            if not -1.0 <= v <= 1.0:
+                raise ValueError(f"pearson_r must be in [-1, 1], got {v}")
         return v
 
     @field_validator("sample_count")

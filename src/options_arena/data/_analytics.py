@@ -1347,13 +1347,13 @@ class AnalyticsMixin(RepositoryBase):
         cutoff = (datetime.now(UTC) - timedelta(days=window_days)).isoformat()
 
         sql = (
-            "SELECT ts.signals_json, co.pnl_pct, co.recommended_contract_id "
+            "SELECT ts.signals_json, co.contract_return_pct, co.recommended_contract_id "
             "FROM contract_outcomes co "
             "JOIN recommended_contracts rc ON co.recommended_contract_id = rc.id "
             "JOIN ticker_scores ts ON rc.scan_run_id = ts.scan_run_id "
             "  AND rc.ticker = ts.ticker "
             "WHERE co.collected_at >= ? "
-            "  AND co.pnl_pct IS NOT NULL "
+            "  AND co.contract_return_pct IS NOT NULL "
             "  AND ts.signals_json IS NOT NULL "
             "ORDER BY co.recommended_contract_id, co.holding_days DESC"
         )
@@ -1376,7 +1376,7 @@ class AnalyticsMixin(RepositoryBase):
 
             try:
                 signals = IndicatorSignals.model_validate_json(r["signals_json"])
-                pnl = float(r["pnl_pct"])
+                pnl = float(r["contract_return_pct"])
                 pairs.append((signals, pnl))
             except Exception:
                 logger.debug("Skipping invalid signal/P&L row", exc_info=True)
