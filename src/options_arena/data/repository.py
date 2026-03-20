@@ -11,6 +11,7 @@ import logging
 from ._agency import AgencyMixin, AgencyQueryRow
 from ._analytics import AnalyticsMixin
 from ._debate import DebateMixin, DebateRow
+from ._learning import LearningMixin
 from ._metadata import MetadataMixin
 from ._scan import ScanMixin
 from ._spreads import SpreadsMixin
@@ -29,12 +30,14 @@ class Repository(
     MetadataMixin,
     SpreadsMixin,
     AgencyMixin,
+    LearningMixin,
 ):
     """Typed CRUD for all persistence domains.
 
     Composed via mixins — each domain in its own file.
     MRO: Repository -> ScanMixin -> DebateMixin -> AnalyticsMixin
-      -> MetadataMixin -> SpreadsMixin -> AgencyMixin -> RepositoryBase
+      -> MetadataMixin -> SpreadsMixin -> AgencyMixin -> LearningMixin
+      -> RepositoryBase
 
     Parameters
     ----------

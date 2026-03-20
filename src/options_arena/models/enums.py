@@ -390,6 +390,34 @@ class AuditLayer(StrEnum):
     DISCOVERY = "discovery"
 
 
+class ConditionOperator(StrEnum):
+    """Operator for strategy rule conditions.
+
+    Used in ``StrategyCondition`` to express dimensional filters such as
+    ``iv_rank >= 75`` or ``sector == "Information Technology"``.
+    """
+
+    EQ = "eq"
+    GT = "gt"
+    LT = "lt"
+    GTE = "gte"
+    LTE = "lte"
+    IN_SET = "in"
+
+
+class RuleStatus(StrEnum):
+    """Lifecycle status for mined strategy rules.
+
+    CANDIDATE — freshly mined, awaiting human review.
+    APPROVED  — human-approved, injected into desk agent prompts.
+    REJECTED  — human-rejected, excluded from prompt injection.
+    """
+
+    CANDIDATE = "candidate"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
 class SurfaceMethod(StrEnum):
     """IV surface fitting method selection."""
 

@@ -76,6 +76,7 @@ from options_arena.models.enums import (
     AuditLayer,
     AuditSeverity,
     CatalystImpact,
+    ConditionOperator,
     ConstraintSeverity,
     ConstraintViolationType,
     DeskType,
@@ -98,6 +99,7 @@ from options_arena.models.enums import (
     PricingModel,
     QueryType,
     RiskLevel,
+    RuleStatus,
     ScanPreset,
     ScanSource,
     SignalDirection,
@@ -145,6 +147,7 @@ from options_arena.models.options import (
 from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
 from options_arena.models.scan_delta import ScanDiff, TickerDelta
 from options_arena.models.scoring import DimensionalScores, DirectionSignal
+from options_arena.models.strategy import AgentMemory, StrategyCondition, StrategyRule
 from options_arena.models.valuation import CompositeValuation, ValuationModelResult
 
 __all__ = [
@@ -152,6 +155,7 @@ __all__ = [
     "AuditLayer",
     "AuditSeverity",
     "CatalystImpact",
+    "ConditionOperator",
     "ConstraintSeverity",
     "ConstraintViolationType",
     "DeskType",
@@ -175,6 +179,7 @@ __all__ = [
     "PricingModel",
     "QueryType",
     "RiskLevel",
+    "RuleStatus",
     "SECTOR_ALIASES",
     "SECTOR_TO_INDUSTRY_GROUPS",
     "ScanPreset",
@@ -304,6 +309,10 @@ __all__ = [
     "AuditFinding",
     "AuditLayerSummary",
     "AuditReport",
+    # Strategy
+    "AgentMemory",
+    "StrategyCondition",
+    "StrategyRule",
     # Correlation
     "CorrelationMatrix",
     "PairwiseCorrelation",
