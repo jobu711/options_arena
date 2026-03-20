@@ -250,3 +250,127 @@ def _render_agency_response(response: object) -> None:
 
     # Overall confidence
     console.print(f"\nOverall confidence: {response.confidence:.0%}")
+
+
+# ---------------------------------------------------------------------------
+# Learn subcommand group
+# ---------------------------------------------------------------------------
+
+learn_app = typer.Typer(
+    help="Self-improvement learning system -- weight tuning and status.",
+    no_args_is_help=True,
+)
+agency_app.add_typer(learn_app, name="learn")
+
+
+@learn_app.command("status")
+def learn_status() -> None:
+    """Show learning system status: last tune timestamps and sample counts."""
+    asyncio.run(_learn_status_async())
+
+
+async def _learn_status_async() -> None:
+    """Display learning system status."""
+    from options_arena.data import Database, Repository
+    from options_arena.models import WeightType
+
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    db = Database(str(_DATA_DIR / "options_arena.db"))
+    try:
+        await db.connect()
+        repo = Repository(db)
+
+        vote_history = await repo.get_weight_history(limit=1, weight_type=WeightType.VOTE)
+        indicator_history = await repo.get_weight_history(
+            limit=1, weight_type=WeightType.INDICATOR
+        )
+
+        table = Table(title="Learning System Status")
+        table.add_column("Metric", style="bold")
+        table.add_column("Value", justify="right")
+
+        last_vote = vote_history[0].computed_at.isoformat() if vote_history else "Never"
+        last_ind = indicator_history[0].computed_at.isoformat() if indicator_history else "Never"
+        vote_agents = len(vote_history[0].weights) if vote_history else 0
+        ind_count = len(indicator_history[0].weights) if indicator_history else 0
+        accuracy = (
+            f"{indicator_history[0].accuracy_at_time:.1%}"
+            if indicator_history and indicator_history[0].accuracy_at_time is not None
+            else "--"
+        )
+
+        table.add_row("Last vote tune", last_vote)
+        table.add_row("Vote agents tracked", str(vote_agents))
+        table.add_row("Last indicator tune", last_ind)
+        table.add_row("Indicators tuned", str(ind_count))
+        table.add_row("Accuracy at last tune", accuracy)
+
+        console.print(table)
+    finally:
+        await db.close()
+
+
+@learn_app.command("weights")
+def learn_weights(
+    window: int = typer.Option(90, "--window", help="Lookback window in days", min=1),
+    dry_run: bool = typer.Option(  # noqa: FBT001
+        False, "--dry-run", help="Show weights without persisting"
+    ),
+) -> None:
+    """Compute indicator weight tuning and show comparison table."""
+    asyncio.run(_learn_weights_async(window, dry_run))
+
+
+async def _learn_weights_async(window: int, dry_run: bool) -> None:
+    """Run indicator weight tuning and display results."""
+    import math
+
+    from options_arena.data import Database, Repository
+    from options_arena.learning import auto_tune_indicator_weights
+
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    db = Database(str(_DATA_DIR / "options_arena.db"))
+    try:
+        await db.connect()
+        repo = Repository(db)
+
+        results = await auto_tune_indicator_weights(repo, window_days=window, dry_run=dry_run)
+
+        if not results:
+            console.print(
+                "[yellow]No indicator weight data available. Need 50+ scored outcomes.[/yellow]"
+            )
+            return
+
+        table = Table(
+            title=f"Indicator Weight Tuning (window={window}d{', dry-run' if dry_run else ''})"
+        )
+        table.add_column("Indicator", style="bold")
+        table.add_column("Static", justify="right")
+        table.add_column("Tuned", justify="right")
+        table.add_column("Delta", justify="right")
+        table.add_column("Pearson r", justify="right")
+        table.add_column("Samples", justify="right")
+
+        for r in sorted(results, key=lambda x: x.tuned_weight, reverse=True):
+            delta = r.tuned_weight - r.static_weight
+            delta_str = f"{delta:+.4f}"
+            pearson_str = (
+                f"{r.pearson_r:.3f}"
+                if r.pearson_r is not None and math.isfinite(r.pearson_r)
+                else "--"
+            )
+            table.add_row(
+                r.indicator_name,
+                f"{r.static_weight:.4f}",
+                f"{r.tuned_weight:.4f}",
+                delta_str,
+                pearson_str,
+                str(r.sample_count),
+            )
+
+        console.print(table)
+        total = sum(r.tuned_weight for r in results)
+        console.print(f"\nTotal weight sum: {total:.6f}")
+    finally:
+        await db.close()

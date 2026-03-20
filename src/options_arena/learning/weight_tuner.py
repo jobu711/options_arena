@@ -18,7 +18,11 @@ import math
 import statistics
 
 from options_arena.data.repository import Repository
-from options_arena.models import AgentAccuracyReport, AgentWeightsComparison
+from options_arena.models import (
+    AgentAccuracyReport,
+    AgentWeightsComparison,
+    IndicatorWeightComparison,
+)
 from options_arena.models.scan import IndicatorSignals
 from options_arena.scoring.composite import INDICATOR_WEIGHTS
 
@@ -260,3 +264,98 @@ def _compute_indicator_weights_inner(
         weights = {k: v / total for k, v in weights.items()}
 
     return weights
+
+
+# ---------------------------------------------------------------------------
+# Indicator Weight Tuning — Orchestration
+# ---------------------------------------------------------------------------
+
+_MIN_INDICATOR_TUNE_SAMPLES: int = 50
+
+
+async def auto_tune_indicator_weights(
+    repo: Repository,
+    window_days: int = 90,
+    dry_run: bool = False,
+) -> list[IndicatorWeightComparison]:
+    """Orchestrate indicator weight tuning: fetch data → compute → persist.
+
+    Never-raises: catches all exceptions, logs, returns empty list.
+
+    Args:
+        repo: Repository instance for DB access.
+        window_days: Calendar-day lookback for outcome data.
+        dry_run: When ``True``, compute but skip persistence.
+
+    Returns:
+        List of ``IndicatorWeightComparison`` — one per indicator.
+        Empty list when insufficient data or on error.
+    """
+    try:
+        return await _auto_tune_indicator_weights_inner(repo, window_days, dry_run)
+    except Exception:
+        logger.warning(
+            "Indicator weight tuning failed (window=%d)",
+            window_days,
+            exc_info=True,
+        )
+        return []
+
+
+async def _auto_tune_indicator_weights_inner(
+    repo: Repository,
+    window_days: int,
+    dry_run: bool,
+) -> list[IndicatorWeightComparison]:
+    """Inner implementation — may raise."""
+    pairs = await repo.get_outcome_signal_pairs(window_days=window_days)
+
+    if len(pairs) < _MIN_INDICATOR_TUNE_SAMPLES:
+        logger.info(
+            "Indicator tune skipped: only %d samples (need %d, window=%d)",
+            len(pairs),
+            _MIN_INDICATOR_TUNE_SAMPLES,
+            window_days,
+        )
+        return []
+
+    tuned = compute_indicator_tune_weights(pairs)
+    static = _static_indicator_weights()
+
+    # Build per-indicator Pearson r for comparison output
+    field_names = list(static.keys())
+    pearson_map: dict[str, float | None] = {}
+    sample_counts: dict[str, int] = {}
+    for name in field_names:
+        xs: list[float] = []
+        ys: list[float] = []
+        for signals, pnl in pairs:
+            val = getattr(signals, name, None)
+            if val is not None and math.isfinite(val) and math.isfinite(pnl):
+                xs.append(val)
+                ys.append(pnl)
+        sample_counts[name] = len(xs)
+        pearson_map[name] = _pearson_r(xs, ys)
+
+    comparisons = [
+        IndicatorWeightComparison(
+            indicator_name=name,
+            static_weight=static.get(name, 0.0),
+            tuned_weight=tuned.get(name, 0.0),
+            pearson_r=pearson_map.get(name),
+            sample_count=sample_counts.get(name, 0),
+        )
+        for name in field_names
+    ]
+
+    if not dry_run:
+        await repo.save_indicator_weights(tuned, static, window_days=window_days)
+
+    logger.info(
+        "Indicator weights tuned for %d indicators (%d samples, window=%d, dry_run=%s)",
+        len(comparisons),
+        len(pairs),
+        window_days,
+        dry_run,
+    )
+    return comparisons

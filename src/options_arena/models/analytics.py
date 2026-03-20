@@ -1200,6 +1200,51 @@ class WeightSnapshot(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Indicator weight comparison
+# ---------------------------------------------------------------------------
+
+
+class IndicatorWeightComparison(BaseModel):
+    """Static vs tuned weight comparison for a single indicator.
+
+    Returned by ``auto_tune_indicator_weights()`` to show how each indicator's
+    weight changed from the static default to the data-tuned value.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    indicator_name: str
+    static_weight: float
+    tuned_weight: float
+    pearson_r: float | None = None
+    sample_count: int = 0
+
+    @field_validator("static_weight", "tuned_weight")
+    @classmethod
+    def validate_weight_finite(cls, v: float) -> float:
+        """Ensure weights are finite."""
+        if not math.isfinite(v):
+            raise ValueError(f"weight must be finite, got {v}")
+        return v
+
+    @field_validator("pearson_r")
+    @classmethod
+    def validate_pearson_finite(cls, v: float | None) -> float | None:
+        """Ensure pearson_r is finite when present."""
+        if v is not None and not math.isfinite(v):
+            raise ValueError(f"pearson_r must be finite, got {v}")
+        return v
+
+    @field_validator("sample_count")
+    @classmethod
+    def validate_sample_non_negative(cls, v: int) -> int:
+        """Ensure sample_count is >= 0."""
+        if v < 0:
+            raise ValueError(f"sample_count must be >= 0, got {v}")
+        return v
+
+
+# ---------------------------------------------------------------------------
 # Risk-adjusted performance metrics
 # ---------------------------------------------------------------------------
 
