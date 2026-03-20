@@ -4,6 +4,12 @@ Re-exports the public API for the learning package: weight tuning algorithms,
 constants, and orchestration functions.
 """
 
+from options_arena.learning.strategy_book import (
+    render_learned_patterns as render_learned_patterns,
+)
+from options_arena.learning.strategy_book import (
+    run_strategy_mining as run_strategy_mining,
+)
 from options_arena.learning.weight_tuner import (
     AGENT_VOTE_WEIGHTS as AGENT_VOTE_WEIGHTS,
 )
@@ -34,4 +40,6 @@ __all__ = [
     "auto_tune_weights",
     "compute_auto_tune_weights",
     "compute_indicator_tune_weights",
+    "render_learned_patterns",
+    "run_strategy_mining",
 ]
