@@ -15,9 +15,12 @@ from __future__ import annotations
 
 import logging
 import math
+import statistics
 
 from options_arena.data.repository import Repository
 from options_arena.models import AgentAccuracyReport, AgentWeightsComparison
+from options_arena.models.scan import IndicatorSignals
+from options_arena.scoring.composite import INDICATOR_WEIGHTS
 
 logger = logging.getLogger(__name__)
 
@@ -135,3 +138,125 @@ async def auto_tune_weights(
         dry_run,
     )
     return comparisons
+
+
+# ---------------------------------------------------------------------------
+# Indicator Weight Tuning
+# ---------------------------------------------------------------------------
+
+# Bounds for indicator weight clamping.
+_INDICATOR_WEIGHT_FLOOR: float = 0.01
+_INDICATOR_WEIGHT_CAP: float = 0.15
+_MIN_INDICATOR_SAMPLES: int = 10
+
+
+def _pearson_r(xs: list[float], ys: list[float]) -> float | None:
+    """Compute Pearson correlation coefficient.
+
+    Returns ``None`` when fewer than 2 pairs or zero variance in either series.
+    """
+    n = len(xs)
+    if n < 2 or len(ys) != n:
+        return None
+
+    try:
+        mean_x = statistics.mean(xs)
+        mean_y = statistics.mean(ys)
+    except statistics.StatisticsError:
+        return None
+
+    sum_xy = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=True))
+    sum_x2 = sum((x - mean_x) ** 2 for x in xs)
+    sum_y2 = sum((y - mean_y) ** 2 for y in ys)
+
+    denom = math.sqrt(sum_x2 * sum_y2)
+    if denom == 0.0:
+        return None
+
+    r = sum_xy / denom
+    return r if math.isfinite(r) else None
+
+
+def _static_indicator_weights() -> dict[str, float]:
+    """Extract the weight-only values from INDICATOR_WEIGHTS."""
+    return {name: w for name, (w, _cat) in INDICATOR_WEIGHTS.items()}
+
+
+def compute_indicator_tune_weights(
+    samples: list[tuple[IndicatorSignals, float]],
+) -> dict[str, float]:
+    """Compute optimized indicator weights from signal-P&L correlations.
+
+    For each indicator field on :class:`IndicatorSignals`, computes Pearson *r*
+    between the percentile-rank values and the corresponding contract P&L
+    returns. The absolute correlation is converted to a raw weight, clamped to
+    ``[0.01, 0.15]``, and normalized so all weights sum to 1.0.
+
+    Indicators with fewer than ``_MIN_INDICATOR_SAMPLES`` non-None data points
+    retain their static weight from :data:`INDICATOR_WEIGHTS`.
+
+    This function is **pure** — no I/O, no database calls.
+
+    Args:
+        samples: List of ``(IndicatorSignals, pnl_return)`` pairs. Each pair
+            associates a ticker's percentile-ranked indicator snapshot with the
+            subsequent contract P&L return (as a float, e.g. 0.15 for +15%).
+
+    Returns:
+        Mapping of indicator field name to weight, summing to 1.0.
+        On any error, returns the static ``INDICATOR_WEIGHTS`` defaults.
+    """
+    static = _static_indicator_weights()
+
+    if not samples:
+        return static
+
+    try:
+        return _compute_indicator_weights_inner(samples, static)
+    except Exception:
+        logger.warning(
+            "Indicator weight tuning failed, returning static weights",
+            exc_info=True,
+        )
+        return static
+
+
+def _compute_indicator_weights_inner(
+    samples: list[tuple[IndicatorSignals, float]],
+    static: dict[str, float],
+) -> dict[str, float]:
+    """Inner implementation — may raise."""
+    # Collect all indicator field names from static weights.
+    field_names = list(static.keys())
+    weights: dict[str, float] = {}
+
+    for field_name in field_names:
+        # Extract non-None (indicator, pnl) pairs for this field.
+        xs: list[float] = []
+        ys: list[float] = []
+        for signals, pnl in samples:
+            val = getattr(signals, field_name, None)
+            if val is not None and math.isfinite(val) and math.isfinite(pnl):
+                xs.append(val)
+                ys.append(pnl)
+
+        if len(xs) < _MIN_INDICATOR_SAMPLES:
+            # Insufficient data — keep static weight.
+            weights[field_name] = static[field_name]
+            continue
+
+        r = _pearson_r(xs, ys)
+        if r is None:
+            weights[field_name] = static[field_name]
+            continue
+
+        # Use absolute correlation as raw weight signal.
+        raw = abs(r)
+        weights[field_name] = max(_INDICATOR_WEIGHT_FLOOR, min(_INDICATOR_WEIGHT_CAP, raw))
+
+    # Normalize to sum=1.0.
+    total = sum(weights.values())
+    if total > 0:
+        weights = {k: v / total for k, v in weights.items()}
+
+    return weights

@@ -105,6 +105,7 @@ from options_arena.models.enums import (
     VolAssessment,
     VolRegime,
     VolRegimeTier,
+    WeightType,
 )
 from options_arena.models.filters import (
     OptionsFilters,
@@ -183,6 +184,7 @@ __all__ = [
     "VolAssessment",
     "VolRegime",
     "VolRegimeTier",
+    "WeightType",
     # Market data
     "OHLCV",
     "Quote",

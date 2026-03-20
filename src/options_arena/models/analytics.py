@@ -29,6 +29,7 @@ from options_arena.models.enums import (
     OutcomeCollectionMethod,
     PricingModel,
     SignalDirection,
+    WeightType,
 )
 
 
@@ -1149,6 +1150,9 @@ class WeightSnapshot(BaseModel):
         computed_at: UTC timestamp when these weights were computed.
         window_days: Lookback window in calendar days (>= 1).
         weights: Non-empty list of per-agent weight comparisons.
+        weight_type: Discriminator — ``vote`` (agent weights) or ``indicator``
+            (composite scoring weights). Defaults to ``vote`` for backward compat.
+        accuracy_at_time: Model accuracy when weights were computed (optional).
     """
 
     model_config = ConfigDict(frozen=True)
@@ -1156,6 +1160,8 @@ class WeightSnapshot(BaseModel):
     computed_at: datetime
     window_days: int
     weights: list[AgentWeightsComparison]
+    weight_type: WeightType = WeightType.VOTE
+    accuracy_at_time: float | None = None
 
     @field_validator("computed_at")
     @classmethod
@@ -1182,6 +1188,14 @@ class WeightSnapshot(BaseModel):
         """Ensure weights list is non-empty."""
         if len(v) == 0:
             raise ValueError("weights must not be empty")
+        return v
+
+    @field_validator("accuracy_at_time")
+    @classmethod
+    def validate_accuracy_finite(cls, v: float | None) -> float | None:
+        """Ensure accuracy_at_time is finite when present."""
+        if v is not None and not math.isfinite(v):
+            raise ValueError(f"accuracy_at_time must be finite, got {v}")
         return v
 
 

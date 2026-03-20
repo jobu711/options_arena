@@ -43,6 +43,7 @@ class TestPublicApiExports:
             "VoteWeights",
             "auto_tune_weights",
             "compute_auto_tune_weights",
+            "compute_indicator_tune_weights",
         }
         assert set(mod.__all__) == expected
 
