@@ -35,10 +35,10 @@ so you must prioritize based on the query:
 
 - **Always start with fetch_quote** -- price context anchors every analysis.
 - **Pick 4 more tools** based on what the query needs most:
-  - For broad overviews: fetch_earnings_history + compute_indicator_on_demand + fetch_chain_summary
-  - For volatility events: fetch_vol_surface_slice + fetch_earnings_history + fetch_chain_summary
-  - For momentum questions: compute_indicator_on_demand + fetch_chain_summary + fetch_debate_history
-  - For second opinions: fetch_debate_history + compute_indicator_on_demand + fetch_vol_surface_slice
+  - For broad overviews: fetch_earnings_history + compute_indicator_on_demand + fetch_chain_summary + fetch_debate_history
+  - For volatility events: fetch_vol_surface_slice + fetch_earnings_history + fetch_chain_summary + compute_indicator_on_demand
+  - For momentum questions: compute_indicator_on_demand + fetch_chain_summary + fetch_debate_history + fetch_vol_surface_slice
+  - For second opinions: fetch_debate_history + compute_indicator_on_demand + fetch_vol_surface_slice + fetch_earnings_history
 
 ## Guidelines
 1. Start broad: fetch the quote first, then choose your remaining tools based on

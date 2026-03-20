@@ -780,7 +780,7 @@ def render_symbol_table(symbols: list[SymbolInfo], is_enum_file: bool = False) -
             if sym.kind == "model" and sym.is_frozen:
                 sig = "`frozen=True`" if not sig else f"`frozen=True` {sig}"
             elif sig:
-                sig = f"`{sig}`"
+                sig = f"`{_escape_pipe(sig)}`"
             lines.append(
                 f"| `{sym.name}` | {sym.kind} | {sig} | {sym.line} "
                 f"| {_escape_pipe(sym.description)} |"

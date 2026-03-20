@@ -305,7 +305,7 @@ function formatConfidence(value: number): string {
         <div class="citations-header">Citations</div>
         <div
           v-for="(cite, i) in response.citations"
-          :key="i"
+          :key="`${cite.desk}-${cite.source}-${i}`"
           class="citation-item"
         >
           <Tag
