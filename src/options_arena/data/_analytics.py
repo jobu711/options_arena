@@ -1347,7 +1347,7 @@ class AnalyticsMixin(RepositoryBase):
         cutoff = (datetime.now(UTC) - timedelta(days=window_days)).isoformat()
 
         sql = (
-            "SELECT ts.signals_json, co.pnl_pct "
+            "SELECT ts.signals_json, co.pnl_pct, co.recommended_contract_id "
             "FROM contract_outcomes co "
             "JOIN recommended_contracts rc ON co.recommended_contract_id = rc.id "
             "JOIN ticker_scores ts ON rc.scan_run_id = ts.scan_run_id "
