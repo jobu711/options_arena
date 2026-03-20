@@ -412,8 +412,8 @@ class TestRunAgencyQuery:
             risk_resps = [r for r in resp.desk_responses if r.desk == DeskType.RISK]
             assert len(risk_resps) >= 1
 
-    async def test_unimplemented_desk_returns_error_response(self) -> None:
-        """Unimplemented desks return error DeskResponse with confidence=0.0."""
+    async def test_trend_desk_no_model_returns_error(self) -> None:
+        """Trend desk with no model returns error DeskResponse with confidence=0.0."""
         from options_arena.agents._routing import run_agency_query
 
         query = AgencyQuery(
@@ -434,13 +434,9 @@ class TestRunAgencyQuery:
         trend_resp = [r for r in resp.desk_responses if r.desk == DeskType.TREND]
         assert len(trend_resp) == 1
         assert trend_resp[0].confidence == pytest.approx(0.0)
-        assert (
-            "not yet implemented" in trend_resp[0].response.lower()
-            or "unavailable" in trend_resp[0].response.lower()
-        )
 
-    async def test_unimplemented_flow_desk(self) -> None:
-        """Flow desk is not yet implemented."""
+    async def test_flow_desk_no_model_returns_error(self) -> None:
+        """Flow desk with no model returns error DeskResponse with confidence=0.0."""
         from options_arena.agents._routing import run_agency_query
 
         query = AgencyQuery(
@@ -462,8 +458,8 @@ class TestRunAgencyQuery:
         assert len(flow_resp) == 1
         assert flow_resp[0].confidence == pytest.approx(0.0)
 
-    async def test_unimplemented_fundamental_desk(self) -> None:
-        """Fundamental desk is not yet implemented."""
+    async def test_fundamental_desk_no_model(self) -> None:
+        """Fundamental desk with no model returns error response (confidence=0.0)."""
         from options_arena.agents._routing import run_agency_query
 
         query = AgencyQuery(
@@ -485,8 +481,8 @@ class TestRunAgencyQuery:
         assert len(fund_resp) == 1
         assert fund_resp[0].confidence == pytest.approx(0.0)
 
-    async def test_unimplemented_contrarian_desk(self) -> None:
-        """Contrarian desk is not yet implemented."""
+    async def test_contrarian_desk_no_model(self) -> None:
+        """Contrarian desk with no model returns error response (confidence=0.0)."""
         from options_arena.agents._routing import run_agency_query
 
         query = AgencyQuery(
@@ -508,8 +504,8 @@ class TestRunAgencyQuery:
         assert len(contra_resp) == 1
         assert contra_resp[0].confidence == pytest.approx(0.0)
 
-    async def test_unimplemented_research_desk(self) -> None:
-        """Research desk is not yet implemented."""
+    async def test_research_desk_no_model_returns_error(self) -> None:
+        """Research desk with no model returns error DeskResponse with confidence=0.0."""
         from options_arena.agents._routing import run_agency_query
 
         query = AgencyQuery(

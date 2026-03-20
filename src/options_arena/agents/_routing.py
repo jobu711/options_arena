@@ -14,10 +14,16 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from collections.abc import Awaitable
 from datetime import UTC, datetime
 
 from options_arena.agents._desk_deps import DeskDeps
+from options_arena.agents.contrarian_desk import run_contrarian_desk_query
+from options_arena.agents.flow_desk import run_flow_desk_query
+from options_arena.agents.fundamental_desk import run_fundamental_desk_query
+from options_arena.agents.research_desk import run_research_desk_query
 from options_arena.agents.risk_desk import run_risk_desk_query
+from options_arena.agents.trend_desk import run_trend_desk_query
 from options_arena.agents.volatility_desk import run_vol_desk_query
 from options_arena.data.repository import Repository
 from options_arena.models import (
@@ -96,6 +102,15 @@ _DESK_KEYWORDS: dict[DeskType, list[str]] = {
         "sentiment",
         "overcrowded",
         "reversal",
+    ],
+    DeskType.RESEARCH: [
+        "research",
+        "overview",
+        "summary",
+        "broad",
+        "comprehensive",
+        "multi",
+        "cross",
     ],
 }
 
@@ -309,21 +324,86 @@ async def _run_risk(
     return await run_risk_desk_query(query, deps, model=model, config=config)
 
 
+async def _run_trend(
+    query: str,
+    deps: DeskDeps,
+    *,
+    model: object | None,
+    config: AgencyConfig,
+) -> DeskResponse:
+    """Delegate to run_trend_desk_query."""
+    return await run_trend_desk_query(query, deps, model=model, config=config)
+
+
+async def _run_flow(
+    query: str,
+    deps: DeskDeps,
+    *,
+    model: object | None,
+    config: AgencyConfig,
+) -> DeskResponse:
+    """Delegate to run_flow_desk_query."""
+    return await run_flow_desk_query(query, deps, model=model, config=config)
+
+
+async def _run_fundamental(
+    query: str,
+    deps: DeskDeps,
+    *,
+    model: object | None,
+    config: AgencyConfig,
+) -> DeskResponse:
+    """Delegate to run_fundamental_desk_query."""
+    return await run_fundamental_desk_query(query, deps, model=model, config=config)
+
+
+async def _run_contrarian(
+    query: str,
+    deps: DeskDeps,
+    *,
+    model: object | None,
+    config: AgencyConfig,
+) -> DeskResponse:
+    """Delegate to run_contrarian_desk_query."""
+    return await run_contrarian_desk_query(query, deps, model=model, config=config)
+
+
+async def _run_research(
+    query: str,
+    deps: DeskDeps,
+    *,
+    model: object | None,
+    config: AgencyConfig,
+) -> DeskResponse:
+    """Delegate to run_research_desk_query."""
+    return await run_research_desk_query(query, deps, model=model, config=config)
+
+
 async def _run_unimplemented(
     desk: DeskType,
 ) -> DeskResponse:
     """Return an error DeskResponse for desks not yet implemented."""
     return DeskResponse(
         desk=desk,
-        response=f"{desk.value.title()} desk is not yet implemented. "
-        f"Available desks: volatility, risk.",
+        response="All desks are available. Supported: volatility, risk, trend, flow, "
+        "fundamental, contrarian, research.",
         tools_used=[],
         confidence=0.0,
     )
 
 
 # Map implemented desks to their runners
-_IMPLEMENTED_DESKS: frozenset[DeskType] = frozenset({DeskType.VOLATILITY, DeskType.RISK})
+_IMPLEMENTED_DESKS: frozenset[DeskType] = frozenset(
+    {
+        DeskType.VOLATILITY,
+        DeskType.RISK,
+        DeskType.TREND,
+        DeskType.FLOW,
+        DeskType.FUNDAMENTAL,
+        DeskType.CONTRARIAN,
+        DeskType.RESEARCH,
+    }
+)
 
 
 def _extract_citations(
@@ -413,8 +493,8 @@ async def run_agency_query(
     Orchestration flow:
     1. Classify intent (or use desk_override if set).
     2. Dispatch to desk(s) via asyncio.gather with return_exceptions=True.
-    3. For implemented desks (vol, risk): call desk runners.
-    4. For unimplemented desks: return error DeskResponse(confidence=0.0).
+    3. For implemented desks (all 7): call desk runners.
+    4. For unrecognized desks: return error DeskResponse(confidence=0.0).
     5. Synthesize AgencyResponse with merged citations and averaged confidence.
     6. Never raises -- catches all exceptions, returns error AgencyResponse.
 
@@ -464,12 +544,24 @@ async def run_agency_query(
         tickers = intent.tickers or [""]
         primary_ticker = tickers[0] if tickers else ""
 
-        coroutines: list[asyncio.Task[DeskResponse]] = []
+        # Dispatch table: DeskType -> runner coroutine factory
+        _desk_runners = {
+            DeskType.VOLATILITY: _run_vol,
+            DeskType.RISK: _run_risk,
+            DeskType.TREND: _run_trend,
+            DeskType.FLOW: _run_flow,
+            DeskType.FUNDAMENTAL: _run_fundamental,
+            DeskType.CONTRARIAN: _run_contrarian,
+            DeskType.RESEARCH: _run_research,
+        }
+
+        awaitables: list[Awaitable[DeskResponse]] = []
         desk_order: list[DeskType] = []
 
         for desk in intent.desks:
             desk_order.append(desk)
-            if desk in _IMPLEMENTED_DESKS:
+            runner = _desk_runners.get(desk)
+            if runner is not None:
                 deps = DeskDeps(
                     query=query.query_text,
                     ticker=primary_ticker,
@@ -478,23 +570,12 @@ async def run_agency_query(
                     fred=fred,
                     repo=repo,
                 )
-                if desk == DeskType.VOLATILITY:
-                    coroutines.append(
-                        asyncio.ensure_future(
-                            _run_vol(query.query_text, deps, model=model, config=config)
-                        )
-                    )
-                elif desk == DeskType.RISK:
-                    coroutines.append(
-                        asyncio.ensure_future(
-                            _run_risk(query.query_text, deps, model=model, config=config)
-                        )
-                    )
+                awaitables.append(runner(query.query_text, deps, model=model, config=config))
             else:
-                coroutines.append(asyncio.ensure_future(_run_unimplemented(desk)))
+                awaitables.append(_run_unimplemented(desk))
 
-        # 4. Dispatch with return_exceptions=True
-        results = await asyncio.gather(*coroutines, return_exceptions=True)
+        # 4. Dispatch atomically — no orphan risk from ensure_future
+        results = await asyncio.gather(*awaitables, return_exceptions=True)
 
         # 5. Collect responses (handle exceptions from gather)
         desk_responses: list[DeskResponse] = []

@@ -654,6 +654,7 @@ class AgencyConfig(BaseModel):
     default_tool_budget: int = 3
     risk_tool_budget: int = 5
     research_tool_budget: int = 5
+    contrarian_tool_budget: int = 2
 
     @field_validator("agent_timeout")
     @classmethod
@@ -665,7 +666,12 @@ class AgencyConfig(BaseModel):
             raise ValueError(f"agent_timeout must be > 0, got {v}")
         return v
 
-    @field_validator("default_tool_budget", "risk_tool_budget", "research_tool_budget")
+    @field_validator(
+        "default_tool_budget",
+        "risk_tool_budget",
+        "research_tool_budget",
+        "contrarian_tool_budget",
+    )
     @classmethod
     def validate_tool_budget(cls, v: int) -> int:
         """Ensure tool_budget is within [1, 20]."""

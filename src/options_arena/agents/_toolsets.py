@@ -20,6 +20,7 @@ from pydantic_ai import RunContext
 
 from options_arena.agents._desk_deps import DeskDeps
 from options_arena.models.enums import TICKER_RE
+from options_arena.models.options import OptionContract
 
 logger = logging.getLogger(__name__)
 
@@ -338,3 +339,576 @@ def build_risk_toolset() -> list[object]:
     Tools: ``fetch_quote``, ``fetch_correlation``, ``fetch_portfolio_exposure``.
     """
     return [fetch_quote, fetch_correlation, fetch_portfolio_exposure]
+
+
+# ---------------------------------------------------------------------------
+# Tool: fetch_related_ohlcv (Trend desk)
+# ---------------------------------------------------------------------------
+
+
+async def fetch_related_ohlcv(
+    ctx: RunContext[DeskDeps],
+    ticker: str,
+    period: str = "6mo",
+) -> str:
+    """Fetch recent OHLCV bars for *ticker*.
+
+    Returns the last 5 bars with date, open, high, low, close, and volume.
+    Useful for assessing recent price action and directional momentum.
+
+    Args:
+        ticker: Underlying ticker symbol.
+        period: Data period — ``"6mo"`` (default), ``"1y"``, ``"3mo"``.
+    """
+    tool_name = "fetch_related_ohlcv"
+    _ALLOWED_PERIODS = {"3mo", "6mo", "1y"}
+    if period not in _ALLOWED_PERIODS:
+        ctx.deps.tools_used.append(tool_name)
+        return (
+            f"Error: unsupported period {period!r}. "
+            f"Supported: {', '.join(sorted(_ALLOWED_PERIODS))}"
+        )
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        ohlcv_list = await ctx.deps.market_data.fetch_ohlcv(ticker, period=period)
+        if not ohlcv_list:
+            ctx.deps.tools_used.append(tool_name)
+            return f"No OHLCV data found for {ticker} (period={period})"
+
+        # Show last 5 bars
+        recent = ohlcv_list[-5:]
+        lines: list[str] = [f"Recent OHLCV for {ticker} (last {len(recent)} bars):"]
+        for bar in recent:
+            lines.append(
+                f"  {bar.date.isoformat()} "
+                f"O=${bar.open} H=${bar.high} L=${bar.low} C=${bar.close} "
+                f"Vol={bar.volume:,}"
+            )
+
+        ctx.deps.tools_used.append(tool_name)
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("fetch_related_ohlcv failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not fetch OHLCV for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: compute_indicator_on_demand (Trend desk)
+# ---------------------------------------------------------------------------
+
+
+async def compute_indicator_on_demand(
+    ctx: RunContext[DeskDeps],
+    ticker: str,
+    indicator: str,
+) -> str:
+    """Compute a technical indicator on demand for *ticker*.
+
+    Supported indicators: ``"rsi"``, ``"macd"``, ``"sma_alignment"``, ``"adx"``.
+
+    Args:
+        ticker: Underlying ticker symbol.
+        indicator: Indicator name (case-insensitive).
+    """
+    tool_name = "compute_indicator_on_demand"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+
+    supported = {"rsi", "macd", "sma_alignment", "adx"}
+    indicator_lower = indicator.lower().strip()
+    if indicator_lower not in supported:
+        ctx.deps.tools_used.append(tool_name)
+        return (
+            f"Error: unsupported indicator {indicator!r}. "
+            f"Supported: {', '.join(sorted(supported))}"
+        )
+
+    try:
+        import pandas as pd
+
+        from options_arena.indicators import adx as compute_adx
+        from options_arena.indicators import macd as compute_macd
+        from options_arena.indicators import rsi as compute_rsi
+        from options_arena.indicators import sma_alignment as compute_sma_alignment
+
+        ohlcv_list = await ctx.deps.market_data.fetch_ohlcv(ticker, period="1y")
+        if not ohlcv_list:
+            ctx.deps.tools_used.append(tool_name)
+            return f"No OHLCV data found for {ticker}"
+
+        close_series = pd.Series(
+            [float(bar.close) for bar in ohlcv_list],
+            index=[bar.date for bar in ohlcv_list],
+        )
+
+        result_str: str
+        if indicator_lower == "rsi":
+            rsi_series = compute_rsi(close_series)
+            val = rsi_series.iloc[-1]
+            if not math.isfinite(val):
+                result_str = f"RSI for {ticker}: N/A (insufficient data)"
+            else:
+                interpretation = (
+                    "overbought (>70)"
+                    if val > 70  # noqa: PLR2004
+                    else "oversold (<30)"
+                    if val < 30  # noqa: PLR2004
+                    else "neutral"
+                )
+                result_str = f"RSI(14) for {ticker}: {val:.1f} — {interpretation}"
+
+        elif indicator_lower == "macd":
+            histogram = compute_macd(close_series)
+            val = histogram.iloc[-1]
+            if not math.isfinite(val):
+                result_str = f"MACD for {ticker}: N/A (insufficient data)"
+            else:
+                interpretation = "bullish (positive)" if val > 0 else "bearish (negative)"
+                result_str = f"MACD histogram for {ticker}: {val:.4f} — {interpretation}"
+
+        elif indicator_lower == "sma_alignment":
+            alignment = compute_sma_alignment(close_series)
+            val = alignment.iloc[-1]
+            if not math.isfinite(val):
+                result_str = f"SMA alignment for {ticker}: N/A (insufficient data)"
+            else:
+                interpretation = (
+                    "strongly bullish"
+                    if val > 0.5  # noqa: PLR2004
+                    else "bullish"
+                    if val > 0
+                    else "strongly bearish"
+                    if val < -0.5  # noqa: PLR2004
+                    else "bearish"
+                    if val < 0
+                    else "neutral"
+                )
+                result_str = f"SMA alignment for {ticker}: {val:.2f} — {interpretation}"
+
+        else:  # adx
+            high_series = pd.Series(
+                [float(bar.high) for bar in ohlcv_list],
+                index=[bar.date for bar in ohlcv_list],
+            )
+            low_series = pd.Series(
+                [float(bar.low) for bar in ohlcv_list],
+                index=[bar.date for bar in ohlcv_list],
+            )
+            adx_series = compute_adx(high_series, low_series, close_series)
+            val = adx_series.iloc[-1]
+            if not math.isfinite(val):
+                result_str = f"ADX for {ticker}: N/A (insufficient data)"
+            else:
+                interpretation = (
+                    "strong trend (>25)"
+                    if val > 25  # noqa: PLR2004
+                    else "weak/no trend (<15)"
+                    if val < 15  # noqa: PLR2004
+                    else "moderate trend"
+                )
+                result_str = f"ADX(14) for {ticker}: {val:.1f} — {interpretation}"
+
+        ctx.deps.tools_used.append(tool_name)
+        return result_str
+    except Exception as exc:
+        logger.debug("compute_indicator_on_demand failed for %s/%s: %s", ticker, indicator, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not compute {indicator} for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: fetch_chain_summary (Flow desk)
+# ---------------------------------------------------------------------------
+
+
+async def fetch_chain_summary(ctx: RunContext[DeskDeps], ticker: str) -> str:
+    """Fetch an option chain summary for *ticker*.
+
+    Returns total calls/puts, total OI, total volume, put/call OI ratio,
+    and put/call volume ratio for the nearest future expiration.
+    """
+    tool_name = "fetch_chain_summary"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        expirations = await ctx.deps.options_data.fetch_expirations(ticker)
+        if not expirations:
+            ctx.deps.tools_used.append(tool_name)
+            return f"No option expirations found for {ticker}"
+
+        today = date.today()
+        future_exps = [e for e in expirations if e > today]
+        if not future_exps:
+            ctx.deps.tools_used.append(tool_name)
+            return f"No future expirations found for {ticker}"
+
+        target_exp = future_exps[0]
+        contracts = await ctx.deps.options_data.fetch_chain(ticker, target_exp)
+        if not contracts:
+            ctx.deps.tools_used.append(tool_name)
+            return f"No contracts found for {ticker} exp {target_exp.isoformat()}"
+
+        call_count = 0
+        put_count = 0
+        call_oi = 0
+        put_oi = 0
+        call_vol = 0
+        put_vol = 0
+
+        for c in contracts:
+            if c.option_type.value == "call":
+                call_count += 1
+                call_oi += c.open_interest
+                call_vol += c.volume
+            else:
+                put_count += 1
+                put_oi += c.open_interest
+                put_vol += c.volume
+
+        # Division-by-zero guards
+        pc_oi_ratio = put_oi / call_oi if call_oi > 0 else float("nan")
+        pc_vol_ratio = put_vol / call_vol if call_vol > 0 else float("nan")
+
+        lines: list[str] = [
+            f"Chain summary for {ticker} (exp {target_exp.isoformat()}):",
+            f"  Calls: {call_count} contracts, OI={call_oi:,}, Vol={call_vol:,}",
+            f"  Puts: {put_count} contracts, OI={put_oi:,}, Vol={put_vol:,}",
+            f"  Total OI: {call_oi + put_oi:,}",
+            f"  Total Volume: {call_vol + put_vol:,}",
+        ]
+        if math.isfinite(pc_oi_ratio):
+            lines.append(f"  Put/Call OI Ratio: {pc_oi_ratio:.2f}")
+        else:
+            lines.append("  Put/Call OI Ratio: N/A (no call OI)")
+        if math.isfinite(pc_vol_ratio):
+            lines.append(f"  Put/Call Volume Ratio: {pc_vol_ratio:.2f}")
+        else:
+            lines.append("  Put/Call Volume Ratio: N/A (no call volume)")
+
+        ctx.deps.tools_used.append(tool_name)
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("fetch_chain_summary failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not fetch chain summary for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: fetch_unusual_activity (Flow desk)
+# ---------------------------------------------------------------------------
+
+
+async def fetch_unusual_activity(ctx: RunContext[DeskDeps], ticker: str) -> str:
+    """Detect unusual options activity for *ticker*.
+
+    Identifies contracts where volume exceeds 3x open interest — a signal of
+    unusual activity that may indicate institutional positioning. Returns up
+    to 5 contracts sorted by volume/OI ratio descending.
+    """
+    tool_name = "fetch_unusual_activity"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        expirations = await ctx.deps.options_data.fetch_expirations(ticker)
+        if not expirations:
+            ctx.deps.tools_used.append(tool_name)
+            return f"No option expirations found for {ticker}"
+
+        today = date.today()
+        future_exps = [e for e in expirations if e > today]
+        if not future_exps:
+            ctx.deps.tools_used.append(tool_name)
+            return f"No future expirations found for {ticker}"
+
+        target_exp = future_exps[0]
+        contracts = await ctx.deps.options_data.fetch_chain(ticker, target_exp)
+        if not contracts:
+            ctx.deps.tools_used.append(tool_name)
+            return f"No contracts found for {ticker} exp {target_exp.isoformat()}"
+
+        # Unusual activity: volume > 3x open interest
+        _UNUSUAL_THRESHOLD = 3.0
+        unusual: list[tuple[float, OptionContract]] = []
+        for c in contracts:
+            if c.open_interest > 0 and c.volume > 0:
+                ratio = c.volume / c.open_interest
+                if ratio > _UNUSUAL_THRESHOLD:
+                    unusual.append((ratio, c))
+
+        if not unusual:
+            ctx.deps.tools_used.append(tool_name)
+            return (
+                f"No unusual activity detected for {ticker} "
+                f"(exp {target_exp.isoformat()}). "
+                f"No contracts with volume > 3x open interest."
+            )
+
+        # Sort by ratio descending, take top 5
+        unusual.sort(key=lambda x: x[0], reverse=True)
+        top = unusual[:5]
+
+        lines: list[str] = [
+            f"Unusual activity for {ticker} (exp {target_exp.isoformat()}):",
+        ]
+        for ratio, c in top:
+            lines.append(
+                f"  {c.option_type.value.upper()} ${c.strike} "
+                f"Vol={c.volume:,} OI={c.open_interest:,} "
+                f"Ratio={ratio:.1f}x "
+                f"Bid=${c.bid} Ask=${c.ask}"
+            )
+
+        ctx.deps.tools_used.append(tool_name)
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("fetch_unusual_activity failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not detect unusual activity for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: fetch_earnings_history (Fundamental desk)
+# ---------------------------------------------------------------------------
+
+
+async def fetch_earnings_history(ctx: RunContext[DeskDeps], ticker: str) -> str:
+    """Fetch fundamental data and next earnings date for *ticker*.
+
+    Returns sector, industry, market cap, dividend yield, 52-week range,
+    and next earnings date.
+    """
+    tool_name = "fetch_earnings_history"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        info = await ctx.deps.market_data.fetch_ticker_info(ticker)
+
+        lines: list[str] = [f"Fundamentals for {ticker} ({info.company_name}):"]
+        lines.append(f"  Sector: {info.sector}")
+        lines.append(f"  Industry: {info.industry}")
+
+        if info.market_cap is not None:
+            lines.append(f"  Market Cap: ${info.market_cap:,}")
+        else:
+            lines.append("  Market Cap: N/A")
+
+        if info.market_cap_tier is not None:
+            lines.append(f"  Cap Tier: {info.market_cap_tier.value}")
+
+        div_pct = info.dividend_yield * 100
+        lines.append(f"  Dividend Yield: {div_pct:.2f}%")
+        lines.append(f"  Current Price: ${info.current_price}")
+        lines.append(f"  52W High: ${info.fifty_two_week_high}")
+        lines.append(f"  52W Low: ${info.fifty_two_week_low}")
+
+        if info.short_ratio is not None and math.isfinite(info.short_ratio):
+            lines.append(f"  Short Ratio: {info.short_ratio:.2f}")
+        if info.short_pct_of_float is not None and math.isfinite(info.short_pct_of_float):
+            lines.append(f"  Short % of Float: {info.short_pct_of_float * 100:.1f}%")
+
+        # Next earnings date
+        try:
+            earnings_date = await ctx.deps.market_data.fetch_earnings_date(ticker)
+            if earnings_date is not None:
+                lines.append(f"  Next Earnings: {earnings_date.isoformat()}")
+            else:
+                lines.append("  Next Earnings: N/A")
+        except Exception:
+            logger.debug("Could not fetch earnings date for %s", ticker)
+            lines.append("  Next Earnings: N/A")
+
+        ctx.deps.tools_used.append(tool_name)
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("fetch_earnings_history failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not fetch fundamentals for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: fetch_sector_comparison (Fundamental desk)
+# ---------------------------------------------------------------------------
+
+
+async def fetch_sector_comparison(ctx: RunContext[DeskDeps], ticker: str) -> str:
+    """Fetch fundamental metrics for *ticker* with sector context.
+
+    Returns the ticker's key metrics alongside its sector label for
+    fundamental comparison.
+    """
+    tool_name = "fetch_sector_comparison"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        info = await ctx.deps.market_data.fetch_ticker_info(ticker)
+
+        lines: list[str] = [
+            f"Sector comparison for {ticker} ({info.sector}):",
+            f"  Company: {info.company_name}",
+            f"  Industry: {info.industry}",
+            f"  Current Price: ${info.current_price}",
+        ]
+
+        if info.market_cap is not None:
+            lines.append(f"  Market Cap: ${info.market_cap:,}")
+        else:
+            lines.append("  Market Cap: N/A")
+
+        if info.market_cap_tier is not None:
+            lines.append(f"  Cap Tier: {info.market_cap_tier.value}")
+
+        div_pct = info.dividend_yield * 100
+        lines.append(f"  Dividend Yield: {div_pct:.2f}%")
+
+        # 52-week range context
+        high = float(info.fifty_two_week_high)
+        low = float(info.fifty_two_week_low)
+        current = float(info.current_price)
+        if high > low:
+            range_pct = (current - low) / (high - low) * 100
+            lines.append(f"  Position in 52W Range: {range_pct:.1f}%")
+
+        ctx.deps.tools_used.append(tool_name)
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("fetch_sector_comparison failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not fetch sector comparison for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: fetch_debate_history (Contrarian desk)
+# ---------------------------------------------------------------------------
+
+
+async def fetch_debate_history(
+    ctx: RunContext[DeskDeps],
+    ticker: str,
+    limit: int = 3,
+) -> str:
+    """Fetch prior AI debate history for *ticker*.
+
+    Returns direction, confidence, and summary from the most recent debates.
+
+    Args:
+        ticker: Underlying ticker symbol.
+        limit: Maximum number of debates to return (default 3).
+    """
+    import json as _json
+
+    tool_name = "fetch_debate_history"
+    # Clamp limit to prevent unbounded DB queries from LLM-controlled input
+    limit = min(max(1, limit), 20)
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        debates = await ctx.deps.repo.get_debates_for_ticker(ticker, limit=limit)
+        if not debates:
+            ctx.deps.tools_used.append(tool_name)
+            return f"No prior debate history found for {ticker}"
+
+        lines: list[str] = [f"Recent debate history for {ticker} ({len(debates)} debates):"]
+        for debate in debates:
+            date_str = debate.created_at.strftime("%Y-%m-%d %H:%M")
+            fallback_label = " [FALLBACK]" if debate.is_fallback else ""
+
+            direction = "N/A"
+            confidence = "N/A"
+            summary = "N/A"
+
+            if debate.verdict_json is not None:
+                try:
+                    verdict = _json.loads(debate.verdict_json)
+                    direction = verdict.get("direction", "N/A")
+                    raw_conf = verdict.get("confidence")
+                    if (
+                        raw_conf is not None
+                        and isinstance(raw_conf, (int, float))
+                        and math.isfinite(float(raw_conf))
+                    ):
+                        confidence = f"{float(raw_conf):.0%}"
+                    summary_text = verdict.get("summary", "")
+                    # Truncate long summaries
+                    if len(summary_text) > 120:  # noqa: PLR2004
+                        summary = summary_text[:117] + "..."
+                    elif summary_text:
+                        summary = summary_text
+                except (ValueError, TypeError):
+                    logger.debug("Could not parse verdict_json for debate %d", debate.id)
+
+            lines.append(
+                f"  [{date_str}]{fallback_label} Direction: {direction} | Confidence: {confidence}"
+            )
+            if summary != "N/A":
+                lines.append(f"    Summary: {summary}")
+
+        ctx.deps.tools_used.append(tool_name)
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("fetch_debate_history failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not fetch debate history for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Trend, Flow, Fundamental, and Contrarian toolset builders
+# ---------------------------------------------------------------------------
+
+
+def build_trend_toolset() -> list[object]:
+    """Return the tools for a Trend Desk agent.
+
+    Tools: ``fetch_quote``, ``fetch_related_ohlcv``, ``compute_indicator_on_demand``.
+    """
+    return [fetch_quote, fetch_related_ohlcv, compute_indicator_on_demand]
+
+
+def build_flow_toolset() -> list[object]:
+    """Return the tools for a Flow Desk agent.
+
+    Tools: ``fetch_quote``, ``fetch_chain_summary``, ``fetch_unusual_activity``.
+    """
+    return [fetch_quote, fetch_chain_summary, fetch_unusual_activity]
+
+
+def build_fundamental_toolset() -> list[object]:
+    """Return the tools for a Fundamental Desk agent.
+
+    Tools: ``fetch_quote``, ``fetch_earnings_history``, ``fetch_sector_comparison``.
+    """
+    return [fetch_quote, fetch_earnings_history, fetch_sector_comparison]
+
+
+def build_contrarian_toolset() -> list[object]:
+    """Return the tools for a Contrarian Desk agent.
+
+    Tools: ``fetch_quote``, ``fetch_debate_history``.
+    """
+    return [fetch_quote, fetch_debate_history]
+
+
+def build_research_toolset() -> list[object]:
+    """Return the tools for a Research Desk agent.
+
+    Curated cross-domain tools (6 total): ``fetch_quote``,
+    ``fetch_vol_surface_slice``, ``fetch_chain_summary``,
+    ``fetch_earnings_history``, ``compute_indicator_on_demand``,
+    ``fetch_debate_history``.
+    """
+    return [
+        fetch_quote,
+        fetch_vol_surface_slice,
+        fetch_chain_summary,
+        fetch_earnings_history,
+        compute_indicator_on_demand,
+        fetch_debate_history,
+    ]

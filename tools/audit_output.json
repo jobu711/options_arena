@@ -1,0 +1,660 @@
+{
+  "findings": [
+    {
+      "symbol": "version",
+      "file": "__init__.py",
+      "line": 3,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'version' is exported from __init__.py but never imported outside ."
+    },
+    {
+      "symbol": "DeskDeps",
+      "file": "agents/__init__.py",
+      "line": 7,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'DeskDeps' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "DebateDeps",
+      "file": "agents/__init__.py",
+      "line": 10,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'DebateDeps' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "render_context_block",
+      "file": "agents/__init__.py",
+      "line": 10,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'render_context_block' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "render_flow_context",
+      "file": "agents/__init__.py",
+      "line": 10,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'render_flow_context' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "render_fundamental_context",
+      "file": "agents/__init__.py",
+      "line": 10,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'render_fundamental_context' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "render_macro_context",
+      "file": "agents/__init__.py",
+      "line": 10,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'render_macro_context' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "render_trend_context",
+      "file": "agents/__init__.py",
+      "line": 10,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'render_trend_context' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "render_volatility_context",
+      "file": "agents/__init__.py",
+      "line": 10,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'render_volatility_context' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "classify_intent",
+      "file": "agents/__init__.py",
+      "line": 20,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'classify_intent' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "build_risk_toolset",
+      "file": "agents/__init__.py",
+      "line": 21,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'build_risk_toolset' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "build_volatility_toolset",
+      "file": "agents/__init__.py",
+      "line": 21,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'build_volatility_toolset' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "contrarian_agent",
+      "file": "agents/__init__.py",
+      "line": 22,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'contrarian_agent' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "flow_agent",
+      "file": "agents/__init__.py",
+      "line": 23,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'flow_agent' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "fundamental_agent",
+      "file": "agents/__init__.py",
+      "line": 24,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'fundamental_agent' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "AGENT_VOTE_WEIGHTS",
+      "file": "agents/__init__.py",
+      "line": 26,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'AGENT_VOTE_WEIGHTS' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "VoteWeights",
+      "file": "agents/__init__.py",
+      "line": 26,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'VoteWeights' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "build_market_context",
+      "file": "agents/__init__.py",
+      "line": 26,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'build_market_context' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "classify_macd_signal",
+      "file": "agents/__init__.py",
+      "line": 26,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'classify_macd_signal' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "compute_agreement_score",
+      "file": "agents/__init__.py",
+      "line": 26,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'compute_agreement_score' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "compute_auto_tune_weights",
+      "file": "agents/__init__.py",
+      "line": 26,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'compute_auto_tune_weights' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "should_debate",
+      "file": "agents/__init__.py",
+      "line": 26,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'should_debate' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "synthesize_verdict",
+      "file": "agents/__init__.py",
+      "line": 26,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'synthesize_verdict' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "risk_desk",
+      "file": "agents/__init__.py",
+      "line": 42,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'risk_desk' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "run_risk_desk_query",
+      "file": "agents/__init__.py",
+      "line": 42,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'run_risk_desk_query' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "trend_agent",
+      "file": "agents/__init__.py",
+      "line": 43,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'trend_agent' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "volatility_agent",
+      "file": "agents/__init__.py",
+      "line": 44,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'volatility_agent' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "run_vol_desk_query",
+      "file": "agents/__init__.py",
+      "line": 45,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'run_vol_desk_query' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "vol_desk",
+      "file": "agents/__init__.py",
+      "line": 45,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'vol_desk' is exported from agents/__init__.py but never imported outside agents"
+    },
+    {
+      "symbol": "AgencyQueryRow",
+      "file": "data/__init__.py",
+      "line": 4,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'AgencyQueryRow' is exported from data/__init__.py but never imported outside data"
+    },
+    {
+      "symbol": "put_call_ratio_oi",
+      "file": "indicators/__init__.py",
+      "line": 11,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'put_call_ratio_oi' is exported from indicators/__init__.py but never imported outside indicators"
+    },
+    {
+      "symbol": "MarkovRegimeOutput",
+      "file": "indicators/__init__.py",
+      "line": 19,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'MarkovRegimeOutput' is exported from indicators/__init__.py but never imported outside indicators"
+    },
+    {
+      "symbol": "RegimeClassification",
+      "file": "indicators/__init__.py",
+      "line": 19,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'RegimeClassification' is exported from indicators/__init__.py but never imported outside indicators"
+    },
+    {
+      "symbol": "VolSurfaceIndicators",
+      "file": "indicators/__init__.py",
+      "line": 27,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'VolSurfaceIndicators' is exported from indicators/__init__.py but never imported outside indicators"
+    },
+    {
+      "symbol": "DataConfig",
+      "file": "models/__init__.py",
+      "line": 51,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'DataConfig' is exported from models/__init__.py but never imported outside models"
+    },
+    {
+      "symbol": "LogConfig",
+      "file": "models/__init__.py",
+      "line": 51,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'LogConfig' is exported from models/__init__.py but never imported outside models"
+    },
+    {
+      "symbol": "CatalystImpact",
+      "file": "models/__init__.py",
+      "line": 69,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'CatalystImpact' is exported from models/__init__.py but never imported outside models"
+    },
+    {
+      "symbol": "RiskLevel",
+      "file": "models/__init__.py",
+      "line": 69,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'RiskLevel' is exported from models/__init__.py but never imported outside models"
+    },
+    {
+      "symbol": "VolAssessment",
+      "file": "models/__init__.py",
+      "line": 69,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'VolAssessment' is exported from models/__init__.py but never imported outside models"
+    },
+    {
+      "symbol": "MacroRegimeResult",
+      "file": "models/__init__.py",
+      "line": 132,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'MacroRegimeResult' is exported from models/__init__.py but never imported outside models"
+    },
+    {
+      "symbol": "MacroSignals",
+      "file": "models/__init__.py",
+      "line": 132,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'MacroSignals' is exported from models/__init__.py but never imported outside models"
+    },
+    {
+      "symbol": "SecondOrderGreeks",
+      "file": "pricing/__init__.py",
+      "line": 3,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'SecondOrderGreeks' is exported from pricing/__init__.py but never imported outside pricing"
+    },
+    {
+      "symbol": "option_price",
+      "file": "pricing/__init__.py",
+      "line": 4,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'option_price' is exported from pricing/__init__.py but never imported outside pricing"
+    },
+    {
+      "symbol": "INDICATOR_WEIGHTS",
+      "file": "scoring/__init__.py",
+      "line": 11,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'INDICATOR_WEIGHTS' is exported from scoring/__init__.py but never imported outside scoring"
+    },
+    {
+      "symbol": "compute_greeks",
+      "file": "scoring/__init__.py",
+      "line": 16,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'compute_greeks' is exported from scoring/__init__.py but never imported outside scoring"
+    },
+    {
+      "symbol": "filter_contracts",
+      "file": "scoring/__init__.py",
+      "line": 16,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'filter_contracts' is exported from scoring/__init__.py but never imported outside scoring"
+    },
+    {
+      "symbol": "select_by_delta",
+      "file": "scoring/__init__.py",
+      "line": 16,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'select_by_delta' is exported from scoring/__init__.py but never imported outside scoring"
+    },
+    {
+      "symbol": "select_expiration",
+      "file": "scoring/__init__.py",
+      "line": 16,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'select_expiration' is exported from scoring/__init__.py but never imported outside scoring"
+    },
+    {
+      "symbol": "DEFAULT_FAMILY_WEIGHTS",
+      "file": "scoring/__init__.py",
+      "line": 23,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'DEFAULT_FAMILY_WEIGHTS' is exported from scoring/__init__.py but never imported outside scoring"
+    },
+    {
+      "symbol": "FAMILY_INDICATOR_MAP",
+      "file": "scoring/__init__.py",
+      "line": 23,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'FAMILY_INDICATOR_MAP' is exported from scoring/__init__.py but never imported outside scoring"
+    },
+    {
+      "symbol": "DOMAIN_BOUNDS",
+      "file": "scoring/__init__.py",
+      "line": 30,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'DOMAIN_BOUNDS' is exported from scoring/__init__.py but never imported outside scoring"
+    },
+    {
+      "symbol": "get_active_indicators",
+      "file": "scoring/__init__.py",
+      "line": 30,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'get_active_indicators' is exported from scoring/__init__.py but never imported outside scoring"
+    },
+    {
+      "symbol": "invert_indicators",
+      "file": "scoring/__init__.py",
+      "line": 30,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'invert_indicators' is exported from scoring/__init__.py but never imported outside scoring"
+    },
+    {
+      "symbol": "ServiceBase",
+      "file": "services/__init__.py",
+      "line": 7,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'ServiceBase' is exported from services/__init__.py but never imported outside services"
+    },
+    {
+      "symbol": "CBOEChainProvider",
+      "file": "services/__init__.py",
+      "line": 9,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'CBOEChainProvider' is exported from services/__init__.py but never imported outside services"
+    },
+    {
+      "symbol": "BatchOHLCVResult",
+      "file": "services/__init__.py",
+      "line": 14,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'BatchOHLCVResult' is exported from services/__init__.py but never imported outside services"
+    },
+    {
+      "symbol": "TickerOHLCVResult",
+      "file": "services/__init__.py",
+      "line": 14,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'TickerOHLCVResult' is exported from services/__init__.py but never imported outside services"
+    },
+    {
+      "symbol": "ChainProvider",
+      "file": "services/__init__.py",
+      "line": 20,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'ChainProvider' is exported from services/__init__.py but never imported outside services"
+    },
+    {
+      "symbol": "YFinanceChainProvider",
+      "file": "services/__init__.py",
+      "line": 20,
+      "category": "dead-export",
+      "severity": "warning",
+      "detail": "'YFinanceChainProvider' is exported from services/__init__.py but never imported outside services"
+    },
+    {
+      "symbol": "ScanConfig.fit_vol_surface",
+      "file": "models/config.py",
+      "line": 159,
+      "category": "unused-config",
+      "severity": "warning",
+      "detail": "Config field 'ScanConfig.fit_vol_surface' is defined but no .fit_vol_surface access found outside config.py"
+    },
+    {
+      "symbol": "PricingConfig.use_parity_smoothing",
+      "file": "models/config.py",
+      "line": 196,
+      "category": "unused-config",
+      "severity": "warning",
+      "detail": "Config field 'PricingConfig.use_parity_smoothing' is defined but no .use_parity_smoothing access found outside config.py"
+    },
+    {
+      "symbol": "ServiceConfig.cache_ttl_market_hours",
+      "file": "models/config.py",
+      "line": 219,
+      "category": "unused-config",
+      "severity": "warning",
+      "detail": "Config field 'ServiceConfig.cache_ttl_market_hours' is defined but no .cache_ttl_market_hours access found outside config.py"
+    },
+    {
+      "symbol": "OpenBBConfig.max_retries",
+      "file": "models/config.py",
+      "line": 642,
+      "category": "unused-config",
+      "severity": "warning",
+      "detail": "Config field 'OpenBBConfig.max_retries' is defined but no .max_retries access found outside config.py"
+    },
+    {
+      "symbol": "classify_vol_regime",
+      "file": "indicators/iv_analytics.py",
+      "line": 224,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'classify_vol_regime' in indicators/iv_analytics.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "compute_vix_correlation",
+      "file": "indicators/iv_analytics.py",
+      "line": 331,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'compute_vix_correlation' in indicators/iv_analytics.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "compute_macro_regime",
+      "file": "indicators/macro.py",
+      "line": 46,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'compute_macro_regime' in indicators/macro.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "iv_rank",
+      "file": "indicators/options_specific.py",
+      "line": 18,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'iv_rank' in indicators/options_specific.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "iv_percentile",
+      "file": "indicators/options_specific.py",
+      "line": 34,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'iv_percentile' in indicators/options_specific.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "put_call_ratio_oi",
+      "file": "indicators/options_specific.py",
+      "line": 71,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'put_call_ratio_oi' in indicators/options_specific.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "compute_pop",
+      "file": "indicators/options_specific.py",
+      "line": 140,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'compute_pop' in indicators/options_specific.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "compute_optimal_dte",
+      "file": "indicators/options_specific.py",
+      "line": 166,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'compute_optimal_dte' in indicators/options_specific.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "compute_max_loss_ratio",
+      "file": "indicators/options_specific.py",
+      "line": 224,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'compute_max_loss_ratio' in indicators/options_specific.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "compute_vix_term_structure",
+      "file": "indicators/regime.py",
+      "line": 20,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'compute_vix_term_structure' in indicators/regime.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "compute_risk_on_off",
+      "file": "indicators/regime.py",
+      "line": 47,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'compute_risk_on_off' in indicators/regime.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "compute_sector_momentum",
+      "file": "indicators/regime.py",
+      "line": 70,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'compute_sector_momentum' in indicators/regime.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "compute_markov_regime",
+      "file": "indicators/regime_ml.py",
+      "line": 96,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'compute_markov_regime' in indicators/regime_ml.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "map_regime_label_to_market_regime",
+      "file": "indicators/regime_ml.py",
+      "line": 212,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'map_regime_label_to_market_regime' in indicators/regime_ml.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "classify_regime_ml",
+      "file": "indicators/regime_ml.py",
+      "line": 347,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'classify_regime_ml' in indicators/regime_ml.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "compute_garch_forecast",
+      "file": "indicators/vol_forecast.py",
+      "line": 94,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'compute_garch_forecast' in indicators/vol_forecast.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "compute_vol_surface",
+      "file": "indicators/vol_surface.py",
+      "line": 106,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'compute_vol_surface' in indicators/vol_surface.py is not referenced in scan/indicators.py"
+    },
+    {
+      "symbol": "compute_surface_indicators",
+      "file": "indicators/vol_surface.py",
+      "line": 755,
+      "category": "unregistered-indicator",
+      "severity": "warning",
+      "detail": "Indicator function 'compute_surface_indicators' in indicators/vol_surface.py is not referenced in scan/indicators.py"
+    }
+  ],
+  "summary": {
+    "dead_exports": 59,
+    "unreachable_modules": 0,
+    "unused_config": 4,
+    "unregistered_indicators": 18,
+    "uncalled_service_methods": 0,
+    "total": 81
+  }
+}
