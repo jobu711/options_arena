@@ -6,13 +6,14 @@ branch: epic/ai-agency-weight-tuning
 # Execution Status
 
 ## Active Agents
-- Main: Issue #608 (Create learning/ module + relocate) - Starting now
+- (None — all tasks complete)
 
 ## Queued Issues
-- Issue #610 - Waiting for #608
-- Issue #611 - Waiting for #608, #610
-- Issue #607 - Waiting for #610, #611
-- Issue #609 - Waiting for #611, #607
+- (None)
 
 ## Completed
-- (None yet)
+- #608 - Create learning/ module and relocate vote weight tuning
+- #610 - Implement indicator weight tuning via P&L correlation
+- #611 - Migration 035 + data layer for indicator weight persistence
+- #607 - Indicator weight tuning orchestration + CLI learn subcommands
+- #609 - Learning API endpoints + LearningStatus model
