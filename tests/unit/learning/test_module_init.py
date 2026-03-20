@@ -57,27 +57,39 @@ def _get_learning_dir() -> Path:
     return Path(spec.submodule_search_locations[0])
 
 
+def _iter_imported_modules(tree: ast.AST) -> list[str]:
+    """Extract all imported module names from an AST tree.
+
+    Handles both ``import foo.bar`` (ast.Import) and
+    ``from foo.bar import baz`` (ast.ImportFrom) nodes.
+    """
+    modules: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                modules.append(alias.name)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            modules.append(node.module)
+    return modules
+
+
 class TestModuleBoundary:
     """Verify learning/ does not import forbidden modules."""
 
     def test_no_service_imports(self) -> None:
-        """learning/ source files do not import from services/."""
-        for py_file in _get_learning_dir().glob("*.py"):
+        """learning/ source files (including subpackages) do not import from services/."""
+        for py_file in _get_learning_dir().rglob("*.py"):
             source = py_file.read_text(encoding="utf-8")
             tree = ast.parse(source)
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom) and node.module:
-                    assert "options_arena.services" not in node.module, (
-                        f"{py_file.name} imports from services/"
-                    )
+            for module_name in _iter_imported_modules(tree):
+                assert "options_arena.services" not in module_name, (
+                    f"{py_file.name} imports from services/"
+                )
 
     def test_no_cli_imports(self) -> None:
-        """learning/ source files do not import from cli/."""
-        for py_file in _get_learning_dir().glob("*.py"):
+        """learning/ source files (including subpackages) do not import from cli/."""
+        for py_file in _get_learning_dir().rglob("*.py"):
             source = py_file.read_text(encoding="utf-8")
             tree = ast.parse(source)
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom) and node.module:
-                    assert "options_arena.cli" not in node.module, (
-                        f"{py_file.name} imports from cli/"
-                    )
+            for module_name in _iter_imported_modules(tree):
+                assert "options_arena.cli" not in module_name, f"{py_file.name} imports from cli/"

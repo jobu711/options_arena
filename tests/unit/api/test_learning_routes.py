@@ -234,3 +234,48 @@ class TestTriggerIndicatorTune:
 
         assert response.status_code == 200
         assert response.json() == []
+
+    @pytest.mark.asyncio
+    @patch(
+        "options_arena.api.routes.learning.auto_tune_indicator_weights",
+        new_callable=AsyncMock,
+    )
+    async def test_trigger_with_custom_params(
+        self,
+        mock_tune: AsyncMock,
+        client: AsyncClient,
+        mock_repo: MagicMock,
+    ) -> None:
+        """Custom window and dry_run params are forwarded to auto_tune_indicator_weights."""
+        mock_tune.return_value = []
+
+        response = await client.post("/api/learning/weights/tune?window=180&dry_run=true")
+
+        assert response.status_code == 200
+        mock_tune.assert_called_once_with(mock_repo, window_days=180, dry_run=True)
+
+    @pytest.mark.asyncio
+    @patch(
+        "options_arena.api.routes.learning.auto_tune_indicator_weights",
+        new_callable=AsyncMock,
+    )
+    async def test_trigger_returns_409_when_locked(
+        self,
+        mock_tune: AsyncMock,
+        test_app: object,
+        client: AsyncClient,
+    ) -> None:
+        """Returns 409 when operation mutex is already held."""
+        import asyncio
+
+        from options_arena.api.deps import get_operation_lock
+
+        lock = asyncio.Lock()
+        await lock.acquire()  # Pre-hold the lock
+        test_app.dependency_overrides[get_operation_lock] = lambda: lock  # type: ignore[union-attr]
+        try:
+            response = await client.post("/api/learning/weights/tune")
+            assert response.status_code == 409
+            mock_tune.assert_not_called()
+        finally:
+            lock.release()

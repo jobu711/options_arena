@@ -313,12 +313,12 @@ async def _learn_status_async() -> None:
 @learn_app.command("weights")
 def learn_weights(
     window: int = typer.Option(90, "--window", help="Lookback window in days", min=1),
-    dry_run: bool = typer.Option(  # noqa: FBT001
-        False, "--dry-run", help="Show weights without persisting"
+    apply: bool = typer.Option(  # noqa: FBT001
+        False, "--apply", help="Persist tuned weights (read-only by default)"
     ),
 ) -> None:
     """Compute indicator weight tuning and show comparison table."""
-    asyncio.run(_learn_weights_async(window, dry_run))
+    asyncio.run(_learn_weights_async(window, dry_run=not apply))
 
 
 async def _learn_weights_async(window: int, dry_run: bool) -> None:
@@ -338,12 +338,13 @@ async def _learn_weights_async(window: int, dry_run: bool) -> None:
 
         if not results:
             console.print(
-                "[yellow]No indicator weight data available. Need 50+ scored outcomes.[/yellow]"
+                "[yellow]Indicator tuning produced no results. "
+                "Check logs — may need 50+ scored outcomes or an error occurred.[/yellow]"
             )
             return
 
         table = Table(
-            title=f"Indicator Weight Tuning (window={window}d{', dry-run' if dry_run else ''})"
+            title=f"Indicator Weight Tuning (window={window}d{', read-only' if dry_run else ''})"
         )
         table.add_column("Indicator", style="bold")
         table.add_column("Static", justify="right")

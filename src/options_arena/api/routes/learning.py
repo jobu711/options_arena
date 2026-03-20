@@ -40,18 +40,11 @@ async def get_current_weights(
 async def get_weight_history(
     request: Request,
     repo: Repository = Depends(get_repo),
-    weight_type: str | None = Query(None, description="Filter: 'vote' or 'indicator'"),
+    weight_type: WeightType | None = Query(None, description="Filter: 'vote' or 'indicator'"),
     limit: int = Query(20, ge=1, le=100),
 ) -> list[WeightSnapshot]:
     """Retrieve historical weight snapshots, newest first."""
-    wt: WeightType | None = None
-    if weight_type is not None:
-        try:
-            wt = WeightType(weight_type)
-        except ValueError as exc:
-            raise HTTPException(422, "Invalid weight_type. Use 'vote' or 'indicator'.") from exc
-
-    return await repo.get_weight_history(limit=limit, weight_type=wt)
+    return await repo.get_weight_history(limit=limit, weight_type=weight_type)
 
 
 @router.get("/status")

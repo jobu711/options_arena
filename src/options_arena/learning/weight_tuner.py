@@ -365,8 +365,9 @@ async def _auto_tune_indicator_weights_inner(
     ]
 
     # Compute accuracy as win rate (fraction of positive P&L outcomes)
-    positive_count = sum(1 for _, pnl in pairs if pnl > 0)
-    accuracy = positive_count / len(pairs) if pairs else None
+    valid_pnl = [pnl for _, pnl in pairs if math.isfinite(pnl)]
+    positive_count = sum(1 for pnl in valid_pnl if pnl > 0)
+    accuracy = positive_count / len(valid_pnl) if valid_pnl else None
 
     if not dry_run:
         await repo.save_indicator_weights(
