@@ -345,9 +345,14 @@ def render_learned_patterns(rules: list[StrategyRule]) -> str:
     lines.append("<<<END_LEARNED_PATTERNS>>>")
 
     text = "\n".join(lines)
-    # Truncate if too long to prevent prompt bloat
+    # Truncate at pattern boundaries to prevent prompt bloat
     if len(text) > MAX_PATTERN_TEXT_CHARS:
-        text = text[:MAX_PATTERN_TEXT_CHARS] + "\n<<<END_LEARNED_PATTERNS>>>"
+        # Find last complete pattern entry (ends with "\n---\n")
+        cutoff = text.rfind("\n---\n", 0, MAX_PATTERN_TEXT_CHARS)
+        if cutoff > 0:
+            text = text[: cutoff + 4] + "\n<<<END_LEARNED_PATTERNS>>>"
+        else:
+            text = "<<<LEARNED_PATTERNS>>>\n<<<END_LEARNED_PATTERNS>>>"
     return text
 
 

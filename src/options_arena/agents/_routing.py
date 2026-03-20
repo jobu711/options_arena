@@ -561,8 +561,8 @@ async def run_agency_query(
         try:
             approved_rules = await repo.get_strategy_rules(status=RuleStatus.APPROVED)
             patterns_text = render_learned_patterns(approved_rules)
-        except Exception:
-            logger.debug("Failed to fetch learned patterns — proceeding without them")
+        except (OSError, ValueError, KeyError, TypeError):
+            logger.warning("Failed to fetch learned patterns — proceeding without them")
             patterns_text = ""
 
         awaitables: list[Awaitable[DeskResponse]] = []

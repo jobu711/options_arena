@@ -460,7 +460,7 @@ async def _learn_playbook_async(status_filter: str | None) -> None:
                     f"[red]Invalid status: {status_filter}. "
                     f"Use: candidate, approved, rejected[/red]"
                 )
-                return
+                raise typer.Exit(code=1) from None
 
         rules = await repo.get_strategy_rules(status=rule_status)
 

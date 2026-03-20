@@ -95,7 +95,7 @@ class LearningMixin(RepositoryBase):
         conn = self._db.conn
         if status is not None:
             query = "SELECT * FROM strategy_rules WHERE status = ? ORDER BY created_at DESC"
-            params: tuple[str] | tuple[()] = (status.value,)
+            params: tuple[str, ...] | tuple[()] = (status.value,)
         else:
             query = "SELECT * FROM strategy_rules ORDER BY created_at DESC"
             params = ()

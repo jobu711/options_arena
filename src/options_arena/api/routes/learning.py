@@ -115,7 +115,9 @@ async def trigger_mining(
     except TimeoutError:
         raise HTTPException(409, "Another operation is in progress") from None
     try:
-        return await run_strategy_mining(repo)
+        return await asyncio.wait_for(run_strategy_mining(repo), timeout=300.0)
+    except TimeoutError:
+        return []
     finally:
         lock.release()
 
