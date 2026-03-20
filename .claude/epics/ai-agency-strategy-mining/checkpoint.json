@@ -1,0 +1,12 @@
+{
+  "epic": "ai-agency-strategy-mining",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync ai-agency-strategy-mining",
+  "last_updated": "2026-03-20T15:44:22Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}

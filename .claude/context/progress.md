@@ -3,31 +3,33 @@
 ## Current State
 
 - **Version**: 2.10.0 — Release hardening + full audit + math verification
-- **All 9 phases + 36 epics**: Complete and merged to master
-- **Tests**: 26,615 Python passing (27K+ parametrized) + 107 E2E (17 spec files)
-- **GitHub issues**: 578+ closed
+- **All 9 phases + 39 epics**: Complete and merged to master (5/8 AI Agency epics done)
+- **Tests**: 350 test files, 27K+ parametrized + 107 E2E (17 spec files)
+- **GitHub issues**: 612+ closed
 - **CI**: GitHub Actions (4 gates: lint, typecheck, tests, frontend)
-- **CLI**: `options-arena scan`, `health`, `universe` (+ `index`), `debate` (+ `--batch`, `--export`, `--provider`), `serve`, `outcomes` (collect, summary, backtest, equity-curve)
-- **Web UI**: Vue 3 SPA served by FastAPI at `http://127.0.0.1:8000`
+- **CLI**: `options-arena scan`, `health`, `universe` (+ `index`), `debate` (+ `--batch`, `--export`, `--provider`), `serve`, `outcomes` (collect, summary, backtest, equity-curve), `agency` (ask, chat), `learn` (tune-indicators, tune-votes, status)
+- **Web UI**: Vue 3 SPA served by FastAPI — Dashboard, Scan, Debate, Universe, Health, Watchlist, Analytics, Desks, Agency Chat
 - **AI providers**: Groq (default, `GROQ_API_KEY`) + Anthropic (`ANTHROPIC_API_KEY`, `--provider anthropic`)
+- **AI Agency**: 7 desk agents (Volatility, Risk, Trend, Flow, Fundamental, Contrarian, Research) with tool-use, intent routing, and `learning/` weight tuning
 - **Claude Code infra**: 7 audit agents, `/full-audit` parallel orchestration, `/fix-loop` iterative repair, `/compound` knowledge capture, `docs/solutions/` institutional memory
 
 ## In Progress
 
-- **AI Agency Evolution**: PRD revised (2026-03-17) with 3-tier tool architecture (base + analysis + ML), 8 epics across 3 parallel tracks. `ai-agency-desk-foundation` complete (PR #579) — Vol + Risk desk agents with tool-use, 99 tests, 7-agent audit passed. Remaining 7 epics planned, not yet decomposed: `ai-agency-advisor-routing`, `ai-agency-all-desks`, `ai-agency-weight-tuning`, `ai-agency-prompt-ab`, `ai-agency-strategy-mining`, `ai-agency-analysis-tools`, `ai-agency-ml-tools`.
+- **AI Agency Evolution**: 5/8 epics complete. 3 remaining epics (not yet decomposed): `ai-agency-strategy-mining`, `ai-agency-analysis-tools`, `ai-agency-ml-tools`.
 
 ## Recently Completed
 
-- **ai-agency-desk-foundation epic** (2026-03-17): Issues #575-#578, PR #579. Proved desk agent pattern with Volatility + Risk desks. New: `DeskDeps`, `DeskType`/`QueryType` enums, `DeskResponse`/`QueryIntent` models, `AgencyConfig`, 5 PydanticAI tool wrappers with ticker validation + NaN defense, `@output_validator` think-tag stripping. 99 new tests, 7-agent audit passed (0 P1), all P2 findings fixed. Foundation for remaining 7 AI agency epics.
-- **v2-release-prep epic** (2026-03-17): Issues #564-#571. Full audit battery (7 agents + math audit, 54 formulas verified), all P1 findings resolved, 26,516 tests passing, version bumped to 2.10.0, CHANGELOG generated, git tag `v2.10.0`.
-- **FinancialDatasets.ai epic** (#393): Deferred — 0 open GitHub issues, integration not yet started.
-- **Dead code audit epic** (2026-03-16): Issues #557-#563. Removed ~1,720 lines dead code across 17 modules, wired 8 indicators into scan pipeline, modernized DebatePhase to 6-agent enum. Deleted bull/bear agents, clustering.py, dead repo methods, dead config fields. 119 files changed, 4,933 deletions.
-- **Scientific ML Statistical epic** (2026-03-15): Issues #533-#537, PR #538. GARCH/EGARCH vol forecasting, Markov-switching regime detection, FRED macro pipeline (GDP, unemployment, CPI, yield curve), Hurst exponent, scan pipeline integration. Optional `[ml]` extra (`arch`, `statsmodels`). Agent prompts enriched with macro/regime/vol-forecast context.
-- **Competitive audit epic** (2026-03-15): Issues #524-#530. Valuation models (DCF, DDM, residual income, Graham), correlation analysis, performance analytics, position sizing (Kelly criterion). New `analysis/` submodules. Agent constraints system for structured output validation.
-- **DevOps audit epic** (2026-03-14): 3-phase `/devops-audit`, `/full-audit`, `/fix-loop`, `/release-prep`, `/compound`. 7 audit agents + scope boundary hardening.
+- **ai-agency-weight-tuning epic** (2026-03-20): Issues #607-#611, PR #612. New `learning/` module with `weight_tuner.py` — indicator weight tuning via P&L correlation, vote weight tuning. Migration 035 for indicator weight columns. Learning API endpoints + `LearningStatus` model. CLI `learn` subcommands (tune-indicators, tune-votes, status).
+- **ai-agency-all-desks epic** (2026-03-19): Issues #587-#591, PR #595. 5 new desk agents (Trend, Flow, Fundamental, Contrarian, Research), expanded `_toolsets.py` (574+ lines), all 7 desks wired into routing. `DeskSelector.vue` frontend component. Integration tests for all desk routing.
+- **ai-agency-advisor-routing epic** (2026-03-18): Issues #581-#584, PR #580. Intent classification + routing orchestrator (`_routing.py`). `AgencyMixin` + migration 034 for query persistence. Agency API endpoints + CLI `agency` commands. `AgencyChat.vue` frontend component.
+- **ai-agency-desk-foundation epic** (2026-03-17): Issues #575-#578, PR #579. Proved desk agent pattern with Volatility + Risk desks. `DeskDeps`, `DeskType`/`QueryType` enums, `DeskResponse`/`QueryIntent` models, `AgencyConfig`, 5 PydanticAI tool wrappers. 99 new tests.
+- **v2-release-prep epic** (2026-03-17): Issues #564-#571. Full audit battery (7 agents + math audit, 54 formulas verified), version 2.10.0, CHANGELOG, git tag `v2.10.0`.
+- **Dead code audit epic** (2026-03-16): Issues #557-#563. Removed ~1,720 lines dead code across 17 modules.
+- **Scientific ML Statistical epic** (2026-03-15): Issues #533-#537, PR #538. GARCH/EGARCH, Markov-switching, FRED macro pipeline, Hurst exponent.
 
 ## Future Work
 
+- AI Agency: strategy mining, analysis tools, ML tools (3 remaining epics)
 - Real-time market data streaming
 - Frontend unit testing (Vitest + Vue Test Utils) — E2E covered by Playwright
 

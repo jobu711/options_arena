@@ -1,7 +1,7 @@
 ---
 created: 2026-02-17T08:51:05Z
-last_updated: 2026-03-03T14:34:21Z
-version: 6.2
+last_updated: 2026-03-20T15:30:55Z
+version: 6.3
 author: Claude Code PM System
 ---
 
@@ -60,14 +60,27 @@ author: Claude Code PM System
 - Contract filtering: DTE 30-60d, delta 0.20-0.50, OI >= 100, spread <= 10%
 
 ### 5. Persistence & History
-- SQLite (WAL mode) with sequential migrations (13 migrations)
+- SQLite (WAL mode) with sequential migrations (35 migrations)
 - Scan runs, ticker scores, recommended contracts (with entry prices), AI debate theses, watchlist
 - Contract outcome tracking: P&L at T+1/T+5/T+10/T+20 holding periods
 - Score history + trending tickers (consecutive scans, score changes)
 - Scan deltas: movers up/down, new entries, dropped tickers
 - Normalization metadata: per-indicator distribution stats per scan
 
-### 6. Reporting & Export
+### 6. AI Agency (Interactive Desk Queries)
+- **7 desk agents**: Volatility, Risk, Trend, Flow, Fundamental, Contrarian, Research
+- **Intent routing**: Natural language query → intent classification → desk agent dispatch
+- **Tool-use**: Each desk has domain-specific tools (market data, options chains, indicators)
+- **Query persistence**: SQLite-backed via `AgencyMixin` (migration 034)
+- **Frontend**: `AgencyChat.vue` (chat), `DeskSelector.vue` (desk picker), `/desks` page
+
+### 7. Learning & Weight Tuning
+- **Indicator weight tuning**: P&L correlation analysis adjusts `INDICATOR_WEIGHTS` based on predictive power
+- **Vote weight tuning**: Adjusts `AGENT_VOTE_WEIGHTS` based on agent prediction accuracy
+- **Persistence**: Migration 035 for indicator weight columns
+- **API + CLI**: Tune indicators, tune votes, check tuning status
+
+### 8. Reporting & Export
 - Rich terminal: colored tables, progress bars, styled agent panels
 - Markdown export for debate results
 - PDF export via optional `weasyprint` dependency
@@ -84,6 +97,8 @@ author: Claude Code PM System
 | `universe refresh\|list\|stats\|sectors` | `--sector`, `--preset` | Manage ticker universe |
 | `watchlist add\|remove\|list` | `--notes` | Personal ticker watchlist |
 | `outcomes collect\|summary` | `--holding-days`, `--lookback-days` | Contract outcome tracking + analytics |
+| `agency ask\|chat` | `--desk` | Interactive AI desk queries |
+| `learn tune-indicators\|tune-votes\|status` | `--lookback-days` | Weight tuning from historical outcomes |
 | `serve` | `--host`, `--port`, `--verbose` | Launch FastAPI + Vue 3 SPA (loopback-only) |
 
 ## Web UI Pages
@@ -97,6 +112,8 @@ author: Claude Code PM System
 | `/universe` | Stats + scrollable ticker list with sector/market cap |
 | `/health` | Service status cards with latency |
 | `/watchlist` | Add/remove tickers, view scores and debate history |
+| `/desks` | Interactive AI desk selector + query interface |
+| `/agency` | Chat-style interface for AI desk queries |
 
 ## REST API
 
@@ -106,6 +123,8 @@ author: Claude Code PM System
 - **Health**: `GET /api/health`
 - **Watchlist**: `GET/POST/DELETE /api/watchlist`
 - **Analytics**: `GET /api/analytics/{win-rate,score-calibration,holding-period,delta-performance,summary,indicator-attribution/{name}}`, `POST /api/analytics/collect-outcomes`, `GET /api/analytics/{scan,ticker}/*/contracts`
+- **Agency**: `POST /api/agency/ask` (single query), `POST /api/agency/chat` (conversation)
+- **Learning**: `POST /api/learning/tune-indicators`, `POST /api/learning/tune-votes`, `GET /api/learning/status`
 - **WebSocket**: `WS /ws/scan/{id}` (4-phase progress), `WS /ws/debate/{id}` (agent steps)
 - **Operation mutex**: one scan or batch debate at a time (409 if busy)
 

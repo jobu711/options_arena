@@ -64,16 +64,35 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **DebatePhase enum**: 6 members (TREND, VOLATILITY, FLOW, FUNDAMENTAL, RISK, CONTRARIAN) — matches agent pipeline order. Progress callback fires before each agent run.
 
 ### Desk Agent Pattern (Interactive Mode)
-- Separate from debate agents — `*_desk.py` files with `Agent[DeskDeps, str]` (plain text output)
+- **7 desk agents**: Volatility, Risk, Trend, Flow, Fundamental, Contrarian, Research — `Agent[DeskDeps, str]` (plain text output)
+- Separate from debate agents — `*_desk.py` files in `agents/`
 - `DeskDeps` `@dataclass` with service instances (market_data, options_data, fred, repo) + `tools_used: list[str]`
-- Tool wrappers in `_toolsets.py`: `build_volatility_toolset()` (3 tools), `build_risk_toolset()` (3 tools)
+- Tool wrappers in `_toolsets.py`: per-desk toolset builders (e.g. `build_volatility_toolset()`, `build_risk_toolset()`, `build_trend_toolset()`, `build_research_toolset()`, etc.)
 - Tools: never-raise contract, `TICKER_RE` validation, `math.isfinite()` guards, sanitized error messages
 - `UsageLimits(request_limit=N+2, tool_calls_limit=N)` — budget enforcement per desk
 - `@output_validator` strips `<think>` tags at agent level; `strip_think_tags()` also in wrapper (defense-in-depth)
 - `run_*_desk_query()` wraps `agent.run()` with `asyncio.wait_for`, model=None guard, never-raises
-- Desk prompts in `agents/prompts/desk_*.py` — conversational, no `PROMPT_RULES_APPENDIX`
+- Desk prompts in `agents/prompts/desk_*.py` (7 files) — conversational, no `PROMPT_RULES_APPENDIX`
 - `DeskResponse` frozen model with confidence, tools_used list; `DESK_SUCCESS_CONFIDENCE = 0.7`
 - `AgencyConfig` BaseModel on `AppSettings` — `agent_timeout`, per-desk tool budgets
+
+### Intent Classification & Routing Pattern (Agency)
+- `_routing.py`: `classify_intent()` maps user queries to `DeskType` + `QueryType` via keyword/regex matching
+- `route_query()` orchestrates: classify → select desk → run desk agent → persist → return `DeskResponse`
+- `AgencyMixin` in `data/_debate.py`: SQLite persistence for agency queries (migration 034)
+- API: `/api/agency/ask` (single query), `/api/agency/chat` (conversation)
+- CLI: `agency ask "query"`, `agency chat` (interactive REPL)
+- Frontend: `AgencyChat.vue` chat interface, `DeskSelector.vue` desk picker
+
+### Learning & Weight Tuning Pattern
+- **Module**: `learning/` — middle-stack (accesses `models/`, `data/`, `scoring/`, never `services/` or `agents/`)
+- **Indicator weight tuning**: P&L correlation analysis — correlate indicator values at scan time with actual contract outcomes. Adjusts `INDICATOR_WEIGHTS` based on predictive power.
+- **Vote weight tuning**: Adjusts `AGENT_VOTE_WEIGHTS` based on agent prediction accuracy vs actual outcomes
+- **Persistence**: Migration 035 adds indicator weight columns to SQLite; `AnalyticsMixin` queries outcome-signal pairs
+- **Orchestration**: `tune_indicator_weights()` and `tune_vote_weights()` — never-raises contract
+- **API**: `/api/learning/tune-indicators`, `/api/learning/tune-votes`, `/api/learning/status`
+- **CLI**: `learn tune-indicators`, `learn tune-votes`, `learn status`
+- **`LearningStatus` model**: Tracks last tune time, sample count, weight changes
 
 ### Scan Pipeline & Debate Flow — See `scan/CLAUDE.md` and `agents/CLAUDE.md`
 

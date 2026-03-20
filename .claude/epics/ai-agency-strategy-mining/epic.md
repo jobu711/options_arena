@@ -8,7 +8,7 @@ parent_epic: ai-agency-evolution
 epic_number: 6
 dependencies: [ai-agency-prompt-ab]
 parallelizable_with: [ai-agency-analysis-tools, ai-agency-ml-tools]
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/613
 ---
 
 # Epic 6: Self-Improvement P3 — Strategy Mining
@@ -80,3 +80,18 @@ Implement outcome pattern mining, strategy rule generation with human approval, 
 ## Estimated Effort
 
 3-4 issues, ~2 implementation sessions
+
+## Tasks Created
+- [ ] #614 - StrategyRule + AgentMemory models, enums, migration 036, repository mixin (parallel: false)
+- [ ] #615 - Strategy mining engine — mine_patterns, test_significance, generate_rules (parallel: false)
+- [ ] #616 - Learned pattern injection into desk agent prompts (parallel: false)
+- [ ] #617 - API endpoints, CLI commands, and LearningDashboard playbook tab (parallel: false)
+
+Total tasks: 4
+Parallel tasks: 0
+Sequential tasks: 4
+Estimated total effort: 16-24 hours
+
+## Test Coverage Plan
+Total test files planned: 5
+Total test cases planned: ~40

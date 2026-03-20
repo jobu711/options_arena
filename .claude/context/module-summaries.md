@@ -13,7 +13,8 @@ Condensed from 13 module CLAUDE.md files. Read the full module CLAUDE.md for dee
 
 ## agents/
 - **Debate agents** (6): Trend, Volatility, Flow, Fundamental, Risk, Contrarian — structured output
-- **Desk agents** (2): `vol_desk`, `risk_desk` — `Agent[DeskDeps, str]` for interactive queries
+- **Desk agents** (7): Volatility, Risk, Trend, Flow, Fundamental, Contrarian, Research — `Agent[DeskDeps, str]` for interactive queries
+- **Routing**: `_routing.py` — intent classification (`classify_intent`) + desk dispatch (`route_query`)
 - No inter-agent imports — orchestrator coordinates debate; desks are independent
 - `Agent(model=None)` at init, actual model at `agent.run(model=...)` — enables TestModel
 - All debate agents: `@output_validator` using `build_cleaned_agent_response()` (think tags)
@@ -21,10 +22,10 @@ Condensed from 13 module CLAUDE.md files. Read the full module CLAUDE.md for dee
 - `run_debate()` / `run_*_desk_query()` never raise — catch all exceptions
 - Desk agents access services via `DeskDeps` (tool-based data fetching, not pre-fetched)
 - `asyncio.wait_for(agent.run(...), timeout=config.agent_timeout)` on every agent call
-- `_toolsets.py`: 5 tool wrappers with `TICKER_RE` validation, `isfinite()` guards, sanitized errors
+- `_toolsets.py`: per-desk toolset builders with `TICKER_RE` validation, `isfinite()` guards, sanitized errors
 
 ## agents/prompts/
-- 6 debate prompt files + 2 desk prompt files (desk_volatility, desk_risk)
+- 6 debate prompt files + 7 desk prompt files (desk_volatility, desk_risk, desk_trend, desk_flow, desk_fundamental, desk_contrarian, desk_research)
 - Debate: `*_SYSTEM_PROMPT` constant concatenated with `PROMPT_RULES_APPENDIX`
 - Desk: `DESK_*_PROMPT` constant, conversational, NO `PROMPT_RULES_APPENDIX`
 - < 8000 chars per prompt; static only — dynamic injection stays in agent modules
@@ -101,3 +102,10 @@ Condensed from 13 module CLAUDE.md files. Read the full module CLAUDE.md for dee
 ## analysis/
 - No API calls — data comes from caller
 - Pure computation: valuation, correlation, performance, position sizing
+
+## learning/
+- Middle-stack: accesses `models/`, `data/`, `scoring/` — never `services/`, `agents/`, `cli/`, `api/`, `pricing/`
+- Never-raises contract on all orchestration functions
+- `weight_tuner.py`: indicator weight tuning (P&L correlation) + vote weight tuning (agent accuracy)
+- Pure computation functions take data in, return results out; orchestration wrappers handle DB
+- Returns Pydantic models or typed aliases, never raw dicts
