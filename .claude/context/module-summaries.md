@@ -78,6 +78,7 @@ Condensed from 13 module CLAUDE.md files. Read the full module CLAUDE.md for dee
 - `executescript()` issues implicit COMMIT before running (sqlite3 behavior)
 - `PRAGMA foreign_keys=ON` required — SQLite defaults to OFF
 - `ScanRun` is frozen — `save_scan_run()` returns `int` ID, don't mutate the model
+- `LearningMixin`: strategy rule + agent memory CRUD (save/get/update rules, save/get memories)
 
 ## api/
 - Services created in `lifespan()`, stored on `app.state` — never per-request
@@ -107,5 +108,7 @@ Condensed from 13 module CLAUDE.md files. Read the full module CLAUDE.md for dee
 - Middle-stack: accesses `models/`, `data/`, `scoring/` — never `services/`, `agents/`, `cli/`, `api/`, `pricing/`
 - Never-raises contract on all orchestration functions
 - `weight_tuner.py`: indicator weight tuning (P&L correlation) + vote weight tuning (agent accuracy)
+- `strategy_book.py`: pattern mining (mine_patterns, filter_significant, generate_rules, render_learned_patterns, run_strategy_mining)
 - Pure computation functions take data in, return results out; orchestration wrappers handle DB
 - Returns Pydantic models or typed aliases, never raw dicts
+- `render_learned_patterns()` produces `<<<LEARNED_PATTERNS>>>` block for desk prompt injection

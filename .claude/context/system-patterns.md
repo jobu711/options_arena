@@ -94,6 +94,19 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **CLI**: `learn tune-indicators`, `learn tune-votes`, `learn status`
 - **`LearningStatus` model**: Tracks last tune time, sample count, weight changes
 
+### Strategy Mining & Playbook Pattern
+- **Module**: `learning/strategy_book.py` — extends `learning/` with pattern mining
+- **Dimensional grouping**: sector × IV bucket × DTE bucket × direction — each unique combination is a "cell"
+- **Significance**: Chi-squared test (p < 0.05), minimum 20 samples per cell, 100 total outcomes required
+- **Models**: `StrategyCondition` (field, operator, value), `StrategyRule` (frozen, with `RuleStatus` enum: candidate/approved/rejected), `AgentMemory` (long-term agent knowledge)
+- **Enums**: `ConditionOperator` (eq, gt, lt, gte, lte, in), `RuleStatus` (candidate, approved, rejected)
+- **Persistence**: Migration 036 (`strategy_rules` + `agent_memory` tables), `LearningMixin` on Repository
+- **Human approval**: Rules start as `candidate`, require human approval to become `approved`
+- **Prompt injection**: `render_learned_patterns()` produces `<<<LEARNED_PATTERNS>>>` delimited block; all 7 desk agents inject via `DeskDeps.learned_patterns` field in `dynamic=True` system prompts
+- **Routing integration**: `_routing.py` fetches approved rules before desk dispatch (never-raises)
+- **API**: `POST /api/learning/mine`, `GET /api/learning/playbook`, `PUT /api/learning/playbook/{id}`
+- **CLI**: `learn mine`, `learn playbook --status {candidate|approved|rejected}`
+
 ### Scan Pipeline & Debate Flow — See `scan/CLAUDE.md` and `agents/CLAUDE.md`
 
 ### Batch Debate & Export Patterns
