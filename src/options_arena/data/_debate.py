@@ -19,6 +19,7 @@ from options_arena.models import (
     MarketContext,
     RiskAssessment,
     WeightSnapshot,
+    WeightType,
 )
 
 from ._base import RepositoryBase
@@ -460,7 +461,7 @@ class DebateMixin(RepositoryBase):
         weights: list[AgentWeightsComparison],
         window_days: int,
     ) -> None:
-        """Persist a computed set of auto-tune weights."""
+        """Persist a computed set of auto-tune vote weights."""
         if not weights:
             return
         conn = self._db.conn
@@ -468,8 +469,8 @@ class DebateMixin(RepositoryBase):
         await conn.executemany(
             "INSERT INTO auto_tune_weights "
             "(agent_name, manual_weight, auto_weight, brier_score, "
-            "sample_size, window_days, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "sample_size, window_days, created_at, weight_type) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 (
                     w.agent_name,
@@ -479,18 +480,66 @@ class DebateMixin(RepositoryBase):
                     w.sample_size,
                     window_days,
                     now_iso,
+                    WeightType.VOTE.value,
                 )
                 for w in weights
             ],
         )
         await conn.commit()
         logger.debug(
-            "Saved %d auto-tune weights (window=%d days)",
+            "Saved %d auto-tune vote weights (window=%d days)",
             len(weights),
             window_days,
         )
 
-    async def get_weight_history(self, limit: int = 20) -> list[WeightSnapshot]:
+    async def save_indicator_weights(
+        self,
+        weights: dict[str, float],
+        static_weights: dict[str, float],
+        window_days: int,
+        accuracy: float | None = None,
+    ) -> None:
+        """Persist a computed set of indicator weights.
+
+        Each indicator field name is stored as ``agent_name`` (reusing the
+        existing table column) with ``weight_type='indicator'``.
+        """
+        if not weights:
+            return
+        conn = self._db.conn
+        now_iso = datetime.now(UTC).isoformat()
+        await conn.executemany(
+            "INSERT INTO auto_tune_weights "
+            "(agent_name, manual_weight, auto_weight, brier_score, "
+            "sample_size, window_days, created_at, weight_type, accuracy_at_time) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    name,
+                    static_weights.get(name, 0.0),
+                    tuned_weight,
+                    None,  # No Brier score for indicator weights
+                    0,  # Sample size tracked externally
+                    window_days,
+                    now_iso,
+                    WeightType.INDICATOR.value,
+                    accuracy,
+                )
+                for name, tuned_weight in weights.items()
+            ],
+        )
+        await conn.commit()
+        logger.debug(
+            "Saved %d indicator weights (window=%d days)",
+            len(weights),
+            window_days,
+        )
+
+    async def get_weight_history(
+        self,
+        limit: int = 20,
+        weight_type: WeightType | None = None,
+    ) -> list[WeightSnapshot]:
         """Retrieve historical auto-tune weight snapshots, newest first.
 
         Groups ``auto_tune_weights`` rows by ``created_at`` timestamp.
@@ -499,6 +548,8 @@ class DebateMixin(RepositoryBase):
 
         Args:
             limit: Maximum number of snapshots to return (default 20).
+            weight_type: Optional filter — ``VOTE`` or ``INDICATOR``. When
+                ``None``, returns all snapshots regardless of type.
 
         Returns:
             List of ``WeightSnapshot`` objects ordered by ``computed_at``
@@ -506,18 +557,38 @@ class DebateMixin(RepositoryBase):
         """
         conn = self._db.conn
 
+        # Build WHERE clause conditionally
+        type_filter = ""
+        if weight_type is not None:
+            type_filter = " AND weight_type = ?"
+
         # Single query: fetch all rows for the N most recent timestamps
+        inner_where = f"WHERE 1=1{type_filter}" if type_filter else ""
+        outer_where = "AND weight_type = ?" if weight_type is not None else ""
+
         sql = (
             "SELECT agent_name, manual_weight, auto_weight, "
-            "brier_score, sample_size, window_days, created_at "
+            "brier_score, sample_size, window_days, created_at, "
+            "weight_type, accuracy_at_time "
             "FROM auto_tune_weights "
-            "WHERE created_at IN ("
-            "  SELECT DISTINCT created_at FROM auto_tune_weights "
-            "  ORDER BY created_at DESC LIMIT ?"
-            ") "
+            f"WHERE created_at IN ("
+            f"  SELECT DISTINCT created_at FROM auto_tune_weights "
+            f"  {inner_where} "
+            f"  ORDER BY created_at DESC LIMIT ?"
+            f") "
+            f"{outer_where} "
             "ORDER BY created_at DESC, agent_name"
         )
-        async with conn.execute(sql, (limit,)) as cursor:
+
+        # Build final param tuple
+        query_params: list[int | str] = []
+        if weight_type is not None:
+            query_params.append(weight_type.value)
+        query_params.append(limit)
+        if weight_type is not None:
+            query_params.append(weight_type.value)
+
+        async with conn.execute(sql, query_params) as cursor:
             rows = await cursor.fetchall()
 
         if not rows:
@@ -541,11 +612,21 @@ class DebateMixin(RepositoryBase):
                 )
                 for r in group_rows
             ]
+
+            # Read weight_type from first row (all rows in a group share it)
+            row_wt = group_rows[0]["weight_type"]
+            wt = WeightType(row_wt) if row_wt else WeightType.VOTE
+
+            row_acc = group_rows[0]["accuracy_at_time"]
+            acc = float(row_acc) if row_acc is not None else None
+
             snapshots.append(
                 WeightSnapshot(
                     computed_at=datetime.fromisoformat(ts_str),
                     window_days=int(group_rows[0]["window_days"]),
                     weights=weights,
+                    weight_type=wt,
+                    accuracy_at_time=acc,
                 )
             )
 
