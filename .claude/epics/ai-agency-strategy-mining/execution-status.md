@@ -5,16 +5,13 @@ branch: epic/ai-agency-strategy-mining
 
 # Execution Status
 
-## Active Agents
-- None (sequential execution)
-
 ## Completed
-- #614: StrategyRule + AgentMemory models, enums, migration 036, repository mixin (48 tests pass)
+- #614: StrategyRule + AgentMemory models, enums, migration 036, repository mixin (48 tests)
+- #615: Strategy mining engine — mine, filter, generate, render (29 tests)
+- #616: Learned pattern injection into desk agent prompts (8 tests)
+- #617: API endpoints, CLI commands (6 tests)
 
-## In Progress
-- None
-
-## Queued Issues
-- #615: Strategy mining engine (depends on #614 - now ready)
-- #616: Learned pattern injection (depends on #614, #615)
-- #617: API/CLI/Frontend (depends on #614, #615)
+## Summary
+- Total tests: 91 across 5 test files
+- All passing, all linted, type-checked
+- 4/4 issues complete
