@@ -8,7 +8,7 @@ parent_epic: ai-agency-evolution
 epic_number: 7
 dependencies: [ai-agency-desk-foundation, ai-agency-advisor-routing, ai-agency-all-desks]
 parallelizable_with: [ai-agency-weight-tuning, ai-agency-prompt-ab, ai-agency-strategy-mining, ai-agency-ml-tools]
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/619
 ---
 
 # Epic 7: Analysis & HV Desk Tools
@@ -74,3 +74,18 @@ Wrap 5 pure-math functions from `analysis/` and `indicators/hv_estimators` as `F
 ## Estimated Effort
 
 3-4 issues, ~2 implementation sessions
+
+## Tasks Created
+- [ ] #620 - Valuation & Position Sizing Tool Wrappers (parallel: true)
+- [ ] #621 - Correlation Matrix & Risk-Adjusted Metrics Tool Wrappers (parallel: true)
+- [ ] #622 - Yang-Zhang Historical Volatility Tool Wrapper (parallel: true)
+- [ ] #623 - Register Analysis Tools on Desks & Update Prompts (parallel: false)
+
+Total tasks: 4
+Parallel tasks: 3 (#620, #621, #622)
+Sequential tasks: 1 (#623 depends on #620-#622)
+Estimated total effort: 12-16 hours
+
+## Test Coverage Plan
+Total test files planned: 4
+Total test cases planned: ~30
