@@ -30,6 +30,7 @@ class TestRepositoryDecomposition:
             "MetadataMixin",
             "SpreadsMixin",
             "AgencyMixin",
+            "LearningMixin",
             "RepositoryBase",
             "object",
         ]
