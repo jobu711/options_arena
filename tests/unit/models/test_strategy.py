@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from datetime import UTC, datetime, timezone
 
 import pytest
@@ -15,7 +14,6 @@ from options_arena.models import (
     StrategyCondition,
     StrategyRule,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -182,7 +180,9 @@ class TestStrategyRule:
             _make_rule(created_at=datetime(2026, 1, 1))
 
     def test_created_at_non_utc_rejected(self) -> None:
-        non_utc = datetime(2026, 1, 1, tzinfo=timezone(offset=__import__("datetime").timedelta(hours=5)))
+        from datetime import timedelta as td
+
+        non_utc = datetime(2026, 1, 1, tzinfo=timezone(offset=td(hours=5)))
         with pytest.raises(ValidationError, match="UTC"):
             _make_rule(created_at=non_utc)
 

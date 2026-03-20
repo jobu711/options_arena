@@ -16,7 +16,6 @@ from options_arena.models import (
     StrategyRule,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -215,9 +214,7 @@ class TestAgentMemoryCRUD:
     async def test_get_memories_by_scope_type(self, repo: Repository) -> None:
         """Verify filtering memories by scope_type."""
         await repo.save_agent_memory(_make_memory("m1", scope_type="ticker"))
-        await repo.save_agent_memory(
-            _make_memory("m2", scope_type="sector", created_at=_LATER)
-        )
+        await repo.save_agent_memory(_make_memory("m2", scope_type="sector", created_at=_LATER))
 
         ticker_mems = await repo.get_agent_memories(scope_type="ticker")
         assert len(ticker_mems) == 1
@@ -232,9 +229,7 @@ class TestAgentMemoryCRUD:
         await repo.save_agent_memory(
             _make_memory("m2", agent_name="volatility", scope_type="sector", created_at=_LATER)
         )
-        await repo.save_agent_memory(
-            _make_memory("m3", agent_name="risk", scope_type="ticker")
-        )
+        await repo.save_agent_memory(_make_memory("m3", agent_name="risk", scope_type="ticker"))
 
         result = await repo.get_agent_memories(agent_name="volatility", scope_type="ticker")
         assert len(result) == 1

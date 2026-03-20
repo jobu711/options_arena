@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -12,11 +12,11 @@ from options_arena.learning.strategy_book import (
     MIN_TOTAL_OUTCOMES,
     OutcomeWithContext,
     PatternCell,
+    filter_significant,
     generate_rules,
     mine_patterns,
     render_learned_patterns,
     run_strategy_mining,
-    filter_significant,
 )
 from options_arena.models import (
     ConditionOperator,
@@ -294,9 +294,7 @@ class TestRenderLearnedPatterns:
 
     def test_format_includes_stats(self) -> None:
         """Verify output includes win rate, sample size, avg return."""
-        text = render_learned_patterns(
-            [_make_rule(win_rate=0.7, avg_return=0.12, sample_size=40)]
-        )
+        text = render_learned_patterns([_make_rule(win_rate=0.7, avg_return=0.12, sample_size=40)])
         assert "70.0%" in text
         assert "n=40" in text
         assert "+12.0%" in text

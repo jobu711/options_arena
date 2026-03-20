@@ -168,13 +168,15 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `FredTransform` | StrEnum | PCT_TO_DECIMAL, YOY_PCT_CHANGE, PASSTHROUGH | 363 | Transform applied to raw FRED series values. |
 | `AuditSeverity` | StrEnum | CRITICAL, WARNING, INFO | 376 | Severity level for mathematical computation audit findings. |
 | `AuditLayer` | StrEnum | CORRECTNESS, STABILITY, PERFORMANCE, DISCOVERY | 384 | Audit layer classifying the type of mathematical audit test. |
-| `SurfaceMethod` | StrEnum | SPLINE, NEURAL | 393 | IV surface fitting method selection. |
-| `WeightType` | StrEnum | VOTE, INDICATOR | 400 | Discriminator for auto-tune weight snapshots. |
-| `DeskType` | StrEnum | TREND, VOLATILITY, FLOW, FUNDAMENTAL, RISK, CONTRARIAN, RESEARCH | 407 | Desk specialization for agency routing. |
-| `QueryType` | StrEnum | ANALYSIS, COMPARISON, STRATEGY, RISK_CHECK, GENERAL | 419 | Classification of user query intent for desk routing. |
-| `GICSIndustryGroup` | StrEnum | 26 values (TELECOMMUNICATION_SERVICES ... UTILITIES) | 429 | GICS Industry Groups (2023 standard). |
-| `INDUSTRY_GROUP_ALIASES` | const | dict[str, GICSIndustryGroup] | 475 |  |
-| `SECTOR_TO_INDUSTRY_GROUPS` | const | dict[GICSSector, list[GICSIndustryGroup]] | 786 |  |
+| `ConditionOperator` | StrEnum | EQ, GT, LT, GTE, LTE, IN_SET | 393 | Operator for strategy rule conditions. |
+| `RuleStatus` | StrEnum | CANDIDATE, APPROVED, REJECTED | 408 | Lifecycle status for mined strategy rules. |
+| `SurfaceMethod` | StrEnum | SPLINE, NEURAL | 421 | IV surface fitting method selection. |
+| `WeightType` | StrEnum | VOTE, INDICATOR | 428 | Discriminator for auto-tune weight snapshots. |
+| `DeskType` | StrEnum | TREND, VOLATILITY, FLOW, FUNDAMENTAL, RISK, CONTRARIAN, RESEARCH | 435 | Desk specialization for agency routing. |
+| `QueryType` | StrEnum | ANALYSIS, COMPARISON, STRATEGY, RISK_CHECK, GENERAL | 447 | Classification of user query intent for desk routing. |
+| `GICSIndustryGroup` | StrEnum | 26 values (TELECOMMUNICATION_SERVICES ... UTILITIES) | 457 | GICS Industry Groups (2023 standard). |
+| `INDUSTRY_GROUP_ALIASES` | const | dict[str, GICSIndustryGroup] | 503 |  |
+| `SECTOR_TO_INDUSTRY_GROUPS` | const | dict[GICSSector, list[GICSIndustryGroup]] | 814 |  |
 
 #### models/filters.py
 
@@ -276,6 +278,14 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 |--------|------|-----------|------|-------------|
 | `DimensionalScores` | model | `frozen=True` | 15 | 8 per-family sub-scores computed from IndicatorSignals. |
 | `DirectionSignal` | model | `frozen=True` | 50 | Continuous direction confidence with contributing signal breakdown. |
+
+#### models/strategy.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `StrategyCondition` | model | `frozen=True` | 20 | A single dimensional condition within a strategy rule. |
+| `StrategyRule` | model | `frozen=True` | 34 | A mined strategy pattern with conditions, performance stats, and status. |
+| `AgentMemory` | model | `frozen=True` | 83 | Long-term memory entry for a desk agent. |
 
 #### models/valuation.py
 
@@ -826,6 +836,17 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `.save_indicator_weights` | async method | `(weights: dict[str, float], static_weights: dict[str, float], window_days: int, accuracy: float \|...` | 496 | Persist a computed set of indicator weights. |
 | `.get_weight_history` | async method | `(limit: int = 20, weight_type: WeightType \| None = None) -> list[WeightSnapshot]` | 539 | Retrieve historical auto-tune weight snapshots, newest first. |
 
+#### data/_learning.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `LearningMixin` | class | `(RepositoryBase)` | 22 | CRUD operations for strategy rules and agent memory. |
+| `.save_strategy_rule` | async method | `(rule: StrategyRule, *, commit: bool = True) -> None` | 39 | Persist a strategy rule (upsert by rule_id). |
+| `.get_strategy_rules` | async method | `(status: RuleStatus \| None = None) -> list[StrategyRule]` | 79 | Retrieve strategy rules, optionally filtered by status. |
+| `.update_rule_status` | async method | `(rule_id: str, status: RuleStatus, *, commit: bool = True) -> bool` | 108 | Update the status of a strategy rule. |
+| `.save_agent_memory` | async method | `(memory: AgentMemory, *, commit: bool = True) -> None` | 143 | Persist an agent memory entry (upsert by memory_id). |
+| `.get_agent_memories` | async method | `(agent_name: str \| None = None, scope_type: str \| None = None) -> list[AgentMemory]` | 179 | Retrieve agent memory entries, optionally filtered. |
+
 #### data/_metadata.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -872,7 +893,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `Repository` | class | `(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin, AgencyMixin)` | 25 | Typed CRUD for all persistence domains. |
+| `Repository` | class | `(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin, AgencyMixin, LearningMixin)` | 26 | Typed CRUD for all persistence domains. |
 
 ---
 
@@ -916,8 +937,8 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `classify_intent` | func | `(query: str) -> QueryIntent` | 235 | Classify a natural-language query into desk routing intent. |
-| `run_agency_query` | async func | `(query: AgencyQuery, *, market_data: MarketDataService, options_data: OptionsDataService, fred: F...` | 480 | Route a user query to desk agent(s) and synthesize the response. |
+| `classify_intent` | func | `(query: str) -> QueryIntent` | 237 | Classify a natural-language query into desk routing intent. |
+| `run_agency_query` | async func | `(query: AgencyQuery, *, market_data: MarketDataService, options_data: OptionsDataService, fred: F...` | 482 | Route a user query to desk agent(s) and synthesize the response. |
 
 #### agents/_toolsets.py
 
@@ -962,7 +983,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `run_contrarian_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 51 | Run a contrarian desk query with timeout and error handling. |
+| `run_contrarian_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 54 | Run a contrarian desk query with timeout and error handling. |
 
 #### agents/flow_agent.py
 
@@ -975,7 +996,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `run_flow_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 50 | Run a flow desk query with timeout and error handling. |
+| `run_flow_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 53 | Run a flow desk query with timeout and error handling. |
 
 #### agents/fundamental_agent.py
 
@@ -988,7 +1009,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `run_fundamental_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 50 | Run a fundamental desk query with timeout and error handling. |
+| `run_fundamental_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 53 | Run a fundamental desk query with timeout and error handling. |
 
 #### agents/model_config.py
 
@@ -1092,7 +1113,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `run_research_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 51 | Run a research desk query with timeout and error handling. |
+| `run_research_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 54 | Run a research desk query with timeout and error handling. |
 
 #### agents/risk.py
 
@@ -1105,7 +1126,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `run_risk_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 50 | Run a risk desk query with timeout and error handling. |
+| `run_risk_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 53 | Run a risk desk query with timeout and error handling. |
 
 #### agents/trend_agent.py
 
@@ -1118,7 +1139,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `run_trend_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 50 | Run a trend desk query with timeout and error handling. |
+| `run_trend_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 53 | Run a trend desk query with timeout and error handling. |
 
 #### agents/volatility.py
 
@@ -1131,7 +1152,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `run_vol_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 50 | Run a volatility desk query with timeout and error handling. |
+| `run_vol_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 53 | Run a volatility desk query with timeout and error handling. |
 
 ---
 
@@ -1219,8 +1240,8 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `lifespan` | async func | `(app: FastAPI) -> AsyncGenerator[None]` | 56 | Create all services at startup, close them at shutdown. |
-| `create_app` | func | `() -> FastAPI` | 187 | Build and configure the FastAPI application. |
+| `lifespan` | async func | `(app: FastAPI) -> AsyncGenerator[None]` | 66 | Create all services at startup, close them at shutdown. |
+| `create_app` | func | `() -> FastAPI` | 199 | Build and configure the FastAPI application. |
 
 #### api/deps.py
 
@@ -1287,9 +1308,9 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `start_debate` | async func | `(request: Request, body: DebateRequest, settings: AppSettings = ..., repo: Repository = Depends(g...` | 250 | Start a single-ticker debate in the background. |
-| `start_batch_debate` | async func | `(request: Request, body: BatchDebateRequest, lock: asyncio.Lock = ..., settings: AppSettings = .....` | 524 | Start a batch debate for top N tickers from a scan. |
-| `list_debates` | async func | `(request: Request, repo: Repository = Depends(get_repo), ticker: str \| None = Query(None), limit:...` | 582 | List past debate summaries. |
-| `get_debate` | async func | `(request: Request, debate_id: int, repo: Repository = Depends(get_repo)) -> DebateResultDetail` | 654 | Get full debate result by ID. |
+| `start_batch_debate` | async func | `(request: Request, body: BatchDebateRequest, lock: asyncio.Lock = ..., settings: AppSettings = .....` | 523 | Start a batch debate for top N tickers from a scan. |
+| `list_debates` | async func | `(request: Request, repo: Repository = Depends(get_repo), ticker: str \| None = Query(None), limit:...` | 580 | List past debate summaries. |
+| `get_debate` | async func | `(request: Request, debate_id: int, repo: Repository = Depends(get_repo)) -> DebateResultDetail` | 652 | Get full debate result by ID. |
 
 #### api/routes/export.py
 
@@ -1309,10 +1330,13 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `get_current_weights` | async func | `(request: Request, repo: Repository = Depends(get_repo)) -> list[WeightSnapshot]` | 28 | Get the most recent vote and indicator weight snapshots. |
-| `get_weight_history` | async func | `(request: Request, repo: Repository = Depends(get_repo), weight_type: str \| None = ..., limit: in...` | 40 | Retrieve historical weight snapshots, newest first. |
-| `get_learning_status` | async func | `(request: Request, repo: Repository = Depends(get_repo)) -> LearningStatus` | 59 | Get learning system status: last tune timestamps and counts. |
-| `trigger_indicator_tune` | async func | `(request: Request, repo: Repository = Depends(get_repo), lock: asyncio.Lock = ..., window: int = ...` | 80 | Trigger indicator weight tuning from historical outcome data. |
+| `get_current_weights` | async func | `(request: Request, repo: Repository = Depends(get_repo)) -> list[WeightSnapshot]` | 31 | Get the most recent vote and indicator weight snapshots. |
+| `get_weight_history` | async func | `(request: Request, repo: Repository = Depends(get_repo), weight_type: WeightType \| None = ..., li...` | 43 | Retrieve historical weight snapshots, newest first. |
+| `get_learning_status` | async func | `(request: Request, repo: Repository = Depends(get_repo)) -> LearningStatus` | 55 | Get learning system status: last tune timestamps and counts. |
+| `trigger_indicator_tune` | async func | `(request: Request, repo: Repository = Depends(get_repo), lock: asyncio.Lock = ..., window: int = ...` | 76 | Trigger indicator weight tuning from historical outcome data. |
+| `trigger_mining` | async func | `(request: Request, repo: Repository = Depends(get_repo), lock: asyncio.Lock = ...) -> list[Strate...` | 104 | Trigger strategy pattern mining from historical outcome data. |
+| `get_playbook` | async func | `(request: Request, repo: Repository = Depends(get_repo), status: RuleStatus \| None = ...) -> list...` | 125 | List strategy rules, optionally filtered by status. |
+| `update_rule_status` | async func | `(request: Request, rule_id: str, status: RuleStatus = ..., repo: Repository = Depends(get_repo)) ...` | 136 | Update the status of a strategy rule (approve/reject). |
 
 #### api/routes/market.py
 
@@ -1327,12 +1351,12 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `start_scan` | async func | `(request: Request, body: ScanRequest, lock: asyncio.Lock = ..., settings: AppSettings = ..., repo...` | 127 | Start a new scan pipeline in the background. |
-| `list_scans` | async func | `(request: Request, repo: Repository = Depends(get_repo), limit: int = ...) -> list[ScanRun]` | 250 | List past scan runs, newest first. |
-| `get_scan` | async func | `(request: Request, scan_id: int, repo: Repository = Depends(get_repo)) -> ScanRun` | 261 | Get a single scan run's metadata. |
-| `get_scores` | async func | `(request: Request, scan_id: int, repo: Repository = Depends(get_repo), page: int = Query(1, ge=1)...` | 275 | Get paginated scores for a scan run with filtering/sorting. |
-| `get_ticker_detail` | async func | `(request: Request, scan_id: int, ticker: str = ..., repo: Repository = Depends(get_repo)) -> Tick...` | 418 | Get a single ticker's score and recommended contracts. |
-| `get_scan_diff` | async func | `(request: Request, scan_id: int, repo: Repository = Depends(get_repo), base_id: int = ...) -> Sca...` | 462 | Compute the diff between two scans. |
-| `cancel_scan` | async func | `(request: Request) -> CancelScanResponse` | 546 | Cancel the currently running scan. |
+| `list_scans` | async func | `(request: Request, repo: Repository = Depends(get_repo), limit: int = ...) -> list[ScanRun]` | 249 | List past scan runs, newest first. |
+| `get_scan` | async func | `(request: Request, scan_id: int, repo: Repository = Depends(get_repo)) -> ScanRun` | 260 | Get a single scan run's metadata. |
+| `get_scores` | async func | `(request: Request, scan_id: int, repo: Repository = Depends(get_repo), page: int = Query(1, ge=1)...` | 274 | Get paginated scores for a scan run with filtering/sorting. |
+| `get_ticker_detail` | async func | `(request: Request, scan_id: int, ticker: str = ..., repo: Repository = Depends(get_repo)) -> Tick...` | 417 | Get a single ticker's score and recommended contracts. |
+| `get_scan_diff` | async func | `(request: Request, scan_id: int, repo: Repository = Depends(get_repo), base_id: int = ...) -> Sca...` | 461 | Compute the diff between two scans. |
+| `cancel_scan` | async func | `(request: Request) -> CancelScanResponse` | 545 | Cancel the currently running scan. |
 
 #### api/routes/ticker.py
 
@@ -1385,6 +1409,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `AgencyQueryRequest` | model |  | 798 | Request body for ``POST /api/agency/query``. |
 | `AgencyQueryStarted` | model |  | 806 | Response for submitted agency query. |
 | `LivenessResponse` | model |  | 813 | Basic liveness check response for ``GET /api/health``. |
+| `UpdateStatusResponse` | model |  | 819 | Response for status update operations (strategy rules, etc.). |
 
 #### api/ws.py
 
@@ -1416,7 +1441,9 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `ask` | func | `(query: Annotated[str, typer.Argument(help='N..., desk: Annotated[str \| None, typer.Option('-... ...` | 38 | Submit a query to the AI agency desk system. |
 | `history` | func | `(limit: Annotated[int, typer.Option('--limit'... = 20) -> None` | 51 | Show recent agency queries. |
 | `learn_status` | func | `() -> None` | 267 | Show learning system status: last tune timestamps and sample counts. |
-| `learn_weights` | func | `(window: int = ..., dry_run: bool = ...) -> None` | 314 | Compute indicator weight tuning and show comparison table. |
+| `learn_weights` | func | `(window: int = ..., apply: bool = ...) -> None` | 314 | Compute indicator weight tuning and show comparison table. |
+| `learn_mine` | func | `() -> None` | 381 | Mine historical outcomes for strategy patterns. |
+| `learn_playbook` | func | `(status: str \| None = ...) -> None` | 434 | List strategy rules in the playbook. |
 
 #### cli/app.py
 
@@ -1787,6 +1814,7 @@ Each row maps a source file to its test files and approximate test count.
 | `models/scan.py` | `tests/unit/models/test_scan.py` | 31 |
 | `models/scan_delta.py` | — | 0 |
 | `models/scoring.py` | `tests/unit/models/test_scoring.py` | 28 |
+| `models/strategy.py` | `tests/unit/models/test_strategy.py` | 35 |
 | `models/valuation.py` | — | 0 |
 
 ### indicators/
@@ -1861,6 +1889,7 @@ Each row maps a source file to its test files and approximate test count.
 | `data/_analytics.py` | — | 0 |
 | `data/_base.py` | — | 0 |
 | `data/_debate.py` | — | 0 |
+| `data/_learning.py` | — | 0 |
 | `data/_metadata.py` | — | 0 |
 | `data/_scan.py` | — | 0 |
 | `data/_spreads.py` | — | 0 |
@@ -1937,7 +1966,7 @@ Each row maps a source file to its test files and approximate test count.
 | `api/routes/debate.py` | `tests/unit/api/test_debate_routes.py` | 17 |
 | `api/routes/export.py` | `tests/unit/api/test_export_routes.py` | 2 |
 | `api/routes/health.py` | `tests/unit/api/test_health_routes.py` | 3 |
-| `api/routes/learning.py` | `tests/unit/api/test_learning_routes.py` | 9 |
+| `api/routes/learning.py` | `tests/unit/api/test_learning_routes.py` | 11 |
 | `api/routes/market.py` | `tests/unit/api/test_market_routes.py` | 19 |
 | `api/routes/scan.py` | `tests/unit/api/test_scan_routes.py` | 20 |
 | `api/routes/ticker.py` | `tests/unit/api/test_ticker_routes.py` | 4 |
@@ -1964,15 +1993,15 @@ Each row maps a source file to its test files and approximate test count.
 | Module | Files | Public Symbols | Test Files | Tests |
 |--------|-------|----------------|------------|-------|
 | utils/ | 1 | 4 | 1 | 11 |
-| models/ | 21 | 148 | 13 | 596 |
+| models/ | 22 | 153 | 14 | 631 |
 | indicators/ | 17 | 73 | 16 | 504 |
 | pricing/ | 8 | 25 | 7 | 244 |
 | services/ | 13 | 112 | 12 | 360 |
 | scoring/ | 6 | 29 | 6 | 227 |
-| data/ | 9 | 66 | 2 | 46 |
+| data/ | 10 | 72 | 2 | 46 |
 | agents/ | 33 | 90 | 16 | 422 |
 | scan/ | 8 | 23 | 3 | 82 |
 | reporting/ | 1 | 2 | 1 | 10 |
-| api/ | 16 | 110 | 13 | 148 |
-| cli/ | 7 | 43 | 3 | 27 |
-| **Total** | **140** | **725** | **93** | **2677** |
+| api/ | 16 | 114 | 13 | 150 |
+| cli/ | 7 | 45 | 3 | 27 |
+| **Total** | **142** | **742** | **94** | **2714** |

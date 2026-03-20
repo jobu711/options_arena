@@ -3,20 +3,20 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from pydantic_ai import models
 from pydantic_ai.models.test import TestModel
 
 from options_arena.agents._desk_deps import DeskDeps
-from options_arena.agents.volatility_desk import vol_desk
-from options_arena.agents.risk_desk import risk_desk
-from options_arena.agents.trend_desk import trend_desk
+from options_arena.agents.contrarian_desk import contrarian_desk
 from options_arena.agents.flow_desk import flow_desk
 from options_arena.agents.fundamental_desk import fundamental_desk
-from options_arena.agents.contrarian_desk import contrarian_desk
 from options_arena.agents.research_desk import research_desk
+from options_arena.agents.risk_desk import risk_desk
+from options_arena.agents.trend_desk import trend_desk
+from options_arena.agents.volatility_desk import vol_desk
 from options_arena.learning.strategy_book import render_learned_patterns
 from options_arena.models import (
     ConditionOperator,
@@ -121,8 +121,13 @@ class TestPromptInjection:
         """Verify each of the 7 desk agents accepts learned_patterns without error."""
         patterns = render_learned_patterns([_make_rule()])
         agents = [
-            vol_desk, risk_desk, trend_desk, flow_desk,
-            fundamental_desk, contrarian_desk, research_desk,
+            vol_desk,
+            risk_desk,
+            trend_desk,
+            flow_desk,
+            fundamental_desk,
+            contrarian_desk,
+            research_desk,
         ]
         for agent in agents:
             deps = _make_deps(patterns)
@@ -135,8 +140,13 @@ class TestPromptInjection:
     async def test_all_seven_desks_clean_without_patterns(self) -> None:
         """Verify all desks run cleanly when no patterns provided."""
         agents = [
-            vol_desk, risk_desk, trend_desk, flow_desk,
-            fundamental_desk, contrarian_desk, research_desk,
+            vol_desk,
+            risk_desk,
+            trend_desk,
+            flow_desk,
+            fundamental_desk,
+            contrarian_desk,
+            research_desk,
         ]
         for agent in agents:
             deps = _make_deps("")

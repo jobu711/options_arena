@@ -203,10 +203,9 @@ def filter_significant(
             continue
 
         # Chi-squared statistic (1 degree of freedom)
-        chi2 = (
-            (observed_wins - expected_wins) ** 2 / expected_wins
-            + (observed_losses - expected_losses) ** 2 / expected_losses
-        )
+        chi2 = (observed_wins - expected_wins) ** 2 / expected_wins + (
+            observed_losses - expected_losses
+        ) ** 2 / expected_losses
 
         # Critical value for p < 0.05 with 1 df is 3.841
         if chi2 >= 3.841:
@@ -233,9 +232,13 @@ def generate_rules(significant_cells: list[PatternCell]) -> list[StrategyRule]:
 
     for cell in significant_cells:
         rule_id = (
-            f"rule_{cell.sector[:12]}_{cell.iv_bucket}_{cell.dte_bucket}"
-            f"_{cell.direction}_{uuid.uuid4().hex[:6]}"
-        ).replace(" ", "_").lower()
+            (
+                f"rule_{cell.sector[:12]}_{cell.iv_bucket}_{cell.dte_bucket}"
+                f"_{cell.direction}_{uuid.uuid4().hex[:6]}"
+            )
+            .replace(" ", "_")
+            .lower()
+        )
 
         # Build conditions from cell dimensions
         conditions = [

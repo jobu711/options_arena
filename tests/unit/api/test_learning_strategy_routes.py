@@ -110,9 +110,7 @@ class TestPlaybookEndpoint:
         mock_repo: MagicMock,
     ) -> None:
         """Verify GET /api/learning/playbook returns all rules."""
-        mock_repo.get_strategy_rules = AsyncMock(
-            return_value=[_make_rule("r1"), _make_rule("r2")]
-        )
+        mock_repo.get_strategy_rules = AsyncMock(return_value=[_make_rule("r1"), _make_rule("r2")])
         response = await client.get("/api/learning/playbook")
         assert response.status_code == 200
         data = response.json()
