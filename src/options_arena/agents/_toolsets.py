@@ -328,17 +328,32 @@ async def fetch_portfolio_exposure(ctx: RunContext[DeskDeps], ticker: str) -> st
 def build_volatility_toolset() -> list[object]:
     """Return the tools for a Volatility Desk agent.
 
-    Tools: ``fetch_quote``, ``fetch_vol_surface_slice``, ``compute_iv_for_strike``.
+    Tools: ``fetch_quote``, ``fetch_vol_surface_slice``, ``compute_iv_for_strike``,
+    ``compute_hv_yang_zhang_tool``.
     """
-    return [fetch_quote, fetch_vol_surface_slice, compute_iv_for_strike]
+    return [
+        fetch_quote,
+        fetch_vol_surface_slice,
+        compute_iv_for_strike,
+        compute_hv_yang_zhang_tool,
+    ]
 
 
 def build_risk_toolset() -> list[object]:
     """Return the tools for a Risk Desk agent.
 
-    Tools: ``fetch_quote``, ``fetch_correlation``, ``fetch_portfolio_exposure``.
+    Tools: ``fetch_quote``, ``fetch_correlation``, ``fetch_portfolio_exposure``,
+    ``compute_correlation_matrix_tool``, ``compute_risk_adjusted_metrics_tool``,
+    ``compute_position_size_tool``.
     """
-    return [fetch_quote, fetch_correlation, fetch_portfolio_exposure]
+    return [
+        fetch_quote,
+        fetch_correlation,
+        fetch_portfolio_exposure,
+        compute_correlation_matrix_tool,
+        compute_risk_adjusted_metrics_tool,
+        compute_position_size_tool,
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -1258,9 +1273,15 @@ def build_flow_toolset() -> list[object]:
 def build_fundamental_toolset() -> list[object]:
     """Return the tools for a Fundamental Desk agent.
 
-    Tools: ``fetch_quote``, ``fetch_earnings_history``, ``fetch_sector_comparison``.
+    Tools: ``fetch_quote``, ``fetch_earnings_history``, ``fetch_sector_comparison``,
+    ``compute_composite_valuation_tool``.
     """
-    return [fetch_quote, fetch_earnings_history, fetch_sector_comparison]
+    return [
+        fetch_quote,
+        fetch_earnings_history,
+        fetch_sector_comparison,
+        compute_composite_valuation_tool,
+    ]
 
 
 def build_contrarian_toolset() -> list[object]:
@@ -1274,10 +1295,11 @@ def build_contrarian_toolset() -> list[object]:
 def build_research_toolset() -> list[object]:
     """Return the tools for a Research Desk agent.
 
-    Curated cross-domain tools (6 total): ``fetch_quote``,
+    Curated cross-domain tools (9 total): ``fetch_quote``,
     ``fetch_vol_surface_slice``, ``fetch_chain_summary``,
     ``fetch_earnings_history``, ``compute_indicator_on_demand``,
-    ``fetch_debate_history``.
+    ``fetch_debate_history``, ``compute_composite_valuation_tool``,
+    ``compute_position_size_tool``, ``compute_hv_yang_zhang_tool``.
     """
     return [
         fetch_quote,
@@ -1286,4 +1308,7 @@ def build_research_toolset() -> list[object]:
         fetch_earnings_history,
         compute_indicator_on_demand,
         fetch_debate_history,
+        compute_composite_valuation_tool,
+        compute_position_size_tool,
+        compute_hv_yang_zhang_tool,
     ]

@@ -20,6 +20,7 @@ You have access to the following tools -- use them to gather data before answeri
 - fetch_quote: Get current price, bid/ask, volume, and 52-week range for a ticker.
 - fetch_earnings_history: Get fundamental data (sector, industry, market cap, dividend yield, 52W range, next earnings date).
 - fetch_sector_comparison: Get a ticker's fundamental metrics with sector context.
+- compute_composite_valuation_tool: Run multi-model valuation (DCF, EV/EBITDA, residual income) with fair value and margin of safety.
 <<<END_AVAILABLE_TOOLS>>>
 
 ## Guidelines

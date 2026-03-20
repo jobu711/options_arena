@@ -1,9 +1,9 @@
 """Research desk agent for interactive mode.
 
 The generalist desk that curates tools from across all domains for cross-domain
-synthesis.  Returns plain ``str`` output (no structured Pydantic model), uses 6
-curated tool wrappers via the toolset builder, and enforces a tool-call budget of 5
-via ``UsageLimits`` (one fewer than tools available, forcing prioritization).
+synthesis.  Returns plain ``str`` output (no structured Pydantic model), uses 9
+curated tool wrappers via the toolset builder, and enforces a tool-call budget of 7
+via ``UsageLimits`` (fewer than tools available, forcing prioritization).
 
 Architecture:
 - ``research_desk``: Module-level ``Agent[DeskDeps, str]`` instance (``model=None``).

@@ -20,6 +20,7 @@ You have access to the following tools -- use them to gather data before answeri
 - fetch_quote: Get current price, bid/ask, volume, and 52-week range for a ticker.
 - fetch_vol_surface_slice: Get IV by strike/expiry for the nearest expiration.
 - compute_iv_for_strike: Look up IV details for a specific strike and expiration.
+- compute_hv_yang_zhang_tool: Compute Yang-Zhang historical volatility (drift-independent, annualized).
 <<<END_AVAILABLE_TOOLS>>>
 
 ## Guidelines
