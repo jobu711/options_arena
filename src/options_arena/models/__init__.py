@@ -37,7 +37,9 @@ from options_arena.models.analytics import (
     HoldingPeriodComparison,
     HoldingPeriodResult,
     IndicatorAttributionResult,
+    IndicatorWeightComparison,
     IVRankBucketResult,
+    LearningStatus,
     NormalizationStats,
     PerformanceSummary,
     RecommendedContract,
@@ -105,6 +107,7 @@ from options_arena.models.enums import (
     VolAssessment,
     VolRegime,
     VolRegimeTier,
+    WeightType,
 )
 from options_arena.models.filters import (
     OptionsFilters,
@@ -183,6 +186,7 @@ __all__ = [
     "VolAssessment",
     "VolRegime",
     "VolRegimeTier",
+    "WeightType",
     # Market data
     "OHLCV",
     "Quote",
@@ -226,6 +230,8 @@ __all__ = [
     "HoldingPeriodResult",
     "IVRankBucketResult",
     "IndicatorAttributionResult",
+    "IndicatorWeightComparison",
+    "LearningStatus",
     "NormalizationStats",
     "PerformanceSummary",
     "RecommendedContract",

@@ -397,6 +397,13 @@ class SurfaceMethod(StrEnum):
     NEURAL = "neural"
 
 
+class WeightType(StrEnum):
+    """Discriminator for auto-tune weight snapshots."""
+
+    VOTE = "vote"
+    INDICATOR = "indicator"
+
+
 class DeskType(StrEnum):
     """Desk specialization for agency routing."""
 

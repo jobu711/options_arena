@@ -29,6 +29,7 @@ from options_arena.models.enums import (
     OutcomeCollectionMethod,
     PricingModel,
     SignalDirection,
+    WeightType,
 )
 
 
@@ -1149,6 +1150,9 @@ class WeightSnapshot(BaseModel):
         computed_at: UTC timestamp when these weights were computed.
         window_days: Lookback window in calendar days (>= 1).
         weights: Non-empty list of per-agent weight comparisons.
+        weight_type: Discriminator — ``vote`` (agent weights) or ``indicator``
+            (composite scoring weights). Defaults to ``vote`` for backward compat.
+        accuracy_at_time: Model accuracy when weights were computed (optional).
     """
 
     model_config = ConfigDict(frozen=True)
@@ -1156,6 +1160,8 @@ class WeightSnapshot(BaseModel):
     computed_at: datetime
     window_days: int
     weights: list[AgentWeightsComparison]
+    weight_type: WeightType = WeightType.VOTE
+    accuracy_at_time: float | None = None
 
     @field_validator("computed_at")
     @classmethod
@@ -1182,6 +1188,101 @@ class WeightSnapshot(BaseModel):
         """Ensure weights list is non-empty."""
         if len(v) == 0:
             raise ValueError("weights must not be empty")
+        return v
+
+    @field_validator("accuracy_at_time")
+    @classmethod
+    def validate_accuracy_finite(cls, v: float | None) -> float | None:
+        """Ensure accuracy_at_time is finite when present."""
+        if v is not None and not math.isfinite(v):
+            raise ValueError(f"accuracy_at_time must be finite, got {v}")
+        return v
+
+
+# ---------------------------------------------------------------------------
+# Indicator weight comparison
+# ---------------------------------------------------------------------------
+
+
+class LearningStatus(BaseModel):
+    """Learning system status snapshot for API responses."""
+
+    model_config = ConfigDict(frozen=True)
+
+    last_vote_tune: datetime | None = None
+    last_indicator_tune: datetime | None = None
+    vote_agent_count: int = 0
+    indicator_count: int = 0
+    accuracy_at_last_tune: float | None = None
+    learning_enabled: bool = True
+
+    @field_validator("last_vote_tune", "last_indicator_tune")
+    @classmethod
+    def validate_utc_optional(cls, v: datetime | None) -> datetime | None:
+        """Ensure timestamps are UTC when present."""
+        if v is not None and (v.tzinfo is None or v.utcoffset() != timedelta(0)):
+            raise ValueError("timestamp must be UTC")
+        return v
+
+    @field_validator("accuracy_at_last_tune")
+    @classmethod
+    def validate_accuracy_finite(cls, v: float | None) -> float | None:
+        """Ensure accuracy is finite when present."""
+        if v is not None and not math.isfinite(v):
+            raise ValueError(f"accuracy_at_last_tune must be finite, got {v}")
+        return v
+
+    @field_validator("vote_agent_count", "indicator_count")
+    @classmethod
+    def validate_counts_non_negative(cls, v: int) -> int:
+        """Ensure counts are non-negative."""
+        if v < 0:
+            raise ValueError(f"count must be >= 0, got {v}")
+        return v
+
+
+class IndicatorWeightComparison(BaseModel):
+    """Static vs tuned weight comparison for a single indicator.
+
+    Returned by ``auto_tune_indicator_weights()`` to show how each indicator's
+    weight changed from the static default to the data-tuned value.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    indicator_name: str
+    static_weight: float
+    tuned_weight: float
+    pearson_r: float | None = None
+    sample_count: int = 0
+
+    @field_validator("static_weight", "tuned_weight")
+    @classmethod
+    def validate_weight_finite(cls, v: float) -> float:
+        """Ensure weights are finite and non-negative."""
+        if not math.isfinite(v):
+            raise ValueError(f"weight must be finite, got {v}")
+        if v < 0.0:
+            raise ValueError(f"weight must be >= 0, got {v}")
+        return v
+
+    @field_validator("pearson_r")
+    @classmethod
+    def validate_pearson_bounded(cls, v: float | None) -> float | None:
+        """Ensure pearson_r is finite and in [-1, 1] when present."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"pearson_r must be finite, got {v}")
+            if not -1.0 <= v <= 1.0:
+                raise ValueError(f"pearson_r must be in [-1, 1], got {v}")
+        return v
+
+    @field_validator("sample_count")
+    @classmethod
+    def validate_sample_non_negative(cls, v: int) -> int:
+        """Ensure sample_count is >= 0."""
+        if v < 0:
+            raise ValueError(f"sample_count must be >= 0, got {v}")
         return v
 
 

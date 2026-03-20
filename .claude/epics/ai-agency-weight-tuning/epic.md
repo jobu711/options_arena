@@ -1,14 +1,16 @@
 ---
 name: ai-agency-weight-tuning
-status: backlog
+status: completed
 created: 2026-03-17T14:37:45Z
-progress: 0%
+updated: 2026-03-20T15:20:34Z
+completed: 2026-03-20T15:20:34Z
+progress: 100%
 prd: .claude/prds/ai-agency-evolution.md
 parent_epic: ai-agency-evolution
 epic_number: 4
 dependencies: [ai-agency-desk-foundation, ai-agency-advisor-routing]
 parallelizable_with: [ai-agency-analysis-tools, ai-agency-ml-tools]
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/606
 ---
 
 # Epic 4: Self-Improvement P1 — Weight Tuning
@@ -72,4 +74,20 @@ Create the `learning/` module and implement Phase 1 of self-improvement: extende
 
 ## Estimated Effort
 
-3-4 issues, ~2 implementation sessions
+5 issues, ~2-3 implementation sessions
+
+## Tasks Created
+- [ ] #608 - Create learning/ module and relocate vote weight tuning (parallel: false)
+- [ ] #610 - Implement indicator weight tuning via outcome P&L correlation (parallel: false)
+- [ ] #611 - Migration 035 and data layer for indicator weight persistence (parallel: false)
+- [ ] #607 - Indicator weight tuning orchestration and outcome collection trigger (parallel: false)
+- [ ] #609 - Weight history API endpoints and LearningDashboard frontend tab (parallel: false)
+
+Total tasks: 5
+Parallel tasks: 0
+Sequential tasks: 5 (dependency chain: #608 → #610 → #611 → #607 → #609)
+Estimated total effort: 18-25 hours
+
+## Test Coverage Plan
+Total test files planned: 7 (5 Python unit + 1 Python integration + 1 E2E)
+Total test cases planned: ~40+

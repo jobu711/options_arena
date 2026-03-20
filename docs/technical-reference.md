@@ -64,28 +64,30 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `RecommendedContract` | model | `frozen=True` | 35 | A recommended option contract persisted from a scan run. |
-| `ContractOutcome` | model | `frozen=True` | 203 | Outcome data for a recommended contract at a given exit point. |
-| `NormalizationStats` | model | `frozen=True` | 293 | Normalization statistics for a single indicator in a scan run. |
-| `WinRateResult` | model | `frozen=True` | 356 | Win rate analytics result grouped by signal direction. |
-| `ScoreCalibrationBucket` | model | `frozen=True` | 394 | Score calibration analytics result for a score range bucket. |
-| `IndicatorAttributionResult` | model | `frozen=True` | 440 | Indicator attribution analytics result. |
-| `HoldingPeriodResult` | model | `frozen=True` | 491 | Holding period analytics result. |
-| `DeltaPerformanceResult` | model | `frozen=True` | 541 | Delta performance analytics result. |
-| `PerformanceSummary` | model | `frozen=True` | 591 | Aggregate performance summary over a lookback period. |
-| `AgentAccuracyReport` | model | `frozen=True` | 660 | Per-agent direction accuracy and Brier score. |
-| `CalibrationBucket` | model | `frozen=True` | 710 | Single confidence calibration bucket. |
-| `AgentCalibrationData` | model | `frozen=True` | 761 | Per-agent or aggregate confidence calibration data. |
-| `AgentWeightsComparison` | model | `frozen=True` | 779 | Manual vs auto-tuned weight comparison for a single agent. |
-| `EquityCurvePoint` | model | `frozen=True` | 825 | A single data point on the backtesting equity curve. |
-| `DrawdownPoint` | model | `frozen=True` | 857 | A single data point on the backtesting drawdown curve. |
-| `SectorPerformanceResult` | model | `frozen=True` | 889 | Backtesting performance analytics grouped by GICS sector. |
-| `DTEBucketResult` | model | `frozen=True` | 933 | Backtesting performance analytics grouped by days-to-expiration range. |
-| `IVRankBucketResult` | model | `frozen=True` | 987 | Backtesting performance analytics grouped by implied volatility rank range. |
-| `GreeksDecompositionResult` | model | `frozen=True` | 1041 | Backtesting P&L decomposition by Greeks for a group of contracts. |
-| `HoldingPeriodComparison` | model | `frozen=True` | 1077 | Backtesting holding period comparison for a specific duration and direction. |
-| `WeightSnapshot` | model | `frozen=True` | 1142 | A point-in-time snapshot of auto-tuned agent weights. |
-| `RiskAdjustedMetrics` | model | `frozen=True` | 1193 | Risk-adjusted performance metrics over a lookback period. |
+| `RecommendedContract` | model | `frozen=True` | 36 | A recommended option contract persisted from a scan run. |
+| `ContractOutcome` | model | `frozen=True` | 204 | Outcome data for a recommended contract at a given exit point. |
+| `NormalizationStats` | model | `frozen=True` | 294 | Normalization statistics for a single indicator in a scan run. |
+| `WinRateResult` | model | `frozen=True` | 357 | Win rate analytics result grouped by signal direction. |
+| `ScoreCalibrationBucket` | model | `frozen=True` | 395 | Score calibration analytics result for a score range bucket. |
+| `IndicatorAttributionResult` | model | `frozen=True` | 441 | Indicator attribution analytics result. |
+| `HoldingPeriodResult` | model | `frozen=True` | 492 | Holding period analytics result. |
+| `DeltaPerformanceResult` | model | `frozen=True` | 542 | Delta performance analytics result. |
+| `PerformanceSummary` | model | `frozen=True` | 592 | Aggregate performance summary over a lookback period. |
+| `AgentAccuracyReport` | model | `frozen=True` | 661 | Per-agent direction accuracy and Brier score. |
+| `CalibrationBucket` | model | `frozen=True` | 711 | Single confidence calibration bucket. |
+| `AgentCalibrationData` | model | `frozen=True` | 762 | Per-agent or aggregate confidence calibration data. |
+| `AgentWeightsComparison` | model | `frozen=True` | 780 | Manual vs auto-tuned weight comparison for a single agent. |
+| `EquityCurvePoint` | model | `frozen=True` | 826 | A single data point on the backtesting equity curve. |
+| `DrawdownPoint` | model | `frozen=True` | 858 | A single data point on the backtesting drawdown curve. |
+| `SectorPerformanceResult` | model | `frozen=True` | 890 | Backtesting performance analytics grouped by GICS sector. |
+| `DTEBucketResult` | model | `frozen=True` | 934 | Backtesting performance analytics grouped by days-to-expiration range. |
+| `IVRankBucketResult` | model | `frozen=True` | 988 | Backtesting performance analytics grouped by implied volatility rank range. |
+| `GreeksDecompositionResult` | model | `frozen=True` | 1042 | Backtesting P&L decomposition by Greeks for a group of contracts. |
+| `HoldingPeriodComparison` | model | `frozen=True` | 1078 | Backtesting holding period comparison for a specific duration and direction. |
+| `WeightSnapshot` | model | `frozen=True` | 1143 | A point-in-time snapshot of auto-tuned agent weights. |
+| `LearningStatus` | model | `frozen=True` | 1207 | Learning system status snapshot for API responses. |
+| `IndicatorWeightComparison` | model | `frozen=True` | 1244 | Static vs tuned weight comparison for a single indicator. |
+| `RiskAdjustedMetrics` | model | `frozen=True` | 1294 | Risk-adjusted performance metrics over a lookback period. |
 
 #### models/audit.py
 
@@ -167,11 +169,12 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `AuditSeverity` | StrEnum | CRITICAL, WARNING, INFO | 376 | Severity level for mathematical computation audit findings. |
 | `AuditLayer` | StrEnum | CORRECTNESS, STABILITY, PERFORMANCE, DISCOVERY | 384 | Audit layer classifying the type of mathematical audit test. |
 | `SurfaceMethod` | StrEnum | SPLINE, NEURAL | 393 | IV surface fitting method selection. |
-| `DeskType` | StrEnum | TREND, VOLATILITY, FLOW, FUNDAMENTAL, RISK, CONTRARIAN, RESEARCH | 400 | Desk specialization for agency routing. |
-| `QueryType` | StrEnum | ANALYSIS, COMPARISON, STRATEGY, RISK_CHECK, GENERAL | 412 | Classification of user query intent for desk routing. |
-| `GICSIndustryGroup` | StrEnum | 26 values (TELECOMMUNICATION_SERVICES ... UTILITIES) | 422 | GICS Industry Groups (2023 standard). |
-| `INDUSTRY_GROUP_ALIASES` | const | dict[str, GICSIndustryGroup] | 468 |  |
-| `SECTOR_TO_INDUSTRY_GROUPS` | const | dict[GICSSector, list[GICSIndustryGroup]] | 779 |  |
+| `WeightType` | StrEnum | VOTE, INDICATOR | 400 | Discriminator for auto-tune weight snapshots. |
+| `DeskType` | StrEnum | TREND, VOLATILITY, FLOW, FUNDAMENTAL, RISK, CONTRARIAN, RESEARCH | 407 | Desk specialization for agency routing. |
+| `QueryType` | StrEnum | ANALYSIS, COMPARISON, STRATEGY, RISK_CHECK, GENERAL | 419 | Classification of user query intent for desk routing. |
+| `GICSIndustryGroup` | StrEnum | 26 values (TELECOMMUNICATION_SERVICES ... UTILITIES) | 429 | GICS Industry Groups (2023 standard). |
+| `INDUSTRY_GROUP_ALIASES` | const | dict[str, GICSIndustryGroup] | 475 |  |
+| `SECTOR_TO_INDUSTRY_GROUPS` | const | dict[GICSSector, list[GICSIndustryGroup]] | 786 |  |
 
 #### models/filters.py
 
@@ -774,27 +777,28 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `AnalyticsMixin` | class | `(RepositoryBase)` | 46 | Contracts, outcomes, normalization, and analytics queries. |
-| `.save_recommended_contracts` | async method | `(scan_id: int, contracts: list[RecommendedContract], *, commit: bool = True) -> None` | 53 | Batch-insert recommended contracts for a scan run. |
-| `.get_contracts_for_scan` | async method | `(scan_id: int) -> list[RecommendedContract]` | 124 | Get all recommended contracts for a scan run. |
-| `.get_contracts_for_ticker` | async method | `(ticker: str, limit: int = 50) -> list[RecommendedContract]` | 143 | Get recent recommended contracts for a ticker. |
-| `.save_normalization_stats` | async method | `(scan_id: int, stats: list[NormalizationStats], *, commit: bool = True) -> None` | 168 | Batch-insert normalization stats for a scan run. |
-| `.save_contract_outcomes` | async method | `(outcomes: list[ContractOutcome]) -> None` | 290 | Batch-insert contract outcome records. |
-| `.get_contracts_needing_outcomes` | async method | `(holding_days: int, lookback_date: date) -> list[RecommendedContract]` | 331 | Get recommended contracts that need outcomes for a given period. |
-| `.get_win_rate_by_direction` | async method | `() -> list[WinRateResult]` | 407 | Compute win rate grouped by signal direction. |
-| `.get_score_calibration` | async method | `(bucket_size: float = 10.0) -> list[ScoreCalibrationBucket]` | 440 | Bucket contracts by composite_score and compute returns per bucket. |
-| `.get_indicator_attribution` | async method | `(indicator: str, holding_days: int = 5) -> list[IndicatorAttributionResult]` | 481 | Correlate a normalized indicator value with contract returns. |
-| `.get_optimal_holding_period` | async method | `(direction: SignalDirection \| None = None) -> list[HoldingPeriodResult]` | 560 | Get return statistics grouped by holding_days and direction. |
-| `.get_delta_performance` | async method | `(bucket_size: float = 0.1, holding_days: int = 5) -> list[DeltaPerformanceResult]` | 617 | Bucket contracts by delta and compute return statistics. |
-| `.get_performance_summary` | async method | `(lookback_days: int = 30) -> PerformanceSummary` | 676 | Compute aggregate performance summary over a lookback window. |
-| `.get_equity_curve` | async method | `(direction: str \| None = None, period_days: int \| None = None) -> list[EquityCurvePoint]` | 795 | Compute cumulative equity curve from contract outcomes. |
-| `.get_drawdown_series` | async method | `(direction: str \| None = None, period_days: int \| None = None) -> list[DrawdownPoint]` | 864 | Compute drawdown series from the equity curve. |
-| `.get_win_rate_by_sector` | async method | `(holding_days: int = 20) -> list[SectorPerformanceResult]` | 909 | Compute win rate and average return grouped by GICS sector. |
-| `.get_win_rate_by_dte_bucket` | async method | `(holding_days: int = 20) -> list[DTEBucketResult]` | 957 | Compute win rate and average return grouped by DTE buckets. |
-| `.get_win_rate_by_iv_rank` | async method | `(holding_days: int = 20) -> list[IVRankBucketResult]` | 1016 | Compute win rate and average return grouped by IV rank quartiles. |
-| `.get_greeks_decomposition` | async method | `(holding_days: int = 20, groupby: GreeksGroupBy = ...) -> list[GreeksDecompositionResult]` | 1074 | Decompose P&L into delta-attributable and residual components. |
-| `.get_holding_period_comparison` | async method | `() -> list[HoldingPeriodComparison]` | 1183 | Compare performance across holding periods and directions. |
-| `.get_risk_adjusted_metrics` | async method | `(lookback_days: int = 365, risk_free_rate: float = 0.05) -> RiskAdjustedMetrics` | 1253 | Compute risk-adjusted performance metrics from outcome data. |
+| `AnalyticsMixin` | class | `(RepositoryBase)` | 47 | Contracts, outcomes, normalization, and analytics queries. |
+| `.save_recommended_contracts` | async method | `(scan_id: int, contracts: list[RecommendedContract], *, commit: bool = True) -> None` | 54 | Batch-insert recommended contracts for a scan run. |
+| `.get_contracts_for_scan` | async method | `(scan_id: int) -> list[RecommendedContract]` | 125 | Get all recommended contracts for a scan run. |
+| `.get_contracts_for_ticker` | async method | `(ticker: str, limit: int = 50) -> list[RecommendedContract]` | 144 | Get recent recommended contracts for a ticker. |
+| `.save_normalization_stats` | async method | `(scan_id: int, stats: list[NormalizationStats], *, commit: bool = True) -> None` | 169 | Batch-insert normalization stats for a scan run. |
+| `.save_contract_outcomes` | async method | `(outcomes: list[ContractOutcome]) -> None` | 291 | Batch-insert contract outcome records. |
+| `.get_contracts_needing_outcomes` | async method | `(holding_days: int, lookback_date: date) -> list[RecommendedContract]` | 332 | Get recommended contracts that need outcomes for a given period. |
+| `.get_win_rate_by_direction` | async method | `() -> list[WinRateResult]` | 408 | Compute win rate grouped by signal direction. |
+| `.get_score_calibration` | async method | `(bucket_size: float = 10.0) -> list[ScoreCalibrationBucket]` | 441 | Bucket contracts by composite_score and compute returns per bucket. |
+| `.get_indicator_attribution` | async method | `(indicator: str, holding_days: int = 5) -> list[IndicatorAttributionResult]` | 482 | Correlate a normalized indicator value with contract returns. |
+| `.get_optimal_holding_period` | async method | `(direction: SignalDirection \| None = None) -> list[HoldingPeriodResult]` | 561 | Get return statistics grouped by holding_days and direction. |
+| `.get_delta_performance` | async method | `(bucket_size: float = 0.1, holding_days: int = 5) -> list[DeltaPerformanceResult]` | 618 | Bucket contracts by delta and compute return statistics. |
+| `.get_performance_summary` | async method | `(lookback_days: int = 30) -> PerformanceSummary` | 677 | Compute aggregate performance summary over a lookback window. |
+| `.get_equity_curve` | async method | `(direction: str \| None = None, period_days: int \| None = None) -> list[EquityCurvePoint]` | 796 | Compute cumulative equity curve from contract outcomes. |
+| `.get_drawdown_series` | async method | `(direction: str \| None = None, period_days: int \| None = None) -> list[DrawdownPoint]` | 865 | Compute drawdown series from the equity curve. |
+| `.get_win_rate_by_sector` | async method | `(holding_days: int = 20) -> list[SectorPerformanceResult]` | 910 | Compute win rate and average return grouped by GICS sector. |
+| `.get_win_rate_by_dte_bucket` | async method | `(holding_days: int = 20) -> list[DTEBucketResult]` | 958 | Compute win rate and average return grouped by DTE buckets. |
+| `.get_win_rate_by_iv_rank` | async method | `(holding_days: int = 20) -> list[IVRankBucketResult]` | 1017 | Compute win rate and average return grouped by IV rank quartiles. |
+| `.get_greeks_decomposition` | async method | `(holding_days: int = 20, groupby: GreeksGroupBy = ...) -> list[GreeksDecompositionResult]` | 1075 | Decompose P&L into delta-attributable and residual components. |
+| `.get_holding_period_comparison` | async method | `() -> list[HoldingPeriodComparison]` | 1184 | Compare performance across holding periods and directions. |
+| `.get_risk_adjusted_metrics` | async method | `(lookback_days: int = 365, risk_free_rate: float = 0.05) -> RiskAdjustedMetrics` | 1254 | Compute risk-adjusted performance metrics from outcome data. |
+| `.get_outcome_signal_pairs` | async method | `(window_days: int = 90) -> list[tuple[IndicatorSignals, float]]` | 1330 | Retrieve paired indicator signals and P&L returns for weight tuning. |
 
 #### data/_base.py
 
@@ -807,19 +811,20 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `DebateRow` | dataclass |  | 30 | Row from ai_theses table. |
-| `DebateMixin` | class | `(RepositoryBase)` | 60 | Debate persistence and agent calibration CRUD operations. |
-| `.save_debate` | async method | `(scan_run_id: int \| None, ticker: str, bull_json: str \| None, bear_json: str \| None, risk_json: s...` | 63 | Persist a debate result.  Returns the database-assigned ID. |
-| `.save_agent_predictions` | async method | `(predictions: list[AgentPrediction]) -> None` | 133 | Persist per-agent predictions for accuracy tracking. |
-| `.get_recommended_contract_id` | async method | `(scan_run_id: int \| None, ticker: str) -> int \| None` | 165 | Look up the recommended_contracts.id for a scan_run + ticker pair. |
-| `.get_debate_by_id` | async method | `(debate_id: int) -> DebateRow \| None` | 189 | Get a single debate by its primary key, or None if not found. |
-| `.get_recent_debates` | async method | `(limit: int = 20) -> list[DebateRow]` | 198 | Get the N most recent debates across all tickers, newest first. |
-| `.get_debates_for_ticker` | async method | `(ticker: str, limit: int = 5) -> list[DebateRow]` | 209 | Get recent debates for a ticker, newest first. |
-| `.get_agent_accuracy` | async method | `(window_days: int \| None = None) -> list[AgentAccuracyReport]` | 260 | Per-agent direction accuracy and Brier scores. |
-| `.get_agent_calibration` | async method | `(agent_name: str \| None = None) -> AgentCalibrationData` | 334 | Confidence calibration buckets. |
-| `.get_latest_auto_tune_weights` | async method | `() -> list[AgentWeightsComparison]` | 419 | Retrieve the most recently saved auto-tune weight set. |
-| `.save_auto_tune_weights` | async method | `(weights: list[AgentWeightsComparison], window_days: int) -> None` | 458 | Persist a computed set of auto-tune weights. |
-| `.get_weight_history` | async method | `(limit: int = 20) -> list[WeightSnapshot]` | 493 | Retrieve historical auto-tune weight snapshots, newest first. |
+| `DebateRow` | dataclass |  | 32 | Row from ai_theses table. |
+| `DebateMixin` | class | `(RepositoryBase)` | 62 | Debate persistence and agent calibration CRUD operations. |
+| `.save_debate` | async method | `(scan_run_id: int \| None, ticker: str, bull_json: str \| None, bear_json: str \| None, risk_json: s...` | 65 | Persist a debate result.  Returns the database-assigned ID. |
+| `.save_agent_predictions` | async method | `(predictions: list[AgentPrediction]) -> None` | 135 | Persist per-agent predictions for accuracy tracking. |
+| `.get_recommended_contract_id` | async method | `(scan_run_id: int \| None, ticker: str) -> int \| None` | 167 | Look up the recommended_contracts.id for a scan_run + ticker pair. |
+| `.get_debate_by_id` | async method | `(debate_id: int) -> DebateRow \| None` | 191 | Get a single debate by its primary key, or None if not found. |
+| `.get_recent_debates` | async method | `(limit: int = 20) -> list[DebateRow]` | 200 | Get the N most recent debates across all tickers, newest first. |
+| `.get_debates_for_ticker` | async method | `(ticker: str, limit: int = 5) -> list[DebateRow]` | 211 | Get recent debates for a ticker, newest first. |
+| `.get_agent_accuracy` | async method | `(window_days: int \| None = None) -> list[AgentAccuracyReport]` | 262 | Per-agent direction accuracy and Brier scores. |
+| `.get_agent_calibration` | async method | `(agent_name: str \| None = None) -> AgentCalibrationData` | 336 | Confidence calibration buckets. |
+| `.get_latest_auto_tune_weights` | async method | `() -> list[AgentWeightsComparison]` | 421 | Retrieve the most recently saved auto-tune weight set. |
+| `.save_auto_tune_weights` | async method | `(weights: list[AgentWeightsComparison], window_days: int) -> None` | 460 | Persist a computed set of auto-tune vote weights. |
+| `.save_indicator_weights` | async method | `(weights: dict[str, float], static_weights: dict[str, float], window_days: int, accuracy: float \|...` | 496 | Persist a computed set of indicator weights. |
+| `.get_weight_history` | async method | `(limit: int = 20, weight_type: WeightType \| None = None) -> list[WeightSnapshot]` | 539 | Retrieve historical auto-tune weight snapshots, newest first. |
 
 #### data/_metadata.py
 
@@ -995,18 +1000,15 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `DebatePhase` | StrEnum |  | 93 | Phases of the AI debate pipeline, reported via progress callback. |
-| `should_debate` | func | `(ticker_score: TickerScore, config: DebateConfig) -> bool` | 108 | Return False if signal is too weak for meaningful AI debate. |
-| `build_market_context` | func | `(ticker_score: TickerScore, quote: Quote, ticker_info: TickerInfo, contracts: list[OptionContract...` | 119 | Map scan pipeline output to ``MarketContext`` for agent consumption. |
-| `classify_macd_signal` | func | `(macd_value: float \| None) -> MacdSignal` | 508 | Classify a centered MACD value into a signal. |
-| `extract_agent_predictions` | func | `(debate_id: int, result: DebateResult, recommended_contract_id: int \| None = None) -> list[AgentP...` | 725 | Extract per-agent predictions from a DebateResult for accuracy tracking. |
-| `AGENT_VOTE_WEIGHTS` | const | `VoteWeights` | 923 |  |
-| `compute_auto_tune_weights` | func | `(accuracy: list[AgentAccuracyReport]) -> VoteWeights` | 933 | Compute auto-tuned vote weights from agent accuracy data. |
-| `auto_tune_weights` | async func | `(repo: Repository, window_days: int = 90, dry_run: bool = False) -> list[AgentWeightsComparison]` | 968 | Orchestrate end-to-end auto-tune: accuracy -> weights -> compare -> persist. |
-| `compute_agreement_score` | func | `(agent_directions: dict[str, SignalDirection]) -> float` | 1029 | Compute fraction of directional agents agreeing with the majority. |
-| `synthesize_verdict` | func | `(agent_outputs: dict[str, AgentResponse \| FlowThesis ..., risk_assessment: RiskAssessment \| None,...` | 1209 | Algorithmic verdict synthesis from all agent outputs. |
-| `run_debate` | async func | `(ticker_score: TickerScore, contracts: list[OptionContract], quote: Quote, ticker_info: TickerInf...` | 1362 | Run 6-agent debate protocol. Falls back to data-driven on failure — never raises. |
-| `effective_batch_ticker_delay` | func | `(config: DebateConfig) -> float` | 1643 | Return inter-ticker batch delay, auto-adjusted for Anthropic provider. |
+| `DebatePhase` | StrEnum |  | 103 | Phases of the AI debate pipeline, reported via progress callback. |
+| `should_debate` | func | `(ticker_score: TickerScore, config: DebateConfig) -> bool` | 118 | Return False if signal is too weak for meaningful AI debate. |
+| `build_market_context` | func | `(ticker_score: TickerScore, quote: Quote, ticker_info: TickerInfo, contracts: list[OptionContract...` | 129 | Map scan pipeline output to ``MarketContext`` for agent consumption. |
+| `classify_macd_signal` | func | `(macd_value: float \| None) -> MacdSignal` | 518 | Classify a centered MACD value into a signal. |
+| `extract_agent_predictions` | func | `(debate_id: int, result: DebateResult, recommended_contract_id: int \| None = None) -> list[AgentP...` | 735 | Extract per-agent predictions from a DebateResult for accuracy tracking. |
+| `compute_agreement_score` | func | `(agent_directions: dict[str, SignalDirection]) -> float` | 931 | Compute fraction of directional agents agreeing with the majority. |
+| `synthesize_verdict` | func | `(agent_outputs: dict[str, AgentResponse \| FlowThesis ..., risk_assessment: RiskAssessment \| None,...` | 1111 | Algorithmic verdict synthesis from all agent outputs. |
+| `run_debate` | async func | `(ticker_score: TickerScore, contracts: list[OptionContract], quote: Quote, ticker_info: TickerInf...` | 1264 | Run 6-agent debate protocol. Falls back to data-driven on failure — never raises. |
+| `effective_batch_ticker_delay` | func | `(config: DebateConfig) -> float` | 1545 | Return inter-ticker batch delay, auto-adjusted for Anthropic provider. |
 
 #### agents/prompts/contrarian_agent.py
 
@@ -1303,6 +1305,15 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `get_status` | async func | `(request: Request, lock: asyncio.Lock = ...) -> OperationStatus` | 27 | Return current operation status so frontend can sync after browser refresh. |
 | `check_services` | async func | `(request: Request, settings: AppSettings = ...) -> list[HealthStatus]` | 44 | Run all health checks and return service statuses. |
 
+#### api/routes/learning.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `get_current_weights` | async func | `(request: Request, repo: Repository = Depends(get_repo)) -> list[WeightSnapshot]` | 28 | Get the most recent vote and indicator weight snapshots. |
+| `get_weight_history` | async func | `(request: Request, repo: Repository = Depends(get_repo), weight_type: str \| None = ..., limit: in...` | 40 | Retrieve historical weight snapshots, newest first. |
+| `get_learning_status` | async func | `(request: Request, repo: Repository = Depends(get_repo)) -> LearningStatus` | 59 | Get learning system status: last tune timestamps and counts. |
+| `trigger_indicator_tune` | async func | `(request: Request, repo: Repository = Depends(get_repo), lock: asyncio.Lock = ..., window: int = ...` | 80 | Trigger indicator weight tuning from historical outcome data. |
+
 #### api/routes/market.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -1404,6 +1415,8 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 |--------|------|-----------|------|-------------|
 | `ask` | func | `(query: Annotated[str, typer.Argument(help='N..., desk: Annotated[str \| None, typer.Option('-... ...` | 38 | Submit a query to the AI agency desk system. |
 | `history` | func | `(limit: Annotated[int, typer.Option('--limit'... = 20) -> None` | 51 | Show recent agency queries. |
+| `learn_status` | func | `() -> None` | 267 | Show learning system status: last tune timestamps and sample counts. |
+| `learn_weights` | func | `(window: int = ..., dry_run: bool = ...) -> None` | 314 | Compute indicator weight tuning and show comparison table. |
 
 #### cli/app.py
 
@@ -1924,6 +1937,7 @@ Each row maps a source file to its test files and approximate test count.
 | `api/routes/debate.py` | `tests/unit/api/test_debate_routes.py` | 17 |
 | `api/routes/export.py` | `tests/unit/api/test_export_routes.py` | 2 |
 | `api/routes/health.py` | `tests/unit/api/test_health_routes.py` | 3 |
+| `api/routes/learning.py` | `tests/unit/api/test_learning_routes.py` | 9 |
 | `api/routes/market.py` | `tests/unit/api/test_market_routes.py` | 19 |
 | `api/routes/scan.py` | `tests/unit/api/test_scan_routes.py` | 20 |
 | `api/routes/ticker.py` | `tests/unit/api/test_ticker_routes.py` | 4 |
@@ -1950,15 +1964,15 @@ Each row maps a source file to its test files and approximate test count.
 | Module | Files | Public Symbols | Test Files | Tests |
 |--------|-------|----------------|------------|-------|
 | utils/ | 1 | 4 | 1 | 11 |
-| models/ | 21 | 145 | 13 | 596 |
+| models/ | 21 | 148 | 13 | 596 |
 | indicators/ | 17 | 73 | 16 | 504 |
 | pricing/ | 8 | 25 | 7 | 244 |
 | services/ | 13 | 112 | 12 | 360 |
 | scoring/ | 6 | 29 | 6 | 227 |
-| data/ | 9 | 64 | 2 | 46 |
-| agents/ | 33 | 93 | 16 | 422 |
+| data/ | 9 | 66 | 2 | 46 |
+| agents/ | 33 | 90 | 16 | 422 |
 | scan/ | 8 | 23 | 3 | 82 |
 | reporting/ | 1 | 2 | 1 | 10 |
-| api/ | 15 | 106 | 12 | 139 |
-| cli/ | 7 | 41 | 3 | 27 |
-| **Total** | **139** | **717** | **92** | **2668** |
+| api/ | 16 | 110 | 13 | 148 |
+| cli/ | 7 | 43 | 3 | 27 |
+| **Total** | **140** | **725** | **93** | **2677** |

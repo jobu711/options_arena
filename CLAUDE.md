@@ -116,7 +116,8 @@ uses pandas Series/DataFrames (not dicts) as its data interchange format.
 | `agents/` | PydanticAI debate orchestration | `models/`, `services/`, `pydantic_ai` | Other agents, indicators |
 | `reporting/` | Report generation & disclaimers | `models/` | APIs, services |
 | `analysis/` | Vol surface, HV estimators | `models/`, `pricing/`, `scipy` | APIs, services, I/O |
-| `api/` | FastAPI REST + WebSocket (top of stack) | `models/`, `services/`, `data/`, `scan/`, `agents/`, `reporting/` | N/A |
+| `learning/` | Weight tuning algorithms | `models/`, `data/`, `scoring/` | `services/`, `agents/`, `cli/`, `api/`, `pricing/` |
+| `api/` | FastAPI REST + WebSocket (top of stack) | `models/`, `services/`, `data/`, `scan/`, `agents/`, `reporting/`, `learning/` | N/A |
 | `cli/` | Terminal interface (top of stack) | Everything | N/A |
 
 **Key boundary rules**:

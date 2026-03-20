@@ -37,6 +37,7 @@ from options_arena.models import (
     SignalDirection,
     WinRateResult,
 )
+from options_arena.models.scan import IndicatorSignals
 
 from ._base import RepositoryBase
 
@@ -1321,3 +1322,69 @@ class AnalyticsMixin(RepositoryBase):
             annualized_return_pct=result.annualized_return_pct,
             risk_free_rate=result.risk_free_rate,
         )
+
+    # ------------------------------------------------------------------
+    # Outcome-Signal Pairs (for indicator weight tuning)
+    # ------------------------------------------------------------------
+
+    async def get_outcome_signal_pairs(
+        self,
+        window_days: int = 90,
+    ) -> list[tuple[IndicatorSignals, float]]:
+        """Retrieve paired indicator signals and P&L returns for weight tuning.
+
+        Joins ``contract_outcomes`` with ``recommended_contracts`` and
+        ``ticker_scores`` to produce ``(IndicatorSignals, pnl_return)`` tuples.
+        Only includes the longest holding period per contract (most mature data).
+
+        Args:
+            window_days: Calendar-day lookback for outcome collection dates.
+
+        Returns:
+            List of (signals, pnl_return) tuples. Empty on no data or error.
+        """
+        conn = self._db.conn
+        cutoff = (datetime.now(UTC) - timedelta(days=window_days)).isoformat()
+
+        sql = (
+            "SELECT ts.signals_json, co.contract_return_pct, co.recommended_contract_id "
+            "FROM contract_outcomes co "
+            "JOIN recommended_contracts rc ON co.recommended_contract_id = rc.id "
+            "JOIN ticker_scores ts ON rc.scan_run_id = ts.scan_run_id "
+            "  AND rc.ticker = ts.ticker "
+            "WHERE co.collected_at >= ? "
+            "  AND co.contract_return_pct IS NOT NULL "
+            "  AND ts.signals_json IS NOT NULL "
+            "ORDER BY co.recommended_contract_id, co.holding_days DESC"
+        )
+
+        async with conn.execute(sql, (cutoff,)) as cursor:
+            rows = await cursor.fetchall()
+
+        if not rows:
+            return []
+
+        # Deduplicate: keep only the first (longest holding) per contract
+        seen_contracts: set[str] = set()
+        pairs: list[tuple[IndicatorSignals, float]] = []
+        for r in rows:
+            cid = r["recommended_contract_id"]
+            key = str(cid) if cid is not None else ""
+            if key in seen_contracts:
+                continue
+            seen_contracts.add(key)
+
+            try:
+                signals = IndicatorSignals.model_validate_json(r["signals_json"])
+                pnl = float(r["contract_return_pct"])
+                pairs.append((signals, pnl))
+            except Exception:
+                logger.debug("Skipping invalid signal/P&L row", exc_info=True)
+                continue
+
+        logger.debug(
+            "Retrieved %d outcome-signal pairs (window=%d days)",
+            len(pairs),
+            window_days,
+        )
+        return pairs

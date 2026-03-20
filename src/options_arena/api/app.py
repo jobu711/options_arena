@@ -227,6 +227,7 @@ def create_app() -> FastAPI:
     from options_arena.api.routes.debate import router as debate_router  # noqa: PLC0415
     from options_arena.api.routes.export import router as export_router  # noqa: PLC0415
     from options_arena.api.routes.health import router as health_router  # noqa: PLC0415
+    from options_arena.api.routes.learning import router as learning_router  # noqa: PLC0415
     from options_arena.api.routes.market import router as market_router  # noqa: PLC0415
     from options_arena.api.routes.scan import router as scan_router  # noqa: PLC0415
     from options_arena.api.routes.ticker import router as ticker_router  # noqa: PLC0415
@@ -243,6 +244,7 @@ def create_app() -> FastAPI:
     app.include_router(config_router)
     app.include_router(ticker_router)
     app.include_router(analytics_router)
+    app.include_router(learning_router)
     app.include_router(backtest_router)
     app.include_router(ws_router)
 
