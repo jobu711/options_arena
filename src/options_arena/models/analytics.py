@@ -1204,6 +1204,27 @@ class WeightSnapshot(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class LearningStatus(BaseModel):
+    """Learning system status snapshot for API responses."""
+
+    model_config = ConfigDict(frozen=True)
+
+    last_vote_tune: datetime | None = None
+    last_indicator_tune: datetime | None = None
+    vote_agent_count: int = 0
+    indicator_count: int = 0
+    accuracy_at_last_tune: float | None = None
+    learning_enabled: bool = True
+
+    @field_validator("last_vote_tune", "last_indicator_tune")
+    @classmethod
+    def validate_utc_optional(cls, v: datetime | None) -> datetime | None:
+        """Ensure timestamps are UTC when present."""
+        if v is not None and (v.tzinfo is None or v.utcoffset() != timedelta(0)):
+            raise ValueError("timestamp must be UTC")
+        return v
+
+
 class IndicatorWeightComparison(BaseModel):
     """Static vs tuned weight comparison for a single indicator.
 
