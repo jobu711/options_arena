@@ -281,8 +281,7 @@ async def start_debate(
         )
 
     # Use a counter for debate IDs (initialized in lifespan)
-    request.app.state.debate_counter += 1
-    debate_id: int = request.app.state.debate_counter
+    debate_id: int = next(request.app.state.debate_counter)
 
     request.app.state.debate_queues[debate_id] = bridge.queue
 
@@ -551,8 +550,7 @@ async def start_batch_debate(
         raise HTTPException(409, "Another operation is in progress") from None
 
     # Allocate batch ID (initialized in lifespan)
-    request.app.state.batch_counter += 1
-    batch_id: int = request.app.state.batch_counter
+    batch_id: int = next(request.app.state.batch_counter)
 
     bridge = BatchProgressBridge()
     request.app.state.batch_queues[batch_id] = bridge.queue

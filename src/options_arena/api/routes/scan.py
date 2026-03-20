@@ -229,8 +229,7 @@ async def start_scan(
     )
 
     # Use a counter for scan IDs (initialized in lifespan)
-    request.app.state.scan_counter += 1
-    scan_id: int = request.app.state.scan_counter
+    scan_id: int = next(request.app.state.scan_counter)
 
     # Register for WebSocket + cancellation
     request.app.state.active_scans[scan_id] = token

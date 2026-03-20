@@ -814,3 +814,9 @@ class LivenessResponse(BaseModel):
     """Basic liveness check response for ``GET /api/health``."""
 
     status: str = "ok"
+
+
+class UpdateStatusResponse(BaseModel):
+    """Response for status update operations (strategy rules, etc.)."""
+
+    updated: bool

@@ -338,8 +338,7 @@ async def start_index(
         raise HTTPException(409, "Another operation is in progress") from None
 
     # Counter-based task ID
-    request.app.state.index_counter += 1
-    task_id: int = request.app.state.index_counter
+    task_id: int = next(request.app.state.index_counter)
 
     # Background task owns the lock and releases it on completion
     task = asyncio.create_task(

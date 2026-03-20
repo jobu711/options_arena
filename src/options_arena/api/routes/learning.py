@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from options_arena.api.app import limiter
 from options_arena.api.deps import get_operation_lock, get_repo
+from options_arena.api.schemas import UpdateStatusResponse
 from options_arena.data import Repository
 from options_arena.learning import auto_tune_indicator_weights, run_strategy_mining
 from options_arena.models import (
@@ -137,9 +138,9 @@ async def update_rule_status(
     rule_id: str,
     status: RuleStatus = Query(..., description="New status: approved or rejected"),
     repo: Repository = Depends(get_repo),
-) -> dict[str, bool]:
+) -> UpdateStatusResponse:
     """Update the status of a strategy rule (approve/reject)."""
     updated = await repo.update_rule_status(rule_id, status)
     if not updated:
         raise HTTPException(404, f"Rule not found: {rule_id}")
-    return {"updated": True}
+    return UpdateStatusResponse(updated=True)
