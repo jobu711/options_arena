@@ -9,6 +9,7 @@ Tests cover:
 from __future__ import annotations
 
 import asyncio
+import itertools
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
@@ -61,12 +62,12 @@ async def test_scan_lock_contention_returns_409() -> None:
     app.dependency_overrides[get_operation_lock] = lambda: lock
 
     # Initialize app.state (normally done by lifespan)
-    app.state.scan_counter = 0
+    app.state.scan_counter = itertools.count(1)
     app.state.active_scans = {}
     app.state.scan_queues = {}
-    app.state.debate_counter = 0
+    app.state.debate_counter = itertools.count(1)
     app.state.debate_queues = {}
-    app.state.batch_counter = 0
+    app.state.batch_counter = itertools.count(1)
     app.state.batch_queues = {}
 
     # Pre-acquire the lock to simulate a running operation
@@ -96,12 +97,12 @@ async def test_batch_debate_lock_contention_returns_409() -> None:
     app.dependency_overrides[get_operation_lock] = lambda: lock
 
     # Initialize app.state (normally done by lifespan)
-    app.state.scan_counter = 0
+    app.state.scan_counter = itertools.count(1)
     app.state.active_scans = {}
     app.state.scan_queues = {}
-    app.state.debate_counter = 0
+    app.state.debate_counter = itertools.count(1)
     app.state.debate_queues = {}
-    app.state.batch_counter = 0
+    app.state.batch_counter = itertools.count(1)
     app.state.batch_queues = {}
 
     # Pre-acquire the lock
@@ -133,11 +134,11 @@ async def test_app_state_initialized_after_lifespan() -> None:
     async with lifespan(app):
         # Counters
         assert hasattr(app.state, "scan_counter")
-        assert app.state.scan_counter == 0
+        assert next(app.state.scan_counter) >= 1
         assert hasattr(app.state, "debate_counter")
-        assert app.state.debate_counter == 0
+        assert next(app.state.debate_counter) >= 1
         assert hasattr(app.state, "batch_counter")
-        assert app.state.batch_counter == 0
+        assert next(app.state.batch_counter) >= 1
 
         # Mutable dicts
         assert hasattr(app.state, "active_scans")

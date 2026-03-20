@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock
 
@@ -80,12 +81,12 @@ def hierarchy_app() -> create_app:
     # Initialize app.state attributes
     app.state.cache = MagicMock()
     app.state.rate_limiter = MagicMock()
-    app.state.scan_counter = 0
+    app.state.scan_counter = itertools.count(1)
     app.state.active_scans = {}
     app.state.scan_queues = {}
-    app.state.debate_counter = 0
+    app.state.debate_counter = itertools.count(1)
     app.state.debate_queues = {}
-    app.state.batch_counter = 0
+    app.state.batch_counter = itertools.count(1)
     app.state.batch_queues = {}
     app.state.operation_lock = asyncio.Lock()
 
@@ -205,12 +206,12 @@ class TestScoreFilteringByIndustryGroup:
 
         app.state.cache = MagicMock()
         app.state.rate_limiter = MagicMock()
-        app.state.scan_counter = 0
+        app.state.scan_counter = itertools.count(1)
         app.state.active_scans = {}
         app.state.scan_queues = {}
-        app.state.debate_counter = 0
+        app.state.debate_counter = itertools.count(1)
         app.state.debate_queues = {}
-        app.state.batch_counter = 0
+        app.state.batch_counter = itertools.count(1)
         app.state.batch_queues = {}
         app.state.operation_lock = asyncio.Lock()
 

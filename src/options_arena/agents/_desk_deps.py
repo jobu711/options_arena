@@ -31,3 +31,4 @@ class DeskDeps:
     fred: FredService
     repo: Repository
     tools_used: list[str] = field(default_factory=list)
+    learned_patterns: str = ""

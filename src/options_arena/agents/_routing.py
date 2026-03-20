@@ -26,6 +26,7 @@ from options_arena.agents.risk_desk import run_risk_desk_query
 from options_arena.agents.trend_desk import run_trend_desk_query
 from options_arena.agents.volatility_desk import run_vol_desk_query
 from options_arena.data.repository import Repository
+from options_arena.learning.strategy_book import render_learned_patterns
 from options_arena.models import (
     AgencyConfig,
     AgencyQuery,
@@ -35,6 +36,7 @@ from options_arena.models import (
     DeskType,
     QueryIntent,
     QueryType,
+    RuleStatus,
 )
 from options_arena.services.fred import FredService
 from options_arena.services.market_data import MarketDataService
@@ -555,6 +557,14 @@ async def run_agency_query(
             DeskType.RESEARCH: _run_research,
         }
 
+        # Fetch approved learned patterns for prompt injection (never-raises)
+        try:
+            approved_rules = await repo.get_strategy_rules(status=RuleStatus.APPROVED)
+            patterns_text = render_learned_patterns(approved_rules)
+        except (OSError, ValueError, KeyError, TypeError):
+            logger.warning("Failed to fetch learned patterns — proceeding without them")
+            patterns_text = ""
+
         awaitables: list[Awaitable[DeskResponse]] = []
         desk_order: list[DeskType] = []
 
@@ -569,6 +579,7 @@ async def run_agency_query(
                     options_data=options_data,
                     fred=fred,
                     repo=repo,
+                    learned_patterns=patterns_text,
                 )
                 awaitables.append(runner(query.query_text, deps, model=model, config=config))
             else:

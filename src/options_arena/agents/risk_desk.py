@@ -36,9 +36,12 @@ risk_desk: Agent[DeskDeps, str] = Agent(
 
 
 @risk_desk.system_prompt(dynamic=True)
-async def _risk_desk_prompt(ctx: RunContext[DeskDeps]) -> str:  # noqa: ARG001
-    """Return the risk desk system prompt."""
-    return DESK_RISK_PROMPT
+async def _risk_desk_prompt(ctx: RunContext[DeskDeps]) -> str:
+    """Return the risk desk system prompt with learned patterns."""
+    base = DESK_RISK_PROMPT
+    if ctx.deps.learned_patterns:
+        base += f"\n\n{ctx.deps.learned_patterns}"
+    return base
 
 
 @risk_desk.output_validator

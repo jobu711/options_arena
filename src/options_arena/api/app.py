@@ -7,6 +7,7 @@ and test (``TestClient`` / ``AsyncClient``) usage.
 from __future__ import annotations
 
 import asyncio
+import itertools
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
@@ -50,6 +51,15 @@ logger = logging.getLogger(__name__)
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _DATA_DIR = _PROJECT_ROOT / "data"
 _WEB_DIST = _PROJECT_ROOT / "web" / "dist"
+
+
+def _log_task_exception(task: asyncio.Task[object]) -> None:
+    """Log unhandled exceptions from background tasks."""
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        logger.error("Background task %s failed: %s", task.get_name(), exc, exc_info=exc)
 
 
 @asynccontextmanager
@@ -149,18 +159,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     scheduler_task: asyncio.Task[None] | None = None
     if settings.analytics.auto_collect_enabled:
         scheduler_task = asyncio.create_task(outcome_collector.run_scheduler())
+        scheduler_task.add_done_callback(_log_task_exception)
         logger.info("Outcome auto-collection scheduler enabled")
 
     # Initialize counters and mutable state eagerly so route handlers
     # never need lazy ``hasattr`` / ``getattr`` fallbacks.
-    app.state.scan_counter = 0
+    # itertools.count is thread-safe and avoids race conditions on += 1.
+    app.state.scan_counter = itertools.count(1)
     app.state.active_scans = {}
     app.state.scan_queues = {}
-    app.state.debate_counter = 0
+    app.state.debate_counter = itertools.count(1)
     app.state.debate_queues = {}
-    app.state.batch_counter = 0
+    app.state.batch_counter = itertools.count(1)
     app.state.batch_queues = {}
-    app.state.index_counter = 0
+    app.state.index_counter = itertools.count(1)
 
     logger.info("API services started")
     yield
@@ -191,6 +203,7 @@ def create_app() -> FastAPI:
         description="AI-powered American-style options analysis API",
         version=__import__("options_arena").__version__,
         lifespan=lifespan,
+        debug=False,
     )
 
     # Rate limiter — stored on app.state for route decorator access

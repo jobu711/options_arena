@@ -1,4 +1,4 @@
-"""Learning system endpoints — weight history, status, and tuning trigger."""
+"""Learning system endpoints — weight history, status, tuning, and strategy playbook."""
 
 from __future__ import annotations
 
@@ -9,11 +9,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from options_arena.api.app import limiter
 from options_arena.api.deps import get_operation_lock, get_repo
+from options_arena.api.schemas import UpdateStatusResponse
 from options_arena.data import Repository
-from options_arena.learning import auto_tune_indicator_weights
+from options_arena.learning import auto_tune_indicator_weights, run_strategy_mining
 from options_arena.models import (
     IndicatorWeightComparison,
     LearningStatus,
+    RuleStatus,
+    StrategyRule,
     WeightSnapshot,
     WeightType,
 )
@@ -89,3 +92,57 @@ async def trigger_indicator_tune(
         return await auto_tune_indicator_weights(repo, window_days=window, dry_run=dry_run)
     finally:
         lock.release()
+
+
+# ---------------------------------------------------------------------------
+# Strategy Playbook endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post("/mine")
+@limiter.limit("5/minute")
+async def trigger_mining(
+    request: Request,
+    repo: Repository = Depends(get_repo),
+    lock: asyncio.Lock = Depends(get_operation_lock),
+) -> list[StrategyRule]:
+    """Trigger strategy pattern mining from historical outcome data.
+
+    Requires the operation mutex (409 if another scan/debate is running).
+    """
+    try:
+        await asyncio.wait_for(lock.acquire(), timeout=0.01)
+    except TimeoutError:
+        raise HTTPException(409, "Another operation is in progress") from None
+    try:
+        return await asyncio.wait_for(run_strategy_mining(repo), timeout=300.0)
+    except TimeoutError:
+        return []
+    finally:
+        lock.release()
+
+
+@router.get("/playbook")
+@limiter.limit("60/minute")
+async def get_playbook(
+    request: Request,
+    repo: Repository = Depends(get_repo),
+    status: RuleStatus | None = Query(None, description="Filter by status"),
+) -> list[StrategyRule]:
+    """List strategy rules, optionally filtered by status."""
+    return await repo.get_strategy_rules(status=status)
+
+
+@router.put("/playbook/{rule_id}")
+@limiter.limit("30/minute")
+async def update_rule_status(
+    request: Request,
+    rule_id: str,
+    status: RuleStatus = Query(..., description="New status: approved or rejected"),
+    repo: Repository = Depends(get_repo),
+) -> UpdateStatusResponse:
+    """Update the status of a strategy rule (approve/reject)."""
+    updated = await repo.update_rule_status(rule_id, status)
+    if not updated:
+        raise HTTPException(404, f"Rule not found: {rule_id}")
+    return UpdateStatusResponse(updated=True)

@@ -36,9 +36,12 @@ trend_desk: Agent[DeskDeps, str] = Agent(
 
 
 @trend_desk.system_prompt(dynamic=True)
-async def _trend_desk_prompt(ctx: RunContext[DeskDeps]) -> str:  # noqa: ARG001
-    """Return the trend desk system prompt."""
-    return DESK_TREND_PROMPT
+async def _trend_desk_prompt(ctx: RunContext[DeskDeps]) -> str:
+    """Return the trend desk system prompt with learned patterns."""
+    base = DESK_TREND_PROMPT
+    if ctx.deps.learned_patterns:
+        base += f"\n\n{ctx.deps.learned_patterns}"
+    return base
 
 
 @trend_desk.output_validator

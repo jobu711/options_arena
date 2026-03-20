@@ -36,9 +36,12 @@ fundamental_desk: Agent[DeskDeps, str] = Agent(
 
 
 @fundamental_desk.system_prompt(dynamic=True)
-async def _fundamental_desk_prompt(ctx: RunContext[DeskDeps]) -> str:  # noqa: ARG001
-    """Return the fundamental desk system prompt."""
-    return DESK_FUNDAMENTAL_PROMPT
+async def _fundamental_desk_prompt(ctx: RunContext[DeskDeps]) -> str:
+    """Return the fundamental desk system prompt with learned patterns."""
+    base = DESK_FUNDAMENTAL_PROMPT
+    if ctx.deps.learned_patterns:
+        base += f"\n\n{ctx.deps.learned_patterns}"
+    return base
 
 
 @fundamental_desk.output_validator

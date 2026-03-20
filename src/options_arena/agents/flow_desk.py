@@ -36,9 +36,12 @@ flow_desk: Agent[DeskDeps, str] = Agent(
 
 
 @flow_desk.system_prompt(dynamic=True)
-async def _flow_desk_prompt(ctx: RunContext[DeskDeps]) -> str:  # noqa: ARG001
-    """Return the flow desk system prompt."""
-    return DESK_FLOW_PROMPT
+async def _flow_desk_prompt(ctx: RunContext[DeskDeps]) -> str:
+    """Return the flow desk system prompt with learned patterns."""
+    base = DESK_FLOW_PROMPT
+    if ctx.deps.learned_patterns:
+        base += f"\n\n{ctx.deps.learned_patterns}"
+    return base
 
 
 @flow_desk.output_validator

@@ -257,7 +257,7 @@ def _render_agency_response(response: object) -> None:
 # ---------------------------------------------------------------------------
 
 learn_app = typer.Typer(
-    help="Self-improvement learning system -- weight tuning and status.",
+    help="Self-improvement learning system -- weight tuning, mining, and playbook.",
     no_args_is_help=True,
 )
 agency_app.add_typer(learn_app, name="learn")
@@ -373,5 +373,131 @@ async def _learn_weights_async(window: int, dry_run: bool) -> None:
         console.print(table)
         total = sum(r.tuned_weight for r in results)
         console.print(f"\nTotal weight sum: {total:.6f}")
+    finally:
+        await db.close()
+
+
+@learn_app.command("mine")
+def learn_mine() -> None:
+    """Mine historical outcomes for strategy patterns."""
+    asyncio.run(_learn_mine_async())
+
+
+async def _learn_mine_async() -> None:
+    """Run strategy mining and display generated rules."""
+    from options_arena.data import Database, Repository
+    from options_arena.learning import run_strategy_mining
+
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    db = Database(str(_DATA_DIR / "options_arena.db"))
+    try:
+        await db.connect()
+        repo = Repository(db)
+
+        rules = await run_strategy_mining(repo)
+
+        if not rules:
+            console.print(
+                "[yellow]No significant patterns found. "
+                "Need 100+ outcomes with sufficient dimensional variety.[/yellow]"
+            )
+            return
+
+        table = Table(title=f"Strategy Mining Results ({len(rules)} rules generated)")
+        table.add_column("Rule ID", style="bold", max_width=30)
+        table.add_column("Pattern", max_width=50)
+        table.add_column("Win Rate", justify="right")
+        table.add_column("Avg Return", justify="right")
+        table.add_column("Samples", justify="right")
+        table.add_column("Status", justify="center")
+
+        for r in rules:
+            table.add_row(
+                r.rule_id[:28],
+                r.pattern,
+                f"{r.win_rate:.1%}",
+                f"{r.avg_return:+.1%}",
+                str(r.sample_size),
+                r.status.value,
+            )
+
+        console.print(table)
+        console.print(
+            "\nRules saved as candidates. "
+            "Use [bold]learn playbook[/bold] to view and approve/reject."
+        )
+    finally:
+        await db.close()
+
+
+@learn_app.command("playbook")
+def learn_playbook(
+    status: str | None = typer.Option(
+        None, "--status", help="Filter by status: candidate, approved, rejected"
+    ),
+) -> None:
+    """List strategy rules in the playbook."""
+    asyncio.run(_learn_playbook_async(status))
+
+
+async def _learn_playbook_async(status_filter: str | None) -> None:
+    """Display strategy playbook."""
+    from options_arena.data import Database, Repository
+    from options_arena.models import RuleStatus
+
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    db = Database(str(_DATA_DIR / "options_arena.db"))
+    try:
+        await db.connect()
+        repo = Repository(db)
+
+        rule_status: RuleStatus | None = None
+        if status_filter is not None:
+            try:
+                rule_status = RuleStatus(status_filter)
+            except ValueError:
+                err_console.print(
+                    f"[red]Invalid status: {status_filter}. "
+                    f"Use: candidate, approved, rejected[/red]"
+                )
+                raise typer.Exit(code=1) from None
+
+        rules = await repo.get_strategy_rules(status=rule_status)
+
+        if not rules:
+            console.print("[yellow]No strategy rules found.[/yellow]")
+            return
+
+        title = "Strategy Playbook"
+        if rule_status:
+            title += f" (status={rule_status.value})"
+
+        table = Table(title=title)
+        table.add_column("Rule ID", style="bold", max_width=30)
+        table.add_column("Pattern", max_width=50)
+        table.add_column("Win Rate", justify="right")
+        table.add_column("Avg Return", justify="right")
+        table.add_column("Samples", justify="right")
+        table.add_column("Status", justify="center")
+
+        status_styles = {
+            "candidate": "yellow",
+            "approved": "green",
+            "rejected": "red",
+        }
+
+        for r in rules:
+            style = status_styles.get(r.status.value, "")
+            table.add_row(
+                r.rule_id[:28],
+                r.pattern,
+                f"{r.win_rate:.1%}",
+                f"{r.avg_return:+.1%}",
+                str(r.sample_size),
+                f"[{style}]{r.status.value}[/{style}]",
+            )
+
+        console.print(table)
+        console.print(f"\nTotal rules: {len(rules)}")
     finally:
         await db.close()
