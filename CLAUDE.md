@@ -113,7 +113,7 @@ uses pandas Series/DataFrames (not dicts) as its data interchange format.
 | `data/` | SQLite persistence | `models/` | APIs, business logic |
 | `scan/` | Pipeline orchestration (4 async phases) | `models/`, `services/`, `scoring/`, `indicators/`, `data/` | `pricing/` directly, `httpx`, `yfinance`, `print()` |
 | `utils/` | Exception hierarchy | Nothing | APIs, logic, I/O |
-| `agents/` | PydanticAI debate orchestration | `models/`, `services/`, `pydantic_ai` | Other agents, indicators |
+| `agents/` | PydanticAI debate orchestration | `models/`, `services/`, `pydantic_ai`, `analysis/` (desk tools only) | Other agents, indicators |
 | `reporting/` | Report generation & disclaimers | `models/` | APIs, services |
 | `analysis/` | Vol surface, HV estimators | `models/`, `pricing/`, `scipy` | APIs, services, I/O |
 | `learning/` | Weight tuning algorithms | `models/`, `data/`, `scoring/` | `services/`, `agents/`, `cli/`, `api/`, `pricing/` |

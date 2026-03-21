@@ -817,7 +817,7 @@ async def fetch_debate_history(
         ticker: Underlying ticker symbol.
         limit: Maximum number of debates to return (default 3).
     """
-    import json as _json
+    from options_arena.models import TradeThesis
 
     tool_name = "fetch_debate_history"
     # Clamp limit to prevent unbounded DB queries from LLM-controlled input
@@ -842,16 +842,11 @@ async def fetch_debate_history(
 
             if debate.verdict_json is not None:
                 try:
-                    verdict = _json.loads(debate.verdict_json)
-                    direction = verdict.get("direction", "N/A")
-                    raw_conf = verdict.get("confidence")
-                    if (
-                        raw_conf is not None
-                        and isinstance(raw_conf, (int, float))
-                        and math.isfinite(float(raw_conf))
-                    ):
-                        confidence = f"{float(raw_conf):.0%}"
-                    summary_text = verdict.get("summary", "")
+                    thesis = TradeThesis.model_validate_json(debate.verdict_json)
+                    direction = thesis.direction
+                    if math.isfinite(thesis.confidence):
+                        confidence = f"{thesis.confidence:.0%}"
+                    summary_text = thesis.summary or ""
                     # Truncate long summaries
                     if len(summary_text) > 120:  # noqa: PLR2004
                         summary = summary_text[:117] + "..."
@@ -900,7 +895,7 @@ async def compute_composite_valuation_tool(
         current_price = float(info.current_price)
 
         # Fetch risk-free rate if FRED service is available
-        risk_free_rate = 0.04
+        risk_free_rate = 0.05
         if ctx.deps.fred is not None:
             try:
                 risk_free_rate = await ctx.deps.fred.fetch_risk_free_rate()
@@ -909,6 +904,7 @@ async def compute_composite_valuation_tool(
 
         # Build FDData from available ticker_info — most fields will be None
         # since TickerInfo doesn't carry financial statement data.
+        # TODO: Wire FinancialDatasetsService to populate FDData when available.
         fd = FDData()
 
         result = compute_composite_valuation(
@@ -926,7 +922,10 @@ async def compute_composite_valuation_tool(
         if result.composite_fair_value is not None:
             lines.append(f"  Fair Value: ${result.composite_fair_value:.2f}")
         else:
-            lines.append("  Fair Value: N/A (insufficient data)")
+            lines.append(
+                "  Fair Value: N/A (financial statement data not yet available "
+                "— valuation requires net income, FCF, revenue, EBITDA)"
+            )
 
         if result.composite_margin_of_safety is not None:
             lines.append(f"  Margin of Safety: {result.composite_margin_of_safety:.1%}")
@@ -940,7 +939,9 @@ async def compute_composite_valuation_tool(
 
         # Per-model results
         for model_result in result.models:
-            fv_str = f"${model_result.fair_value:.2f}" if model_result.fair_value else "N/A"
+            fv_str = (
+                f"${model_result.fair_value:.2f}" if model_result.fair_value is not None else "N/A"
+            )
             mos_str = (
                 f"{model_result.margin_of_safety:.1%}"
                 if model_result.margin_of_safety is not None
@@ -987,13 +988,18 @@ async def compute_position_size_tool(
     try:
         from options_arena.analysis.position_sizing import compute_position_size
 
+        # Guard non-finite correlation from LLM-controlled input
+        if correlation is not None and not math.isfinite(correlation):
+            correlation = None
+
         result = compute_position_size(
             annualized_iv=annualized_iv,
             correlation_with_portfolio=correlation,
         )
 
+        iv_str = f"{annualized_iv:.1%}" if math.isfinite(annualized_iv) else "N/A"
         lines: list[str] = [
-            f"Position Sizing for {ticker} (IV={annualized_iv:.1%}):",
+            f"Position Sizing for {ticker} (IV={iv_str}):",
             f"  Tier: {result.vol_regime_tier} ({result.vol_regime_label.value})",
             f"  Base Allocation: {result.base_allocation_pct:.1%}",
             f"  Correlation Adjustment: {result.correlation_adjustment:.0%}",
@@ -1045,6 +1051,8 @@ async def compute_correlation_matrix_tool(
                 ctx.deps.tools_used.append(tool_name)
                 return f"Error: invalid ticker format: {t!r}"
 
+        from options_arena.utils.exceptions import DataFetchError
+
         # Fetch OHLCV in parallel with error isolation
         async def _fetch(t: str) -> tuple[str, pd.DataFrame | None]:
             try:
@@ -1056,7 +1064,7 @@ async def compute_correlation_matrix_tool(
                     index=[bar.date for bar in ohlcv_list],
                 )
                 return (t, df)
-            except Exception:
+            except (DataFetchError, TimeoutError):
                 logger.debug("Could not fetch OHLCV for %s in correlation matrix", t)
                 return (t, None)
 
@@ -1108,10 +1116,12 @@ async def compute_risk_adjusted_metrics_tool(
     ctx: RunContext[DeskDeps],
     ticker: str,
 ) -> str:
-    """Compute risk-adjusted performance metrics for *ticker*.
+    """Compute portfolio-wide risk-adjusted performance metrics.
 
     Queries historical outcomes from the repository and computes Sharpe,
-    Sortino, max drawdown, and annualized return.
+    Sortino, max drawdown, and annualized return across ALL tickers.
+    The *ticker* parameter is used to verify the repository has history
+    but the returned metrics are portfolio-wide, not per-ticker.
     """
     tool_name = "compute_risk_adjusted_metrics"
     if err := _validate_ticker(ticker):

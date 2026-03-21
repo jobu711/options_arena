@@ -28,7 +28,7 @@ class DeskDeps:
     ticker: str
     market_data: MarketDataService
     options_data: OptionsDataService
-    fred: FredService
     repo: Repository
+    fred: FredService | None = None
     tools_used: list[str] = field(default_factory=list)
     learned_patterns: str = ""
