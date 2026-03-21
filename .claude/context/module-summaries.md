@@ -51,7 +51,7 @@ Condensed from 13 module CLAUDE.md files. Read the full module CLAUDE.md for dee
 - `IndicatorSignals` typed model, not `dict[str, float]`
 - Zero-bid exemption: `bid=0/ask>0` skips spread check in contract filtering
 - Composite score uses weighted geometric mean with floor value 0.5 (prevents log(0))
-- 19 indicator weights sum to 1.0; inverted indicators: bb_width, atr_pct, keltner_width
+- 27 indicator weights sum to 1.0; inverted indicators: bb_width, atr_pct, keltner_width, chain_spread_pct
 
 ## indicators/
 - Wilder's smoothing: `ewm(alpha=1/period, adjust=False)` — do NOT SMA-seed

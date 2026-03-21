@@ -68,7 +68,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # Load .env from project root so API keys are available via os.environ
     from dotenv import load_dotenv  # noqa: PLC0415
 
-    load_dotenv(_PROJECT_ROOT / ".env", override=True)
+    load_dotenv(_PROJECT_ROOT / ".env", override=False)
 
     settings = AppSettings()
 

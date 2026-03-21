@@ -84,10 +84,15 @@ class MetadataMixin(RepositoryBase):
             await conn.commit()
         logger.debug("Batch-upserted %d ticker_metadata rows", len(items))
 
-    async def get_all_ticker_metadata(self) -> list[TickerMetadata]:
-        """Return all rows from ``ticker_metadata`` as a list of ``TickerMetadata``."""
+    async def get_all_ticker_metadata(
+        self, limit: int = 10_000
+    ) -> list[TickerMetadata]:
+        """Return all rows from ``ticker_metadata`` (bounded by *limit*)."""
         conn = self._db.conn
-        async with conn.execute("SELECT * FROM ticker_metadata ORDER BY ticker ASC") as cursor:
+        async with conn.execute(
+            "SELECT * FROM ticker_metadata ORDER BY ticker ASC LIMIT ?",
+            (limit,),
+        ) as cursor:
             rows = await cursor.fetchall()
         results = [self._row_to_ticker_metadata(row) for row in rows]
         logger.debug("Retrieved %d ticker_metadata rows", len(results))

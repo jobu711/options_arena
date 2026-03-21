@@ -23,16 +23,19 @@ contract filtering with Greeks dispatch. Receives pre-fetched data — **no API 
 
 ## Key Constants
 
-### Indicator Weights (19 indicators, sum to 1.0)
+### Indicator Weights (27 indicators, sum to 1.0)
 Oscillators: rsi(0.07), stochastic_rsi(0.05), williams_r(0.05).
 Trend: adx(0.07), roc(0.03), supertrend(0.05), macd(0.05).
 Volatility: atr_pct(0.05), bb_width(0.05), keltner_width(0.04).
 Volume: obv(0.05), ad(0.05), relative_volume(0.05).
 Moving Avg: sma_alignment(0.07), vwap_deviation(0.05).
 Options: iv_rank(0.06), iv_percentile(0.06), put_call_ratio(0.05), max_pain_distance(0.05).
+Liquidity: chain_spread_pct(0.04), chain_oi_depth(0.02).
+Advanced: skew_25d, smile_curvature, hurst_exponent, vol_forecast_garch, regime_transition_prob.
+(See `composite.py` INDICATOR_WEIGHTS for exact values — import-time sum guard ensures 1.0.)
 
 ### Inverted Indicators
-Higher raw = worse signal, flipped after normalization: `bb_width`, `atr_pct`, `keltner_width`.
+Higher raw = worse signal, flipped after normalization: `bb_width`, `atr_pct`, `keltner_width`, `chain_spread_pct`.
 `relative_volume` is NOT inverted — high rel vol = institutional attention.
 
 ### Composite Score
