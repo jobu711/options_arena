@@ -1,10 +1,11 @@
 ---
-allowed-tools: Bash, Read, Write, LS
+allowed-tools: Bash, Read, Write, LS, Agent
 ---
 
 # PRD Parse
 
-Convert PRD to technical implementation epic.
+Convert PRD to technical implementation epic(s). Automatically detects whether the PRD
+requires a single epic or multiple epics and creates the appropriate structure.
 
 ## Usage
 ```
@@ -23,37 +24,37 @@ Do not bother the user with preflight checks progress ("I'm not going to ..."). 
 
 ### Validation Steps
 1. **Verify <feature_name> was provided as a parameter:**
-   - If not, tell user: "❌ <feature_name> was not provided as parameter. Please run: /pm:prd-parse <feature_name>"
+   - If not, tell user: "Feature name not provided. Run: /pm:prd-parse <feature_name>"
    - Stop execution if <feature_name> was not provided
 
 2. **Verify PRD exists:**
    - Check if `.claude/prds/$ARGUMENTS.md` exists
-   - If not found, tell user: "❌ PRD not found: $ARGUMENTS. First create it with: /pm:prd-new $ARGUMENTS"
+   - If not found, tell user: "PRD not found: $ARGUMENTS. Create it with: /pm:prd-new $ARGUMENTS"
    - Stop execution if PRD doesn't exist
 
 3. **Validate PRD frontmatter:**
    - Verify PRD has valid frontmatter with: name, description, status, created
-   - If frontmatter is invalid or missing, tell user: "❌ Invalid PRD frontmatter. Please check: .claude/prds/$ARGUMENTS.md"
-   - Show what's missing or invalid
+   - If frontmatter is invalid or missing, tell user what's missing
+   - Stop execution if invalid
 
-4. **Check for existing epic:**
+4. **Check for existing epic(s):**
    - Check if `.claude/epics/$ARGUMENTS/epic.md` already exists
-   - If it exists, ask user: "⚠️ Epic '$ARGUMENTS' already exists. Overwrite? (yes/no)"
+   - Also check for child epic directories matching `$ARGUMENTS-*`
+   - If any exist, list them and ask: "Epic(s) for '$ARGUMENTS' already exist. Overwrite? (yes/no)"
    - Only proceed with explicit 'yes' confirmation
-   - If user says no, suggest: "View existing epic with: /pm:epic-show $ARGUMENTS"
 
 5. **Verify directory permissions:**
    - Ensure `.claude/epics/` directory exists or can be created
-   - If cannot create, tell user: "❌ Cannot create epic directory. Please check permissions."
 
 6. **Check for research (non-blocking):**
    - Check if `.claude/epics/$ARGUMENTS/research.md` exists
-   - If missing, warn: "⚠️ No research found. Consider running /pm:prd-research $ARGUMENTS first for better results."
-   - This is non-blocking — continue regardless
+   - If missing, warn: "No research found. Consider running /pm:prd-research $ARGUMENTS first."
+   - Continue regardless
 
 ## Instructions
 
-You are a technical lead converting a Product Requirements Document into a detailed implementation epic for: **$ARGUMENTS**
+You are a technical lead converting a Product Requirements Document into a detailed
+implementation plan for: **$ARGUMENTS**
 
 ### 1. Read the PRD
 - Load the PRD from `.claude/prds/$ARGUMENTS.md`
@@ -62,18 +63,57 @@ You are a technical lead converting a Product Requirements Document into a detai
 - Extract the PRD description from frontmatter
 
 ### 2. Technical Analysis
-- If `.claude/epics/$ARGUMENTS/research.md` exists, read it first and incorporate findings:
-  - Use identified modules and patterns as starting points
-  - Address open questions from research
-  - Adopt the recommended architecture if sound
-  - Reference existing code to extend
+- If `.claude/epics/$ARGUMENTS/research.md` exists, read it first and incorporate findings
 - Identify architectural decisions needed
-- Determine technology stack and approaches
 - Map functional requirements to technical components
 - Identify integration points and dependencies
+- Look for ways to simplify and leverage existing functionality
 
-### 3. File Format with Frontmatter
-Create the epic file at: `.claude/epics/$ARGUMENTS/epic.md` with this exact structure:
+### 3. Determine Single vs Multi-Epic
+
+Analyze the PRD to decide whether it needs **one epic** or **multiple epics**.
+
+**Use multiple epics when ANY of these are true:**
+- The PRD explicitly defines named phases/epics in an "Implementation Phasing" section
+- The PRD spans 3+ modules with distinct, separately-shippable milestones
+- The total estimated work exceeds ~15 tasks (single epics cap at 10 tasks)
+- There are clear dependency chains where later work cannot begin until earlier work ships
+  (e.g., "models first, then agents, then wiring, then cutover")
+
+**Use a single epic when:**
+- The PRD fits comfortably in ≤10 tasks
+- All work lands in 1-2 modules
+- No distinct shippable milestones — it's one cohesive unit
+
+**Present the decision to the user before proceeding:**
+```
+Analyzed PRD: $ARGUMENTS
+
+[Single-epic / Multi-epic] approach recommended.
+Reason: {1-2 sentence justification}
+
+{If multi-epic:}
+Proposed epics ({count}):
+  1. $ARGUMENTS-{suffix} — {one-line scope}
+  2. $ARGUMENTS-{suffix} — {one-line scope}
+  ...
+Dependency chain: {A} -> {B} -> {C} (or "all parallel", etc.)
+
+Proceed? (yes/no/adjust)
+```
+
+If the user says "adjust", ask what they'd like changed and revise the plan.
+Only proceed with explicit confirmation.
+
+---
+
+## Path A: Single Epic
+
+When the decision is **single epic**, follow this path.
+
+### A.1 Create Epic File
+
+Create `.claude/epics/$ARGUMENTS/epic.md`:
 
 ```markdown
 ---
@@ -92,29 +132,14 @@ Brief technical summary of the implementation approach
 
 ## Architecture Decisions
 - Key technical decisions and rationale
-- Technology choices
 - Design patterns to use
 
 ## Technical Approach
-### Frontend Components
-- UI components needed
-- State management approach
-- User interaction patterns
+### Backend
+- Data models, services, business logic
 
-### Backend Services
-- API endpoints required
-- Data models and schema
-- Business logic components
-
-### Infrastructure
-- Deployment considerations
-- Scaling requirements
-- Monitoring and observability
-
-## Implementation Strategy
-- Development phases
-- Risk mitigation
-- Testing approach
+### Frontend (if applicable)
+- UI components, state management
 
 ## Task Breakdown Preview
 High-level task categories that will be created:
@@ -123,58 +148,190 @@ High-level task categories that will be created:
 - [ ] etc.
 
 ## Dependencies
-- External service dependencies
-- Internal team dependencies
+- External and internal dependencies
 - Prerequisite work
 
 ## Success Criteria (Technical)
-- Performance benchmarks
-- Quality gates
-- Acceptance criteria
+- Quality gates and acceptance criteria
 
 ## Estimated Effort
-- Overall timeline estimate
-- Resource requirements
+- Overall estimate
 - Critical path items
 ```
 
-### 4. Frontmatter Guidelines
-- **name**: Use the exact feature name (same as $ARGUMENTS)
-- **status**: Always start with "backlog" for new epics
-- **created**: Get REAL current datetime by running: `date -u +"%Y-%m-%dT%H:%M:%SZ"`
-- **progress**: Always start with "0%" for new epics
-- **prd**: Reference the source PRD file path
-- **github**: Leave placeholder text - will be updated during sync
+### A.2 Continue to Finalization (Step 7)
 
-### 5. Output Location
-Create the directory structure if it doesn't exist:
-- `.claude/epics/$ARGUMENTS/` (directory)
-- `.claude/epics/$ARGUMENTS/epic.md` (epic file)
+---
 
-### 6. Quality Validation
+## Path B: Multi-Epic
 
-Before saving the epic, verify:
-- [ ] All PRD requirements are addressed in the technical approach
-- [ ] Task breakdown categories cover all implementation areas
+When the decision is **multiple epics**, follow this path.
+
+### B.1 Determine Epic Names
+
+Epic naming convention: `$ARGUMENTS-{short-suffix}`
+
+Examples from PRD with epics A-D:
+- `unified-agent-system-foundation`
+- `unified-agent-system-desk-recommend`
+- `unified-agent-system-orchestrator`
+- `unified-agent-system-cutover`
+
+If the PRD defines explicit epic/phase names, derive suffixes from those.
+Keep suffixes short (1-3 words, kebab-case).
+
+### B.2 Create Parent Epic
+
+Create `.claude/epics/$ARGUMENTS/epic.md`:
+
+```markdown
+---
+name: $ARGUMENTS
+status: backlog
+created: [Current ISO date/time]
+progress: 0%
+prd: .claude/prds/$ARGUMENTS.md
+type: parent
+child_epics:
+  - $ARGUMENTS-suffix1
+  - $ARGUMENTS-suffix2
+  - $ARGUMENTS-suffix3
+github: [Will be updated when synced to GitHub]
+---
+
+# Epic: $ARGUMENTS (Parent)
+
+## Overview
+Brief technical summary of the overall implementation approach.
+This parent epic coordinates {N} child epics.
+
+## Architecture Decisions
+- Key technical decisions and rationale (shared across all child epics)
+- Design patterns to use
+
+## Child Epic Summary
+
+| Epic | Scope | Dependencies | Est. Tasks |
+|------|-------|-------------|------------|
+| $ARGUMENTS-suffix1 | {scope} | None | {N} |
+| $ARGUMENTS-suffix2 | {scope} | suffix1 | {N} |
+| ... | ... | ... | ... |
+
+## Dependency Graph
+
+{ASCII diagram showing epic dependencies, e.g.:}
+```
+suffix1 --> suffix2 --> suffix3
+              \--> suffix4 (parallel with suffix3)
+```
+
+## Success Criteria (Technical)
+- Overall success criteria from the PRD
+
+## Estimated Effort
+- Total across all child epics
+- Critical path
+```
+
+### B.3 Create Child Epics
+
+For each child epic, create `.claude/epics/$ARGUMENTS-{suffix}/epic.md`:
+
+```markdown
+---
+name: $ARGUMENTS-{suffix}
+status: backlog
+created: [Current ISO date/time]
+progress: 0%
+prd: .claude/prds/$ARGUMENTS.md
+parent_epic: $ARGUMENTS
+depends_on: []  # List of sibling epic names this depends on
+github: [Will be updated when synced to GitHub]
+---
+
+# Epic: $ARGUMENTS-{suffix}
+
+## Overview
+What this child epic delivers and why it's a separate unit of work.
+
+## Scope Boundary
+### In Scope
+- Specific deliverables for THIS epic only
+
+### Out of Scope (handled by sibling epics)
+- What is explicitly NOT in this epic
+
+## Architecture Decisions
+- Decisions specific to this epic (inherits parent decisions)
+
+## Technical Approach
+### Backend
+- Data models, services, logic for this epic
+
+### Frontend (if applicable)
+- UI changes for this epic
+
+## Task Breakdown Preview
+- [ ] Category 1: Description
+- [ ] Category 2: Description
+
+## Dependencies
+- Sibling epic dependencies (must ship first)
+- External dependencies
+
+## Success Criteria
+- What "done" looks like for THIS epic
+- Verification gates before next epic can start
+
+## Estimated Effort
+- Task count estimate
+- Critical items
+```
+
+If the task count is clear and small, create child epics sequentially. If there are
+many child epics (4+), use Agent tool to create them in parallel (max 3 concurrent):
+
+```yaml
+Agent:
+  description: "Create child epic {suffix}"
+  prompt: |
+    Create the child epic file at .claude/epics/$ARGUMENTS-{suffix}/epic.md
+    with the following content: {full epic content}
+
+    Create the directory first if it doesn't exist.
+```
+
+### B.4 Copy Research to Child Epics (if applicable)
+
+If `.claude/epics/$ARGUMENTS/research.md` exists, it stays with the parent.
+Child epics reference it: "See parent epic research: `.claude/epics/$ARGUMENTS/research.md`"
+
+### B.5 Continue to Finalization (Step 7)
+
+---
+
+## 7. Finalization (Both Paths)
+
+### 7.1 Quality Validation
+
+Before saving, verify:
+- [ ] All PRD requirements are addressed (across all epics if multi-epic)
+- [ ] No requirement falls through the cracks between child epic scope boundaries
 - [ ] Dependencies are technically accurate
-- [ ] Effort estimates are realistic
 - [ ] Architecture decisions are justified
 
-### 7. Update PRD Status
+### 7.2 Update PRD Status
 
-Update the PRD frontmatter status to `planned`:
-- Read `.claude/prds/$ARGUMENTS.md`
-- Change `status:` value to `planned` in frontmatter (may be `backlog` or `researched`)
-- Preserve all other frontmatter fields and content
+Update `.claude/prds/$ARGUMENTS.md` frontmatter `status:` to `planned`.
+Preserve all other fields and content.
 
-### 8. Write Checkpoint (best-effort)
+### 7.3 Write Checkpoint (best-effort)
 
-Write `.claude/epics/$ARGUMENTS/checkpoint.json` with `phase: "planning"`.
-Get REAL current datetime. Failure to write checkpoint does not fail the command.
+Write `.claude/epics/$ARGUMENTS/checkpoint.json`. Failure does not fail the command.
 
-If `checkpoint.json` already exists (e.g., from `/pm:prd-research`), read it first and preserve
-the `notes` and `blockers` fields. Update `phase`, `last_command`, `last_updated`, and merge
-`completed_phases`.
+If `checkpoint.json` already exists (e.g., from `/pm:prd-research`), read it first and
+preserve `notes` and `blockers`. Update `phase`, `last_command`, `last_updated`, and
+merge `completed_phases`.
 
 ```json
 {
@@ -191,28 +348,74 @@ the `notes` and `blockers` fields. Update `phase`, `last_command`, `last_updated
 }
 ```
 
-If `research.md` exists, include `"research"` in `completed_phases` between `"prd-created"` and `"planning"`.
+If `research.md` exists, include `"research"` in `completed_phases`.
 
-### 10. Post-Creation
+For multi-epic, also write a checkpoint for each child epic directory:
+```json
+{
+  "epic": "$ARGUMENTS-{suffix}",
+  "phase": "planning",
+  "last_command": "/pm:prd-parse $ARGUMENTS",
+  "last_updated": "{current ISO datetime}",
+  "completed_phases": ["prd-created", "planning"],
+  "parent_epic": "$ARGUMENTS",
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}
+```
 
-After successfully creating the epic:
-1. Confirm: "✅ Epic created: .claude/epics/$ARGUMENTS/epic.md"
-2. Show summary of:
-   - Number of task categories identified
-   - Key architecture decisions
-   - Estimated effort
-3. Suggest next step: "Ready to break down into tasks? Run: /pm:epic-decompose $ARGUMENTS"
+### 7.4 Post-Creation Output
+
+**Single epic:**
+```
+Epic created: .claude/epics/$ARGUMENTS/epic.md
+  Task categories: {count}
+  Key decisions: {1-2 bullet summary}
+  Estimated effort: {estimate}
+
+Next: /pm:epic-decompose $ARGUMENTS
+```
+
+**Multi-epic:**
+```
+Parent epic created: .claude/epics/$ARGUMENTS/epic.md
+Child epics created ({count}):
+  1. $ARGUMENTS-{suffix} — {scope} ({est_tasks} tasks)
+  2. $ARGUMENTS-{suffix} — {scope} ({est_tasks} tasks)
+  ...
+Dependency chain: {summary}
+Total estimated tasks: {sum}
+
+Next: /pm:epic-decompose $ARGUMENTS-{first_suffix}
+  (Decompose child epics individually, in dependency order)
+```
+
+## Downstream Workflow — Multi-Epic
+
+After `prd-parse` creates multiple epics, the downstream commands work per-child-epic:
+
+1. `/pm:epic-decompose $ARGUMENTS-suffix1` — decompose first child into tasks
+2. `/pm:epic-sync $ARGUMENTS-suffix1` — sync to GitHub
+3. `/pm:epic-start $ARGUMENTS-suffix1` — execute first child
+4. `/pm:epic-merge $ARGUMENTS-suffix1` — merge first child
+5. Repeat for next child epic in dependency order
+
+The parent epic is a coordination artifact — it is never decomposed or started directly.
+`/pm:epic-status $ARGUMENTS` shows the parent with rollup progress across children.
 
 ## Error Recovery
 
 If any step fails:
 - Clearly explain what went wrong
 - If PRD is incomplete, list specific missing sections
-- If technical approach is unclear, identify what needs clarification
-- Never create an epic with incomplete information
-
-Focus on creating a technically sound implementation plan that addresses all PRD requirements while being practical and achievable for "$ARGUMENTS".
+- If multi-epic and partial creation fails, list which epics were created
+- Never leave epics in an inconsistent state
 
 ## IMPORTANT:
-- Aim for as few tasks as possible and limit the total number of tasks to 10 or less.
-- When creating the epic, identify ways to simplify and improve it. Look for ways to leverage existing functionality instead of creating more code when possible.
+- Single epics: aim for ≤10 tasks.
+- Multi-epic: aim for ≤10 tasks per child epic.
+- Identify ways to simplify. Leverage existing functionality over creating new code.
+- Multi-epic is NOT the default — only use it when the PRD genuinely requires it.

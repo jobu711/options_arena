@@ -1,0 +1,12 @@
+{
+  "epic": "ai-agency-ml-tools",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync ai-agency-ml-tools",
+  "last_updated": "2026-03-21T14:55:08Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}

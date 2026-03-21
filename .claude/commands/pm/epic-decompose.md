@@ -23,21 +23,27 @@ Do not bother the user with preflight checks progress ("I'm not going to ..."). 
 
 1. **Verify epic exists:**
    - Check if `.claude/epics/$ARGUMENTS/epic.md` exists
-   - If not found, tell user: "❌ Epic not found: $ARGUMENTS. First create it with: /pm:prd-parse $ARGUMENTS"
+   - If not found, tell user: "Epic not found: $ARGUMENTS. First create it with: /pm:prd-parse $ARGUMENTS"
    - Stop execution if epic doesn't exist
 
-2. **Check for existing tasks:**
+2. **Reject parent epics:**
+   - Read the epic frontmatter. If `type: parent`, tell user:
+     "Cannot decompose parent epic '$ARGUMENTS'. Decompose child epics individually:"
+   - List the `child_epics` with: "/pm:epic-decompose {child-name}"
+   - Stop execution
+
+3. **Check for existing tasks:**
    - Check if any numbered task files (001.md, 002.md, etc.) already exist in `.claude/epics/$ARGUMENTS/`
    - If tasks exist, list them and ask: "⚠️ Found {count} existing tasks. Delete and recreate all tasks? (yes/no)"
    - Only proceed with explicit 'yes' confirmation
    - If user says no, suggest: "View existing tasks with: /pm:epic-show $ARGUMENTS"
 
-3. **Validate epic frontmatter:**
+4. **Validate epic frontmatter:**
    - Verify epic has valid frontmatter with: name, status, created, prd
-   - If invalid, tell user: "❌ Invalid epic frontmatter. Please check: .claude/epics/$ARGUMENTS/epic.md"
+   - If invalid, tell user: "Invalid epic frontmatter. Please check: .claude/epics/$ARGUMENTS/epic.md"
 
-4. **Check epic status:**
-   - If epic status is already "completed", warn user: "⚠️ Epic is marked as completed. Are you sure you want to decompose it again?"
+5. **Check epic status:**
+   - If epic status is already "completed", warn user: "Epic is marked as completed. Are you sure you want to decompose it again?"
 
 ## Instructions
 
@@ -45,6 +51,8 @@ You are decomposing an epic into specific, actionable tasks for: **$ARGUMENTS**
 
 ### 1. Read the Epic
 - Load the epic from `.claude/epics/$ARGUMENTS/epic.md`
+- If `parent_epic` is in frontmatter, also read the parent epic's `epic.md` for shared
+  architecture decisions and overall context
 - Understand the technical approach and requirements
 - Review the task breakdown preview
 

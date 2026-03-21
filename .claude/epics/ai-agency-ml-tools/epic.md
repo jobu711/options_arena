@@ -8,7 +8,7 @@ parent_epic: ai-agency-evolution
 epic_number: 8
 dependencies: [ai-agency-desk-foundation, ai-agency-advisor-routing, ai-agency-all-desks]
 parallelizable_with: [ai-agency-weight-tuning, ai-agency-prompt-ab, ai-agency-strategy-mining, ai-agency-analysis-tools]
-github: [Will be updated when synced to GitHub]
+github: https://github.com/jobu711/options_arena/issues/625
 ---
 
 # Epic 8: ML Desk Tools
@@ -92,3 +92,18 @@ def render_available_tools(toolset: FunctionToolset) -> str:
 ## Estimated Effort
 
 3-4 issues, ~2 implementation sessions
+
+## Tasks Created
+- [ ] #626 - GARCH Forecast + Markov Regime Tool Wrappers (parallel: true)
+- [ ] #627 - Macro Regime + Hurst Exponent Tool Wrappers (parallel: true)
+- [ ] #628 - Conditional Registration in Toolset Builders (parallel: false)
+- [ ] #629 - Integration Tests — Toolset Degradation and End-to-End (parallel: false)
+
+Total tasks: 4
+Parallel tasks: 2 (#626, #627)
+Sequential tasks: 2 (#628 depends on #626+#627, #629 depends on #626+#627+#628)
+Estimated total effort: 15 hours
+
+## Test Coverage Plan
+Total test files planned: 4
+Total test cases planned: ~50 (11 + 12 + 13 + 15)
