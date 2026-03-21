@@ -480,7 +480,10 @@ class OutcomeCollector:
                 logger.info("Next outcome collection in %.0f seconds", seconds)
                 await asyncio.sleep(seconds)
 
-                outcomes = await self.collect_outcomes()
+                outcomes = await asyncio.wait_for(
+                    self.collect_outcomes(),
+                    timeout=3600.0,
+                )
                 logger.info(
                     "Scheduled outcome collection complete: %d outcomes",
                     len(outcomes),

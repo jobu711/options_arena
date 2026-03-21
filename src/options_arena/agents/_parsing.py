@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from pydantic_ai.usage import RunUsage
 
 from options_arena.models import (
@@ -329,11 +329,18 @@ class DebateResult(BaseModel):
     is_fallback: bool
     bull_rebuttal: AgentResponse | None = None  # None when rebuttal disabled/skipped
     vol_response: VolatilityThesis | None = None  # None when vol agent disabled/skipped
-    citation_density: float = 0.0  # fraction of context labels cited in agent text
+    citation_density: float = 0.0  # fraction of context labels cited in agent text [0.0, 1.0]
     flow_response: FlowThesis | None = None
     fundamental_response: FundamentalThesis | None = None
     risk_response: RiskAssessment | None = None
     contrarian_response: ContrarianThesis | None = None
+
+    @field_validator("citation_density")
+    @classmethod
+    def _validate_citation_density(cls, v: float) -> float:
+        if not math.isfinite(v):
+            return 0.0
+        return max(0.0, min(1.0, v))
 
 
 def _render_optional(label: str, value: float | None, fmt: str = ".1f") -> str | None:

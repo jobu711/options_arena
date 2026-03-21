@@ -89,12 +89,7 @@ async def _run_scan_background(
         outcomes_count = 0
         if not result.cancelled:
             try:
-                collector = OutcomeCollector(
-                    config=request.app.state.settings.analytics,
-                    repository=request.app.state.repo,
-                    market_data=request.app.state.market_data,
-                    options_data=request.app.state.options_data,
-                )
+                collector: OutcomeCollector = request.app.state.outcome_collector
                 timeout = request.app.state.settings.analytics.collection_timeout
                 outcomes = await asyncio.wait_for(collector.collect_outcomes(), timeout=timeout)
                 outcomes_count = len(outcomes)

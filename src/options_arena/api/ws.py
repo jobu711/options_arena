@@ -69,6 +69,7 @@ class WebSocketProgressBridge:
         if self.queue.full():
             with contextlib.suppress(asyncio.QueueEmpty):
                 self.queue.get_nowait()
+            logger.debug("WS queue full — dropped oldest event")
         self.queue.put_nowait(event)
 
     def __call__(self, phase: ScanPhase, current: int, total: int) -> None:
@@ -108,6 +109,7 @@ class DebateProgressBridge:
         if self.queue.full():
             with contextlib.suppress(asyncio.QueueEmpty):
                 self.queue.get_nowait()
+            logger.debug("WS queue full — dropped oldest event")
         self.queue.put_nowait(event)
 
     def __call__(self, phase: DebatePhase, status: str, confidence: float | None) -> None:
@@ -178,6 +180,7 @@ class BatchProgressBridge:
         if self.queue.full():
             with contextlib.suppress(asyncio.QueueEmpty):
                 self.queue.get_nowait()
+            logger.debug("WS queue full — dropped oldest event")
         self.queue.put_nowait(event)
 
     def agent_bridge(self, ticker: str) -> _BatchAgentBridge:
@@ -231,19 +234,18 @@ async def ws_scan(websocket: WebSocket, scan_id: int) -> None:
             return
         _scan_ws_count += 1
         reserved = True
-    await websocket.accept()
-    scan_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
-        websocket.app.state, "scan_queues", {}
-    )
-    queue = scan_queues.get(scan_id)
-    if queue is None:
-        async with _scan_ws_lock:
-            _scan_ws_count -= 1
-        with contextlib.suppress(Exception):
-            await websocket.close(code=4004)
-        return
 
     try:
+        await websocket.accept()
+        scan_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
+            websocket.app.state, "scan_queues", {}
+        )
+        queue = scan_queues.get(scan_id)
+        if queue is None:
+            with contextlib.suppress(Exception):
+                await websocket.close(code=4004)
+            return
+
         while True:
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=1.0)
@@ -252,7 +254,7 @@ async def ws_scan(websocket: WebSocket, scan_id: int) -> None:
                     break
             except TimeoutError:
                 continue
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, RuntimeError):
         logger.debug("WebSocket scan/%d disconnected", scan_id)
     finally:
         if reserved:
@@ -280,19 +282,18 @@ async def ws_debate(websocket: WebSocket, debate_id: int) -> None:
             return
         _debate_ws_count += 1
         reserved = True
-    await websocket.accept()
-    debate_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
-        websocket.app.state, "debate_queues", {}
-    )
-    queue = debate_queues.get(debate_id)
-    if queue is None:
-        async with _debate_ws_lock:
-            _debate_ws_count -= 1
-        with contextlib.suppress(Exception):
-            await websocket.close(code=4004)
-        return
 
     try:
+        await websocket.accept()
+        debate_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
+            websocket.app.state, "debate_queues", {}
+        )
+        queue = debate_queues.get(debate_id)
+        if queue is None:
+            with contextlib.suppress(Exception):
+                await websocket.close(code=4004)
+            return
+
         while True:
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=1.0)
@@ -301,7 +302,7 @@ async def ws_debate(websocket: WebSocket, debate_id: int) -> None:
                     break
             except TimeoutError:
                 continue
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, RuntimeError):
         logger.debug("WebSocket debate/%d disconnected", debate_id)
     finally:
         if reserved:
@@ -329,19 +330,18 @@ async def ws_batch(websocket: WebSocket, batch_id: int) -> None:
             return
         _batch_ws_count += 1
         reserved = True
-    await websocket.accept()
-    batch_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
-        websocket.app.state, "batch_queues", {}
-    )
-    queue = batch_queues.get(batch_id)
-    if queue is None:
-        async with _batch_ws_lock:
-            _batch_ws_count -= 1
-        with contextlib.suppress(Exception):
-            await websocket.close(code=4004)
-        return
 
     try:
+        await websocket.accept()
+        batch_queues: dict[int, asyncio.Queue[dict[str, object]]] = getattr(
+            websocket.app.state, "batch_queues", {}
+        )
+        queue = batch_queues.get(batch_id)
+        if queue is None:
+            with contextlib.suppress(Exception):
+                await websocket.close(code=4004)
+            return
+
         while True:
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=1.0)
@@ -350,7 +350,7 @@ async def ws_batch(websocket: WebSocket, batch_id: int) -> None:
                     break
             except TimeoutError:
                 continue
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, RuntimeError):
         logger.debug("WebSocket batch/%d disconnected", batch_id)
     finally:
         if reserved:

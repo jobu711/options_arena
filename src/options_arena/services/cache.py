@@ -125,6 +125,7 @@ class ServiceCache:
         self._db = await aiosqlite.connect(self._db_path)
         self._db.row_factory = aiosqlite.Row
         await self._db.execute("PRAGMA journal_mode=WAL")
+        await self._db.execute("PRAGMA foreign_keys=ON")
         await self._db.execute(
             "CREATE TABLE IF NOT EXISTS service_cache "
             "(key TEXT PRIMARY KEY, value BLOB, expires_at REAL)"
