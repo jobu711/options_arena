@@ -10,10 +10,12 @@ import json
 import sys
 
 # MCP tool names that modify the database
-_WRITE_TOOLS = frozenset({
-    "mcp__sqlite__write_query",
-    "mcp__sqlite__create_table",
-})
+_WRITE_TOOLS = frozenset(
+    {
+        "mcp__sqlite__write_query",
+        "mcp__sqlite__create_table",
+    }
+)
 
 
 def main() -> None:

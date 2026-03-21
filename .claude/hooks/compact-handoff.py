@@ -12,7 +12,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _HANDOFF_DIR = os.path.join(_PROJECT_ROOT, ".claude", "handoffs")
@@ -106,7 +106,9 @@ def _epic_state() -> str:
         in_progress = sum(1 for v in issues.values() if v.get("status") == "in_progress")
         total = len(issues)
 
-        lines.append(f"- **{epic_name}**: phase=`{phase}`, {done}/{total} done, {in_progress} in-progress")
+        lines.append(
+            f"- **{epic_name}**: phase=`{phase}`, {done}/{total} done, {in_progress} in-progress"
+        )
 
     if not lines:
         return ""
@@ -123,6 +125,7 @@ def _session_info() -> str:
     """Collect context-monitor session info if available."""
     ppid = os.getppid()
     import tempfile
+
     state_path = os.path.join(tempfile.gettempdir(), f"claude-context-monitor-{ppid}.json")
 
     try:
@@ -153,7 +156,7 @@ def _write_handoff() -> str:
     """Write a handoff file and return its path."""
     os.makedirs(_HANDOFF_DIR, exist_ok=True)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     timestamp = now.strftime("%Y%m%d-%H%M%S")
     filename = f"handoff-{timestamp}.md"
     filepath = os.path.join(_HANDOFF_DIR, filename)

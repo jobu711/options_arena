@@ -28,30 +28,37 @@ _SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"gh[pousr]_[A-Za-z0-9_]{16,}"), "GitHub token"),
     (re.compile(r"AKIA[0-9A-Z]{16}"), "AWS access key"),
     (re.compile(r"-----BEGIN.*PRIVATE KEY-----"), "Private key block"),
-    (re.compile(
-        r"""(?:password|secret|token|api_key|apikey)\s*[=:]\s*['"][^'"]{8,}['"]""",
-        re.IGNORECASE,
-    ), "Password/secret assignment"),
+    (
+        re.compile(
+            r"""(?:password|secret|token|api_key|apikey)\s*[=:]\s*['"][^'"]{8,}['"]""",
+            re.IGNORECASE,
+        ),
+        "Password/secret assignment",
+    ),
 ]
 
 # ---------------------------------------------------------------------------
 # Forbidden files (always blocked from staging)
 # ---------------------------------------------------------------------------
 
-_FORBIDDEN_BASENAMES = frozenset({
-    ".env",
-    "credentials.json",
-    ".mcp.json",
-    "id_rsa",
-    "id_ed25519",
-})
+_FORBIDDEN_BASENAMES = frozenset(
+    {
+        ".env",
+        "credentials.json",
+        ".mcp.json",
+        "id_rsa",
+        "id_ed25519",
+    }
+)
 
-_FORBIDDEN_EXTENSIONS = frozenset({
-    ".pem",
-    ".key",
-    ".p12",
-    ".pfx",
-})
+_FORBIDDEN_EXTENSIONS = frozenset(
+    {
+        ".pem",
+        ".key",
+        ".p12",
+        ".pfx",
+    }
+)
 
 _FORBIDDEN_PREFIXES = (".env.",)
 
@@ -187,7 +194,7 @@ def _scan_files_being_added(command: str) -> list[str]:
     except ValueError:
         return findings
 
-    files = parts[add_idx + 1:]
+    files = parts[add_idx + 1 :]
 
     for filepath in files:
         # Skip flags

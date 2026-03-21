@@ -84,9 +84,7 @@ class MetadataMixin(RepositoryBase):
             await conn.commit()
         logger.debug("Batch-upserted %d ticker_metadata rows", len(items))
 
-    async def get_all_ticker_metadata(
-        self, limit: int | None = None
-    ) -> list[TickerMetadata]:
+    async def get_all_ticker_metadata(self, limit: int | None = None) -> list[TickerMetadata]:
         """Return rows from ``ticker_metadata`` ordered by ticker.
 
         If *limit* is provided, bound result size. If ``None``, return all rows.

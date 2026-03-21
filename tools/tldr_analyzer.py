@@ -23,7 +23,6 @@ import argparse
 import ast
 import hashlib
 import json
-import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -174,9 +173,16 @@ def _is_frozen(node: ast.ClassDef) -> bool:
 
 
 _KNOWN_MODEL_BASES = {
-    "BaseModel", "BaseSettings", "TradeThesis", "AgentResponse",
-    "VolatilityThesis", "FlowThesis", "RiskAssessment",
-    "FundamentalThesis", "ContrarianThesis", "ExtendedTradeThesis",
+    "BaseModel",
+    "BaseSettings",
+    "TradeThesis",
+    "AgentResponse",
+    "VolatilityThesis",
+    "FlowThesis",
+    "RiskAssessment",
+    "FundamentalThesis",
+    "ContrarianThesis",
+    "ExtendedTradeThesis",
 }
 
 
@@ -247,14 +253,52 @@ def _extract_func(node: ast.FunctionDef | ast.AsyncFunctionDef) -> FuncInfo:
 # ---------------------------------------------------------------------------
 
 # Common builtins/stdlib to filter out
-_SKIP_CALLS = frozenset({
-    "len", "str", "int", "float", "bool", "list", "dict", "set", "tuple",
-    "range", "enumerate", "zip", "map", "filter", "sorted", "reversed",
-    "print", "isinstance", "issubclass", "hasattr", "getattr", "setattr",
-    "type", "super", "property", "staticmethod", "classmethod",
-    "min", "max", "sum", "abs", "round", "any", "all", "next", "iter",
-    "open", "repr", "format", "id", "hash", "callable",
-})
+_SKIP_CALLS = frozenset(
+    {
+        "len",
+        "str",
+        "int",
+        "float",
+        "bool",
+        "list",
+        "dict",
+        "set",
+        "tuple",
+        "range",
+        "enumerate",
+        "zip",
+        "map",
+        "filter",
+        "sorted",
+        "reversed",
+        "print",
+        "isinstance",
+        "issubclass",
+        "hasattr",
+        "getattr",
+        "setattr",
+        "type",
+        "super",
+        "property",
+        "staticmethod",
+        "classmethod",
+        "min",
+        "max",
+        "sum",
+        "abs",
+        "round",
+        "any",
+        "all",
+        "next",
+        "iter",
+        "open",
+        "repr",
+        "format",
+        "id",
+        "hash",
+        "callable",
+    }
+)
 
 
 class _CallExtractor(ast.NodeVisitor):
@@ -401,8 +445,15 @@ def _extract_imports(tree: ast.Module) -> tuple[list[str], list[str]]:
             elif not node.module.startswith("__"):
                 top = node.module.split(".")[0]
                 if top not in external and top not in (
-                    "typing", "collections", "abc", "enum", "dataclasses",
-                    "functools", "itertools", "contextlib", "pathlib",
+                    "typing",
+                    "collections",
+                    "abc",
+                    "enum",
+                    "dataclasses",
+                    "functools",
+                    "itertools",
+                    "contextlib",
+                    "pathlib",
                 ):
                     external.append(top)
         elif isinstance(node, ast.Import):
@@ -555,7 +606,9 @@ def render_summary(analysis: FileAnalysis) -> str:
                 params_str = ", ".join(method.params[:4])
                 if len(method.params) > 4:
                     params_str += ", ..."
-                lines.append(f"  - `{async_prefix}{method.name}({params_str}){ret}` L{method.line}")
+                lines.append(
+                    f"  - `{async_prefix}{method.name}({params_str}){ret}` L{method.line}"
+                )
 
         for func in analysis.functions:
             async_prefix = "async " if func.is_async else ""
@@ -859,7 +912,7 @@ def cmd_check() -> int:
         for p in sorted(stale):
             print(f"  {p}")
 
-    print(f"\nRun 'python tools/tldr_analyzer.py' to refresh.")
+    print("\nRun 'python tools/tldr_analyzer.py' to refresh.")
     return 1
 
 
@@ -892,12 +945,10 @@ def cmd_stats() -> int:
         by_module[module]["summary"] += summary_lines
 
     compression = (
-        (1 - total_summary_lines / total_source_lines) * 100
-        if total_source_lines > 0
-        else 0
+        (1 - total_summary_lines / total_source_lines) * 100 if total_source_lines > 0 else 0
     )
 
-    print(f"TLDR Cache Statistics")
+    print("TLDR Cache Statistics")
     print(f"{'=' * 60}")
     print(f"Files cached:      {count}")
     print(f"Source lines:      {total_source_lines:,}")
@@ -909,20 +960,15 @@ def cmd_stats() -> int:
 
     for module in sorted(by_module.keys()):
         info = by_module[module]
-        ratio = (
-            f"{info['summary'] / info['source'] * 100:.0f}%"
-            if info["source"] > 0
-            else "N/A"
-        )
+        ratio = f"{info['summary'] / info['source'] * 100:.0f}%" if info["source"] > 0 else "N/A"
         print(
-            f"{module:<15} {info['files']:>6} "
-            f"{info['source']:>8} {info['summary']:>8} {ratio:>7}"
+            f"{module:<15} {info['files']:>6} {info['source']:>8} {info['summary']:>8} {ratio:>7}"
         )
 
     # Reverse deps
     reverse_deps = manifest.get("reverse_deps", {})
     if reverse_deps:
-        print(f"\nReverse dependencies (imported_by):")
+        print("\nReverse dependencies (imported_by):")
         for module, importers in sorted(reverse_deps.items()):
             print(f"  {module} <- {', '.join(sorted(importers))}")
 

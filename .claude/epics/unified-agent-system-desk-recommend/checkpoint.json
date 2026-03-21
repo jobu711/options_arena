@@ -1,0 +1,13 @@
+{
+  "epic": "unified-agent-system-desk-recommend",
+  "phase": "planning",
+  "last_command": "/pm:prd-parse unified-agent-system",
+  "last_updated": "2026-03-21T16:31:55Z",
+  "completed_phases": ["prd-created", "planning"],
+  "parent_epic": "unified-agent-system",
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "Depends on foundation. Extends DeskDeps + adds recommendation mode to 6 desks."
+}

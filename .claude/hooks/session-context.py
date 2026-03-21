@@ -95,7 +95,9 @@ def _epic_section() -> str:
         in_progress = sum(1 for v in issues.values() if v.get("status") == "in_progress")
         total = len(issues)
 
-        lines.append(f"  {epic_name}: phase={phase}, {done}/{total} done, {in_progress} in-progress")
+        lines.append(
+            f"  {epic_name}: phase={phase}, {done}/{total} done, {in_progress} in-progress"
+        )
 
     if not lines:
         return ""
@@ -166,7 +168,7 @@ def main() -> None:
     context = "\n\n".join(sections)
     # Cap total output
     if len(context) > _MAX_TOTAL_CHARS:
-        context = context[:_MAX_TOTAL_CHARS - 3] + "..."
+        context = context[: _MAX_TOTAL_CHARS - 3] + "..."
 
     result = {"message": f"[Session Context]\n{context}"}
     print(json.dumps(result))

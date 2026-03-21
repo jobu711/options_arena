@@ -1,7 +1,7 @@
 ---
 name: unified-agent-system
 description: Replace dual agent architecture (debate + desk) with unified desk-only system — desk agents gain structured recommendation mode, synthesis agent replaces algorithmic verdict
-status: researched
+status: planned
 created: 2026-03-21T12:00:00Z
 revised: 2026-03-21T14:30:00Z
 revision_notes: Gap audit pass — desk enable/disable config, should_recommend threshold, spread passthrough, parallelism for paid providers, citation density spec, analytics forward-only (no legacy debate compat). Prior: vote weight tuning, Context7 verification.
