@@ -30,9 +30,9 @@ def _make_deps(query: str = "Research AAPL", ticker: str = "AAPL") -> DeskDeps:
 class TestResearchToolset:
     """build_research_toolset() tests."""
 
-    def test_toolset_has_nine_tools(self) -> None:
+    def test_toolset_has_expected_tools(self) -> None:
         tools = build_research_toolset()
-        assert len(tools) == 9
+        assert len(tools) in {11, 12, 13}
 
     def test_toolset_contains_expected_functions(self) -> None:
         from options_arena.agents._toolsets import (
@@ -123,9 +123,9 @@ class TestRunResearchDeskQuery:
         assert isinstance(result.tools_used, list)
 
     async def test_uses_research_tool_budget(self) -> None:
-        """Verify research uses cfg.research_tool_budget (7), not default (4)."""
+        """Verify research uses cfg.research_tool_budget (13), not default (5)."""
         cfg = AgencyConfig()
-        assert cfg.research_tool_budget == 7
+        assert cfg.research_tool_budget == 13
         assert cfg.research_tool_budget > cfg.default_tool_budget
 
     async def test_custom_config_respected(self) -> None:

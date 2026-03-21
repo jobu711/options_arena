@@ -139,10 +139,10 @@ class TestBuildToolsets:
         tools = build_volatility_toolset()
         assert len(tools) == 4
 
-    def test_risk_toolset_has_six_tools(self) -> None:
-        """Risk toolset contains exactly 6 tools."""
+    def test_risk_toolset_has_expected_tools(self) -> None:
+        """Risk toolset contains 7-8 tools (8 with [ml])."""
         tools = build_risk_toolset()
-        assert len(tools) == 6
+        assert len(tools) in {7, 8}
 
     def test_volatility_toolset_contains_expected_functions(self) -> None:
         """Volatility toolset contains the expected tool functions."""

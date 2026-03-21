@@ -328,32 +328,50 @@ async def fetch_portfolio_exposure(ctx: RunContext[DeskDeps], ticker: str) -> st
 def build_volatility_toolset() -> list[object]:
     """Return the tools for a Volatility Desk agent.
 
-    Tools: ``fetch_quote``, ``fetch_vol_surface_slice``, ``compute_iv_for_strike``,
-    ``compute_hv_yang_zhang_tool``.
+    Base tools: ``fetch_quote``, ``fetch_vol_surface_slice``,
+    ``compute_iv_for_strike``, ``compute_hv_yang_zhang_tool``.
+    Conditional: ``compute_garch_forecast_tool`` (requires ``arch``).
     """
-    return [
+    tools: list[object] = [
         fetch_quote,
         fetch_vol_surface_slice,
         compute_iv_for_strike,
         compute_hv_yang_zhang_tool,
     ]
+    try:
+        import arch  # noqa: F401
+
+        tools.append(compute_garch_forecast_tool)
+    except ImportError:
+        pass  # [ml] not installed — vol desk works without GARCH
+    return tools
 
 
 def build_risk_toolset() -> list[object]:
     """Return the tools for a Risk Desk agent.
 
-    Tools: ``fetch_quote``, ``fetch_correlation``, ``fetch_portfolio_exposure``,
-    ``compute_correlation_matrix_tool``, ``compute_risk_adjusted_metrics_tool``,
-    ``compute_position_size_tool``.
+    Base tools: ``fetch_quote``, ``fetch_correlation``,
+    ``fetch_portfolio_exposure``, ``compute_correlation_matrix_tool``,
+    ``compute_risk_adjusted_metrics_tool``, ``compute_position_size_tool``,
+    ``compute_macro_regime_tool``.
+    Conditional: ``compute_markov_regime_tool`` (requires ``statsmodels``).
     """
-    return [
+    tools: list[object] = [
         fetch_quote,
         fetch_correlation,
         fetch_portfolio_exposure,
         compute_correlation_matrix_tool,
         compute_risk_adjusted_metrics_tool,
         compute_position_size_tool,
+        compute_macro_regime_tool,
     ]
+    try:
+        import statsmodels  # noqa: F401
+
+        tools.append(compute_markov_regime_tool)
+    except ImportError:
+        pass  # [ml] not installed — risk desk works without Markov
+    return tools
 
 
 # ---------------------------------------------------------------------------
@@ -1256,6 +1274,301 @@ async def compute_hv_yang_zhang_tool(
 
 
 # ---------------------------------------------------------------------------
+# Tool: compute_garch_forecast_tool (ML — requires [ml] extra)
+# ---------------------------------------------------------------------------
+
+
+async def compute_garch_forecast_tool(
+    ctx: RunContext[DeskDeps],
+    ticker: str,
+) -> str:
+    """Compute a GARCH(1,1) volatility forecast for *ticker*.
+
+    Fits a GARCH(1,1) model to 1-year percentage log returns and returns
+    the annualized volatility forecast.  Requires the ``arch`` and
+    ``statsmodels`` optional dependencies (``[ml]`` extra).
+
+    Args:
+        ticker: Underlying ticker symbol.
+    """
+    tool_name = "compute_garch_forecast"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        import numpy as np
+        import pandas as pd
+
+        try:
+            from options_arena.indicators.vol_forecast import compute_garch_forecast
+        except ImportError:
+            ctx.deps.tools_used.append(tool_name)
+            return "GARCH unavailable: [ml] extra not installed"
+
+        ohlcv_list = await ctx.deps.market_data.fetch_ohlcv(ticker, period="1y")
+        if not ohlcv_list:
+            ctx.deps.tools_used.append(tool_name)
+            return f"No OHLCV data found for {ticker}"
+
+        close_arr = np.array([float(bar.close) for bar in ohlcv_list], dtype=np.float64)
+
+        if len(close_arr) < 2:  # noqa: PLR2004
+            ctx.deps.tools_used.append(tool_name)
+            return f"Insufficient OHLCV data for {ticker} (need >= 2 bars)"
+
+        # GARCH expects percentage log returns: log(P_t / P_{t-1}) * 100
+        pct_returns = np.log(close_arr[1:] / close_arr[:-1]) * 100
+        returns_series = pd.Series(pct_returns, dtype=float)
+
+        vol = compute_garch_forecast(returns_series)
+
+        if vol is None:
+            ctx.deps.tools_used.append(tool_name)
+            return (
+                f"GARCH(1,1) forecast for {ticker}: N/A "
+                f"(insufficient data, non-stationarity, or convergence failure)"
+            )
+
+        # Interpret the volatility level
+        if vol < 0.15:  # noqa: PLR2004
+            interpretation = "low volatility regime"
+        elif vol < 0.30:  # noqa: PLR2004
+            interpretation = "moderate volatility"
+        elif vol < 0.50:  # noqa: PLR2004
+            interpretation = "elevated volatility"
+        else:
+            interpretation = "extreme volatility regime"
+
+        ctx.deps.tools_used.append(tool_name)
+        return f"GARCH(1,1) forecast for {ticker}: {vol:.1%} annualized — {interpretation}"
+    except Exception as exc:
+        logger.debug("compute_garch_forecast failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not compute GARCH forecast for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: compute_markov_regime_tool (ML — requires [ml] extra)
+# ---------------------------------------------------------------------------
+
+
+async def compute_markov_regime_tool(
+    ctx: RunContext[DeskDeps],
+    ticker: str,
+) -> str:
+    """Detect the current market regime for *ticker* using Markov-switching.
+
+    Fits a Markov-switching regression model (Hamilton 1989) to 1-year
+    log returns and classifies the current regime as ``low_vol``,
+    ``normal``, or ``high_vol``.  Requires ``statsmodels`` (``[ml]`` extra).
+
+    Args:
+        ticker: Underlying ticker symbol.
+    """
+    tool_name = "compute_markov_regime"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        import numpy as np
+        import pandas as pd
+
+        try:
+            from options_arena.indicators.regime_ml import compute_markov_regime
+        except ImportError:
+            ctx.deps.tools_used.append(tool_name)
+            return "Markov regime unavailable: [ml] extra not installed"
+
+        ohlcv_list = await ctx.deps.market_data.fetch_ohlcv(ticker, period="1y")
+        if not ohlcv_list:
+            ctx.deps.tools_used.append(tool_name)
+            return f"No OHLCV data found for {ticker}"
+
+        close_arr = np.array([float(bar.close) for bar in ohlcv_list], dtype=np.float64)
+
+        if len(close_arr) < 2:  # noqa: PLR2004
+            ctx.deps.tools_used.append(tool_name)
+            return f"Insufficient OHLCV data for {ticker} (need >= 2 bars)"
+
+        # Markov expects plain log returns (not percentage form)
+        log_returns = np.log(close_arr[1:] / close_arr[:-1])
+        returns_series = pd.Series(log_returns, dtype=float)
+
+        result = compute_markov_regime(returns_series)
+
+        if result is None:
+            ctx.deps.tools_used.append(tool_name)
+            return f"Markov regime for {ticker}: N/A (insufficient data or convergence failure)"
+
+        # Format regime probabilities
+        prob_str = ", ".join(f"{p:.1%}" for p in result.regime_probabilities)
+
+        # Format transition matrix
+        tm_lines: list[str] = []
+        labels = ["low_vol", "normal", "high_vol"][: len(result.transition_matrix)]
+        for i, row in enumerate(result.transition_matrix):
+            row_str = " ".join(f"{v:.2f}" for v in row)
+            label = labels[i] if i < len(labels) else f"regime_{i}"
+            tm_lines.append(f"    {label}: [{row_str}]")
+
+        lines: list[str] = [
+            f"Markov regime for {ticker}: {result.regime_label} "
+            f"(prob: {result.regime_probabilities[result.current_regime]:.1%})",
+            f"  Regime probabilities: [{prob_str}]",
+            "  Transition matrix:",
+            *tm_lines,
+        ]
+
+        ctx.deps.tools_used.append(tool_name)
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("compute_markov_regime failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not compute Markov regime for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: compute_macro_regime_tool (always available — no optional deps)
+# ---------------------------------------------------------------------------
+
+
+async def compute_macro_regime_tool(ctx: RunContext[DeskDeps]) -> str:
+    """Classify the current macro-economic regime from FRED data.
+
+    Uses yield spread (10Y-2Y), unemployment rate, and other FRED
+    indicators to classify the macro regime as expansionary,
+    contractionary, or transitional.  Ticker-independent — only
+    requires FRED service access.
+    """
+    tool_name = "compute_macro_regime"
+    try:
+        from options_arena.indicators.macro import compute_macro_regime
+
+        if ctx.deps.fred is None:
+            ctx.deps.tools_used.append(tool_name)
+            return "FRED service not available — cannot compute macro regime"
+
+        macro_ctx = await ctx.deps.fred.fetch_macro_context()
+
+        result = compute_macro_regime(
+            yield_spread_10y2y=macro_ctx.yield_spread_10y2y,
+            unemployment_rate=macro_ctx.unemployment_rate,
+            fed_funds_rate=macro_ctx.fed_funds_rate,
+            vix=macro_ctx.vix,
+            cpi_yoy=macro_ctx.cpi_yoy,
+            completeness_ratio=macro_ctx.completeness_ratio(),
+        )
+
+        if result is None:
+            ctx.deps.tools_used.append(tool_name)
+            return "Macro regime: N/A (insufficient FRED data)"
+
+        lines: list[str] = [
+            f"Macro regime: {result.regime.value} (confidence: {result.confidence:.0%})",
+        ]
+        if macro_ctx.yield_spread_10y2y is not None:
+            lines.append(f"  Yield spread (10Y-2Y): {macro_ctx.yield_spread_10y2y:.4f}")
+        if macro_ctx.unemployment_rate is not None:
+            lines.append(f"  Unemployment: {macro_ctx.unemployment_rate:.1%}")
+        if macro_ctx.fed_funds_rate is not None:
+            lines.append(f"  Fed funds rate: {macro_ctx.fed_funds_rate:.2%}")
+        if macro_ctx.vix is not None:
+            lines.append(f"  VIX: {macro_ctx.vix:.1f}")
+
+        ctx.deps.tools_used.append(tool_name)
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("compute_macro_regime failed: %s", exc)
+        ctx.deps.tools_used.append(tool_name)
+        return "Error: could not compute macro regime"
+
+
+# ---------------------------------------------------------------------------
+# Tool: compute_hurst_exponent_tool (always available — no optional deps)
+# ---------------------------------------------------------------------------
+
+
+async def compute_hurst_exponent_tool(
+    ctx: RunContext[DeskDeps],
+    ticker: str,
+) -> str:
+    """Compute the Hurst exponent for *ticker* via rescaled range analysis.
+
+    Classifies the series as trending (H > 0.55), mean-reverting
+    (H < 0.45), or random walk (H ~ 0.5).  Requires at least 200
+    daily close prices.
+
+    Args:
+        ticker: Underlying ticker symbol.
+    """
+    tool_name = "compute_hurst_exponent"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        import pandas as pd
+
+        from options_arena.indicators.hurst import hurst_exponent
+
+        ohlcv_list = await ctx.deps.market_data.fetch_ohlcv(ticker, period="1y")
+        if not ohlcv_list:
+            ctx.deps.tools_used.append(tool_name)
+            return f"No OHLCV data found for {ticker}"
+
+        dates = [bar.date for bar in ohlcv_list]
+        close_series = pd.Series(
+            [float(bar.close) for bar in ohlcv_list], index=dates, dtype=float
+        )
+
+        h = hurst_exponent(close_series)
+
+        if h is None:
+            ctx.deps.tools_used.append(tool_name)
+            return f"Hurst exponent for {ticker}: N/A (insufficient data or unreliable fit)"
+
+        # Interpret the Hurst exponent
+        if h > 0.55:  # noqa: PLR2004
+            interpretation = "trending (persistent)"
+        elif h < 0.45:  # noqa: PLR2004
+            interpretation = "mean-reverting (anti-persistent)"
+        else:
+            interpretation = "random walk"
+
+        ctx.deps.tools_used.append(tool_name)
+        return f"Hurst exponent for {ticker}: {h:.3f} — {interpretation}"
+    except Exception as exc:
+        logger.debug("compute_hurst_exponent failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not compute Hurst exponent for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Helper: render_available_tools
+# ---------------------------------------------------------------------------
+
+
+def render_available_tools(toolset: list[object]) -> str:
+    """Generate an ``<<<AVAILABLE_TOOLS>>>`` prompt block from *toolset*.
+
+    Each tool is listed by its ``__name__`` attribute. Used to dynamically
+    inform desk agents which tools are registered.
+
+    Args:
+        toolset: List of tool callables from a ``build_*_toolset()`` function.
+
+    Returns:
+        Formatted prompt block with tool names.
+    """
+    tool_names = [getattr(t, "__name__", str(t)) for t in toolset]
+    lines = [
+        "<<<AVAILABLE_TOOLS>>>",
+        *[f"- {name}" for name in tool_names],
+        "<<<END_AVAILABLE_TOOLS>>>",
+    ]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Trend, Flow, Fundamental, and Contrarian toolset builders
 # ---------------------------------------------------------------------------
 
@@ -1263,9 +1576,23 @@ async def compute_hv_yang_zhang_tool(
 def build_trend_toolset() -> list[object]:
     """Return the tools for a Trend Desk agent.
 
-    Tools: ``fetch_quote``, ``fetch_related_ohlcv``, ``compute_indicator_on_demand``.
+    Base tools: ``fetch_quote``, ``fetch_related_ohlcv``,
+    ``compute_indicator_on_demand``, ``compute_hurst_exponent_tool``.
+    Conditional: ``compute_markov_regime_tool`` (requires ``statsmodels``).
     """
-    return [fetch_quote, fetch_related_ohlcv, compute_indicator_on_demand]
+    tools: list[object] = [
+        fetch_quote,
+        fetch_related_ohlcv,
+        compute_indicator_on_demand,
+        compute_hurst_exponent_tool,
+    ]
+    try:
+        import statsmodels  # noqa: F401
+
+        tools.append(compute_markov_regime_tool)
+    except ImportError:
+        pass  # [ml] not installed — trend desk works without Markov
+    return tools
 
 
 def build_flow_toolset() -> list[object]:
@@ -1280,13 +1607,14 @@ def build_fundamental_toolset() -> list[object]:
     """Return the tools for a Fundamental Desk agent.
 
     Tools: ``fetch_quote``, ``fetch_earnings_history``, ``fetch_sector_comparison``,
-    ``compute_composite_valuation_tool``.
+    ``compute_composite_valuation_tool``, ``compute_macro_regime_tool``.
     """
     return [
         fetch_quote,
         fetch_earnings_history,
         fetch_sector_comparison,
         compute_composite_valuation_tool,
+        compute_macro_regime_tool,
     ]
 
 
@@ -1301,13 +1629,16 @@ def build_contrarian_toolset() -> list[object]:
 def build_research_toolset() -> list[object]:
     """Return the tools for a Research Desk agent.
 
-    Curated cross-domain tools (9 total): ``fetch_quote``,
-    ``fetch_vol_surface_slice``, ``fetch_chain_summary``,
-    ``fetch_earnings_history``, ``compute_indicator_on_demand``,
-    ``fetch_debate_history``, ``compute_composite_valuation_tool``,
-    ``compute_position_size_tool``, ``compute_hv_yang_zhang_tool``.
+    Base tools (11): ``fetch_quote``, ``fetch_vol_surface_slice``,
+    ``fetch_chain_summary``, ``fetch_earnings_history``,
+    ``compute_indicator_on_demand``, ``fetch_debate_history``,
+    ``compute_composite_valuation_tool``, ``compute_position_size_tool``,
+    ``compute_hv_yang_zhang_tool``, ``compute_macro_regime_tool``,
+    ``compute_hurst_exponent_tool``.
+    Conditional: ``compute_garch_forecast_tool`` (``arch``),
+    ``compute_markov_regime_tool`` (``statsmodels``).
     """
-    return [
+    tools: list[object] = [
         fetch_quote,
         fetch_vol_surface_slice,
         fetch_chain_summary,
@@ -1317,4 +1648,19 @@ def build_research_toolset() -> list[object]:
         compute_composite_valuation_tool,
         compute_position_size_tool,
         compute_hv_yang_zhang_tool,
+        compute_macro_regime_tool,
+        compute_hurst_exponent_tool,
     ]
+    try:
+        import arch  # noqa: F401
+
+        tools.append(compute_garch_forecast_tool)
+    except ImportError:
+        pass
+    try:
+        import statsmodels  # noqa: F401
+
+        tools.append(compute_markov_regime_tool)
+    except ImportError:
+        pass
+    return tools

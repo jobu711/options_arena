@@ -33,9 +33,9 @@ class TestVolatilityToolset:
 
     @pytest.mark.critical
     def test_volatility_toolset_count(self) -> None:
-        """build_volatility_toolset returns 4 tools."""
+        """build_volatility_toolset returns 4-5 tools (5 with [ml])."""
         tools = build_volatility_toolset()
-        assert len(tools) == 4
+        assert len(tools) in {4, 5}
 
     def test_volatility_toolset_includes_hv(self) -> None:
         """HV tool is in the volatility toolset."""
@@ -47,9 +47,9 @@ class TestFundamentalToolset:
     """Fundamental desk toolset registration."""
 
     def test_fundamental_toolset_count(self) -> None:
-        """build_fundamental_toolset returns 4 tools."""
+        """build_fundamental_toolset returns 5 tools."""
         tools = build_fundamental_toolset()
-        assert len(tools) == 4
+        assert len(tools) == 5
 
     def test_fundamental_toolset_includes_valuation(self) -> None:
         """Valuation tool is in the fundamental toolset."""
@@ -61,9 +61,9 @@ class TestRiskToolset:
     """Risk desk toolset registration."""
 
     def test_risk_toolset_count(self) -> None:
-        """build_risk_toolset returns 6 tools."""
+        """build_risk_toolset returns 7-8 tools (8 with [ml])."""
         tools = build_risk_toolset()
-        assert len(tools) == 6
+        assert len(tools) in {7, 8}
 
     def test_risk_toolset_includes_new_tools(self) -> None:
         """All 3 new tools are in risk toolset."""
@@ -77,9 +77,9 @@ class TestResearchToolset:
     """Research desk toolset registration."""
 
     def test_research_toolset_count(self) -> None:
-        """build_research_toolset returns 9 tools."""
+        """build_research_toolset returns 11-13 tools (13 with [ml])."""
         tools = build_research_toolset()
-        assert len(tools) == 9
+        assert len(tools) in {11, 12, 13}
 
     def test_research_toolset_includes_new_tools(self) -> None:
         """All 3 new tools are in research toolset."""
@@ -163,8 +163,8 @@ class TestUnchangedToolsets:
     """Verify toolsets not targeted by this change remain unchanged."""
 
     def test_trend_toolset_count(self) -> None:
-        """Trend toolset still has 3 tools."""
-        assert len(build_trend_toolset()) == 3
+        """Trend toolset has 4-5 tools (5 with [ml])."""
+        assert len(build_trend_toolset()) in {4, 5}
 
     def test_flow_toolset_count(self) -> None:
         """Flow toolset still has 3 tools."""
