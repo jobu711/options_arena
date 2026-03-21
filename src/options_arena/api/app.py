@@ -7,12 +7,13 @@ and test (``TestClient`` / ``AsyncClient``) usage.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import itertools
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -183,16 +184,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         with suppress(asyncio.CancelledError):
             await scheduler_task
 
-    if fd_svc is not None:
-        await fd_svc.close()
-    if intelligence_svc is not None:
-        await intelligence_svc.close()
-    await market_data.close()
-    await options_data.close()
-    await fred.close()
-    await universe.close()
-    await cache.close()
-    await db.close()
+    # Shutdown with error isolation — one failure must not skip remaining closes
+    _to_close: list[tuple[str, _Closeable | None]] = [
+        ("financial_datasets", fd_svc),
+        ("intelligence", intelligence_svc),
+        ("market_data", market_data),
+        ("options_data", options_data),
+        ("fred", fred),
+        ("universe", universe),
+        ("cache", cache),
+        ("db", db),
+    ]
+    for name, maybe_svc in _to_close:
+        if maybe_svc is None:
+            continue
+        try:
+            await maybe_svc.close()
+        except Exception:
+            logger.warning("Shutdown close failed for %s", name, exc_info=True)
     logger.info("API services stopped")
 
 
@@ -217,6 +226,25 @@ def create_app() -> FastAPI:
             content={"detail": f"Rate limit exceeded: {exc.detail}"},
             headers={"Retry-After": "60"},
         )
+
+    # Loopback enforcement — reject non-loopback clients regardless of how the
+    # app is launched (CWE-306). Defense-in-depth: CLI `serve` also validates the
+    # --host flag, but this middleware protects against direct uvicorn invocations.
+    _CallNext = Callable[[Request], Coroutine[Any, Any, JSONResponse]]
+
+    @app.middleware("http")
+    async def _loopback_guard(request: Request, call_next: _CallNext) -> JSONResponse:
+        """Reject non-loopback clients (CWE-306 defense-in-depth)."""
+        client_host = request.client.host if request.client else ""
+        try:
+            if client_host and not ipaddress.ip_address(client_host).is_loopback:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Non-loopback access denied"},
+                )
+        except ValueError:
+            pass  # Unparseable IP — allow (testclient uses "testclient")
+        return await call_next(request)
 
     # CORS — allow Vite dev server (loopback only)
     app.add_middleware(

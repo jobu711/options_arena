@@ -97,10 +97,15 @@ def aggregate_spread_greeks(legs: list[SpreadLeg]) -> OptionGreeks | None:
         )
         total_delta = max(-1.0, min(1.0, total_delta))
 
-    # Determine second-order values
-    result_vanna: float | None = total_vanna if all_second_order_present else None
-    result_charm: float | None = total_charm if all_second_order_present else None
-    result_vomma: float | None = total_vomma if all_second_order_present else None
+    # Determine second-order values — guard non-finite (model_construct bypasses validators)
+    if all_second_order_present and all(
+        math.isfinite(v) for v in [total_vanna, total_charm, total_vomma]
+    ):
+        result_vanna: float | None = total_vanna
+        result_charm: float | None = total_charm
+        result_vomma: float | None = total_vomma
+    else:
+        result_vanna = result_charm = result_vomma = None
 
     # Use first leg's pricing model
     first_greeks = legs[0].contract.greeks
