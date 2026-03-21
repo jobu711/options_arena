@@ -68,6 +68,7 @@ def _make_mock_ticker_info(
 class TestCompositeValuationTool:
     """Test the compute_composite_valuation_tool wrapper."""
 
+    @pytest.mark.critical
     async def test_success_returns_formatted_string(self) -> None:
         """Successful valuation returns string with price and signal info."""
         deps = _make_deps()

@@ -89,6 +89,7 @@ def _make_ohlcv_series(
 class TestHvYangZhangTool:
     """Test the compute_hv_yang_zhang_tool wrapper."""
 
+    @pytest.mark.critical
     async def test_success_returns_annualized_hv(self) -> None:
         """Successful computation returns formatted HV string."""
         deps = _make_deps()
@@ -192,8 +193,9 @@ class TestHvYangZhangTool:
 
         result = await compute_hv_yang_zhang_tool(ctx, "AAPL")
 
-        # Should complete successfully
+        # Should complete successfully with low volatility interpretation
         assert "Yang-Zhang HV" in result
+        assert "low volatility" in result
         assert "compute_hv_yang_zhang" in deps.tools_used
 
 

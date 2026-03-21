@@ -1042,8 +1042,10 @@ async def compute_correlation_matrix_tool(
 
         from options_arena.analysis.correlation import compute_correlation_matrix
 
-        # Cap and validate comparison tickers
-        capped = [t for t in comparison_tickers if t != ticker][:_MAX_CORRELATION_TICKERS]
+        # Normalize, dedupe, and cap comparison tickers
+        capped = list(
+            dict.fromkeys(t.upper() for t in comparison_tickers if t.upper() != ticker.upper())
+        )[:_MAX_CORRELATION_TICKERS]
         all_tickers = [ticker] + capped
 
         for t in all_tickers:
@@ -1120,20 +1122,14 @@ async def compute_risk_adjusted_metrics_tool(
 
     Queries historical outcomes from the repository and computes Sharpe,
     Sortino, max drawdown, and annualized return across ALL tickers.
-    The *ticker* parameter is used to verify the repository has history
-    but the returned metrics are portfolio-wide, not per-ticker.
+    The *ticker* parameter is for API consistency — the returned metrics
+    are portfolio-wide, not per-ticker.
     """
     tool_name = "compute_risk_adjusted_metrics"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
         return err
     try:
-        # Get contracts for this ticker to find outcomes
-        contracts = await ctx.deps.repo.get_contracts_for_ticker(ticker, limit=200)
-        if not contracts:
-            ctx.deps.tools_used.append(tool_name)
-            return f"No historical contracts found for {ticker} — cannot compute risk metrics"
-
         # Fetch risk-free rate
         risk_free_rate = 0.05
         if ctx.deps.fred is not None:

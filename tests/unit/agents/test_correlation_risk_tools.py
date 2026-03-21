@@ -95,6 +95,7 @@ def _make_ohlcv_series(n: int = 50, base_price: float = 100.0) -> list[MagicMock
 class TestCorrelationMatrixTool:
     """Test the compute_correlation_matrix_tool wrapper."""
 
+    @pytest.mark.critical
     async def test_success_returns_correlation_data(self) -> None:
         """Successful correlation returns formatted pair data."""
         deps = _make_deps()
@@ -158,8 +159,11 @@ class TestCorrelationMatrixTool:
 
         result = await compute_correlation_matrix_tool(ctx, "AAPL", tickers)
 
-        # Should succeed (capped to 5+1 tickers)
-        assert "Correlation Matrix" in result or result.startswith("Error:")
+        # Should succeed with capped tickers (5+1 primary)
+        assert "Correlation Matrix" in result
+        # Verify the 6th and 7th tickers were dropped
+        assert "NVDA" not in result
+        assert "AMD" not in result
         assert "compute_correlation_matrix" in deps.tools_used
 
     async def test_primary_ticker_not_in_ohlcv_returns_error(self) -> None:
@@ -194,9 +198,6 @@ class TestRiskAdjustedMetricsTool:
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
 
-        # Mock contracts exist
-        mock_contracts = [MagicMock()]
-        deps.repo.get_contracts_for_ticker = AsyncMock(return_value=mock_contracts)
         deps.fred.fetch_risk_free_rate = AsyncMock(return_value=0.05)
 
         # Mock risk-adjusted metrics result
@@ -221,22 +222,10 @@ class TestRiskAdjustedMetricsTool:
         assert "Annualized Return: 22.5%" in result
         assert "compute_risk_adjusted_metrics" in deps.tools_used
 
-    async def test_no_contracts_returns_message(self) -> None:
-        """No historical contracts returns informative message."""
-        deps = _make_deps()
-        ctx = _make_mock_ctx(deps)
-        deps.repo.get_contracts_for_ticker = AsyncMock(return_value=[])
-
-        result = await compute_risk_adjusted_metrics_tool(ctx, "AAPL")
-
-        assert "No historical contracts" in result
-        assert "compute_risk_adjusted_metrics" in deps.tools_used
-
     async def test_no_outcomes_returns_message(self) -> None:
-        """Contracts exist but no outcomes returns informative message."""
+        """No outcomes returns informative message."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        deps.repo.get_contracts_for_ticker = AsyncMock(return_value=[MagicMock()])
         deps.fred.fetch_risk_free_rate = AsyncMock(return_value=0.05)
 
         mock_result = RiskAdjustedMetrics(
@@ -270,7 +259,7 @@ class TestRiskAdjustedMetricsTool:
         """Service error returns Error: string."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        deps.repo.get_contracts_for_ticker = AsyncMock(side_effect=RuntimeError("db error"))
+        deps.repo.get_risk_adjusted_metrics = AsyncMock(side_effect=RuntimeError("db error"))
 
         result = await compute_risk_adjusted_metrics_tool(ctx, "AAPL")
 
@@ -281,7 +270,6 @@ class TestRiskAdjustedMetricsTool:
         """When FRED fails, tool still completes with default rate."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        deps.repo.get_contracts_for_ticker = AsyncMock(return_value=[MagicMock()])
         deps.fred.fetch_risk_free_rate = AsyncMock(side_effect=RuntimeError("FRED down"))
 
         mock_result = RiskAdjustedMetrics(

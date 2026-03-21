@@ -7,6 +7,7 @@ desk toolsets and NOT on desks where they do not belong.
 
 from __future__ import annotations
 
+import pytest
 from pydantic_ai import models
 
 from options_arena.agents._toolsets import (
@@ -30,6 +31,7 @@ models.ALLOW_MODEL_REQUESTS = False
 class TestVolatilityToolset:
     """Volatility desk toolset registration."""
 
+    @pytest.mark.critical
     def test_volatility_toolset_count(self) -> None:
         """build_volatility_toolset returns 4 tools."""
         tools = build_volatility_toolset()

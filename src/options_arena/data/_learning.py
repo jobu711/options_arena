@@ -80,7 +80,7 @@ class LearningMixin(RepositoryBase):
     async def get_strategy_rules(
         self,
         status: RuleStatus | None = None,
-        limit: int = 100,
+        limit: int | None = None,
     ) -> list[StrategyRule]:
         """Retrieve strategy rules, optionally filtered by status.
 
@@ -89,7 +89,7 @@ class LearningMixin(RepositoryBase):
         status
             If provided, only return rules with this status.
         limit
-            Maximum number of rules to return (default 100).
+            Maximum number of rules to return.  ``None`` returns all rows.
 
         Returns
         -------
@@ -97,14 +97,21 @@ class LearningMixin(RepositoryBase):
             Rules ordered by ``created_at`` DESC.
         """
         conn = self._db.conn
-        if status is not None:
+        params: tuple[str | int, ...] = ()
+
+        if status is not None and limit is not None:
             query = (
                 "SELECT * FROM strategy_rules WHERE status = ? ORDER BY created_at DESC LIMIT ?"
             )
-            params: tuple[str | int, ...] = (status.value, limit)
-        else:
+            params = (status.value, limit)
+        elif status is not None:
+            query = "SELECT * FROM strategy_rules WHERE status = ? ORDER BY created_at DESC"
+            params = (status.value,)
+        elif limit is not None:
             query = "SELECT * FROM strategy_rules ORDER BY created_at DESC LIMIT ?"
             params = (limit,)
+        else:
+            query = "SELECT * FROM strategy_rules ORDER BY created_at DESC"
 
         async with conn.execute(query, params) as cursor:
             rows = await cursor.fetchall()
@@ -186,7 +193,7 @@ class LearningMixin(RepositoryBase):
         self,
         agent_name: str | None = None,
         scope_type: str | None = None,
-        limit: int = 100,
+        limit: int | None = None,
     ) -> list[AgentMemory]:
         """Retrieve agent memory entries, optionally filtered.
 
@@ -197,7 +204,7 @@ class LearningMixin(RepositoryBase):
         scope_type
             If provided, only return memories with this scope type.
         limit
-            Maximum number of memories to return (default 100).
+            Maximum number of memories to return.  ``None`` returns all rows.
 
         Returns
         -------
@@ -216,8 +223,10 @@ class LearningMixin(RepositoryBase):
             query_params.append(scope_type)
 
         where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
-        query = f"SELECT * FROM agent_memory{where} ORDER BY created_at DESC LIMIT ?"
-        query_params.append(limit)
+        query = f"SELECT * FROM agent_memory{where} ORDER BY created_at DESC"
+        if limit is not None:
+            query += " LIMIT ?"
+            query_params.append(limit)
 
         async with conn.execute(query, tuple(query_params)) as cursor:
             rows = await cursor.fetchall()
