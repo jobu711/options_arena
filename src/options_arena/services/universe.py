@@ -971,9 +971,11 @@ class UniverseService(ServiceBase[ServiceConfig]):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _fetch_ticker_info_sync(ticker: str) -> dict[str, Any]:
-        """Fetch yfinance ticker info synchronously (for ``to_thread``)."""
-        return yf.Ticker(ticker).info  # type: ignore[no-any-return]
+    def _fetch_quote_type_sync(ticker: str) -> str:
+        """Fetch yfinance quote type synchronously (for ``to_thread``)."""
+        info = yf.Ticker(ticker).info
+        quote_type = info.get("quoteType") if isinstance(info, dict) else None
+        return str(quote_type) if quote_type is not None else ""
 
     async def _check_etf(self, ticker: str) -> bool:
         """Check if a ticker is an ETF via yfinance quoteType.
@@ -985,12 +987,11 @@ class UniverseService(ServiceBase[ServiceConfig]):
             ``True`` if yfinance reports ``quoteType == "ETF"``, ``False`` otherwise.
         """
         try:
-            info: dict[str, Any] = await asyncio.wait_for(
-                asyncio.to_thread(self._fetch_ticker_info_sync, ticker),
+            quote_type = await asyncio.wait_for(
+                asyncio.to_thread(self._fetch_quote_type_sync, ticker),
                 timeout=self._config.yfinance_timeout,
             )
-            quote_type = info.get("quoteType", "")
-            return str(quote_type).upper() == "ETF"
+            return quote_type.upper() == "ETF"
         except TimeoutError:
             self._log.debug("ETF check timeout for %s", ticker)
             raise

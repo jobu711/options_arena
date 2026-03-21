@@ -499,8 +499,6 @@ class AnalyticsMixin(RepositoryBase):
         """
         # Defense-in-depth: validate indicator name against IndicatorSignals fields
         # to prevent JSON path traversal via '$.' || ? construction.
-        from options_arena.models.scan import IndicatorSignals
-
         if indicator not in IndicatorSignals.model_fields:
             return []
         conn = self._db.conn
