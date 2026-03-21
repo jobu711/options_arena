@@ -802,6 +802,25 @@ class AgencyQueryRequest(BaseModel):
     desk: DeskType | None = None
     tickers: list[str] | None = Field(default=None, max_length=50)
 
+    @field_validator("tickers", mode="before")
+    @classmethod
+    def normalize_tickers(cls, v: list[str] | None) -> list[str] | None:
+        """Uppercase, strip, and validate each ticker in the list."""
+        if v is None:
+            return None
+        result: list[str] = []
+        for item in v:
+            if not isinstance(item, str):
+                raise ValueError("each ticker must be a string")
+            normalized = item.upper().strip()
+            if not TICKER_RE.match(normalized):
+                raise ValueError(
+                    f"Invalid ticker format: {normalized!r}. "
+                    "Must be 1-10 characters: A-Z, 0-9, dots, hyphens, or caret."
+                )
+            result.append(normalized)
+        return result
+
 
 class AgencyQueryStarted(BaseModel):
     """Response for submitted agency query."""
