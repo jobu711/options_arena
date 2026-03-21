@@ -237,6 +237,7 @@ uv run pytest -m "not exhaustive" -n auto -q         # standard suite (CI-level)
 uv run pytest tests/ -v                              # all tests (verbose, for debugging)
 uv run mypy src/ --strict                            # type checking
 python tools/docgen.py                               # regenerate technical reference
+python tools/tldr_analyzer.py                        # refresh TLDR code summaries
 ```
 
 Always run lint, tests, and type checking via `uv run`. Regenerate docs before commit. A task is not done until all pass.

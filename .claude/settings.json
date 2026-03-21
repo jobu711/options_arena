@@ -1,5 +1,30 @@
 {
+  "mcpServers": {
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    },
+    "sqlite": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sqlite",
+        "C:/Users/nicho/Desktop/Options_Arena/data/options_arena.db"
+      ]
+    }
+  },
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python C:/Users/nicho/Desktop/Options_Arena/.claude/hooks/session-context.py"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -11,6 +36,30 @@
           {
             "type": "command",
             "command": "python C:/Users/nicho/Desktop/Options_Arena/.claude/hooks/version-sync.py"
+          },
+          {
+            "type": "command",
+            "command": "python C:/Users/nicho/Desktop/Options_Arena/.claude/hooks/secret-scanner.py"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python C:/Users/nicho/Desktop/Options_Arena/.claude/hooks/sqlite-readonly-guard.py"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python C:/Users/nicho/Desktop/Options_Arena/.claude/hooks/compact-handoff.py"
           }
         ]
       }

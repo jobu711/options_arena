@@ -87,6 +87,12 @@ data/*.db-shm
 .claude/audits/*
 !.claude/audits/.gitkeep
 
+# Session handoffs (transient, per-session)
+.claude/handoffs/
+
+# TLDR code analysis cache
+.claude/cache/
+
 # Verification stamps (transient, per-session)
 .claude/.context7-stamp
 .claude/.analyze-stamp

@@ -6,7 +6,7 @@ description: >
   changes for Options Arena's layered architecture. Invoke when changes
   span multiple modules, introduce new patterns, or modify the boundary
   table defined in CLAUDE.md.
-tools: Read, Glob, Grep
+tools: Read, Glob, Grep, mcp__sequential-thinking__sequential_thinking
 model: opus
 color: magenta
 ---
@@ -45,6 +45,23 @@ Services (external data) → Models (typed) → Indicators (pandas) →
 Scoring (normalize/composite) → Scan (orchestrate) → Data (persist)
                                                     → Agents (debate)
 ```
+
+## Structured Reasoning (Sequential Thinking)
+
+When analyzing boundary violations or coupling concerns that involve 3+ modules,
+use the sequential_thinking tool to reason through the dependency chain step by step.
+
+Use sequential thinking for:
+- Import chain analysis spanning 3+ modules
+- Pattern consistency evaluation when a proposed change introduces a new pattern
+- Coupling impact assessment where a change affects multiple consumers
+
+Do NOT use for:
+- Simple single-module reviews
+- Obvious violations (direct import of pricing/bsm from scoring/)
+
+Start with totalThoughts=5. Use isRevision when early assumptions are invalidated.
+If sequential_thinking is not available, proceed with inline reasoning.
 
 ## Review Focus
 

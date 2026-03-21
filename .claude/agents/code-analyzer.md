@@ -41,6 +41,13 @@ Since this involves reviewing changes for bugs, use the Task tool with code-anal
 </commentary>
 </example>
 
+**TLDR Cache Integration:**
+
+Before reading large Python files (>150 lines) for initial orientation, check if a
+TLDR summary exists: Run `python tools/tldr_analyzer.py --file <path>` to get an
+AST-based summary. Use this to quickly understand structure and call graphs before
+diving into full source. Only read the full file when the summary is insufficient.
+
 **Core Responsibilities:**
 
 1. **Change Analysis**: Review modifications in files with surgical precision, focusing on:

@@ -32,6 +32,13 @@ The user needs multiple log files analyzed, so the file-analyzer agent should be
 </commentary>
 </example>
 
+**TLDR Cache Integration:**
+
+Before reading large Python files (>150 lines), check if a TLDR summary exists:
+Run `python tools/tldr_analyzer.py --file <path>` to get an AST-based summary.
+Use this for initial orientation. Only read the full file if the summary is
+insufficient for your analysis.
+
 **Core Responsibilities:**
 
 1. **File Reading and Analysis**

@@ -4,7 +4,7 @@ description: >
   Use PROACTIVELY for database layer audits. Audits SQLite/aiosqlite queries,
   connections, migrations, serialization, and data integrity in the persistence
   layer. Read-only agent that reports findings without modifying code.
-tools: Read, Glob, Grep, Bash
+tools: Read, Glob, Grep, Bash, mcp__sqlite__read_query, mcp__sqlite__list_tables, mcp__sqlite__describe_table, mcp__sequential-thinking__sequential_thinking
 model: opus
 color: gold
 ---
@@ -35,6 +35,30 @@ You are a database auditor specializing in SQLite/aiosqlite persistence layers i
 - `debate_outcomes`, `agent_predictions` — outcome tracking and analytics
 - `ticker_metadata` — GICS sector, industry, market cap tier cache
 - `schema_version` — migration tracking
+
+## Live Database Verification (SQLite MCP)
+
+When SQLite MCP tools are available, augment static analysis with live DB queries (READ-ONLY).
+
+When to query the live DB:
+1. After reading migration files — verify actual schema matches intent
+   - describe_table("strategy_rules") after reading 036_strategy_mining.sql
+2. Referential integrity — query for orphaned foreign keys
+3. Index verification — compare actual indexes against CREATE INDEX statements
+   - read_query("SELECT name, sql FROM sqlite_master WHERE type='index'")
+4. Serialization audit — sample stored JSON to verify parsability
+5. Schema version — read_query("SELECT MAX(version) FROM schema_version")
+
+When NOT to query:
+- SQL injection auditing (static analysis of source code, not live queries)
+- If DB file doesn't exist (clean checkout / CI)
+
+Graceful degradation: If tools unavailable, fall back to static-only. Note in report.
+
+## Structured Reasoning (Sequential Thinking)
+
+For complex migration chain analysis (3+ migrations with dependencies), use
+sequential_thinking to trace schema evolution step by step.
 
 ## Audit Checklist
 
