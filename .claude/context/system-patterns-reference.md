@@ -14,7 +14,7 @@ For core patterns, see `system-patterns.md`.
 ## Scoring Pipeline Details
 
 - **Normalization**: `percentile_rank_normalize()` converts raw indicator values to 0–100 percentile ranks with tie averaging. Single ticker → 50.0. `invert_indicators()` flips bb_width, atr_pct, relative_volume, keltner_width (higher raw = worse). `get_active_indicators()` detects universally-missing indicators for weight renormalization.
-- **Composite scoring**: `composite_score()` computes weighted geometric mean: `exp(sum(w_i * ln(max(x_i, 1.0))) / sum(w_i))`. 18 indicators, 6 categories, weights sum to 1.0. Floor value 1.0 prevents log(0). Output clamped [0, 100].
+- **Composite scoring**: `composite_score()` computes weighted geometric mean: `exp(sum(w_i * ln(max(x_i, 0.5))) / sum(w_i))`. 27 indicators, weights sum to 1.0. Floor value 0.5 prevents log(0). Output clamped [0, 100].
 - **Direction classification**: `determine_direction(adx, rsi, sma_alignment, config)` returns `SignalDirection`. ADX gate (< 15 → NEUTRAL), RSI scoring (strong +=2, mild +=1), SMA scoring (+=1 for >0.5 or <-0.5), SMA tiebreaker.
 - **Contract selection**: `recommend_contracts()` pipeline: `filter_contracts()` (direction, OI, volume, spread ≤30% with zero-bid exemption) → `select_expiration()` (DTE [30,365], closest to midpoint 197.5) → `compute_greeks()` (via `pricing/dispatch.py`, IV re-solve for suspect market_iv with `math.isfinite` guard) → `select_by_delta()` (primary [0.20,0.50] + fallback [0.10,0.80], target 0.35).
 - **Critical**: `score_universe()` returns percentile-ranked signals on `TickerScore.signals`. `determine_direction()` requires **raw** indicator values — callers must retain raw `IndicatorSignals` separately.

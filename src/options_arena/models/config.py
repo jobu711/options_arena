@@ -651,9 +651,9 @@ class AgencyConfig(BaseModel):
     """
 
     agent_timeout: float = 60.0
-    default_tool_budget: int = 4
-    risk_tool_budget: int = 5
-    research_tool_budget: int = 7
+    default_tool_budget: int = 5
+    risk_tool_budget: int = 8
+    research_tool_budget: int = 13
     contrarian_tool_budget: int = 2
 
     @field_validator("agent_timeout")

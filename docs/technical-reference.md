@@ -698,13 +698,13 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `.fetch_russell2000_tickers` | async method | `(repo: object \| None = None) -> list[str]` | 832 | Fetch Russell 2000-like small/micro-cap tickers from the metadata index. |
 | `.fetch_most_active` | async method | `() -> list[str]` | 920 | Fetch most actively traded options tickers with CBOE cross-ref. |
 | `.close` | async method | `() -> None` | 964 | Close the shared httpx client and release base resources. |
-| `build_sector_map` | func | `(constituents: list[SP500Constituent]) -> dict[str, GICSSector]` | 1087 | Build a ticker-to-GICS-sector mapping from S&P 500 constituents. |
-| `filter_by_sectors` | func | `(tickers: list[str], sectors: list[GICSSector], sp500_map: dict[str, GICSSector]) -> list[str]` | 1115 | Filter tickers by GICS sector membership (OR logic). |
-| `build_industry_group_map` | func | `(industry_data: dict[str, str]) -> dict[str, GICSIndustryGroup]` | 1142 | Build a ticker-to-GICS-industry-group mapping from raw industry strings. |
-| `filter_by_industry_groups` | func | `(tickers: list[str], industry_groups: list[GICSIndustryGroup], ig_map: dict[str, GICSIndustryGrou...` | 1173 | Filter tickers by GICS industry group membership (OR logic). |
-| `classify_market_cap` | func | `(market_cap: int \| None) -> MarketCapTier \| None` | 1225 | Classify a market capitalisation value into a ``MarketCapTier``. |
-| `index_tickers` | async func | `(tickers: list[str], market_data: _TickerInfoProvider, repository: _MetadataStore, *, concurrency...` | 1263 | Index a list of tickers by fetching metadata from yfinance and persisting. |
-| `map_yfinance_to_metadata` | func | `(ticker_info: TickerInfo) -> TickerMetadata` | 1323 | Map yfinance ``TickerInfo`` to typed ``TickerMetadata`` using GICS alias dicts. |
+| `build_sector_map` | func | `(constituents: list[SP500Constituent]) -> dict[str, GICSSector]` | 1092 | Build a ticker-to-GICS-sector mapping from S&P 500 constituents. |
+| `filter_by_sectors` | func | `(tickers: list[str], sectors: list[GICSSector], sp500_map: dict[str, GICSSector]) -> list[str]` | 1120 | Filter tickers by GICS sector membership (OR logic). |
+| `build_industry_group_map` | func | `(industry_data: dict[str, str]) -> dict[str, GICSIndustryGroup]` | 1147 | Build a ticker-to-GICS-industry-group mapping from raw industry strings. |
+| `filter_by_industry_groups` | func | `(tickers: list[str], industry_groups: list[GICSIndustryGroup], ig_map: dict[str, GICSIndustryGrou...` | 1178 | Filter tickers by GICS industry group membership (OR logic). |
+| `classify_market_cap` | func | `(market_cap: int \| None) -> MarketCapTier \| None` | 1230 | Classify a market capitalisation value into a ``MarketCapTier``. |
+| `index_tickers` | async func | `(tickers: list[str], market_data: _TickerInfoProvider, repository: _MetadataStore, *, concurrency...` | 1268 | Index a list of tickers by fetching metadata from yfinance and persisting. |
+| `map_yfinance_to_metadata` | func | `(ticker_info: TickerInfo) -> TickerMetadata` | 1328 | Map yfinance ``TickerInfo`` to typed ``TickerMetadata`` using GICS alias dicts. |
 
 ---
 
@@ -797,18 +797,18 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `.get_win_rate_by_direction` | async method | `() -> list[WinRateResult]` | 408 | Compute win rate grouped by signal direction. |
 | `.get_score_calibration` | async method | `(bucket_size: float = 10.0) -> list[ScoreCalibrationBucket]` | 441 | Bucket contracts by composite_score and compute returns per bucket. |
 | `.get_indicator_attribution` | async method | `(indicator: str, holding_days: int = 5) -> list[IndicatorAttributionResult]` | 482 | Correlate a normalized indicator value with contract returns. |
-| `.get_optimal_holding_period` | async method | `(direction: SignalDirection \| None = None) -> list[HoldingPeriodResult]` | 561 | Get return statistics grouped by holding_days and direction. |
-| `.get_delta_performance` | async method | `(bucket_size: float = 0.1, holding_days: int = 5) -> list[DeltaPerformanceResult]` | 618 | Bucket contracts by delta and compute return statistics. |
-| `.get_performance_summary` | async method | `(lookback_days: int = 30) -> PerformanceSummary` | 677 | Compute aggregate performance summary over a lookback window. |
-| `.get_equity_curve` | async method | `(direction: str \| None = None, period_days: int \| None = None) -> list[EquityCurvePoint]` | 796 | Compute cumulative equity curve from contract outcomes. |
-| `.get_drawdown_series` | async method | `(direction: str \| None = None, period_days: int \| None = None) -> list[DrawdownPoint]` | 865 | Compute drawdown series from the equity curve. |
-| `.get_win_rate_by_sector` | async method | `(holding_days: int = 20) -> list[SectorPerformanceResult]` | 910 | Compute win rate and average return grouped by GICS sector. |
-| `.get_win_rate_by_dte_bucket` | async method | `(holding_days: int = 20) -> list[DTEBucketResult]` | 958 | Compute win rate and average return grouped by DTE buckets. |
-| `.get_win_rate_by_iv_rank` | async method | `(holding_days: int = 20) -> list[IVRankBucketResult]` | 1017 | Compute win rate and average return grouped by IV rank quartiles. |
-| `.get_greeks_decomposition` | async method | `(holding_days: int = 20, groupby: GreeksGroupBy = ...) -> list[GreeksDecompositionResult]` | 1075 | Decompose P&L into delta-attributable and residual components. |
-| `.get_holding_period_comparison` | async method | `() -> list[HoldingPeriodComparison]` | 1184 | Compare performance across holding periods and directions. |
-| `.get_risk_adjusted_metrics` | async method | `(lookback_days: int = 365, risk_free_rate: float = 0.05) -> RiskAdjustedMetrics` | 1254 | Compute risk-adjusted performance metrics from outcome data. |
-| `.get_outcome_signal_pairs` | async method | `(window_days: int = 90) -> list[tuple[IndicatorSignals, float]]` | 1330 | Retrieve paired indicator signals and P&L returns for weight tuning. |
+| `.get_optimal_holding_period` | async method | `(direction: SignalDirection \| None = None) -> list[HoldingPeriodResult]` | 563 | Get return statistics grouped by holding_days and direction. |
+| `.get_delta_performance` | async method | `(bucket_size: float = 0.1, holding_days: int = 5) -> list[DeltaPerformanceResult]` | 620 | Bucket contracts by delta and compute return statistics. |
+| `.get_performance_summary` | async method | `(lookback_days: int = 30) -> PerformanceSummary` | 679 | Compute aggregate performance summary over a lookback window. |
+| `.get_equity_curve` | async method | `(direction: str \| None = None, period_days: int \| None = None) -> list[EquityCurvePoint]` | 798 | Compute cumulative equity curve from contract outcomes. |
+| `.get_drawdown_series` | async method | `(direction: str \| None = None, period_days: int \| None = None) -> list[DrawdownPoint]` | 867 | Compute drawdown series from the equity curve. |
+| `.get_win_rate_by_sector` | async method | `(holding_days: int = 20) -> list[SectorPerformanceResult]` | 912 | Compute win rate and average return grouped by GICS sector. |
+| `.get_win_rate_by_dte_bucket` | async method | `(holding_days: int = 20) -> list[DTEBucketResult]` | 960 | Compute win rate and average return grouped by DTE buckets. |
+| `.get_win_rate_by_iv_rank` | async method | `(holding_days: int = 20) -> list[IVRankBucketResult]` | 1019 | Compute win rate and average return grouped by IV rank quartiles. |
+| `.get_greeks_decomposition` | async method | `(holding_days: int = 20, groupby: GreeksGroupBy = ...) -> list[GreeksDecompositionResult]` | 1077 | Decompose P&L into delta-attributable and residual components. |
+| `.get_holding_period_comparison` | async method | `() -> list[HoldingPeriodComparison]` | 1186 | Compare performance across holding periods and directions. |
+| `.get_risk_adjusted_metrics` | async method | `(lookback_days: int = 365, risk_free_rate: float = 0.05) -> RiskAdjustedMetrics` | 1256 | Compute risk-adjusted performance metrics from outcome data. |
+| `.get_outcome_signal_pairs` | async method | `(window_days: int = 90) -> list[tuple[IndicatorSignals, float]]` | 1332 | Retrieve paired indicator signals and P&L returns for weight tuning. |
 
 #### data/_base.py
 
@@ -842,10 +842,10 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 |--------|------|-----------|------|-------------|
 | `LearningMixin` | class | `(RepositoryBase)` | 23 | CRUD operations for strategy rules and agent memory. |
 | `.save_strategy_rule` | async method | `(rule: StrategyRule, *, commit: bool = True) -> None` | 40 | Persist a strategy rule (upsert by rule_id). |
-| `.get_strategy_rules` | async method | `(status: RuleStatus \| None = None, limit: int = 100) -> list[StrategyRule]` | 80 | Retrieve strategy rules, optionally filtered by status. |
-| `.update_rule_status` | async method | `(rule_id: str, status: RuleStatus, *, commit: bool = True) -> bool` | 114 | Update the status of a strategy rule. |
-| `.save_agent_memory` | async method | `(memory: AgentMemory, *, commit: bool = True) -> None` | 149 | Persist an agent memory entry (upsert by memory_id). |
-| `.get_agent_memories` | async method | `(agent_name: str \| None = None, scope_type: str \| None = None, limit: int = 100) -> list[AgentMem...` | 185 | Retrieve agent memory entries, optionally filtered. |
+| `.get_strategy_rules` | async method | `(status: RuleStatus \| None = None, limit: int \| None = None) -> list[StrategyRule]` | 80 | Retrieve strategy rules, optionally filtered by status. |
+| `.update_rule_status` | async method | `(rule_id: str, status: RuleStatus, *, commit: bool = True) -> bool` | 121 | Update the status of a strategy rule. |
+| `.save_agent_memory` | async method | `(memory: AgentMemory, *, commit: bool = True) -> None` | 156 | Persist an agent memory entry (upsert by memory_id). |
+| `.get_agent_memories` | async method | `(agent_name: str \| None = None, scope_type: str \| None = None, limit: int \| None = None) -> list[...` | 192 | Retrieve agent memory entries, optionally filtered. |
 
 #### data/_metadata.py
 
@@ -854,9 +854,9 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `MetadataMixin` | class | `(RepositoryBase)` | 22 | Ticker metadata CRUD operations. |
 | `.upsert_ticker_metadata` | async method | `(metadata: TickerMetadata) -> None` | 25 | INSERT OR REPLACE a single ticker_metadata row. |
 | `.upsert_ticker_metadata_batch` | async method | `(items: list[TickerMetadata], *, commit: bool = True) -> None` | 51 | Batch upsert ticker_metadata rows via ``executemany``. |
-| `.get_all_ticker_metadata` | async method | `() -> list[TickerMetadata]` | 87 | Return all rows from ``ticker_metadata`` as a list of ``TickerMetadata``. |
-| `.get_stale_tickers` | async method | `(max_age_days: int = 30) -> list[str]` | 96 | Return tickers whose ``last_updated`` is older than *max_age_days*. |
-| `.get_metadata_coverage` | async method | `() -> MetadataCoverage` | 112 | Return coverage statistics for the ``ticker_metadata`` table. |
+| `.get_all_ticker_metadata` | async method | `(limit: int = 10000) -> list[TickerMetadata]` | 87 | Return all rows from ``ticker_metadata`` (bounded by *limit*). |
+| `.get_stale_tickers` | async method | `(max_age_days: int = 30) -> list[str]` | 99 | Return tickers whose ``last_updated`` is older than *max_age_days*. |
+| `.get_metadata_coverage` | async method | `() -> MetadataCoverage` | 115 | Return coverage statistics for the ``ticker_metadata`` table. |
 
 #### data/_scan.py
 
@@ -951,24 +951,29 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `fetch_correlation` | async func | `(ctx: RunContext[DeskDeps], ticker: str, tickers: list[str]) -> str` | 191 | Compute pairwise return correlations between *ticker* and each of *tickers*. |
 | `fetch_portfolio_exposure` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 289 | Query repository for historical recommended contracts for *ticker*. |
 | `build_volatility_toolset` | func | `() -> list[object]` | 328 | Return the tools for a Volatility Desk agent. |
-| `build_risk_toolset` | func | `() -> list[object]` | 342 | Return the tools for a Risk Desk agent. |
-| `fetch_related_ohlcv` | async func | `(ctx: RunContext[DeskDeps], ticker: str, period: str = '6mo') -> str` | 364 | Fetch recent OHLCV bars for *ticker*. |
-| `compute_indicator_on_demand` | async func | `(ctx: RunContext[DeskDeps], ticker: str, indicator: str) -> str` | 418 | Compute a technical indicator on demand for *ticker*. |
-| `fetch_chain_summary` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 543 | Fetch an option chain summary for *ticker*. |
-| `fetch_unusual_activity` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 621 | Detect unusual options activity for *ticker*. |
-| `fetch_earnings_history` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 695 | Fetch fundamental data and next earnings date for *ticker*. |
-| `fetch_sector_comparison` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 755 | Fetch fundamental metrics for *ticker* with sector context. |
-| `fetch_debate_history` | async func | `(ctx: RunContext[DeskDeps], ticker: str, limit: int = 3) -> str` | 807 | Fetch prior AI debate history for *ticker*. |
-| `compute_composite_valuation_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 877 | Run multi-methodology equity valuation for *ticker*. |
-| `compute_position_size_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str, annualized_iv: float, correlation: float \| None = None) ...` | 968 | Compute volatility-regime-aware position size for *ticker*. |
-| `compute_correlation_matrix_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str, comparison_tickers: list[str]) -> str` | 1023 | Compute pairwise correlation matrix between *ticker* and *comparison_tickers*. |
-| `compute_risk_adjusted_metrics_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 1115 | Compute portfolio-wide risk-adjusted performance metrics. |
-| `compute_hv_yang_zhang_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str, period: int = 20) -> str` | 1195 | Compute Yang-Zhang historical volatility for *ticker*. |
-| `build_trend_toolset` | func | `() -> list[object]` | 1267 | Return the tools for a Trend Desk agent. |
-| `build_flow_toolset` | func | `() -> list[object]` | 1275 | Return the tools for a Flow Desk agent. |
-| `build_fundamental_toolset` | func | `() -> list[object]` | 1283 | Return the tools for a Fundamental Desk agent. |
-| `build_contrarian_toolset` | func | `() -> list[object]` | 1297 | Return the tools for a Contrarian Desk agent. |
-| `build_research_toolset` | func | `() -> list[object]` | 1305 | Return the tools for a Research Desk agent. |
+| `build_risk_toolset` | func | `() -> list[object]` | 350 | Return the tools for a Risk Desk agent. |
+| `fetch_related_ohlcv` | async func | `(ctx: RunContext[DeskDeps], ticker: str, period: str = '6mo') -> str` | 382 | Fetch recent OHLCV bars for *ticker*. |
+| `compute_indicator_on_demand` | async func | `(ctx: RunContext[DeskDeps], ticker: str, indicator: str) -> str` | 436 | Compute a technical indicator on demand for *ticker*. |
+| `fetch_chain_summary` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 561 | Fetch an option chain summary for *ticker*. |
+| `fetch_unusual_activity` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 639 | Detect unusual options activity for *ticker*. |
+| `fetch_earnings_history` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 713 | Fetch fundamental data and next earnings date for *ticker*. |
+| `fetch_sector_comparison` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 773 | Fetch fundamental metrics for *ticker* with sector context. |
+| `fetch_debate_history` | async func | `(ctx: RunContext[DeskDeps], ticker: str, limit: int = 3) -> str` | 825 | Fetch prior AI debate history for *ticker*. |
+| `compute_composite_valuation_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 895 | Run multi-methodology equity valuation for *ticker*. |
+| `compute_position_size_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str, annualized_iv: float, correlation: float \| None = None) ...` | 986 | Compute volatility-regime-aware position size for *ticker*. |
+| `compute_correlation_matrix_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str, comparison_tickers: list[str]) -> str` | 1041 | Compute pairwise correlation matrix between *ticker* and *comparison_tickers*. |
+| `compute_risk_adjusted_metrics_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 1135 | Compute portfolio-wide risk-adjusted performance metrics. |
+| `compute_hv_yang_zhang_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str, period: int = 20) -> str` | 1209 | Compute Yang-Zhang historical volatility for *ticker*. |
+| `compute_garch_forecast_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 1281 | Compute a GARCH(1,1) volatility forecast for *ticker*. |
+| `compute_markov_regime_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 1355 | Detect the current market regime for *ticker* using Markov-switching. |
+| `compute_macro_regime_tool` | async func | `(ctx: RunContext[DeskDeps]) -> str` | 1435 | Classify the current macro-economic regime from FRED data. |
+| `compute_hurst_exponent_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 1491 | Compute the Hurst exponent for *ticker* via rescaled range analysis. |
+| `render_available_tools` | func | `(toolset: list[object]) -> str` | 1550 | Generate an ``<<<AVAILABLE_TOOLS>>>`` prompt block from *toolset*. |
+| `build_trend_toolset` | func | `() -> list[object]` | 1576 | Return the tools for a Trend Desk agent. |
+| `build_flow_toolset` | func | `() -> list[object]` | 1598 | Return the tools for a Flow Desk agent. |
+| `build_fundamental_toolset` | func | `() -> list[object]` | 1606 | Return the tools for a Fundamental Desk agent. |
+| `build_contrarian_toolset` | func | `() -> list[object]` | 1621 | Return the tools for a Contrarian Desk agent. |
+| `build_research_toolset` | func | `() -> list[object]` | 1629 | Return the tools for a Research Desk agent. |
 
 #### agents/constraints.py
 
@@ -2004,9 +2009,9 @@ Each row maps a source file to its test files and approximate test count.
 | services/ | 13 | 112 | 12 | 360 |
 | scoring/ | 6 | 29 | 6 | 227 |
 | data/ | 10 | 72 | 2 | 46 |
-| agents/ | 33 | 95 | 16 | 422 |
+| agents/ | 33 | 100 | 16 | 422 |
 | scan/ | 8 | 23 | 3 | 82 |
 | reporting/ | 1 | 2 | 1 | 10 |
 | api/ | 16 | 114 | 13 | 150 |
 | cli/ | 7 | 45 | 3 | 27 |
-| **Total** | **142** | **747** | **94** | **2714** |
+| **Total** | **142** | **752** | **94** | **2714** |

@@ -497,9 +497,9 @@ class AnalyticsMixin(RepositoryBase):
             Single-element list with correlation result, or empty list if
             insufficient data (fewer than 3 data points).
         """
-        # Defense-in-depth: ensure indicator name is a valid Python identifier
+        # Defense-in-depth: validate indicator name against IndicatorSignals fields
         # to prevent JSON path traversal via '$.' || ? construction.
-        if not indicator.isidentifier() or indicator.startswith("_"):
+        if indicator not in IndicatorSignals.model_fields:
             return []
         conn = self._db.conn
         # Join through ticker_scores signals_json to extract the indicator value.

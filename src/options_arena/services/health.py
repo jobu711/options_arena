@@ -57,7 +57,7 @@ class HealthService:
         try:
             ticker = yf.Ticker("SPY")
             await asyncio.wait_for(
-                asyncio.to_thread(lambda: ticker.fast_info),
+                asyncio.to_thread(getattr, ticker, "fast_info"),
                 timeout=self._config.yfinance_timeout,
             )
             latency_ms = (time.monotonic() - start) * 1000

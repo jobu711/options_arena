@@ -126,6 +126,6 @@ def main(
     from dotenv import load_dotenv  # noqa: PLC0415
 
     _project_root = Path(__file__).resolve().parents[3]
-    load_dotenv(_project_root / ".env", override=True)
+    load_dotenv(_project_root / ".env", override=False)
 
     configure_logging(verbose=verbose, json_mode=json_log)
