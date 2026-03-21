@@ -18,7 +18,7 @@ combined with elevated IV suggests a volatility event, or declining momentum alo
 unusual put activity may signal institutional hedging.
 
 ## Available Tools
-You have access to 6 tools drawn from across the specialist desks:
+You have access to 9 tools drawn from across the specialist desks:
 
 <<<AVAILABLE_TOOLS>>>
 - fetch_quote: Get current price, bid/ask, volume, and 52-week range for a ticker.
@@ -27,17 +27,21 @@ You have access to 6 tools drawn from across the specialist desks:
 - fetch_earnings_history: Get fundamentals, earnings date, sector, and market cap.
 - compute_indicator_on_demand: Compute RSI, MACD, SMA alignment, or ADX on demand.
 - fetch_debate_history: Get prior AI debate results (direction, confidence, summary).
+- compute_composite_valuation_tool: Run multi-model valuation (DCF, EV/EBITDA, residual income).
+- compute_position_size_tool: Compute volatility-regime-aware position size with IV tiers.
+- compute_hv_yang_zhang_tool: Compute Yang-Zhang historical volatility (drift-independent).
 <<<END_AVAILABLE_TOOLS>>>
 
 ## Tool Budget
-You have a budget of 5 tool calls but 6 tools available. You cannot use them all,
+You have a budget of 7 tool calls but 9 tools available. You cannot use them all,
 so you must prioritize based on the query:
 
 - **Always start with fetch_quote** -- price context anchors every analysis.
-- **Pick 4 more tools** based on what the query needs most:
-  - For broad overviews: fetch_earnings_history + compute_indicator_on_demand + fetch_chain_summary + fetch_debate_history
-  - For volatility events: fetch_vol_surface_slice + fetch_earnings_history + fetch_chain_summary + compute_indicator_on_demand
-  - For momentum questions: compute_indicator_on_demand + fetch_chain_summary + fetch_debate_history + fetch_vol_surface_slice
+- **Pick up to 6 more tools** based on what the query needs most:
+  - For broad overviews: fetch_earnings_history + compute_indicator_on_demand + fetch_chain_summary + fetch_debate_history + compute_composite_valuation_tool
+  - For volatility events: fetch_vol_surface_slice + compute_hv_yang_zhang_tool + fetch_earnings_history + fetch_chain_summary + compute_indicator_on_demand
+  - For risk/sizing questions: compute_position_size_tool + compute_hv_yang_zhang_tool + fetch_chain_summary + fetch_earnings_history + compute_indicator_on_demand
+  - For valuation deep-dives: compute_composite_valuation_tool + fetch_earnings_history + compute_indicator_on_demand + fetch_debate_history + fetch_vol_surface_slice
   - For second opinions: fetch_debate_history + compute_indicator_on_demand + fetch_vol_surface_slice + fetch_earnings_history
 
 ## Guidelines

@@ -405,7 +405,7 @@ def _fit_surface(
         ss_res = float(np.sum(resid_arr**2))
         ss_tot = float(np.sum((ivs_clean - np.mean(ivs_clean)) ** 2))
         if math.isfinite(ss_tot) and ss_tot > 0.0:
-            r2 = 1.0 - ss_res / ss_tot
+            r2 = max(0.0, 1.0 - ss_res / ss_tot)
             r_squared = r2 if math.isfinite(r2) else None
     except Exception:
         logger.debug("Fitted values computation failed", exc_info=True)
@@ -652,7 +652,7 @@ def _standalone_implied_move(
     iv = exp_ivs[sort_idx]
 
     t = float(target_dte) / 365.0
-    discount = math.exp(risk_free_rate * t)
+    forward_factor = math.exp(risk_free_rate * t)
 
     # Compute call prices via BSM for the butterfly spread
     n_strikes = len(k)
@@ -695,7 +695,7 @@ def _standalone_implied_move(
             )
             / (h1 + h2)
         )
-        pdf_k[i - 1] = max(0.0, discount * d2c)
+        pdf_k[i - 1] = max(0.0, forward_factor * d2c)
         pdf_strikes[i - 1] = float(k[i])
 
     # Integrate: P(S > spot) = 1 - CDF(spot)

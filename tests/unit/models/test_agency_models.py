@@ -214,9 +214,9 @@ class TestAgencyConfig:
     def test_default_construction(self) -> None:
         config = AgencyConfig()
         assert config.agent_timeout == pytest.approx(60.0)
-        assert config.default_tool_budget == 3
+        assert config.default_tool_budget == 4
         assert config.risk_tool_budget == 5
-        assert config.research_tool_budget == 5
+        assert config.research_tool_budget == 7
 
     def test_field_overrides(self) -> None:
         config = AgencyConfig(
@@ -238,7 +238,7 @@ class TestAgencyConfig:
     def test_default_agency_on_app_settings(self) -> None:
         settings = AppSettings()
         assert settings.agency.agent_timeout == pytest.approx(60.0)
-        assert settings.agency.default_tool_budget == 3
+        assert settings.agency.default_tool_budget == 4
 
     def test_agent_timeout_nan_rejected(self) -> None:
         with pytest.raises(ValidationError, match="finite"):

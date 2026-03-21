@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
+from sqlite3 import Row
 
 from options_arena.models.enums import RuleStatus
 from options_arena.models.strategy import AgentMemory, StrategyCondition, StrategyRule
@@ -79,6 +80,7 @@ class LearningMixin(RepositoryBase):
     async def get_strategy_rules(
         self,
         status: RuleStatus | None = None,
+        limit: int | None = None,
     ) -> list[StrategyRule]:
         """Retrieve strategy rules, optionally filtered by status.
 
@@ -86,6 +88,8 @@ class LearningMixin(RepositoryBase):
         ----------
         status
             If provided, only return rules with this status.
+        limit
+            Maximum number of rules to return.  ``None`` returns all rows.
 
         Returns
         -------
@@ -93,12 +97,21 @@ class LearningMixin(RepositoryBase):
             Rules ordered by ``created_at`` DESC.
         """
         conn = self._db.conn
-        if status is not None:
+        params: tuple[str | int, ...] = ()
+
+        if status is not None and limit is not None:
+            query = (
+                "SELECT * FROM strategy_rules WHERE status = ? ORDER BY created_at DESC LIMIT ?"
+            )
+            params = (status.value, limit)
+        elif status is not None:
             query = "SELECT * FROM strategy_rules WHERE status = ? ORDER BY created_at DESC"
-            params: tuple[str, ...] | tuple[()] = (status.value,)
+            params = (status.value,)
+        elif limit is not None:
+            query = "SELECT * FROM strategy_rules ORDER BY created_at DESC LIMIT ?"
+            params = (limit,)
         else:
             query = "SELECT * FROM strategy_rules ORDER BY created_at DESC"
-            params = ()
 
         async with conn.execute(query, params) as cursor:
             rows = await cursor.fetchall()
@@ -180,6 +193,7 @@ class LearningMixin(RepositoryBase):
         self,
         agent_name: str | None = None,
         scope_type: str | None = None,
+        limit: int | None = None,
     ) -> list[AgentMemory]:
         """Retrieve agent memory entries, optionally filtered.
 
@@ -189,6 +203,8 @@ class LearningMixin(RepositoryBase):
             If provided, only return memories for this agent.
         scope_type
             If provided, only return memories with this scope type.
+        limit
+            Maximum number of memories to return.  ``None`` returns all rows.
 
         Returns
         -------
@@ -197,19 +213,22 @@ class LearningMixin(RepositoryBase):
         """
         conn = self._db.conn
         conditions: list[str] = []
-        params: list[str] = []
+        query_params: list[str | int] = []
 
         if agent_name is not None:
             conditions.append("agent_name = ?")
-            params.append(agent_name)
+            query_params.append(agent_name)
         if scope_type is not None:
             conditions.append("scope_type = ?")
-            params.append(scope_type)
+            query_params.append(scope_type)
 
         where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
         query = f"SELECT * FROM agent_memory{where} ORDER BY created_at DESC"
+        if limit is not None:
+            query += " LIMIT ?"
+            query_params.append(limit)
 
-        async with conn.execute(query, tuple(params)) as cursor:
+        async with conn.execute(query, tuple(query_params)) as cursor:
             rows = await cursor.fetchall()
 
         return [self._row_to_agent_memory(row) for row in rows]
@@ -219,31 +238,31 @@ class LearningMixin(RepositoryBase):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _row_to_strategy_rule(row: object) -> StrategyRule:
+    def _row_to_strategy_rule(row: Row) -> StrategyRule:
         """Reconstruct a ``StrategyRule`` from a database row."""
-        conditions_data = json.loads(str(row["conditions_json"]))  # type: ignore[index]
+        conditions_data = json.loads(str(row["conditions_json"]))
         conditions = [StrategyCondition(**c) for c in conditions_data]
         return StrategyRule(
-            rule_id=str(row["rule_id"]),  # type: ignore[index]
-            pattern=str(row["pattern"]),  # type: ignore[index]
+            rule_id=str(row["rule_id"]),
+            pattern=str(row["pattern"]),
             conditions=conditions,
-            win_rate=float(row["win_rate"]),  # type: ignore[index]
-            avg_return=float(row["avg_return"]),  # type: ignore[index]
-            sample_size=int(row["sample_size"]),  # type: ignore[index]
-            status=RuleStatus(str(row["status"])),  # type: ignore[index]
-            created_at=datetime.fromisoformat(str(row["created_at"])),  # type: ignore[index]
+            win_rate=float(row["win_rate"]),
+            avg_return=float(row["avg_return"]),
+            sample_size=int(row["sample_size"]),
+            status=RuleStatus(str(row["status"])),
+            created_at=datetime.fromisoformat(str(row["created_at"])),
         )
 
     @staticmethod
-    def _row_to_agent_memory(row: object) -> AgentMemory:
+    def _row_to_agent_memory(row: Row) -> AgentMemory:
         """Reconstruct an ``AgentMemory`` from a database row."""
         return AgentMemory(
-            memory_id=str(row["memory_id"]),  # type: ignore[index]
-            agent_name=str(row["agent_name"]),  # type: ignore[index]
-            scope=str(row["scope"]),  # type: ignore[index]
-            scope_type=str(row["scope_type"]),  # type: ignore[index]
-            content=str(row["content"]),  # type: ignore[index]
-            sample_size=int(row["sample_size"]),  # type: ignore[index]
-            win_rate=float(row["win_rate"]),  # type: ignore[index]
-            created_at=datetime.fromisoformat(str(row["created_at"])),  # type: ignore[index]
+            memory_id=str(row["memory_id"]),
+            agent_name=str(row["agent_name"]),
+            scope=str(row["scope"]),
+            scope_type=str(row["scope_type"]),
+            content=str(row["content"]),
+            sample_size=int(row["sample_size"]),
+            win_rate=float(row["win_rate"]),
+            created_at=datetime.fromisoformat(str(row["created_at"])),
         )

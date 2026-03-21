@@ -134,15 +134,15 @@ def _make_mock_recommended_contract(
 class TestBuildToolsets:
     """Test toolset builder functions."""
 
-    def test_volatility_toolset_has_three_tools(self) -> None:
-        """Volatility toolset contains exactly 3 tools."""
+    def test_volatility_toolset_has_four_tools(self) -> None:
+        """Volatility toolset contains exactly 4 tools."""
         tools = build_volatility_toolset()
-        assert len(tools) == 3
+        assert len(tools) == 4
 
-    def test_risk_toolset_has_three_tools(self) -> None:
-        """Risk toolset contains exactly 3 tools."""
+    def test_risk_toolset_has_six_tools(self) -> None:
+        """Risk toolset contains exactly 6 tools."""
         tools = build_risk_toolset()
-        assert len(tools) == 3
+        assert len(tools) == 6
 
     def test_volatility_toolset_contains_expected_functions(self) -> None:
         """Volatility toolset contains the expected tool functions."""

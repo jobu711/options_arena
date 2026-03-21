@@ -840,12 +840,12 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `LearningMixin` | class | `(RepositoryBase)` | 22 | CRUD operations for strategy rules and agent memory. |
-| `.save_strategy_rule` | async method | `(rule: StrategyRule, *, commit: bool = True) -> None` | 39 | Persist a strategy rule (upsert by rule_id). |
-| `.get_strategy_rules` | async method | `(status: RuleStatus \| None = None) -> list[StrategyRule]` | 79 | Retrieve strategy rules, optionally filtered by status. |
-| `.update_rule_status` | async method | `(rule_id: str, status: RuleStatus, *, commit: bool = True) -> bool` | 108 | Update the status of a strategy rule. |
-| `.save_agent_memory` | async method | `(memory: AgentMemory, *, commit: bool = True) -> None` | 143 | Persist an agent memory entry (upsert by memory_id). |
-| `.get_agent_memories` | async method | `(agent_name: str \| None = None, scope_type: str \| None = None) -> list[AgentMemory]` | 179 | Retrieve agent memory entries, optionally filtered. |
+| `LearningMixin` | class | `(RepositoryBase)` | 23 | CRUD operations for strategy rules and agent memory. |
+| `.save_strategy_rule` | async method | `(rule: StrategyRule, *, commit: bool = True) -> None` | 40 | Persist a strategy rule (upsert by rule_id). |
+| `.get_strategy_rules` | async method | `(status: RuleStatus \| None = None, limit: int = 100) -> list[StrategyRule]` | 80 | Retrieve strategy rules, optionally filtered by status. |
+| `.update_rule_status` | async method | `(rule_id: str, status: RuleStatus, *, commit: bool = True) -> bool` | 114 | Update the status of a strategy rule. |
+| `.save_agent_memory` | async method | `(memory: AgentMemory, *, commit: bool = True) -> None` | 149 | Persist an agent memory entry (upsert by memory_id). |
+| `.get_agent_memories` | async method | `(agent_name: str \| None = None, scope_type: str \| None = None, limit: int = 100) -> list[AgentMem...` | 185 | Retrieve agent memory entries, optionally filtered. |
 
 #### data/_metadata.py
 
@@ -951,19 +951,24 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `fetch_correlation` | async func | `(ctx: RunContext[DeskDeps], ticker: str, tickers: list[str]) -> str` | 191 | Compute pairwise return correlations between *ticker* and each of *tickers*. |
 | `fetch_portfolio_exposure` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 289 | Query repository for historical recommended contracts for *ticker*. |
 | `build_volatility_toolset` | func | `() -> list[object]` | 328 | Return the tools for a Volatility Desk agent. |
-| `build_risk_toolset` | func | `() -> list[object]` | 336 | Return the tools for a Risk Desk agent. |
-| `fetch_related_ohlcv` | async func | `(ctx: RunContext[DeskDeps], ticker: str, period: str = '6mo') -> str` | 349 | Fetch recent OHLCV bars for *ticker*. |
-| `compute_indicator_on_demand` | async func | `(ctx: RunContext[DeskDeps], ticker: str, indicator: str) -> str` | 403 | Compute a technical indicator on demand for *ticker*. |
-| `fetch_chain_summary` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 528 | Fetch an option chain summary for *ticker*. |
-| `fetch_unusual_activity` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 606 | Detect unusual options activity for *ticker*. |
-| `fetch_earnings_history` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 680 | Fetch fundamental data and next earnings date for *ticker*. |
-| `fetch_sector_comparison` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 740 | Fetch fundamental metrics for *ticker* with sector context. |
-| `fetch_debate_history` | async func | `(ctx: RunContext[DeskDeps], ticker: str, limit: int = 3) -> str` | 792 | Fetch prior AI debate history for *ticker*. |
-| `build_trend_toolset` | func | `() -> list[object]` | 867 | Return the tools for a Trend Desk agent. |
-| `build_flow_toolset` | func | `() -> list[object]` | 875 | Return the tools for a Flow Desk agent. |
-| `build_fundamental_toolset` | func | `() -> list[object]` | 883 | Return the tools for a Fundamental Desk agent. |
-| `build_contrarian_toolset` | func | `() -> list[object]` | 891 | Return the tools for a Contrarian Desk agent. |
-| `build_research_toolset` | func | `() -> list[object]` | 899 | Return the tools for a Research Desk agent. |
+| `build_risk_toolset` | func | `() -> list[object]` | 342 | Return the tools for a Risk Desk agent. |
+| `fetch_related_ohlcv` | async func | `(ctx: RunContext[DeskDeps], ticker: str, period: str = '6mo') -> str` | 364 | Fetch recent OHLCV bars for *ticker*. |
+| `compute_indicator_on_demand` | async func | `(ctx: RunContext[DeskDeps], ticker: str, indicator: str) -> str` | 418 | Compute a technical indicator on demand for *ticker*. |
+| `fetch_chain_summary` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 543 | Fetch an option chain summary for *ticker*. |
+| `fetch_unusual_activity` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 621 | Detect unusual options activity for *ticker*. |
+| `fetch_earnings_history` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 695 | Fetch fundamental data and next earnings date for *ticker*. |
+| `fetch_sector_comparison` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 755 | Fetch fundamental metrics for *ticker* with sector context. |
+| `fetch_debate_history` | async func | `(ctx: RunContext[DeskDeps], ticker: str, limit: int = 3) -> str` | 807 | Fetch prior AI debate history for *ticker*. |
+| `compute_composite_valuation_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 877 | Run multi-methodology equity valuation for *ticker*. |
+| `compute_position_size_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str, annualized_iv: float, correlation: float \| None = None) ...` | 968 | Compute volatility-regime-aware position size for *ticker*. |
+| `compute_correlation_matrix_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str, comparison_tickers: list[str]) -> str` | 1023 | Compute pairwise correlation matrix between *ticker* and *comparison_tickers*. |
+| `compute_risk_adjusted_metrics_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 1115 | Compute portfolio-wide risk-adjusted performance metrics. |
+| `compute_hv_yang_zhang_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str, period: int = 20) -> str` | 1195 | Compute Yang-Zhang historical volatility for *ticker*. |
+| `build_trend_toolset` | func | `() -> list[object]` | 1267 | Return the tools for a Trend Desk agent. |
+| `build_flow_toolset` | func | `() -> list[object]` | 1275 | Return the tools for a Flow Desk agent. |
+| `build_fundamental_toolset` | func | `() -> list[object]` | 1283 | Return the tools for a Fundamental Desk agent. |
+| `build_contrarian_toolset` | func | `() -> list[object]` | 1297 | Return the tools for a Contrarian Desk agent. |
+| `build_research_toolset` | func | `() -> list[object]` | 1305 | Return the tools for a Research Desk agent. |
 
 #### agents/constraints.py
 
@@ -1335,8 +1340,8 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `get_learning_status` | async func | `(request: Request, repo: Repository = Depends(get_repo)) -> LearningStatus` | 55 | Get learning system status: last tune timestamps and counts. |
 | `trigger_indicator_tune` | async func | `(request: Request, repo: Repository = Depends(get_repo), lock: asyncio.Lock = ..., window: int = ...` | 76 | Trigger indicator weight tuning from historical outcome data. |
 | `trigger_mining` | async func | `(request: Request, repo: Repository = Depends(get_repo), lock: asyncio.Lock = ...) -> list[Strate...` | 104 | Trigger strategy pattern mining from historical outcome data. |
-| `get_playbook` | async func | `(request: Request, repo: Repository = Depends(get_repo), status: RuleStatus \| None = ...) -> list...` | 125 | List strategy rules, optionally filtered by status. |
-| `update_rule_status` | async func | `(request: Request, rule_id: str, status: RuleStatus = ..., repo: Repository = Depends(get_repo)) ...` | 136 | Update the status of a strategy rule (approve/reject). |
+| `get_playbook` | async func | `(request: Request, repo: Repository = Depends(get_repo), status: RuleStatus \| None = ...) -> list...` | 127 | List strategy rules, optionally filtered by status. |
+| `update_rule_status` | async func | `(request: Request, rule_id: str, status: RuleStatus = ..., repo: Repository = Depends(get_repo)) ...` | 138 | Update the status of a strategy rule (approve/reject). |
 
 #### api/routes/market.py
 
@@ -1407,9 +1412,9 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `PresetInfo` | model |  | 736 | Describes a scan preset for the frontend preset picker. |
 | `HeatmapTicker` | model | `frozen=True` | 750 | Single ticker entry for the S&P 500 heatmap treemap. |
 | `AgencyQueryRequest` | model |  | 798 | Request body for ``POST /api/agency/query``. |
-| `AgencyQueryStarted` | model |  | 806 | Response for submitted agency query. |
-| `LivenessResponse` | model |  | 813 | Basic liveness check response for ``GET /api/health``. |
-| `UpdateStatusResponse` | model |  | 819 | Response for status update operations (strategy rules, etc.). |
+| `AgencyQueryStarted` | model |  | 825 | Response for submitted agency query. |
+| `LivenessResponse` | model |  | 832 | Basic liveness check response for ``GET /api/health``. |
+| `UpdateStatusResponse` | model |  | 838 | Response for status update operations (strategy rules, etc.). |
 
 #### api/ws.py
 
@@ -1999,9 +2004,9 @@ Each row maps a source file to its test files and approximate test count.
 | services/ | 13 | 112 | 12 | 360 |
 | scoring/ | 6 | 29 | 6 | 227 |
 | data/ | 10 | 72 | 2 | 46 |
-| agents/ | 33 | 90 | 16 | 422 |
+| agents/ | 33 | 95 | 16 | 422 |
 | scan/ | 8 | 23 | 3 | 82 |
 | reporting/ | 1 | 2 | 1 | 10 |
 | api/ | 16 | 114 | 13 | 150 |
 | cli/ | 7 | 45 | 3 | 27 |
-| **Total** | **142** | **742** | **94** | **2714** |
+| **Total** | **142** | **747** | **94** | **2714** |

@@ -52,7 +52,8 @@ The orchestrator does **not fetch data** — the caller (CLI/API) provides all i
 | `data/repository` (persistence only, from orchestrator + desk tools) | `scoring/`, `scan/` |
 | `indicators/` (desk tool wrappers in `_toolsets.py` only — lazy imports) | — |
 | `pydantic_ai` (Agent, RunContext, ModelRetry, ModelSettings) | Other agent modules (agents don't know each other) |
-| stdlib: `asyncio`, `logging`, `time`, `os`, `dataclasses` | `cli/`, `reporting/`, `analysis/` |
+| `analysis/` (desk tool wrappers in `_toolsets.py` only — lazy imports) | — |
+| stdlib: `asyncio`, `logging`, `time`, `os`, `dataclasses` | `cli/`, `reporting/` |
 
 ---
 

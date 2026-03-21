@@ -328,17 +328,32 @@ async def fetch_portfolio_exposure(ctx: RunContext[DeskDeps], ticker: str) -> st
 def build_volatility_toolset() -> list[object]:
     """Return the tools for a Volatility Desk agent.
 
-    Tools: ``fetch_quote``, ``fetch_vol_surface_slice``, ``compute_iv_for_strike``.
+    Tools: ``fetch_quote``, ``fetch_vol_surface_slice``, ``compute_iv_for_strike``,
+    ``compute_hv_yang_zhang_tool``.
     """
-    return [fetch_quote, fetch_vol_surface_slice, compute_iv_for_strike]
+    return [
+        fetch_quote,
+        fetch_vol_surface_slice,
+        compute_iv_for_strike,
+        compute_hv_yang_zhang_tool,
+    ]
 
 
 def build_risk_toolset() -> list[object]:
     """Return the tools for a Risk Desk agent.
 
-    Tools: ``fetch_quote``, ``fetch_correlation``, ``fetch_portfolio_exposure``.
+    Tools: ``fetch_quote``, ``fetch_correlation``, ``fetch_portfolio_exposure``,
+    ``compute_correlation_matrix_tool``, ``compute_risk_adjusted_metrics_tool``,
+    ``compute_position_size_tool``.
     """
-    return [fetch_quote, fetch_correlation, fetch_portfolio_exposure]
+    return [
+        fetch_quote,
+        fetch_correlation,
+        fetch_portfolio_exposure,
+        compute_correlation_matrix_tool,
+        compute_risk_adjusted_metrics_tool,
+        compute_position_size_tool,
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -802,7 +817,7 @@ async def fetch_debate_history(
         ticker: Underlying ticker symbol.
         limit: Maximum number of debates to return (default 3).
     """
-    import json as _json
+    from options_arena.models import TradeThesis
 
     tool_name = "fetch_debate_history"
     # Clamp limit to prevent unbounded DB queries from LLM-controlled input
@@ -827,16 +842,11 @@ async def fetch_debate_history(
 
             if debate.verdict_json is not None:
                 try:
-                    verdict = _json.loads(debate.verdict_json)
-                    direction = verdict.get("direction", "N/A")
-                    raw_conf = verdict.get("confidence")
-                    if (
-                        raw_conf is not None
-                        and isinstance(raw_conf, (int, float))
-                        and math.isfinite(float(raw_conf))
-                    ):
-                        confidence = f"{float(raw_conf):.0%}"
-                    summary_text = verdict.get("summary", "")
+                    thesis = TradeThesis.model_validate_json(debate.verdict_json)
+                    direction = thesis.direction
+                    if math.isfinite(thesis.confidence):
+                        confidence = f"{thesis.confidence:.0%}"
+                    summary_text = thesis.summary or ""
                     # Truncate long summaries
                     if len(summary_text) > 120:  # noqa: PLR2004
                         summary = summary_text[:117] + "..."
@@ -857,6 +867,392 @@ async def fetch_debate_history(
         logger.debug("fetch_debate_history failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
         return f"Error: could not fetch debate history for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: compute_composite_valuation_tool (Analysis)
+# ---------------------------------------------------------------------------
+
+
+async def compute_composite_valuation_tool(
+    ctx: RunContext[DeskDeps],
+    ticker: str,
+) -> str:
+    """Run multi-methodology equity valuation for *ticker*.
+
+    Computes fair value from up to four models (Owner Earnings DCF,
+    Three-Stage DCF, EV/EBITDA Relative, Residual Income) and returns
+    a composite valuation with margin of safety and signal.
+    """
+    tool_name = "compute_composite_valuation"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        from options_arena.analysis.valuation import FDData, compute_composite_valuation
+
+        info = await ctx.deps.market_data.fetch_ticker_info(ticker)
+        current_price = float(info.current_price)
+
+        # Fetch risk-free rate if FRED service is available
+        risk_free_rate = 0.05
+        if ctx.deps.fred is not None:
+            try:
+                risk_free_rate = await ctx.deps.fred.fetch_risk_free_rate()
+            except Exception:
+                logger.debug("FRED unavailable for valuation, using default rate")
+
+        # Build FDData from available ticker_info — most fields will be None
+        # since TickerInfo doesn't carry financial statement data.
+        # TODO: Wire FinancialDatasetsService to populate FDData when available.
+        fd = FDData()
+
+        result = compute_composite_valuation(
+            ticker=ticker,
+            current_price=current_price,
+            fd=fd,
+            risk_free_rate=risk_free_rate,
+        )
+
+        lines: list[str] = [
+            f"Composite Valuation for {ticker}:",
+            f"  Current Price: ${result.current_price:.2f}",
+        ]
+
+        if result.composite_fair_value is not None:
+            lines.append(f"  Fair Value: ${result.composite_fair_value:.2f}")
+        else:
+            lines.append(
+                "  Fair Value: N/A (financial statement data not yet available "
+                "— valuation requires net income, FCF, revenue, EBITDA)"
+            )
+
+        if result.composite_margin_of_safety is not None:
+            lines.append(f"  Margin of Safety: {result.composite_margin_of_safety:.1%}")
+        else:
+            lines.append("  Margin of Safety: N/A")
+
+        if result.valuation_signal is not None:
+            lines.append(f"  Signal: {result.valuation_signal.value}")
+        else:
+            lines.append("  Signal: N/A")
+
+        # Per-model results
+        for model_result in result.models:
+            fv_str = (
+                f"${model_result.fair_value:.2f}" if model_result.fair_value is not None else "N/A"
+            )
+            mos_str = (
+                f"{model_result.margin_of_safety:.1%}"
+                if model_result.margin_of_safety is not None
+                else "N/A"
+            )
+            lines.append(
+                f"  {model_result.methodology}: FV={fv_str} MoS={mos_str} "
+                f"conf={model_result.confidence:.0%}"
+            )
+
+        ctx.deps.tools_used.append(tool_name)
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("compute_composite_valuation failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not compute valuation for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: compute_position_size_tool (Analysis)
+# ---------------------------------------------------------------------------
+
+
+async def compute_position_size_tool(
+    ctx: RunContext[DeskDeps],
+    ticker: str,
+    annualized_iv: float,
+    correlation: float | None = None,
+) -> str:
+    """Compute volatility-regime-aware position size for *ticker*.
+
+    Maps annualized IV to allocation tiers with linear interpolation
+    and an optional correlation penalty.
+
+    Args:
+        ticker: Underlying ticker symbol (for labeling).
+        annualized_iv: Annualized implied volatility as decimal (e.g. 0.25 = 25%).
+        correlation: Optional correlation with portfolio for adjustment.
+    """
+    tool_name = "compute_position_size"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        from options_arena.analysis.position_sizing import compute_position_size
+
+        # Guard non-finite correlation from LLM-controlled input
+        if correlation is not None and not math.isfinite(correlation):
+            correlation = None
+
+        result = compute_position_size(
+            annualized_iv=annualized_iv,
+            correlation_with_portfolio=correlation,
+        )
+
+        iv_str = f"{annualized_iv:.1%}" if math.isfinite(annualized_iv) else "N/A"
+        lines: list[str] = [
+            f"Position Sizing for {ticker} (IV={iv_str}):",
+            f"  Tier: {result.vol_regime_tier} ({result.vol_regime_label.value})",
+            f"  Base Allocation: {result.base_allocation_pct:.1%}",
+            f"  Correlation Adjustment: {result.correlation_adjustment:.0%}",
+            f"  Final Allocation: {result.final_allocation_pct:.1%}",
+            f"  Rationale: {result.rationale}",
+        ]
+
+        ctx.deps.tools_used.append(tool_name)
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("compute_position_size failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not compute position size for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: compute_correlation_matrix_tool (Analysis)
+# ---------------------------------------------------------------------------
+
+
+async def compute_correlation_matrix_tool(
+    ctx: RunContext[DeskDeps],
+    ticker: str,
+    comparison_tickers: list[str],
+) -> str:
+    """Compute pairwise correlation matrix between *ticker* and *comparison_tickers*.
+
+    Uses log daily returns over the last year (Markowitz 1952).
+
+    Args:
+        ticker: Primary ticker symbol.
+        comparison_tickers: List of tickers to compare against (max 5).
+    """
+    tool_name = "compute_correlation_matrix"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        import pandas as pd
+
+        from options_arena.analysis.correlation import compute_correlation_matrix
+
+        # Normalize, dedupe, and cap comparison tickers
+        capped = list(
+            dict.fromkeys(t.upper() for t in comparison_tickers if t.upper() != ticker.upper())
+        )[:_MAX_CORRELATION_TICKERS]
+        all_tickers = [ticker] + capped
+
+        for t in all_tickers:
+            if not TICKER_RE.match(t.upper()):
+                ctx.deps.tools_used.append(tool_name)
+                return f"Error: invalid ticker format: {t!r}"
+
+        from options_arena.utils.exceptions import DataFetchError
+
+        # Fetch OHLCV in parallel with error isolation
+        async def _fetch(t: str) -> tuple[str, pd.DataFrame | None]:
+            try:
+                ohlcv_list = await ctx.deps.market_data.fetch_ohlcv(t, period="1y")
+                if not ohlcv_list:
+                    return (t, None)
+                df = pd.DataFrame(
+                    {"Close": [float(bar.close) for bar in ohlcv_list]},
+                    index=[bar.date for bar in ohlcv_list],
+                )
+                return (t, df)
+            except (DataFetchError, TimeoutError):
+                logger.debug("Could not fetch OHLCV for %s in correlation matrix", t)
+                return (t, None)
+
+        results = await asyncio.gather(*[_fetch(t) for t in all_tickers], return_exceptions=True)
+        price_data: dict[str, pd.DataFrame] = {}
+        for r in results:
+            if isinstance(r, BaseException):
+                continue
+            t, df = r
+            if df is not None:
+                price_data[t] = df
+
+        if ticker not in price_data:
+            ctx.deps.tools_used.append(tool_name)
+            return f"Error: could not fetch price data for {ticker}"
+
+        if len(price_data) < 2:  # noqa: PLR2004
+            ctx.deps.tools_used.append(tool_name)
+            return "Error: insufficient data for correlation matrix (need at least 2 tickers)"
+
+        matrix = compute_correlation_matrix(price_data)
+
+        lines: list[str] = ["Correlation Matrix (log returns, 1Y):"]
+        if not matrix.pairs:
+            lines.append("  No valid pairs with sufficient overlap.")
+        else:
+            for pair in matrix.pairs:
+                lines.append(
+                    f"  {pair.ticker_a} / {pair.ticker_b}: {pair.correlation:.3f} "
+                    f"({pair.overlapping_days} overlapping days)"
+                )
+        if matrix.avg_correlation is not None and math.isfinite(matrix.avg_correlation):
+            lines.append(f"  Average correlation: {matrix.avg_correlation:.3f}")
+
+        ctx.deps.tools_used.append(tool_name)
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("compute_correlation_matrix failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not compute correlation matrix for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: compute_risk_adjusted_metrics_tool (Analysis)
+# ---------------------------------------------------------------------------
+
+
+async def compute_risk_adjusted_metrics_tool(
+    ctx: RunContext[DeskDeps],
+    ticker: str,
+) -> str:
+    """Compute portfolio-wide risk-adjusted performance metrics.
+
+    Queries historical outcomes from the repository and computes Sharpe,
+    Sortino, max drawdown, and annualized return across ALL tickers.
+    The *ticker* parameter is for API consistency — the returned metrics
+    are portfolio-wide, not per-ticker.
+    """
+    tool_name = "compute_risk_adjusted_metrics"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        # Fetch risk-free rate
+        risk_free_rate = 0.05
+        if ctx.deps.fred is not None:
+            try:
+                risk_free_rate = await ctx.deps.fred.fetch_risk_free_rate()
+            except Exception:
+                logger.debug("FRED unavailable for risk metrics, using default rate")
+
+        # Use the repo's built-in risk-adjusted metrics query which already
+        # handles joining contracts with outcomes.
+        result = await ctx.deps.repo.get_risk_adjusted_metrics(
+            lookback_days=365,
+            risk_free_rate=risk_free_rate,
+        )
+
+        if result.total_trades == 0:
+            ctx.deps.tools_used.append(tool_name)
+            return (
+                f"No outcome data available for {ticker} — "
+                f"run 'outcomes collect' to gather contract outcomes first"
+            )
+
+        lines: list[str] = [
+            f"Risk-Adjusted Metrics (all tickers, {result.lookback_days}d lookback):",
+            f"  Total Trades: {result.total_trades}",
+        ]
+        if result.sharpe_ratio is not None and math.isfinite(result.sharpe_ratio):
+            lines.append(f"  Sharpe Ratio: {result.sharpe_ratio:.2f}")
+        else:
+            lines.append("  Sharpe Ratio: N/A (insufficient data)")
+        if result.sortino_ratio is not None and math.isfinite(result.sortino_ratio):
+            lines.append(f"  Sortino Ratio: {result.sortino_ratio:.2f}")
+        else:
+            lines.append("  Sortino Ratio: N/A (insufficient data)")
+        if result.max_drawdown_pct is not None and math.isfinite(result.max_drawdown_pct):
+            lines.append(f"  Max Drawdown: {result.max_drawdown_pct:.1f}%")
+        else:
+            lines.append("  Max Drawdown: N/A")
+        if result.annualized_return_pct is not None and math.isfinite(
+            result.annualized_return_pct
+        ):
+            lines.append(f"  Annualized Return: {result.annualized_return_pct:.1f}%")
+        else:
+            lines.append("  Annualized Return: N/A")
+
+        ctx.deps.tools_used.append(tool_name)
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("compute_risk_adjusted_metrics failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not compute risk metrics for {ticker}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: compute_hv_yang_zhang_tool (Analysis)
+# ---------------------------------------------------------------------------
+
+
+async def compute_hv_yang_zhang_tool(
+    ctx: RunContext[DeskDeps],
+    ticker: str,
+    period: int = 20,
+) -> str:
+    """Compute Yang-Zhang historical volatility for *ticker*.
+
+    Yang-Zhang (2000) combines overnight, close-to-open, and
+    Rogers-Satchell variance for a drift-independent HV estimate.
+
+    Args:
+        ticker: Underlying ticker symbol.
+        period: Lookback window in trading days (default 20, clamped to [2, 60]).
+    """
+    tool_name = "compute_hv_yang_zhang"
+    if err := _validate_ticker(ticker):
+        ctx.deps.tools_used.append(tool_name)
+        return err
+    try:
+        import pandas as pd
+
+        from options_arena.indicators import compute_hv_yang_zhang
+
+        # Clamp period to [2, 60]
+        period = max(2, min(60, period))
+
+        ohlcv_list = await ctx.deps.market_data.fetch_ohlcv(ticker, period="1y")
+        if not ohlcv_list:
+            ctx.deps.tools_used.append(tool_name)
+            return f"No OHLCV data found for {ticker}"
+
+        # Build 4 pandas Series with date index
+        dates = [bar.date for bar in ohlcv_list]
+        open_series = pd.Series([float(bar.open) for bar in ohlcv_list], index=dates)
+        high_series = pd.Series([float(bar.high) for bar in ohlcv_list], index=dates)
+        low_series = pd.Series([float(bar.low) for bar in ohlcv_list], index=dates)
+        close_series = pd.Series([float(bar.close) for bar in ohlcv_list], index=dates)
+
+        hv = compute_hv_yang_zhang(
+            open_series, high_series, low_series, close_series, period=period
+        )
+
+        if hv is None:
+            ctx.deps.tools_used.append(tool_name)
+            return (
+                f"Yang-Zhang HV({period}) for {ticker}: N/A "
+                f"(insufficient data or non-finite result)"
+            )
+
+        # Interpret the volatility level
+        if hv < 0.15:  # noqa: PLR2004
+            interpretation = "low volatility"
+        elif hv < 0.30:  # noqa: PLR2004
+            interpretation = "moderate volatility"
+        elif hv < 0.50:  # noqa: PLR2004
+            interpretation = "elevated volatility"
+        else:
+            interpretation = "extreme volatility"
+
+        ctx.deps.tools_used.append(tool_name)
+        return f"Yang-Zhang HV({period}) for {ticker}: {hv:.1%} annualized — {interpretation}"
+    except Exception as exc:
+        logger.debug("compute_hv_yang_zhang failed for %s: %s", ticker, exc)
+        ctx.deps.tools_used.append(tool_name)
+        return f"Error: could not compute HV for {ticker}"
 
 
 # ---------------------------------------------------------------------------
@@ -883,9 +1279,15 @@ def build_flow_toolset() -> list[object]:
 def build_fundamental_toolset() -> list[object]:
     """Return the tools for a Fundamental Desk agent.
 
-    Tools: ``fetch_quote``, ``fetch_earnings_history``, ``fetch_sector_comparison``.
+    Tools: ``fetch_quote``, ``fetch_earnings_history``, ``fetch_sector_comparison``,
+    ``compute_composite_valuation_tool``.
     """
-    return [fetch_quote, fetch_earnings_history, fetch_sector_comparison]
+    return [
+        fetch_quote,
+        fetch_earnings_history,
+        fetch_sector_comparison,
+        compute_composite_valuation_tool,
+    ]
 
 
 def build_contrarian_toolset() -> list[object]:
@@ -899,10 +1301,11 @@ def build_contrarian_toolset() -> list[object]:
 def build_research_toolset() -> list[object]:
     """Return the tools for a Research Desk agent.
 
-    Curated cross-domain tools (6 total): ``fetch_quote``,
+    Curated cross-domain tools (9 total): ``fetch_quote``,
     ``fetch_vol_surface_slice``, ``fetch_chain_summary``,
     ``fetch_earnings_history``, ``compute_indicator_on_demand``,
-    ``fetch_debate_history``.
+    ``fetch_debate_history``, ``compute_composite_valuation_tool``,
+    ``compute_position_size_tool``, ``compute_hv_yang_zhang_tool``.
     """
     return [
         fetch_quote,
@@ -911,4 +1314,7 @@ def build_research_toolset() -> list[object]:
         fetch_earnings_history,
         compute_indicator_on_demand,
         fetch_debate_history,
+        compute_composite_valuation_tool,
+        compute_position_size_tool,
+        compute_hv_yang_zhang_tool,
     ]

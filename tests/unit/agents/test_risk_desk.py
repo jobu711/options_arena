@@ -59,7 +59,10 @@ class TestRunRiskDeskQuery:
 
     async def test_think_tags_stripped(self) -> None:
         deps = _make_deps()
-        test_model = TestModel(custom_output_text="<think>reasoning</think>Risk is moderate.")
+        test_model = TestModel(
+            call_tools=[],
+            custom_output_text="<think>reasoning</think>Risk is moderate.",
+        )
         result = await run_risk_desk_query("Analyze risk", deps, model=test_model)
         assert "<think>" not in result.response
         assert "Risk is moderate." in result.response
@@ -92,7 +95,7 @@ class TestRunRiskDeskQuery:
         assert isinstance(result, DeskResponse)
 
     async def test_higher_tool_budget_than_vol(self) -> None:
-        """Risk desk uses risk_tool_budget (5) vs vol desk's default_tool_budget (3)."""
+        """Risk desk uses risk_tool_budget (5) vs vol desk's default_tool_budget (4)."""
         cfg = AgencyConfig()
         assert cfg.risk_tool_budget > cfg.default_tool_budget
 
@@ -100,7 +103,7 @@ class TestRunRiskDeskQuery:
         from options_arena.agents._toolsets import DESK_SUCCESS_CONFIDENCE
 
         deps = _make_deps()
-        result = await run_risk_desk_query("test", deps, model=TestModel())
+        result = await run_risk_desk_query("test", deps, model=TestModel(call_tools=[]))
         assert result.confidence == pytest.approx(DESK_SUCCESS_CONFIDENCE, abs=0.01)
 
 
