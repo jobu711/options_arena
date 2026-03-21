@@ -7,9 +7,6 @@ Also tests render_available_tools().
 
 from __future__ import annotations
 
-import sys
-from unittest.mock import MagicMock
-
 import pytest
 from pydantic_ai import models
 
@@ -49,9 +46,7 @@ def _hide_package(
 
     original_import = builtins.__import__
 
-    def mock_import(
-        name: str, *args: object, **kwargs: object
-    ) -> object:
+    def mock_import(name: str, *args: object, **kwargs: object) -> object:
         if name == package_name or name.startswith(package_name + "."):
             raise ImportError(f"Mocked: No module named {package_name!r}")
         return original_import(name, *args, **kwargs)
@@ -88,9 +83,7 @@ class TestConditionalGARCH:
 
         assert compute_garch_forecast_tool not in tools
 
-    def test_volatility_base_count_without_ml(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_volatility_base_count_without_ml(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Volatility desk has exactly 4 tools without [ml]."""
         _hide_package(monkeypatch, "arch")
 
@@ -137,9 +130,7 @@ class TestConditionalMarkov:
         except ImportError:
             assert compute_markov_regime_tool not in tools
 
-    def test_risk_excludes_markov_when_missing(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_risk_excludes_markov_when_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify Markov tool omitted from risk when statsmodels missing."""
         _hide_package(monkeypatch, "statsmodels")
 
@@ -206,9 +197,7 @@ class TestResearchAllTools:
             assert compute_macro_regime_tool in tools
             assert compute_hurst_exponent_tool in tools
 
-    def test_research_has_always_tools_without_ml(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_research_has_always_tools_without_ml(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify research still has macro + hurst without [ml]."""
         _hide_package(monkeypatch, "arch")
         _hide_package(monkeypatch, "statsmodels")
@@ -220,9 +209,7 @@ class TestResearchAllTools:
         assert compute_garch_forecast_tool not in tools
         assert compute_markov_regime_tool not in tools
 
-    def test_research_base_count_without_ml(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_research_base_count_without_ml(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Research desk has 11 tools without [ml]."""
         _hide_package(monkeypatch, "arch")
         _hide_package(monkeypatch, "statsmodels")

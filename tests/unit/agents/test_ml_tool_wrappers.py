@@ -76,15 +76,11 @@ class TestGARCHForecastTool:
     """Test the compute_garch_forecast_tool wrapper."""
 
     @pytest.mark.critical
-    async def test_garch_success_formats_correctly(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_garch_success_formats_correctly(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify GARCH tool returns formatted annualized vol string."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         # Mock the indicator function to return a known value
         monkeypatch.setattr(
@@ -98,15 +94,11 @@ class TestGARCHForecastTool:
         assert "25.0%" in result
         assert "moderate volatility" in result
 
-    async def test_garch_returns_na_on_none_result(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_garch_returns_na_on_none_result(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify tool returns N/A when compute_garch_forecast returns None."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         monkeypatch.setattr(
             "options_arena.indicators.vol_forecast.compute_garch_forecast",
@@ -118,24 +110,18 @@ class TestGARCHForecastTool:
         assert "N/A" in result
         assert "AAPL" in result
 
-    async def test_garch_import_error_graceful(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_garch_import_error_graceful(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify tool returns unavailable message when arch not installed."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         # Simulate ImportError by patching the import
         import builtins
 
         original_import = builtins.__import__
 
-        def mock_import(
-            name: str, *args: object, **kwargs: object
-        ) -> object:
+        def mock_import(name: str, *args: object, **kwargs: object) -> object:
             if name == "options_arena.indicators.vol_forecast":
                 raise ImportError("No module named 'arch'")
             return original_import(name, *args, **kwargs)
@@ -156,15 +142,11 @@ class TestGARCHForecastTool:
         assert "Error" in result
         assert "invalid ticker" in result.lower()
 
-    async def test_garch_tracks_tools_used(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_garch_tracks_tools_used(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify tool_name appended to ctx.deps.tools_used."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         monkeypatch.setattr(
             "options_arena.indicators.vol_forecast.compute_garch_forecast",
@@ -196,17 +178,13 @@ class TestMarkovRegimeTool:
     """Test the compute_markov_regime_tool wrapper."""
 
     @pytest.mark.critical
-    async def test_markov_success_formats_regime(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_markov_success_formats_regime(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify Markov tool returns formatted regime label and probabilities."""
         from options_arena.indicators.regime_ml import MarkovRegimeOutput
 
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         mock_output = MarkovRegimeOutput(
             current_regime=1,
@@ -230,15 +208,11 @@ class TestMarkovRegimeTool:
         assert "normal" in result
         assert "70.0%" in result
 
-    async def test_markov_returns_na_on_none(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_markov_returns_na_on_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify tool returns N/A when compute_markov_regime returns None."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         monkeypatch.setattr(
             "options_arena.indicators.regime_ml.compute_markov_regime",
@@ -249,23 +223,17 @@ class TestMarkovRegimeTool:
 
         assert "N/A" in result
 
-    async def test_markov_import_error_graceful(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_markov_import_error_graceful(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify tool returns unavailable message when statsmodels not installed."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         import builtins
 
         original_import = builtins.__import__
 
-        def mock_import(
-            name: str, *args: object, **kwargs: object
-        ) -> object:
+        def mock_import(name: str, *args: object, **kwargs: object) -> object:
             if name == "options_arena.indicators.regime_ml":
                 raise ImportError("No module named 'statsmodels'")
             return original_import(name, *args, **kwargs)
@@ -286,17 +254,13 @@ class TestMarkovRegimeTool:
         assert "Error" in result
         assert "invalid ticker" in result.lower()
 
-    async def test_markov_tracks_tools_used(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_markov_tracks_tools_used(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify tool_name appended to ctx.deps.tools_used."""
         from options_arena.indicators.regime_ml import MarkovRegimeOutput
 
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         mock_output = MarkovRegimeOutput(
             current_regime=0,

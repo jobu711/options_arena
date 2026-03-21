@@ -76,9 +76,7 @@ class TestMacroRegimeTool:
     """Test the compute_macro_regime_tool wrapper."""
 
     @pytest.mark.critical
-    async def test_macro_success_formats_regime(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_macro_success_formats_regime(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify macro tool returns formatted regime and confidence."""
         from options_arena.indicators.macro import MacroClassification
         from options_arena.models.enums import MacroRegime
@@ -121,9 +119,7 @@ class TestMacroRegimeTool:
 
         assert "not available" in result.lower()
 
-    async def test_macro_returns_na_on_none_result(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_macro_returns_na_on_none_result(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify tool returns N/A when compute_macro_regime returns None."""
         from options_arena.models.macro import MacroContext
 
@@ -143,9 +139,7 @@ class TestMacroRegimeTool:
 
         assert "N/A" in result
 
-    async def test_macro_tracks_tools_used(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_macro_tracks_tools_used(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify tool_name appended to tools_used."""
         from options_arena.indicators.macro import MacroClassification
         from options_arena.models.enums import MacroRegime
@@ -174,9 +168,7 @@ class TestMacroRegimeTool:
         """Verify never-raise contract on unexpected exception."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.fred.fetch_macro_context = AsyncMock(
-            side_effect=RuntimeError("FRED down")
-        )
+        ctx.deps.fred.fetch_macro_context = AsyncMock(side_effect=RuntimeError("FRED down"))
 
         result = await compute_macro_regime_tool(ctx)
 
@@ -193,15 +185,11 @@ class TestHurstExponentTool:
     """Test the compute_hurst_exponent_tool wrapper."""
 
     @pytest.mark.critical
-    async def test_hurst_success_formats_value(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_hurst_success_formats_value(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify Hurst tool returns formatted H value and interpretation."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         monkeypatch.setattr(
             "options_arena.indicators.hurst.hurst_exponent",
@@ -214,15 +202,11 @@ class TestHurstExponentTool:
         assert "0.650" in result
         assert "trending" in result.lower()
 
-    async def test_hurst_trending_interpretation(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_hurst_trending_interpretation(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify H > 0.55 is labeled 'trending'."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         monkeypatch.setattr(
             "options_arena.indicators.hurst.hurst_exponent",
@@ -239,9 +223,7 @@ class TestHurstExponentTool:
         """Verify H < 0.45 is labeled 'mean-reverting'."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         monkeypatch.setattr(
             "options_arena.indicators.hurst.hurst_exponent",
@@ -252,15 +234,11 @@ class TestHurstExponentTool:
 
         assert "mean-reverting" in result.lower()
 
-    async def test_hurst_random_walk_interpretation(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_hurst_random_walk_interpretation(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify H ~ 0.5 is labeled 'random walk'."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         monkeypatch.setattr(
             "options_arena.indicators.hurst.hurst_exponent",
@@ -271,15 +249,11 @@ class TestHurstExponentTool:
 
         assert "random walk" in result.lower()
 
-    async def test_hurst_returns_na_on_none(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_hurst_returns_na_on_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify tool returns N/A when hurst_exponent returns None."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         monkeypatch.setattr(
             "options_arena.indicators.hurst.hurst_exponent",
@@ -310,15 +284,11 @@ class TestHurstExponentTool:
 
         assert "No OHLCV data" in result
 
-    async def test_hurst_tracks_tools_used(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_hurst_tracks_tools_used(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify tool_name appended to tools_used."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         monkeypatch.setattr(
             "options_arena.indicators.hurst.hurst_exponent",

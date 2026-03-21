@@ -85,9 +85,7 @@ def _hide_package(
 
     original_import = builtins.__import__
 
-    def mock_import(
-        name: str, *args: object, **kwargs: object
-    ) -> object:
+    def mock_import(name: str, *args: object, **kwargs: object) -> object:
         if name == package_name or name.startswith(package_name + "."):
             raise ImportError(f"Mocked: No module named {package_name!r}")
         return original_import(name, *args, **kwargs)
@@ -132,12 +130,8 @@ class TestToolsetDegradation:
         assert isinstance(tools, list)
         assert len(tools) > 0
 
-    @pytest.mark.parametrize(
-        "desk", ["volatility", "trend", "risk", "research"]
-    )
-    def test_toolset_builds_without_ml(
-        self, desk: str, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    @pytest.mark.parametrize("desk", ["volatility", "trend", "risk", "research"])
+    def test_toolset_builds_without_ml(self, desk: str, monkeypatch: pytest.MonkeyPatch) -> None:
         """Affected desks build toolsets without [ml] (fewer tools)."""
         _hide_package(monkeypatch, "arch")
         _hide_package(monkeypatch, "statsmodels")
@@ -148,9 +142,7 @@ class TestToolsetDegradation:
         assert isinstance(tools, list)
         assert len(tools) > 0
 
-    def test_flow_unaffected_by_ml(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_flow_unaffected_by_ml(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Flow desk has same tools with or without [ml]."""
         tools_with = build_flow_toolset()
 
@@ -160,9 +152,7 @@ class TestToolsetDegradation:
 
         assert len(tools_with) == len(tools_without)
 
-    def test_contrarian_unaffected_by_ml(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_contrarian_unaffected_by_ml(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Contrarian desk has same tools with or without [ml]."""
         tools_with = build_contrarian_toolset()
 
@@ -172,9 +162,7 @@ class TestToolsetDegradation:
 
         assert len(tools_with) == len(tools_without)
 
-    def test_partial_ml_arch_only(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_partial_ml_arch_only(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Desks degrade correctly when only statsmodels is missing."""
         _hide_package(monkeypatch, "statsmodels")
 
@@ -192,9 +180,7 @@ class TestToolsetDegradation:
         assert compute_hurst_exponent_tool in trend_tools
         assert compute_markov_regime_tool not in trend_tools
 
-    def test_partial_ml_statsmodels_only(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_partial_ml_statsmodels_only(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Desks degrade correctly when only arch is missing."""
         _hide_package(monkeypatch, "arch")
 
@@ -222,15 +208,11 @@ class TestMLToolEndToEnd:
     """End-to-end tool execution with realistic mocked data."""
 
     @pytest.mark.critical
-    async def test_garch_full_pipeline(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_garch_full_pipeline(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """GARCH tool: OHLCV -> returns -> forecast -> formatted string."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         monkeypatch.setattr(
             "options_arena.indicators.vol_forecast.compute_garch_forecast",
@@ -246,17 +228,13 @@ class TestMLToolEndToEnd:
         assert "compute_garch_forecast" in ctx.deps.tools_used
 
     @pytest.mark.critical
-    async def test_markov_full_pipeline(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_markov_full_pipeline(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Markov tool: OHLCV -> returns -> regime -> formatted string."""
         from options_arena.indicators.regime_ml import MarkovRegimeOutput
 
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         mock_output = MarkovRegimeOutput(
             current_regime=2,
@@ -282,9 +260,7 @@ class TestMLToolEndToEnd:
         assert "compute_markov_regime" in ctx.deps.tools_used
 
     @pytest.mark.critical
-    async def test_macro_full_pipeline(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_macro_full_pipeline(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Macro tool: FRED context -> regime -> formatted string."""
         from options_arena.indicators.macro import MacroClassification
         from options_arena.models.enums import MacroRegime
@@ -322,15 +298,11 @@ class TestMLToolEndToEnd:
         assert "compute_macro_regime" in ctx.deps.tools_used
 
     @pytest.mark.critical
-    async def test_hurst_full_pipeline(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_hurst_full_pipeline(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Hurst tool: OHLCV -> close Series -> H value -> formatted string."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
-        ctx.deps.market_data.fetch_ohlcv = AsyncMock(
-            return_value=_make_ohlcv_series(260)
-        )
+        ctx.deps.market_data.fetch_ohlcv = AsyncMock(return_value=_make_ohlcv_series(260))
 
         monkeypatch.setattr(
             "options_arena.indicators.hurst.hurst_exponent",
