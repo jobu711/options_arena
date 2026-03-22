@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import re
 from datetime import date
 
 from pydantic_ai import RunContext
@@ -30,6 +31,19 @@ _MAX_CORRELATION_TICKERS = 5
 # Default confidence for successful desk responses.  Placeholder until
 # confidence is derived from observable quality signals.
 DESK_SUCCESS_CONFIDENCE = 0.7
+
+
+def _sanitize_error(exc: Exception, max_len: int = 120) -> str:
+    """Extract a safe, truncated error message from an exception.
+
+    Redacts sensitive tokens (API keys, passwords) and truncates to *max_len*
+    characters so agent context windows are not polluted with stack traces.
+    """
+    msg = str(exc)
+    msg = re.sub(r"(key|token|secret|password)=\S+", r"\1=***", msg, flags=re.IGNORECASE)
+    if len(msg) > max_len:
+        msg = msg[:max_len] + "..."
+    return msg
 
 
 def _validate_ticker(ticker: str) -> str | None:

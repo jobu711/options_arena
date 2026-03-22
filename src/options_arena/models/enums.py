@@ -418,6 +418,19 @@ class RuleStatus(StrEnum):
     REJECTED = "rejected"
 
 
+class ToolStatus(StrEnum):
+    """Status of a tool invocation result.
+
+    SUCCESS — tool completed normally, data is populated.
+    WARNING — tool completed with partial or degraded data.
+    ERROR   — tool failed, data is ``None``.
+    """
+
+    SUCCESS = "success"
+    WARNING = "warning"
+    ERROR = "error"
+
+
 class SurfaceMethod(StrEnum):
     """IV surface fitting method selection."""
 
