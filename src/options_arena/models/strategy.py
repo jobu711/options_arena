@@ -48,6 +48,9 @@ class StrategyRule(BaseModel):
     sample_size: int
     status: RuleStatus = RuleStatus.CANDIDATE
     created_at: datetime
+    confidence: float = 0.5
+    last_validated: datetime | None = None
+    validation_count: int = 0
 
     @field_validator("win_rate")
     @classmethod
@@ -77,6 +80,31 @@ class StrategyRule(BaseModel):
     def _validate_utc(cls, v: datetime) -> datetime:
         if v.tzinfo is None or v.utcoffset() != timedelta(0):
             raise ValueError("created_at must be UTC")
+        return v
+
+    @field_validator("confidence")
+    @classmethod
+    def _validate_confidence(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError(f"confidence must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"confidence must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("last_validated")
+    @classmethod
+    def _validate_last_validated(cls, v: datetime | None) -> datetime | None:
+        if v is None:
+            return v
+        if v.tzinfo is None or v.utcoffset() != timedelta(0):
+            raise ValueError("last_validated must be UTC")
+        return v
+
+    @field_validator("validation_count")
+    @classmethod
+    def _validate_validation_count(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError(f"validation_count must be >= 0, got {v}")
         return v
 
 
