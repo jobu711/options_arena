@@ -31,6 +31,10 @@ class LearningMixin(RepositoryBase):
         Retrieve strategy rules, optionally filtered by status.
     update_rule_status
         Transition a rule's status (candidate -> approved/rejected).
+    update_rule_confidence
+        Update confidence, last_validated, and validation_count for a rule.
+    update_rule_status_and_confidence
+        Atomically update both status and confidence for a rule.
     save_agent_memory
         Persist (upsert) an agent memory entry.
     get_agent_memories
@@ -60,8 +64,9 @@ class LearningMixin(RepositoryBase):
         await conn.execute(
             "INSERT OR REPLACE INTO strategy_rules "
             "(rule_id, pattern, conditions_json, win_rate, avg_return, "
-            "sample_size, status, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "sample_size, status, created_at, confidence, last_validated, "
+            "validation_count) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 rule.rule_id,
                 rule.pattern,
@@ -71,6 +76,9 @@ class LearningMixin(RepositoryBase):
                 rule.sample_size,
                 rule.status.value,
                 rule.created_at.isoformat(),
+                rule.confidence,
+                rule.last_validated.isoformat() if rule.last_validated else None,
+                rule.validation_count,
             ),
         )
         if commit:
@@ -151,6 +159,102 @@ class LearningMixin(RepositoryBase):
         updated = cursor.rowcount > 0
         if updated:
             logger.debug("Updated rule %s status to %s", rule_id, status.value)
+        return updated
+
+    async def update_rule_confidence(
+        self,
+        rule_id: str,
+        confidence: float,
+        last_validated: datetime | None,
+        validation_count: int,
+        *,
+        commit: bool = True,
+    ) -> bool:
+        """Update confidence, last_validated, and validation_count for a rule.
+
+        Parameters
+        ----------
+        rule_id
+            The unique identifier of the rule.
+        confidence
+            The new confidence value (0.0 to 1.0).
+        last_validated
+            When the rule was last validated (UTC datetime or ``None``).
+        validation_count
+            The cumulative number of validations.
+        commit
+            Whether to commit immediately (default ``True``).
+
+        Returns
+        -------
+        bool
+            ``True`` if a row was updated, ``False`` if ``rule_id`` not found.
+        """
+        conn = self._db.conn
+        cursor = await conn.execute(
+            "UPDATE strategy_rules "
+            "SET confidence = ?, last_validated = ?, validation_count = ? "
+            "WHERE rule_id = ?",
+            (
+                confidence,
+                last_validated.isoformat() if last_validated else None,
+                validation_count,
+                rule_id,
+            ),
+        )
+        if commit:
+            await conn.commit()
+        updated = cursor.rowcount > 0
+        if updated:
+            logger.debug(
+                "Updated rule %s confidence to %.3f (validation_count=%d)",
+                rule_id,
+                confidence,
+                validation_count,
+            )
+        return updated
+
+    async def update_rule_status_and_confidence(
+        self,
+        rule_id: str,
+        status: RuleStatus,
+        confidence: float,
+        *,
+        commit: bool = True,
+    ) -> bool:
+        """Atomically update both status and confidence for a rule.
+
+        Parameters
+        ----------
+        rule_id
+            The unique identifier of the rule.
+        status
+            The new status to set.
+        confidence
+            The new confidence value (0.0 to 1.0).
+        commit
+            Whether to commit immediately (default ``True``).
+
+        Returns
+        -------
+        bool
+            ``True`` if a row was updated, ``False`` if ``rule_id`` not found.
+        """
+        conn = self._db.conn
+        cursor = await conn.execute(
+            "UPDATE strategy_rules SET status = ?, confidence = ? WHERE rule_id = ?",
+            (status.value, confidence, rule_id),
+        )
+        if commit:
+            await conn.commit()
+        updated = cursor.rowcount > 0
+        if updated:
+            logger.debug(
+                "Updated rule %s status to %s, confidence to %.3f",
+                rule_id,
+                status.value,
+                confidence,
+            )
         return updated
 
     async def save_agent_memory(
@@ -242,6 +346,21 @@ class LearningMixin(RepositoryBase):
         """Reconstruct a ``StrategyRule`` from a database row."""
         conditions_data = json.loads(str(row["conditions_json"]))
         conditions = [StrategyCondition(**c) for c in conditions_data]
+
+        # Confidence columns added in migration 038 — fallback for pre-migration rows
+        raw_confidence = row["confidence"]
+        confidence = float(raw_confidence) if raw_confidence is not None else 0.5
+
+        raw_last_validated = row["last_validated"]
+        last_validated: datetime | None = (
+            datetime.fromisoformat(str(raw_last_validated))
+            if raw_last_validated is not None
+            else None
+        )
+
+        raw_validation_count = row["validation_count"]
+        validation_count = int(raw_validation_count) if raw_validation_count is not None else 0
+
         return StrategyRule(
             rule_id=str(row["rule_id"]),
             pattern=str(row["pattern"]),
@@ -251,6 +370,9 @@ class LearningMixin(RepositoryBase):
             sample_size=int(row["sample_size"]),
             status=RuleStatus(str(row["status"])),
             created_at=datetime.fromisoformat(str(row["created_at"])),
+            confidence=confidence,
+            last_validated=last_validated,
+            validation_count=validation_count,
         )
 
     @staticmethod

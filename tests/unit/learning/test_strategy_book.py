@@ -77,6 +77,7 @@ def _make_rule(
     win_rate: float = 0.70,
     avg_return: float = 0.12,
     sample_size: int = 40,
+    confidence: float = 0.5,
 ) -> StrategyRule:
     return StrategyRule(
         rule_id=rule_id,
@@ -93,6 +94,7 @@ def _make_rule(
         sample_size=sample_size,
         status=status,
         created_at=_NOW,
+        confidence=confidence,
     )
 
 
@@ -267,14 +269,14 @@ class TestRenderLearnedPatterns:
     def test_renders_approved_only(self) -> None:
         """Verify only approved rules appear in output."""
         rules = [
-            _make_rule(rule_id="r1", status=RuleStatus.APPROVED),
-            _make_rule(rule_id="r2", status=RuleStatus.CANDIDATE),
-            _make_rule(rule_id="r3", status=RuleStatus.REJECTED),
+            _make_rule(rule_id="r1", status=RuleStatus.APPROVED, confidence=0.6),
+            _make_rule(rule_id="r2", status=RuleStatus.CANDIDATE, confidence=0.6),
+            _make_rule(rule_id="r3", status=RuleStatus.REJECTED, confidence=0.6),
         ]
         text = render_learned_patterns(rules)
         assert "<<<LEARNED_PATTERNS>>>" in text
         assert "<<<END_LEARNED_PATTERNS>>>" in text
-        # Only one rule should be rendered
+        # Only one rule should be rendered (approved with confidence >= 0.3)
         assert text.count("Pattern:") == 1
 
     def test_empty_when_no_approved(self) -> None:
@@ -288,16 +290,119 @@ class TestRenderLearnedPatterns:
 
     def test_format_includes_delimiters(self) -> None:
         """Verify output includes <<<LEARNED_PATTERNS>>> delimiters."""
-        text = render_learned_patterns([_make_rule()])
+        text = render_learned_patterns([_make_rule(confidence=0.5)])
         assert text.startswith("<<<LEARNED_PATTERNS>>>")
         assert text.endswith("<<<END_LEARNED_PATTERNS>>>")
 
     def test_format_includes_stats(self) -> None:
         """Verify output includes win rate, sample size, avg return."""
-        text = render_learned_patterns([_make_rule(win_rate=0.7, avg_return=0.12, sample_size=40)])
+        text = render_learned_patterns(
+            [_make_rule(win_rate=0.7, avg_return=0.12, sample_size=40, confidence=0.5)]
+        )
         assert "70.0%" in text
         assert "n=40" in text
         assert "+12.0%" in text
+
+
+class TestRenderLearnedPatternsConfidence:
+    """Tests for confidence-weighted pattern rendering."""
+
+    def test_excludes_below_threshold(self) -> None:
+        """Verify rules with confidence < 0.3 are excluded."""
+        rules = [
+            _make_rule(rule_id="low", confidence=0.29),
+            _make_rule(rule_id="high", confidence=0.5),
+        ]
+        text = render_learned_patterns(rules)
+        # Only the high-confidence rule should appear
+        assert text.count("Pattern:") == 1
+        assert "confidence: 50%" in text
+
+    def test_sorts_by_confidence_descending(self) -> None:
+        """Verify rules are sorted by confidence descending."""
+        rules = [
+            _make_rule(rule_id="r_low", confidence=0.4, win_rate=0.60),
+            _make_rule(rule_id="r_high", confidence=0.9, win_rate=0.80),
+            _make_rule(rule_id="r_mid", confidence=0.6, win_rate=0.70),
+        ]
+        text = render_learned_patterns(rules)
+        # Find positions of confidence percentages
+        pos_90 = text.index("confidence: 90%")
+        pos_60 = text.index("confidence: 60%")
+        pos_40 = text.index("confidence: 40%")
+        assert pos_90 < pos_60 < pos_40
+
+    def test_strong_pattern_label(self) -> None:
+        """Verify rules with confidence >= 0.8 get 'Strong pattern:' prefix."""
+        rules = [_make_rule(confidence=0.85)]
+        text = render_learned_patterns(rules)
+        assert "Strong pattern:" in text
+        assert text.count("Pattern:") == 0  # no bare "Pattern:" prefix
+
+    def test_regular_pattern_label(self) -> None:
+        """Verify rules with confidence < 0.8 get 'Pattern:' prefix."""
+        rules = [_make_rule(confidence=0.5)]
+        text = render_learned_patterns(rules)
+        assert "Pattern:" in text
+        assert "Strong pattern:" not in text
+
+    def test_confidence_percentage_in_output(self) -> None:
+        """Verify confidence is rendered as a percentage in the output."""
+        rules = [_make_rule(confidence=0.73)]
+        text = render_learned_patterns(rules)
+        assert "(confidence: 73%)" in text
+
+    def test_all_below_threshold_returns_empty(self) -> None:
+        """Verify empty string when all approved rules have confidence < 0.3."""
+        rules = [
+            _make_rule(rule_id="r1", confidence=0.1),
+            _make_rule(rule_id="r2", confidence=0.29),
+        ]
+        assert render_learned_patterns(rules) == ""
+
+    def test_empty_rules_returns_empty(self) -> None:
+        """Verify empty string for empty rules list."""
+        assert render_learned_patterns([]) == ""
+
+    def test_truncation_still_works(self) -> None:
+        """Verify truncation at MAX_PATTERN_TEXT_CHARS still works with confidence."""
+        from options_arena.learning.strategy_book import MAX_PATTERN_TEXT_CHARS
+
+        # Create many rules that will exceed the char limit
+        rules = [_make_rule(rule_id=f"rule_{i}", confidence=0.5 + i * 0.01) for i in range(50)]
+        text = render_learned_patterns(rules)
+        assert len(text) <= MAX_PATTERN_TEXT_CHARS + len("\n<<<END_LEARNED_PATTERNS>>>")
+        assert text.endswith("<<<END_LEARNED_PATTERNS>>>")
+        assert text.startswith("<<<LEARNED_PATTERNS>>>")
+
+    def test_boundary_confidence_exactly_030(self) -> None:
+        """Verify rule with confidence exactly 0.3 is included."""
+        rules = [_make_rule(confidence=0.3)]
+        text = render_learned_patterns(rules)
+        assert "Pattern:" in text
+        assert "confidence: 30%" in text
+
+    def test_boundary_confidence_exactly_080(self) -> None:
+        """Verify rule with confidence exactly 0.8 gets 'Strong pattern:' prefix."""
+        rules = [_make_rule(confidence=0.8)]
+        text = render_learned_patterns(rules)
+        assert "Strong pattern:" in text
+        assert "confidence: 80%" in text
+
+    def test_mixed_statuses_only_approved_rendered(self) -> None:
+        """Verify only APPROVED rules are rendered regardless of confidence."""
+        rules = [
+            _make_rule(rule_id="a", status=RuleStatus.APPROVED, confidence=0.9),
+            _make_rule(rule_id="b", status=RuleStatus.CANDIDATE, confidence=0.9),
+            _make_rule(rule_id="c", status=RuleStatus.REJECTED, confidence=0.9),
+        ]
+        text = render_learned_patterns(rules)
+        # Count pattern lines (Strong pattern or Pattern) — should be exactly 1
+        strong_count = text.count("Strong pattern:")
+        pattern_count = text.count("Pattern:")
+        # "Strong pattern:" does not contain a bare "Pattern:" so we count both
+        assert strong_count == 1
+        assert pattern_count == 0  # the one match is "Strong pattern:", not "Pattern:"
 
 
 # ---------------------------------------------------------------------------

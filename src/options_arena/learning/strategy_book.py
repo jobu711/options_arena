@@ -316,11 +316,17 @@ def generate_rules(significant_cells: list[PatternCell]) -> list[StrategyRule]:
     return rules
 
 
+_CONFIDENCE_RENDER_THRESHOLD = 0.3
+_STRONG_PATTERN_THRESHOLD = 0.8
+
+
 def render_learned_patterns(rules: list[StrategyRule]) -> str:
     """Render approved rules as a prompt-injectable text block.
 
-    Only rules with ``status == APPROVED`` are included. Returns an empty
-    string when no approved rules exist.
+    Only rules with ``status == APPROVED`` and ``confidence >= 0.3`` are
+    included.  Rules are sorted by confidence descending and labelled with
+    confidence tiers: ``>= 0.8`` → ``"Strong pattern:"``, otherwise
+    ``"Pattern:"``.
 
     Parameters
     ----------
@@ -332,13 +338,20 @@ def render_learned_patterns(rules: list[StrategyRule]) -> str:
     str
         Delimited text block for injection, or empty string.
     """
-    approved = [r for r in rules if r.status == RuleStatus.APPROVED]
+    approved = [
+        r
+        for r in rules
+        if r.status == RuleStatus.APPROVED and r.confidence >= _CONFIDENCE_RENDER_THRESHOLD
+    ]
     if not approved:
         return ""
 
+    approved.sort(key=lambda r: r.confidence, reverse=True)
+
     lines = ["<<<LEARNED_PATTERNS>>>"]
     for rule in approved:
-        lines.append(f"Pattern: {rule.pattern}")
+        prefix = "Strong pattern" if rule.confidence >= _STRONG_PATTERN_THRESHOLD else "Pattern"
+        lines.append(f"{prefix}: {rule.pattern} (confidence: {rule.confidence:.0%})")
         lines.append(f"Win Rate: {rule.win_rate:.1%} (n={rule.sample_size})")
         lines.append(f"Avg Return: {rule.avg_return:+.1%}")
         lines.append("---")
