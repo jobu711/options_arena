@@ -577,6 +577,118 @@ class DebateResultDetail(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Recommendation response schemas (#670)
+# ---------------------------------------------------------------------------
+
+
+class AssessmentSummary(BaseModel):
+    """Lightweight assessment rendering per desk for recommendation response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    desk: str
+    direction: str
+    confidence: float
+    summary: str
+    key_findings: list[str]
+
+    @field_validator("confidence")
+    @classmethod
+    def _validate_confidence(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("confidence must be finite")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError("confidence must be between 0.0 and 1.0")
+        return v
+
+
+class PositionRecommendationResponse(BaseModel):
+    """Contract recommendation details for API response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    ticker: str
+    option_type: str | None = None
+    strike: str | None = None
+    expiration: str | None = None
+    recommended_contract: str
+    entry_price: str  # Decimal as string
+    stop_loss: str | None = None
+    take_profit: str | None = None
+    position_size_pct: float
+    risk_reward_ratio: float
+    direction: str
+    confidence: float
+    strategy: str | None = None
+    strategy_rationale: str
+    rationale: str
+
+    @field_validator("confidence")
+    @classmethod
+    def _validate_confidence(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("confidence must be finite")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError("confidence must be between 0.0 and 1.0")
+        return v
+
+    @field_validator("position_size_pct")
+    @classmethod
+    def _validate_position_size_pct(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("position_size_pct must be finite")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError("position_size_pct must be between 0.0 and 1.0")
+        return v
+
+    @field_validator("risk_reward_ratio")
+    @classmethod
+    def _validate_risk_reward_ratio(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("risk_reward_ratio must be finite")
+        if v <= 0:
+            raise ValueError("risk_reward_ratio must be > 0")
+        return v
+
+
+class RecommendationResponse(BaseModel):
+    """Full recommendation response for ``GET /api/debate/{id}`` (new data).
+
+    Returned when the recommendation_results table has data for the given ID.
+    Old debate data is still served via ``DebateResultDetail``.
+    """
+
+    id: int
+    ticker: str
+    assessments: list[AssessmentSummary]
+    recommendation: PositionRecommendationResponse
+    is_fallback: bool
+    recommendation_protocol: str
+    duration_ms: int
+    total_tokens: int
+    citation_density: float
+    model_used: str
+    created_at: datetime
+    scan_run_id: int | None = None
+
+    @field_validator("citation_density")
+    @classmethod
+    def _validate_citation_density(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("citation_density must be finite")
+        if v < 0.0:
+            raise ValueError("citation_density must be >= 0")
+        return v
+
+    @field_validator("created_at")
+    @classmethod
+    def _validate_utc(cls, v: datetime) -> datetime:
+        if v.tzinfo is None or v.utcoffset() != timedelta(0):
+            raise ValueError("must be UTC")
+        return v
+
+
+# ---------------------------------------------------------------------------
 # Batch debate schemas (#127)
 # ---------------------------------------------------------------------------
 

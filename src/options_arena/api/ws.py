@@ -132,6 +132,49 @@ class DebateProgressBridge:
 
 
 # ---------------------------------------------------------------------------
+# Recommendation progress bridge (#670)
+# ---------------------------------------------------------------------------
+
+
+class RecommendationProgressBridge:
+    """Bridges ``RecommendationProgressCallback`` to ``asyncio.Queue`` for WebSocket.
+
+    Emits desk progress (parallel) and synthesis step events for the new
+    recommendation pipeline.
+    """
+
+    def __init__(self) -> None:
+        self.queue: asyncio.Queue[dict[str, object]] = asyncio.Queue(maxsize=1000)
+
+    def _safe_put(self, event: dict[str, object]) -> None:
+        """Put event on queue, dropping oldest if full."""
+        if self.queue.full():
+            with contextlib.suppress(asyncio.QueueEmpty):
+                self.queue.get_nowait()
+            logger.debug("WS queue full — dropped oldest event")
+        self.queue.put_nowait(event)
+
+    def __call__(self, phase_name: str, current_step: int, total_steps: int) -> None:
+        """Match ``RecommendationProgressCallback`` signature: (phase, current, total)."""
+        self._safe_put(
+            {
+                "type": "progress",
+                "phase": phase_name,
+                "current": current_step,
+                "total": total_steps,
+            }
+        )
+
+    def complete(self, debate_id: int) -> None:
+        """Signal recommendation completion."""
+        self._safe_put({"type": "complete", "debate_id": debate_id})
+
+    def error(self, message: str) -> None:
+        """Signal an error event."""
+        self._safe_put({"type": "error", "message": message})
+
+
+# ---------------------------------------------------------------------------
 # Batch progress bridge
 # ---------------------------------------------------------------------------
 

@@ -1,21 +1,27 @@
-"""Debate endpoints — start, list, get result, batch."""
+"""Debate endpoints — start, list, get result, batch.
+
+Issue #670: Rewrites background tasks to use ``run_recommendation()`` instead of
+``run_debate()``.  The ``GET /api/debate/{id}`` endpoint performs dual-table lookup:
+recommendation_results first (new data), then ai_theses (old data).
+"""
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from options_arena.agents import (
-    DebateResult,
     effective_batch_ticker_delay,
-    extract_agent_predictions,
-    run_debate,
+    run_recommendation,
 )
 from options_arena.api.app import limiter
 from options_arena.api.deps import (
+    get_fred,
     get_market_data,
     get_operation_lock,
     get_options_data,
@@ -23,6 +29,7 @@ from options_arena.api.deps import (
     get_settings,
 )
 from options_arena.api.schemas import (
+    AssessmentSummary,
     BatchDebateRequest,
     BatchDebateStarted,
     BatchTickerResult,
@@ -30,11 +37,14 @@ from options_arena.api.schemas import (
     DebateResultDetail,
     DebateResultSummary,
     DebateStarted,
+    PositionRecommendationResponse,
+    RecommendationResponse,
     SpreadDetail,
     spread_detail_from_analysis,
 )
-from options_arena.api.ws import BatchProgressBridge, DebateProgressBridge
+from options_arena.api.ws import BatchProgressBridge, RecommendationProgressBridge
 from options_arena.data import Repository
+from options_arena.data._recommendation import RecommendationRow
 from options_arena.models import (
     AgentResponse,
     AppSettings,
@@ -47,12 +57,12 @@ from options_arena.models import (
     TradeThesis,
 )
 from options_arena.models.enums import TICKER_RE
-from options_arena.models.financial_datasets import FinancialDatasetsPackage
-from options_arena.models.intelligence import IntelligencePackage
-from options_arena.scoring import compute_dimensional_scores, normalize_single_ticker
+from options_arena.models.market_data import Quote, TickerInfo
+from options_arena.models.options import OptionContract
+from options_arena.models.scan import TickerScore
+from options_arena.scoring import normalize_single_ticker
 from options_arena.services import MarketDataService, OptionsDataService
-from options_arena.services.financial_datasets import FinancialDatasetsService
-from options_arena.services.intelligence import IntelligenceService
+from options_arena.services.fred import FredService
 
 logger = logging.getLogger(__name__)
 
@@ -63,11 +73,162 @@ router = APIRouter(prefix="/api", tags=["debate"])
 
 
 # ---------------------------------------------------------------------------
+# Helpers: prepare ticker data for run_recommendation()
+# ---------------------------------------------------------------------------
+
+
+async def _prepare_ticker_data(
+    ticker: str,
+    scan_id: int | None,
+    repo: Repository,
+    market_data: MarketDataService,
+    options_data: OptionsDataService,
+) -> tuple[TickerScore, Quote, TickerInfo, list[OptionContract]]:
+    """Fetch and prepare all data needed for ``run_recommendation()``.
+
+    Returns (ticker_score, quote, ticker_info, contracts).
+    """
+    from options_arena.models import IndicatorSignals  # noqa: PLC0415
+
+    quote: Quote = await market_data.fetch_quote(ticker)
+    ticker_info: TickerInfo = await market_data.fetch_ticker_info(ticker)
+
+    # Get score from scan results if available, else compute fresh
+    score_match: TickerScore | None = None
+    if scan_id is not None:
+        all_scores = await repo.get_scores_for_scan(scan_id)
+        score_match = next((s for s in all_scores if s.ticker == ticker), None)
+
+    if score_match is None:
+        from options_arena.scan.indicators import (  # noqa: PLC0415
+            INDICATOR_REGISTRY,
+            compute_indicators,
+            ohlcv_to_dataframe,
+        )
+        from options_arena.scoring import (  # noqa: PLC0415
+            composite_score as calc_composite,
+        )
+        from options_arena.scoring import (
+            determine_direction,
+        )
+
+        ohlcv_list = await market_data.fetch_ohlcv(ticker, period="1y")
+        if ohlcv_list:
+            df = ohlcv_to_dataframe(ohlcv_list)
+            raw_signals = compute_indicators(df, INDICATOR_REGISTRY)
+        else:
+            raw_signals = IndicatorSignals()
+
+        adhoc_direction = determine_direction(
+            adx=raw_signals.adx or 0.0,
+            rsi=raw_signals.rsi or 50.0,
+            sma_alignment=raw_signals.sma_alignment or 0.0,
+            supertrend=raw_signals.supertrend,
+            roc=raw_signals.roc,
+        )
+
+        normalized_signals = normalize_single_ticker(raw_signals)
+        logger.info("single-ticker normalization applied for %s", ticker)
+
+        adhoc_composite = calc_composite(normalized_signals)
+
+        score_match = TickerScore(
+            ticker=ticker,
+            composite_score=adhoc_composite,
+            direction=adhoc_direction,
+            signals=normalized_signals,
+        )
+
+    # Fetch fresh option chains
+    contracts: list[OptionContract] = []
+    chain_results = await options_data.fetch_chain_all_expirations(ticker)
+    for chain in chain_results:
+        contracts.extend(chain.contracts)
+
+    # Enrich with options-specific indicators from the full chain
+    if contracts:
+        from options_arena.scan.indicators import (  # noqa: PLC0415
+            compute_options_indicators,
+        )
+
+        spot = float(ticker_info.current_price)
+        options_signals = compute_options_indicators(contracts, spot)
+        if options_signals.put_call_ratio is not None:
+            score_match.signals.put_call_ratio = options_signals.put_call_ratio
+        if options_signals.max_pain_distance is not None:
+            score_match.signals.max_pain_distance = options_signals.max_pain_distance
+
+    return score_match, quote, ticker_info, contracts
+
+
+# ---------------------------------------------------------------------------
+# Recommendation row -> API response conversion
+# ---------------------------------------------------------------------------
+
+
+def _recommendation_row_to_response(
+    row: RecommendationRow,
+    recommendation_protocol: str,
+) -> RecommendationResponse:
+    """Convert a ``RecommendationRow`` to a ``RecommendationResponse`` schema."""
+    # Parse assessments JSON
+    assessments: list[AssessmentSummary] = []
+    try:
+        assessment_dicts = json.loads(row.assessments_json)
+        for ad in assessment_dicts:
+            assessments.append(
+                AssessmentSummary(
+                    desk=str(ad.get("desk", "unknown")),
+                    direction=str(ad.get("direction", "neutral")),
+                    confidence=float(ad.get("confidence", 0.0)),
+                    summary=str(ad.get("summary", "")),
+                    key_findings=list(ad.get("key_factors", [])),
+                )
+            )
+    except (json.JSONDecodeError, TypeError, ValueError):
+        logger.warning("Failed to parse assessments JSON for recommendation %d", row.id)
+
+    # Build recommendation response
+    rec_response = PositionRecommendationResponse(
+        ticker=row.ticker,
+        recommended_contract=row.recommended_contract,
+        entry_price=row.entry_price,
+        stop_loss=row.stop_loss,
+        take_profit=row.take_profit,
+        position_size_pct=row.position_size_pct,
+        risk_reward_ratio=row.risk_reward_ratio,
+        direction=row.direction,
+        confidence=row.confidence,
+        strategy=row.recommended_strategy,
+        strategy_rationale=row.strategy_rationale,
+        rationale=row.position_rationale,
+    )
+
+    # Parse created_at datetime
+    created_at = datetime.fromisoformat(row.created_at)
+
+    return RecommendationResponse(
+        id=row.id,
+        ticker=row.ticker,
+        assessments=assessments,
+        recommendation=rec_response,
+        is_fallback=row.is_fallback,
+        recommendation_protocol=recommendation_protocol,
+        duration_ms=row.duration_ms,
+        total_tokens=row.total_input_tokens + row.total_output_tokens,
+        citation_density=row.citation_density,
+        model_used=row.model_used,
+        created_at=created_at,
+        scan_run_id=row.scan_run_id,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Background task
 # ---------------------------------------------------------------------------
 
 
-async def _run_debate_background(
+async def _run_recommendation_background(
     request: Request,
     debate_id: int,
     ticker: str,
@@ -76,164 +237,43 @@ async def _run_debate_background(
     repo: Repository,
     market_data: MarketDataService,
     options_data: OptionsDataService,
-    bridge: DebateProgressBridge,
+    fred: FredService | None,
+    bridge: RecommendationProgressBridge,
 ) -> None:
-    """Run the debate orchestrator as a background task."""
+    """Run the recommendation orchestrator as a background task."""
     try:
-        # Fetch data for the ticker
-        quote = await market_data.fetch_quote(ticker)
-        ticker_info = await market_data.fetch_ticker_info(ticker)
-
-        # Get contracts (from scan results if scan_id provided, else fetch fresh)
-        contracts = []
-        if scan_id is not None:
-            all_scores = await repo.get_scores_for_scan(scan_id)
-            score_match = next((s for s in all_scores if s.ticker == ticker), None)
-        else:
-            score_match = None
-
-        if score_match is None:
-            # Compute real indicators from OHLCV so MarketContext has actual data
-            # instead of an empty IndicatorSignals (which causes <40% completeness
-            # and silent fallback to data-driven mode).
-            from options_arena.models import IndicatorSignals, TickerScore
-            from options_arena.scan.indicators import (  # noqa: PLC0415
-                INDICATOR_REGISTRY,
-                compute_indicators,
-                ohlcv_to_dataframe,
-            )
-            from options_arena.scoring import (  # noqa: PLC0415
-                composite_score as calc_composite,
-            )
-            from options_arena.scoring import (
-                determine_direction,
-            )
-
-            ohlcv_list = await market_data.fetch_ohlcv(ticker, period="1y")
-            if ohlcv_list:
-                df = ohlcv_to_dataframe(ohlcv_list)
-                raw_signals = compute_indicators(df, INDICATOR_REGISTRY)
-            else:
-                raw_signals = IndicatorSignals()
-
-            # Determine direction from RAW indicator values — thresholds
-            # (e.g. SMA_BULLISH_THRESHOLD=0.5) are calibrated for raw scale.
-            adhoc_direction = determine_direction(
-                adx=raw_signals.adx or 0.0,
-                rsi=raw_signals.rsi or 50.0,
-                sma_alignment=raw_signals.sma_alignment or 0.0,
-                supertrend=raw_signals.supertrend,
-                roc=raw_signals.roc,
-            )
-
-            # Single-ticker normalization: scale raw indicators to 0-100 via
-            # domain bounds so composite scoring receives comparable values
-            # even without a universe for percentile ranking.
-            normalized_signals = normalize_single_ticker(raw_signals)
-            logger.info("single-ticker normalization applied for %s", ticker)
-
-            adhoc_composite = calc_composite(normalized_signals)
-
-            score_match = TickerScore(
-                ticker=ticker,
-                composite_score=adhoc_composite,
-                direction=adhoc_direction,
-                signals=normalized_signals,
-            )
-
-        # Fetch fresh option chains
-        chain_results = await options_data.fetch_chain_all_expirations(ticker)
-        for chain in chain_results:
-            contracts.extend(chain.contracts)
-
-        # Enrich with options-specific indicators from the full chain
-        if contracts:
-            from options_arena.scan.indicators import (  # noqa: PLC0415
-                compute_options_indicators,
-            )
-
-            spot = float(ticker_info.current_price)
-            options_signals = compute_options_indicators(contracts, spot)
-            if options_signals.put_call_ratio is not None:
-                score_match.signals.put_call_ratio = options_signals.put_call_ratio
-            if options_signals.max_pain_distance is not None:
-                score_match.signals.max_pain_distance = options_signals.max_pain_distance
-
-        # Compute dimensional scores for the 6-agent protocol
-        dim_scores = None
-        try:
-            dim_scores = compute_dimensional_scores(score_match.signals)
-        except Exception:
-            logger.warning("Could not compute dimensional scores for %s", ticker, exc_info=True)
-
-        # Fetch intelligence data (never raises — returns None on error)
-        intelligence_svc: IntelligenceService | None = getattr(
-            request.app.state, "intelligence", None
+        score_match, quote, ticker_info, contracts = await _prepare_ticker_data(
+            ticker, scan_id, repo, market_data, options_data
         )
-        intel: IntelligencePackage | None = None
-        if intelligence_svc is not None:
-            intel = await intelligence_svc.fetch_intelligence(ticker, float(quote.price))
 
-        # Fetch Financial Datasets enrichment (never raises — returns None on error)
-        fd_svc: FinancialDatasetsService | None = getattr(
-            request.app.state, "financial_datasets", None
-        )
-        fd_package: FinancialDatasetsPackage | None = None
-        if fd_svc is not None:
-            fd_package = await fd_svc.fetch_package(ticker)
-
-        result: DebateResult = await run_debate(
+        result = await run_recommendation(
+            ticker=ticker,
             ticker_score=score_match,
             contracts=contracts,
             quote=quote,
             ticker_info=ticker_info,
-            config=settings.debate,
-            repository=None,  # Route handles persistence — avoid double save
-            progress=bridge,
-            dimensional_scores=dim_scores,
-            intelligence=intel,
-            fd_package=fd_package,
-        )
-
-        # Persist debate to DB
-        total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens
-        db_debate_id = await repo.save_debate(
+            settings=settings,
+            repo=repo,
+            market_data=market_data,
+            options_data=options_data,
+            fred=fred,
             scan_run_id=scan_id,
-            ticker=ticker,
-            bull_json=result.bull_response.model_dump_json(),
-            bear_json=result.bear_response.model_dump_json(),
-            risk_json=result.thesis.model_dump_json(),
-            verdict_json=result.thesis.model_dump_json(),
-            total_tokens=total_tokens,
-            model_name=(
-                settings.debate.model if not result.is_fallback else "data-driven-fallback"
-            ),
-            duration_ms=result.duration_ms,
-            is_fallback=result.is_fallback,
-            vol_json=(
-                result.vol_response.model_dump_json() if result.vol_response is not None else None
-            ),
-            rebuttal_json=(
-                result.bull_rebuttal.model_dump_json()
-                if result.bull_rebuttal is not None
-                else None
-            ),
-            market_context_json=result.context.model_dump_json(),
-            flow_thesis=result.flow_response,
-            fundamental_thesis=result.fundamental_response,
-            risk_assessment=result.risk_response,
-            contrarian_thesis=result.contrarian_response,
+            progress_callback=bridge,
         )
 
-        # Persist per-agent predictions for accuracy tracking (FR-8)
-        predictions = extract_agent_predictions(db_debate_id, result)
-        if predictions:
-            await repo.save_agent_predictions(predictions)
+        # run_recommendation() handles its own persistence via _persist_recommendation.
+        # Log completion.
+        logger.info(
+            "Recommendation for %s completed (fallback=%s, duration=%dms)",
+            ticker,
+            result.is_fallback,
+            result.duration_ms,
+        )
 
         bridge.complete(debate_id)
     except Exception:
-        logger.exception("Debate %d for %s failed", debate_id, ticker)
-        bridge.error(f"Debate failed for {ticker}")
+        logger.exception("Recommendation %d for %s failed", debate_id, ticker)
+        bridge.error(f"Recommendation failed for {ticker}")
         bridge.complete(debate_id)
     finally:
         # Clean up (initialized in lifespan)
@@ -254,21 +294,20 @@ async def start_debate(
     repo: Repository = Depends(get_repo),
     market_data: MarketDataService = Depends(get_market_data),
     options_data: OptionsDataService = Depends(get_options_data),
+    fred: FredService = Depends(get_fred),
 ) -> DebateStarted:
-    """Start a single-ticker debate in the background.
+    """Start a single-ticker recommendation in the background.
 
-    No operation lock is needed here: single debates are lightweight, short-lived,
-    and do not conflict with concurrent access. Only batch debates and scans
-    require the mutex (AUDIT-015).
+    No operation lock is needed here: single recommendations are lightweight,
+    short-lived, and do not conflict with concurrent access. Only batch
+    recommendations and scans require the mutex (AUDIT-015).
 
     NOTE: Provider selection (Groq vs Anthropic) is not yet exposed via the API.
     The API uses whatever ``ARENA_DEBATE__PROVIDER`` env var is set (defaults to
     Groq). To use Anthropic from the web UI, set the env var before starting the
     server. The CLI ``--provider`` flag is the only per-invocation override.
     """
-    bridge = DebateProgressBridge()
-
-    effective_settings = settings
+    bridge = RecommendationProgressBridge()
 
     # Use a counter for debate IDs (initialized in lifespan)
     debate_id: int = next(request.app.state.debate_counter)
@@ -276,15 +315,16 @@ async def start_debate(
     request.app.state.debate_queues[debate_id] = bridge.queue
 
     task = asyncio.create_task(
-        _run_debate_background(
+        _run_recommendation_background(
             request,
             debate_id,
             body.ticker.upper(),
             body.scan_id,
-            effective_settings,
+            settings,
             repo,
             market_data,
             options_data,
+            fred,
             bridge,
         )
     )
@@ -294,11 +334,11 @@ async def start_debate(
 
 
 # ---------------------------------------------------------------------------
-# Batch debate
+# Batch recommendation
 # ---------------------------------------------------------------------------
 
 
-async def _run_batch_debate_background(
+async def _run_batch_recommendation_background(
     request: Request,
     batch_id: int,
     tickers: list[str],
@@ -307,16 +347,16 @@ async def _run_batch_debate_background(
     repo: Repository,
     market_data: MarketDataService,
     options_data: OptionsDataService,
+    fred: FredService | None,
     bridge: BatchProgressBridge,
     lock: asyncio.Lock,
 ) -> None:
-    """Run sequential debates for a batch of tickers.
+    """Run sequential recommendations for a batch of tickers.
 
     The lock is already acquired by the caller — this task releases it on completion.
     """
     results: list[BatchTickerResult] = []
     try:
-        all_scores = await repo.get_scores_for_scan(scan_id)
         batch_delay = effective_batch_ticker_delay(settings.debate)
         for idx, ticker in enumerate(tickers):
             if idx > 0 and batch_delay > 0:
@@ -330,160 +370,35 @@ async def _run_batch_debate_background(
                 await asyncio.sleep(batch_delay)
             bridge.batch_progress(ticker, idx + 1, len(tickers), "started")
             try:
-                quote = await market_data.fetch_quote(ticker)
-                ticker_info = await market_data.fetch_ticker_info(ticker)
-
-                score_match = next((s for s in all_scores if s.ticker == ticker), None)
-                if score_match is None:
-                    from options_arena.models import (  # noqa: PLC0415
-                        IndicatorSignals,
-                        TickerScore,
-                    )
-                    from options_arena.scan.indicators import (  # noqa: PLC0415
-                        INDICATOR_REGISTRY,
-                        compute_indicators,
-                        ohlcv_to_dataframe,
-                    )
-                    from options_arena.scoring import (  # noqa: PLC0415
-                        composite_score as calc_composite,
-                    )
-                    from options_arena.scoring import (
-                        determine_direction,
-                    )
-
-                    batch_ohlcv = await market_data.fetch_ohlcv(ticker, period="1y")
-                    if batch_ohlcv:
-                        batch_df = ohlcv_to_dataframe(batch_ohlcv)
-                        batch_raw_signals = compute_indicators(batch_df, INDICATOR_REGISTRY)
-                    else:
-                        batch_raw_signals = IndicatorSignals()
-
-                    # Determine direction from RAW indicator values — thresholds
-                    # are calibrated for raw scale, not normalized 0-100.
-                    batch_direction = determine_direction(
-                        adx=batch_raw_signals.adx or 0.0,
-                        rsi=batch_raw_signals.rsi or 50.0,
-                        sma_alignment=batch_raw_signals.sma_alignment or 0.0,
-                        supertrend=batch_raw_signals.supertrend,
-                        roc=batch_raw_signals.roc,
-                    )
-
-                    # Single-ticker normalization for batch ad-hoc tickers
-                    batch_normalized = normalize_single_ticker(batch_raw_signals)
-                    logger.info("single-ticker normalization applied for %s", ticker)
-
-                    batch_composite = calc_composite(batch_normalized)
-
-                    score_match = TickerScore(
-                        ticker=ticker,
-                        composite_score=batch_composite,
-                        direction=batch_direction,
-                        signals=batch_normalized,
-                    )
-
-                contracts = []
-                chain_results = await options_data.fetch_chain_all_expirations(ticker)
-                for chain in chain_results:
-                    contracts.extend(chain.contracts)
-
-                # Enrich with options-specific indicators from the full chain
-                if contracts:
-                    from options_arena.scan.indicators import (  # noqa: PLC0415
-                        compute_options_indicators,
-                    )
-
-                    batch_spot = float(ticker_info.current_price)
-                    options_signals = compute_options_indicators(contracts, batch_spot)
-                    if options_signals.put_call_ratio is not None:
-                        score_match.signals.put_call_ratio = options_signals.put_call_ratio
-                    if options_signals.max_pain_distance is not None:
-                        score_match.signals.max_pain_distance = options_signals.max_pain_distance
-
-                # Compute dimensional scores for the 6-agent protocol
-                batch_dim_scores = None
-                try:
-                    batch_dim_scores = compute_dimensional_scores(score_match.signals)
-                except Exception:
-                    logger.warning(
-                        "Could not compute dimensional scores for %s", ticker, exc_info=True
-                    )
-
-                # Fetch intelligence data (never raises — returns None on error)
-                batch_intel_svc: IntelligenceService | None = getattr(
-                    request.app.state, "intelligence", None
+                score_match, quote, ticker_info, contracts = await _prepare_ticker_data(
+                    ticker, scan_id, repo, market_data, options_data
                 )
-                batch_intel: IntelligencePackage | None = None
-                if batch_intel_svc is not None:
-                    batch_intel = await batch_intel_svc.fetch_intelligence(
-                        ticker, float(ticker_info.current_price)
-                    )
 
-                # Fetch Financial Datasets enrichment (never raises — returns None)
-                batch_fd_svc: FinancialDatasetsService | None = getattr(
-                    request.app.state, "financial_datasets", None
-                )
-                batch_fd_package: FinancialDatasetsPackage | None = None
-                if batch_fd_svc is not None:
-                    batch_fd_package = await batch_fd_svc.fetch_package(ticker)
-
-                # Create a per-ticker agent bridge that forwards to the batch bridge
-                agent_bridge = bridge.agent_bridge(ticker)
-
-                result: DebateResult = await run_debate(
+                result = await run_recommendation(
+                    ticker=ticker,
                     ticker_score=score_match,
                     contracts=contracts,
                     quote=quote,
                     ticker_info=ticker_info,
-                    config=settings.debate,
-                    repository=None,  # Route handles persistence — avoid double save
-                    progress=agent_bridge,
-                    dimensional_scores=batch_dim_scores,
-                    intelligence=batch_intel,
-                    fd_package=batch_fd_package,
-                )
-
-                total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens
-                debate_id = await repo.save_debate(
+                    settings=settings,
+                    repo=repo,
+                    market_data=market_data,
+                    options_data=options_data,
+                    fred=fred,
                     scan_run_id=scan_id,
-                    ticker=ticker,
-                    bull_json=result.bull_response.model_dump_json(),
-                    bear_json=result.bear_response.model_dump_json(),
-                    risk_json=result.thesis.model_dump_json(),
-                    verdict_json=result.thesis.model_dump_json(),
-                    total_tokens=total_tokens,
-                    model_name=(
-                        settings.debate.model if not result.is_fallback else "data-driven-fallback"
-                    ),
-                    duration_ms=result.duration_ms,
-                    is_fallback=result.is_fallback,
-                    vol_json=(
-                        result.vol_response.model_dump_json()
-                        if result.vol_response is not None
-                        else None
-                    ),
-                    rebuttal_json=(
-                        result.bull_rebuttal.model_dump_json()
-                        if result.bull_rebuttal is not None
-                        else None
-                    ),
-                    market_context_json=result.context.model_dump_json(),
-                    flow_thesis=result.flow_response,
-                    fundamental_thesis=result.fundamental_response,
-                    risk_assessment=result.risk_response,
-                    contrarian_thesis=result.contrarian_response,
                 )
 
-                # Persist per-agent predictions for accuracy tracking (FR-8)
-                batch_predictions = extract_agent_predictions(debate_id, result)
-                if batch_predictions:
-                    await repo.save_agent_predictions(batch_predictions)
+                # run_recommendation() handles persistence internally.
+                # Get the latest recommendation ID for linking.
+                recent = await repo.get_recommendations_for_ticker(ticker, limit=1)
+                rec_id = recent[0].id if recent else None
 
-                direction = result.thesis.direction
-                confidence = result.thesis.confidence
+                direction = result.recommendation.direction
+                confidence = result.recommendation.confidence
                 results.append(
                     BatchTickerResult(
                         ticker=ticker,
-                        debate_id=debate_id,
+                        debate_id=rec_id,
                         direction=direction,
                         confidence=confidence,
                     )
@@ -491,16 +406,16 @@ async def _run_batch_debate_background(
                 bridge.batch_progress(ticker, idx + 1, len(tickers), "completed")
 
             except Exception:
-                logger.exception("Batch debate failed for %s", ticker)
+                logger.exception("Batch recommendation failed for %s", ticker)
                 results.append(
-                    BatchTickerResult(ticker=ticker, error=f"Debate failed for {ticker}")
+                    BatchTickerResult(ticker=ticker, error=f"Recommendation failed for {ticker}")
                 )
                 bridge.batch_progress(ticker, idx + 1, len(tickers), "failed")
 
         bridge.batch_complete(results)
     except Exception:
         logger.exception("Batch %d failed unexpectedly", batch_id)
-        bridge.error(f"Batch debate {batch_id} failed")
+        bridge.error(f"Batch recommendation {batch_id} failed")
         bridge.batch_complete(results)
     finally:
         lock.release()
@@ -518,8 +433,9 @@ async def start_batch_debate(
     repo: Repository = Depends(get_repo),
     market_data: MarketDataService = Depends(get_market_data),
     options_data: OptionsDataService = Depends(get_options_data),
+    fred: FredService = Depends(get_fred),
 ) -> BatchDebateStarted:
-    """Start a batch debate for top N tickers from a scan."""
+    """Start a batch recommendation for top N tickers from a scan."""
     # Determine tickers to debate (before acquiring lock — these are read-only ops)
     if body.tickers is not None:
         tickers = [t.upper() for t in body.tickers]
@@ -548,7 +464,7 @@ async def start_batch_debate(
     # Guard create_task — if it fails, release lock to avoid permanent hold.
     try:
         task = asyncio.create_task(
-            _run_batch_debate_background(
+            _run_batch_recommendation_background(
                 request,
                 batch_id,
                 tickers,
@@ -557,6 +473,7 @@ async def start_batch_debate(
                 repo,
                 market_data,
                 options_data,
+                fred,
                 bridge,
                 lock,
             )
@@ -578,48 +495,93 @@ async def list_debates(
     ticker: str | None = Query(None),
     limit: int = Query(20, ge=1, le=100),
 ) -> list[DebateResultSummary]:
-    """List past debate summaries."""
-    if ticker is not None:
-        ticker_upper = ticker.upper()
-        if not TICKER_RE.match(ticker_upper):
-            raise HTTPException(422, f"Invalid ticker format: {ticker!r}")
-        rows = await repo.get_debates_for_ticker(ticker_upper, limit=limit)
-    else:
-        rows = await repo.get_recent_debates(limit=limit)
+    """List past debate summaries.
 
-    summaries: list[DebateResultSummary] = []
-    for row in rows:
-        # Parse verdict to extract direction + confidence
-        direction = SignalDirection.NEUTRAL
-        confidence = 0.0
-        if row.verdict_json is not None:
-            from pydantic import ValidationError as PydanticValidationError  # noqa: PLC0415
+    Returns summaries from both recommendation_results and ai_theses tables,
+    merged and sorted by creation time (newest first).
+    """
+    # Gather recommendation summaries
+    rec_summaries: list[DebateResultSummary] = []
+    try:
+        if ticker is not None:
+            ticker_upper = ticker.upper()
+            if not TICKER_RE.match(ticker_upper):
+                raise HTTPException(422, f"Invalid ticker format: {ticker!r}")
+            rec_rows = await repo.get_recommendations_for_ticker(ticker_upper, limit=limit)
+        else:
+            rec_rows = await repo.get_recent_recommendations(limit=limit)
 
-            try:
-                # Try ExtendedTradeThesis first, fall back to TradeThesis
-                parsed_verdict: TradeThesis
-                try:
-                    parsed_verdict = ExtendedTradeThesis.model_validate_json(row.verdict_json)
-                except PydanticValidationError:
-                    parsed_verdict = TradeThesis.model_validate_json(row.verdict_json)
-                direction = parsed_verdict.direction
-                confidence = parsed_verdict.confidence
-            except PydanticValidationError:
-                logger.warning("Failed to parse verdict JSON for debate %d", row.id, exc_info=True)
-
-        summaries.append(
-            DebateResultSummary(
-                id=row.id,
-                ticker=row.ticker,
-                direction=direction,
-                confidence=confidence,
-                is_fallback=row.is_fallback,
-                model_name=row.model_name,
-                duration_ms=row.duration_ms,
-                created_at=row.created_at,
+        for rr in rec_rows:
+            created_at = datetime.fromisoformat(rr.created_at)
+            direction = SignalDirection(rr.direction) if rr.direction else SignalDirection.NEUTRAL
+            rec_summaries.append(
+                DebateResultSummary(
+                    id=rr.id,
+                    ticker=rr.ticker,
+                    direction=direction,
+                    confidence=rr.confidence,
+                    is_fallback=rr.is_fallback,
+                    model_name=rr.model_used,
+                    duration_ms=rr.duration_ms,
+                    created_at=created_at,
+                )
             )
-        )
-    return summaries
+    except HTTPException:
+        raise
+    except Exception:
+        logger.warning("Failed to fetch recommendation summaries", exc_info=True)
+
+    # Gather old debate summaries
+    debate_summaries: list[DebateResultSummary] = []
+    try:
+        if ticker is not None:
+            ticker_upper = ticker.upper()
+            if not TICKER_RE.match(ticker_upper):
+                raise HTTPException(422, f"Invalid ticker format: {ticker!r}")
+            rows = await repo.get_debates_for_ticker(ticker_upper, limit=limit)
+        else:
+            rows = await repo.get_recent_debates(limit=limit)
+
+        for row in rows:
+            direction = SignalDirection.NEUTRAL
+            confidence = 0.0
+            if row.verdict_json is not None:
+                from pydantic import ValidationError as PydanticValidationError  # noqa: PLC0415
+
+                try:
+                    parsed_verdict: TradeThesis
+                    try:
+                        parsed_verdict = ExtendedTradeThesis.model_validate_json(row.verdict_json)
+                    except PydanticValidationError:
+                        parsed_verdict = TradeThesis.model_validate_json(row.verdict_json)
+                    direction = parsed_verdict.direction
+                    confidence = parsed_verdict.confidence
+                except PydanticValidationError:
+                    logger.warning(
+                        "Failed to parse verdict JSON for debate %d", row.id, exc_info=True
+                    )
+
+            debate_summaries.append(
+                DebateResultSummary(
+                    id=row.id,
+                    ticker=row.ticker,
+                    direction=direction,
+                    confidence=confidence,
+                    is_fallback=row.is_fallback,
+                    model_name=row.model_name,
+                    duration_ms=row.duration_ms,
+                    created_at=row.created_at,
+                )
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.warning("Failed to fetch debate summaries", exc_info=True)
+
+    # Merge and sort by creation time (newest first), cap at limit
+    all_summaries = rec_summaries + debate_summaries
+    all_summaries.sort(key=lambda s: s.created_at, reverse=True)
+    return all_summaries[:limit]
 
 
 def _parse_agent_json[T: BaseModel](
@@ -648,13 +610,24 @@ async def get_debate(
     request: Request,
     debate_id: int,
     repo: Repository = Depends(get_repo),
-) -> DebateResultDetail:
-    """Get full debate result by ID."""
+    settings: AppSettings = Depends(get_settings),
+) -> RecommendationResponse | DebateResultDetail:
+    """Get full debate/recommendation result by ID.
+
+    Dual-table lookup: checks recommendation_results first (new data),
+    then falls back to ai_theses (old data). Returns 404 if both miss.
+    """
+    # First: try recommendation_results table (new data)
+    rec_row = await repo.get_recommendation_by_id(debate_id)
+    if rec_row is not None:
+        return _recommendation_row_to_response(rec_row, settings.debate.recommendation_protocol)
+
+    # Second: try ai_theses table (old data — backward compat)
     row = await repo.get_debate_by_id(debate_id)
     if row is None:
         raise HTTPException(404, "Debate not found")
 
-    # Parse stored JSON into typed models
+    # Parse stored JSON into typed models (old debate format)
     bull = AgentResponse.model_validate_json(row.bull_json) if row.bull_json else None
     bear = AgentResponse.model_validate_json(row.bear_json) if row.bear_json else None
 

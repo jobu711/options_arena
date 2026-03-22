@@ -10,20 +10,17 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import AsyncClient
 from pydantic_ai.usage import RunUsage
 
 from options_arena.agents._parsing import DebateResult
-from options_arena.api.routes.debate import _run_debate_background
 from options_arena.api.schemas import DebateResultDetail
-from options_arena.api.ws import DebateProgressBridge
 from options_arena.data.repository import DebateRow
 from options_arena.models import (
     AgentResponse,
-    AppSettings,
     ContrarianThesis,
     FlowThesis,
     FundamentalThesis,
@@ -290,6 +287,7 @@ async def test_get_debate_returns_agent_fields(
     mock_repo: MagicMock,
 ) -> None:
     """GET /api/debate/{id} includes agent outputs when present."""
+    mock_repo.get_recommendation_by_id = AsyncMock(return_value=None)
     mock_repo.get_debate_by_id = AsyncMock(return_value=_make_debate_row())
     response = await client.get("/api/debate/1")
     assert response.status_code == 200
@@ -322,6 +320,7 @@ async def test_get_debate_legacy_returns_none_agent_fields(
     mock_repo: MagicMock,
 ) -> None:
     """GET /api/debate/{id} returns None for agent fields on a legacy debate."""
+    mock_repo.get_recommendation_by_id = AsyncMock(return_value=None)
     mock_repo.get_debate_by_id = AsyncMock(return_value=_make_debate_row_v1())
     response = await client.get("/api/debate/2")
     assert response.status_code == 200
@@ -336,59 +335,9 @@ async def test_get_debate_legacy_returns_none_agent_fields(
 
 
 # ---------------------------------------------------------------------------
-# Test 3: _run_debate_background passes agent JSON to save_debate
+# Test 3: (Removed — _run_debate_background replaced by _run_recommendation_background
+# in #670. Background persistence tests are in test_recommendation_routes.py)
 # ---------------------------------------------------------------------------
-
-
-@patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
-@patch("options_arena.api.routes.debate.compute_dimensional_scores")
-async def test_debate_background_persists_agent_fields(
-    mock_dim_scores: MagicMock,
-    mock_run_debate: AsyncMock,
-) -> None:
-    """_run_debate_background passes agent fields from DebateResult to save_debate."""
-    mock_dim_scores.return_value = None
-    debate_result = _make_debate_result()
-    mock_run_debate.return_value = debate_result
-
-    request = _make_mock_request()
-    mock_repo = AsyncMock()
-    mock_repo.get_scores_for_scan = AsyncMock(return_value=[])
-    mock_repo.save_debate = AsyncMock(return_value=1)
-
-    mock_market_data = AsyncMock()
-    mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
-    mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info())
-    mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
-
-    mock_options_data = AsyncMock()
-    mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])
-
-    bridge = DebateProgressBridge()
-
-    await _run_debate_background(
-        request=request,
-        debate_id=1,
-        ticker="AAPL",
-        scan_id=None,
-        settings=AppSettings(),
-        repo=mock_repo,
-        market_data=mock_market_data,
-        options_data=mock_options_data,
-        bridge=bridge,
-    )
-
-    # Verify OHLCV backfill path was exercised (scan_id=None)
-    mock_market_data.fetch_ohlcv.assert_awaited_once()
-
-    # Verify save_debate was called with agent keyword arguments
-    mock_repo.save_debate.assert_awaited_once()
-    call_kwargs = mock_repo.save_debate.call_args.kwargs
-
-    assert call_kwargs["flow_thesis"] is debate_result.flow_response
-    assert call_kwargs["fundamental_thesis"] is debate_result.fundamental_response
-    assert call_kwargs["risk_assessment"] is debate_result.risk_response
-    assert call_kwargs["contrarian_thesis"] is debate_result.contrarian_response
 
 
 # ---------------------------------------------------------------------------
@@ -477,6 +426,7 @@ async def test_get_debate_returns_typed_agent_model_json(
     mock_repo: MagicMock,
 ) -> None:
     """GET /api/debate/{id} returns agent fields with full model structure."""
+    mock_repo.get_recommendation_by_id = AsyncMock(return_value=None)
     mock_repo.get_debate_by_id = AsyncMock(return_value=_make_debate_row())
     response = await client.get("/api/debate/1")
     assert response.status_code == 200
@@ -524,6 +474,7 @@ async def test_get_debate_null_agent_fields_when_legacy(
     mock_repo: MagicMock,
 ) -> None:
     """Verify legacy debates return null for all typed agent model fields."""
+    mock_repo.get_recommendation_by_id = AsyncMock(return_value=None)
     mock_repo.get_debate_by_id = AsyncMock(return_value=_make_debate_row_v1())
     response = await client.get("/api/debate/2")
     assert response.status_code == 200
@@ -551,6 +502,7 @@ async def test_malformed_agent_json_degrades_gracefully(
     # Inject malformed JSON that won't parse into FlowThesis
     row.flow_json = '{"invalid_field": "not a FlowThesis"}'
 
+    mock_repo.get_recommendation_by_id = AsyncMock(return_value=None)
     mock_repo.get_debate_by_id = AsyncMock(return_value=row)
 
     response = await client.get("/api/debate/2")
@@ -582,6 +534,7 @@ async def test_empty_string_agent_json_treated_as_none(
     object.__setattr__(row, "risk_assessment_json", "")
     object.__setattr__(row, "contrarian_json", "")
 
+    mock_repo.get_recommendation_by_id = AsyncMock(return_value=None)
     mock_repo.get_debate_by_id = AsyncMock(return_value=row)
     response = await client.get("/api/debate/2")
     assert response.status_code == 200

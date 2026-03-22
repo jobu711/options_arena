@@ -93,6 +93,7 @@ async def test_batch_debate_lock_contention_returns_409() -> None:
     app.dependency_overrides[get_repo] = lambda: mock_repo
     app.dependency_overrides[get_market_data] = lambda: MagicMock()
     app.dependency_overrides[get_options_data] = lambda: MagicMock()
+    app.dependency_overrides[get_fred] = lambda: MagicMock()
     app.dependency_overrides[get_settings] = lambda: AppSettings()
     app.dependency_overrides[get_operation_lock] = lambda: lock
 
