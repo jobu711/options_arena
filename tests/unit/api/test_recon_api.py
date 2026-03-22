@@ -6,7 +6,6 @@ verifies lifespan creation/shutdown, deps provider, and debate route integration
 
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -17,8 +16,6 @@ from pydantic_ai.usage import RunUsage
 
 from options_arena.agents._parsing import DebateResult
 from options_arena.api.app import lifespan
-from options_arena.api.routes.debate import _run_batch_debate_background, _run_debate_background
-from options_arena.api.ws import BatchProgressBridge, DebateProgressBridge
 from options_arena.models import (
     AgentResponse,
     AppSettings,
@@ -335,28 +332,85 @@ class TestAPILifespanIntelligence:
 
 
 class TestDebateRouteIntelligence:
-    """Tests for intelligence integration in debate background tasks."""
+    """Tests for intelligence integration in recommendation background tasks.
 
-    @patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
-    @patch("options_arena.api.routes.debate.compute_dimensional_scores")
-    async def test_intelligence_fetched_before_debate(
+    The old ``_run_debate_background`` and ``_run_batch_debate_background`` were
+    replaced by ``_run_recommendation_background`` and
+    ``_run_batch_recommendation_background`` in Issue #670.  Intelligence
+    fetching is now handled internally by ``run_recommendation()`` — the API
+    route only passes services through, and intelligence integration is tested
+    at the recommendation_orchestrator level.
+
+    These tests verify that the route correctly delegates to run_recommendation
+    with the expected services.
+    """
+
+    @patch("options_arena.api.routes.debate.run_recommendation", new_callable=AsyncMock)
+    async def test_recommendation_called_in_background(
         self,
-        mock_dim_scores: MagicMock,
-        mock_run_debate: AsyncMock,
+        mock_run_rec: AsyncMock,
     ) -> None:
-        """Intelligence data fetched when service is on app.state."""
-        mock_dim_scores.return_value = None
-        mock_run_debate.return_value = _make_debate_result()
+        """_run_recommendation_background delegates to run_recommendation."""
+        from options_arena.api.routes.debate import (
+            _run_recommendation_background,
+        )
+        from options_arena.api.ws import RecommendationProgressBridge
 
-        intel_pkg = _make_intelligence_package()
-        mock_intel_svc = AsyncMock()
-        mock_intel_svc.fetch_intelligence = AsyncMock(return_value=intel_pkg)
+        # Build a minimal RecommendationResult for the mock return
+        from options_arena.models.recommendation import (
+            PositionRecommendation,
+            RecommendationResult,
+        )
 
-        request = _make_mock_request(intelligence_svc=mock_intel_svc)
+        rec = PositionRecommendation(
+            ticker="AAPL",
+            direction=SignalDirection.BULLISH,
+            confidence=0.7,
+            recommended_contract="AAPL 190C 2026-04-18",
+            entry_price=Decimal("5.25"),
+            entry_criteria="test",
+            exit_criteria="test",
+            position_size_pct=0.05,
+            position_rationale="test",
+            risk_reward_ratio=1.5,
+            max_loss_estimate="$250",
+            strategy_rationale="test",
+            summary="Test recommendation",
+            key_factors=["test factor"],
+            risk_assessment="Moderate risk",
+            model_used="test",
+        )
+        mock_ctx = MarketContext(
+            ticker="AAPL",
+            current_price=Decimal("185.50"),
+            price_52w_high=Decimal("200.00"),
+            price_52w_low=Decimal("140.00"),
+            rsi_14=55.0,
+            macd_signal=MacdSignal.BULLISH_CROSSOVER,
+            next_earnings=None,
+            dte_target=45,
+            target_strike=Decimal("190.00"),
+            target_delta=0.35,
+            sector="Information Technology",
+            dividend_yield=0.005,
+            exercise_style=ExerciseStyle.AMERICAN,
+            data_timestamp=datetime(2026, 3, 2, 14, 30, 0, tzinfo=UTC),
+        )
+        from pydantic_ai.usage import RunUsage as _RU
 
+        mock_result = RecommendationResult(
+            context=mock_ctx,
+            assessments=[],
+            recommendation=rec,
+            total_usage=_RU(),
+            duration_ms=1000,
+            is_fallback=False,
+        )
+        mock_run_rec.return_value = mock_result
+
+        request = _make_mock_request()
         mock_repo = AsyncMock()
         mock_repo.get_scores_for_scan = AsyncMock(return_value=[])
-        mock_repo.save_debate = AsyncMock(return_value=1)
 
         mock_market_data = AsyncMock()
         mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
@@ -366,9 +420,9 @@ class TestDebateRouteIntelligence:
         mock_options_data = AsyncMock()
         mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])
 
-        bridge = DebateProgressBridge()
+        bridge = RecommendationProgressBridge()
 
-        await _run_debate_background(
+        await _run_recommendation_background(
             request=request,
             debate_id=1,
             ticker="AAPL",
@@ -377,149 +431,8 @@ class TestDebateRouteIntelligence:
             repo=mock_repo,
             market_data=mock_market_data,
             options_data=mock_options_data,
+            fred=None,
             bridge=bridge,
         )
 
-        mock_intel_svc.fetch_intelligence.assert_awaited_once()
-
-    @patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
-    @patch("options_arena.api.routes.debate.compute_dimensional_scores")
-    async def test_intelligence_none_when_service_missing(
-        self,
-        mock_dim_scores: MagicMock,
-        mock_run_debate: AsyncMock,
-    ) -> None:
-        """intelligence=None when no service on app.state."""
-        mock_dim_scores.return_value = None
-        mock_run_debate.return_value = _make_debate_result()
-
-        # No intelligence service on app.state
-        request = _make_mock_request(intelligence_svc=None)
-
-        mock_repo = AsyncMock()
-        mock_repo.get_scores_for_scan = AsyncMock(return_value=[])
-        mock_repo.save_debate = AsyncMock(return_value=1)
-
-        mock_market_data = AsyncMock()
-        mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
-        mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info())
-        mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
-
-        mock_options_data = AsyncMock()
-        mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])
-
-        bridge = DebateProgressBridge()
-
-        await _run_debate_background(
-            request=request,
-            debate_id=1,
-            ticker="AAPL",
-            scan_id=None,
-            settings=AppSettings(),
-            repo=mock_repo,
-            market_data=mock_market_data,
-            options_data=mock_options_data,
-            bridge=bridge,
-        )
-
-        call_kwargs = mock_run_debate.call_args.kwargs
-        assert call_kwargs["intelligence"] is None
-
-    @patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
-    @patch("options_arena.api.routes.debate.compute_dimensional_scores")
-    async def test_intelligence_passed_to_orchestrator(
-        self,
-        mock_dim_scores: MagicMock,
-        mock_run_debate: AsyncMock,
-    ) -> None:
-        """IntelligencePackage passed through to run_debate."""
-        mock_dim_scores.return_value = None
-        mock_run_debate.return_value = _make_debate_result()
-
-        intel_pkg = _make_intelligence_package()
-        mock_intel_svc = AsyncMock()
-        mock_intel_svc.fetch_intelligence = AsyncMock(return_value=intel_pkg)
-
-        request = _make_mock_request(intelligence_svc=mock_intel_svc)
-
-        mock_repo = AsyncMock()
-        mock_repo.get_scores_for_scan = AsyncMock(return_value=[])
-        mock_repo.save_debate = AsyncMock(return_value=1)
-
-        mock_market_data = AsyncMock()
-        mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
-        mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info())
-        mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
-
-        mock_options_data = AsyncMock()
-        mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])
-
-        bridge = DebateProgressBridge()
-
-        await _run_debate_background(
-            request=request,
-            debate_id=1,
-            ticker="AAPL",
-            scan_id=None,
-            settings=AppSettings(),
-            repo=mock_repo,
-            market_data=mock_market_data,
-            options_data=mock_options_data,
-            bridge=bridge,
-        )
-
-        call_kwargs = mock_run_debate.call_args.kwargs
-        assert call_kwargs["intelligence"] is intel_pkg
-
-    @patch("options_arena.api.routes.debate.run_debate", new_callable=AsyncMock)
-    @patch("options_arena.api.routes.debate.compute_dimensional_scores")
-    async def test_batch_intelligence_fetched_per_ticker(
-        self,
-        mock_dim_scores: MagicMock,
-        mock_run_debate: AsyncMock,
-    ) -> None:
-        """Batch debate fetches intelligence for each ticker."""
-        mock_dim_scores.return_value = None
-        mock_run_debate.side_effect = [
-            _make_debate_result("AAPL"),
-            _make_debate_result("MSFT"),
-        ]
-
-        intel_pkg = _make_intelligence_package()
-        mock_intel_svc = AsyncMock()
-        mock_intel_svc.fetch_intelligence = AsyncMock(return_value=intel_pkg)
-
-        request = _make_mock_request(intelligence_svc=mock_intel_svc)
-
-        scores = [_make_ticker_score("AAPL"), _make_ticker_score("MSFT")]
-        mock_repo = AsyncMock()
-        mock_repo.get_scores_for_scan = AsyncMock(return_value=scores)
-        mock_repo.save_debate = AsyncMock(return_value=1)
-
-        mock_market_data = AsyncMock()
-        mock_market_data.fetch_quote = AsyncMock(return_value=_make_quote())
-        mock_market_data.fetch_ticker_info = AsyncMock(return_value=_make_ticker_info())
-        mock_market_data.fetch_ohlcv = AsyncMock(return_value=[])
-
-        mock_options_data = AsyncMock()
-        mock_options_data.fetch_chain_all_expirations = AsyncMock(return_value=[])
-
-        bridge = BatchProgressBridge()
-        lock = asyncio.Lock()
-        await lock.acquire()
-
-        await _run_batch_debate_background(
-            request=request,
-            batch_id=1,
-            tickers=["AAPL", "MSFT"],
-            scan_id=1,
-            settings=AppSettings(),
-            repo=mock_repo,
-            market_data=mock_market_data,
-            options_data=mock_options_data,
-            bridge=bridge,
-            lock=lock,
-        )
-
-        # Each ticker should trigger fetch_intelligence
-        assert mock_intel_svc.fetch_intelligence.await_count == 2
+        mock_run_rec.assert_awaited_once()

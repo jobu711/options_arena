@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Callable
 from datetime import UTC, date, datetime
+from enum import StrEnum
 
 from pydantic_ai.models.anthropic import AnthropicModelSettings
 from pydantic_ai.settings import ModelSettings
@@ -40,16 +42,22 @@ def should_debate(ticker_score: TickerScore, config: DebateConfig) -> bool:
     """Return False if signal is too weak for meaningful AI debate.
 
     Pure function — no side effects, no I/O, no logging. Score comparison
-    uses ``<`` so that a score exactly at ``min_debate_score`` returns True.
+    uses ``<`` so that a score exactly at ``min_recommendation_score`` returns True.
     """
     if ticker_score.direction == SignalDirection.NEUTRAL:
         return False
-    return ticker_score.composite_score >= config.min_debate_score
+    return ticker_score.composite_score >= config.min_recommendation_score
 
 
 def should_recommend(ticker_score: TickerScore, config: DebateConfig) -> bool:
-    """Alias for should_debate() — used by the recommendation pipeline."""
-    return should_debate(ticker_score, config)
+    """Return True if signal is strong enough for a recommendation.
+
+    Reads ``config.min_recommendation_score`` — unified gate for both
+    debate and recommendation pipelines.
+    """
+    if ticker_score.direction == SignalDirection.NEUTRAL:
+        return False
+    return ticker_score.composite_score >= config.min_recommendation_score
 
 
 def classify_macd_signal(macd_value: float | None) -> MacdSignal:
@@ -600,3 +608,53 @@ def _build_model_settings(config: DebateConfig) -> ModelSettings:
             },
         )
     return ModelSettings(temperature=config.temperature)
+
+
+# ---------------------------------------------------------------------------
+# Debate-era progress types — kept for backward-compat WebSocket bridges
+# ---------------------------------------------------------------------------
+
+
+class DebatePhase(StrEnum):
+    """Phases of the AI debate pipeline, reported via progress callback."""
+
+    TREND = "trend"
+    VOLATILITY = "volatility"
+    FLOW = "flow"
+    FUNDAMENTAL = "fundamental"
+    RISK = "risk"
+    CONTRARIAN = "contrarian"
+
+
+type DebateProgressCallback = Callable[[DebatePhase, str, float | None], None]
+"""Callback for debate progress: ``(phase, status, confidence_or_none)``."""
+
+
+# ---------------------------------------------------------------------------
+# Provider-aware batch delay — moved from orchestrator.py
+# ---------------------------------------------------------------------------
+
+_GROQ_DEFAULT_BATCH_TICKER_DELAY = 5.0
+_ANTHROPIC_SAFE_BATCH_TICKER_DELAY = 30.0
+
+
+def effective_batch_ticker_delay(config: DebateConfig) -> float:
+    """Return inter-ticker batch delay, auto-adjusted for Anthropic provider.
+
+    When the provider is Anthropic and the stored ``batch_ticker_delay`` is the
+    Groq default (5 s), substitute 30 s to stay within the 8K output-tokens/min
+    Tier 1 limit (~1.8 debates/min safe throughput).  User overrides via
+    ``ARENA_DEBATE__BATCH_TICKER_DELAY`` are respected.
+    """
+    delay = config.batch_ticker_delay
+
+    if config.provider != LLMProvider.ANTHROPIC:
+        return delay
+
+    if delay == _GROQ_DEFAULT_BATCH_TICKER_DELAY:
+        delay = _ANTHROPIC_SAFE_BATCH_TICKER_DELAY
+        logger.info(
+            "Anthropic provider: batch_ticker_delay=%.1fs (auto-adjusted for rate limits)",
+            delay,
+        )
+    return delay

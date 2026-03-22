@@ -31,9 +31,8 @@ export interface MockOverrides {
 const DEFAULT_CONFIG = {
   groq_api_key_set: true,
   scan_preset_default: 'sp500',
-  enable_rebuttal: false,
-  enable_volatility_agent: false,
   agent_timeout: 60.0,
+  recommendation_protocol: 'unified_v1',
 }
 
 const DEFAULT_UNIVERSE = {

@@ -1,8 +1,6 @@
-"""Tests for _parsing.py — DebateDeps, DebateResult, render_context_block, strip_think_tags.
+"""Tests for _parsing.py — DebateResult, render_context_block, strip_think_tags.
 
 Tests cover:
-  - DebateDeps construction with required fields
-  - DebateDeps optional fields (opponent_argument, bull_response, bear_response, vol_response)
   - DebateResult construction
   - DebateResult field access (including vol_response default)
   - render_context_block output format
@@ -16,63 +14,21 @@ from __future__ import annotations
 import pytest
 from pydantic_ai.usage import RunUsage
 
+from options_arena.agents._context import DebatePhase
 from options_arena.agents._parsing import (
-    DebateDeps,
     DebateResult,
     compute_citation_density,
     render_context_block,
     strip_think_tags,
 )
-from options_arena.agents.orchestrator import DebatePhase
 from options_arena.models import (
     AgentResponse,
     MarketContext,
-    OptionContract,
     SignalDirection,
     SpreadType,
-    TickerScore,
     TradeThesis,
     VolatilityThesis,
 )
-
-# ---------------------------------------------------------------------------
-# DebateDeps
-# ---------------------------------------------------------------------------
-
-
-class TestDebateDeps:
-    """Tests for DebateDeps dataclass."""
-
-    @pytest.mark.critical
-    def test_construction_with_required_fields(
-        self,
-        mock_market_context: MarketContext,
-        mock_ticker_score: TickerScore,
-        mock_option_contract: OptionContract,
-    ) -> None:
-        """DebateDeps constructs with required fields only."""
-        deps = DebateDeps(
-            context=mock_market_context,
-            ticker_score=mock_ticker_score,
-            contracts=[mock_option_contract],
-        )
-        assert deps.context.ticker == "AAPL"
-        assert deps.ticker_score.composite_score == pytest.approx(72.5)
-        assert len(deps.contracts) == 1
-
-    def test_empty_contracts_list(
-        self,
-        mock_market_context: MarketContext,
-        mock_ticker_score: TickerScore,
-    ) -> None:
-        """contracts can be an empty list."""
-        deps = DebateDeps(
-            context=mock_market_context,
-            ticker_score=mock_ticker_score,
-            contracts=[],
-        )
-        assert deps.contracts == []
-
 
 # ---------------------------------------------------------------------------
 # DebateResult

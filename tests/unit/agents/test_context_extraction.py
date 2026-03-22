@@ -76,14 +76,14 @@ class TestShouldRecommend:
         assert should_recommend(score, config) is False
 
     def test_should_recommend_at_threshold_returns_true(self) -> None:
-        """Score exactly at min_debate_score returns True."""
-        config = DebateConfig(min_debate_score=50.0)
+        """Score exactly at min_recommendation_score returns True."""
+        config = DebateConfig(min_recommendation_score=50.0)
         score = make_ticker_score(composite_score=50.0, direction=SignalDirection.BULLISH)
         assert should_recommend(score, config) is True
 
     def test_should_recommend_below_threshold_returns_false(self) -> None:
-        """Score below min_debate_score returns False."""
-        config = DebateConfig(min_debate_score=50.0)
+        """Score below min_recommendation_score returns False."""
+        config = DebateConfig(min_recommendation_score=50.0)
         score = make_ticker_score(composite_score=49.9, direction=SignalDirection.BULLISH)
         assert should_recommend(score, config) is False
 
@@ -288,32 +288,32 @@ class TestBuildModelSettings:
 
 
 class TestBackwardCompat:
-    """Verify imports from orchestrator still work after extraction."""
+    """Verify imports from _context work after orchestrator deletion."""
 
-    def test_backward_compat_import_from_orchestrator(self) -> None:
-        """Importing from orchestrator still works -- re-exports from _context."""
-        from options_arena.agents.orchestrator import (
-            _build_model_settings as orch_build_settings,
+    def test_import_from_context_module(self) -> None:
+        """Importing from _context works for relocated functions."""
+        from options_arena.agents._context import (
+            _build_model_settings as ctx_build_settings,
         )
-        from options_arena.agents.orchestrator import (
-            build_market_context as orch_build_ctx,
+        from options_arena.agents._context import (
+            build_market_context as ctx_build_ctx,
         )
-        from options_arena.agents.orchestrator import (
-            classify_macd_signal as orch_classify,
+        from options_arena.agents._context import (
+            classify_macd_signal as ctx_classify,
         )
-        from options_arena.agents.orchestrator import (
-            extract_agent_predictions as orch_extract,
+        from options_arena.agents._context import (
+            extract_agent_predictions as ctx_extract,
         )
-        from options_arena.agents.orchestrator import (
-            should_debate as orch_should_debate,
+        from options_arena.agents._context import (
+            should_debate as ctx_should_debate,
         )
 
         # Verify they're the same functions (identity check)
-        assert orch_should_debate is should_debate
-        assert orch_build_ctx is build_market_context
-        assert orch_classify is classify_macd_signal
-        assert orch_extract is extract_agent_predictions
-        assert orch_build_settings is _build_model_settings
+        assert ctx_should_debate is should_debate
+        assert ctx_build_ctx is build_market_context
+        assert ctx_classify is classify_macd_signal
+        assert ctx_extract is extract_agent_predictions
+        assert ctx_build_settings is _build_model_settings
 
     def test_should_recommend_in_package_init(self) -> None:
         """should_recommend is importable from agents package."""

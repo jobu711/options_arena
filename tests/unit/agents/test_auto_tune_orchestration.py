@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from options_arena.agents.orchestrator import (
+from options_arena.learning.weight_tuner import (
     AGENT_VOTE_WEIGHTS,
     auto_tune_weights,
 )

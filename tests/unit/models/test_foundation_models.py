@@ -7,7 +7,7 @@ Tests for:
   - FundamentalThesis: construction, frozen, confidence validation
   - ContrarianThesis: construction, frozen, dissent_confidence validation
   - ExtendedTradeThesis: construction (inherits TradeThesis), frozen, agent_agreement_score
-  - DebateConfig new fields: phase1_parallelism, enable_regime_weights
+  - DebateConfig new fields: desk_parallelism, synthesis_timeout
   - ScanConfig new fields: enable_iv_analytics, enable_flow_analytics, etc.
 """
 
@@ -884,29 +884,29 @@ class TestExtendedTradeThesis:
 
 
 class TestDebateConfigDSEFields:
-    """Tests for DebateConfig fields: phase1_parallelism."""
+    """Tests for DebateConfig fields added during DSE and cutover."""
 
-    def test_phase1_parallelism_default(self) -> None:
-        """Default phase1_parallelism is 2 (free tier optimized)."""
+    def test_desk_parallelism_default(self) -> None:
+        """Default desk_parallelism is 6."""
         config = DebateConfig()
-        assert config.phase1_parallelism == 2
+        assert config.desk_parallelism == 6
 
-    def test_phase1_parallelism_valid_range(self) -> None:
-        """phase1_parallelism accepts values in [1, 8]."""
-        config_low = DebateConfig(phase1_parallelism=1)
-        assert config_low.phase1_parallelism == 1
-        config_high = DebateConfig(phase1_parallelism=8)
-        assert config_high.phase1_parallelism == 8
+    def test_desk_parallelism_valid_range(self) -> None:
+        """desk_parallelism accepts values in [1, 12]."""
+        config_low = DebateConfig(desk_parallelism=1)
+        assert config_low.desk_parallelism == 1
+        config_high = DebateConfig(desk_parallelism=12)
+        assert config_high.desk_parallelism == 12
 
-    def test_phase1_parallelism_below_1_raises(self) -> None:
-        """phase1_parallelism below 1 is rejected."""
-        with pytest.raises(ValidationError, match="phase1_parallelism must be in"):
-            DebateConfig(phase1_parallelism=0)
+    def test_desk_parallelism_below_1_raises(self) -> None:
+        """desk_parallelism below 1 is rejected."""
+        with pytest.raises(ValidationError, match="desk_parallelism must be in"):
+            DebateConfig(desk_parallelism=0)
 
-    def test_phase1_parallelism_above_8_raises(self) -> None:
-        """phase1_parallelism above 8 is rejected."""
-        with pytest.raises(ValidationError, match="phase1_parallelism must be in"):
-            DebateConfig(phase1_parallelism=9)
+    def test_desk_parallelism_above_12_raises(self) -> None:
+        """desk_parallelism above 12 is rejected."""
+        with pytest.raises(ValidationError, match="desk_parallelism must be in"):
+            DebateConfig(desk_parallelism=13)
 
 
 class TestScanConfigDSEFields:

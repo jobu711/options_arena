@@ -1,6 +1,6 @@
 """Audit test configuration — function registry and Hypothesis profiles.
 
-``MATH_FUNCTION_REGISTRY`` maps all 83 mathematical functions in the codebase
+``MATH_FUNCTION_REGISTRY`` maps mathematical functions in the codebase
 to their callables for audit testing. Hypothesis profiles control example
 count for property-based stability tests.
 """
@@ -30,17 +30,11 @@ _REGISTRY: dict[str, Any] | None = None
 
 
 def _build_registry() -> dict[str, Any]:
-    """Build the math function registry by importing all 84 functions."""
+    """Build the math function registry by importing all auditable functions."""
     # -- Pricing: BSM (5) --
     # -- Indicators: Flow Analytics (5) --
     # -- Orchestration (5) --
     from options_arena.agents._parsing import compute_citation_density
-    from options_arena.agents.orchestrator import (
-        _get_majority_direction,
-        _log_odds_pool,
-        _vote_entropy,
-        compute_agreement_score,
-    )
     from options_arena.indicators.flow_analytics import (
         compute_dollar_volume_trend,
         compute_gex,
@@ -283,12 +277,8 @@ def _build_registry() -> dict[str, Any]:
         "scoring.contracts.compute_greeks": compute_greeks,
         "scoring.contracts.select_by_delta": select_by_delta,
         "scoring.contracts.recommend_contracts": recommend_contracts,
-        # ---- Orchestration (5) ----
-        "orchestration.compute_agreement_score": compute_agreement_score,
-        "orchestration._vote_entropy": _vote_entropy,
-        "orchestration._log_odds_pool": _log_odds_pool,
+        # ---- Orchestration (1) ----
         "orchestration.compute_citation_density": compute_citation_density,
-        "orchestration._get_majority_direction": _get_majority_direction,
     }
 
 

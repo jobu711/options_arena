@@ -21,7 +21,6 @@ from options_arena.models.enums import (
     GreeksSource,
     OptionType,
     PricingModel,
-    SignalDirection,
 )
 from options_arena.models.options import OptionContract, OptionGreeks
 from options_arena.models.scan import IndicatorSignals
@@ -323,31 +322,6 @@ def sample_contracts_no_greeks() -> list[OptionContract]:
 # ---------------------------------------------------------------------------
 # Orchestration fixtures
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture()
-def agent_directions() -> dict[str, SignalDirection]:
-    """6-agent direction map for orchestration benchmarks."""
-    return {
-        "trend": SignalDirection.BULLISH,
-        "volatility": SignalDirection.BULLISH,
-        "flow": SignalDirection.BEARISH,
-        "fundamental": SignalDirection.BULLISH,
-        "risk": SignalDirection.NEUTRAL,
-        "contrarian": SignalDirection.BEARISH,
-    }
-
-
-@pytest.fixture()
-def agent_probabilities() -> list[float]:
-    """6-agent confidence probabilities for log-odds pooling benchmark."""
-    return [0.75, 0.80, 0.35, 0.65, 0.50, 0.40]
-
-
-@pytest.fixture()
-def agent_weights() -> list[float]:
-    """6-agent importance weights for log-odds pooling benchmark."""
-    return [0.20, 0.15, 0.15, 0.15, 0.10, 0.10]
 
 
 @pytest.fixture()

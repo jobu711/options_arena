@@ -20,7 +20,7 @@ Uses TestModel from pydantic_ai.models.test — NEVER makes real API calls.
 from __future__ import annotations
 
 import json
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import MagicMock
 
@@ -565,46 +565,9 @@ class TestBackwardCompatibility:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_run_debate_still_works_after_extraction(self) -> None:
-        """Import run_debate, build_market_context from orchestrator.py and run."""
-        from options_arena.agents.contrarian_agent import contrarian_agent
-        from options_arena.agents.orchestrator import run_debate
-        from options_arena.agents.risk import risk_agent
-        from options_arena.agents.trend_agent import trend_agent
-        from options_arena.agents.volatility import volatility_agent
-        from options_arena.models import DebateConfig
-
-        config = DebateConfig(
-            api_key="test-key-not-used-with-TestModel",
-            agent_timeout=5.0,
-            max_total_duration=30.0,
-        )
-
-        with (
-            trend_agent.override(model=TestModel()),
-            volatility_agent.override(model=TestModel()),
-            risk_agent.override(model=TestModel()),
-            contrarian_agent.override(model=TestModel()),
-        ):
-            result = await run_debate(
-                ticker_score=_make_ticker_score(),
-                contracts=[_make_contract()],
-                quote=_make_quote(),
-                ticker_info=_make_ticker_info(),
-                config=config,
-            )
-
-        # Validate the result
-        from options_arena.agents._parsing import DebateResult
-
-        assert isinstance(result, DebateResult)
-        assert result.duration_ms >= 0
-
-    @pytest.mark.asyncio
-    @pytest.mark.integration
-    async def test_import_forwarding_from_context(self) -> None:
-        """Verify key functions are importable from orchestrator.py via _context.py."""
-        from options_arena.agents.orchestrator import (
+    async def test_context_functions_importable_from_context(self) -> None:
+        """Verify key functions are importable from _context.py (canonical path)."""
+        from options_arena.agents._context import (
             build_market_context,
             classify_macd_signal,
             extract_agent_predictions,
@@ -614,5 +577,22 @@ class TestBackwardCompatibility:
         # Verify they are callable
         assert callable(build_market_context)
         assert callable(should_debate)
+        assert callable(extract_agent_predictions)
+        assert callable(classify_macd_signal)
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_context_functions_importable_from_package(self) -> None:
+        """Verify key functions are re-exported from agents package."""
+        from options_arena.agents import (
+            build_market_context,
+            classify_macd_signal,
+            extract_agent_predictions,
+            should_recommend,
+        )
+
+        # Verify they are callable
+        assert callable(build_market_context)
+        assert callable(should_recommend)
         assert callable(extract_agent_predictions)
         assert callable(classify_macd_signal)

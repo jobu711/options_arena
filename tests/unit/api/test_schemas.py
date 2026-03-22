@@ -96,12 +96,12 @@ def test_config_response() -> None:
     resp = ConfigResponse(
         groq_api_key_set=True,
         scan_preset_default="sp500",
-        enable_rebuttal=False,
-        enable_volatility_agent=False,
         agent_timeout=60.0,
+        recommendation_protocol="unified_v1",
     )
     assert resp.groq_api_key_set is True
     assert resp.agent_timeout == 60.0
+    assert resp.recommendation_protocol == "unified_v1"
 
 
 def test_universe_stats() -> None:

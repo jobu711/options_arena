@@ -1130,43 +1130,13 @@ class TestContractBenchmarks:
 
 
 # ===========================================================================
-# Orchestration Benchmarks (5 functions)
+# Orchestration Benchmarks (citation density — debate-era vote functions removed)
 # ===========================================================================
 
 
 @pytest.mark.audit_performance
 class TestOrchestrationBenchmarks:
     """Orchestration math function benchmarks."""
-
-    @pytest.mark.benchmark(group="orchestration")
-    def test_compute_agreement_score(
-        self, benchmark: BenchmarkFixture, agent_directions: dict[str, SignalDirection]
-    ) -> None:
-        """Benchmark agreement score computation."""
-        from options_arena.agents.orchestrator import compute_agreement_score
-
-        benchmark(compute_agreement_score, agent_directions)
-
-    @pytest.mark.benchmark(group="orchestration")
-    def test_vote_entropy(
-        self, benchmark: BenchmarkFixture, agent_directions: dict[str, SignalDirection]
-    ) -> None:
-        """Benchmark vote entropy computation."""
-        from options_arena.agents.orchestrator import _vote_entropy
-
-        benchmark(_vote_entropy, agent_directions)
-
-    @pytest.mark.benchmark(group="orchestration")
-    def test_log_odds_pool(
-        self,
-        benchmark: BenchmarkFixture,
-        agent_probabilities: list[float],
-        agent_weights: list[float],
-    ) -> None:
-        """Benchmark log-odds pooling (Bordley 1982)."""
-        from options_arena.agents.orchestrator import _log_odds_pool
-
-        benchmark(_log_odds_pool, agent_probabilities, agent_weights)
 
     @pytest.mark.benchmark(group="orchestration")
     def test_compute_citation_density(
@@ -1179,12 +1149,3 @@ class TestOrchestrationBenchmarks:
         from options_arena.agents._parsing import compute_citation_density
 
         benchmark(compute_citation_density, citation_context_block, citation_agent_text)
-
-    @pytest.mark.benchmark(group="orchestration")
-    def test_get_majority_direction(
-        self, benchmark: BenchmarkFixture, agent_directions: dict[str, SignalDirection]
-    ) -> None:
-        """Benchmark majority direction determination."""
-        from options_arena.agents.orchestrator import _get_majority_direction
-
-        benchmark(_get_majority_direction, agent_directions)

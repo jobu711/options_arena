@@ -28,8 +28,9 @@ Every piece of data that crosses a module boundary is a typed model from here.
 | `correlation.py` | `PairwiseCorrelation`, `CorrelationMatrix` — portfolio correlation analysis |
 | `valuation.py` | `ValuationModelResult`, `CompositeValuation` — multi-methodology equity valuation |
 | `audit.py` | `AuditFinding`, `AuditLayerSummary`, `AuditReport` — math computation audit framework |
+| `recommendation.py` | `DomainAssessment` (base) + 6 subclasses (`TrendAssessment`, `VolatilityAssessment`, `FlowAssessment`, `FundamentalAssessment`, `RiskDeskAssessment`, `ContrarianAssessment`), `AnyAssessment` (discriminated union via `Discriminator("desk")` + `Tag()`), `PositionRecommendation` (21 fields, Decimal prices, frozen), `RecommendationResult` (`arbitrary_types_allowed=True` for `RunUsage`) |
 | `constants.py` | `UNLIMITED_SENTINEL` — shared sentinel string for spread analysis |
-| `__init__.py` | Re-exports all public models, enums, and constants (~130 names) |
+| `__init__.py` | Re-exports all public models, enums, and constants (~140 names) |
 
 ---
 

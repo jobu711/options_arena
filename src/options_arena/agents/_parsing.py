@@ -1,8 +1,11 @@
-"""Internal dataclasses and utilities for the debate system.
+"""Internal utilities for the agent system.
 
-DebateDeps is a @dataclass (PydanticAI convention for agent deps).
-DebateResult is a Pydantic BaseModel — enables FastAPI auto-serialization.
-RunUsage is a plain dataclass but Pydantic v2-compatible (uses Field annotations).
+Shared helpers used by debate (legacy), desk, and synthesis agents:
+- ``strip_think_tags`` / ``build_cleaned_*`` — LLM output sanitizers
+- ``DebateResult`` — kept for backward-compat data parsing
+- ``PROMPT_RULES_APPENDIX`` — appended to all structured-output prompts
+- ``render_*_context`` — domain-specific context renderers for agent prompts
+- ``compute_citation_density`` — measures context citation coverage
 """
 
 from __future__ import annotations
@@ -10,7 +13,6 @@ from __future__ import annotations
 import logging
 import math
 import re
-from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -23,10 +25,7 @@ from options_arena.models import (
     FlowThesis,
     FundamentalThesis,
     MarketContext,
-    OptionContract,
     RiskAssessment,
-    SpreadAnalysis,
-    TickerScore,
     TradeThesis,
     VolatilityThesis,
 )
@@ -95,199 +94,6 @@ Greeks (when present):
 - VEGA: IV sensitivity. Positive vega profits from IV expansion."""
 
 
-def build_cleaned_agent_response(output: AgentResponse) -> AgentResponse:
-    """Strip ``<think>`` tags from all text fields of an ``AgentResponse``.
-
-    Returns the original instance unchanged if no ``<think>`` tags are found.
-    Constructs a new frozen instance with cleaned text fields otherwise.
-    """
-    fields = [
-        output.argument,
-        *output.key_points,
-        *output.risks_cited,
-        *output.contracts_referenced,
-    ]
-    if not any("<think>" in v or "</think>" in v for v in fields):
-        return output
-    return AgentResponse(
-        agent_name=output.agent_name,
-        direction=output.direction,
-        confidence=output.confidence,
-        argument=strip_think_tags(output.argument),
-        key_points=[strip_think_tags(p) for p in output.key_points],
-        risks_cited=[strip_think_tags(r) for r in output.risks_cited],
-        contracts_referenced=[strip_think_tags(c) for c in output.contracts_referenced],
-        model_used=output.model_used,
-    )
-
-
-def build_cleaned_volatility_thesis(output: VolatilityThesis) -> VolatilityThesis:
-    """Strip ``<think>`` tags from all text fields of a ``VolatilityThesis``.
-
-    Returns the original instance unchanged if no ``<think>`` tags are found.
-    Constructs a new frozen instance with cleaned text fields otherwise.
-    """
-    fields = [
-        output.iv_rank_interpretation,
-        output.strategy_rationale,
-        *output.suggested_strikes,
-        *output.key_vol_factors,
-        output.model_used,
-    ]
-    if not any("<think>" in v or "</think>" in v for v in fields):
-        return output
-    return VolatilityThesis(
-        iv_assessment=output.iv_assessment,
-        iv_rank_interpretation=strip_think_tags(output.iv_rank_interpretation),
-        confidence=output.confidence,
-        recommended_strategy=output.recommended_strategy,
-        strategy_rationale=strip_think_tags(output.strategy_rationale),
-        target_iv_entry=output.target_iv_entry,
-        target_iv_exit=output.target_iv_exit,
-        suggested_strikes=[strip_think_tags(s) for s in output.suggested_strikes],
-        key_vol_factors=[strip_think_tags(f) for f in output.key_vol_factors],
-        model_used=strip_think_tags(output.model_used),
-        direction=output.direction,
-    )
-
-
-def build_cleaned_flow_thesis(output: FlowThesis) -> FlowThesis:
-    """Strip ``<think>`` tags from all text fields of a ``FlowThesis``.
-
-    Returns the original instance unchanged if no ``<think>`` tags are found.
-    Constructs a new frozen instance with cleaned text fields otherwise.
-    """
-    fields = [
-        output.gex_interpretation,
-        output.smart_money_signal,
-        output.oi_analysis,
-        output.volume_confirmation,
-        *output.key_flow_factors,
-        output.model_used,
-    ]
-    if not any("<think>" in v or "</think>" in v for v in fields):
-        return output
-    return FlowThesis(
-        direction=output.direction,
-        confidence=output.confidence,
-        gex_interpretation=strip_think_tags(output.gex_interpretation),
-        smart_money_signal=strip_think_tags(output.smart_money_signal),
-        oi_analysis=strip_think_tags(output.oi_analysis),
-        volume_confirmation=strip_think_tags(output.volume_confirmation),
-        key_flow_factors=[strip_think_tags(f) for f in output.key_flow_factors],
-        model_used=strip_think_tags(output.model_used),
-    )
-
-
-def build_cleaned_contrarian_thesis(output: ContrarianThesis) -> ContrarianThesis:
-    """Strip ``<think>`` tags from all text fields of a ``ContrarianThesis``.
-
-    Returns the original instance unchanged if no ``<think>`` tags are found.
-    Constructs a new frozen instance with cleaned text fields otherwise.
-    """
-    fields = [
-        output.primary_challenge,
-        output.consensus_weakness,
-        output.alternative_scenario,
-        *output.overlooked_risks,
-        output.model_used,
-    ]
-    if not any("<think>" in v or "</think>" in v for v in fields):
-        return output
-    return ContrarianThesis(
-        dissent_direction=output.dissent_direction,
-        dissent_confidence=output.dissent_confidence,
-        primary_challenge=strip_think_tags(output.primary_challenge),
-        overlooked_risks=[strip_think_tags(r) for r in output.overlooked_risks],
-        consensus_weakness=strip_think_tags(output.consensus_weakness),
-        alternative_scenario=strip_think_tags(output.alternative_scenario),
-        model_used=strip_think_tags(output.model_used),
-    )
-
-
-def build_cleaned_risk_assessment(output: RiskAssessment) -> RiskAssessment:
-    """Strip ``<think>`` tags from all text fields of a ``RiskAssessment``.
-
-    Returns the original instance unchanged if no ``<think>`` tags are found.
-    Constructs a new frozen instance with cleaned text fields otherwise.
-    """
-    fields = [
-        output.max_loss_estimate,
-        *output.key_risks,
-        *output.risk_mitigants,
-        output.model_used,
-    ]
-    optional_str_fields = [
-        output.charm_decay_warning,
-        output.spread_quality_assessment,
-        output.recommended_position_size,
-    ]
-    all_text = [*fields, *(f for f in optional_str_fields if f is not None)]
-    if not any("<think>" in v or "</think>" in v for v in all_text):
-        return output
-    return RiskAssessment(
-        risk_level=output.risk_level,
-        confidence=output.confidence,
-        pop_estimate=output.pop_estimate,
-        max_loss_estimate=strip_think_tags(output.max_loss_estimate),
-        charm_decay_warning=(
-            strip_think_tags(output.charm_decay_warning)
-            if output.charm_decay_warning is not None
-            else None
-        ),
-        spread_quality_assessment=(
-            strip_think_tags(output.spread_quality_assessment)
-            if output.spread_quality_assessment is not None
-            else None
-        ),
-        key_risks=[strip_think_tags(r) for r in output.key_risks],
-        risk_mitigants=[strip_think_tags(m) for m in output.risk_mitigants],
-        recommended_position_size=(
-            strip_think_tags(output.recommended_position_size)
-            if output.recommended_position_size is not None
-            else None
-        ),
-        model_used=strip_think_tags(output.model_used),
-    )
-
-
-def build_cleaned_fundamental_thesis(output: FundamentalThesis) -> FundamentalThesis:
-    """Strip ``<think>`` tags from all text fields of a ``FundamentalThesis``.
-
-    Returns the original instance unchanged if no ``<think>`` tags are found.
-    Constructs a new frozen instance with cleaned text fields otherwise.
-    """
-    fields = [
-        output.earnings_assessment,
-        output.iv_crush_risk,
-        *output.key_fundamental_factors,
-        output.model_used,
-    ]
-    optional_str_fields = [output.short_interest_analysis, output.dividend_impact]
-    all_text = [*fields, *(f for f in optional_str_fields if f is not None)]
-    if not any("<think>" in v or "</think>" in v for v in all_text):
-        return output
-    return FundamentalThesis(
-        direction=output.direction,
-        confidence=output.confidence,
-        catalyst_impact=output.catalyst_impact,
-        earnings_assessment=strip_think_tags(output.earnings_assessment),
-        iv_crush_risk=strip_think_tags(output.iv_crush_risk),
-        short_interest_analysis=(
-            strip_think_tags(output.short_interest_analysis)
-            if output.short_interest_analysis is not None
-            else None
-        ),
-        dividend_impact=(
-            strip_think_tags(output.dividend_impact)
-            if output.dividend_impact is not None
-            else None
-        ),
-        key_fundamental_factors=[strip_think_tags(f) for f in output.key_fundamental_factors],
-        model_used=strip_think_tags(output.model_used),
-    )
-
-
 def build_cleaned_domain_assessment[T: DomainAssessment](output: T) -> T:
     """Strip ``<think>`` tags from all string fields of a ``DomainAssessment`` subclass.
 
@@ -309,29 +115,6 @@ def build_cleaned_domain_assessment[T: DomainAssessment](output: T) -> T:
     if not updates:
         return output
     return output.model_copy(update=updates)
-
-
-@dataclass
-class DebateDeps:
-    """Injected into every agent via RunContext[DebateDeps].
-
-    The orchestrator builds this with pre-fetched data. Agents never fetch data.
-    """
-
-    context: MarketContext
-    ticker_score: TickerScore
-    contracts: list[OptionContract]
-    # --- 6-agent protocol fields ---
-    trend_response: AgentResponse | None = None  # Phase 1 trend output
-    volatility_thesis: VolatilityThesis | None = None  # Phase 1 vol output
-    flow_thesis: FlowThesis | None = None  # Phase 1 flow output
-    fundamental_thesis: FundamentalThesis | None = None  # Phase 1 fundamental output
-    risk_assessment: RiskAssessment | None = None  # Phase 2 risk output
-    all_prior_outputs: str | None = None  # Formatted text for contrarian (Phase 3)
-    # --- Multi-leg strategy ---
-    spread_analysis: SpreadAnalysis | None = None  # Algorithmic spread recommendation
-    # --- Constraint pre-check ---
-    constraint_warnings: str | None = None  # Rendered constraint warnings for agents
 
 
 class DebateResult(BaseModel):

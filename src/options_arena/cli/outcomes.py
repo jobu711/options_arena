@@ -17,10 +17,10 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from options_arena.agents import auto_tune_weights
 from options_arena.analysis.correlation import compute_correlation_matrix
 from options_arena.cli.app import app
 from options_arena.data import Database, Repository
+from options_arena.learning import auto_tune_weights
 from options_arena.models.config import AppSettings
 from options_arena.services.cache import ServiceCache
 from options_arena.services.market_data import MarketDataService

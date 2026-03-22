@@ -65,15 +65,11 @@ export const useDebateStore = defineStore('debate', () => {
 
   interface DebateOptions {
     scanId?: number | null
-    enableRebuttal?: boolean | null
-    enableVolatilityAgent?: boolean | null
   }
 
   async function startDebate(ticker: string, scanId: number | null, options?: DebateOptions): Promise<number> {
     const body: Record<string, unknown> = { ticker }
     if (scanId !== null) body.scan_id = scanId
-    if (options?.enableRebuttal != null) body.enable_rebuttal = options.enableRebuttal
-    if (options?.enableVolatilityAgent != null) body.enable_volatility_agent = options.enableVolatilityAgent
     const res = await api<{ debate_id: number }>('/api/debate', {
       method: 'POST',
       body,

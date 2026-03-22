@@ -8,7 +8,7 @@ which proves the fake derivation is truly replaced.
 
 from __future__ import annotations
 
-from options_arena.agents.orchestrator import (
+from options_arena.agents._context import (
     classify_macd_signal,
 )
 from options_arena.models import (

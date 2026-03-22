@@ -95,36 +95,24 @@ class TestAgentVoteWeightsConstant:
         assert isinstance(sample, dict)
 
 
-class TestBackwardCompatImport:
-    """Verify backward-compatible imports from agents package."""
+class TestCanonicalImport:
+    """Verify canonical imports from learning.weight_tuner."""
 
-    def test_import_from_agents_init(self) -> None:
-        """Import from agents.__init__ still works."""
-        from options_arena.agents import (
-            AGENT_VOTE_WEIGHTS as agents_weights,
+    def test_import_from_learning_module(self) -> None:
+        """Import from learning.weight_tuner is the canonical path."""
+        from options_arena.learning.weight_tuner import (
+            AGENT_VOTE_WEIGHTS as learning_weights,
         )
-        from options_arena.agents import (
-            auto_tune_weights as agents_auto_tune,
+        from options_arena.learning.weight_tuner import (
+            auto_tune_weights as learning_auto_tune,
         )
-        from options_arena.agents import (
-            compute_auto_tune_weights as agents_compute,
-        )
-
-        assert agents_weights is AGENT_VOTE_WEIGHTS
-        assert agents_compute is compute_auto_tune_weights
-        assert agents_auto_tune is auto_tune_weights
-
-    def test_import_from_orchestrator(self) -> None:
-        """Import from agents.orchestrator still works."""
-        from options_arena.agents.orchestrator import (
-            AGENT_VOTE_WEIGHTS as orch_weights,
-        )
-        from options_arena.agents.orchestrator import (
-            compute_auto_tune_weights as orch_compute,
+        from options_arena.learning.weight_tuner import (
+            compute_auto_tune_weights as learning_compute,
         )
 
-        assert orch_weights is AGENT_VOTE_WEIGHTS
-        assert orch_compute is compute_auto_tune_weights
+        assert learning_weights is AGENT_VOTE_WEIGHTS
+        assert learning_compute is compute_auto_tune_weights
+        assert learning_auto_tune is auto_tune_weights
 
 
 @pytest.mark.asyncio

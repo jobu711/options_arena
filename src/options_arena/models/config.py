@@ -272,11 +272,11 @@ class DebateConfig(BaseModel):
     temperature: float = 0.3
     fallback_confidence: float = 0.3
     max_total_duration: float = 1800.0
-    min_debate_score: float = 30.0
-    enable_volatility_agent: bool = False
-    enable_rebuttal: bool = False
-    phase1_parallelism: int = 2  # 2 for free tier, 4+ for paid Groq
-    phase1_batch_delay: float = 1.0  # seconds between Phase 1 agent batches
+    min_recommendation_score: float = 30.0
+    synthesis_timeout: float = 90.0
+    recommendation_protocol: str = "unified_v1"
+    desk_parallelism: int = 6
+    disabled_desks: list[str] = []
     batch_ticker_delay: float = 5.0  # seconds between tickers in batch debate
     rate_limit_retries: int = 3  # max 429 retries at transport level (0 = disabled)
     rate_limit_max_wait: float = 30.0  # max single retry wait in seconds
@@ -290,14 +290,32 @@ class DebateConfig(BaseModel):
             raise ValueError(f"thinking_budget_tokens must be in [1024, 128000], got {v}")
         return v
 
-    @field_validator("min_debate_score")
+    @field_validator("min_recommendation_score")
     @classmethod
-    def validate_min_debate_score(cls, v: float) -> float:
-        """Ensure min_debate_score is finite and within [0.0, 100.0]."""
+    def validate_min_recommendation_score(cls, v: float) -> float:
+        """Ensure min_recommendation_score is finite and within [0.0, 100.0]."""
         if not math.isfinite(v):
-            raise ValueError(f"min_debate_score must be finite, got {v}")
+            raise ValueError(f"min_recommendation_score must be finite, got {v}")
         if not 0.0 <= v <= 100.0:
-            raise ValueError(f"min_debate_score must be in [0.0, 100.0], got {v}")
+            raise ValueError(f"min_recommendation_score must be in [0.0, 100.0], got {v}")
+        return v
+
+    @field_validator("synthesis_timeout")
+    @classmethod
+    def validate_synthesis_timeout(cls, v: float) -> float:
+        """Ensure synthesis_timeout is finite and positive."""
+        if not math.isfinite(v):
+            raise ValueError(f"synthesis_timeout must be finite, got {v}")
+        if v <= 0.0:
+            raise ValueError(f"synthesis_timeout must be > 0, got {v}")
+        return v
+
+    @field_validator("desk_parallelism")
+    @classmethod
+    def validate_desk_parallelism(cls, v: int) -> int:
+        """Ensure desk_parallelism is in [1, 12]."""
+        if not 1 <= v <= 12:
+            raise ValueError(f"desk_parallelism must be in [1, 12], got {v}")
         return v
 
     @field_validator("temperature")
@@ -346,15 +364,7 @@ class DebateConfig(BaseModel):
             raise ValueError(f"retries must be in [0, 5], got {v}")
         return v
 
-    @field_validator("phase1_parallelism")
-    @classmethod
-    def validate_phase1_parallelism(cls, v: int) -> int:
-        """Ensure phase1_parallelism is within [1, 8]."""
-        if not 1 <= v <= 8:
-            raise ValueError(f"phase1_parallelism must be in [1, 8], got {v}")
-        return v
-
-    @field_validator("phase1_batch_delay", "batch_ticker_delay")
+    @field_validator("batch_ticker_delay")
     @classmethod
     def validate_non_negative_delay(cls, v: float) -> float:
         """Ensure delay values are finite and non-negative."""

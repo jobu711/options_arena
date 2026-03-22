@@ -159,9 +159,8 @@ async def test_config_endpoint(client: AsyncClient) -> None:
     assert response.status_code == 200
     data = response.json()
     assert "groq_api_key_set" in data
-    assert "enable_rebuttal" in data
-    assert "enable_volatility_agent" in data
     assert "agent_timeout" in data
+    assert "recommendation_protocol" in data
     assert data["scan_preset_default"] == "sp500"
 
 
