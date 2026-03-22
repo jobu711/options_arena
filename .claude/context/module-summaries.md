@@ -10,23 +10,26 @@ Condensed from 13 module CLAUDE.md files. Read the full module CLAUDE.md for dee
 - Every `confidence` field needs `[0.0, 1.0]` validator; every `datetime` needs UTC validator
 - Decimal fields need `field_serializer` to `str` for JSON precision
 - `BaseSettings` only on `AppSettings`; sub-configs (`ScanConfig` etc.) are plain `BaseModel`
+- `recommendation.py`: `DomainAssessment` base + 6 subclasses, `AnyAssessment` discriminated union (`Discriminator("desk")` + `Tag()`), `PositionRecommendation` (21 fields, Decimal prices), `RecommendationResult` (`arbitrary_types_allowed=True` for `RunUsage`)
 
 ## agents/
 - **Debate agents** (6): Trend, Volatility, Flow, Fundamental, Risk, Contrarian — structured output
 - **Desk agents** (7): Volatility, Risk, Trend, Flow, Fundamental, Contrarian, Research — `Agent[DeskDeps, str]` for interactive queries
+- **Synthesis agent** (1): `Agent[SynthesisDeps, PositionRecommendation]` — weighs 6 domain assessments, produces contract recommendation. `run_synthesis()` never-raises with fallback.
 - **Routing**: `_routing.py` — intent classification (`classify_intent`) + desk dispatch (`route_query`)
 - No inter-agent imports — orchestrator coordinates debate; desks are independent
 - `Agent(model=None)` at init, actual model at `agent.run(model=...)` — enables TestModel
 - All debate agents: `@output_validator` using `build_cleaned_agent_response()` (think tags)
 - All desk agents: `@output_validator` using `strip_think_tags()` + post-run defense-in-depth
-- `run_debate()` / `run_*_desk_query()` never raise — catch all exceptions
+- Synthesis agent: `@output_validator` strips think tags from `PositionRecommendation` string fields
+- `run_debate()` / `run_*_desk_query()` / `run_synthesis()` never raise — catch all exceptions
 - Desk agents access services via `DeskDeps` (tool-based data fetching, not pre-fetched)
 - `asyncio.wait_for(agent.run(...), timeout=config.agent_timeout)` on every agent call
-- `_toolsets.py`: per-desk toolset builders with `TICKER_RE` validation, `isfinite()` guards, sanitized errors
+- `_toolsets.py`: per-desk toolset builders + `build_synthesis_toolset()` with `TICKER_RE` validation, `isfinite()` guards, sanitized errors
 
 ## agents/prompts/
-- 6 debate prompt files + 7 desk prompt files (desk_volatility, desk_risk, desk_trend, desk_flow, desk_fundamental, desk_contrarian, desk_research)
-- Debate: `*_SYSTEM_PROMPT` constant concatenated with `PROMPT_RULES_APPENDIX`
+- 6 debate prompt files + 7 desk prompt files + 1 synthesis prompt file
+- Debate + Synthesis: `*_SYSTEM_PROMPT` constant concatenated with `PROMPT_RULES_APPENDIX`
 - Desk: `DESK_*_PROMPT` constant, conversational, NO `PROMPT_RULES_APPENDIX`
 - < 8000 chars per prompt; static only — dynamic injection stays in agent modules
 
