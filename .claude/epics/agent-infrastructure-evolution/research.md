@@ -45,9 +45,9 @@ Integrate 9 patterns from a competitive audit of `everything-claude-code` into O
 | `models/eval.py` | A | `EvalDefinition`, `EvalRun`, `EvalReport` models |
 | `models/tool_response.py` | B | `ToolResponse[T]`, `ToolStatus` |
 | `data/_eval.py` | A | EvalMixin for eval persistence |
-| `data/migrations/037_confidence_decay.sql` | D | Add confidence fields to `strategy_rules` |
-| `data/migrations/038_eval_runs.sql` | A | `eval_runs` table |
-| `data/migrations/039_desk_metrics.sql` | C | `desk_metrics` + `recommendation_costs` tables |
+| `data/migrations/038_confidence_decay.sql` | D | Add confidence fields to `strategy_rules` |
+| `data/migrations/039_eval_runs.sql` | A | `eval_runs` table |
+| `data/migrations/040_desk_metrics.sql` | C | `desk_metrics` + `recommendation_costs` tables (if needed) |
 | `agents/model_routing.py` | C | `route_model_tier()`, `_assess_complexity()` |
 | `learning/confidence_decay.py` | D | `decay_confidence()`, `auto_promote_demote()` |
 | `api/routes/eval.py` | A | Eval check/report endpoints |

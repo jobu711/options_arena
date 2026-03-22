@@ -16,7 +16,7 @@ import statistics
 import uuid
 from datetime import UTC, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from options_arena.data.repository import Repository
 from options_arena.models import (
@@ -25,6 +25,7 @@ from options_arena.models import (
     StrategyCondition,
     StrategyRule,
 )
+from options_arena.models.enums import GICSSector, SignalDirection
 
 logger = logging.getLogger(__name__)
 
@@ -63,11 +64,25 @@ class OutcomeWithContext(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     sector: str
-    iv_rank: float
+    iv_level: float  # raw IV * 100 (NOT IV rank — see _fetch_outcomes_with_context)
     dte_at_entry: int
     direction: str
     return_pct: float
     is_winner: bool
+
+    @field_validator("iv_level")
+    @classmethod
+    def _validate_iv_level(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("iv_level must be finite")
+        return v
+
+    @field_validator("return_pct")
+    @classmethod
+    def _validate_return_pct(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("return_pct must be finite")
+        return v
 
 
 class PatternCell(BaseModel):
@@ -83,16 +98,30 @@ class PatternCell(BaseModel):
     avg_return: float
     sample_size: int
 
+    @field_validator("win_rate")
+    @classmethod
+    def _validate_win_rate(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("win_rate must be finite")
+        return v
+
+    @field_validator("avg_return")
+    @classmethod
+    def _validate_avg_return(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("avg_return must be finite")
+        return v
+
 
 # ---------------------------------------------------------------------------
 # Bucket classification helpers
 # ---------------------------------------------------------------------------
 
 
-def _classify_iv(iv_rank: float) -> str:
-    """Classify IV rank into a bucket label."""
+def _classify_iv(iv_level: float) -> str:
+    """Classify IV level (raw IV * 100) into a bucket label."""
     for low, high, label in IV_BUCKETS:
-        if low <= iv_rank < high:
+        if low <= iv_level < high:
             return label
     return "high"  # 100.0 falls in the last bucket
 
@@ -131,7 +160,7 @@ def mine_patterns(outcomes: list[OutcomeWithContext]) -> list[PatternCell]:
     # Group by (sector, iv_bucket, dte_bucket, direction)
     cells: dict[tuple[str, str, str, str], list[OutcomeWithContext]] = {}
     for o in outcomes:
-        iv_bucket = _classify_iv(o.iv_rank)
+        iv_bucket = _classify_iv(o.iv_level)
         dte_bucket = _classify_dte(o.dte_at_entry)
         key = (o.sector, iv_bucket, dte_bucket, o.direction)
         cells.setdefault(key, []).append(o)
@@ -227,10 +256,22 @@ def generate_rules(significant_cells: list[PatternCell]) -> list[StrategyRule]:
     list[StrategyRule]
         One candidate rule per significant cell.
     """
+    # Allowlists for prompt-injection defense (P1 audit finding)
+    valid_sectors = {s.value for s in GICSSector} | {"Unknown"}
+    valid_directions = {d.value for d in SignalDirection}
+
     now = datetime.now(UTC)
     rules: list[StrategyRule] = []
 
     for cell in significant_cells:
+        # Sanitize sector/direction against known-good values
+        if cell.sector not in valid_sectors:
+            logger.warning("Skipping rule with unknown sector: %.40s", cell.sector)
+            continue
+        if cell.direction not in valid_directions:
+            logger.warning("Skipping rule with unknown direction: %.40s", cell.direction)
+            continue
+
         rule_id = (
             (
                 f"rule_{cell.sector[:12]}_{cell.iv_bucket}_{cell.dte_bucket}"
@@ -316,11 +357,17 @@ def generate_rules(significant_cells: list[PatternCell]) -> list[StrategyRule]:
     return rules
 
 
+_CONFIDENCE_RENDER_THRESHOLD = 0.3
+_STRONG_PATTERN_THRESHOLD = 0.8
+
+
 def render_learned_patterns(rules: list[StrategyRule]) -> str:
     """Render approved rules as a prompt-injectable text block.
 
-    Only rules with ``status == APPROVED`` are included. Returns an empty
-    string when no approved rules exist.
+    Only rules with ``status == APPROVED`` and ``confidence >= 0.3`` are
+    included.  Rules are sorted by confidence descending and labelled with
+    confidence tiers: ``>= 0.8`` → ``"Strong pattern:"``, otherwise
+    ``"Pattern:"``.
 
     Parameters
     ----------
@@ -332,13 +379,20 @@ def render_learned_patterns(rules: list[StrategyRule]) -> str:
     str
         Delimited text block for injection, or empty string.
     """
-    approved = [r for r in rules if r.status == RuleStatus.APPROVED]
+    approved = [
+        r
+        for r in rules
+        if r.status == RuleStatus.APPROVED and r.confidence >= _CONFIDENCE_RENDER_THRESHOLD
+    ]
     if not approved:
         return ""
 
+    approved.sort(key=lambda r: r.confidence, reverse=True)
+
     lines = ["<<<LEARNED_PATTERNS>>>"]
     for rule in approved:
-        lines.append(f"Pattern: {rule.pattern}")
+        prefix = "Strong pattern" if rule.confidence >= _STRONG_PATTERN_THRESHOLD else "Pattern"
+        lines.append(f"{prefix}: {rule.pattern} (confidence: {rule.confidence:.0%})")
         lines.append(f"Win Rate: {rule.win_rate:.1%} (n={rule.sample_size})")
         lines.append(f"Avg Return: {rule.avg_return:+.1%}")
         lines.append("---")
@@ -456,12 +510,14 @@ async def _fetch_outcomes_with_context(
             continue
 
         market_iv = row["market_iv"]
-        iv_rank = float(market_iv) * 100.0 if market_iv is not None else 50.0
+        raw_iv = float(market_iv) if market_iv is not None else None
+        # iv_level is raw IV * 100 (NOT IV rank — see P2-2 audit note)
+        iv_level = raw_iv * 100.0 if raw_iv is not None and math.isfinite(raw_iv) else 50.0
 
         results.append(
             OutcomeWithContext(
                 sector=str(row["sector"]),
-                iv_rank=iv_rank,
+                iv_level=iv_level,
                 dte_at_entry=int(row["dte_at_entry"]),
                 direction=str(row["direction"]),
                 return_pct=return_pct,

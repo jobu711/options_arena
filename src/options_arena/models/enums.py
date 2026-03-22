@@ -432,6 +432,18 @@ class WeightType(StrEnum):
     INDICATOR = "indicator"
 
 
+class ToolStatus(StrEnum):
+    """Outcome status for agent tool calls.
+
+    Used by ``ToolResponse`` to classify tool results so that agents
+    can branch on structured status rather than parsing free-text.
+    """
+
+    SUCCESS = "success"
+    WARNING = "warning"
+    ERROR = "error"
+
+
 class DeskType(StrEnum):
     """Desk specialization for agency routing."""
 
