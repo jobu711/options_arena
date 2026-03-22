@@ -478,6 +478,8 @@ async def _learn_playbook_async(status_filter: str | None) -> None:
         table.add_column("Win Rate", justify="right")
         table.add_column("Avg Return", justify="right")
         table.add_column("Samples", justify="right")
+        table.add_column("Confidence", justify="right")
+        table.add_column("Last Validated", justify="right")
         table.add_column("Status", justify="center")
 
         status_styles = {
@@ -488,16 +490,82 @@ async def _learn_playbook_async(status_filter: str | None) -> None:
 
         for r in rules:
             style = status_styles.get(r.status.value, "")
+            last_validated_str = (
+                r.last_validated.strftime("%Y-%m-%d") if r.last_validated else "--"
+            )
             table.add_row(
                 r.rule_id[:28],
                 r.pattern,
                 f"{r.win_rate:.1%}",
                 f"{r.avg_return:+.1%}",
                 str(r.sample_size),
+                f"{r.confidence:.0%}",
+                last_validated_str,
                 f"[{style}]{r.status.value}[/{style}]",
             )
 
         console.print(table)
         console.print(f"\nTotal rules: {len(rules)}")
+    finally:
+        await db.close()
+
+
+@learn_app.command("decay")
+def learn_decay() -> None:
+    """Apply confidence decay and auto-promote/demote strategy rules."""
+    asyncio.run(_learn_decay_async())
+
+
+async def _learn_decay_async() -> None:
+    """Run confidence decay pipeline and display summary."""
+    from options_arena.data import Database, Repository
+    from options_arena.learning import run_confidence_decay
+    from options_arena.models import RuleStatus
+
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    db = Database(str(_DATA_DIR / "options_arena.db"))
+    try:
+        await db.connect()
+        repo = Repository(db)
+
+        # Snapshot rule statuses before decay
+        rules_before = await repo.get_strategy_rules()
+        statuses_before: dict[str, str] = {r.rule_id: r.status.value for r in rules_before}
+
+        await run_confidence_decay(repo)
+
+        # Fetch rules after decay to compute summary
+        rules_after = await repo.get_strategy_rules()
+
+        if not rules_after:
+            console.print("[yellow]No strategy rules found.[/yellow]")
+            return
+
+        promoted = sum(
+            1
+            for r in rules_after
+            if r.status == RuleStatus.APPROVED
+            and statuses_before.get(r.rule_id) == RuleStatus.CANDIDATE.value
+        )
+        demoted = sum(
+            1
+            for r in rules_after
+            if r.status == RuleStatus.REJECTED
+            and statuses_before.get(r.rule_id)
+            in {
+                RuleStatus.CANDIDATE.value,
+                RuleStatus.APPROVED.value,
+            }
+        )
+
+        table = Table(title="Confidence Decay Summary")
+        table.add_column("Metric", style="bold")
+        table.add_column("Value", justify="right")
+
+        table.add_row("Total rules", str(len(rules_after)))
+        table.add_row("Promoted to approved", str(promoted))
+        table.add_row("Demoted to rejected", str(demoted))
+
+        console.print(table)
     finally:
         await db.close()
