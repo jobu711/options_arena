@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+import math
+from datetime import UTC, datetime
 from sqlite3 import Row
 
 from options_arena.models.enums import RuleStatus
@@ -190,6 +191,8 @@ class LearningMixin(RepositoryBase):
         bool
             ``True`` if a row was updated, ``False`` if ``rule_id`` not found.
         """
+        if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+            raise ValueError(f"confidence must be finite in [0.0, 1.0], got {confidence}")
         conn = self._db.conn
         cursor = await conn.execute(
             "UPDATE strategy_rules "
@@ -240,6 +243,8 @@ class LearningMixin(RepositoryBase):
         bool
             ``True`` if a row was updated, ``False`` if ``rule_id`` not found.
         """
+        if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+            raise ValueError(f"confidence must be finite in [0.0, 1.0], got {confidence}")
         conn = self._db.conn
         cursor = await conn.execute(
             "UPDATE strategy_rules SET status = ?, confidence = ? WHERE rule_id = ?",
@@ -352,14 +357,18 @@ class LearningMixin(RepositoryBase):
         confidence = float(raw_confidence) if raw_confidence is not None else 0.5
 
         raw_last_validated = row["last_validated"]
-        last_validated: datetime | None = (
-            datetime.fromisoformat(str(raw_last_validated))
-            if raw_last_validated is not None
-            else None
-        )
+        last_validated: datetime | None = None
+        if raw_last_validated is not None:
+            dt = datetime.fromisoformat(str(raw_last_validated))
+            last_validated = dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
 
         raw_validation_count = row["validation_count"]
         validation_count = int(raw_validation_count) if raw_validation_count is not None else 0
+
+        # Ensure created_at is timezone-aware (defense against corrupt DB rows)
+        created_at = datetime.fromisoformat(str(row["created_at"]))
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
 
         return StrategyRule(
             rule_id=str(row["rule_id"]),
@@ -369,7 +378,7 @@ class LearningMixin(RepositoryBase):
             avg_return=float(row["avg_return"]),
             sample_size=int(row["sample_size"]),
             status=RuleStatus(str(row["status"])),
-            created_at=datetime.fromisoformat(str(row["created_at"])),
+            created_at=created_at,
             confidence=confidence,
             last_validated=last_validated,
             validation_count=validation_count,
@@ -378,6 +387,10 @@ class LearningMixin(RepositoryBase):
     @staticmethod
     def _row_to_agent_memory(row: Row) -> AgentMemory:
         """Reconstruct an ``AgentMemory`` from a database row."""
+        created_at = datetime.fromisoformat(str(row["created_at"]))
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+
         return AgentMemory(
             memory_id=str(row["memory_id"]),
             agent_name=str(row["agent_name"]),
@@ -386,5 +399,5 @@ class LearningMixin(RepositoryBase):
             content=str(row["content"]),
             sample_size=int(row["sample_size"]),
             win_rate=float(row["win_rate"]),
-            created_at=datetime.fromisoformat(str(row["created_at"])),
+            created_at=created_at,
         )

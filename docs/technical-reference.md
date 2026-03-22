@@ -170,13 +170,14 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `AuditLayer` | StrEnum | CORRECTNESS, STABILITY, PERFORMANCE, DISCOVERY | 384 | Audit layer classifying the type of mathematical audit test. |
 | `ConditionOperator` | StrEnum | EQ, GT, LT, GTE, LTE, IN_SET | 393 | Operator for strategy rule conditions. |
 | `RuleStatus` | StrEnum | CANDIDATE, APPROVED, REJECTED | 408 | Lifecycle status for mined strategy rules. |
-| `SurfaceMethod` | StrEnum | SPLINE, NEURAL | 421 | IV surface fitting method selection. |
-| `WeightType` | StrEnum | VOTE, INDICATOR | 428 | Discriminator for auto-tune weight snapshots. |
-| `DeskType` | StrEnum | TREND, VOLATILITY, FLOW, FUNDAMENTAL, RISK, CONTRARIAN, RESEARCH | 435 | Desk specialization for agency routing. |
-| `QueryType` | StrEnum | ANALYSIS, COMPARISON, STRATEGY, RISK_CHECK, GENERAL | 447 | Classification of user query intent for desk routing. |
-| `GICSIndustryGroup` | StrEnum | 26 values (TELECOMMUNICATION_SERVICES ... UTILITIES) | 457 | GICS Industry Groups (2023 standard). |
-| `INDUSTRY_GROUP_ALIASES` | const | dict[str, GICSIndustryGroup] | 503 |  |
-| `SECTOR_TO_INDUSTRY_GROUPS` | const | dict[GICSSector, list[GICSIndustryGroup]] | 814 |  |
+| `ToolStatus` | StrEnum | SUCCESS, WARNING, ERROR | 421 | Status of a tool invocation result. |
+| `SurfaceMethod` | StrEnum | SPLINE, NEURAL | 434 | IV surface fitting method selection. |
+| `WeightType` | StrEnum | VOTE, INDICATOR | 441 | Discriminator for auto-tune weight snapshots. |
+| `DeskType` | StrEnum | TREND, VOLATILITY, FLOW, FUNDAMENTAL, RISK, CONTRARIAN, RESEARCH | 448 | Desk specialization for agency routing. |
+| `QueryType` | StrEnum | ANALYSIS, COMPARISON, STRATEGY, RISK_CHECK, GENERAL | 460 | Classification of user query intent for desk routing. |
+| `GICSIndustryGroup` | StrEnum | 26 values (TELECOMMUNICATION_SERVICES ... UTILITIES) | 470 | GICS Industry Groups (2023 standard). |
+| `INDUSTRY_GROUP_ALIASES` | const | dict[str, GICSIndustryGroup] | 516 |  |
+| `SECTOR_TO_INDUSTRY_GROUPS` | const | dict[GICSSector, list[GICSIndustryGroup]] | 827 |  |
 
 #### models/filters.py
 
@@ -299,7 +300,13 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 |--------|------|-----------|------|-------------|
 | `StrategyCondition` | model | `frozen=True` | 20 | A single dimensional condition within a strategy rule. |
 | `StrategyRule` | model | `frozen=True` | 34 | A mined strategy pattern with conditions, performance stats, and status. |
-| `AgentMemory` | model | `frozen=True` | 83 | Long-term memory entry for a desk agent. |
+| `AgentMemory` | model | `frozen=True` | 111 | Long-term memory entry for a desk agent. |
+
+#### models/tool_response.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `ToolResponse` | model | `frozen=True` | 14 | Immutable result envelope returned by every agent tool. |
 
 #### models/valuation.py
 
@@ -854,12 +861,14 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `LearningMixin` | class | `(RepositoryBase)` | 23 | CRUD operations for strategy rules and agent memory. |
-| `.save_strategy_rule` | async method | `(rule: StrategyRule, *, commit: bool = True) -> None` | 40 | Persist a strategy rule (upsert by rule_id). |
-| `.get_strategy_rules` | async method | `(status: RuleStatus \| None = None, limit: int \| None = None) -> list[StrategyRule]` | 80 | Retrieve strategy rules, optionally filtered by status. |
-| `.update_rule_status` | async method | `(rule_id: str, status: RuleStatus, *, commit: bool = True) -> bool` | 121 | Update the status of a strategy rule. |
-| `.save_agent_memory` | async method | `(memory: AgentMemory, *, commit: bool = True) -> None` | 156 | Persist an agent memory entry (upsert by memory_id). |
-| `.get_agent_memories` | async method | `(agent_name: str \| None = None, scope_type: str \| None = None, limit: int \| None = None) -> list[...` | 192 | Retrieve agent memory entries, optionally filtered. |
+| `LearningMixin` | class | `(RepositoryBase)` | 24 | CRUD operations for strategy rules and agent memory. |
+| `.save_strategy_rule` | async method | `(rule: StrategyRule, *, commit: bool = True) -> None` | 45 | Persist a strategy rule (upsert by rule_id). |
+| `.get_strategy_rules` | async method | `(status: RuleStatus \| None = None, limit: int \| None = None) -> list[StrategyRule]` | 89 | Retrieve strategy rules, optionally filtered by status. |
+| `.update_rule_status` | async method | `(rule_id: str, status: RuleStatus, *, commit: bool = True) -> bool` | 130 | Update the status of a strategy rule. |
+| `.update_rule_confidence` | async method | `(rule_id: str, confidence: float, last_validated: datetime \| None, validation_count: int, *, comm...` | 165 | Update confidence, last_validated, and validation_count for a rule. |
+| `.update_rule_status_and_confidence` | async method | `(rule_id: str, status: RuleStatus, confidence: float, *, commit: bool = True) -> bool` | 220 | Atomically update both status and confidence for a rule. |
+| `.save_agent_memory` | async method | `(memory: AgentMemory, *, commit: bool = True) -> None` | 265 | Persist an agent memory entry (upsert by memory_id). |
+| `.get_agent_memories` | async method | `(agent_name: str \| None = None, scope_type: str \| None = None, limit: int \| None = None) -> list[...` | 301 | Retrieve agent memory entries, optionally filtered. |
 
 #### data/_metadata.py
 
@@ -947,21 +956,22 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `strip_think_tags` | func | `(text: str) -> str` | 52 | Remove ``<think>...</think>`` blocks and any stray open/close tags. |
-| `PROMPT_RULES_APPENDIX` | const | `str` | 68 |  |
-| `build_cleaned_domain_assessment` | func | `(output: T) -> T` | 97 | Strip ``<think>`` tags from all string fields of a ``DomainAssessment`` subclass. |
-| `DebateResult` | model | `frozen=True` | 120 | Complete debate output returned by run_debate(). |
-| `_render_optional` | func | `(label: str, value: float \| None, fmt: str = '.1f') -> str \| None` | 153 | Render a labeled value if non-None and finite, else None. |
-| `_render_regime_label` | func | `(label: str, value: float \| None, labels: dict[float, str]) -> str \| None` | 160 | Render a regime field as a human-readable label, with numeric fallback. |
-| `_format_dollars` | func | `(value: float) -> str` | 168 | Format a dollar amount as $X.XB or $X.XM, with sign for negatives. |
-| `_render_identity_block` | func | `(ctx: MarketContext) -> list[str]` | 180 | Shared identity fields for all domain-specific renderers. |
-| `render_trend_context` | func | `(ctx: MarketContext) -> str` | 218 | Render domain-specific context for the Trend agent. |
-| `render_volatility_context` | func | `(ctx: MarketContext) -> str` | 261 | Render domain-specific context for the Volatility agent. |
-| `render_flow_context` | func | `(ctx: MarketContext) -> str` | 384 | Render domain-specific context for the Flow agent. |
-| `render_fundamental_context` | func | `(ctx: MarketContext) -> str` | 431 | Render domain-specific context for the Fundamental agent. |
-| `render_macro_context` | func | `(ctx: MarketContext) -> str \| None` | 569 | Render macro-economic context for agent consumption. |
-| `_render_neural_context` | func | `(ctx: MarketContext) -> str` | 599 | Render neural trajectory probability context when available. |
-| `render_context_block` | func | `(ctx: MarketContext, constraint_warnings: str \| None = None) -> str` | 612 | Render MarketContext as flat key-value text for agent consumption. |
-| `compute_citation_density` | func | `(context_block: str, *texts: str) -> float` | 922 | Compute fraction of context labels referenced in agent output text. |
+| `TOOL_RESPONSE_FORMAT` | const | `str` | 68 |  |
+| `PROMPT_RULES_APPENDIX` | const | `str` | 80 |  |
+| `build_cleaned_domain_assessment` | func | `(output: T) -> T` | 109 | Strip ``<think>`` tags from all string fields of a ``DomainAssessment`` subclass. |
+| `DebateResult` | model | `frozen=True` | 132 | Complete debate output returned by run_debate(). |
+| `_render_optional` | func | `(label: str, value: float \| None, fmt: str = '.1f') -> str \| None` | 165 | Render a labeled value if non-None and finite, else None. |
+| `_render_regime_label` | func | `(label: str, value: float \| None, labels: dict[float, str]) -> str \| None` | 172 | Render a regime field as a human-readable label, with numeric fallback. |
+| `_format_dollars` | func | `(value: float) -> str` | 180 | Format a dollar amount as $X.XB or $X.XM, with sign for negatives. |
+| `_render_identity_block` | func | `(ctx: MarketContext) -> list[str]` | 192 | Shared identity fields for all domain-specific renderers. |
+| `render_trend_context` | func | `(ctx: MarketContext) -> str` | 230 | Render domain-specific context for the Trend agent. |
+| `render_volatility_context` | func | `(ctx: MarketContext) -> str` | 273 | Render domain-specific context for the Volatility agent. |
+| `render_flow_context` | func | `(ctx: MarketContext) -> str` | 396 | Render domain-specific context for the Flow agent. |
+| `render_fundamental_context` | func | `(ctx: MarketContext) -> str` | 443 | Render domain-specific context for the Fundamental agent. |
+| `render_macro_context` | func | `(ctx: MarketContext) -> str \| None` | 581 | Render macro-economic context for agent consumption. |
+| `_render_neural_context` | func | `(ctx: MarketContext) -> str` | 611 | Render neural trajectory probability context when available. |
+| `render_context_block` | func | `(ctx: MarketContext, constraint_warnings: str \| None = None) -> str` | 624 | Render MarketContext as flat key-value text for agent consumption. |
+| `compute_citation_density` | func | `(context_block: str, *texts: str) -> float` | 934 | Compute fraction of context labels referenced in agent output text. |
 
 #### agents/_routing.py
 
@@ -974,39 +984,39 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `DESK_SUCCESS_CONFIDENCE` | const | `float` | 32 |  |
-| `fetch_quote` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 47 | Fetch a real-time quote for *ticker*. |
-| `fetch_vol_surface_slice` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 86 | Fetch a volatility surface slice showing IV by strike/expiry. |
-| `compute_iv_for_strike` | async func | `(ctx: RunContext[DeskDeps], ticker: str, strike: float, expiry: str) -> str` | 143 | Find the closest strike in the chain to *strike* and show IV details. |
-| `fetch_correlation` | async func | `(ctx: RunContext[DeskDeps], ticker: str, tickers: list[str]) -> str` | 191 | Compute pairwise return correlations between *ticker* and each of *tickers*. |
-| `fetch_portfolio_exposure` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 289 | Query repository for historical recommended contracts for *ticker*. |
-| `build_volatility_toolset` | func | `() -> list[object]` | 328 | Return the tools for a Volatility Desk agent. |
-| `build_risk_toolset` | func | `() -> list[object]` | 350 | Return the tools for a Risk Desk agent. |
-| `fetch_related_ohlcv` | async func | `(ctx: RunContext[DeskDeps], ticker: str, period: str = '6mo') -> str` | 382 | Fetch recent OHLCV bars for *ticker*. |
-| `compute_indicator_on_demand` | async func | `(ctx: RunContext[DeskDeps], ticker: str, indicator: str) -> str` | 436 | Compute a technical indicator on demand for *ticker*. |
-| `fetch_chain_summary` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 561 | Fetch an option chain summary for *ticker*. |
-| `fetch_unusual_activity` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 639 | Detect unusual options activity for *ticker*. |
-| `fetch_earnings_history` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 713 | Fetch fundamental data and next earnings date for *ticker*. |
-| `fetch_sector_comparison` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 773 | Fetch fundamental metrics for *ticker* with sector context. |
-| `fetch_debate_history` | async func | `(ctx: RunContext[DeskDeps], ticker: str, limit: int = 3) -> str` | 825 | Fetch prior AI debate history for *ticker*. |
-| `compute_composite_valuation_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 895 | Run multi-methodology equity valuation for *ticker*. |
-| `compute_position_size_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str, annualized_iv: float, correlation: float \| None = None) ...` | 986 | Compute volatility-regime-aware position size for *ticker*. |
-| `compute_correlation_matrix_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str, comparison_tickers: list[str]) -> str` | 1044 | Compute pairwise correlation matrix between *ticker* and *comparison_tickers*. |
-| `compute_risk_adjusted_metrics_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 1138 | Compute portfolio-wide risk-adjusted performance metrics. |
-| `compute_hv_yang_zhang_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str, period: int = 20) -> str` | 1212 | Compute Yang-Zhang historical volatility for *ticker*. |
-| `compute_garch_forecast_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 1284 | Compute a GARCH(1,1) volatility forecast for *ticker*. |
-| `compute_markov_regime_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 1358 | Detect the current market regime for *ticker* using Markov-switching. |
-| `compute_macro_regime_tool` | async func | `(ctx: RunContext[DeskDeps]) -> str` | 1438 | Classify the current macro-economic regime from FRED data. |
-| `compute_hurst_exponent_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 1494 | Compute the Hurst exponent for *ticker* via rescaled range analysis. |
-| `render_available_tools` | func | `(toolset: list[object]) -> str` | 1553 | Generate an ``<<<AVAILABLE_TOOLS>>>`` prompt block from *toolset*. |
-| `build_trend_toolset` | func | `() -> list[object]` | 1579 | Return the tools for a Trend Desk agent. |
-| `build_flow_toolset` | func | `() -> list[object]` | 1601 | Return the tools for a Flow Desk agent. |
-| `build_fundamental_toolset` | func | `() -> list[object]` | 1609 | Return the tools for a Fundamental Desk agent. |
-| `build_contrarian_toolset` | func | `() -> list[object]` | 1624 | Return the tools for a Contrarian Desk agent. |
-| `build_research_toolset` | func | `() -> list[object]` | 1632 | Return the tools for a Research Desk agent. |
-| `synth_fetch_current_quote` | async func | `(ctx: RunContext[object], ticker: str) -> str` | 1681 | Fetch the current quote snapshot for *ticker* from the market context. |
-| `synth_fetch_chain_summary` | async func | `(ctx: RunContext[object], ticker: str) -> str` | 1722 | Summarize the available option contracts for *ticker*. |
-| `build_synthesis_toolset` | func | `() -> list[object]` | 1809 | Return the tools for the Synthesis agent. |
+| `DESK_SUCCESS_CONFIDENCE` | const | `float` | 34 |  |
+| `fetch_quote` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 62 | Fetch a real-time quote for *ticker*. |
+| `fetch_vol_surface_slice` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 118 | Fetch a volatility surface slice showing IV by strike/expiry. |
+| `compute_iv_for_strike` | async func | `(ctx: RunContext[DeskDeps], ticker: str, strike: float, expiry: str) -> str` | 213 | Find the closest strike in the chain to *strike* and show IV details. |
+| `fetch_correlation` | async func | `(ctx: RunContext[DeskDeps], ticker: str, tickers: list[str]) -> str` | 281 | Compute pairwise return correlations between *ticker* and each of *tickers*. |
+| `fetch_portfolio_exposure` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 422 | Query repository for historical recommended contracts for *ticker*. |
+| `build_volatility_toolset` | func | `() -> list[object]` | 479 | Return the tools for a Volatility Desk agent. |
+| `build_risk_toolset` | func | `() -> list[object]` | 501 | Return the tools for a Risk Desk agent. |
+| `fetch_related_ohlcv` | async func | `(ctx: RunContext[DeskDeps], ticker: str, period: str = '6mo') -> str` | 533 | Fetch recent OHLCV bars for *ticker*. |
+| `compute_indicator_on_demand` | async func | `(ctx: RunContext[DeskDeps], ticker: str, indicator: str) -> str` | 607 | Compute a technical indicator on demand for *ticker*. |
+| `fetch_chain_summary` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 767 | Fetch an option chain summary for *ticker*. |
+| `fetch_unusual_activity` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 896 | Detect unusual options activity for *ticker*. |
+| `fetch_earnings_history` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 999 | Fetch fundamental data and next earnings date for *ticker*. |
+| `fetch_sector_comparison` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 1072 | Fetch fundamental metrics for *ticker* with sector context. |
+| `fetch_debate_history` | async func | `(ctx: RunContext[DeskDeps], ticker: str, limit: int = 3) -> str` | 1137 | Fetch prior AI debate history for *ticker*. |
+| `compute_composite_valuation_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 1225 | Run multi-methodology equity valuation for *ticker*. |
+| `compute_position_size_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str, annualized_iv: float, correlation: float \| None = None) ...` | 1347 | Compute volatility-regime-aware position size for *ticker*. |
+| `compute_correlation_matrix_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str, comparison_tickers: list[str]) -> str` | 1422 | Compute pairwise correlation matrix between *ticker* and *comparison_tickers*. |
+| `compute_risk_adjusted_metrics_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 1560 | Compute portfolio-wide risk-adjusted performance metrics. |
+| `compute_hv_yang_zhang_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str, period: int = 20) -> str` | 1648 | Compute Yang-Zhang historical volatility for *ticker*. |
+| `compute_garch_forecast_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 1742 | Compute a GARCH(1,1) volatility forecast for *ticker*. |
+| `compute_markov_regime_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 1849 | Detect the current market regime for *ticker* using Markov-switching. |
+| `compute_macro_regime_tool` | async func | `(ctx: RunContext[DeskDeps]) -> str` | 1966 | Classify the current macro-economic regime from FRED data. |
+| `compute_hurst_exponent_tool` | async func | `(ctx: RunContext[DeskDeps], ticker: str) -> str` | 2062 | Compute the Hurst exponent for *ticker* via rescaled range analysis. |
+| `render_available_tools` | func | `(toolset: list[object]) -> str` | 2148 | Generate an ``<<<AVAILABLE_TOOLS>>>`` prompt block from *toolset*. |
+| `build_trend_toolset` | func | `() -> list[object]` | 2174 | Return the tools for a Trend Desk agent. |
+| `build_flow_toolset` | func | `() -> list[object]` | 2196 | Return the tools for a Flow Desk agent. |
+| `build_fundamental_toolset` | func | `() -> list[object]` | 2204 | Return the tools for a Fundamental Desk agent. |
+| `build_contrarian_toolset` | func | `() -> list[object]` | 2219 | Return the tools for a Contrarian Desk agent. |
+| `build_research_toolset` | func | `() -> list[object]` | 2227 | Return the tools for a Research Desk agent. |
+| `synth_fetch_current_quote` | async func | `(ctx: RunContext[object], ticker: str) -> str` | 2276 | Fetch the current quote snapshot for *ticker* from the market context. |
+| `synth_fetch_chain_summary` | async func | `(ctx: RunContext[object], ticker: str) -> str` | 2334 | Summarize the available option contracts for *ticker*. |
+| `build_synthesis_toolset` | func | `() -> list[object]` | 2440 | Return the tools for the Synthesis agent. |
 
 #### agents/constraints.py
 
@@ -1463,6 +1473,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `learn_weights` | func | `(window: int = ..., apply: bool = ...) -> None` | 314 | Compute indicator weight tuning and show comparison table. |
 | `learn_mine` | func | `() -> None` | 381 | Mine historical outcomes for strategy patterns. |
 | `learn_playbook` | func | `(status: str \| None = ...) -> None` | 434 | List strategy rules in the playbook. |
+| `learn_decay` | func | `() -> None` | 514 | Apply confidence decay and auto-promote/demote strategy rules. |
 
 #### cli/app.py
 
@@ -1500,15 +1511,15 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `outcomes_collect` | func | `(holding_days: int \| None = ...) -> None` | 46 | Collect outcomes for recommended contracts. |
-| `outcomes_summary` | func | `(lookback_days: int = ...) -> None` | 165 | Show performance summary. |
-| `agent_accuracy_cmd` | func | `(window: int \| None = ...) -> None` | 255 | Show per-agent direction accuracy and Brier scores. |
-| `calibration_cmd` | func | `(agent: str \| None = ...) -> None` | 311 | Show confidence calibration buckets. |
-| `agent_weights_cmd` | func | `() -> None` | 367 | Show manual vs auto-tuned weight comparison. |
-| `auto_tune_cmd` | func | `(dry_run: bool = ..., window: int = ...) -> None` | 429 | Compute auto-tuned agent vote weights from outcome accuracy data. |
-| `backtest` | func | `(holding_days: Annotated[int, typer.Option(help='Fil... = 20) -> None` | 517 | Show backtesting performance summary. |
-| `equity_curve` | func | `(direction: Annotated[str \| None, typer.Option(he... = None, period: Annotated[int \| None, typer....` | 612 | Show cumulative equity curve. |
-| `risk_metrics_cmd` | func | `(lookback_days: int = ...) -> None` | 690 | Show risk-adjusted performance metrics (Sharpe, Sortino, max drawdown). |
-| `correlation_cmd` | func | `(tickers: Annotated[str \| None, typer.Option('-... = None) -> None` | 770 | Show pairwise correlation matrix for specified tickers. |
+| `outcomes_summary` | func | `(lookback_days: int = ...) -> None` | 173 | Show performance summary. |
+| `agent_accuracy_cmd` | func | `(window: int \| None = ...) -> None` | 263 | Show per-agent direction accuracy and Brier scores. |
+| `calibration_cmd` | func | `(agent: str \| None = ...) -> None` | 319 | Show confidence calibration buckets. |
+| `agent_weights_cmd` | func | `() -> None` | 375 | Show manual vs auto-tuned weight comparison. |
+| `auto_tune_cmd` | func | `(dry_run: bool = ..., window: int = ...) -> None` | 437 | Compute auto-tuned agent vote weights from outcome accuracy data. |
+| `backtest` | func | `(holding_days: Annotated[int, typer.Option(help='Fil... = 20) -> None` | 525 | Show backtesting performance summary. |
+| `equity_curve` | func | `(direction: Annotated[str \| None, typer.Option(he... = None, period: Annotated[int \| None, typer....` | 620 | Show cumulative equity curve. |
+| `risk_metrics_cmd` | func | `(lookback_days: int = ...) -> None` | 698 | Show risk-adjusted performance metrics (Sharpe, Sortino, max drawdown). |
+| `correlation_cmd` | func | `(tickers: Annotated[str \| None, typer.Option('-... = None) -> None` | 778 | Show pairwise correlation matrix for specified tickers. |
 
 #### cli/progress.py
 
@@ -1837,6 +1848,7 @@ Each row maps a source file to its test files and approximate test count.
 | `models/scan_delta.py` | — | 0 |
 | `models/scoring.py` | `tests/unit/models/test_scoring.py` | 28 |
 | `models/strategy.py` | `tests/unit/models/test_strategy.py` | 35 |
+| `models/tool_response.py` | `tests/unit/models/test_tool_response.py` | 16 |
 | `models/valuation.py` | — | 0 |
 
 ### indicators/
@@ -2013,15 +2025,15 @@ Each row maps a source file to its test files and approximate test count.
 | Module | Files | Public Symbols | Test Files | Tests |
 |--------|-------|----------------|------------|-------|
 | utils/ | 1 | 4 | 1 | 11 |
-| models/ | 23 | 162 | 14 | 620 |
+| models/ | 24 | 164 | 15 | 636 |
 | indicators/ | 17 | 73 | 16 | 504 |
 | pricing/ | 8 | 25 | 7 | 244 |
 | services/ | 13 | 112 | 12 | 360 |
 | scoring/ | 6 | 29 | 6 | 227 |
-| data/ | 11 | 78 | 2 | 46 |
-| agents/ | 30 | 92 | 15 | 370 |
+| data/ | 11 | 80 | 2 | 46 |
+| agents/ | 30 | 93 | 15 | 370 |
 | scan/ | 8 | 23 | 3 | 82 |
 | reporting/ | 1 | 3 | 1 | 10 |
 | api/ | 16 | 120 | 13 | 150 |
-| cli/ | 7 | 47 | 3 | 27 |
-| **Total** | **141** | **768** | **93** | **2651** |
+| cli/ | 7 | 48 | 3 | 27 |
+| **Total** | **142** | **774** | **94** | **2667** |

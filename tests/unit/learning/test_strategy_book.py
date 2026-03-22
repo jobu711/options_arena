@@ -35,7 +35,7 @@ _NOW = datetime(2026, 3, 20, 12, 0, 0, tzinfo=UTC)
 
 def _make_outcome(
     sector: str = "Information Technology",
-    iv_rank: float = 60.0,
+    iv_level: float = 60.0,
     dte_at_entry: int = 45,
     direction: str = "bullish",
     return_pct: float = 0.15,
@@ -43,7 +43,7 @@ def _make_outcome(
 ) -> OutcomeWithContext:
     return OutcomeWithContext(
         sector=sector,
-        iv_rank=iv_rank,
+        iv_level=iv_level,
         dte_at_entry=dte_at_entry,
         direction=direction,
         return_pct=return_pct,
@@ -107,7 +107,7 @@ class TestMinePatterns:
     def test_groups_by_dimensions(self) -> None:
         """Verify outcomes are grouped by sector x IV x DTE x direction."""
         outcomes = [
-            _make_outcome(sector="Tech", iv_rank=60, dte_at_entry=45, direction="bullish")
+            _make_outcome(sector="Tech", iv_level=60, dte_at_entry=45, direction="bullish")
             for _ in range(25)
         ]
         cells = mine_patterns(outcomes)

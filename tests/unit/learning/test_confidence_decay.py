@@ -72,12 +72,12 @@ def _make_outcome(
     direction: str = "bullish",
     is_winner: bool = True,
     return_pct: float = 0.15,
-    iv_rank: float = 60.0,
+    iv_level: float = 60.0,
     dte_at_entry: int = 45,
 ) -> OutcomeWithContext:
     return OutcomeWithContext(
         sector=sector,
-        iv_rank=iv_rank,
+        iv_level=iv_level,
         dte_at_entry=dte_at_entry,
         direction=direction,
         return_pct=return_pct,

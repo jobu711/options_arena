@@ -11,6 +11,7 @@ All orchestration functions follow the never-raises contract.
 from __future__ import annotations
 
 import logging
+import math
 from datetime import datetime
 
 from options_arena.data.repository import Repository
@@ -57,6 +58,10 @@ def decay_confidence(rule: StrategyRule, now: datetime) -> float:
     float
         Decayed confidence clamped to ``[0.0, 1.0]``.
     """
+    # Guard non-finite input — NaN silently passes max/min clamp
+    if not math.isfinite(rule.confidence):
+        return 0.0
+
     reference_date = rule.last_validated if rule.last_validated is not None else rule.created_at
 
     elapsed_seconds = (now - reference_date).total_seconds()
@@ -217,35 +222,54 @@ async def _run_decay_pipeline(repo: Repository) -> None:
         logger.info("No active strategy rules to decay")
         return
 
+    # --- Outcome-triggered validation ---
+    outcomes = await _fetch_outcomes_for_validation(repo)
+    validation_results = validate_rules_against_outcomes(active_rules, outcomes)
+    validated_ids = {rid for rid, ok in validation_results if ok}
+
     # Apply decay to each rule and build updated copies for promote/demote logic
     decayed_rules: list[StrategyRule] = []
     for rule in active_rules:
         new_confidence = decay_confidence(rule, now)
 
-        # Persist updated confidence
+        # If validated, update last_validated and increment count
+        last_validated = rule.last_validated
+        validation_count = rule.validation_count
+        if rule.rule_id in validated_ids:
+            last_validated = now
+            validation_count += 1
+
+        # Persist updated confidence (batched — no commit per row)
         await repo.update_rule_confidence(
             rule_id=rule.rule_id,
             confidence=new_confidence,
-            last_validated=rule.last_validated,
-            validation_count=rule.validation_count,
+            last_validated=last_validated,
+            validation_count=validation_count,
+            commit=False,
         )
 
         # Build a copy with the decayed confidence for promote/demote evaluation.
         # StrategyRule is frozen, so we use model_copy with update.
-        decayed_rule = rule.model_copy(update={"confidence": new_confidence})
+        decayed_rule = rule.model_copy(
+            update={
+                "confidence": new_confidence,
+                "last_validated": last_validated,
+                "validation_count": validation_count,
+            },
+        )
         decayed_rules.append(decayed_rule)
 
     # Auto-promote and auto-demote
     promote_ids, demote_ids = auto_promote_demote(decayed_rules)
 
     for rule_id in promote_ids:
-        # Find the decayed confidence for this rule
         decayed = next((r for r in decayed_rules if r.rule_id == rule_id), None)
         if decayed is not None:
             await repo.update_rule_status_and_confidence(
                 rule_id=rule_id,
                 status=RuleStatus.APPROVED,
                 confidence=decayed.confidence,
+                commit=False,
             )
 
     for rule_id in demote_ids:
@@ -255,11 +279,29 @@ async def _run_decay_pipeline(repo: Repository) -> None:
                 rule_id=rule_id,
                 status=RuleStatus.REJECTED,
                 confidence=decayed.confidence,
+                commit=False,
             )
 
+    # Single atomic commit for all updates
+    await repo.commit()
+
     logger.info(
-        "Confidence decay complete: %d rules processed, %d promoted, %d demoted",
+        "Confidence decay complete: %d rules processed, %d validated, %d promoted, %d demoted",
         len(active_rules),
+        len(validated_ids),
         len(promote_ids),
         len(demote_ids),
     )
+
+
+async def _fetch_outcomes_for_validation(
+    repo: Repository,
+) -> list[OutcomeWithContext]:
+    """Fetch recent outcomes for rule validation.
+
+    Delegates to ``strategy_book._fetch_outcomes_with_context`` to avoid
+    duplicating the SQL query.
+    """
+    from options_arena.learning.strategy_book import _fetch_outcomes_with_context
+
+    return await _fetch_outcomes_with_context(repo)
