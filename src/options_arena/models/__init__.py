@@ -317,6 +317,8 @@ __all__ = [
     # Metadata
     "MetadataCoverage",
     "TickerMetadata",
+    # Tool response
+    "ToolResponse",
     # Valuation
     "CompositeValuation",
     "ValuationModelResult",
@@ -339,8 +341,6 @@ __all__ = [
     "AgentMemory",
     "StrategyCondition",
     "StrategyRule",
-    # Tool Response
-    "ToolResponse",
     # Correlation
     "CorrelationMatrix",
     "PairwiseCorrelation",
