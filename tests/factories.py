@@ -26,6 +26,7 @@ from options_arena.models.analysis import (
     TradeThesis,
 )
 from options_arena.models.enums import (
+    DeskType,
     ExerciseStyle,
     MacdSignal,
     OptionType,
@@ -37,6 +38,17 @@ from options_arena.models.enums import (
 )
 from options_arena.models.market_data import Quote
 from options_arena.models.options import OptionContract, OptionSpread, SpreadAnalysis, SpreadLeg
+from options_arena.models.recommendation import (
+    AnyAssessment,
+    DomainAssessment,
+    FlowAssessment,
+    FundamentalAssessment,
+    PositionRecommendation,
+    RecommendationResult,
+    RiskDeskAssessment,
+    TrendAssessment,
+    VolatilityAssessment,
+)
 from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
 from options_arena.models.scoring import DimensionalScores
 from options_arena.scan.models import ScanResult
@@ -304,3 +316,104 @@ def make_scan_result(**kw: object) -> ScanResult:
     }
     defaults.update(kw)
     return ScanResult(**defaults)
+
+
+def make_domain_assessment(desk: DeskType = DeskType.TREND, **kw: object) -> DomainAssessment:
+    """Create a test ``DomainAssessment`` (concrete subclass) with sensible defaults.
+
+    Returns the correct desk-specific subclass based on ``desk``.  Override any
+    base-class or subclass field via keyword arguments.
+    """
+    base: dict[str, object] = {
+        "direction": SignalDirection.BULLISH,
+        "confidence": 0.72,
+        "summary": f"{desk.value.title()} desk assessment for test.",
+        "key_factors": ["Test factor 1", "Test factor 2"],
+        "risks": ["Test risk"],
+        "contracts_referenced": ["AAPL 190C 2026-04-18"],
+        "tools_used": ["fetch_quote"],
+        "model_used": "test",
+    }
+    base.update(kw)
+
+    match desk:
+        case DeskType.TREND:
+            return TrendAssessment(**base, trend_strength=base.pop("trend_strength", 0.8))  # type: ignore[arg-type]
+        case DeskType.VOLATILITY:
+            return VolatilityAssessment(**base)  # type: ignore[arg-type]
+        case DeskType.FLOW:
+            return FlowAssessment(**base)  # type: ignore[arg-type]
+        case DeskType.FUNDAMENTAL:
+            return FundamentalAssessment(**base)  # type: ignore[arg-type]
+        case DeskType.RISK:
+            return RiskDeskAssessment(
+                **base,  # type: ignore[arg-type]
+                max_position_pct=base.pop("max_position_pct", 0.05),  # type: ignore[arg-type]
+            )
+        case DeskType.CONTRARIAN:
+            from options_arena.models.recommendation import ContrarianAssessment
+
+            return ContrarianAssessment(**base)  # type: ignore[arg-type]
+        case _:
+            return TrendAssessment(**base)  # type: ignore[arg-type]
+
+
+def make_position_recommendation(
+    direction: SignalDirection = SignalDirection.BULLISH, **kw: object
+) -> PositionRecommendation:
+    """Create a test ``PositionRecommendation`` with sensible defaults.
+
+    Defaults produce a valid AAPL bullish position recommendation.
+    """
+    defaults: dict[str, object] = {
+        "ticker": "AAPL",
+        "direction": direction,
+        "confidence": 0.70,
+        "recommended_contract": "AAPL 190C 2026-04-18",
+        "entry_price": Decimal("5.25"),
+        "entry_criteria": "Enter on pullback to support.",
+        "exit_criteria": "Exit at 50% profit or 30% loss.",
+        "stop_loss": Decimal("3.50"),
+        "take_profit": Decimal("7.80"),
+        "position_size_pct": 0.05,
+        "position_rationale": "Conservative size due to earnings.",
+        "risk_reward_ratio": 2.3,
+        "max_loss_estimate": "$175 per contract",
+        "recommended_strategy": None,
+        "strategy_rationale": "Directional call with limited risk.",
+        "summary": "Bullish momentum with moderate IV entry.",
+        "key_factors": ["RSI at 65", "IV rank 45"],
+        "risk_assessment": "Moderate risk; earnings in 7 days.",
+        "agent_agreement_score": 0.8,
+        "dissenting_desks": [],
+        "model_used": "test",
+    }
+    defaults.update(kw)
+    return PositionRecommendation(**defaults)
+
+
+def make_recommendation_result(
+    ticker: str = "AAPL", is_fallback: bool = False, **kw: object
+) -> RecommendationResult:
+    """Create a test ``RecommendationResult`` with sensible defaults.
+
+    Builds a complete recommendation with 2 assessments (Trend + Volatility),
+    a ``PositionRecommendation``, and a ``MarketContext``.
+    """
+    context = make_market_context(ticker=ticker)
+    trend = make_domain_assessment(DeskType.TREND)
+    vol = make_domain_assessment(DeskType.VOLATILITY, confidence=0.65)
+    assessments: list[AnyAssessment] = [trend, vol]  # type: ignore[list-item]
+    recommendation = make_position_recommendation(ticker=ticker)
+
+    defaults: dict[str, object] = {
+        "context": context,
+        "assessments": assessments,
+        "recommendation": recommendation,
+        "total_usage": RunUsage(),
+        "duration_ms": 2500,
+        "is_fallback": is_fallback,
+        "citation_density": 0.5,
+    }
+    defaults.update(kw)
+    return RecommendationResult(**defaults)
