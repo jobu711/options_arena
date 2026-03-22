@@ -14,13 +14,15 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import re
 from datetime import date
 
 from pydantic_ai import RunContext
 
 from options_arena.agents._desk_deps import DeskDeps
-from options_arena.models.enums import TICKER_RE
+from options_arena.models.enums import TICKER_RE, ToolStatus
 from options_arena.models.options import OptionContract
+from options_arena.models.tool_response import ToolResponse
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,19 @@ _MAX_CORRELATION_TICKERS = 5
 # Default confidence for successful desk responses.  Placeholder until
 # confidence is derived from observable quality signals.
 DESK_SUCCESS_CONFIDENCE = 0.7
+
+
+def _sanitize_error(exc: Exception, max_len: int = 120) -> str:
+    """Extract a safe, truncated error message from an exception.
+
+    Redacts sensitive tokens (API keys, passwords) and truncates to *max_len*
+    characters so agent context windows are not polluted with stack traces.
+    """
+    msg = str(exc)
+    msg = re.sub(r"(key|token|secret|password)=\S+", r"\1=***", msg, flags=re.IGNORECASE)
+    if len(msg) > max_len:
+        msg = msg[:max_len] + "..."
+    return msg
 
 
 def _validate_ticker(ticker: str) -> str | None:
@@ -295,12 +310,21 @@ async def fetch_portfolio_exposure(ctx: RunContext[DeskDeps], ticker: str) -> st
     tool_name = "fetch_portfolio_exposure"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip exposure analysis", "note data gap"],
+        ).model_dump_json()
     try:
         contracts = await ctx.deps.repo.get_contracts_for_ticker(ticker, limit=10)
         if not contracts:
             ctx.deps.tools_used.append(tool_name)
-            return f"No historical recommended contracts found for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.WARNING,
+                summary=f"No prior recommendations found for {ticker}",
+                data=f"No historical recommended contracts found for {ticker}.",
+                next_actions=["no prior positions to assess", "treat as fresh entry"],
+            ).model_dump_json()
 
         lines: list[str] = [f"Recent recommended contracts for {ticker}:"]
         for c in contracts:
@@ -313,11 +337,20 @@ async def fetch_portfolio_exposure(ctx: RunContext[DeskDeps], ticker: str) -> st
             )
 
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=ToolStatus.SUCCESS,
+            summary=f"{ticker}: {len(contracts)} prior recommendations found",
+            data="\n".join(lines),
+            next_actions=["assess existing exposure overlap", "note concentration risk"],
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("fetch_portfolio_exposure failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not fetch portfolio exposure for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Portfolio exposure unavailable for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["skip exposure analysis", "note data gap"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -449,16 +482,23 @@ async def compute_indicator_on_demand(
     tool_name = "compute_indicator_on_demand"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip indicator analysis", "rely on context indicators only"],
+        ).model_dump_json()
 
     supported = {"rsi", "macd", "sma_alignment", "adx"}
     indicator_lower = indicator.lower().strip()
     if indicator_lower not in supported:
         ctx.deps.tools_used.append(tool_name)
-        return (
-            f"Error: unsupported indicator {indicator!r}. "
-            f"Supported: {', '.join(sorted(supported))}"
-        )
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=(
+                f"Unsupported indicator {indicator!r}. Supported: {', '.join(sorted(supported))}"
+            ),
+            next_actions=["skip indicator analysis", "rely on context indicators only"],
+        ).model_dump_json()
 
     try:
         import pandas as pd
@@ -471,7 +511,11 @@ async def compute_indicator_on_demand(
         ohlcv_list = await ctx.deps.market_data.fetch_ohlcv(ticker, period="1y")
         if not ohlcv_list:
             ctx.deps.tools_used.append(tool_name)
-            return f"No OHLCV data found for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No OHLCV data found for {ticker}",
+                next_actions=["skip indicator analysis", "rely on context indicators only"],
+            ).model_dump_json()
 
         close_series = pd.Series(
             [float(bar.close) for bar in ohlcv_list],
@@ -545,12 +589,36 @@ async def compute_indicator_on_demand(
                 )
                 result_str = f"ADX(14) for {ticker}: {val:.1f} — {interpretation}"
 
+        # Determine status: warning if indicator returned N/A, else success
+        is_warning = "N/A" in result_str
+        if is_warning:
+            status = ToolStatus.WARNING
+            next_actions = [
+                "note insufficient data for this indicator",
+                "rely on context indicators only",
+            ]
+        else:
+            status = ToolStatus.SUCCESS
+            next_actions = [
+                "assess trend strength via ADX",
+                "check RSI for overbought/oversold",
+            ]
+
         ctx.deps.tools_used.append(tool_name)
-        return result_str
+        return ToolResponse[str](
+            status=status,
+            summary=result_str,
+            data=result_str,
+            next_actions=next_actions,
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("compute_indicator_on_demand failed for %s/%s: %s", ticker, indicator, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not compute {indicator} for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Indicator {indicator} failed for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["skip indicator analysis", "rely on context indicators only"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -567,24 +635,52 @@ async def fetch_chain_summary(ctx: RunContext[DeskDeps], ticker: str) -> str:
     tool_name = "fetch_chain_summary"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip chain analysis", "use context IV data only", "reduce confidence"],
+        ).model_dump_json()
     try:
         expirations = await ctx.deps.options_data.fetch_expirations(ticker)
         if not expirations:
             ctx.deps.tools_used.append(tool_name)
-            return f"No option expirations found for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No option expirations found for {ticker}",
+                next_actions=[
+                    "skip chain analysis",
+                    "use context IV data only",
+                    "reduce confidence",
+                ],
+            ).model_dump_json()
 
         today = date.today()
         future_exps = [e for e in expirations if e > today]
         if not future_exps:
             ctx.deps.tools_used.append(tool_name)
-            return f"No future expirations found for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No future expirations found for {ticker}",
+                next_actions=[
+                    "skip chain analysis",
+                    "use context IV data only",
+                    "reduce confidence",
+                ],
+            ).model_dump_json()
 
         target_exp = future_exps[0]
         contracts = await ctx.deps.options_data.fetch_chain(ticker, target_exp)
         if not contracts:
             ctx.deps.tools_used.append(tool_name)
-            return f"No contracts found for {ticker} exp {target_exp.isoformat()}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No contracts found for {ticker} exp {target_exp.isoformat()}",
+                next_actions=[
+                    "skip chain analysis",
+                    "use context IV data only",
+                    "reduce confidence",
+                ],
+            ).model_dump_json()
 
         call_count = 0
         put_count = 0
@@ -623,12 +719,35 @@ async def fetch_chain_summary(ctx: RunContext[DeskDeps], ticker: str) -> str:
         else:
             lines.append("  Put/Call Volume Ratio: N/A (no call volume)")
 
+        # Warn if some expected data is missing (e.g. zero OI on one side)
+        has_missing = (call_oi == 0 and put_count > 0) or (put_oi == 0 and call_count > 0)
+        if has_missing:
+            status = ToolStatus.WARNING
+            next_actions = [
+                "assess put/call ratio with caution",
+                "note incomplete chain data on one side",
+            ]
+        else:
+            status = ToolStatus.SUCCESS
+            next_actions = ["assess put/call ratio", "compare volume vs OI for flow signal"]
+
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=status,
+            summary=(
+                f"{ticker} chain: {call_count} calls, {put_count} puts, OI={call_oi + put_oi:,}"
+            ),
+            data="\n".join(lines),
+            next_actions=next_actions,
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("fetch_chain_summary failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not fetch chain summary for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Chain summary unavailable for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["skip chain analysis", "use context IV data only", "reduce confidence"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -646,24 +765,40 @@ async def fetch_unusual_activity(ctx: RunContext[DeskDeps], ticker: str) -> str:
     tool_name = "fetch_unusual_activity"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip flow analysis", "note data gap"],
+        ).model_dump_json()
     try:
         expirations = await ctx.deps.options_data.fetch_expirations(ticker)
         if not expirations:
             ctx.deps.tools_used.append(tool_name)
-            return f"No option expirations found for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No option expirations found for {ticker}",
+                next_actions=["skip flow analysis", "note data gap"],
+            ).model_dump_json()
 
         today = date.today()
         future_exps = [e for e in expirations if e > today]
         if not future_exps:
             ctx.deps.tools_used.append(tool_name)
-            return f"No future expirations found for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No future expirations found for {ticker}",
+                next_actions=["skip flow analysis", "note data gap"],
+            ).model_dump_json()
 
         target_exp = future_exps[0]
         contracts = await ctx.deps.options_data.fetch_chain(ticker, target_exp)
         if not contracts:
             ctx.deps.tools_used.append(tool_name)
-            return f"No contracts found for {ticker} exp {target_exp.isoformat()}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No contracts found for {ticker} exp {target_exp.isoformat()}",
+                next_actions=["skip flow analysis", "note data gap"],
+            ).model_dump_json()
 
         # Unusual activity: volume > 3x open interest
         _UNUSUAL_THRESHOLD = 3.0
@@ -676,11 +811,15 @@ async def fetch_unusual_activity(ctx: RunContext[DeskDeps], ticker: str) -> str:
 
         if not unusual:
             ctx.deps.tools_used.append(tool_name)
-            return (
-                f"No unusual activity detected for {ticker} "
-                f"(exp {target_exp.isoformat()}). "
-                f"No contracts with volume > 3x open interest."
-            )
+            return ToolResponse[str](
+                status=ToolStatus.WARNING,
+                summary=f"No unusual activity for {ticker} (exp {target_exp.isoformat()})",
+                data=(
+                    f"No contracts with volume > 3x open interest for {ticker} "
+                    f"(exp {target_exp.isoformat()}). Chain has {len(contracts)} contracts."
+                ),
+                next_actions=["note absence of unusual activity", "interpret as normal flow"],
+            ).model_dump_json()
 
         # Sort by ratio descending, take top 5
         unusual.sort(key=lambda x: x[0], reverse=True)
@@ -698,11 +837,20 @@ async def fetch_unusual_activity(ctx: RunContext[DeskDeps], ticker: str) -> str:
             )
 
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=ToolStatus.SUCCESS,
+            summary=f"{ticker}: {len(top)} unusual contracts found",
+            data="\n".join(lines),
+            next_actions=["assess direction of unusual flow", "note large positions"],
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("fetch_unusual_activity failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not detect unusual activity for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Unusual activity unavailable for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["skip flow analysis", "note data gap"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -719,7 +867,11 @@ async def fetch_earnings_history(ctx: RunContext[DeskDeps], ticker: str) -> str:
     tool_name = "fetch_earnings_history"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip fundamental context", "reduce confidence"],
+        ).model_dump_json()
     try:
         info = await ctx.deps.market_data.fetch_ticker_info(ticker)
 
@@ -758,11 +910,20 @@ async def fetch_earnings_history(ctx: RunContext[DeskDeps], ticker: str) -> str:
             lines.append("  Next Earnings: N/A")
 
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=ToolStatus.SUCCESS,
+            summary=f"{ticker} fundamentals: {info.sector}, div={div_pct:.2f}%",
+            data="\n".join(lines),
+            next_actions=["note upcoming earnings risk", "assess dividend impact"],
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("fetch_earnings_history failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not fetch fundamentals for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Fundamentals unavailable for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["skip fundamental context", "reduce confidence"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -779,7 +940,11 @@ async def fetch_sector_comparison(ctx: RunContext[DeskDeps], ticker: str) -> str
     tool_name = "fetch_sector_comparison"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip sector comparison", "note data gap"],
+        ).model_dump_json()
     try:
         info = await ctx.deps.market_data.fetch_ticker_info(ticker)
 
@@ -810,11 +975,20 @@ async def fetch_sector_comparison(ctx: RunContext[DeskDeps], ticker: str) -> str
             lines.append(f"  Position in 52W Range: {range_pct:.1f}%")
 
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=ToolStatus.SUCCESS,
+            summary=f"{ticker} sector: {info.sector}, price=${info.current_price}",
+            data="\n".join(lines),
+            next_actions=["compare vs sector peers", "assess relative valuation"],
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("fetch_sector_comparison failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not fetch sector comparison for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Sector comparison unavailable for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["skip sector comparison", "note data gap"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -842,12 +1016,21 @@ async def fetch_debate_history(
     limit = min(max(1, limit), 20)
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip historical context", "note data gap"],
+        ).model_dump_json()
     try:
         debates = await ctx.deps.repo.get_debates_for_ticker(ticker, limit=limit)
         if not debates:
             ctx.deps.tools_used.append(tool_name)
-            return f"No prior debate history found for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.WARNING,
+                summary=f"No prior debate history found for {ticker}",
+                data=f"No prior debates found for {ticker}.",
+                next_actions=["no prior analysis to reference", "assess fresh"],
+            ).model_dump_json()
 
         lines: list[str] = [f"Recent debate history for {ticker} ({len(debates)} debates):"]
         for debate in debates:
@@ -880,11 +1063,20 @@ async def fetch_debate_history(
                 lines.append(f"    Summary: {summary}")
 
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=ToolStatus.SUCCESS,
+            summary=f"{ticker}: {len(debates)} prior debates found",
+            data="\n".join(lines),
+            next_actions=["note prior consensus direction", "assess confidence trend"],
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("fetch_debate_history failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not fetch debate history for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Debate history unavailable for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["skip historical context", "note data gap"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -898,14 +1090,18 @@ async def compute_composite_valuation_tool(
 ) -> str:
     """Run multi-methodology equity valuation for *ticker*.
 
-    Computes fair value from up to four models (Owner Earnings DCF,
-    Three-Stage DCF, EV/EBITDA Relative, Residual Income) and returns
-    a composite valuation with margin of safety and signal.
+    Returns a ``ToolResponse`` JSON string with fair value computed from up to
+    four models (Owner Earnings DCF, Three-Stage DCF, EV/EBITDA Relative,
+    Residual Income) and a composite valuation with margin of safety and signal.
     """
     tool_name = "compute_composite_valuation"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip valuation analysis", "rely on technical signals"],
+        ).model_dump_json()
     try:
         from options_arena.analysis.valuation import FDData, compute_composite_valuation
 
@@ -956,6 +1152,7 @@ async def compute_composite_valuation_tool(
             lines.append("  Signal: N/A")
 
         # Per-model results
+        successful_models = 0
         for model_result in result.models:
             fv_str = (
                 f"${model_result.fair_value:.2f}" if model_result.fair_value is not None else "N/A"
@@ -969,13 +1166,39 @@ async def compute_composite_valuation_tool(
                 f"  {model_result.methodology}: FV={fv_str} MoS={mos_str} "
                 f"conf={model_result.confidence:.0%}"
             )
+            if model_result.fair_value is not None:
+                successful_models += 1
+
+        # Determine status based on valuation coverage
+        total_models = len(result.models)
+        if successful_models == 0:
+            status = ToolStatus.WARNING
+            next_actions = ["assess available methods only", "note limited valuation scope"]
+            summary = f"{ticker} valuation: no models produced fair value"
+        elif successful_models < total_models:
+            status = ToolStatus.WARNING
+            next_actions = ["assess available methods only", "note limited valuation scope"]
+            summary = f"{ticker} valuation: {successful_models}/{total_models} models computed"
+        else:
+            status = ToolStatus.SUCCESS
+            next_actions = ["compare fair value to current price", "note valuation spread"]
+            summary = f"{ticker} valuation: {successful_models} models computed"
 
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=status,
+            summary=summary,
+            data="\n".join(lines),
+            next_actions=next_actions,
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("compute_composite_valuation failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not compute valuation for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Valuation failed for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["skip valuation analysis", "rely on technical signals"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
@@ -338,31 +339,34 @@ class TestComputeIVForStrikeTool:
 class TestFetchPortfolioExposureTool:
     """Test the fetch_portfolio_exposure tool wrapper."""
 
-    async def test_no_contracts_returns_message(self) -> None:
-        """Empty repo returns informative message."""
+    async def test_no_contracts_returns_warning(self) -> None:
+        """Empty repo returns ToolResponse JSON with warning status."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
         deps.repo.get_contracts_for_ticker = AsyncMock(return_value=[])
 
         result = await fetch_portfolio_exposure(ctx, "AAPL")
+        parsed = json.loads(result)
 
-        assert "No historical recommended contracts" in result
+        assert parsed["status"] == "warning"
+        assert "No prior recommendations" in parsed["summary"]
         assert "fetch_portfolio_exposure" in deps.tools_used
 
-    async def test_repo_error_returns_error_string(self) -> None:
-        """Repository error returns Error: string."""
+    async def test_repo_error_returns_error_json(self) -> None:
+        """Repository error returns ToolResponse JSON with error status."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
         deps.repo.get_contracts_for_ticker = AsyncMock(side_effect=RuntimeError("db error"))
 
         result = await fetch_portfolio_exposure(ctx, "AAPL")
+        parsed = json.loads(result)
 
-        assert result.startswith("Error:")
-        assert "AAPL" in result
+        assert parsed["status"] == "error"
+        assert "AAPL" in parsed["summary"]
         assert "fetch_portfolio_exposure" in deps.tools_used
 
     async def test_success_returns_contract_details(self) -> None:
-        """Successful query returns formatted contract details."""
+        """Successful query returns ToolResponse JSON with contract details."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
         mock_contracts = [
@@ -377,10 +381,12 @@ class TestFetchPortfolioExposureTool:
         deps.repo.get_contracts_for_ticker = AsyncMock(return_value=mock_contracts)
 
         result = await fetch_portfolio_exposure(ctx, "AAPL")
+        parsed = json.loads(result)
 
-        assert "Recent recommended contracts" in result
-        assert "CALL" in result
-        assert "$190" in result
+        assert parsed["status"] == "success"
+        assert "Recent recommended contracts" in parsed["data"]
+        assert "CALL" in parsed["data"]
+        assert "$190" in parsed["data"]
         assert "fetch_portfolio_exposure" in deps.tools_used
 
 
