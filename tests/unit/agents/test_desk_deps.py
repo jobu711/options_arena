@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from options_arena.agents._desk_deps import DeskDeps
+from tests.factories import make_market_context, make_option_contract, make_ticker_score
 
 
 @pytest.mark.critical
@@ -105,3 +106,81 @@ class TestDeskDepsConstruction:
             tools_used=["pre_existing"],
         )
         assert deps.tools_used == ["pre_existing"]
+
+
+@pytest.mark.critical
+class TestDeskDepsExtension:
+    """Test DeskDeps scan data extension fields."""
+
+    def test_new_fields_default_to_none_or_empty(self) -> None:
+        """Verify ticker_score and market_context default to None, contracts to []."""
+        deps = DeskDeps(
+            query="test",
+            ticker="AAPL",
+            market_data=MagicMock(),
+            options_data=MagicMock(),
+            repo=MagicMock(),
+        )
+        assert deps.ticker_score is None
+        assert deps.contracts == []
+        assert isinstance(deps.contracts, list)
+        assert deps.market_context is None
+
+    def test_construction_with_scan_data(self) -> None:
+        """Verify all new fields can be populated."""
+        score = make_ticker_score()
+        contract = make_option_contract()
+        ctx = make_market_context()
+
+        deps = DeskDeps(
+            query="Analyze AAPL options",
+            ticker="AAPL",
+            market_data=MagicMock(),
+            options_data=MagicMock(),
+            repo=MagicMock(),
+            ticker_score=score,
+            contracts=[contract],
+            market_context=ctx,
+        )
+        assert deps.ticker_score is score
+        assert deps.contracts == [contract]
+        assert deps.market_context is ctx
+
+    def test_backward_compat_without_new_fields(self) -> None:
+        """Existing construction pattern works -- no new args needed."""
+        deps = DeskDeps(
+            query="What is the IV for AAPL?",
+            ticker="AAPL",
+            market_data=MagicMock(),
+            options_data=MagicMock(),
+            fred=MagicMock(),
+            repo=MagicMock(),
+            learned_patterns="some patterns",
+        )
+        assert deps.query == "What is the IV for AAPL?"
+        assert deps.learned_patterns == "some patterns"
+        # New fields should still have their defaults
+        assert deps.ticker_score is None
+        assert deps.contracts == []
+        assert deps.market_context is None
+
+    def test_independent_contract_lists(self) -> None:
+        """Two instances do not share the same contracts list."""
+        deps1 = DeskDeps(
+            query="q1",
+            ticker="AAPL",
+            market_data=MagicMock(),
+            options_data=MagicMock(),
+            repo=MagicMock(),
+        )
+        deps2 = DeskDeps(
+            query="q2",
+            ticker="TSLA",
+            market_data=MagicMock(),
+            options_data=MagicMock(),
+            repo=MagicMock(),
+        )
+        contract = make_option_contract()
+        deps1.contracts.append(contract)
+        assert len(deps1.contracts) == 1
+        assert len(deps2.contracts) == 0
