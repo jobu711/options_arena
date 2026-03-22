@@ -199,14 +199,14 @@ class TestPositionSizeTool:
         assert result.startswith("Error:")
         assert "compute_position_size" in deps.tools_used
 
-    async def test_nan_iv_returns_tier4(self) -> None:
-        """NaN IV defaults to tier 4 (safest)."""
+    async def test_nan_iv_returns_error(self) -> None:
+        """NaN IV is rejected early by isfinite() guard."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
 
         result = await compute_position_size_tool(ctx, "AAPL", float("nan"))
 
-        assert "Tier: 4" in result
+        assert "not a finite number" in result
         assert "compute_position_size" in deps.tools_used
 
 
