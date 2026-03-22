@@ -1,0 +1,13 @@
+{
+  "epic": "agent-infra-learning-decay",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync agent-infra-learning-decay",
+  "last_updated": "2026-03-22T21:49:15Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "research", "synced"],
+  "parent_epic": "agent-infrastructure-evolution",
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": ""
+}

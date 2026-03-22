@@ -1,0 +1,13 @@
+{
+  "epic": "agent-infra-eval-harness",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync agent-infra-eval-harness",
+  "last_updated": "2026-03-22T16:43:42Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced"],
+  "parent_epic": "agent-infrastructure-evolution",
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "9 tasks synced to GitHub. Epic #653. Tasks #655-#663. Wave 1: #655 (foundation). Wave 2: #657+#660+#656+#663 (parallel). Wave 3: #659 (needs #655+#657). Wave 4: #661 (needs all graders). Wave 5: #658+#662 (parallel CLI+API)."
+}

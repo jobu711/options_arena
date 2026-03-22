@@ -1,7 +1,7 @@
 ---
 name: agent-infrastructure-evolution
 description: Integrate agent evaluation, cost-aware model routing, structured tool responses, learning confidence decay, and development tooling — inspired by competitive audit of everything-claude-code
-status: researched
+status: planned
 created: 2026-03-22T18:00:00Z
 revised: 2026-03-22T19:00:00Z
 revision_notes: Context7 PRD audit — fixed 6 mismatches (rsi_14, next_earnings, chain_spread_pct location, tool count 23 not 30+, StrategyRule in models/strategy.py, tool return type not a PydanticAI constraint)
@@ -48,11 +48,10 @@ has **no quality measurement infrastructure**:
 
 ### Why is this important now?
 
-The unified agent system is 50% complete (foundation + desk-recommend epics done). The
-orchestrator epic is next, followed by cutover. After cutover, the recommendation pipeline
-becomes the **sole path** for all AI analysis — every `options-arena debate` call will
-produce a `PositionRecommendation` through 7 LLM calls. Building quality infrastructure
-now means:
+The unified agent system is 100% complete (foundation, desk-recommend, orchestrator, and
+cutover epics all merged). The recommendation pipeline is now the **sole path** for all
+AI analysis — every `options-arena debate` call produces a `PositionRecommendation`
+through 7 LLM calls. Building quality infrastructure now means:
 
 - Eval baselines captured from day one (before prompt iterations drift quality)
 - Cost routing integrated into the orchestrator as it's built (not bolted on after)
