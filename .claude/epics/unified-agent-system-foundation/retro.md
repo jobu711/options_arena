@@ -36,7 +36,7 @@ retro_at: 2026-03-22T00:00:00Z
 
 ## Quality
 
-- **Test coverage**: 125 tests for 656 LOC source = 5.2 tests per LOC (very high)
+- **Test coverage**: 125 tests for 656 LOC source (~1 test per 5.2 LOC)
 - **Post-merge fixes**: 0 (no fixes needed after initial implementation)
 - **Regressions**: 0 (1 pre-existing failure on master unrelated)
 - **Lint/type issues**: 0 (ruff + mypy --strict clean from first pass)

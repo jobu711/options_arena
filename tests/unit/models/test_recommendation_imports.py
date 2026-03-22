@@ -1,6 +1,9 @@
 """Tests for recommendation model re-exports from models package."""
 
+import pytest
 
+
+@pytest.mark.critical
 class TestRecommendationImports:
     def test_domain_assessment_importable(self) -> None:
         """from options_arena.models import DomainAssessment works."""

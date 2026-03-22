@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from pydantic_ai import models
 
 from options_arena.agents._toolsets import (
@@ -13,6 +14,7 @@ from options_arena.agents._toolsets import (
 models.ALLOW_MODEL_REQUESTS = False
 
 
+@pytest.mark.critical
 class TestSynthesisToolset:
     """Tests for build_synthesis_toolset and its tool functions."""
 
