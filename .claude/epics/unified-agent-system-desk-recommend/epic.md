@@ -7,7 +7,7 @@ prd: .claude/prds/unified-agent-system.md
 parent_epic: unified-agent-system
 depends_on:
   - unified-agent-system-foundation
-github: null
+github: https://github.com/jobu711/options_arena/issues/639
 ---
 
 # Epic: unified-agent-system-desk-recommend
@@ -81,14 +81,24 @@ def build_cleaned_domain_assessment(text: str) -> str:
     # Follows build_cleaned_agent_response() pattern
 ```
 
-## Task Breakdown Preview
+## Tasks Created
 
-- [ ] Task 1: Extend `DeskDeps` with optional fields, verify field ordering, update call sites
-- [ ] Task 2: Add `build_cleaned_domain_assessment()` to `_parsing.py`
-- [ ] Task 3: Create 6 recommendation prompts (`agents/prompts/recommend_*.py`)
-- [ ] Task 4: Add recommendation agent + runner to `trend_desk.py` and `volatility_desk.py`
-- [ ] Task 5: Add recommendation agent + runner to `flow_desk.py` and `fundamental_desk.py`
-- [ ] Task 6: Add recommendation agent + runner to `risk_desk.py` and `contrarian_desk.py`, unit tests for all 6
+- [ ] #640 - Extend DeskDeps with optional scan data fields (parallel: true)
+- [ ] #641 - Add build_cleaned_domain_assessment to _parsing.py (parallel: true)
+- [ ] #642 - Create 6 recommendation prompts (parallel: true)
+- [ ] #643 - Trend + Volatility desk recommendation agents (parallel: true, depends: #640, #641, #642)
+- [ ] #644 - Flow + Fundamental desk recommendation agents (parallel: true, depends: #640, #641, #642)
+- [ ] #645 - Risk + Contrarian desk recommendation agents (parallel: true, depends: #640, #641, #642)
+
+Total tasks: 6
+Parallel tasks: 6 (Wave 1: #640-#642 simultaneous; Wave 2: #643-#645 simultaneous)
+Sequential tasks: 0
+Estimated total effort: 16-22 hours
+
+## Test Coverage Plan
+
+Total test files planned: 9
+Total test cases planned: ~56
 
 ## Dependencies
 

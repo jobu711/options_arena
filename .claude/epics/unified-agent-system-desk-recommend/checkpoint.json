@@ -1,13 +1,13 @@
 {
   "epic": "unified-agent-system-desk-recommend",
-  "phase": "planning",
-  "last_command": "/pm:prd-parse unified-agent-system",
-  "last_updated": "2026-03-21T16:31:55Z",
-  "completed_phases": ["prd-created", "planning"],
+  "phase": "synced",
+  "last_command": "/pm:epic-sync unified-agent-system-desk-recommend",
+  "last_updated": "2026-03-22T13:40:00Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced"],
   "parent_epic": "unified-agent-system",
   "current_task": null,
   "tasks_completed": [],
   "tasks_in_progress": [],
   "blockers": [],
-  "notes": "Depends on foundation. Extends DeskDeps + adds recommendation mode to 6 desks."
+  "notes": "6 tasks synced to GitHub. Epic #639, tasks #640-#645."
 }
