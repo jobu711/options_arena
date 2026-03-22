@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 import pytest
 
-from options_arena.agents.orchestrator import (
+from options_arena.agents._context import (
     effective_batch_ticker_delay,
 )
 from options_arena.models import DebateConfig

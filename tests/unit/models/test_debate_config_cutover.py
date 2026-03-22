@@ -78,30 +78,22 @@ class TestDebateConfigCutover:
 
     def test_min_recommendation_score_nan_rejected(self) -> None:
         """Verify NaN defense on min_recommendation_score."""
-        with pytest.raises(
-            ValidationError, match="min_recommendation_score must be finite"
-        ):
+        with pytest.raises(ValidationError, match="min_recommendation_score must be finite"):
             DebateConfig(min_recommendation_score=float("nan"))
 
     def test_min_recommendation_score_inf_rejected(self) -> None:
         """Verify Inf defense on min_recommendation_score."""
-        with pytest.raises(
-            ValidationError, match="min_recommendation_score must be finite"
-        ):
+        with pytest.raises(ValidationError, match="min_recommendation_score must be finite"):
             DebateConfig(min_recommendation_score=float("inf"))
 
     def test_min_recommendation_score_above_100_rejected(self) -> None:
         """Verify min_recommendation_score range [0, 100]."""
-        with pytest.raises(
-            ValidationError, match="min_recommendation_score must be in"
-        ):
+        with pytest.raises(ValidationError, match="min_recommendation_score must be in"):
             DebateConfig(min_recommendation_score=101.0)
 
     def test_min_recommendation_score_below_0_rejected(self) -> None:
         """Verify min_recommendation_score range [0, 100]."""
-        with pytest.raises(
-            ValidationError, match="min_recommendation_score must be in"
-        ):
+        with pytest.raises(ValidationError, match="min_recommendation_score must be in"):
             DebateConfig(min_recommendation_score=-1.0)
 
     def test_min_recommendation_score_zero_accepted(self) -> None:
@@ -159,25 +151,19 @@ class TestDebateConfigCutover:
         settings = AppSettings(debate=DebateConfig(desk_parallelism=4))
         assert settings.debate.desk_parallelism == 4
 
-    def test_env_var_synthesis_timeout(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_env_var_synthesis_timeout(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ARENA_DEBATE__SYNTHESIS_TIMEOUT env var overrides default."""
         monkeypatch.setenv("ARENA_DEBATE__SYNTHESIS_TIMEOUT", "120.0")
         settings = AppSettings()
         assert settings.debate.synthesis_timeout == pytest.approx(120.0)
 
-    def test_env_var_desk_parallelism(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_env_var_desk_parallelism(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ARENA_DEBATE__DESK_PARALLELISM env var overrides default."""
         monkeypatch.setenv("ARENA_DEBATE__DESK_PARALLELISM", "3")
         settings = AppSettings()
         assert settings.debate.desk_parallelism == 3
 
-    def test_env_var_recommendation_protocol(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_env_var_recommendation_protocol(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ARENA_DEBATE__RECOMMENDATION_PROTOCOL env var overrides default."""
         monkeypatch.setenv("ARENA_DEBATE__RECOMMENDATION_PROTOCOL", "unified_v2")
         settings = AppSettings()

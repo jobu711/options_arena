@@ -492,7 +492,7 @@ class TestBuildMarketContextEarnings:
     """Tests for build_market_context earnings parameter."""
 
     def test_next_earnings_passed_through(self) -> None:
-        from options_arena.agents.orchestrator import build_market_context
+        from options_arena.agents._context import build_market_context
         from options_arena.models import Quote, TickerInfo
 
         d = date(2026, 4, 15)
@@ -523,7 +523,7 @@ class TestBuildMarketContextEarnings:
         assert ctx.next_earnings == d
 
     def test_next_earnings_defaults_to_none(self) -> None:
-        from options_arena.agents.orchestrator import build_market_context
+        from options_arena.agents._context import build_market_context
         from options_arena.models import Quote, TickerInfo
 
         ticker_score = TickerScore(

@@ -11,7 +11,7 @@ import math
 
 import pytest
 
-from options_arena.agents.orchestrator import (
+from options_arena.learning.weight_tuner import (
     AGENT_VOTE_WEIGHTS,
     compute_auto_tune_weights,
 )

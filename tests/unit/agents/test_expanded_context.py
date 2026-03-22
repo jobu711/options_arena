@@ -18,8 +18,8 @@ from decimal import Decimal
 
 import pytest
 
+from options_arena.agents._context import build_market_context
 from options_arena.agents._parsing import _render_optional, render_context_block
-from options_arena.agents.orchestrator import build_market_context
 from options_arena.models import (
     ExerciseStyle,
     IndicatorSignals,

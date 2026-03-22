@@ -8,6 +8,9 @@ desk agents, synthesis agent, shared utilities, and routing.
 # Shared context utilities
 # ---------------------------------------------------------------------------
 from options_arena.agents._context import (
+    DebatePhase as DebatePhase,
+)
+from options_arena.agents._context import (
     build_market_context as build_market_context,
 )
 from options_arena.agents._context import (
@@ -191,6 +194,7 @@ __all__ = [
     "RecommendationProgressCallback",
     "run_recommendation",
     # --- Context utilities ---
+    "DebatePhase",
     "build_market_context",
     "classify_macd_signal",
     "extract_agent_predictions",

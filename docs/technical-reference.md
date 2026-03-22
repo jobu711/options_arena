@@ -110,14 +110,14 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `LogConfig` | model |  | 240 | Logging configuration — controls JSON mode for structured logging. |
 | `DataConfig` | model |  | 246 | Data layer configuration — controls database path. |
 | `DebateConfig` | model |  | 252 | AI debate configuration — controls LLM provider, timeouts, and fallback behavior. |
-| `IntelligenceConfig` | model |  | 394 | Intelligence data configuration — controls yfinance intelligence fetching. |
-| `AnalyticsConfig` | model |  | 423 | Analytics persistence configuration — controls outcome collection and batch sizing. |
-| `FinancialDatasetsConfig` | model |  | 466 | Financial Datasets AI configuration — controls optional fundamental data enrichment. |
-| `PositionSizingConfig` | model |  | 536 | Volatility-regime-aware position sizing configuration. |
-| `SpreadConfig` | model |  | 569 | Spread strategy configuration — controls multi-leg strategy construction. |
-| `OpenBBConfig` | model |  | 631 | CBOE chain provider configuration (legacy name retained for settings compat). |
-| `AgencyConfig` | model |  | 645 | AI agency desk system configuration. |
-| `AppSettings` | model |  | 700 | Root application settings — the sole BaseSettings subclass. |
+| `IntelligenceConfig` | model |  | 404 | Intelligence data configuration — controls yfinance intelligence fetching. |
+| `AnalyticsConfig` | model |  | 433 | Analytics persistence configuration — controls outcome collection and batch sizing. |
+| `FinancialDatasetsConfig` | model |  | 476 | Financial Datasets AI configuration — controls optional fundamental data enrichment. |
+| `PositionSizingConfig` | model |  | 546 | Volatility-regime-aware position sizing configuration. |
+| `SpreadConfig` | model |  | 579 | Spread strategy configuration — controls multi-leg strategy construction. |
+| `OpenBBConfig` | model |  | 641 | CBOE chain provider configuration (legacy name retained for settings compat). |
+| `AgencyConfig` | model |  | 655 | AI agency desk system configuration. |
+| `AppSettings` | model |  | 710 | Root application settings — the sole BaseSettings subclass. |
 
 #### models/constants.py
 
@@ -928,11 +928,13 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `should_debate` | func | `(ticker_score: TickerScore, config: DebateConfig) -> bool` | 39 | Return False if signal is too weak for meaningful AI debate. |
-| `should_recommend` | func | `(ticker_score: TickerScore, config: DebateConfig) -> bool` | 50 | Alias for should_debate() — used by the recommendation pipeline. |
-| `classify_macd_signal` | func | `(macd_value: float \| None) -> MacdSignal` | 55 | Classify a centered MACD value into a signal. |
-| `build_market_context` | func | `(ticker_score: TickerScore, quote: Quote, ticker_info: TickerInfo, contracts: list[OptionContract...` | 86 | Map scan pipeline output to ``MarketContext`` for agent consumption. |
-| `extract_agent_predictions` | func | `(debate_id: int, result: DebateResult, recommended_contract_id: int \| None = None) -> list[AgentP...` | 477 | Extract per-agent predictions from a DebateResult for accuracy tracking. |
+| `should_debate` | func | `(ticker_score: TickerScore, config: DebateConfig) -> bool` | 41 | Return False if signal is too weak for meaningful AI debate. |
+| `should_recommend` | func | `(ticker_score: TickerScore, config: DebateConfig) -> bool` | 52 | Return True if signal is strong enough for a recommendation. |
+| `classify_macd_signal` | func | `(macd_value: float \| None) -> MacdSignal` | 63 | Classify a centered MACD value into a signal. |
+| `build_market_context` | func | `(ticker_score: TickerScore, quote: Quote, ticker_info: TickerInfo, contracts: list[OptionContract...` | 94 | Map scan pipeline output to ``MarketContext`` for agent consumption. |
+| `extract_agent_predictions` | func | `(debate_id: int, result: DebateResult, recommended_contract_id: int \| None = None) -> list[AgentP...` | 485 | Extract per-agent predictions from a DebateResult for accuracy tracking. |
+| `DebatePhase` | StrEnum |  | 618 | Phases of the AI debate pipeline, reported via progress callback. |
+| `effective_batch_ticker_delay` | func | `(config: DebateConfig) -> float` | 641 | Return inter-ticker batch delay, auto-adjusted for Anthropic provider. |
 
 #### agents/_desk_deps.py
 
@@ -944,29 +946,22 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `strip_think_tags` | func | `(text: str) -> str` | 53 | Remove ``<think>...</think>`` blocks and any stray open/close tags. |
-| `PROMPT_RULES_APPENDIX` | const | `str` | 69 |  |
-| `build_cleaned_agent_response` | func | `(output: AgentResponse) -> AgentResponse` | 98 | Strip ``<think>`` tags from all text fields of an ``AgentResponse``. |
-| `build_cleaned_volatility_thesis` | func | `(output: VolatilityThesis) -> VolatilityThesis` | 124 | Strip ``<think>`` tags from all text fields of a ``VolatilityThesis``. |
-| `build_cleaned_flow_thesis` | func | `(output: FlowThesis) -> FlowThesis` | 154 | Strip ``<think>`` tags from all text fields of a ``FlowThesis``. |
-| `build_cleaned_contrarian_thesis` | func | `(output: ContrarianThesis) -> ContrarianThesis` | 182 | Strip ``<think>`` tags from all text fields of a ``ContrarianThesis``. |
-| `build_cleaned_risk_assessment` | func | `(output: RiskAssessment) -> RiskAssessment` | 208 | Strip ``<think>`` tags from all text fields of a ``RiskAssessment``. |
-| `build_cleaned_fundamental_thesis` | func | `(output: FundamentalThesis) -> FundamentalThesis` | 254 | Strip ``<think>`` tags from all text fields of a ``FundamentalThesis``. |
-| `build_cleaned_domain_assessment` | func | `(output: T) -> T` | 291 | Strip ``<think>`` tags from all string fields of a ``DomainAssessment`` subclass. |
-| `DebateDeps` | dataclass |  | 315 | Injected into every agent via RunContext[DebateDeps]. |
-| `DebateResult` | model | `frozen=True` | 337 | Complete debate output returned by run_debate(). |
-| `_render_optional` | func | `(label: str, value: float \| None, fmt: str = '.1f') -> str \| None` | 370 | Render a labeled value if non-None and finite, else None. |
-| `_render_regime_label` | func | `(label: str, value: float \| None, labels: dict[float, str]) -> str \| None` | 377 | Render a regime field as a human-readable label, with numeric fallback. |
-| `_format_dollars` | func | `(value: float) -> str` | 385 | Format a dollar amount as $X.XB or $X.XM, with sign for negatives. |
-| `_render_identity_block` | func | `(ctx: MarketContext) -> list[str]` | 397 | Shared identity fields for all domain-specific renderers. |
-| `render_trend_context` | func | `(ctx: MarketContext) -> str` | 435 | Render domain-specific context for the Trend agent. |
-| `render_volatility_context` | func | `(ctx: MarketContext) -> str` | 478 | Render domain-specific context for the Volatility agent. |
-| `render_flow_context` | func | `(ctx: MarketContext) -> str` | 601 | Render domain-specific context for the Flow agent. |
-| `render_fundamental_context` | func | `(ctx: MarketContext) -> str` | 648 | Render domain-specific context for the Fundamental agent. |
-| `render_macro_context` | func | `(ctx: MarketContext) -> str \| None` | 786 | Render macro-economic context for agent consumption. |
-| `_render_neural_context` | func | `(ctx: MarketContext) -> str` | 816 | Render neural trajectory probability context when available. |
-| `render_context_block` | func | `(ctx: MarketContext, constraint_warnings: str \| None = None) -> str` | 829 | Render MarketContext as flat key-value text for agent consumption. |
-| `compute_citation_density` | func | `(context_block: str, *texts: str) -> float` | 1139 | Compute fraction of context labels referenced in agent output text. |
+| `strip_think_tags` | func | `(text: str) -> str` | 52 | Remove ``<think>...</think>`` blocks and any stray open/close tags. |
+| `PROMPT_RULES_APPENDIX` | const | `str` | 68 |  |
+| `build_cleaned_domain_assessment` | func | `(output: T) -> T` | 97 | Strip ``<think>`` tags from all string fields of a ``DomainAssessment`` subclass. |
+| `DebateResult` | model | `frozen=True` | 120 | Complete debate output returned by run_debate(). |
+| `_render_optional` | func | `(label: str, value: float \| None, fmt: str = '.1f') -> str \| None` | 153 | Render a labeled value if non-None and finite, else None. |
+| `_render_regime_label` | func | `(label: str, value: float \| None, labels: dict[float, str]) -> str \| None` | 160 | Render a regime field as a human-readable label, with numeric fallback. |
+| `_format_dollars` | func | `(value: float) -> str` | 168 | Format a dollar amount as $X.XB or $X.XM, with sign for negatives. |
+| `_render_identity_block` | func | `(ctx: MarketContext) -> list[str]` | 180 | Shared identity fields for all domain-specific renderers. |
+| `render_trend_context` | func | `(ctx: MarketContext) -> str` | 218 | Render domain-specific context for the Trend agent. |
+| `render_volatility_context` | func | `(ctx: MarketContext) -> str` | 261 | Render domain-specific context for the Volatility agent. |
+| `render_flow_context` | func | `(ctx: MarketContext) -> str` | 384 | Render domain-specific context for the Flow agent. |
+| `render_fundamental_context` | func | `(ctx: MarketContext) -> str` | 431 | Render domain-specific context for the Fundamental agent. |
+| `render_macro_context` | func | `(ctx: MarketContext) -> str \| None` | 569 | Render macro-economic context for agent consumption. |
+| `_render_neural_context` | func | `(ctx: MarketContext) -> str` | 599 | Render neural trajectory probability context when available. |
+| `render_context_block` | func | `(ctx: MarketContext, constraint_warnings: str \| None = None) -> str` | 612 | Render MarketContext as flat key-value text for agent consumption. |
+| `compute_citation_density` | func | `(context_block: str, *texts: str) -> float` | 922 | Compute fraction of context labels referenced in agent output text. |
 
 #### agents/_routing.py
 
@@ -1020,13 +1015,6 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `check_contract_constraints` | func | `(contracts: list[OptionContract], filters: OptionsFilters) -> list[ContractConstraint]` | 45 | Check contracts against hard and soft constraint rules. |
 | `render_constraint_warnings` | func | `(violations: list[ContractConstraint]) -> str` | 149 | Render constraint violations as delimited text for agent prompt injection. |
 
-#### agents/contrarian_agent.py
-
-| Symbol | Kind | Signature | Line | Description |
-|--------|------|-----------|------|-------------|
-| `contrarian_dynamic_prompt` | async func | `(ctx: RunContext[DebateDeps]) -> str` | 37 | Return the contrarian system prompt, injecting all prior agent outputs. |
-| `clean_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: ContrarianThesis) -> ContrarianThesis` | 56 | Strip ``<think>`` tags from LLM output via shared helper. |
-
 #### agents/contrarian_desk.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -1034,26 +1022,12 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `run_contrarian_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 59 | Run a contrarian desk query with timeout and error handling. |
 | `run_contrarian_desk_recommendation` | async func | `(deps: DeskDeps, *, model: Model \| None = None, model_settings: ModelSettings \| None = None, conf...` | 166 | Run the contrarian recommendation agent — never raises. |
 
-#### agents/flow_agent.py
-
-| Symbol | Kind | Signature | Line | Description |
-|--------|------|-----------|------|-------------|
-| `flow_dynamic_prompt` | async func | `(ctx: RunContext[DebateDeps]) -> str` | 37 | Return the flow system prompt, injecting bull/bear arguments if available. |
-| `clean_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: FlowThesis) -> FlowThesis` | 48 | Strip ``<think>`` tags from LLM output via shared helper. |
-
 #### agents/flow_desk.py
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `run_flow_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 60 | Run a flow desk query with timeout and error handling. |
 | `run_flow_desk_recommendation` | async func | `(deps: DeskDeps, *, model: Model \| None = None, model_settings: ModelSettings \| None = None, conf...` | 150 | Run flow desk recommendation -- never raises. |
-
-#### agents/fundamental_agent.py
-
-| Symbol | Kind | Signature | Line | Description |
-|--------|------|-----------|------|-------------|
-| `fundamental_dynamic_prompt` | async func | `(ctx: RunContext[DebateDeps]) -> str` | 37 | Return the fundamental system prompt, injecting bull/bear arguments if available. |
-| `clean_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: FundamentalThesis) -> FundamentalThesis` | 53 | Strip ``<think>`` tags from LLM output via shared helper. |
 
 #### agents/fundamental_desk.py
 
@@ -1067,22 +1041,6 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `build_debate_model` | func | `(config: DebateConfig) -> Model` | 118 | Build a PydanticAI model for the configured LLM provider. |
-
-#### agents/orchestrator.py
-
-| Symbol | Kind | Signature | Line | Description |
-|--------|------|-----------|------|-------------|
-| `DebatePhase` | StrEnum |  | 115 | Phases of the AI debate pipeline, reported via progress callback. |
-| `compute_agreement_score` | func | `(agent_directions: dict[str, SignalDirection]) -> float` | 405 | Compute fraction of directional agents agreeing with the majority. |
-| `synthesize_verdict` | func | `(agent_outputs: dict[str, AgentResponse \| FlowThesis ..., risk_assessment: RiskAssessment \| None,...` | 594 | Algorithmic verdict synthesis from all agent outputs. |
-| `run_debate` | async func | `(ticker_score: TickerScore, contracts: list[OptionContract], quote: Quote, ticker_info: TickerInf...` | 747 | Run 6-agent debate protocol. Falls back to data-driven on failure — never raises. |
-| `effective_batch_ticker_delay` | func | `(config: DebateConfig) -> float` | 1007 | Return inter-ticker batch delay, auto-adjusted for Anthropic provider. |
-
-#### agents/prompts/contrarian_agent.py
-
-| Symbol | Kind | Signature | Line | Description |
-|--------|------|-----------|------|-------------|
-| `CONTRARIAN_SYSTEM_PROMPT` | const |  | 19 |  |
 
 #### agents/prompts/desk_contrarian.py
 
@@ -1126,18 +1084,6 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 |--------|------|-----------|------|-------------|
 | `DESK_VOLATILITY_PROMPT` | const | `str` | 7 |  |
 
-#### agents/prompts/flow_agent.py
-
-| Symbol | Kind | Signature | Line | Description |
-|--------|------|-----------|------|-------------|
-| `FLOW_SYSTEM_PROMPT` | const |  | 19 |  |
-
-#### agents/prompts/fundamental_agent.py
-
-| Symbol | Kind | Signature | Line | Description |
-|--------|------|-----------|------|-------------|
-| `FUNDAMENTAL_SYSTEM_PROMPT` | const |  | 23 |  |
-
 #### agents/prompts/recommend_contrarian.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -1174,29 +1120,11 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 |--------|------|-----------|------|-------------|
 | `RECOMMEND_VOLATILITY_PROMPT` | const |  | 17 |  |
 
-#### agents/prompts/risk.py
-
-| Symbol | Kind | Signature | Line | Description |
-|--------|------|-----------|------|-------------|
-| `RISK_SYSTEM_PROMPT` | const |  | 16 |  |
-
 #### agents/prompts/synthesis.py
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `SYNTHESIS_SYSTEM_PROMPT` | const |  | 16 |  |
-
-#### agents/prompts/trend_agent.py
-
-| Symbol | Kind | Signature | Line | Description |
-|--------|------|-----------|------|-------------|
-| `TREND_SYSTEM_PROMPT` | const |  | 19 |  |
-
-#### agents/prompts/volatility.py
-
-| Symbol | Kind | Signature | Line | Description |
-|--------|------|-----------|------|-------------|
-| `VOLATILITY_SYSTEM_PROMPT` | const |  | 20 |  |
 
 #### agents/recommendation_orchestrator.py
 
@@ -1209,13 +1137,6 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `run_research_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 54 | Run a research desk query with timeout and error handling. |
-
-#### agents/risk.py
-
-| Symbol | Kind | Signature | Line | Description |
-|--------|------|-----------|------|-------------|
-| `risk_dynamic_prompt` | async func | `(ctx: RunContext[DebateDeps]) -> str` | 36 | Return the expanded risk system prompt, injecting Phase 1 agent outputs. |
-| `clean_risk_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: RiskAssessment) -> RiskAssessment` | 95 | Strip ``<think>`` tags from RiskAssessment output via shared helper. |
 
 #### agents/risk_desk.py
 
@@ -1231,26 +1152,12 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `SynthesisDeps` | dataclass |  | 36 | Dependencies injected into the synthesis agent via RunContext. |
 | `run_synthesis` | async func | `(deps: SynthesisDeps, model: Model \| None, model_settings: ModelSettings \| None = None, timeout: ...` | 219 | Run synthesis agent -- never raises, returns fallback on failure. |
 
-#### agents/trend_agent.py
-
-| Symbol | Kind | Signature | Line | Description |
-|--------|------|-----------|------|-------------|
-| `trend_system_prompt` | func | `() -> str` | 36 | Return the trend agent system prompt. |
-| `clean_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: AgentResponse) -> AgentResponse` | 45 | Strip ``<think>`` tags from LLM output via shared helper. |
-
 #### agents/trend_desk.py
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `run_trend_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 60 | Run a trend desk query with timeout and error handling. |
 | `run_trend_desk_recommendation` | async func | `(deps: DeskDeps, *, model: Model \| None = None, model_settings: ModelSettings \| None = None, conf...` | 150 | Run trend desk recommendation -- never raises. |
-
-#### agents/volatility.py
-
-| Symbol | Kind | Signature | Line | Description |
-|--------|------|-----------|------|-------------|
-| `volatility_dynamic_prompt` | async func | `(ctx: RunContext[DebateDeps]) -> str` | 36 | Return the volatility system prompt, injecting bull/bear arguments if available. |
-| `clean_think_tags` | async func | `(ctx: RunContext[DebateDeps], output: VolatilityThesis) -> VolatilityThesis` | 47 | Strip ``<think>`` tags from LLM output via shared helper. |
 
 #### agents/volatility_desk.py
 
@@ -1334,8 +1241,9 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `export_debate_markdown` | func | `(result: DebateResult, spread: SpreadAnalysis \| None = None) -> str` | 330 | Convert a debate result into a Markdown report string. |
-| `export_debate_to_file` | func | `(result: DebateResult, path: Path, fmt: str = 'md', spread: SpreadAnalysis \| None = None) -> Path` | 458 | Write debate result to file as Markdown. |
+| `export_debate_markdown` | func | `(result: DebateResult, spread: SpreadAnalysis \| None = None) -> str` | 336 | Convert a debate result into a Markdown report string. |
+| `export_recommendation_markdown` | func | `(result: RecommendationResult) -> str` | 674 | Convert a recommendation result into a Markdown report string. |
+| `export_debate_to_file` | func | `(result: DebateResult, path: Path, fmt: str = 'md', spread: SpreadAnalysis \| None = None) -> Path` | 733 | Write debate result to file as Markdown. |
 
 ---
 
@@ -1412,10 +1320,10 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `start_debate` | async func | `(request: Request, body: DebateRequest, settings: AppSettings = ..., repo: Repository = Depends(g...` | 250 | Start a single-ticker debate in the background. |
-| `start_batch_debate` | async func | `(request: Request, body: BatchDebateRequest, lock: asyncio.Lock = ..., settings: AppSettings = .....` | 523 | Start a batch debate for top N tickers from a scan. |
-| `list_debates` | async func | `(request: Request, repo: Repository = Depends(get_repo), ticker: str \| None = Query(None), limit:...` | 585 | List past debate summaries. |
-| `get_debate` | async func | `(request: Request, debate_id: int, repo: Repository = Depends(get_repo)) -> DebateResultDetail` | 657 | Get full debate result by ID. |
+| `start_debate` | async func | `(request: Request, body: DebateRequest, settings: AppSettings = ..., repo: Repository = Depends(g...` | 288 | Start a single-ticker recommendation in the background. |
+| `start_batch_debate` | async func | `(request: Request, body: BatchDebateRequest, lock: asyncio.Lock = ..., settings: AppSettings = .....` | 426 | Start a batch recommendation for top N tickers from a scan. |
+| `list_debates` | async func | `(request: Request, repo: Repository = Depends(get_repo), ticker: str \| None = Query(None), limit:...` | 490 | List past debate summaries. |
+| `get_debate` | async func | `(request: Request, debate_id: int, repo: Repository = Depends(get_repo), settings: AppSettings = ...` | 607 | Get full debate/recommendation result by ID. |
 
 #### api/routes/export.py
 
@@ -1494,27 +1402,30 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `SpreadDetail` | model |  | 356 | Spread strategy recommendation with P&L analytics. |
 | `spread_detail_from_analysis` | func | `(analysis: SpreadAnalysis) -> SpreadDetail` | 377 | Convert a ``SpreadAnalysis`` model to an API ``SpreadDetail`` response. |
 | `DebateRequest` | model |  | 431 | Request body for ``POST /api/debate``. |
-| `DebateStarted` | model |  | 454 | Response for ``POST /api/debate`` (202). |
-| `DebateResultSummary` | model | `frozen=True` | 460 | Lightweight debate summary for list endpoint. |
-| `DebateResultDetail` | model |  | 491 | Full debate result returned by ``GET /api/debate/{id}``. |
-| `BatchDebateRequest` | model |  | 586 | Request body for ``POST /api/debate/batch``. |
-| `BatchDebateStarted` | model |  | 613 | Response for ``POST /api/debate/batch`` (202). |
-| `BatchTickerResult` | model |  | 620 | Per-ticker result summary in batch completion event. |
-| `ConfigResponse` | model |  | 645 | Read-only safe config values (no secrets). |
-| `CancelScanResponse` | model |  | 655 | Response for cancelling a scan. |
-| `IndustryGroupInfo` | model |  | 661 | Industry group with ticker count. |
-| `SectorHierarchy` | model |  | 668 | Sector with nested industry groups. |
-| `UniverseStats` | model |  | 676 | Universe statistics. |
-| `OperationStatus` | model |  | 689 | Response for ``GET /api/status`` — current system operation state. |
-| `OutcomeCollectionResult` | model |  | 697 | Response for ``POST /api/analytics/collect-outcomes`` (202). |
-| `MetadataStats` | model |  | 708 | Metadata coverage statistics. |
-| `IndexStarted` | model |  | 726 | Response for ``POST /api/universe/index`` (202). |
-| `PresetInfo` | model |  | 737 | Describes a scan preset for the frontend preset picker. |
-| `HeatmapTicker` | model | `frozen=True` | 751 | Single ticker entry for the S&P 500 heatmap treemap. |
-| `AgencyQueryRequest` | model |  | 799 | Request body for ``POST /api/agency/query``. |
-| `AgencyQueryStarted` | model |  | 826 | Response for submitted agency query. |
-| `LivenessResponse` | model |  | 833 | Basic liveness check response for ``GET /api/health``. |
-| `UpdateStatusResponse` | model |  | 839 | Response for status update operations (strategy rules, etc.). |
+| `DebateStarted` | model |  | 452 | Response for ``POST /api/debate`` (202). |
+| `DebateResultSummary` | model | `frozen=True` | 458 | Lightweight debate summary for list endpoint. |
+| `DebateResultDetail` | model |  | 489 | Full debate result returned by ``GET /api/debate/{id}``. |
+| `AssessmentSummary` | model | `frozen=True` | 584 | Lightweight assessment rendering per desk for recommendation response. |
+| `PositionRecommendationResponse` | model | `frozen=True` | 605 | Contract recommendation details for API response. |
+| `RecommendationResponse` | model |  | 654 | Full recommendation response for ``GET /api/debate/{id}`` (new data). |
+| `BatchDebateRequest` | model |  | 696 | Request body for ``POST /api/debate/batch``. |
+| `BatchDebateStarted` | model |  | 723 | Response for ``POST /api/debate/batch`` (202). |
+| `BatchTickerResult` | model |  | 730 | Per-ticker result summary in batch completion event. |
+| `ConfigResponse` | model |  | 755 | Read-only safe config values (no secrets). |
+| `CancelScanResponse` | model |  | 764 | Response for cancelling a scan. |
+| `IndustryGroupInfo` | model |  | 770 | Industry group with ticker count. |
+| `SectorHierarchy` | model |  | 777 | Sector with nested industry groups. |
+| `UniverseStats` | model |  | 785 | Universe statistics. |
+| `OperationStatus` | model |  | 798 | Response for ``GET /api/status`` — current system operation state. |
+| `OutcomeCollectionResult` | model |  | 806 | Response for ``POST /api/analytics/collect-outcomes`` (202). |
+| `MetadataStats` | model |  | 817 | Metadata coverage statistics. |
+| `IndexStarted` | model |  | 835 | Response for ``POST /api/universe/index`` (202). |
+| `PresetInfo` | model |  | 846 | Describes a scan preset for the frontend preset picker. |
+| `HeatmapTicker` | model | `frozen=True` | 860 | Single ticker entry for the S&P 500 heatmap treemap. |
+| `AgencyQueryRequest` | model |  | 908 | Request body for ``POST /api/agency/query``. |
+| `AgencyQueryStarted` | model |  | 935 | Response for submitted agency query. |
+| `LivenessResponse` | model |  | 942 | Basic liveness check response for ``GET /api/health``. |
+| `UpdateStatusResponse` | model |  | 948 | Response for status update operations (strategy rules, etc.). |
 
 #### api/ws.py
 
@@ -1526,14 +1437,17 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `DebateProgressBridge` | class |  | 101 | Bridges ``DebateProgressCallback`` to ``asyncio.Queue`` for WebSocket. |
 | `.complete` | method | `(debate_id: int) -> None` | 125 | Signal debate completion. |
 | `.error` | method | `(message: str) -> None` | 129 | Signal an error event. |
-| `BatchProgressBridge` | class |  | 172 | Bridges batch debate progress to ``asyncio.Queue`` for WebSocket. |
-| `.agent_bridge` | method | `(ticker: str) -> _BatchAgentBridge` | 186 | Create a per-ticker agent progress bridge. |
-| `.batch_progress` | method | `(ticker: str, index: int, total: int, status: str) -> None` | 190 | Signal per-ticker batch progress. |
-| `.batch_complete` | method | `(results: Sequence[object]) -> None` | 202 | Signal batch completion with results. |
-| `.error` | method | `(message: str) -> None` | 209 | Signal an error event. |
-| `ws_scan` | async func | `(websocket: WebSocket, scan_id: int) -> None` | 220 | Stream scan progress events to the client. |
-| `ws_debate` | async func | `(websocket: WebSocket, debate_id: int) -> None` | 269 | Stream debate progress events to the client. |
-| `ws_batch` | async func | `(websocket: WebSocket, batch_id: int) -> None` | 317 | Stream batch debate progress events to the client. |
+| `RecommendationProgressBridge` | class |  | 139 | Bridges ``RecommendationProgressCallback`` to ``asyncio.Queue`` for WebSocket. |
+| `.complete` | method | `(debate_id: int) -> None` | 168 | Signal recommendation completion. |
+| `.error` | method | `(message: str) -> None` | 172 | Signal an error event. |
+| `BatchProgressBridge` | class |  | 215 | Bridges batch debate progress to ``asyncio.Queue`` for WebSocket. |
+| `.agent_bridge` | method | `(ticker: str) -> _BatchAgentBridge` | 229 | Create a per-ticker agent progress bridge. |
+| `.batch_progress` | method | `(ticker: str, index: int, total: int, status: str) -> None` | 233 | Signal per-ticker batch progress. |
+| `.batch_complete` | method | `(results: Sequence[object]) -> None` | 245 | Signal batch completion with results. |
+| `.error` | method | `(message: str) -> None` | 252 | Signal an error event. |
+| `ws_scan` | async func | `(websocket: WebSocket, scan_id: int) -> None` | 263 | Stream scan progress events to the client. |
+| `ws_debate` | async func | `(websocket: WebSocket, debate_id: int) -> None` | 312 | Stream debate progress events to the client. |
+| `ws_batch` | async func | `(websocket: WebSocket, batch_id: int) -> None` | 360 | Stream batch debate progress events to the client. |
 
 ---
 
@@ -1571,15 +1485,15 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `scan` | func | `(preset: ScanPreset = ..., top_n: int = ..., min_score: float \| None = ..., sector: list[str] = ....` | 182 | Run the full scan pipeline: universe -> scoring -> options -> persist. |
-| `debate` | func | `(ticker: str \| None = ..., batch: bool = ..., batch_limit: int = ..., history: bool = ..., fallba...` | 461 | Run AI debate on a scored ticker. |
-| `health` | func | `() -> None` | 985 | Check external service availability. |
-| `refresh` | func | `() -> None` | 1028 | Force re-fetch CBOE universe and S&P 500 constituents. |
-| `list_tickers` | func | `(sector: str \| None = ..., preset: ScanPreset = ...) -> None` | 1054 | Display tickers matching filters. |
-| `sectors` | func | `() -> None` | 1107 | List all 11 GICS sectors with S&P 500 ticker counts. |
-| `stats` | func | `() -> None` | 1150 | Show universe size, sector breakdown, S&P 500 count. |
-| `index` | func | `(force: bool = ..., concurrency: int = ..., max_age: int = ...) -> None` | 1186 | Bulk-index CBOE tickers to build metadata cache. |
-| `serve` | func | `(host: str = ..., port: int = ..., no_open: bool = ..., reload: bool = ...) -> None` | 1364 | Start the FastAPI web server and serve the Vue SPA. |
+| `scan` | func | `(preset: ScanPreset = ..., top_n: int = ..., min_score: float \| None = ..., sector: list[str] = ....` | 179 | Run the full scan pipeline: universe -> scoring -> options -> persist. |
+| `debate` | func | `(ticker: str \| None = ..., batch: bool = ..., batch_limit: int = ..., history: bool = ..., fallba...` | 458 | Run AI debate on a scored ticker. |
+| `health` | func | `() -> None` | 941 | Check external service availability. |
+| `refresh` | func | `() -> None` | 984 | Force re-fetch CBOE universe and S&P 500 constituents. |
+| `list_tickers` | func | `(sector: str \| None = ..., preset: ScanPreset = ...) -> None` | 1010 | Display tickers matching filters. |
+| `sectors` | func | `() -> None` | 1063 | List all 11 GICS sectors with S&P 500 ticker counts. |
+| `stats` | func | `() -> None` | 1106 | Show universe size, sector breakdown, S&P 500 count. |
+| `index` | func | `(force: bool = ..., concurrency: int = ..., max_age: int = ...) -> None` | 1142 | Bulk-index CBOE tickers to build metadata cache. |
+| `serve` | func | `(host: str = ..., port: int = ..., no_open: bool = ..., reload: bool = ...) -> None` | 1320 | Start the FastAPI web server and serve the Vue SPA. |
 
 #### cli/outcomes.py
 
@@ -1607,17 +1521,19 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `render_health_table` | func | `(statuses: list[HealthStatus]) -> Table` | 66 | Render health check results as a Rich table. |
-| `render_scan_table` | func | `(result: ScanResult) -> Table` | 91 | Render scan results as a Rich table with trading-convention styling. |
-| `render_volatility_panel` | func | `(thesis: VolatilityThesis) -> Panel` | 178 | Render Volatility Agent output as a cyan-bordered Rich Panel. |
-| `render_flow_panel` | func | `(flow: FlowThesis) -> Panel` | 228 | Render Flow Agent output as a bright_magenta-bordered Rich Panel. |
-| `render_fundamental_panel` | func | `(fund: FundamentalThesis) -> Panel` | 270 | Render Fundamental Agent output as a bright_cyan-bordered Rich Panel. |
-| `render_risk_panel` | func | `(risk: RiskAssessment) -> Panel` | 317 | Render Risk Agent output as a bright_blue-bordered Rich Panel. |
-| `render_contrarian_panel` | func | `(contra: ContrarianThesis) -> Panel` | 369 | Render Contrarian Agent output as a yellow-bordered Rich Panel. |
-| `render_spread_panel` | func | `(console: Console, spread: SpreadAnalysis) -> None` | 411 | Render a spread strategy as a Rich table with P&L summary. |
-| `render_debate_panels` | func | `(console: Console, result: DebateResult) -> None` | 465 | Render debate result as Rich panels for the 6-agent protocol. |
-| `render_batch_summary_table` | func | `(results: list[tuple[str, DebateResult \| None, ...) -> Table` | 670 | Render batch debate results as a compact summary table. |
-| `render_debate_history` | func | `(debates: list[DebateRow], ticker: str) -> Table` | 725 | Render past debates as a Rich table. |
+| `render_health_table` | func | `(statuses: list[HealthStatus]) -> Table` | 71 | Render health check results as a Rich table. |
+| `render_scan_table` | func | `(result: ScanResult) -> Table` | 96 | Render scan results as a Rich table with trading-convention styling. |
+| `render_volatility_panel` | func | `(thesis: VolatilityThesis) -> Panel` | 183 | Render Volatility Agent output as a cyan-bordered Rich Panel. |
+| `render_flow_panel` | func | `(flow: FlowThesis) -> Panel` | 233 | Render Flow Agent output as a bright_magenta-bordered Rich Panel. |
+| `render_fundamental_panel` | func | `(fund: FundamentalThesis) -> Panel` | 275 | Render Fundamental Agent output as a bright_cyan-bordered Rich Panel. |
+| `render_risk_panel` | func | `(risk: RiskAssessment) -> Panel` | 322 | Render Risk Agent output as a bright_blue-bordered Rich Panel. |
+| `render_contrarian_panel` | func | `(contra: ContrarianThesis) -> Panel` | 374 | Render Contrarian Agent output as a yellow-bordered Rich Panel. |
+| `render_spread_panel` | func | `(console: Console, spread: SpreadAnalysis) -> None` | 416 | Render a spread strategy as a Rich table with P&L summary. |
+| `render_debate_panels` | func | `(console: Console, result: DebateResult) -> None` | 470 | Render debate result as Rich panels for the 6-agent protocol. |
+| `render_batch_summary_table` | func | `(results: list[tuple[str, DebateResult \| None, ...) -> Table` | 675 | Render batch debate results as a compact summary table. |
+| `render_debate_history` | func | `(debates: list[DebateRow], ticker: str) -> Table` | 730 | Render past debates as a Rich table. |
+| `render_recommendation` | func | `(console: Console, result: RecommendationResult) -> None` | 797 | Render a recommendation result as Rich panels for the unified agent pipeline. |
+| `render_recommendation_batch_summary` | func | `(results: list[tuple[str, RecommendationResult ...) -> Table` | 976 | Render batch recommendation results as a compact summary table. |
 
 ---
 
@@ -1903,7 +1819,7 @@ Each row maps a source file to its test files and approximate test count.
 | `models/analysis.py` | `tests/unit/models/test_analysis.py` | 50 |
 | `models/analytics.py` | `tests/unit/models/test_analytics.py` | 60 |
 | `models/audit.py` | — | 0 |
-| `models/config.py` | `tests/unit/models/test_config.py` | 112 |
+| `models/config.py` | `tests/unit/models/test_config.py` | 101 |
 | `models/constants.py` | — | 0 |
 | `models/correlation.py` | — | 0 |
 | `models/enums.py` | `tests/unit/models/test_enums.py` | 42 |
@@ -2009,19 +1925,14 @@ Each row maps a source file to its test files and approximate test count.
 |------------|--------------|-------|
 | `agents/_context.py` | — | 0 |
 | `agents/_desk_deps.py` | `tests/unit/agents/test_desk_deps.py` | 10 |
-| `agents/_parsing.py` | `tests/unit/agents/test_parsing.py` | 56 |
+| `agents/_parsing.py` | `tests/unit/agents/test_parsing.py` | 54 |
 | `agents/_routing.py` | `tests/unit/agents/test_routing.py` | 58 |
 | `agents/_toolsets.py` | `tests/unit/agents/test_toolsets.py` | 24 |
 | `agents/constraints.py` | `tests/unit/agents/test_constraints.py` | 18 |
-| `agents/contrarian_agent.py` | — | 0 |
 | `agents/contrarian_desk.py` | `tests/unit/agents/test_contrarian_desk.py` | 22 |
-| `agents/flow_agent.py` | — | 0 |
 | `agents/flow_desk.py` | `tests/unit/agents/test_flow_desk.py` | 20 |
-| `agents/fundamental_agent.py` | — | 0 |
 | `agents/fundamental_desk.py` | `tests/unit/agents/test_fundamental_desk.py` | 21 |
 | `agents/model_config.py` | `tests/unit/agents/test_model_config.py` | 19 |
-| `agents/orchestrator.py` | `tests/unit/agents/test_orchestrator.py` | 55 |
-| `agents/prompts/contrarian_agent.py` | — | 0 |
 | `agents/prompts/desk_contrarian.py` | — | 0 |
 | `agents/prompts/desk_flow.py` | — | 0 |
 | `agents/prompts/desk_fundamental.py` | — | 0 |
@@ -2029,26 +1940,18 @@ Each row maps a source file to its test files and approximate test count.
 | `agents/prompts/desk_risk.py` | — | 0 |
 | `agents/prompts/desk_trend.py` | — | 0 |
 | `agents/prompts/desk_volatility.py` | — | 0 |
-| `agents/prompts/flow_agent.py` | — | 0 |
-| `agents/prompts/fundamental_agent.py` | — | 0 |
 | `agents/prompts/recommend_contrarian.py` | — | 0 |
 | `agents/prompts/recommend_flow.py` | — | 0 |
 | `agents/prompts/recommend_fundamental.py` | — | 0 |
 | `agents/prompts/recommend_risk.py` | — | 0 |
 | `agents/prompts/recommend_trend.py` | — | 0 |
 | `agents/prompts/recommend_volatility.py` | — | 0 |
-| `agents/prompts/risk.py` | `tests/unit/agents/test_risk.py` | 13 |
 | `agents/prompts/synthesis.py` | — | 0 |
-| `agents/prompts/trend_agent.py` | — | 0 |
-| `agents/prompts/volatility.py` | `tests/unit/agents/test_volatility.py` | 11 |
 | `agents/recommendation_orchestrator.py` | `tests/unit/agents/test_recommendation_orchestrator.py` | 26 |
 | `agents/research_desk.py` | `tests/unit/agents/test_research_desk.py` | 21 |
-| `agents/risk.py` | `tests/unit/agents/test_risk.py` | 13 |
 | `agents/risk_desk.py` | `tests/unit/agents/test_risk_desk.py` | 23 |
 | `agents/synthesis_agent.py` | `tests/unit/agents/test_synthesis_agent.py` | 23 |
-| `agents/trend_agent.py` | — | 0 |
 | `agents/trend_desk.py` | `tests/unit/agents/test_trend_desk.py` | 20 |
-| `agents/volatility.py` | `tests/unit/agents/test_volatility.py` | 11 |
 | `agents/volatility_desk.py` | `tests/unit/agents/test_volatility_desk.py` | 11 |
 
 ### scan/
@@ -2110,15 +2013,15 @@ Each row maps a source file to its test files and approximate test count.
 | Module | Files | Public Symbols | Test Files | Tests |
 |--------|-------|----------------|------------|-------|
 | utils/ | 1 | 4 | 1 | 11 |
-| models/ | 23 | 162 | 14 | 631 |
+| models/ | 23 | 162 | 14 | 620 |
 | indicators/ | 17 | 73 | 16 | 504 |
 | pricing/ | 8 | 25 | 7 | 244 |
 | services/ | 13 | 112 | 12 | 360 |
 | scoring/ | 6 | 29 | 6 | 227 |
 | data/ | 11 | 78 | 2 | 46 |
-| agents/ | 43 | 120 | 18 | 475 |
+| agents/ | 30 | 92 | 15 | 370 |
 | scan/ | 8 | 23 | 3 | 82 |
-| reporting/ | 1 | 2 | 1 | 10 |
-| api/ | 16 | 114 | 13 | 150 |
-| cli/ | 7 | 45 | 3 | 27 |
-| **Total** | **154** | **787** | **96** | **2767** |
+| reporting/ | 1 | 3 | 1 | 10 |
+| api/ | 16 | 120 | 13 | 150 |
+| cli/ | 7 | 47 | 3 | 27 |
+| **Total** | **141** | **768** | **93** | **2651** |

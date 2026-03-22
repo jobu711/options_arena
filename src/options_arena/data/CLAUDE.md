@@ -22,19 +22,20 @@ tuples, no `sqlite3.Row` objects cross the package boundary.
 | `_analytics.py` | `AnalyticsMixin` — contracts, outcomes, normalization, backtesting, performance analytics | No (internal) |
 | `_metadata.py` | `MetadataMixin` — ticker metadata upsert/query, staleness, coverage stats | No (internal) |
 | `_spreads.py` | `SpreadsMixin` — spread recommendation persistence and reconstruction | No (internal) |
+| `_recommendation.py` | `RecommendationMixin` — `RecommendationResult` persistence and retrieval | No (internal) |
 | `__init__.py` | Re-exports `Database`, `DebateRow`, `Repository` with `__all__` | Yes |
 
 External:
 | File | Purpose |
 |------|---------|
-| `data/migrations/*.sql` | 33 sequential migration files (`001_initial.sql` through `033_spread_recommendations.sql`), project root |
+| `data/migrations/*.sql` | 37 sequential migration files (`001_initial.sql` through `037_recommendation_results.sql`), project root |
 
 ## Mixin Decomposition
 
-`Repository` is composed from five domain-specific mixins via multiple inheritance:
+`Repository` is composed from six domain-specific mixins via multiple inheritance:
 
 ```
-Repository(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin)
+Repository(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin, RecommendationMixin)
     └── all inherit from RepositoryBase (provides _db + commit())
 ```
 
@@ -45,6 +46,7 @@ Repository(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin)
 | `AnalyticsMixin` | Contracts + outcomes + backtesting | `save_recommended_contracts`, `get_contracts_for_scan`, `save_normalization_stats`, `save_contract_outcomes`, `get_contracts_needing_outcomes`, `get_win_rate_by_direction`, `get_equity_curve`, `get_drawdown_series`, `get_performance_summary`, `get_risk_adjusted_metrics`, + 10 more analytics queries |
 | `MetadataMixin` | Ticker classification cache | `upsert_ticker_metadata`, `upsert_ticker_metadata_batch`, `get_all_ticker_metadata`, `get_stale_tickers`, `get_metadata_coverage` |
 | `SpreadsMixin` | Spread recommendations | `save_spread_recommendation`, `get_spread_for_ticker` |
+| `RecommendationMixin` | Unified recommendations | `save_recommendation_result`, `get_recommendation_by_id`, `get_recent_recommendations` |
 
 All mixins follow the same patterns: parameterized queries, `aiosqlite.Row` for named access,
 optional `commit=False` for batched atomic persistence, typed model returns.

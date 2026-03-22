@@ -2,32 +2,37 @@
 
 ## Purpose
 
-Six-agent AI debate system for qualitative options analysis. Trend, Volatility, Flow,
-Fundamental, Risk, and Contrarian agents run in a 4-phase pipeline via PydanticAI,
-transforming quantitative scan results into human-readable reasoning. Multi-provider:
-**Groq** (default, Llama 3.3 70B) or **Anthropic** (Claude, `--provider anthropic`).
-Data-driven fallback when the LLM provider is unreachable ensures the tool always
-produces a verdict.
+AI agent system for options analysis. 7 desk agents + 1 synthesis agent + recommendation
+orchestrator, all via PydanticAI. Multi-provider: **Groq** (default, Llama 3.3 70B) or
+**Anthropic** (Claude, `--provider anthropic`). Data-driven fallback when the LLM provider
+is unreachable ensures the tool always produces a recommendation.
 
-Agents have **no knowledge of each other** — the orchestrator coordinates them.
-The orchestrator does **not fetch data** — the caller (CLI/API) provides all inputs.
+Agents have **no knowledge of each other** — the recommendation orchestrator coordinates them.
+Desk agents fetch data on-demand via tool wrappers; the synthesis agent receives pre-fetched
+domain assessments.
 
 ## Files
 
 | File | Purpose | Pattern |
 |------|---------|---------|
-| `CLAUDE.md` | Module conventions and rules | — |
+| `CLAUDE.md` | Module conventions and rules | -- |
+| `recommendation_orchestrator.py` | `run_recommendation()` — primary entry point. Runs 6 desk agents in parallel, collects `DomainAssessment`, runs synthesis agent, persists `RecommendationResult` | Coordinator |
+| `synthesis_agent.py` | `synthesis_agent: Agent[SynthesisDeps, PositionRecommendation]` — weighs 6 domain assessments, selects contract, defines entry/exit | PydanticAI Agent |
 | `model_config.py` | `build_debate_model()` — multi-provider model builder (Groq/Anthropic) | Config utility |
-| `_parsing.py` | `DebateDeps`, `DebateResult`, `strip_think_tags()`, `PROMPT_RULES_APPENDIX`, `build_cleaned_agent_response()`, `build_cleaned_risk_assessment()`, `render_context_block()` | Internal |
-| `constraints.py` | Deterministic contract constraint pre-check (hard/soft violations) before debate | Validation |
-| `risk.py` | `risk_agent` — portfolio risk, position sizing, hedging | PydanticAI Agent |
-| `trend_agent.py` | Trend agent — ADX, SuperTrend, SMA, RSI momentum analysis | PydanticAI Agent |
-| `volatility.py` | Volatility agent — IV rank/percentile, term structure, regime | PydanticAI Agent |
-| `flow_agent.py` | Flow agent — put/call ratio, volume, unusual activity | PydanticAI Agent |
-| `fundamental_agent.py` | Fundamental agent — earnings, dividends, sector valuation | PydanticAI Agent |
-| `contrarian_agent.py` | Contrarian agent — challenges consensus, finds blind spots | PydanticAI Agent |
-| `orchestrator.py` | `run_debate()` (6-agent), `build_market_context()`, fallback logic | Coordinator |
-| `__init__.py` | Re-exports: `run_debate`, `DebateResult`, `DebateDeps`, `build_market_context`, `build_debate_model`, `render_context_block`, `should_debate`, `synthesize_verdict`, `compute_agreement_score`, `compute_auto_tune_weights`, `auto_tune_weights`, `classify_macd_signal`, `effective_batch_ticker_delay`, `extract_agent_predictions`, `DebatePhase`, `DebateProgressCallback`, `AGENT_VOTE_WEIGHTS`, `VoteWeights`, render helpers, plus all 6 agent instances (`trend_agent`, `volatility_agent`, `flow_agent`, `fundamental_agent`, `contrarian_agent`, `risk_agent` — note: no bull/bear agents) | Standard |
+| `_context.py` | `build_market_context()`, `classify_macd_signal()`, `extract_agent_predictions()`, `DebatePhase` (backward compat), `effective_batch_ticker_delay()` | Context utilities |
+| `_parsing.py` | `DebateResult` (backward compat), `strip_think_tags()`, `PROMPT_RULES_APPENDIX`, `render_context_block()`, domain-specific renderers, `compute_citation_density()` | Internal |
+| `_desk_deps.py` | `DeskDeps` dataclass — shared deps for all desk agents | Internal |
+| `_toolsets.py` | Per-desk + synthesis toolset builders (`build_*_toolset()`), `TICKER_RE` validation, `isfinite()` guards | Internal |
+| `_routing.py` | `classify_intent()`, `route_query()` — intent classification + desk dispatch for agency | Internal |
+| `constraints.py` | Deterministic contract constraint pre-check (hard/soft violations) | Validation |
+| `trend_desk.py` | Trend desk agent — interactive queries + recommendation mode | PydanticAI Agent |
+| `volatility_desk.py` | Volatility desk agent — IV, term structure, regime | PydanticAI Agent |
+| `flow_desk.py` | Flow desk agent — put/call ratio, volume, unusual activity | PydanticAI Agent |
+| `fundamental_desk.py` | Fundamental desk agent — earnings, dividends, sector valuation | PydanticAI Agent |
+| `risk_desk.py` | Risk desk agent — portfolio risk, position sizing, hedging | PydanticAI Agent |
+| `contrarian_desk.py` | Contrarian desk agent — challenges consensus, finds blind spots | PydanticAI Agent |
+| `research_desk.py` | Research desk agent — cross-domain analysis | PydanticAI Agent |
+| `__init__.py` | Re-exports: `run_recommendation`, `RecommendationProgressCallback`, `build_market_context`, `classify_macd_signal`, `DebatePhase`, `build_debate_model`, `render_context_block`, desk agents, toolsets, routing, synthesis | Standard |
 
 ---
 
@@ -36,212 +41,94 @@ The orchestrator does **not fetch data** — the caller (CLI/API) provides all i
 | Rule | Detail |
 |------|--------|
 | **No inter-agent imports** | No agent module imports from any other agent module. Each agent is self-contained. |
-| **Orchestrator coordinates** | Only `orchestrator.py` imports from agent modules. Agents import from `_parsing.py` and `prompts/` only. |
-| **No data fetching (debate agents)** | Debate agents and orchestrator receive pre-fetched data. No `httpx`, `yfinance`, or service imports. Desk agent tool wrappers (`_toolsets.py`) MAY access `services/` and `indicators/` for on-demand computation — this is the desk pattern, distinct from debate agents. |
+| **Orchestrator coordinates** | `recommendation_orchestrator.py` runs desk agents, collects assessments, invokes synthesis. |
+| **Desk agents fetch on-demand** | Desk tool wrappers (`_toolsets.py`) access `services/` and `indicators/` for on-demand computation. |
 | **No pricing** | Agents never import from `pricing/`. All Greeks arrive pre-computed on `OptionContract.greeks`. |
-| **Typed boundaries** | `run_debate()` returns `DebateResult`. Agent outputs are `AgentResponse` or `TradeThesis`. No raw dicts. |
-| **Logging only** | `logging.getLogger(__name__)` — never `print()`. Log agent start/complete/fail, token usage, fallback. |
-| **Never-raises orchestrator** | `run_debate()` follows FRED-style pattern: debate failure returns fallback, never crashes caller. |
+| **Typed boundaries** | `run_recommendation()` returns `RecommendationResult`. No raw dicts. |
+| **Logging only** | `logging.getLogger(__name__)` — never `print()`. |
+| **Never-raises orchestrator** | `run_recommendation()` catches all exceptions, returns fallback with `confidence=0.2`. |
 
 ### Import Rules
 
 | Can Import From | Cannot Import From |
 |----------------|-------------------|
-| `models/` (MarketContext, AgentResponse, TradeThesis, OptionContract, enums, config) | `services/` (no data fetching) |
-| `agents/_parsing.py` (DebateDeps, DebateResult, constants) | `pricing/` (Greeks pre-computed) |
-| `data/repository` (persistence only, from orchestrator + desk tools) | `scoring/`, `scan/` |
-| `indicators/` (desk tool wrappers in `_toolsets.py` only — lazy imports) | — |
-| `pydantic_ai` (Agent, RunContext, ModelRetry, ModelSettings) | Other agent modules (agents don't know each other) |
-| `analysis/` (desk tool wrappers in `_toolsets.py` only — lazy imports) | — |
-| stdlib: `asyncio`, `logging`, `time`, `os`, `dataclasses` | `cli/`, `reporting/` |
+| `models/` (MarketContext, PositionRecommendation, DomainAssessment, enums, config) | `services/` (except via _toolsets.py desk tool wrappers) |
+| `agents/_parsing.py` (DebateResult, constants, renderers) | `pricing/` (Greeks pre-computed) |
+| `agents/_context.py` (build_market_context, DebatePhase) | `scoring/`, `scan/` |
+| `data/repository` (persistence, from orchestrator + desk tools) | Other agent modules (agents don't know each other) |
+| `indicators/` (desk tool wrappers in `_toolsets.py` only — lazy imports) | `cli/`, `reporting/` |
+| `analysis/` (desk tool wrappers in `_toolsets.py` only — lazy imports) | -- |
+| `pydantic_ai` (Agent, RunContext, ModelRetry, ModelSettings) | -- |
+| stdlib: `asyncio`, `logging`, `time`, `os`, `dataclasses` | -- |
 
 ---
 
-## PydanticAI Agent Pattern (Context7-Verified)
+## Recommendation Orchestrator Flow
 
-### Agent Definition
+```text
+1. Build MarketContext from TickerScore + Quote + TickerInfo + contracts
+2. Check completeness: <0.4 -> data-driven fallback; <0.6 -> warning; >=0.6 -> proceed
+3. Build model from DebateConfig (Groq or Anthropic)
+4. Phase 1 (parallel): Run 6 desk agents in recommendation mode
+   - Each produces a DomainAssessment (TrendAssessment, VolatilityAssessment, etc.)
+5. Phase 2: Synthesis agent receives all assessments + contracts
+   - Produces PositionRecommendation (contract, entry/exit, direction, confidence)
+6. Persist RecommendationResult to recommendation_results table
+7. Return RecommendationResult
+```
 
-Module-level `Agent` instances — no classes. `model=None` at init, actual model passed
-at `agent.run(model=...)` time.
+### Error Handling — Never-Raises Pattern
 
 ```python
-from dataclasses import dataclass
-from pydantic_ai import Agent, RunContext
-from pydantic_ai.settings import ModelSettings
+async def run_recommendation(
+    ticker_score: TickerScore,
+    contracts: list[OptionContract],
+    quote: Quote,
+    ticker_info: TickerInfo,
+    config: DebateConfig,
+    repository: Repository | None = None,
+    progress: RecommendationProgressCallback | None = None,
+    ...
+) -> RecommendationResult:
+    """Run recommendation pipeline. On any failure, return fallback — never raises."""
+```
 
-from options_arena.agents._parsing import DebateDeps
-from options_arena.models import AgentResponse
+---
 
-# Context7-verified: Agent.__init__ params:
-#   model (default None), output_type, retries (default 1),
-#   deps_type, instructions, model_settings, tools, end_strategy
-trend_agent: Agent[DebateDeps, AgentResponse] = Agent(
-    model=None,                         # overridden per-run
-    deps_type=DebateDeps,               # Context7-verified: type-checks deps in run()
-    output_type=AgentResponse,          # Context7-verified: enforces structured JSON output
-    retries=2,                          # Context7-verified: default is 1, override to 2
+## Desk Agent Pattern
+
+Each desk agent has two modes:
+- **Interactive**: `run_*_desk_query()` — plain text output for chat
+- **Recommendation**: `run_*_desk_recommendation()` — structured `DomainAssessment` output
+
+```python
+# Interactive mode
+trend_desk: Agent[DeskDeps, str] = Agent(model=None, deps_type=DeskDeps, output_type=str)
+
+# Recommendation mode
+trend_desk_recommend: Agent[DeskDeps, TrendAssessment] = Agent(
+    model=None, deps_type=DeskDeps, output_type=TrendAssessment
 )
-# model_settings passed at run time: agent.run(model_settings=settings)
-# Built by _build_model_settings() in orchestrator.py per provider
 ```
 
-### System Prompt Decorator (Context7-Verified)
+All desk agents: `@output_validator` using `strip_think_tags()` + post-run defense-in-depth.
+`asyncio.wait_for(agent.run(...), timeout=config.agent_timeout)` on every call.
+`UsageLimits(request_limit=N+2, tool_calls_limit=N)` for budget enforcement.
 
-Two forms — bare decorator for static prompts, `dynamic=True` for runtime-dependent prompts:
+---
 
-```python
-# Static prompt — evaluated once, cached for message_history reuse
-# Context7-verified: bare decorator, no-arg function returning str
-@trend_agent.system_prompt
-def trend_system_prompt() -> str:
-    return TREND_SYSTEM_PROMPT
-
-# Dynamic prompt — re-evaluated even when message_history is provided
-# Context7-verified: dynamic=True, takes RunContext[Deps], sync or async
-@risk_agent.system_prompt(dynamic=True)
-async def risk_dynamic_prompt(ctx: RunContext[DebateDeps]) -> str:
-    base = RISK_SYSTEM_PROMPT
-    if ctx.deps.all_prior_outputs:
-        base += f"\n\n<<<PRIOR_OUTPUTS>>>\n{ctx.deps.all_prior_outputs}\n<<<END>>>"
-    return base
-```
-
-**When to use `dynamic=True`**: Risk and Contrarian agents need runtime data (prior phase
-outputs) injected into their prompts. Phase 1 agents (Trend, Volatility, Flow, Fundamental)
-with no runtime injection use the bare decorator.
-
-### Output Validator — Strip Think Tags (Context7-Verified)
-
-Validates LLM output after Pydantic parsing. Instead of rejecting with `ModelRetry` (which
-costs 5-10 min per retry on CPU), we **strip** `<think>` tag content and return a cleaned
-frozen instance. Shared helpers in `_parsing.py` deduplicate the logic:
+## Synthesis Agent
 
 ```python
-from options_arena.agents._parsing import build_cleaned_agent_response
-
-@trend_agent.output_validator
-async def clean_think_tags(
-    ctx: RunContext[DebateDeps], output: AgentResponse,
-) -> AgentResponse:
-    """Strip ``<think>`` tags from LLM output via shared helper."""
-    return build_cleaned_agent_response(output)
-```
-
-For the risk agent (which outputs `RiskAssessment`), use `build_cleaned_risk_assessment()` instead.
-
-**All 6 agents** must have this validator. Llama 3.x sometimes emits `<think>` tags
-from its reasoning trace. `strip_think_tags()` falls back to the original text if stripping
-would produce an empty string.
-
-### Running an Agent (Context7-Verified)
-
-```python
-from pydantic_ai.usage import RunUsage
-
-model = build_debate_model(config)  # builds GroqModel
-deps = DebateDeps(context=market_ctx, ticker_score=score, contracts=contracts)
-
-# Context7-verified: agent.run() params — model override, deps injection
-result = await asyncio.wait_for(
-    trend_agent.run(
-        f"Analyze {market_ctx.ticker} trend and momentum signals.",
-        model=model,       # Context7-verified: overrides Agent.__init__ model
-        deps=deps,         # Context7-verified: type-checked against deps_type
-    ),
-    timeout=config.agent_timeout,  # 60s default for Groq
+synthesis_agent: Agent[SynthesisDeps, PositionRecommendation] = Agent(
+    model=None, deps_type=SynthesisDeps, output_type=PositionRecommendation
 )
-
-output: AgentResponse = result.output       # typed output
-usage: RunUsage = result.usage()            # Context7-verified: returns RunUsage
 ```
 
-### Agent Override for Testing (Context7-Verified)
-
-```python
-from pydantic_ai.models.test import TestModel
-
-# Context7-verified: agent.override() is a context manager
-# TestModel accepts custom_output_args for controlling structured output
-with trend_agent.override(model=TestModel()):
-    result = await trend_agent.run("test prompt", deps=deps)
-    assert isinstance(result.output, AgentResponse)
-```
-
----
-
-## Dependencies Dataclass
-
-```python
-@dataclass
-class DebateDeps:
-    """Injected into every agent via RunContext[DebateDeps]."""
-    context: MarketContext
-    ticker_score: TickerScore
-    contracts: list[OptionContract]
-    # Phase coordination fields (set by orchestrator between phases)
-    opponent_argument: str | None = None        # Bear receives bull's text
-    bear_counter_argument: str | None = None    # Bull rebuttal receives bear's text
-    bull_response: AgentResponse | None = None  # For risk agent
-    bear_response: AgentResponse | None = None  # For risk agent
-    bull_rebuttal: AgentResponse | None = None  # Optional rebuttal output
-    vol_response: AgentResponse | None = None   # Volatility Phase 1 output
-    trend_response: AgentResponse | None = None # Trend Phase 1 output
-    flow_thesis: FlowThesis | None = None       # Flow Phase 1 output
-    fundamental_thesis: FundamentalThesis | None = None  # Fundamental Phase 1 output
-    risk_assessment: RiskAssessment | None = None  # Risk Phase 2 output
-    all_prior_outputs: str | None = None        # Contrarian receives all prior text
-    spread_analysis: str | None = None
-    constraint_warnings: list[str] | None = None
-```
-
-**Why `@dataclass` not Pydantic**: PydanticAI's `deps_type` expects a plain type. Dataclass
-is the documented pattern (Context7-verified). No validation needed — deps are constructed
-by the orchestrator from already-validated models.
-
----
-
-## DebateResult
-
-```python
-class DebateResult(BaseModel):
-    """Complete debate output returned by run_debate()."""
-    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
-
-    context: MarketContext
-    bull_response: AgentResponse
-    bear_response: AgentResponse
-    bull_rebuttal: AgentResponse | None = None
-    vol_response: AgentResponse | None = None
-    flow_response: AgentResponse | None = None
-    fundamental_response: AgentResponse | None = None
-    risk_response: AgentResponse | None = None
-    contrarian_response: AgentResponse | None = None
-    thesis: TradeThesis
-    total_usage: RunUsage        # from pydantic_ai — accumulated via __add__
-    duration_ms: int
-    is_fallback: bool            # True if data-driven, False if AI-generated
-    citation_density: float | None = None  # fraction of context labels cited
-```
-
-**Pydantic BaseModel**: Enables FastAPI auto-serialization via `model_dump_json()`.
-`RunUsage` is a plain dataclass but Pydantic v2-compatible (uses `Field` annotations).
-`arbitrary_types_allowed=True` for defensive compatibility.
-Persistence serializes the Pydantic sub-models individually; stores
-`total_usage.input_tokens + total_usage.output_tokens` as `total_tokens` in DB.
-
----
-
-## RunUsage Accumulation (Context7-Verified)
-
-```python
-# Context7-verified: RunUsage fields (pydantic-ai >=1.62):
-#   requests: int, input_tokens: int, output_tokens: int,
-#   cache_write_tokens: int, cache_read_tokens: int,
-#   input_audio_tokens: int, cache_audio_read_tokens: int,
-#   output_audio_tokens: int, tool_calls: int, details: dict[str, int]
-# Context7-verified: RunUsage.__add__ sums all fields
-total_usage = trend_result.usage() + vol_result.usage() + risk_result.usage()
-```
+- **SynthesisDeps**: `context`, `assessments`, `contracts`, `ticker_score`, `learned_patterns`, `tuned_weights`, `tools_used`
+- **Output**: `PositionRecommendation` (21 fields, Decimal prices, frozen)
+- **Tools**: `build_synthesis_toolset()` — 2 lightweight tools (`synth_fetch_current_quote`, `synth_fetch_chain_summary`)
+- **Prompt**: `SYNTHESIS_SYSTEM_PROMPT` + `PROMPT_RULES_APPENDIX`. Dynamic injection of `<<<TUNED_WEIGHTS>>>` and `<<<LEARNED_PATTERNS>>>` blocks
 
 ---
 
@@ -250,10 +137,7 @@ total_usage = trend_result.usage() + vol_result.usage() + risk_result.usage()
 Multi-provider dispatch via `LLMProvider` enum in `model_config.py`.
 
 ```python
-from pydantic_ai.models import Model
-
 def build_debate_model(config: DebateConfig) -> Model:
-    """Build a PydanticAI model — dispatches on LLMProvider enum."""
     match config.provider:
         case LLMProvider.GROQ:
             return GroqModel(config.model, provider=GroqProvider(api_key=api_key))
@@ -261,289 +145,53 @@ def build_debate_model(config: DebateConfig) -> Model:
             return AnthropicModel(config.anthropic_model, provider=AnthropicProvider(api_key=api_key))
 ```
 
-API key priority: `config.api_key` > `GROQ_API_KEY`/`ANTHROPIC_API_KEY` env > ValueError.
-`model_settings` built per-provider: `_build_model_settings()` returns `ModelSettings`
-for Groq, `AnthropicModelSettings` (with extended thinking) for Anthropic.
+---
+
+## Backward Compatibility
+
+- `DebateResult` in `_parsing.py` — kept for backward-compat data parsing (existing debate records)
+- `DebatePhase` in `_context.py` — kept for WebSocket bridge compatibility
+- `extract_agent_predictions()` in `_context.py` — kept for outcome tracking of legacy debates
+- `build_market_context()` in `_context.py` — shared by recommendation orchestrator
 
 ---
 
-## Orchestrator Flow (6-Agent, 4-Phase)
-
-```text
-1. Build MarketContext from TickerScore + Quote + TickerInfo + contracts
-2. Check completeness: <0.4 → data-driven fallback; <0.6 → warning; >=0.6 → proceed
-3. Build GroqModel from DebateConfig
-4. Phase 1 (parallel): Trend + Volatility + [Flow + Fundamental if intelligence data]
-5. Phase 2: Risk agent (receives all Phase 1 outputs)
-6. Phase 3: Contrarian agent (challenges consensus from Phase 1+2)
-7. Phase 4: Algorithmic verdict synthesis (compute_agreement_score, synthesize_verdict)
-8. Compute citation density, accumulate RunUsage
-9. Persist to ai_theses (incl. debate_mode, citation_density, agent outputs)
-10. Return DebateResult
-```
-
-### Error Handling — Never-Raises Pattern
-
-```python
-async def run_debate(
-    ticker_score: TickerScore,
-    contracts: list[OptionContract],
-    quote: Quote,
-    ticker_info: TickerInfo,
-    config: DebateConfig,
-    repository: Repository | None = None,
-    progress: DebateProgressCallback | None = None,
-    dimensional_scores: DimensionalScores | None = None,
-    flow_output: FlowThesis | None = None,
-    fundamental_output: FundamentalThesis | None = None,
-    fundamentals: FundamentalSnapshot | None = None,
-    flow: UnusualFlowSnapshot | None = None,
-    sentiment: NewsSentimentSnapshot | None = None,
-    intelligence: IntelligencePackage | None = None,
-) -> DebateResult:
-    """Run 6-agent debate. On any failure, return data-driven fallback — never raises."""
-    try:
-        # ... build context, run 4-phase agent pipeline
-        pass
-    except Exception as e:
-        logger.warning("Debate failed (%s), using data-driven fallback", type(e).__name__)
-        return _build_fallback_result(context, ticker_score, contracts)
-```
-
-**Timeout strategy**:
-- Per-agent: `asyncio.wait_for(agent.run(...), timeout=config.agent_timeout)` (60s default)
-- Total debate: `asyncio.wait_for(_run_debate_pipeline(...), timeout=config.max_total_duration)` (1800s default)
-- Fallback computation: < 1s (no LLM, pure string formatting)
-
-### `build_market_context()` Mapping
-
-| Source | MarketContext Field |
-|--------|-------------------|
-| `TickerScore.ticker` | `ticker` |
-| `Quote.price` | `current_price` |
-| `TickerInfo.fifty_two_week_high/low` | `price_52w_high/low` |
-| `TickerScore.signals.rsi` | `rsi_14` |
-| `TickerInfo.sector` | `sector` |
-| `TickerInfo.dividend_yield` | `dividend_yield` |
-| First contract's `strike`, `greeks.delta` | `target_strike`, `target_delta` |
-| First contract's `dte` | `dte_target` |
-| `ExerciseStyle.AMERICAN` (always for US equity) | `exercise_style` |
-
-Fields like `iv_rank`, `iv_percentile`, `atm_iv_30d`, `put_call_ratio` are `float | None`
-on both `TickerScore.signals` and `MarketContext` — pass `None` through (not `0.0`).
-
----
-
-## Data-Driven Fallback
-
-When Groq is unreachable or any agent fails:
-
-1. **Synthesize `AgentResponse`** for bull and bear from quantitative data:
-   - `argument`: templated text citing composite score, direction, top indicators
-   - `confidence`: derived from composite score (`score / 100 * 0.3` cap)
-   - `key_points`: top 3 non-None indicator values with interpretation
-   - `contracts_referenced`: from recommended contracts (strikes, expirations)
-   - `model_used`: `"data-driven-fallback"`
-
-2. **Synthesize `TradeThesis`**:
-   - `confidence`: fixed at `config.fallback_confidence` (default 0.3)
-   - `summary`: `"Data-driven analysis (AI unavailable). Based on composite score X/100, DIRECTION signal."`
-   - `risk_assessment`: `"Limited analysis — AI debate unavailable. Exercise additional caution."`
-
-3. **`DebateResult.is_fallback = True`** — CLI renders a yellow warning banner.
-
----
-
-## Prompt Design Rules
-
-### Constants
-
-Each agent module has an inline string constant concatenated with shared appendices.
-
-```python
-TREND_SYSTEM_PROMPT = """You are a trend and momentum analyst. ...\n\n""" + PROMPT_RULES_APPENDIX
-```
-
-**Shared constants** (defined in `_parsing.py`, imported by each agent):
-- `PROMPT_RULES_APPENDIX` — confidence calibration scale, data anchors, citation rules.
-  Appended to all agent prompts.
-
-### Requirements
-
-- **Token budget**: system prompts < 1500 tokens, context block adds ~300-500 tokens
-- **Flat context**: `MarketContext` rendered as key-value text block, not JSON blob
-- **Options-specific**: agents MUST cite specific strikes, expirations, Greeks, indicators
-- **No hallucinated data**: agents can only reference data present in the context block
-- **Prior output injection**: Later-phase agents receive earlier outputs wrapped in delimiters
-  (e.g., `<<<PRIOR_OUTPUTS>>>`) to prevent instruction bleed from LLM-generated text
-
-### Context Rendering
-
-```python
-def render_context_block(ctx: MarketContext) -> str:
-    """Render MarketContext as flat key-value text for agent consumption."""
-    # Static fields always present, optional float|None fields rendered via
-    # _render_optional() which guards against None AND NaN/Inf.
-    lines = [f"TICKER: {ctx.ticker}", f"PRICE: ${ctx.current_price}", ...]
-    for label, value, fmt in [
-        ("IV RANK", ctx.iv_rank, ".1f"),       # float | None
-        ("IV PERCENTILE", ctx.iv_percentile, ".1f"),
-        ("PUT/CALL RATIO", ctx.put_call_ratio, ".2f"),
-        ("ATM IV 30D", ctx.atm_iv_30d, ".1f"),
-    ]:
-        rendered = _render_optional(label, value, fmt)
-        if rendered is not None:
-            lines.append(rendered)
-```
-
----
-
-## DebateConfig (Nested BaseModel on AppSettings)
-
-```python
-class DebateConfig(BaseModel):
-    """AI debate configuration — multi-provider (Groq default, Anthropic optional)."""
-    model: str = "llama-3.3-70b-versatile"
-    api_key: str | None = None
-    agent_timeout: float = 60.0            # per-agent timeout (seconds)
-    num_ctx: int = 8192                    # context window for prompt budgeting
-    retries: int = 2                       # PydanticAI retry count (0-5)
-    temperature: float = 0.3              # LLM temperature [0.0, 2.0]
-    fallback_confidence: float = 0.3       # data-driven fallback confidence cap
-    max_total_duration: float = 1800.0     # total debate timeout (seconds)
-    min_debate_score: float = 50.0         # minimum score threshold for debate
-```
-
-Added to `AppSettings` as `debate: DebateConfig = DebateConfig()`.
-Env overrides: `ARENA_DEBATE__API_KEY=gsk_...`, `ARENA_DEBATE__MODEL=...`,
-`ARENA_DEBATE__AGENT_TIMEOUT=90`. Alternatively set `GROQ_API_KEY` env var.
-
----
-
-## Testing Patterns (Context7-Verified)
+## Testing Patterns
 
 ### TestModel for Unit Tests
 
 ```python
-import pytest
 from pydantic_ai import models
 from pydantic_ai.models.test import TestModel
 
-# Context7-verified: prevents accidental real API calls in test suite
 models.ALLOW_MODEL_REQUESTS = False
 
 @pytest.mark.asyncio
-async def test_trend_agent_produces_valid_output() -> None:
-    deps = DebateDeps(context=mock_context, ticker_score=mock_score, contracts=[mock_contract])
-    # Context7-verified: agent.override(model=TestModel()) as context manager
-    with trend_agent.override(model=TestModel()):
-        result = await trend_agent.run("Analyze AAPL", deps=deps)
-    assert isinstance(result.output, AgentResponse)
-    assert 0.0 <= result.output.confidence <= 1.0
-```
-
-### TestModel with Custom Output
-
-```python
-# Context7-verified: custom_output_args controls structured output fields
-test_model = TestModel(custom_output_args={
-    "agent_name": "trend",
-    "direction": "bullish",
-    "confidence": 0.75,
-    "argument": "Strong momentum with RSI at 65.",
-    "key_points": ["RSI trending up", "Volume increasing"],
-    "risks_cited": ["Earnings next week"],
-    "contracts_referenced": ["AAPL 190C 2026-04-18"],
-    "model_used": "test",
-})
-with trend_agent.override(model=test_model):
-    result = await trend_agent.run("test", deps=deps)
-    assert result.output.confidence == 0.75
-```
-
-### Orchestrator Tests (Mock Agents)
-
-Test success path, partial failure, full failure, timeout, and `--fallback-only`:
-
-```python
-@pytest.mark.asyncio
-async def test_debate_fallback_on_connection_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Orchestrator returns fallback when LLM provider is unreachable."""
-    # Mock agent.run to raise httpx.ConnectError
-    result = await run_debate(score, contracts, quote, info, config)
-    assert result.is_fallback is True
-    assert result.thesis.confidence == 0.3
+async def test_desk_agent() -> None:
+    with trend_desk.override(model=TestModel()):
+        result = await trend_desk.run("Analyze AAPL", deps=deps)
+    assert isinstance(result.output, str)
 ```
 
 ### What NOT to Test
 
-- Don't test actual Groq responses in unit tests — use `TestModel`
-- Don't test prompt quality (subjective) — test prompt structure (version header, token count)
-- Don't test Rich rendering of debate panels — test the data transformations
+- Don't test actual Groq/Anthropic responses in unit tests — use `TestModel`
+- Don't test prompt quality (subjective) — test prompt structure
 - Don't assert on `RunUsage` exact token counts from `TestModel` — they're synthetic
-
-### Integration Tests (Require Groq API Key)
-
-```python
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_full_debate_with_groq() -> None:
-    """Full debate with real Groq. Skipped in CI."""
-    # ... requires GROQ_API_KEY env var
-```
-
-Mark with `@pytest.mark.integration`. Skipped by default; run with `pytest -m integration`.
 
 ---
 
 ## What Claude Gets Wrong — Agents-Specific (Fix These)
 
-1. **Inter-agent imports** — No agent module imports from any other agent module. Agents
-   are self-contained modules. Only the orchestrator imports from all agent modules.
-
-2. **Fetching data in agents** — Agents and orchestrator receive all data pre-fetched.
-   Never import `httpx`, `yfinance`, or service classes. The caller (CLI) provides
-   `TickerScore`, `Quote`, `TickerInfo`, and `OptionContract` list.
-
-3. **`async def` on Typer command** — The `debate` CLI command is sync + `asyncio.run()`.
-   Never use `async def` on a Typer command.
-
-4. **Forgetting `asyncio.wait_for` on agent.run()** — Every `agent.run()` call must be
-   wrapped in `asyncio.wait_for(timeout=config.agent_timeout)`. Always use `agent_timeout`.
-
-5. **`except Exception` without fallback** — The orchestrator must ALWAYS return a
-   `DebateResult`. On any error, return the data-driven fallback. Never let an exception
-   propagate to the CLI.
-
-6. **Using `Agent(model="groq:...")`** — Don't set model at init time. Use
-   `model=None` at init, pass `GroqModel` at `agent.run(model=...)` time. This enables
-   `TestModel` override in tests.
-
-7. **Forgetting the `<think>` tag validator** — All 6 agents need `@agent.output_validator`
-   that delegates to `build_cleaned_agent_response()` (most agents) or
-   `build_cleaned_risk_assessment()` (risk) from `_parsing.py`. Do NOT inline the stripping
-   logic — use the shared helpers. Do NOT use `ModelRetry` — stripping is far cheaper.
-
-8. **`markup=True` in Rich panels** — Agent argument text may contain `[brackets]` from
-   indicator names. Use `markup=False` or escape brackets in rendering code.
-
-9. **Returning `dict` from `build_market_context()`** — Must return `MarketContext` typed model.
-
-10. **Assuming yfinance provides Greeks** — `OptionContract.greeks` is populated by
-    `pricing/dispatch.py` during the scan pipeline. Agents receive contracts with Greeks
-    already computed. Never import from `pricing/`.
-
-11. **`Optional[X]` syntax** — Use `X | None`. Never import from `typing`. Python 3.13+.
-
-12. **Missing `models.ALLOW_MODEL_REQUESTS = False` in tests** — Without this guard, a test
-    misconfiguration could accidentally make real API calls. Set at module level in every
-    test file.
-
-13. **Parallel agent execution** — Phase 1 agents (Trend, Volatility, Flow, Fundamental)
-    run in parallel via `asyncio.gather`. Phase 2 (Risk) and Phase 3 (Contrarian) are sequential.
-
-14. **Forgetting `dynamic=True` on risk/contrarian prompts** — Risk and contrarian
-    prompts depend on runtime deps (prior phase outputs). Without `dynamic=True`,
-    the prompt is cached from the first run and won't include the injected arguments.
-
-15. **`print()` in agent code** — Use `logging.getLogger(__name__)`. Only `cli/` uses `print()`.
+1. **Inter-agent imports** — No agent module imports from any other agent module.
+2. **Fetching data in agents** — Desk agents access services ONLY through `_toolsets.py` tool wrappers, never direct imports.
+3. **`async def` on Typer command** — CLI commands are sync + `asyncio.run()`.
+4. **Forgetting `asyncio.wait_for` on agent.run()** — Every `agent.run()` call must be wrapped.
+5. **`except Exception` without fallback** — The orchestrator must ALWAYS return a result.
+6. **Using `Agent(model="groq:...")`** — Use `model=None` at init, pass model at `agent.run(model=...)` time.
+7. **Forgetting the `<think>` tag validator** — All agents need `@agent.output_validator`.
+8. **`markup=True` in Rich panels** — Use `markup=False` for agent output.
+9. **Assuming yfinance provides Greeks** — All Greeks from `pricing/dispatch.py`.
+10. **`Optional[X]` syntax** — Use `X | None`. Python 3.13+.
+11. **Missing `models.ALLOW_MODEL_REQUESTS = False` in tests**.
+12. **`print()` in agent code** — Use `logging.getLogger(__name__)`.

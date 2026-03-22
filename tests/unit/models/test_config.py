@@ -357,16 +357,12 @@ class TestDebateConfigPreScreening:
             (float("inf"), "min_recommendation_score must be finite"),
         ],
     )
-    def test_rejects_invalid_min_recommendation_score(
-        self, bad_value: float, match: str
-    ) -> None:
+    def test_rejects_invalid_min_recommendation_score(self, bad_value: float, match: str) -> None:
         """min_recommendation_score rejects out-of-range and non-finite values."""
         with pytest.raises(ValidationError, match=match):
             DebateConfig(min_recommendation_score=bad_value)
 
-    def test_env_override_min_recommendation_score(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_env_override_min_recommendation_score(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ARENA_DEBATE__MIN_RECOMMENDATION_SCORE env var overrides default."""
         monkeypatch.setenv("ARENA_DEBATE__MIN_RECOMMENDATION_SCORE", "50.0")
         settings = AppSettings()

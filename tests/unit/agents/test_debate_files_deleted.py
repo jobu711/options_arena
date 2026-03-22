@@ -133,7 +133,9 @@ class TestSharedUtilitiesPreserved:
     def test_debate_deps_removed(self) -> None:
         """DebateDeps must be removed (no remaining consumers)."""
         with pytest.raises(ImportError):
-            from options_arena.agents._parsing import DebateDeps  # type: ignore[attr-defined]  # noqa: F401
+            from options_arena.agents._parsing import (
+                DebateDeps,  # type: ignore[attr-defined]  # noqa: F401
+            )
 
 
 class TestDeskAgentsUnaffected:
