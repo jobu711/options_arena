@@ -146,6 +146,14 @@ async def _outcomes_collect_async(holding_days: int | None) -> None:
         console.print(table)
         console.print(f"\n[dim]{len(outcomes)} outcomes collected.[/dim]")
 
+        # Run confidence decay after successful outcome collection
+        try:
+            from options_arena.learning import run_confidence_decay  # noqa: PLC0415
+
+            await run_confidence_decay(repo)
+        except Exception:
+            logger.warning("Confidence decay failed after outcomes collection", exc_info=True)
+
     except Exception as exc:
         logger.exception("Outcome collection failed")
         err_console.print(
