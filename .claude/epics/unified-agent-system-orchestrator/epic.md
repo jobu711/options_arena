@@ -7,7 +7,7 @@ prd: .claude/prds/unified-agent-system.md
 parent_epic: unified-agent-system
 depends_on:
   - unified-agent-system-desk-recommend
-github: null
+github: https://github.com/jobu711/options_arena/issues/646
 ---
 
 # Epic: unified-agent-system-orchestrator
@@ -127,6 +127,23 @@ ALTER TABLE agent_predictions ADD COLUMN recommendation_protocol TEXT NOT NULL D
 - Migration 037 runs cleanly on existing DB
 - Old `orchestrator.py` still works (imports forwarded from `_context.py`)
 - `ruff check`, `pytest`, `mypy --strict` all pass
+
+## Tasks Created
+
+- [ ] #647 - Extract reusable functions from orchestrator.py to _context.py (parallel: true)
+- [ ] #648 - Create migration 037 — recommendation_results table (parallel: true)
+- [ ] #649 - Create RecommendationMixin and wire into Repository (parallel: false, depends: #648)
+- [ ] #650 - Create recommendation_orchestrator.py — run_recommendation() pipeline (parallel: false, depends: #647, #649)
+- [ ] #651 - Integration tests — orchestrator + persistence round-trip (parallel: false, depends: #650)
+
+Total tasks: 5
+Parallel tasks: 2 (Wave 1: #647+#648 simultaneous; Wave 2: #649; Wave 3: #650; Wave 4: #651)
+Sequential tasks: 3
+Estimated total effort: 17-24 hours
+
+## Test Coverage Plan
+Total test files planned: 5
+Total test cases planned: ~42
 
 ## Estimated Effort
 
