@@ -31,10 +31,19 @@ from options_arena.agents._toolsets import (
 )
 from options_arena.agents.contrarian_agent import contrarian_agent
 from options_arena.agents.contrarian_desk import contrarian_desk, run_contrarian_desk_query
+from options_arena.agents.contrarian_desk import (
+    run_contrarian_desk_recommendation as run_contrarian_desk_recommendation,
+)
 from options_arena.agents.flow_agent import flow_agent
 from options_arena.agents.flow_desk import flow_desk, run_flow_desk_query
+from options_arena.agents.flow_desk import (
+    run_flow_desk_recommendation as run_flow_desk_recommendation,
+)
 from options_arena.agents.fundamental_agent import fundamental_agent
 from options_arena.agents.fundamental_desk import fundamental_desk, run_fundamental_desk_query
+from options_arena.agents.fundamental_desk import (
+    run_fundamental_desk_recommendation as run_fundamental_desk_recommendation,
+)
 from options_arena.agents.model_config import build_debate_model
 from options_arena.agents.orchestrator import (
     AGENT_VOTE_WEIGHTS,
@@ -52,8 +61,15 @@ from options_arena.agents.orchestrator import (
     should_debate,
     synthesize_verdict,
 )
+from options_arena.agents.recommendation_orchestrator import (
+    RecommendationProgressCallback,
+    run_recommendation,
+)
 from options_arena.agents.research_desk import research_desk, run_research_desk_query
 from options_arena.agents.risk_desk import risk_desk, run_risk_desk_query
+from options_arena.agents.risk_desk import (
+    run_risk_desk_recommendation as run_risk_desk_recommendation,
+)
 from options_arena.agents.synthesis_agent import (
     SynthesisDeps,
     run_synthesis,
@@ -114,8 +130,14 @@ __all__ = [
     "render_volatility_context",
     "research_desk",
     "risk_desk",
+    "RecommendationProgressCallback",
     "run_contrarian_desk_query",
+    "run_contrarian_desk_recommendation",
+    "run_flow_desk_recommendation",
+    "run_fundamental_desk_recommendation",
+    "run_recommendation",
     "run_research_desk_query",
+    "run_risk_desk_recommendation",
     "run_debate",
     "run_flow_desk_query",
     "run_fundamental_desk_query",
