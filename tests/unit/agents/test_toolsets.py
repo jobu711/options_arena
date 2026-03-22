@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
@@ -177,7 +178,7 @@ class TestFetchQuoteTool:
     """Test the fetch_quote tool wrapper."""
 
     async def test_success_returns_formatted_string(self) -> None:
-        """Successful fetch returns string with Price: line."""
+        """Successful fetch returns ToolResponse JSON with Price: in data."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
         mock_quote = _make_mock_quote()
@@ -187,22 +188,25 @@ class TestFetchQuoteTool:
         deps.market_data.fetch_ticker_info = AsyncMock(return_value=mock_info)
 
         result = await fetch_quote(ctx, "AAPL")
+        parsed = json.loads(result)
 
-        assert "Price:" in result
-        assert "$185.50" in result
-        assert "Volume:" in result
-        assert "52W High:" in result
+        assert parsed["status"] == "success"
+        assert "Price:" in parsed["data"]
+        assert "$185.50" in parsed["data"]
+        assert "Volume:" in parsed["data"]
+        assert "52W High:" in parsed["data"]
 
     async def test_failure_returns_error_string(self) -> None:
-        """Service error returns Error: string."""
+        """Service error returns ToolResponse JSON with error status."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
         deps.market_data.fetch_quote = AsyncMock(side_effect=RuntimeError("connection failed"))
 
         result = await fetch_quote(ctx, "AAPL")
+        parsed = json.loads(result)
 
-        assert result.startswith("Error:")
-        assert "AAPL" in result
+        assert parsed["status"] == "error"
+        assert "AAPL" in parsed["summary"]
 
     async def test_appends_to_tools_used_on_success(self) -> None:
         """Tool name appended to tools_used on success."""
@@ -226,16 +230,18 @@ class TestFetchQuoteTool:
         assert "fetch_quote" in deps.tools_used
 
     async def test_52w_range_optional(self) -> None:
-        """If ticker_info fails, quote still returns without 52W data."""
+        """If ticker_info fails, quote returns warning status without 52W data."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
         deps.market_data.fetch_quote = AsyncMock(return_value=_make_mock_quote())
         deps.market_data.fetch_ticker_info = AsyncMock(side_effect=RuntimeError("no info"))
 
         result = await fetch_quote(ctx, "AAPL")
+        parsed = json.loads(result)
 
-        assert "Price:" in result
-        assert "52W High:" not in result
+        assert parsed["status"] == "warning"
+        assert "Price:" in parsed["data"]
+        assert "52W High:" not in parsed["data"]
 
 
 # ---------------------------------------------------------------------------
@@ -248,7 +254,7 @@ class TestFetchVolSurfaceSliceTool:
     """Test the fetch_vol_surface_slice tool wrapper."""
 
     async def test_success_returns_iv_data(self) -> None:
-        """Successful fetch returns IV data for contracts."""
+        """Successful fetch returns ToolResponse JSON with IV data."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
         future_exp = date.today() + timedelta(days=30)
@@ -261,31 +267,36 @@ class TestFetchVolSurfaceSliceTool:
         deps.options_data.fetch_chain = AsyncMock(return_value=contracts)
 
         result = await fetch_vol_surface_slice(ctx, "AAPL")
+        parsed = json.loads(result)
 
-        assert "Vol surface slice" in result
-        assert "IV=" in result
+        assert parsed["status"] in {"success", "warning"}
+        assert "Vol surface slice" in parsed["data"]
+        assert "IV=" in parsed["data"]
         assert "fetch_vol_surface_slice" in deps.tools_used
 
     async def test_no_expirations_returns_message(self) -> None:
-        """No expirations returns informative message."""
+        """No expirations returns ToolResponse JSON with error status."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
         deps.options_data.fetch_expirations = AsyncMock(return_value=[])
 
         result = await fetch_vol_surface_slice(ctx, "AAPL")
+        parsed = json.loads(result)
 
-        assert "No option expirations" in result
+        assert parsed["status"] == "error"
+        assert "No option expirations" in parsed["summary"]
         assert "fetch_vol_surface_slice" in deps.tools_used
 
     async def test_error_returns_error_string(self) -> None:
-        """Service error returns Error: string."""
+        """Service error returns ToolResponse JSON with error status."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
         deps.options_data.fetch_expirations = AsyncMock(side_effect=RuntimeError("fail"))
 
         result = await fetch_vol_surface_slice(ctx, "AAPL")
+        parsed = json.loads(result)
 
-        assert result.startswith("Error:")
+        assert parsed["status"] == "error"
         assert "fetch_vol_surface_slice" in deps.tools_used
 
 
@@ -311,21 +322,25 @@ class TestComputeIVForStrikeTool:
         deps.options_data.fetch_chain = AsyncMock(return_value=contracts)
 
         result = await compute_iv_for_strike(ctx, "AAPL", 191.0, future_exp.isoformat())
+        parsed = json.loads(result)
 
-        assert "190" in result
-        assert "IV:" in result
+        assert parsed["status"] == "success"
+        assert "190" in parsed["data"]
+        assert "IV:" in parsed["data"]
         assert "compute_iv_for_strike" in deps.tools_used
 
     async def test_no_contracts_returns_message(self) -> None:
-        """Empty chain returns informative message."""
+        """Empty chain returns ToolResponse JSON with error status."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
         future_exp = date.today() + timedelta(days=30)
         deps.options_data.fetch_chain = AsyncMock(return_value=[])
 
         result = await compute_iv_for_strike(ctx, "AAPL", 190.0, future_exp.isoformat())
+        parsed = json.loads(result)
 
-        assert "No contracts found" in result
+        assert parsed["status"] == "error"
+        assert "No contracts found" in parsed["summary"]
         assert "compute_iv_for_strike" in deps.tools_used
 
 
@@ -394,14 +409,15 @@ class TestFetchCorrelationTool:
     """Test the fetch_correlation tool wrapper."""
 
     async def test_error_returns_error_string(self) -> None:
-        """Service error returns Error: string."""
+        """Service error returns ToolResponse JSON with error status."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
         deps.market_data.fetch_ohlcv = AsyncMock(side_effect=RuntimeError("network error"))
 
         result = await fetch_correlation(ctx, "AAPL", ["MSFT"])
+        parsed = json.loads(result)
 
-        assert result.startswith("Error:")
+        assert parsed["status"] == "error"
         assert "fetch_correlation" in deps.tools_used
 
 
