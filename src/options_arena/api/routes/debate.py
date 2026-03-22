@@ -268,17 +268,7 @@ async def start_debate(
     """
     bridge = DebateProgressBridge()
 
-    # Apply per-request debate overrides
     effective_settings = settings
-    debate_overrides: dict[str, object] = {}
-    if body.enable_rebuttal is not None:
-        debate_overrides["enable_rebuttal"] = body.enable_rebuttal
-    if body.enable_volatility_agent is not None:
-        debate_overrides["enable_volatility_agent"] = body.enable_volatility_agent
-    if debate_overrides:
-        effective_settings = settings.model_copy(
-            update={"debate": settings.debate.model_copy(update=debate_overrides)}
-        )
 
     # Use a counter for debate IDs (initialized in lifespan)
     debate_id: int = next(request.app.state.debate_counter)

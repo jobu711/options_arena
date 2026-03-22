@@ -76,14 +76,14 @@ class TestShouldRecommend:
         assert should_recommend(score, config) is False
 
     def test_should_recommend_at_threshold_returns_true(self) -> None:
-        """Score exactly at min_debate_score returns True."""
-        config = DebateConfig(min_debate_score=50.0)
+        """Score exactly at min_recommendation_score returns True."""
+        config = DebateConfig(min_recommendation_score=50.0)
         score = make_ticker_score(composite_score=50.0, direction=SignalDirection.BULLISH)
         assert should_recommend(score, config) is True
 
     def test_should_recommend_below_threshold_returns_false(self) -> None:
-        """Score below min_debate_score returns False."""
-        config = DebateConfig(min_debate_score=50.0)
+        """Score below min_recommendation_score returns False."""
+        config = DebateConfig(min_recommendation_score=50.0)
         score = make_ticker_score(composite_score=49.9, direction=SignalDirection.BULLISH)
         assert should_recommend(score, config) is False
 

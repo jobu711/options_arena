@@ -40,16 +40,22 @@ def should_debate(ticker_score: TickerScore, config: DebateConfig) -> bool:
     """Return False if signal is too weak for meaningful AI debate.
 
     Pure function — no side effects, no I/O, no logging. Score comparison
-    uses ``<`` so that a score exactly at ``min_debate_score`` returns True.
+    uses ``<`` so that a score exactly at ``min_recommendation_score`` returns True.
     """
     if ticker_score.direction == SignalDirection.NEUTRAL:
         return False
-    return ticker_score.composite_score >= config.min_debate_score
+    return ticker_score.composite_score >= config.min_recommendation_score
 
 
 def should_recommend(ticker_score: TickerScore, config: DebateConfig) -> bool:
-    """Alias for should_debate() — used by the recommendation pipeline."""
-    return should_debate(ticker_score, config)
+    """Return True if signal is strong enough for a recommendation.
+
+    Reads ``config.min_recommendation_score`` — unified gate for both
+    debate and recommendation pipelines.
+    """
+    if ticker_score.direction == SignalDirection.NEUTRAL:
+        return False
+    return ticker_score.composite_score >= config.min_recommendation_score
 
 
 def classify_macd_signal(macd_value: float | None) -> MacdSignal:

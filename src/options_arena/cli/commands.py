@@ -818,7 +818,7 @@ async def _debate_single(
             update={
                 "agent_timeout": _FALLBACK_ONLY_TIMEOUT_SEC,
                 "max_total_duration": _FALLBACK_ONLY_TIMEOUT_SEC,
-                "min_debate_score": 0.0,
+                "min_recommendation_score": 0.0,
             }
         )
 

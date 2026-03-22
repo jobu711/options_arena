@@ -705,14 +705,14 @@ class TestShouldDebate:
         assert should_debate(score, DebateConfig()) is False
 
     def test_returns_false_for_score_below_threshold(self) -> None:
-        """Score below min_debate_score skips debate."""
+        """Score below min_recommendation_score skips debate."""
         score = TickerScore(
             ticker="X",
             composite_score=20.0,
             direction=SignalDirection.BULLISH,
             signals=IndicatorSignals(),
         )
-        config = DebateConfig(min_debate_score=30.0)
+        config = DebateConfig(min_recommendation_score=30.0)
         assert should_debate(score, config) is False
 
     def test_returns_true_for_bullish_above_threshold(self) -> None:
@@ -723,18 +723,18 @@ class TestShouldDebate:
             direction=SignalDirection.BULLISH,
             signals=IndicatorSignals(),
         )
-        config = DebateConfig(min_debate_score=30.0)
+        config = DebateConfig(min_recommendation_score=30.0)
         assert should_debate(score, config) is True
 
     def test_score_exactly_at_threshold_returns_true(self) -> None:
-        """Score exactly at min_debate_score is inclusive (>=, not >)."""
+        """Score exactly at min_recommendation_score is inclusive (>=, not >)."""
         score = TickerScore(
             ticker="X",
             composite_score=30.0,
             direction=SignalDirection.BEARISH,
             signals=IndicatorSignals(),
         )
-        config = DebateConfig(min_debate_score=30.0)
+        config = DebateConfig(min_recommendation_score=30.0)
         assert should_debate(score, config) is True
 
     def test_score_zero_non_neutral_returns_false(self) -> None:
@@ -799,7 +799,7 @@ class TestRunDebateScreening:
             contracts=[mock_option_contract],
             quote=mock_quote,
             ticker_info=mock_ticker_info,
-            config=DebateConfig(min_debate_score=30.0),
+            config=DebateConfig(min_recommendation_score=30.0),
         )
         assert result.is_fallback is True
         assert "15.0/100" in result.thesis.summary

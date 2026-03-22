@@ -341,48 +341,36 @@ class TestDebateConfigDefaults:
 
 
 class TestDebateConfigPreScreening:
-    """Tests for min_debate_score, enable_volatility_agent, enable_rebuttal."""
+    """Tests for min_recommendation_score (renamed from min_debate_score)."""
 
-    def test_min_debate_score_default(self) -> None:
-        """Default min_debate_score is 30.0."""
+    def test_min_recommendation_score_default(self) -> None:
+        """Default min_recommendation_score is 30.0."""
         config = DebateConfig()
-        assert config.min_debate_score == pytest.approx(30.0)
-
-    def test_enable_volatility_agent_default(self) -> None:
-        """Default enable_volatility_agent is False."""
-        config = DebateConfig()
-        assert config.enable_volatility_agent is False
-
-    def test_enable_rebuttal_default(self) -> None:
-        """Default enable_rebuttal is False."""
-        config = DebateConfig()
-        assert config.enable_rebuttal is False
+        assert config.min_recommendation_score == pytest.approx(30.0)
 
     @pytest.mark.parametrize(
         "bad_value,match",
         [
-            (101.0, "min_debate_score must be in"),
-            (-1.0, "min_debate_score must be in"),
-            (float("nan"), "min_debate_score must be finite"),
-            (float("inf"), "min_debate_score must be finite"),
+            (101.0, "min_recommendation_score must be in"),
+            (-1.0, "min_recommendation_score must be in"),
+            (float("nan"), "min_recommendation_score must be finite"),
+            (float("inf"), "min_recommendation_score must be finite"),
         ],
     )
-    def test_rejects_invalid_min_debate_score(self, bad_value: float, match: str) -> None:
-        """min_debate_score rejects out-of-range and non-finite values."""
+    def test_rejects_invalid_min_recommendation_score(
+        self, bad_value: float, match: str
+    ) -> None:
+        """min_recommendation_score rejects out-of-range and non-finite values."""
         with pytest.raises(ValidationError, match=match):
-            DebateConfig(min_debate_score=bad_value)
+            DebateConfig(min_recommendation_score=bad_value)
 
-    def test_env_override_min_debate_score(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """ARENA_DEBATE__MIN_DEBATE_SCORE env var overrides default."""
-        monkeypatch.setenv("ARENA_DEBATE__MIN_DEBATE_SCORE", "50.0")
+    def test_env_override_min_recommendation_score(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ARENA_DEBATE__MIN_RECOMMENDATION_SCORE env var overrides default."""
+        monkeypatch.setenv("ARENA_DEBATE__MIN_RECOMMENDATION_SCORE", "50.0")
         settings = AppSettings()
-        assert settings.debate.min_debate_score == pytest.approx(50.0)
-
-    def test_env_override_enable_volatility_agent(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """ARENA_DEBATE__ENABLE_VOLATILITY_AGENT env var overrides default."""
-        monkeypatch.setenv("ARENA_DEBATE__ENABLE_VOLATILITY_AGENT", "true")
-        settings = AppSettings()
-        assert settings.debate.enable_volatility_agent is True
+        assert settings.debate.min_recommendation_score == pytest.approx(50.0)
 
 
 # ---------------------------------------------------------------------------
@@ -396,11 +384,9 @@ class TestDebateConfigRateLimit:
     @pytest.mark.parametrize(
         "field,expected",
         [
-            ("phase1_batch_delay", 1.0),
             ("batch_ticker_delay", 5.0),
             ("rate_limit_retries", 3),
             ("rate_limit_max_wait", 30.0),
-            ("phase1_parallelism", 2),
         ],
     )
     def test_rate_limit_defaults(self, field: str, expected: object) -> None:
@@ -415,9 +401,6 @@ class TestDebateConfigRateLimit:
     @pytest.mark.parametrize(
         "field,bad_value,match",
         [
-            ("phase1_batch_delay", float("nan"), "delay must be finite"),
-            ("phase1_batch_delay", float("inf"), "delay must be finite"),
-            ("phase1_batch_delay", -1.0, "delay must be >= 0"),
             ("batch_ticker_delay", float("nan"), "delay must be finite"),
             ("batch_ticker_delay", -0.5, "delay must be >= 0"),
             ("rate_limit_retries", -1, "rate_limit_retries must be in"),
@@ -436,7 +419,6 @@ class TestDebateConfigRateLimit:
     @pytest.mark.parametrize(
         "field,value",
         [
-            ("phase1_batch_delay", 0.0),
             ("batch_ticker_delay", 0.0),
             ("rate_limit_retries", 0),
             ("rate_limit_retries", 10),
@@ -448,12 +430,6 @@ class TestDebateConfigRateLimit:
         assert getattr(config, field) == value
 
     # --- Env var overrides ---
-
-    def test_env_override_phase1_batch_delay(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """ARENA_DEBATE__PHASE1_BATCH_DELAY env var overrides default."""
-        monkeypatch.setenv("ARENA_DEBATE__PHASE1_BATCH_DELAY", "0.0")
-        settings = AppSettings()
-        assert settings.debate.phase1_batch_delay == pytest.approx(0.0)
 
     def test_env_override_batch_ticker_delay(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ARENA_DEBATE__BATCH_TICKER_DELAY env var overrides default."""
@@ -472,12 +448,6 @@ class TestDebateConfigRateLimit:
         monkeypatch.setenv("ARENA_DEBATE__RATE_LIMIT_MAX_WAIT", "60.0")
         settings = AppSettings()
         assert settings.debate.rate_limit_max_wait == pytest.approx(60.0)
-
-    def test_env_override_phase1_parallelism(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """ARENA_DEBATE__PHASE1_PARALLELISM env var overrides default to paid tier value."""
-        monkeypatch.setenv("ARENA_DEBATE__PHASE1_PARALLELISM", "4")
-        settings = AppSettings()
-        assert settings.debate.phase1_parallelism == 4
 
 
 # ---------------------------------------------------------------------------

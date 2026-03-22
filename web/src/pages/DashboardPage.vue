@@ -454,12 +454,8 @@ onUnmounted(() => {
           <span class="config-value">{{ config.scan_preset_default }}</span>
         </div>
         <div class="config-item">
-          <span class="config-label">Rebuttal</span>
-          <span class="config-value">{{ config.enable_rebuttal ? 'Enabled' : 'Disabled' }}</span>
-        </div>
-        <div class="config-item">
-          <span class="config-label">Volatility Agent</span>
-          <span class="config-value">{{ config.enable_volatility_agent ? 'Enabled' : 'Disabled' }}</span>
+          <span class="config-label">Protocol</span>
+          <span class="config-value">{{ config.recommendation_protocol }}</span>
         </div>
       </div>
     </section>

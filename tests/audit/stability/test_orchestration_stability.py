@@ -273,10 +273,10 @@ class TestShouldDebateStability:
 
     @pytest.mark.audit_stability
     def test_should_debate_below_threshold_false(self) -> None:
-        """Score below min_debate_score returns False."""
+        """Score below min_recommendation_score returns False."""
         from options_arena.models import DebateConfig
 
-        config = DebateConfig(min_debate_score=50.0)
+        config = DebateConfig(min_recommendation_score=50.0)
         ticker_score = TickerScore(
             ticker="TEST",
             composite_score=30.0,

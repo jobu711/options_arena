@@ -329,14 +329,8 @@ async def _persist_result(
         # Compute debate_mode for A/B logging
         if result.is_fallback:
             debate_mode = "fallback"
-        elif config.enable_rebuttal and config.enable_volatility_agent:
-            debate_mode = "full"
-        elif config.enable_rebuttal:
-            debate_mode = "rebuttal-only"
-        elif config.enable_volatility_agent:
-            debate_mode = "vol-only"
         else:
-            debate_mode = "base"
+            debate_mode = "unified"
 
         debate_id = await repository.save_debate(
             scan_run_id=ticker_score.scan_run_id,
@@ -965,43 +959,8 @@ _ANTHROPIC_THINKING_TIMEOUT_MULTIPLIER = 3.0
 # Groq defaults (from DebateConfig) are too aggressive for Anthropic Tier 1 limits
 # (50 RPM, 30K input/min, 8K output/min).  Helpers below substitute safe values only
 # when the user hasn't explicitly overridden via env vars.
-_GROQ_DEFAULT_PHASE1_PARALLELISM = 2
-_GROQ_DEFAULT_PHASE1_BATCH_DELAY = 1.0
 _GROQ_DEFAULT_BATCH_TICKER_DELAY = 5.0
-_ANTHROPIC_SAFE_PHASE1_PARALLELISM = 1
-_ANTHROPIC_SAFE_PHASE1_BATCH_DELAY = 3.0
 _ANTHROPIC_SAFE_BATCH_TICKER_DELAY = 30.0
-
-
-def _effective_phase1_settings(config: DebateConfig) -> tuple[int, float]:
-    """Return ``(parallelism, batch_delay)`` auto-adjusted for Anthropic provider.
-
-    When the provider is Anthropic and the user has NOT overridden the Groq-tuned
-    defaults (via ``ARENA_DEBATE__PHASE1_PARALLELISM`` etc.), substitute Anthropic-safe
-    values that respect the 8K output-tokens/min rate limit.
-    """
-    parallelism = config.phase1_parallelism
-    batch_delay = config.phase1_batch_delay
-
-    if config.provider != LLMProvider.ANTHROPIC:
-        return parallelism, batch_delay
-
-    adjusted = False
-    if parallelism == _GROQ_DEFAULT_PHASE1_PARALLELISM:
-        parallelism = _ANTHROPIC_SAFE_PHASE1_PARALLELISM
-        adjusted = True
-    if batch_delay == _GROQ_DEFAULT_PHASE1_BATCH_DELAY:
-        batch_delay = _ANTHROPIC_SAFE_PHASE1_BATCH_DELAY
-        adjusted = True
-
-    if adjusted:
-        logger.info(
-            "Anthropic provider: phase1_parallelism=%d, phase1_batch_delay=%.1fs "
-            "(auto-adjusted for rate limits)",
-            parallelism,
-            batch_delay,
-        )
-    return parallelism, batch_delay
 
 
 def effective_batch_ticker_delay(config: DebateConfig) -> float:
@@ -1172,25 +1131,11 @@ async def _run_debate_pipeline(
         if "fundamental" in phase1_labels:
             progress(DebatePhase.FUNDAMENTAL, "running", None)
 
-    # Respect phase1_parallelism — batch if needed (auto-adjusted for Anthropic)
-    parallelism, batch_delay = _effective_phase1_settings(config)
-    phase1_results: list[object | BaseException]
-    if parallelism >= len(phase1_coros):
-        phase1_results = list(await asyncio.gather(*phase1_coros, return_exceptions=True))
-    else:
-        # Run in batches with optional inter-batch delay for rate-limit avoidance
-        phase1_results = []
-        for i in range(0, len(phase1_coros), parallelism):
-            if i > 0 and batch_delay > 0:
-                logger.debug(
-                    "Phase 1 inter-batch delay: %.1fs before batch %d",
-                    batch_delay,
-                    i // parallelism + 1,
-                )
-                await asyncio.sleep(batch_delay)
-            batch = phase1_coros[i : i + parallelism]
-            batch_results = await asyncio.gather(*batch, return_exceptions=True)
-            phase1_results.extend(batch_results)
+    # Run all Phase 1 agents in parallel (desk_parallelism gates concurrency
+    # at the recommendation layer; the debate layer runs all agents concurrently).
+    phase1_results: list[object | BaseException] = list(
+        await asyncio.gather(*phase1_coros, return_exceptions=True)
+    )
 
     # Extract Phase 1 outputs
     trend_output: AgentResponse | None = None

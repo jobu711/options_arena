@@ -433,8 +433,6 @@ class DebateRequest(BaseModel):
 
     ticker: str = Field(min_length=1, max_length=10)
     scan_id: int | None = None
-    enable_rebuttal: bool | None = None
-    enable_volatility_agent: bool | None = None
 
     @field_validator("ticker", mode="before")
     @classmethod
@@ -647,9 +645,8 @@ class ConfigResponse(BaseModel):
 
     groq_api_key_set: bool
     scan_preset_default: str
-    enable_rebuttal: bool
-    enable_volatility_agent: bool
     agent_timeout: float
+    recommendation_protocol: str
 
 
 class CancelScanResponse(BaseModel):

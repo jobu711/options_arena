@@ -25,7 +25,6 @@ async def get_config(
     return ConfigResponse(
         groq_api_key_set=has_api_key,
         scan_preset_default="sp500",
-        enable_rebuttal=settings.debate.enable_rebuttal,
-        enable_volatility_agent=settings.debate.enable_volatility_agent,
         agent_timeout=settings.debate.agent_timeout,
+        recommendation_protocol=settings.debate.recommendation_protocol,
     )
