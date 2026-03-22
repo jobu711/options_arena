@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
@@ -115,34 +116,37 @@ class TestCorrelationMatrixTool:
         assert "compute_correlation_matrix" in deps.tools_used
 
     async def test_invalid_ticker_returns_error(self) -> None:
-        """Invalid primary ticker returns error string."""
+        """Invalid primary ticker returns error ToolResponse JSON."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
 
         result = await compute_correlation_matrix_tool(ctx, "!!BAD!!", ["MSFT"])
+        parsed = json.loads(result)
 
-        assert result.startswith("Error:")
+        assert parsed["status"] == "error"
         assert "compute_correlation_matrix" in deps.tools_used
 
     async def test_invalid_comparison_ticker_returns_error(self) -> None:
-        """Invalid comparison ticker returns error string."""
+        """Invalid comparison ticker returns error ToolResponse JSON."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
 
         result = await compute_correlation_matrix_tool(ctx, "AAPL", ["!!BAD!!"])
+        parsed = json.loads(result)
 
-        assert result.startswith("Error:")
+        assert parsed["status"] == "error"
         assert "compute_correlation_matrix" in deps.tools_used
 
     async def test_service_failure_returns_error(self) -> None:
-        """Service error returns Error: string."""
+        """Service error returns error ToolResponse JSON."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
         deps.market_data.fetch_ohlcv = AsyncMock(side_effect=RuntimeError("network error"))
 
         result = await compute_correlation_matrix_tool(ctx, "AAPL", ["MSFT"])
+        parsed = json.loads(result)
 
-        assert result.startswith("Error:")
+        assert parsed["status"] == "error"
         assert "compute_correlation_matrix" in deps.tools_used
 
     async def test_caps_comparison_tickers(self) -> None:
@@ -179,8 +183,9 @@ class TestCorrelationMatrixTool:
         deps.market_data.fetch_ohlcv = AsyncMock(side_effect=_mock_fetch)
 
         result = await compute_correlation_matrix_tool(ctx, "AAPL", ["MSFT"])
+        parsed = json.loads(result)
 
-        assert "Error:" in result
+        assert parsed["status"] == "error"
         assert "compute_correlation_matrix" in deps.tools_used
 
 
@@ -246,24 +251,26 @@ class TestRiskAdjustedMetricsTool:
         assert "compute_risk_adjusted_metrics" in deps.tools_used
 
     async def test_invalid_ticker_returns_error(self) -> None:
-        """Invalid ticker returns error string."""
+        """Invalid ticker returns error ToolResponse JSON."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
 
         result = await compute_risk_adjusted_metrics_tool(ctx, "!!BAD!!")
+        parsed = json.loads(result)
 
-        assert result.startswith("Error:")
+        assert parsed["status"] == "error"
         assert "compute_risk_adjusted_metrics" in deps.tools_used
 
     async def test_service_failure_returns_error(self) -> None:
-        """Service error returns Error: string."""
+        """Service error returns error ToolResponse JSON."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
         deps.repo.get_risk_adjusted_metrics = AsyncMock(side_effect=RuntimeError("db error"))
 
         result = await compute_risk_adjusted_metrics_tool(ctx, "AAPL")
+        parsed = json.loads(result)
 
-        assert result.startswith("Error:")
+        assert parsed["status"] == "error"
         assert "compute_risk_adjusted_metrics" in deps.tools_used
 
     async def test_fred_unavailable_uses_default_rate(self) -> None:

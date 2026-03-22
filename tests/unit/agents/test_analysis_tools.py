@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
@@ -84,17 +85,18 @@ class TestCompositeValuationTool:
         assert "compute_composite_valuation" in deps.tools_used
 
     async def test_invalid_ticker_returns_error(self) -> None:
-        """Invalid ticker returns error string."""
+        """Invalid ticker returns error ToolResponse JSON."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
 
         result = await compute_composite_valuation_tool(ctx, "!!INVALID!!")
+        parsed = json.loads(result)
 
-        assert result.startswith("Error:")
+        assert parsed["status"] == "error"
         assert "compute_composite_valuation" in deps.tools_used
 
     async def test_service_failure_returns_error(self) -> None:
-        """Service error returns Error: string."""
+        """Service error returns error ToolResponse JSON."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
         deps.market_data.fetch_ticker_info = AsyncMock(
@@ -102,9 +104,10 @@ class TestCompositeValuationTool:
         )
 
         result = await compute_composite_valuation_tool(ctx, "AAPL")
+        parsed = json.loads(result)
 
-        assert result.startswith("Error:")
-        assert "AAPL" in result
+        assert parsed["status"] == "error"
+        assert "AAPL" in parsed["summary"]
         assert "compute_composite_valuation" in deps.tools_used
 
     async def test_fred_unavailable_uses_default_rate(self) -> None:
@@ -190,13 +193,14 @@ class TestPositionSizeTool:
         assert "compute_position_size" in deps.tools_used
 
     async def test_invalid_ticker_returns_error(self) -> None:
-        """Invalid ticker returns error string."""
+        """Invalid ticker returns error ToolResponse JSON."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
 
         result = await compute_position_size_tool(ctx, "!!INVALID!!", 0.25)
+        parsed = json.loads(result)
 
-        assert result.startswith("Error:")
+        assert parsed["status"] == "error"
         assert "compute_position_size" in deps.tools_used
 
     async def test_nan_iv_returns_error(self) -> None:
