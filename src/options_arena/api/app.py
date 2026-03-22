@@ -243,7 +243,11 @@ def create_app() -> FastAPI:
                     content={"detail": "Non-loopback access denied"},
                 )
         except ValueError:
-            pass  # Unparseable IP — allow (testclient uses "testclient")
+            if client_host != "testclient":
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Non-loopback access denied"},
+                )
         return await call_next(request)
 
     # CORS — allow Vite dev server (loopback only)
@@ -266,6 +270,7 @@ def create_app() -> FastAPI:
     from options_arena.api.routes.backtest import router as backtest_router  # noqa: PLC0415
     from options_arena.api.routes.config import router as config_router  # noqa: PLC0415
     from options_arena.api.routes.debate import router as debate_router  # noqa: PLC0415
+    from options_arena.api.routes.eval import router as eval_router  # noqa: PLC0415
     from options_arena.api.routes.export import router as export_router  # noqa: PLC0415
     from options_arena.api.routes.health import router as health_router  # noqa: PLC0415
     from options_arena.api.routes.learning import router as learning_router  # noqa: PLC0415
@@ -280,6 +285,7 @@ def create_app() -> FastAPI:
     app.include_router(market_router)
     app.include_router(scan_router)
     app.include_router(debate_router)
+    app.include_router(eval_router)
     app.include_router(export_router)
     app.include_router(universe_router)
     app.include_router(config_router)

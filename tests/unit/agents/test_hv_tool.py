@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
@@ -138,13 +139,14 @@ class TestHvYangZhangTool:
         assert "compute_hv_yang_zhang" in deps.tools_used
 
     async def test_invalid_ticker_returns_error(self) -> None:
-        """Invalid ticker returns error string."""
+        """Invalid ticker returns error ToolResponse JSON."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
 
         result = await compute_hv_yang_zhang_tool(ctx, "!!BAD!!")
+        parsed = json.loads(result)
 
-        assert result.startswith("Error:")
+        assert parsed["status"] == "error"
         assert "compute_hv_yang_zhang" in deps.tools_used
 
     async def test_no_ohlcv_data_returns_message(self) -> None:
@@ -171,15 +173,16 @@ class TestHvYangZhangTool:
         assert "compute_hv_yang_zhang" in deps.tools_used
 
     async def test_service_failure_returns_error(self) -> None:
-        """Service error returns Error: string."""
+        """Service error returns error ToolResponse JSON."""
         deps = _make_deps()
         ctx = _make_mock_ctx(deps)
         deps.market_data.fetch_ohlcv = AsyncMock(side_effect=RuntimeError("connection failed"))
 
         result = await compute_hv_yang_zhang_tool(ctx, "AAPL")
+        parsed = json.loads(result)
 
-        assert result.startswith("Error:")
-        assert "AAPL" in result
+        assert parsed["status"] == "error"
+        assert "AAPL" in parsed["summary"]
         assert "compute_hv_yang_zhang" in deps.tools_used
 
     async def test_interpretation_low_vol(self) -> None:

@@ -302,6 +302,7 @@ def compute_normalization_stats(
                 max_value=float(np.max(arr)),
                 median_value=float(np.median(arr)),
                 mean_value=float(np.mean(arr)),
+                # Sample std (ddof=1) for reporting — NOT Bollinger population std (ddof=0)
                 std_dev=float(np.std(arr, ddof=1)) if len(values) >= 2 else None,
                 p25=float(np.percentile(arr, 25)),
                 p75=float(np.percentile(arr, 75)),

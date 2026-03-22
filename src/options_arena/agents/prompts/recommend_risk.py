@@ -12,7 +12,7 @@ Domain-specific output fields:
   portfolio_correlation_note (str)
 """
 
-from options_arena.agents._parsing import PROMPT_RULES_APPENDIX
+from options_arena.agents._parsing import PROMPT_RULES_APPENDIX, TOOL_RESPONSE_FORMAT
 
 RECOMMEND_RISK_PROMPT = (
     """You are a portfolio risk manager producing a structured RiskDeskAssessment.
@@ -74,5 +74,6 @@ Your response must be valid JSON matching this schema:
 10. Do NOT include <think> tags or reasoning traces in any field.
 
 """
+    + TOOL_RESPONSE_FORMAT
     + PROMPT_RULES_APPENDIX
 )

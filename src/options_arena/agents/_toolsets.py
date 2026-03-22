@@ -62,13 +62,17 @@ def _validate_ticker(ticker: str) -> str | None:
 async def fetch_quote(ctx: RunContext[DeskDeps], ticker: str) -> str:
     """Fetch a real-time quote for *ticker*.
 
-    Returns a formatted string with price, bid/ask, volume, and 52-week
-    range (fetched via ``TickerInfo`` for the range).
+    Returns a ``ToolResponse`` JSON string with price, bid/ask, volume, and
+    52-week range (fetched via ``TickerInfo`` for the range).
     """
     tool_name = "fetch_quote"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip price analysis", "reduce confidence by 0.1"],
+        ).model_dump_json()
     try:
         quote = await ctx.deps.market_data.fetch_quote(ticker)
         lines: list[str] = [
@@ -78,6 +82,8 @@ async def fetch_quote(ctx: RunContext[DeskDeps], ticker: str) -> str:
             f"  Volume: {quote.volume:,}",
         ]
         # Attempt to get 52-week range from ticker_info
+        status = ToolStatus.SUCCESS
+        next_actions = ["assess price vs 52W range", "note bid-ask spread width"]
         try:
             info = await ctx.deps.market_data.fetch_ticker_info(ticker)
             lines.append(
@@ -85,12 +91,23 @@ async def fetch_quote(ctx: RunContext[DeskDeps], ticker: str) -> str:
             )
         except Exception:
             logger.debug("Could not fetch ticker_info for 52w range: %s", ticker)
+            status = ToolStatus.WARNING
+            next_actions = ["assess price action without range context"]
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=status,
+            summary=f"{ticker}: ${quote.price} bid=${quote.bid} ask=${quote.ask}",
+            data="\n".join(lines),
+            next_actions=next_actions,
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("fetch_quote failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not fetch quote for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Quote unavailable for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["skip price analysis", "reduce confidence by 0.1"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -101,31 +118,47 @@ async def fetch_quote(ctx: RunContext[DeskDeps], ticker: str) -> str:
 async def fetch_vol_surface_slice(ctx: RunContext[DeskDeps], ticker: str) -> str:
     """Fetch a volatility surface slice showing IV by strike/expiry.
 
-    Returns up to 10 contracts from the nearest expiration with their IV,
-    strike, type, bid, ask, volume, and open interest.
+    Returns a ``ToolResponse`` JSON string with up to 10 contracts from the
+    nearest expiration with their IV, strike, type, bid, ask, volume, and OI.
     """
     tool_name = "fetch_vol_surface_slice"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["use context IV data only", "note vol surface unavailable"],
+        ).model_dump_json()
     try:
         expirations = await ctx.deps.options_data.fetch_expirations(ticker)
         if not expirations:
             ctx.deps.tools_used.append(tool_name)
-            return f"No option expirations found for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No option expirations found for {ticker}",
+                next_actions=["use context IV data only", "note vol surface unavailable"],
+            ).model_dump_json()
 
         # Find the nearest expiration with at least some DTE
         today = date.today()
         future_exps = [e for e in expirations if e > today]
         if not future_exps:
             ctx.deps.tools_used.append(tool_name)
-            return f"No future expirations found for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No future expirations found for {ticker}",
+                next_actions=["use context IV data only", "note vol surface unavailable"],
+            ).model_dump_json()
 
         target_exp = future_exps[0]
         contracts = await ctx.deps.options_data.fetch_chain(ticker, target_exp)
         if not contracts:
             ctx.deps.tools_used.append(tool_name)
-            return f"No contracts found for {ticker} exp {target_exp.isoformat()}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No contracts found for {ticker} exp {target_exp.isoformat()}",
+                next_actions=["use context IV data only", "note vol surface unavailable"],
+            ).model_dump_json()
 
         # Limit to 10 contracts, sorted by strike
         sorted_contracts = sorted(contracts, key=lambda c: c.strike)[:10]
@@ -142,12 +175,34 @@ async def fetch_vol_surface_slice(ctx: RunContext[DeskDeps], ticker: str) -> str
                 f"Vol={c.volume:,} OI={c.open_interest:,}"
             )
 
+        # Warn if fewer contracts than expected (partial data)
+        status = ToolStatus.SUCCESS
+        next_actions: list[str] = ["compare IV across strikes", "identify skew direction"]
+        if len(sorted_contracts) < 5:  # noqa: PLR2004
+            status = ToolStatus.WARNING
+            next_actions = [
+                "compare IV across strikes",
+                "note limited contract data — skew assessment may be unreliable",
+            ]
+
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=status,
+            summary=(
+                f"{ticker} vol surface: {len(sorted_contracts)} contracts, "
+                f"exp {target_exp.isoformat()}"
+            ),
+            data="\n".join(lines),
+            next_actions=next_actions,
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("fetch_vol_surface_slice failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not fetch vol surface for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Vol surface unavailable for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["use context IV data only", "note vol surface unavailable"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +218,9 @@ async def compute_iv_for_strike(
 ) -> str:
     """Find the closest strike in the chain to *strike* and show IV details.
 
+    Returns a ``ToolResponse`` JSON string with IV, bid/ask, volume, and OI
+    for the closest matching contract.
+
     Args:
         ticker: Underlying ticker symbol.
         strike: Target strike price.
@@ -171,19 +229,27 @@ async def compute_iv_for_strike(
     tool_name = "compute_iv_for_strike"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip strike-level IV analysis", "use aggregate IV only"],
+        ).model_dump_json()
     try:
         exp_date = date.fromisoformat(expiry)
         contracts = await ctx.deps.options_data.fetch_chain(ticker, exp_date)
         if not contracts:
             ctx.deps.tools_used.append(tool_name)
-            return f"No contracts found for {ticker} exp {expiry}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No contracts found for {ticker} exp {expiry}",
+                next_actions=["skip strike-level IV analysis", "use aggregate IV only"],
+            ).model_dump_json()
 
         # Find closest strike
         closest = min(contracts, key=lambda c: abs(float(c.strike) - strike))
         iv_str = f"{closest.market_iv * 100:.1f}%" if math.isfinite(closest.market_iv) else "N/A"
 
-        result = (
+        data = (
             f"Closest match for {ticker} ${strike} exp {expiry}:\n"
             f"  {closest.option_type.value.upper()} ${closest.strike}\n"
             f"  IV: {iv_str}\n"
@@ -191,11 +257,20 @@ async def compute_iv_for_strike(
             f"  Volume: {closest.volume:,}  OI: {closest.open_interest:,}"
         )
         ctx.deps.tools_used.append(tool_name)
-        return result
+        return ToolResponse[str](
+            status=ToolStatus.SUCCESS,
+            summary=f"{ticker} ${closest.strike} IV={iv_str}",
+            data=data,
+            next_actions=["compare market IV to model IV", "assess moneyness"],
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("compute_iv_for_strike failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not compute IV for {ticker} ${strike} {expiry}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"IV failed for {ticker} ${strike} {expiry}: {_sanitize_error(exc)}",
+            next_actions=["skip strike-level IV analysis", "use aggregate IV only"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -210,13 +285,17 @@ async def fetch_correlation(
 ) -> str:
     """Compute pairwise return correlations between *ticker* and each of *tickers*.
 
-    Uses OHLCV close prices over the last year to compute daily return
-    correlations.
+    Returns a ``ToolResponse`` JSON string with daily return correlations
+    computed from OHLCV close prices over the last year.
     """
     tool_name = "fetch_correlation"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip correlation analysis", "note data gap"],
+        ).model_dump_json()
     try:
         import numpy as np
 
@@ -228,7 +307,11 @@ async def fetch_correlation(
         for t in all_tickers:
             if not TICKER_RE.match(t.upper()):
                 ctx.deps.tools_used.append(tool_name)
-                return f"Error: invalid ticker format: {t!r}"
+                return ToolResponse[str](
+                    status=ToolStatus.ERROR,
+                    summary=f"Error: invalid ticker format: {t!r}",
+                    next_actions=["skip correlation analysis", "note data gap"],
+                ).model_dump_json()
 
         # Fetch OHLCV in parallel with error isolation
         async def _fetch(t: str) -> tuple[str, list[float] | None]:
@@ -255,22 +338,33 @@ async def fetch_correlation(
 
         if ticker not in close_series:
             ctx.deps.tools_used.append(tool_name)
-            return f"Error: could not fetch price data for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"Could not fetch price data for {ticker}",
+                next_actions=["skip correlation analysis", "note data gap"],
+            ).model_dump_json()
 
         if len(close_series) < 2:  # noqa: PLR2004
             ctx.deps.tools_used.append(tool_name)
-            return "Error: insufficient data for correlation (need at least 2 tickers)"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary="Insufficient data for correlation (need at least 2 tickers)",
+                next_actions=["skip correlation analysis", "note data gap"],
+            ).model_dump_json()
 
         # Compute daily returns and pairwise correlation
         base_prices = np.array(close_series[ticker])
         base_returns = np.diff(base_prices) / base_prices[:-1]
 
         lines: list[str] = [f"Correlations with {ticker} (1Y daily returns):"]
+        computed_count = 0
+        skipped_tickers: list[str] = []
         for t in all_tickers:
             if t == ticker:
                 continue
             if t not in close_series:
                 lines.append(f"  {t}: N/A (no data)")
+                skipped_tickers.append(t)
                 continue
 
             other_prices = np.array(close_series[t])
@@ -278,6 +372,7 @@ async def fetch_correlation(
             min_len = min(len(base_returns), max(0, len(other_prices) - 1))
             if min_len < 20:  # noqa: PLR2004
                 lines.append(f"  {t}: N/A (insufficient overlap)")
+                skipped_tickers.append(t)
                 continue
 
             other_returns = np.diff(other_prices) / other_prices[:-1]
@@ -285,15 +380,38 @@ async def fetch_correlation(
             corr_val = float(corr_matrix[0, 1])
             if not math.isfinite(corr_val):
                 lines.append(f"  {t}: N/A (unstable)")
+                skipped_tickers.append(t)
                 continue
             lines.append(f"  {t}: {corr_val:.3f}")
+            computed_count += 1
+
+        # Determine status based on whether all requested correlations were computed
+        requested_count = len(capped)
+        if computed_count == 0:
+            status = ToolStatus.ERROR
+            next_actions: list[str] = ["skip correlation analysis", "note data gap"]
+        elif computed_count < requested_count:
+            status = ToolStatus.WARNING
+            next_actions = ["note incomplete correlation data", "assess available pairs only"]
+        else:
+            status = ToolStatus.SUCCESS
+            next_actions = ["assess diversification benefit", "flag high correlations"]
 
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=status,
+            summary=f"{ticker} correlations: {computed_count}/{requested_count} pairs computed",
+            data="\n".join(lines),
+            next_actions=next_actions,
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("fetch_correlation failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not compute correlations for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Correlations unavailable for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["skip correlation analysis", "note data gap"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -419,8 +537,8 @@ async def fetch_related_ohlcv(
 ) -> str:
     """Fetch recent OHLCV bars for *ticker*.
 
-    Returns the last 5 bars with date, open, high, low, close, and volume.
-    Useful for assessing recent price action and directional momentum.
+    Returns a ``ToolResponse`` JSON string with the last 5 bars including
+    date, open, high, low, close, and volume.
 
     Args:
         ticker: Underlying ticker symbol.
@@ -430,18 +548,29 @@ async def fetch_related_ohlcv(
     _ALLOWED_PERIODS = {"3mo", "6mo", "1y"}
     if period not in _ALLOWED_PERIODS:
         ctx.deps.tools_used.append(tool_name)
-        return (
-            f"Error: unsupported period {period!r}. "
-            f"Supported: {', '.join(sorted(_ALLOWED_PERIODS))}"
-        )
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=(
+                f"Unsupported period {period!r}. Supported: {', '.join(sorted(_ALLOWED_PERIODS))}"
+            ),
+            next_actions=["skip recent price analysis", "rely on context data"],
+        ).model_dump_json()
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip recent price analysis", "rely on context data"],
+        ).model_dump_json()
     try:
         ohlcv_list = await ctx.deps.market_data.fetch_ohlcv(ticker, period=period)
         if not ohlcv_list:
             ctx.deps.tools_used.append(tool_name)
-            return f"No OHLCV data found for {ticker} (period={period})"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No OHLCV data found for {ticker} (period={period})",
+                next_actions=["skip recent price analysis", "rely on context data"],
+            ).model_dump_json()
 
         # Show last 5 bars
         recent = ohlcv_list[-5:]
@@ -454,11 +583,20 @@ async def fetch_related_ohlcv(
             )
 
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=ToolStatus.SUCCESS,
+            summary=f"{ticker} OHLCV: {len(recent)} recent bars",
+            data="\n".join(lines),
+            next_actions=["assess recent price action", "note volume trends"],
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("fetch_related_ohlcv failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not fetch OHLCV for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"OHLCV unavailable for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["skip recent price analysis", "rely on context data"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -1225,14 +1363,22 @@ async def compute_position_size_tool(
     tool_name = "compute_position_size"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["use default position size", "apply conservative allocation"],
+        ).model_dump_json()
     try:
         from options_arena.analysis.position_sizing import compute_position_size
 
         # Guard non-finite inputs from LLM-controlled parameters
         if not math.isfinite(annualized_iv):
             ctx.deps.tools_used.append(tool_name)
-            return f"Error: annualized_iv is not a finite number for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"annualized_iv is not a finite number for {ticker}",
+                next_actions=["use default position size", "apply conservative allocation"],
+            ).model_dump_json()
         if correlation is not None and not math.isfinite(correlation):
             correlation = None
 
@@ -1252,11 +1398,20 @@ async def compute_position_size_tool(
         ]
 
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=ToolStatus.SUCCESS,
+            summary=f"{ticker} position size: {result.final_allocation_pct:.1%} allocation",
+            data="\n".join(lines),
+            next_actions=["use suggested allocation", "adjust for portfolio constraints"],
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("compute_position_size failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not compute position size for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Position sizing failed for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["use default position size", "apply conservative allocation"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -1280,7 +1435,11 @@ async def compute_correlation_matrix_tool(
     tool_name = "compute_correlation_matrix"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip correlation analysis", "assume moderate correlation"],
+        ).model_dump_json()
     try:
         import pandas as pd
 
@@ -1295,7 +1454,11 @@ async def compute_correlation_matrix_tool(
         for t in all_tickers:
             if not TICKER_RE.match(t.upper()):
                 ctx.deps.tools_used.append(tool_name)
-                return f"Error: invalid ticker format: {t!r}"
+                return ToolResponse[str](
+                    status=ToolStatus.ERROR,
+                    summary=f"Error: invalid ticker format: {t!r}",
+                    next_actions=["skip correlation analysis", "assume moderate correlation"],
+                ).model_dump_json()
 
         from options_arena.utils.exceptions import DataFetchError
 
@@ -1325,15 +1488,24 @@ async def compute_correlation_matrix_tool(
 
         if ticker not in price_data:
             ctx.deps.tools_used.append(tool_name)
-            return f"Error: could not fetch price data for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"Could not fetch price data for {ticker}",
+                next_actions=["skip correlation analysis", "assume moderate correlation"],
+            ).model_dump_json()
 
         if len(price_data) < 2:  # noqa: PLR2004
             ctx.deps.tools_used.append(tool_name)
-            return "Error: insufficient data for correlation matrix (need at least 2 tickers)"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary="Insufficient data for correlation matrix (need at least 2 tickers)",
+                next_actions=["skip correlation analysis", "assume moderate correlation"],
+            ).model_dump_json()
 
         matrix = compute_correlation_matrix(price_data)
 
         lines: list[str] = ["Correlation Matrix (log returns, 1Y):"]
+        computed_count = 0
         if not matrix.pairs:
             lines.append("  No valid pairs with sufficient overlap.")
         else:
@@ -1342,15 +1514,42 @@ async def compute_correlation_matrix_tool(
                     f"  {pair.ticker_a} / {pair.ticker_b}: {pair.correlation:.3f} "
                     f"({pair.overlapping_days} overlapping days)"
                 )
+                computed_count += 1
         if matrix.avg_correlation is not None and math.isfinite(matrix.avg_correlation):
             lines.append(f"  Average correlation: {matrix.avg_correlation:.3f}")
 
+        # Determine status based on whether all requested pairs were computed
+        requested_count = len(capped)
+        if computed_count == 0:
+            status = ToolStatus.ERROR
+            next_actions: list[str] = ["skip correlation analysis", "assume moderate correlation"]
+        elif computed_count < requested_count:
+            status = ToolStatus.WARNING
+            next_actions = ["note incomplete correlation data", "assess available pairs only"]
+        else:
+            status = ToolStatus.SUCCESS
+            next_actions = [
+                "assess portfolio diversification",
+                "flag correlated positions",
+            ]
+
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=status,
+            summary=(
+                f"{ticker} correlation matrix: {computed_count}/{requested_count} pairs computed"
+            ),
+            data="\n".join(lines),
+            next_actions=next_actions,
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("compute_correlation_matrix failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not compute correlation matrix for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=(f"Correlation matrix failed for {ticker}: {_sanitize_error(exc)}"),
+            next_actions=["skip correlation analysis", "assume moderate correlation"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -1372,7 +1571,11 @@ async def compute_risk_adjusted_metrics_tool(
     tool_name = "compute_risk_adjusted_metrics"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip risk metrics", "rely on qualitative risk assessment"],
+        ).model_dump_json()
     try:
         # Fetch risk-free rate
         risk_free_rate = 0.05
@@ -1391,10 +1594,11 @@ async def compute_risk_adjusted_metrics_tool(
 
         if result.total_trades == 0:
             ctx.deps.tools_used.append(tool_name)
-            return (
-                f"No outcome data available for {ticker} — "
-                f"run 'outcomes collect' to gather contract outcomes first"
-            )
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=(f"No outcome data available for {ticker} — run 'outcomes collect' first"),
+                next_actions=["skip risk metrics", "rely on qualitative risk assessment"],
+            ).model_dump_json()
 
         lines: list[str] = [
             f"Risk-Adjusted Metrics (all tickers, {result.lookback_days}d lookback):",
@@ -1420,11 +1624,20 @@ async def compute_risk_adjusted_metrics_tool(
             lines.append("  Annualized Return: N/A")
 
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=ToolStatus.SUCCESS,
+            summary=f"Risk metrics: {result.total_trades} trades analyzed",
+            data="\n".join(lines),
+            next_actions=["compare risk-adjusted returns", "assess drawdown risk"],
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("compute_risk_adjusted_metrics failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not compute risk metrics for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Risk metrics failed for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["skip risk metrics", "rely on qualitative risk assessment"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -1449,7 +1662,11 @@ async def compute_hv_yang_zhang_tool(
     tool_name = "compute_hv_yang_zhang"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["use context volatility data", "note HV unavailable"],
+        ).model_dump_json()
     try:
         import pandas as pd
 
@@ -1461,7 +1678,11 @@ async def compute_hv_yang_zhang_tool(
         ohlcv_list = await ctx.deps.market_data.fetch_ohlcv(ticker, period="1y")
         if not ohlcv_list:
             ctx.deps.tools_used.append(tool_name)
-            return f"No OHLCV data found for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No OHLCV data found for {ticker}",
+                next_actions=["use context volatility data", "note HV unavailable"],
+            ).model_dump_json()
 
         # Build 4 pandas Series with date index
         dates = [bar.date for bar in ohlcv_list]
@@ -1476,10 +1697,14 @@ async def compute_hv_yang_zhang_tool(
 
         if hv is None:
             ctx.deps.tools_used.append(tool_name)
-            return (
-                f"Yang-Zhang HV({period}) for {ticker}: N/A "
-                f"(insufficient data or non-finite result)"
-            )
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=(
+                    f"Yang-Zhang HV({period}) for {ticker}: N/A "
+                    f"(insufficient data or non-finite result)"
+                ),
+                next_actions=["use context volatility data", "note HV unavailable"],
+            ).model_dump_json()
 
         # Interpret the volatility level
         if hv < 0.15:  # noqa: PLR2004
@@ -1491,12 +1716,22 @@ async def compute_hv_yang_zhang_tool(
         else:
             interpretation = "extreme volatility"
 
+        data = f"Yang-Zhang HV({period}) for {ticker}: {hv:.1%} annualized — {interpretation}"
         ctx.deps.tools_used.append(tool_name)
-        return f"Yang-Zhang HV({period}) for {ticker}: {hv:.1%} annualized — {interpretation}"
+        return ToolResponse[str](
+            status=ToolStatus.SUCCESS,
+            summary=f"{ticker} HV({period}): {hv:.1%} — {interpretation}",
+            data=data,
+            next_actions=["compare HV to IV for vol premium", "assess volatility regime"],
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("compute_hv_yang_zhang failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not compute HV for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"HV computation failed for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["use context volatility data", "note HV unavailable"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -1520,7 +1755,11 @@ async def compute_garch_forecast_tool(
     tool_name = "compute_garch_forecast"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip GARCH analysis", "use historical vol estimate only"],
+        ).model_dump_json()
     try:
         import numpy as np
         import pandas as pd
@@ -1529,18 +1768,30 @@ async def compute_garch_forecast_tool(
             from options_arena.indicators.vol_forecast import compute_garch_forecast
         except ImportError:
             ctx.deps.tools_used.append(tool_name)
-            return "GARCH unavailable: [ml] extra not installed"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary="GARCH unavailable: [ml] extra not installed",
+                next_actions=["skip GARCH analysis", "use historical vol estimate only"],
+            ).model_dump_json()
 
         ohlcv_list = await ctx.deps.market_data.fetch_ohlcv(ticker, period="1y")
         if not ohlcv_list:
             ctx.deps.tools_used.append(tool_name)
-            return f"No OHLCV data found for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No OHLCV data found for {ticker}",
+                next_actions=["skip GARCH analysis", "use historical vol estimate only"],
+            ).model_dump_json()
 
         close_arr = np.array([float(bar.close) for bar in ohlcv_list], dtype=np.float64)
 
         if len(close_arr) < 2:  # noqa: PLR2004
             ctx.deps.tools_used.append(tool_name)
-            return f"Insufficient OHLCV data for {ticker} (need >= 2 bars)"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"Insufficient OHLCV data for {ticker} (need >= 2 bars)",
+                next_actions=["skip GARCH analysis", "use historical vol estimate only"],
+            ).model_dump_json()
 
         # GARCH expects percentage log returns: log(P_t / P_{t-1}) * 100
         pct_returns = np.log(close_arr[1:] / close_arr[:-1]) * 100
@@ -1550,10 +1801,14 @@ async def compute_garch_forecast_tool(
 
         if vol is None:
             ctx.deps.tools_used.append(tool_name)
-            return (
-                f"GARCH(1,1) forecast for {ticker}: N/A "
-                f"(insufficient data, non-stationarity, or convergence failure)"
-            )
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=(
+                    f"GARCH(1,1) forecast for {ticker}: N/A "
+                    f"(insufficient data, non-stationarity, or convergence failure)"
+                ),
+                next_actions=["skip GARCH analysis", "use historical vol estimate only"],
+            ).model_dump_json()
 
         # Interpret the volatility level
         if vol < 0.15:  # noqa: PLR2004
@@ -1565,12 +1820,25 @@ async def compute_garch_forecast_tool(
         else:
             interpretation = "extreme volatility regime"
 
+        data = f"GARCH(1,1) forecast for {ticker}: {vol:.1%} annualized — {interpretation}"
         ctx.deps.tools_used.append(tool_name)
-        return f"GARCH(1,1) forecast for {ticker}: {vol:.1%} annualized — {interpretation}"
+        return ToolResponse[str](
+            status=ToolStatus.SUCCESS,
+            summary=f"{ticker} GARCH: {vol:.1%} — {interpretation}",
+            data=data,
+            next_actions=[
+                "compare GARCH forecast to implied vol",
+                "assess vol direction",
+            ],
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("compute_garch_forecast failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not compute GARCH forecast for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"GARCH forecast failed for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["skip GARCH analysis", "use historical vol estimate only"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -1594,7 +1862,11 @@ async def compute_markov_regime_tool(
     tool_name = "compute_markov_regime"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip regime detection", "use simpler volatility analysis"],
+        ).model_dump_json()
     try:
         import numpy as np
         import pandas as pd
@@ -1603,18 +1875,30 @@ async def compute_markov_regime_tool(
             from options_arena.indicators.regime_ml import compute_markov_regime
         except ImportError:
             ctx.deps.tools_used.append(tool_name)
-            return "Markov regime unavailable: [ml] extra not installed"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary="Markov regime unavailable: [ml] extra not installed",
+                next_actions=["skip regime detection", "use simpler volatility analysis"],
+            ).model_dump_json()
 
         ohlcv_list = await ctx.deps.market_data.fetch_ohlcv(ticker, period="1y")
         if not ohlcv_list:
             ctx.deps.tools_used.append(tool_name)
-            return f"No OHLCV data found for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No OHLCV data found for {ticker}",
+                next_actions=["skip regime detection", "use simpler volatility analysis"],
+            ).model_dump_json()
 
         close_arr = np.array([float(bar.close) for bar in ohlcv_list], dtype=np.float64)
 
         if len(close_arr) < 2:  # noqa: PLR2004
             ctx.deps.tools_used.append(tool_name)
-            return f"Insufficient OHLCV data for {ticker} (need >= 2 bars)"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"Insufficient OHLCV data for {ticker} (need >= 2 bars)",
+                next_actions=["skip regime detection", "use simpler volatility analysis"],
+            ).model_dump_json()
 
         # Markov expects plain log returns (not percentage form)
         log_returns = np.log(close_arr[1:] / close_arr[:-1])
@@ -1624,7 +1908,13 @@ async def compute_markov_regime_tool(
 
         if result is None:
             ctx.deps.tools_used.append(tool_name)
-            return f"Markov regime for {ticker}: N/A (insufficient data or convergence failure)"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=(
+                    f"Markov regime for {ticker}: N/A (insufficient data or convergence failure)"
+                ),
+                next_actions=["skip regime detection", "use simpler volatility analysis"],
+            ).model_dump_json()
 
         # Format regime probabilities
         prob_str = ", ".join(f"{p:.1%}" for p in result.regime_probabilities)
@@ -1646,11 +1936,26 @@ async def compute_markov_regime_tool(
         ]
 
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=ToolStatus.SUCCESS,
+            summary=(
+                f"{ticker} regime: {result.regime_label} "
+                f"(prob: {result.regime_probabilities[result.current_regime]:.1%})"
+            ),
+            data="\n".join(lines),
+            next_actions=[
+                "factor regime probability into risk",
+                "adjust for regime transition",
+            ],
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("compute_markov_regime failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not compute Markov regime for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Markov regime failed for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["skip regime detection", "use simpler volatility analysis"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -1672,7 +1977,11 @@ async def compute_macro_regime_tool(ctx: RunContext[DeskDeps]) -> str:
 
         if ctx.deps.fred is None:
             ctx.deps.tools_used.append(tool_name)
-            return "FRED service not available — cannot compute macro regime"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary="FRED service not available — cannot compute macro regime",
+                next_actions=["skip macro analysis", "assume neutral macro environment"],
+            ).model_dump_json()
 
         macro_ctx = await ctx.deps.fred.fetch_macro_context()
 
@@ -1687,26 +1996,62 @@ async def compute_macro_regime_tool(ctx: RunContext[DeskDeps]) -> str:
 
         if result is None:
             ctx.deps.tools_used.append(tool_name)
-            return "Macro regime: N/A (insufficient FRED data)"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary="Macro regime: N/A (insufficient FRED data)",
+                next_actions=["skip macro analysis", "assume neutral macro environment"],
+            ).model_dump_json()
 
         lines: list[str] = [
             f"Macro regime: {result.regime.value} (confidence: {result.confidence:.0%})",
         ]
+        # Track how many macro series were available for WARNING detection
+        available_count = 0
+        total_count = 4
         if macro_ctx.yield_spread_10y2y is not None:
             lines.append(f"  Yield spread (10Y-2Y): {macro_ctx.yield_spread_10y2y:.4f}")
+            available_count += 1
         if macro_ctx.unemployment_rate is not None:
             lines.append(f"  Unemployment: {macro_ctx.unemployment_rate:.1%}")
+            available_count += 1
         if macro_ctx.fed_funds_rate is not None:
             lines.append(f"  Fed funds rate: {macro_ctx.fed_funds_rate:.2%}")
+            available_count += 1
         if macro_ctx.vix is not None:
             lines.append(f"  VIX: {macro_ctx.vix:.1f}")
+            available_count += 1
+
+        # Determine status based on data completeness
+        if available_count < total_count:
+            status = ToolStatus.WARNING
+            next_actions: list[str] = [
+                "note partial macro data",
+                "reduce macro signal weight",
+            ]
+        else:
+            status = ToolStatus.SUCCESS
+            next_actions = [
+                "factor macro regime into risk assessment",
+                "adjust for cycle",
+            ]
 
         ctx.deps.tools_used.append(tool_name)
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=status,
+            summary=(
+                f"Macro regime: {result.regime.value} ({available_count}/{total_count} series)"
+            ),
+            data="\n".join(lines),
+            next_actions=next_actions,
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("compute_macro_regime failed: %s", exc)
         ctx.deps.tools_used.append(tool_name)
-        return "Error: could not compute macro regime"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Macro regime failed: {_sanitize_error(exc)}",
+            next_actions=["skip macro analysis", "assume neutral macro environment"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -1730,7 +2075,11 @@ async def compute_hurst_exponent_tool(
     tool_name = "compute_hurst_exponent"
     if err := _validate_ticker(ticker):
         ctx.deps.tools_used.append(tool_name)
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["skip Hurst analysis", "rely on ADX for trend strength"],
+        ).model_dump_json()
     try:
         import pandas as pd
 
@@ -1739,7 +2088,11 @@ async def compute_hurst_exponent_tool(
         ohlcv_list = await ctx.deps.market_data.fetch_ohlcv(ticker, period="1y")
         if not ohlcv_list:
             ctx.deps.tools_used.append(tool_name)
-            return f"No OHLCV data found for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No OHLCV data found for {ticker}",
+                next_actions=["skip Hurst analysis", "rely on ADX for trend strength"],
+            ).model_dump_json()
 
         dates = [bar.date for bar in ohlcv_list]
         close_series = pd.Series(
@@ -1750,7 +2103,13 @@ async def compute_hurst_exponent_tool(
 
         if h is None:
             ctx.deps.tools_used.append(tool_name)
-            return f"Hurst exponent for {ticker}: N/A (insufficient data or unreliable fit)"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=(
+                    f"Hurst exponent for {ticker}: N/A (insufficient data or unreliable fit)"
+                ),
+                next_actions=["skip Hurst analysis", "rely on ADX for trend strength"],
+            ).model_dump_json()
 
         # Interpret the Hurst exponent
         if h > 0.55:  # noqa: PLR2004
@@ -1760,12 +2119,25 @@ async def compute_hurst_exponent_tool(
         else:
             interpretation = "random walk"
 
+        data = f"Hurst exponent for {ticker}: {h:.3f} — {interpretation}"
         ctx.deps.tools_used.append(tool_name)
-        return f"Hurst exponent for {ticker}: {h:.3f} — {interpretation}"
+        return ToolResponse[str](
+            status=ToolStatus.SUCCESS,
+            summary=f"{ticker} Hurst: {h:.3f} — {interpretation}",
+            data=data,
+            next_actions=[
+                "assess persistence of current trend",
+                "note mean-reversion signal",
+            ],
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("compute_hurst_exponent failed for %s: %s", ticker, exc)
         ctx.deps.tools_used.append(tool_name)
-        return f"Error: could not compute Hurst exponent for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Hurst exponent failed for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["skip Hurst analysis", "rely on ADX for trend strength"],
+        ).model_dump_json()
 
 
 # ---------------------------------------------------------------------------
@@ -1912,12 +2284,20 @@ async def synth_fetch_current_quote(
     analysis context is available.
     """
     if err := _validate_ticker(ticker):
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["proceed with assessment data", "note stale quote risk"],
+        ).model_dump_json()
     try:
         context = ctx.deps.context  # type: ignore[attr-defined]
         upper = ticker.upper()
         if upper != context.ticker.upper():
-            return f"Error: only {context.ticker} data is available in this session"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"Only {context.ticker} data is available in this session",
+                next_actions=["proceed with assessment data", "note stale quote risk"],
+            ).model_dump_json()
 
         lines: list[str] = [
             f"Quote for {context.ticker}:",
@@ -1936,10 +2316,19 @@ async def synth_fetch_current_quote(
         if context.put_call_ratio is not None and math.isfinite(context.put_call_ratio):
             lines.append(f"  Put/Call Ratio: {context.put_call_ratio:.2f}")
 
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=ToolStatus.SUCCESS,
+            summary=f"{context.ticker}: ${context.current_price}",
+            data="\n".join(lines),
+            next_actions=["verify current price", "check data freshness"],
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("synth_fetch_current_quote failed: %s", exc)
-        return f"Error: could not fetch quote for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Quote unavailable for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["proceed with assessment data", "note stale quote risk"],
+        ).model_dump_json()
 
 
 async def synth_fetch_chain_summary(
@@ -1953,11 +2342,19 @@ async def synth_fetch_chain_summary(
     pre-fetched contract list in deps.
     """
     if err := _validate_ticker(ticker):
-        return err
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=err,
+            next_actions=["recommend caution", "note limited contract data"],
+        ).model_dump_json()
     try:
         contracts: list[OptionContract] = ctx.deps.contracts  # type: ignore[attr-defined]
         if not contracts:
-            return f"No contracts available for {ticker}"
+            return ToolResponse[str](
+                status=ToolStatus.ERROR,
+                summary=f"No contracts available for {ticker}",
+                next_actions=["recommend caution", "note limited contract data"],
+            ).model_dump_json()
 
         call_count = 0
         put_count = 0
@@ -2023,10 +2420,21 @@ async def synth_fetch_chain_summary(
                 f" OI={c.open_interest:,} Vol={c.volume:,}{greeks_str}"
             )
 
-        return "\n".join(lines)
+        return ToolResponse[str](
+            status=ToolStatus.SUCCESS,
+            summary=(
+                f"{ticker} chain: {len(contracts)} contracts, {call_count} calls, {put_count} puts"
+            ),
+            data="\n".join(lines),
+            next_actions=["select optimal contract", "assess Greeks profile"],
+        ).model_dump_json()
     except Exception as exc:
         logger.debug("synth_fetch_chain_summary failed: %s", exc)
-        return f"Error: could not summarize chain for {ticker}"
+        return ToolResponse[str](
+            status=ToolStatus.ERROR,
+            summary=f"Chain summary unavailable for {ticker}: {_sanitize_error(exc)}",
+            next_actions=["recommend caution", "note limited contract data"],
+        ).model_dump_json()
 
 
 def build_synthesis_toolset() -> list[object]:

@@ -11,7 +11,7 @@ confidence calibration and citation rules.
 
 # VERSION: v1.0
 
-from options_arena.agents._parsing import PROMPT_RULES_APPENDIX
+from options_arena.agents._parsing import PROMPT_RULES_APPENDIX, TOOL_RESPONSE_FORMAT
 
 SYNTHESIS_SYSTEM_PROMPT = (
     """## Your Identity: Position Synthesis Analyst
@@ -116,5 +116,6 @@ Your response must be valid JSON matching this schema:
 - Do NOT include <think> tags or reasoning traces in any field
 
 """
+    + TOOL_RESPONSE_FORMAT
     + PROMPT_RULES_APPENDIX
 )

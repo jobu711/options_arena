@@ -91,7 +91,7 @@ class MetadataMixin(RepositoryBase):
         """
         conn = self._db.conn
         if limit is None:
-            query = "SELECT * FROM ticker_metadata ORDER BY ticker ASC"
+            query = "SELECT * FROM ticker_metadata ORDER BY ticker ASC LIMIT 10000"
             params: tuple[()] | tuple[int] = ()
         else:
             query = "SELECT * FROM ticker_metadata ORDER BY ticker ASC LIMIT ?"
