@@ -166,7 +166,7 @@ async def get_preset_info(
 
     # Safe count extraction — if a fetch raised, count is 0
     def _safe_len(result: object) -> int:
-        if isinstance(result, Exception):
+        if isinstance(result, BaseException):
             logger.warning("Preset fetch failed: %s", result)
             return 0
         if isinstance(result, list):
@@ -280,7 +280,7 @@ async def _run_index_background(
             return_exceptions=True,
         )
         for result in results:
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 errors += 1
                 logger.warning("Unexpected gather error: %s", result)
             elif result:
@@ -340,10 +340,15 @@ async def start_index(
     # Counter-based task ID
     task_id: int = next(request.app.state.index_counter)
 
-    # Background task owns the lock and releases it on completion
-    task = asyncio.create_task(
-        _run_index_background(task_id, force, max_age, universe, market_data, repo, lock)
-    )
+    # Background task owns the lock and releases it on completion.
+    # Guard create_task — if it fails, release lock to avoid permanent hold.
+    try:
+        task = asyncio.create_task(
+            _run_index_background(task_id, force, max_age, universe, market_data, repo, lock)
+        )
+    except BaseException:
+        lock.release()
+        raise
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
     return IndexStarted(index_task_id=task_id)

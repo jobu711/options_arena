@@ -257,6 +257,20 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `OptionSpread` | model | `frozen=True` | 244 | A multi-leg option spread strategy. |
 | `SpreadAnalysis` | model | `frozen=True` | 270 | Full analysis of an option spread strategy. |
 
+#### models/recommendation.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `DomainAssessment` | model | `frozen=True` | 36 | Base assessment produced by a single desk agent. |
+| `TrendAssessment` | class | `(DomainAssessment)` | 67 | Trend desk assessment with momentum-specific fields. |
+| `VolatilityAssessment` | class | `(DomainAssessment)` | 82 | Volatility desk assessment with IV regime and term structure. |
+| `FlowAssessment` | class | `(DomainAssessment)` | 91 | Flow desk assessment with order flow bias. |
+| `FundamentalAssessment` | class | `(DomainAssessment)` | 99 | Fundamental desk assessment with valuation signal and catalyst. |
+| `RiskDeskAssessment` | class | `(DomainAssessment)` | 107 | Risk desk assessment with position sizing and hedging. |
+| `ContrarianAssessment` | class | `(DomainAssessment)` | 126 | Contrarian desk assessment challenging consensus. |
+| `PositionRecommendation` | model | `frozen=True` | 154 | Final synthesis output — a specific option position with entry/exit criteria. |
+| `RecommendationResult` | model | `frozen=True` | 225 | Complete recommendation output wrapping context, assessments, and recommendation. |
+
 #### models/scan.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -974,6 +988,9 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `build_fundamental_toolset` | func | `() -> list[object]` | 1606 | Return the tools for a Fundamental Desk agent. |
 | `build_contrarian_toolset` | func | `() -> list[object]` | 1621 | Return the tools for a Contrarian Desk agent. |
 | `build_research_toolset` | func | `() -> list[object]` | 1629 | Return the tools for a Research Desk agent. |
+| `synth_fetch_current_quote` | async func | `(ctx: RunContext[object], ticker: str) -> str` | 1678 | Fetch the current quote snapshot for *ticker* from the market context. |
+| `synth_fetch_chain_summary` | async func | `(ctx: RunContext[object], ticker: str) -> str` | 1719 | Summarize the available option contracts for *ticker*. |
+| `build_synthesis_toolset` | func | `() -> list[object]` | 1806 | Return the tools for the Synthesis agent. |
 
 #### agents/constraints.py
 
@@ -1107,6 +1124,12 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 |--------|------|-----------|------|-------------|
 | `RISK_SYSTEM_PROMPT` | const |  | 16 |  |
 
+#### agents/prompts/synthesis.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `SYNTHESIS_SYSTEM_PROMPT` | const |  | 16 |  |
+
 #### agents/prompts/trend_agent.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -1137,6 +1160,13 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `run_risk_desk_query` | async func | `(query: str, deps: DeskDeps, *, model: object \| None = None, config: AgencyConfig \| None = None) ...` | 53 | Run a risk desk query with timeout and error handling. |
+
+#### agents/synthesis_agent.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `SynthesisDeps` | dataclass |  | 36 | Dependencies injected into the synthesis agent via RunContext. |
+| `run_synthesis` | async func | `(deps: SynthesisDeps, model: Model \| None, model_settings: ModelSettings \| None = None, timeout: ...` | 219 | Run synthesis agent -- never raises, returns fallback on failure. |
 
 #### agents/trend_agent.py
 
@@ -1319,8 +1349,8 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 |--------|------|-----------|------|-------------|
 | `start_debate` | async func | `(request: Request, body: DebateRequest, settings: AppSettings = ..., repo: Repository = Depends(g...` | 250 | Start a single-ticker debate in the background. |
 | `start_batch_debate` | async func | `(request: Request, body: BatchDebateRequest, lock: asyncio.Lock = ..., settings: AppSettings = .....` | 523 | Start a batch debate for top N tickers from a scan. |
-| `list_debates` | async func | `(request: Request, repo: Repository = Depends(get_repo), ticker: str \| None = Query(None), limit:...` | 580 | List past debate summaries. |
-| `get_debate` | async func | `(request: Request, debate_id: int, repo: Repository = Depends(get_repo)) -> DebateResultDetail` | 652 | Get full debate result by ID. |
+| `list_debates` | async func | `(request: Request, repo: Repository = Depends(get_repo), ticker: str \| None = Query(None), limit:...` | 585 | List past debate summaries. |
+| `get_debate` | async func | `(request: Request, debate_id: int, repo: Repository = Depends(get_repo)) -> DebateResultDetail` | 657 | Get full debate result by ID. |
 
 #### api/routes/export.py
 
@@ -1361,12 +1391,12 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `start_scan` | async func | `(request: Request, body: ScanRequest, lock: asyncio.Lock = ..., settings: AppSettings = ..., repo...` | 122 | Start a new scan pipeline in the background. |
-| `list_scans` | async func | `(request: Request, repo: Repository = Depends(get_repo), limit: int = ...) -> list[ScanRun]` | 244 | List past scan runs, newest first. |
-| `get_scan` | async func | `(request: Request, scan_id: int, repo: Repository = Depends(get_repo)) -> ScanRun` | 255 | Get a single scan run's metadata. |
-| `get_scores` | async func | `(request: Request, scan_id: int, repo: Repository = Depends(get_repo), page: int = Query(1, ge=1)...` | 269 | Get paginated scores for a scan run with filtering/sorting. |
-| `get_ticker_detail` | async func | `(request: Request, scan_id: int, ticker: str = ..., repo: Repository = Depends(get_repo)) -> Tick...` | 412 | Get a single ticker's score and recommended contracts. |
-| `get_scan_diff` | async func | `(request: Request, scan_id: int, repo: Repository = Depends(get_repo), base_id: int = ...) -> Sca...` | 456 | Compute the diff between two scans. |
-| `cancel_scan` | async func | `(request: Request) -> CancelScanResponse` | 540 | Cancel the currently running scan. |
+| `list_scans` | async func | `(request: Request, repo: Repository = Depends(get_repo), limit: int = ...) -> list[ScanRun]` | 249 | List past scan runs, newest first. |
+| `get_scan` | async func | `(request: Request, scan_id: int, repo: Repository = Depends(get_repo)) -> ScanRun` | 260 | Get a single scan run's metadata. |
+| `get_scores` | async func | `(request: Request, scan_id: int, repo: Repository = Depends(get_repo), page: int = Query(1, ge=1)...` | 274 | Get paginated scores for a scan run with filtering/sorting. |
+| `get_ticker_detail` | async func | `(request: Request, scan_id: int, ticker: str = ..., repo: Repository = Depends(get_repo)) -> Tick...` | 417 | Get a single ticker's score and recommended contracts. |
+| `get_scan_diff` | async func | `(request: Request, scan_id: int, repo: Repository = Depends(get_repo), base_id: int = ...) -> Sca...` | 461 | Compute the diff between two scans. |
+| `cancel_scan` | async func | `(request: Request) -> CancelScanResponse` | 545 | Cancel the currently running scan. |
 
 #### api/routes/ticker.py
 
@@ -1391,35 +1421,35 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `ScanRequest` | model |  | 45 | Request body for ``POST /api/scan``. |
-| `ScanStarted` | model |  | 296 | Response for ``POST /api/scan`` (202). |
-| `PaginatedResponse` | model |  | 302 | Generic paginated response wrapper. |
-| `TickerDetail` | model |  | 311 | Single ticker detail: score + recommended contracts. |
-| `SpreadLegDetail` | model |  | 335 | Individual leg in a spread strategy. |
-| `SpreadDetail` | model |  | 355 | Spread strategy recommendation with P&L analytics. |
-| `spread_detail_from_analysis` | func | `(analysis: SpreadAnalysis) -> SpreadDetail` | 376 | Convert a ``SpreadAnalysis`` model to an API ``SpreadDetail`` response. |
-| `DebateRequest` | model |  | 430 | Request body for ``POST /api/debate``. |
-| `DebateStarted` | model |  | 453 | Response for ``POST /api/debate`` (202). |
-| `DebateResultSummary` | model | `frozen=True` | 459 | Lightweight debate summary for list endpoint. |
-| `DebateResultDetail` | model |  | 490 | Full debate result returned by ``GET /api/debate/{id}``. |
-| `BatchDebateRequest` | model |  | 585 | Request body for ``POST /api/debate/batch``. |
-| `BatchDebateStarted` | model |  | 612 | Response for ``POST /api/debate/batch`` (202). |
-| `BatchTickerResult` | model |  | 619 | Per-ticker result summary in batch completion event. |
-| `ConfigResponse` | model |  | 644 | Read-only safe config values (no secrets). |
-| `CancelScanResponse` | model |  | 654 | Response for cancelling a scan. |
-| `IndustryGroupInfo` | model |  | 660 | Industry group with ticker count. |
-| `SectorHierarchy` | model |  | 667 | Sector with nested industry groups. |
-| `UniverseStats` | model |  | 675 | Universe statistics. |
-| `OperationStatus` | model |  | 688 | Response for ``GET /api/status`` — current system operation state. |
-| `OutcomeCollectionResult` | model |  | 696 | Response for ``POST /api/analytics/collect-outcomes`` (202). |
-| `MetadataStats` | model |  | 707 | Metadata coverage statistics. |
-| `IndexStarted` | model |  | 725 | Response for ``POST /api/universe/index`` (202). |
-| `PresetInfo` | model |  | 736 | Describes a scan preset for the frontend preset picker. |
-| `HeatmapTicker` | model | `frozen=True` | 750 | Single ticker entry for the S&P 500 heatmap treemap. |
-| `AgencyQueryRequest` | model |  | 798 | Request body for ``POST /api/agency/query``. |
-| `AgencyQueryStarted` | model |  | 825 | Response for submitted agency query. |
-| `LivenessResponse` | model |  | 832 | Basic liveness check response for ``GET /api/health``. |
-| `UpdateStatusResponse` | model |  | 838 | Response for status update operations (strategy rules, etc.). |
+| `ScanRequest` | model |  | 46 | Request body for ``POST /api/scan``. |
+| `ScanStarted` | model |  | 297 | Response for ``POST /api/scan`` (202). |
+| `PaginatedResponse` | model |  | 303 | Generic paginated response wrapper. |
+| `TickerDetail` | model |  | 312 | Single ticker detail: score + recommended contracts. |
+| `SpreadLegDetail` | model |  | 336 | Individual leg in a spread strategy. |
+| `SpreadDetail` | model |  | 356 | Spread strategy recommendation with P&L analytics. |
+| `spread_detail_from_analysis` | func | `(analysis: SpreadAnalysis) -> SpreadDetail` | 377 | Convert a ``SpreadAnalysis`` model to an API ``SpreadDetail`` response. |
+| `DebateRequest` | model |  | 431 | Request body for ``POST /api/debate``. |
+| `DebateStarted` | model |  | 454 | Response for ``POST /api/debate`` (202). |
+| `DebateResultSummary` | model | `frozen=True` | 460 | Lightweight debate summary for list endpoint. |
+| `DebateResultDetail` | model |  | 491 | Full debate result returned by ``GET /api/debate/{id}``. |
+| `BatchDebateRequest` | model |  | 586 | Request body for ``POST /api/debate/batch``. |
+| `BatchDebateStarted` | model |  | 613 | Response for ``POST /api/debate/batch`` (202). |
+| `BatchTickerResult` | model |  | 620 | Per-ticker result summary in batch completion event. |
+| `ConfigResponse` | model |  | 645 | Read-only safe config values (no secrets). |
+| `CancelScanResponse` | model |  | 655 | Response for cancelling a scan. |
+| `IndustryGroupInfo` | model |  | 661 | Industry group with ticker count. |
+| `SectorHierarchy` | model |  | 668 | Sector with nested industry groups. |
+| `UniverseStats` | model |  | 676 | Universe statistics. |
+| `OperationStatus` | model |  | 689 | Response for ``GET /api/status`` — current system operation state. |
+| `OutcomeCollectionResult` | model |  | 697 | Response for ``POST /api/analytics/collect-outcomes`` (202). |
+| `MetadataStats` | model |  | 708 | Metadata coverage statistics. |
+| `IndexStarted` | model |  | 726 | Response for ``POST /api/universe/index`` (202). |
+| `PresetInfo` | model |  | 737 | Describes a scan preset for the frontend preset picker. |
+| `HeatmapTicker` | model | `frozen=True` | 751 | Single ticker entry for the S&P 500 heatmap treemap. |
+| `AgencyQueryRequest` | model |  | 799 | Request body for ``POST /api/agency/query``. |
+| `AgencyQueryStarted` | model |  | 826 | Response for submitted agency query. |
+| `LivenessResponse` | model |  | 833 | Basic liveness check response for ``GET /api/health``. |
+| `UpdateStatusResponse` | model |  | 839 | Response for status update operations (strategy rules, etc.). |
 
 #### api/ws.py
 
@@ -1821,6 +1851,7 @@ Each row maps a source file to its test files and approximate test count.
 | `models/market_data.py` | `tests/unit/models/test_market_data.py` | 53 |
 | `models/metadata.py` | `tests/unit/models/test_metadata.py` | 12 |
 | `models/options.py` | `tests/unit/models/test_options.py` | 41 |
+| `models/recommendation.py` | — | 0 |
 | `models/scan.py` | `tests/unit/models/test_scan.py` | 31 |
 | `models/scan_delta.py` | — | 0 |
 | `models/scoring.py` | `tests/unit/models/test_scoring.py` | 28 |
@@ -1934,11 +1965,13 @@ Each row maps a source file to its test files and approximate test count.
 | `agents/prompts/flow_agent.py` | — | 0 |
 | `agents/prompts/fundamental_agent.py` | — | 0 |
 | `agents/prompts/risk.py` | `tests/unit/agents/test_risk.py` | 13 |
+| `agents/prompts/synthesis.py` | — | 0 |
 | `agents/prompts/trend_agent.py` | — | 0 |
 | `agents/prompts/volatility.py` | `tests/unit/agents/test_volatility.py` | 11 |
 | `agents/research_desk.py` | `tests/unit/agents/test_research_desk.py` | 21 |
 | `agents/risk.py` | `tests/unit/agents/test_risk.py` | 13 |
 | `agents/risk_desk.py` | `tests/unit/agents/test_risk_desk.py` | 23 |
+| `agents/synthesis_agent.py` | `tests/unit/agents/test_synthesis_agent.py` | 23 |
 | `agents/trend_agent.py` | — | 0 |
 | `agents/trend_desk.py` | `tests/unit/agents/test_trend_desk.py` | 20 |
 | `agents/volatility.py` | `tests/unit/agents/test_volatility.py` | 11 |
@@ -2003,15 +2036,15 @@ Each row maps a source file to its test files and approximate test count.
 | Module | Files | Public Symbols | Test Files | Tests |
 |--------|-------|----------------|------------|-------|
 | utils/ | 1 | 4 | 1 | 11 |
-| models/ | 22 | 153 | 14 | 631 |
+| models/ | 23 | 162 | 14 | 631 |
 | indicators/ | 17 | 73 | 16 | 504 |
 | pricing/ | 8 | 25 | 7 | 244 |
 | services/ | 13 | 112 | 12 | 360 |
 | scoring/ | 6 | 29 | 6 | 227 |
 | data/ | 10 | 72 | 2 | 46 |
-| agents/ | 33 | 100 | 16 | 422 |
+| agents/ | 35 | 106 | 17 | 445 |
 | scan/ | 8 | 23 | 3 | 82 |
 | reporting/ | 1 | 2 | 1 | 10 |
 | api/ | 16 | 114 | 13 | 150 |
 | cli/ | 7 | 45 | 3 | 27 |
-| **Total** | **142** | **752** | **94** | **2714** |
+| **Total** | **145** | **767** | **95** | **2737** |

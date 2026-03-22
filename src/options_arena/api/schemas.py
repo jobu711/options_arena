@@ -33,6 +33,7 @@ from options_arena.models import (
     ScanSource,
     SignalDirection,
     SpreadAnalysis,
+    SpreadType,
     TradeThesis,
 )
 from options_arena.models.constants import UNLIMITED_SENTINEL
@@ -355,7 +356,7 @@ class SpreadLegDetail(BaseModel):
 class SpreadDetail(BaseModel):
     """Spread strategy recommendation with P&L analytics."""
 
-    spread_type: str
+    spread_type: SpreadType
     legs: list[SpreadLegDetail]
     net_premium: str  # Decimal as string
     max_profit: str
@@ -410,7 +411,7 @@ def spread_detail_from_analysis(analysis: SpreadAnalysis) -> SpreadDetail:
     pop = analysis.pop_estimate if math.isfinite(analysis.pop_estimate) else None
 
     return SpreadDetail(
-        spread_type=analysis.spread.spread_type.value,
+        spread_type=analysis.spread.spread_type,
         legs=legs,
         net_premium=str(analysis.net_premium),
         max_profit=max_profit_str,
@@ -776,7 +777,7 @@ class HeatmapTicker(BaseModel):
     @field_validator("price")
     @classmethod
     def _validate_price(cls, v: Decimal) -> Decimal:
-        if not math.isfinite(float(v)):
+        if not v.is_finite():
             raise ValueError("price must be finite")
         if v <= 0:
             raise ValueError("price must be positive")
