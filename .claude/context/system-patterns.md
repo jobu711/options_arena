@@ -107,11 +107,21 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **API**: `POST /api/learning/mine`, `GET /api/learning/playbook`, `PUT /api/learning/playbook/{id}`
 - **CLI**: `learn mine`, `learn playbook --status {candidate|approved|rejected}`
 
+### Synthesis Agent Pattern (Unified Recommendation)
+- **Agent**: `synthesis_agent: Agent[SynthesisDeps, PositionRecommendation]` — weighs 6 domain assessments, selects contract, defines entry/exit criteria
+- **SynthesisDeps** `@dataclass`: `context`, `assessments`, `contracts`, `ticker_score`, `learned_patterns`, `tuned_weights`, `tools_used`
+- **Models**: `DomainAssessment` base + 6 subclasses (`TrendAssessment`, `VolatilityAssessment`, `FlowAssessment`, `FundamentalAssessment`, `RiskDeskAssessment`, `ContrarianAssessment`). `AnyAssessment` discriminated union via `Discriminator("desk")` + `Tag()` for polymorphic JSON round-trip
+- **Output**: `PositionRecommendation` (21 fields, Decimal prices, frozen). `RecommendationResult` wraps context + assessments + recommendation + `RunUsage`
+- **Prompt**: `SYNTHESIS_SYSTEM_PROMPT` + `PROMPT_RULES_APPENDIX`. Dynamic injection of `<<<TUNED_WEIGHTS>>>` and `<<<LEARNED_PATTERNS>>>` blocks
+- **Tools**: `build_synthesis_toolset()` — 2 lightweight tools (`synth_fetch_current_quote`, `synth_fetch_chain_summary`)
+- **Runner**: `run_synthesis()` — never-raises, `asyncio.wait_for` timeout, fallback with `confidence=0.2`, `direction=NEUTRAL`
+- **Status**: Foundation complete. Not yet wired into orchestrator (desk-recommend + orchestrator epics pending)
+
 ### Scan Pipeline & Debate Flow — See `scan/CLAUDE.md` and `agents/CLAUDE.md`
 
 ### Batch Debate & Export Patterns
 - `_debate_single()` reusable for single and batch; `_batch_async()` iterates sequentially with per-ticker error isolation
-- `reporting/debate_export.py` generates markdown/PDF from `DebateResult`; PDF via optional `weasyprint`
+- `reporting/debate_export.py` generates markdown from `DebateResult`
 
 ### Web API Patterns
 - **App factory**: `create_app()` with `lifespan()` — services created once, stored on `app.state`

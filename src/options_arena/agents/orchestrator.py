@@ -1041,16 +1041,25 @@ def _log_odds_pool(probabilities: list[float], weights: list[float]) -> float:
     if not probabilities:
         return 0.5  # no data -> neutral
 
-    # Clamp to avoid log(0) / log(inf)
-    clamped = [max(0.01, min(0.99, p)) for p in probabilities]
+    # Filter out non-finite confidence values (NaN/Inf) before clamping —
+    # max(0.01, NaN) returns NaN in Python, which would propagate silently.
+    filtered = [(p, w) for p, w in zip(probabilities, weights, strict=True) if math.isfinite(p)]
+    if not filtered:
+        return 0.5
 
-    total_weight = sum(weights)
+    # Clamp to avoid log(0) / log(inf)
+    clamped = [max(0.01, min(0.99, p)) for p, _ in filtered]
+    filtered_weights = [w for _, w in filtered]
+
+    total_weight = sum(filtered_weights)
     if total_weight == 0:
         return 0.5
 
     # Weighted sum in log-odds space (NOT divided by total_weight —
     # this compounds independent opinions rather than averaging them)
-    log_odds_sum = sum(w * math.log(p / (1 - p)) for p, w in zip(clamped, weights, strict=True))
+    log_odds_sum = sum(
+        w * math.log(p / (1 - p)) for p, w in zip(clamped, filtered_weights, strict=True)
+    )
 
     # Convert back to probability
     return 1.0 / (1.0 + math.exp(-log_odds_sum))

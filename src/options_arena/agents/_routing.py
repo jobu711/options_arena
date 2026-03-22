@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import re
+import sqlite3
 from collections.abc import Awaitable
 from datetime import UTC, datetime
 
@@ -463,6 +465,9 @@ def _synthesize_text(
 def _average_confidence(desk_responses: list[DeskResponse]) -> float:
     """Compute average confidence across desk responses.
 
+    Filters out non-finite confidence values (NaN/Inf) to prevent
+    silent propagation.
+
     Parameters
     ----------
     desk_responses
@@ -471,12 +476,14 @@ def _average_confidence(desk_responses: list[DeskResponse]) -> float:
     Returns
     -------
     float
-        Average confidence, or 0.0 if no responses.
+        Average confidence, or 0.0 if no responses or all non-finite.
     """
     if not desk_responses:
         return 0.0
-    total = sum(r.confidence for r in desk_responses)
-    return total / len(desk_responses)
+    finite_confs = [r.confidence for r in desk_responses if math.isfinite(r.confidence)]
+    if not finite_confs:
+        return 0.0
+    return sum(finite_confs) / len(finite_confs)
 
 
 async def run_agency_query(
@@ -561,7 +568,7 @@ async def run_agency_query(
         try:
             approved_rules = await repo.get_strategy_rules(status=RuleStatus.APPROVED)
             patterns_text = render_learned_patterns(approved_rules)
-        except (OSError, ValueError, KeyError, TypeError):
+        except (OSError, ValueError, KeyError, TypeError, sqlite3.Error):
             logger.warning("Failed to fetch learned patterns — proceeding without them")
             patterns_text = ""
 

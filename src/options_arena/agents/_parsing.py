@@ -30,6 +30,7 @@ from options_arena.models import (
     TradeThesis,
     VolatilityThesis,
 )
+from options_arena.models.recommendation import DomainAssessment
 
 logger = logging.getLogger(__name__)
 
@@ -287,6 +288,29 @@ def build_cleaned_fundamental_thesis(output: FundamentalThesis) -> FundamentalTh
     )
 
 
+def build_cleaned_domain_assessment[T: DomainAssessment](output: T) -> T:
+    """Strip ``<think>`` tags from all string fields of a ``DomainAssessment`` subclass.
+
+    Iterates over model fields and cleans any ``str`` or ``list[str]`` values.
+    Returns the original instance unchanged if no ``<think>`` tags are found.
+    Uses ``model_copy(update=...)`` to produce a cleaned frozen copy.
+    """
+    updates: dict[str, object] = {}
+    for name, _field_info in type(output).model_fields.items():
+        value = getattr(output, name)
+        if isinstance(value, str):
+            cleaned = strip_think_tags(value)
+            if cleaned != value:
+                updates[name] = cleaned
+        elif isinstance(value, list) and value and isinstance(value[0], str):
+            cleaned_list = [strip_think_tags(item) for item in value]
+            if cleaned_list != value:
+                updates[name] = cleaned_list
+    if not updates:
+        return output
+    return output.model_copy(update=updates)
+
+
 @dataclass
 class DebateDeps:
     """Injected into every agent via RunContext[DebateDeps].
@@ -360,6 +384,8 @@ def _render_regime_label(label: str, value: float | None, labels: dict[float, st
 
 def _format_dollars(value: float) -> str:
     """Format a dollar amount as $X.XB or $X.XM, with sign for negatives."""
+    if not math.isfinite(value):
+        return "N/A"
     abs_val = abs(value)
     if abs_val >= 1e9:
         return f"${value / 1e9:.1f}B"
@@ -569,11 +595,6 @@ def render_volatility_context(ctx: MarketContext) -> str:
         if pop_str is not None:
             lines.append(pop_str)
 
-    # Neural surface comparison — volatility agent is the natural consumer
-    neural_surface_block = _render_neural_surface_comparison(ctx)
-    if neural_surface_block:
-        lines.append(neural_surface_block)
-
     return "\n".join(lines)
 
 
@@ -660,13 +681,13 @@ def render_fundamental_context(ctx: MarketContext) -> str:
         income_lines.append(f"OPERATING INCOME: {_format_dollars(ctx.fd_operating_income)}")
     if ctx.fd_gross_profit is not None:
         income_lines.append(f"GROSS PROFIT: {_format_dollars(ctx.fd_gross_profit)}")
-    if ctx.fd_eps_diluted is not None:
+    if ctx.fd_eps_diluted is not None and math.isfinite(ctx.fd_eps_diluted):
         income_lines.append(f"EPS (DILUTED): ${ctx.fd_eps_diluted:.2f}")
-    if ctx.fd_gross_margin is not None:
+    if ctx.fd_gross_margin is not None and math.isfinite(ctx.fd_gross_margin):
         income_lines.append(f"GROSS MARGIN: {ctx.fd_gross_margin * 100:.1f}%")
-    if ctx.fd_operating_margin is not None:
+    if ctx.fd_operating_margin is not None and math.isfinite(ctx.fd_operating_margin):
         income_lines.append(f"OPERATING MARGIN: {ctx.fd_operating_margin * 100:.1f}%")
-    if ctx.fd_net_margin is not None:
+    if ctx.fd_net_margin is not None and math.isfinite(ctx.fd_net_margin):
         income_lines.append(f"NET MARGIN: {ctx.fd_net_margin * 100:.1f}%")
     if income_lines:
         lines.append("")
@@ -681,7 +702,7 @@ def render_fundamental_context(ctx: MarketContext) -> str:
         balance_lines.append(f"TOTAL CASH: {_format_dollars(ctx.fd_total_cash)}")
     if ctx.fd_total_assets is not None:
         balance_lines.append(f"TOTAL ASSETS: {_format_dollars(ctx.fd_total_assets)}")
-    if ctx.fd_current_ratio is not None:
+    if ctx.fd_current_ratio is not None and math.isfinite(ctx.fd_current_ratio):
         balance_lines.append(f"CURRENT RATIO: {ctx.fd_current_ratio:.1f}x")
     if balance_lines:
         lines.append("")
@@ -690,13 +711,13 @@ def render_fundamental_context(ctx: MarketContext) -> str:
 
     # --- Growth & Valuation — Financial Datasets enrichment ---
     growth_lines: list[str] = []
-    if ctx.fd_revenue_growth is not None:
+    if ctx.fd_revenue_growth is not None and math.isfinite(ctx.fd_revenue_growth):
         growth_lines.append(f"REVENUE GROWTH (YOY): {ctx.fd_revenue_growth * 100:.1f}%")
-    if ctx.fd_earnings_growth is not None:
+    if ctx.fd_earnings_growth is not None and math.isfinite(ctx.fd_earnings_growth):
         growth_lines.append(f"EARNINGS GROWTH (YOY): {ctx.fd_earnings_growth * 100:.1f}%")
-    if ctx.fd_ev_to_ebitda is not None:
+    if ctx.fd_ev_to_ebitda is not None and math.isfinite(ctx.fd_ev_to_ebitda):
         growth_lines.append(f"EV/EBITDA: {ctx.fd_ev_to_ebitda:.1f}x")
-    if ctx.fd_free_cash_flow_yield is not None:
+    if ctx.fd_free_cash_flow_yield is not None and math.isfinite(ctx.fd_free_cash_flow_yield):
         growth_lines.append(f"FCF YIELD: {ctx.fd_free_cash_flow_yield * 100:.1f}%")
     if growth_lines:
         lines.append("")
@@ -803,41 +824,6 @@ def _render_neural_context(ctx: MarketContext) -> str:
     if rendered is None:
         return ""
     return "\n".join(["", "## Neural Trajectory", rendered])
-
-
-def _render_neural_surface_comparison(ctx: MarketContext) -> str:
-    """Render spline vs neural surface R-squared comparison when both available.
-
-    Compares ``surface_fit_r2`` (spline) with ``neural_surface_r2`` (neural MLP)
-    when both fields are populated. Returns empty string when either is missing.
-
-    Note: ``neural_surface_r2`` must be populated on ``MarketContext`` for this
-    comparison to render. ``prob_profit_neural`` (trajectory model) is NOT used
-    as a proxy — trajectory and neural surface are independent features.
-    """
-    spline_r2 = ctx.surface_fit_r2
-    if spline_r2 is None or not math.isfinite(spline_r2):
-        return ""
-
-    # Gate on a dedicated neural surface field, not the trajectory proxy.
-    neural_r2 = getattr(ctx, "neural_surface_r2", None)
-    if neural_r2 is None:
-        return ""
-
-    lines: list[str] = [
-        "",
-        "## Surface Model Comparison",
-        f"SPLINE SURFACE R²: {spline_r2:.2f}",
-        f"NEURAL SURFACE R²: {neural_r2:.2f}",
-    ]
-    if neural_r2 > spline_r2:
-        lines.append("NEURAL ADVANTAGE: Neural model provides better fit")
-    elif spline_r2 >= 0.8:
-        lines.append("FIT QUALITY: Good — spline captures IV surface well")
-    else:
-        lines.append("FIT QUALITY: Moderate — consider neural model for better fit")
-
-    return "\n".join(lines)
 
 
 def render_context_block(

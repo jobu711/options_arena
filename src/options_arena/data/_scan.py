@@ -245,6 +245,11 @@ class ScanMixin(RepositoryBase):
         4. Filter to those with ``consecutive_scans >= min_scans``.
         5. Sort by consecutive_scans descending.
         """
+        valid_directions = {d.value for d in SignalDirection}
+        if direction.lower() not in valid_directions:
+            logger.warning("Invalid direction %r passed to get_trending_tickers", direction)
+            return []
+
         conn = self._db.conn
 
         # Step 1: find latest scan

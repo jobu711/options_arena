@@ -59,9 +59,19 @@ from options_arena.agents.synthesis_agent import (
     synthesis_agent,
 )
 from options_arena.agents.trend_agent import trend_agent
-from options_arena.agents.trend_desk import run_trend_desk_query, trend_desk
+from options_arena.agents.trend_desk import (
+    run_trend_desk_query,
+    run_trend_desk_recommendation,
+    trend_desk,
+    trend_desk_recommend,
+)
 from options_arena.agents.volatility import volatility_agent
-from options_arena.agents.volatility_desk import run_vol_desk_query, vol_desk
+from options_arena.agents.volatility_desk import (
+    run_vol_desk_query,
+    run_vol_desk_recommendation,
+    vol_desk,
+    vol_desk_recommend,
+)
 
 __all__ = [
     "AGENT_VOTE_WEIGHTS",
@@ -111,13 +121,17 @@ __all__ = [
     "run_risk_desk_query",
     "run_synthesis",
     "run_trend_desk_query",
+    "run_trend_desk_recommendation",
     "run_vol_desk_query",
+    "run_vol_desk_recommendation",
     "should_debate",
     "synthesis_agent",
     "synthesize_verdict",
     "SynthesisDeps",
     "trend_agent",
     "trend_desk",
+    "trend_desk_recommend",
     "vol_desk",
+    "vol_desk_recommend",
     "volatility_agent",
 ]

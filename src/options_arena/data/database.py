@@ -114,7 +114,11 @@ class Database:
                 # If migration fails with a DDL error (e.g., "duplicate column name"),
                 # it was likely partially applied in a prior run. Record it and continue.
                 err_msg = str(exc).lower()
-                if "duplicate column" in err_msg or "already exists" in err_msg:
+                if (
+                    "duplicate column" in err_msg
+                    or "already exists" in err_msg
+                    or "no such column" in err_msg
+                ):
                     logger.warning(
                         "Migration %03d appears partially applied (%s) — recording as applied",
                         version,
