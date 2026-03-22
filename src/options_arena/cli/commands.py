@@ -27,10 +27,10 @@ from rich.table import Table
 from options_arena.cli.app import app
 from options_arena.cli.progress import RichProgressCallback, setup_sigint_handler
 from options_arena.cli.rendering import (
-    render_batch_summary_table,
     render_debate_history,
-    render_debate_panels,
     render_health_table,
+    render_recommendation,
+    render_recommendation_batch_summary,
     render_scan_table,
 )
 from options_arena.data import Database, Repository
@@ -67,6 +67,7 @@ if TYPE_CHECKING:
     from options_arena.agents import DebateResult
     from options_arena.models import DimensionalScores
     from options_arena.models.market_data import OHLCV, Quote, TickerInfo
+    from options_arena.models.recommendation import RecommendationResult
     from options_arena.services.options_data import ExpirationChain
 
 logger = logging.getLogger(__name__)
@@ -522,7 +523,7 @@ async def _batch_async(
     no_recon: bool = False,
     provider: LLMProvider = LLMProvider.GROQ,
 ) -> None:
-    """Batch debate: run debates for top-scored tickers from the latest scan."""
+    """Batch recommendation: run recommendations for top-scored tickers from the latest scan."""
     settings = AppSettings()
     if provider != settings.debate.provider:
         settings.debate = settings.debate.model_copy(update={"provider": provider})
@@ -536,8 +537,6 @@ async def _batch_async(
     market_data: MarketDataService | None = None
     options_data: OptionsDataService | None = None
     fred: FredService | None = None
-    intelligence_svc: IntelligenceService | None = None
-    fd_svc: FinancialDatasetsService | None = None
 
     try:
         await db.connect()
@@ -573,19 +572,9 @@ async def _batch_async(
         )
         fred = FredService(settings.service, settings.pricing, cache)
 
-        if not no_recon and settings.intelligence.enabled:
-            intelligence_svc = IntelligenceService(settings.intelligence, cache, limiter)
+        err_console.print(f"[cyan]Batch recommendation: {len(top_scores)} tickers[/cyan]\n")
 
-        if settings.financial_datasets.enabled and settings.financial_datasets.api_key is not None:
-            fd_svc = FinancialDatasetsService(
-                config=settings.financial_datasets,
-                cache=cache,
-                limiter=limiter,
-            )
-
-        err_console.print(f"[cyan]Batch debate: {len(top_scores)} tickers[/cyan]\n")
-
-        results: list[tuple[str, DebateResult | None, str | None]] = []
+        results: list[tuple[str, RecommendationResult | None, str | None]] = []
         start_time = time.monotonic()
 
         from options_arena.agents import effective_batch_ticker_delay  # noqa: PLC0415
@@ -603,9 +592,9 @@ async def _batch_async(
                     len(top_scores),
                 )
                 await asyncio.sleep(batch_delay)
-            err_console.print(f"[cyan]Debating {ticker} ({i}/{len(top_scores)})...[/cyan]")
+            err_console.print(f"[cyan]Analyzing {ticker} ({i}/{len(top_scores)})...[/cyan]")
             try:
-                result = await _debate_single(
+                result = await _recommendation_single(
                     ticker_score,
                     settings,
                     market_data,
@@ -613,43 +602,39 @@ async def _batch_async(
                     fred,
                     repo,
                     fallback_only=fallback_only,
-                    intelligence_svc=intelligence_svc,
-                    fd_svc=fd_svc,
+                    scan_run_id=scan_id,
                 )
                 results.append((ticker, result, None))
                 # Brief per-ticker result
-                direction = result.thesis.direction.value.upper()
-                confidence = f"{result.thesis.confidence * 100:.0f}%"
+                rec = result.recommendation
+                direction = rec.direction.value.upper()
+                confidence = f"{rec.confidence * 100:.0f}%"
                 err_console.print(f"  [dim]{ticker}: {direction} ({confidence})[/dim]")
             except Exception as exc:
-                logger.exception("Batch debate failed for %s", ticker)
+                logger.exception("Batch recommendation failed for %s", ticker)
                 results.append((ticker, None, str(exc)))
                 err_console.print(f"  [red]{ticker}: FAILED ({exc})[/red]")
 
         # Render summary table
         elapsed = time.monotonic() - start_time
-        table = render_batch_summary_table(results)
+        table = render_recommendation_batch_summary(results)
         console.print(table)
 
         succeeded = sum(1 for _, r, _ in results if r is not None)
         console.print(
-            f"\n[dim]{succeeded}/{len(results)} debates completed in {elapsed:.1f}s[/dim]"
+            f"\n[dim]{succeeded}/{len(results)} recommendations completed in {elapsed:.1f}s[/dim]"
         )
 
     except KeyboardInterrupt:
-        err_console.print("\n[yellow]Batch debate cancelled.[/yellow]")
+        err_console.print("\n[yellow]Batch recommendation cancelled.[/yellow]")
         raise typer.Exit(code=130)  # noqa: B904
     except typer.Exit:
         raise
     except Exception as exc:
-        logger.exception("Batch debate failed")
+        logger.exception("Batch recommendation failed")
         err_console.print("[red]Batch failed. Check logs/options_arena.log for details.[/red]")
         raise typer.Exit(code=1) from exc
     finally:
-        if fd_svc is not None:
-            await fd_svc.close()
-        if intelligence_svc is not None:
-            await intelligence_svc.close()
         if market_data is not None:
             await market_data.close()
         if options_data is not None:
@@ -679,6 +664,160 @@ def _export_result(
     except OSError:
         logger.exception("Failed to write export file: %s", export_path)
         err_console.print(f"[red]Failed to write: {export_path}[/red]")
+
+
+def _export_recommendation_result(
+    result: RecommendationResult,
+    ticker: str,
+    fmt: str,
+    export_dir: str,
+) -> None:
+    """Export a recommendation result to file. Prints status or error to stderr."""
+    from datetime import date  # noqa: PLC0415
+
+    from options_arena.reporting import export_recommendation_markdown  # noqa: PLC0415
+
+    export_path = Path(export_dir) / f"recommendation_{ticker}_{date.today().isoformat()}.{fmt}"
+    export_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        md_content = export_recommendation_markdown(result)
+        export_path.write_text(md_content, encoding="utf-8")
+        err_console.print(f"[green]Exported: {export_path}[/green]")
+    except OSError:
+        logger.exception("Failed to write export file: %s", export_path)
+        err_console.print(f"[red]Failed to write: {export_path}[/red]")
+
+
+async def _recommendation_single(
+    ticker_score: TickerScore,
+    settings: AppSettings,
+    market_data: MarketDataService,
+    options_data: OptionsDataService,
+    fred: FredService,
+    repo: Repository,
+    *,
+    fallback_only: bool = False,
+    scan_run_id: int | None = None,
+) -> RecommendationResult:
+    """Run a single recommendation for one ticker. Returns result without rendering.
+
+    Fetches live market data, recommends contracts, and runs the recommendation pipeline.
+    The caller is responsible for service lifecycle (creation and cleanup) and
+    any console output (status messages, rendering).
+
+    Args:
+        ticker_score: Scored ticker from a prior scan run.
+        settings: Application settings (debate config, pricing config, service config).
+        market_data: Pre-created market data service.
+        options_data: Pre-created options data service.
+        fred: Pre-created FRED service.
+        repo: Database repository for persistence.
+        fallback_only: If True, force data-driven path by using near-zero timeouts.
+        scan_run_id: Optional scan run ID for persistence linkage.
+
+    Returns:
+        RecommendationResult with assessments, recommendation, usage, and duration.
+    """
+    ticker = ticker_score.ticker
+
+    # Fetch quote, ticker info, OHLCV, risk-free rate, and option chains concurrently
+    quote_task = market_data.fetch_quote(ticker)
+    info_task = market_data.fetch_ticker_info(ticker)
+    ohlcv_task = market_data.fetch_ohlcv(ticker, period="1y")
+    risk_free_task = fred.fetch_risk_free_rate()
+    chains_task = options_data.fetch_chain_all_expirations(ticker)
+
+    gather_results = await asyncio.gather(
+        quote_task,
+        info_task,
+        ohlcv_task,
+        risk_free_task,
+        chains_task,
+        return_exceptions=True,
+    )
+    # Re-raise the first exception with context
+    for result in gather_results:
+        if isinstance(result, BaseException):
+            raise RuntimeError(f"Data fetch failed: {type(result).__name__}") from result
+    quote = cast("Quote", gather_results[0])
+    ticker_info = cast("TickerInfo", gather_results[1])
+    ohlcv_list = cast("list[OHLCV]", gather_results[2])
+    risk_free_rate = cast("float", gather_results[3])
+    chain_results = cast("list[ExpirationChain]", gather_results[4])
+
+    # Compute raw indicators from OHLCV data for the recommendation context
+    raw_signals: IndicatorSignals
+    if ohlcv_list:
+        df = ohlcv_to_dataframe(ohlcv_list)
+        raw_signals = compute_indicators(df, INDICATOR_REGISTRY)
+    else:
+        raw_signals = ticker_score.signals
+
+    # Create a ticker score copy with raw indicator signals
+    rec_score = ticker_score.model_copy(update={"signals": raw_signals})
+
+    # Flatten all contracts across expirations
+    all_contracts = [c for chain in chain_results for c in chain.contracts]
+
+    # Enrich with options-specific indicators from the full chain
+    spot = float(ticker_info.current_price)
+    if all_contracts:
+        from options_arena.scan.indicators import compute_options_indicators  # noqa: PLC0415
+
+        options_signals = compute_options_indicators(all_contracts, spot)
+        if options_signals.put_call_ratio is not None:
+            rec_score.signals.put_call_ratio = options_signals.put_call_ratio
+        if options_signals.max_pain_distance is not None:
+            rec_score.signals.max_pain_distance = options_signals.max_pain_distance
+
+    # Select best contract via scoring/contracts.py (mirrors scan pipeline Phase 3)
+    contracts = recommend_contracts(
+        contracts=all_contracts,
+        direction=rec_score.direction,
+        spot=spot,
+        risk_free_rate=risk_free_rate,
+        dividend_yield=ticker_info.dividend_yield,
+        filters=settings.scan.filters.options,
+        delta_target=settings.pricing.delta_target,
+    )
+
+    logger.info(
+        "Recommendation %s: %d chains fetched, %d total contracts, %d recommended",
+        ticker,
+        len(chain_results),
+        len(all_contracts),
+        len(contracts),
+    )
+
+    # Force fallback mode if requested (near-zero timeout triggers data-driven path)
+    config = settings.debate
+    if fallback_only:
+        config = config.model_copy(
+            update={
+                "agent_timeout": _FALLBACK_ONLY_TIMEOUT_SEC,
+                "max_total_duration": _FALLBACK_ONLY_TIMEOUT_SEC,
+                "min_recommendation_score": 0.0,
+            }
+        )
+
+    effective_settings = settings.model_copy(update={"debate": config})
+
+    # Lazy import: agents/ depends on pydantic-ai which may not be available
+    from options_arena.agents import run_recommendation  # noqa: PLC0415
+
+    return await run_recommendation(
+        ticker=ticker,
+        ticker_score=rec_score,
+        contracts=contracts,
+        quote=quote,
+        ticker_info=ticker_info,
+        settings=effective_settings,
+        repo=repo,
+        market_data=market_data,
+        options_data=options_data,
+        fred=fred,
+        scan_run_id=scan_run_id,
+    )
 
 
 async def _debate_single(
@@ -852,7 +991,7 @@ async def _debate_async(
     no_recon: bool = False,
     provider: LLMProvider = LLMProvider.GROQ,
 ) -> None:
-    """Run AI debate with full service lifecycle management."""
+    """Run AI recommendation with full service lifecycle management."""
     settings = AppSettings()
     if provider != settings.debate.provider:
         settings.debate = settings.debate.model_copy(update={"provider": provider})
@@ -866,8 +1005,6 @@ async def _debate_async(
     market_data: MarketDataService | None = None
     options_data: OptionsDataService | None = None
     fred: FredService | None = None
-    intelligence_svc: IntelligenceService | None = None
-    fd_svc: FinancialDatasetsService | None = None
 
     try:
         await db.connect()
@@ -903,6 +1040,27 @@ async def _debate_async(
             )
             raise typer.Exit(code=1)
 
+        # Score gate: should_recommend checks score threshold + direction
+        from options_arena.agents import should_recommend  # noqa: PLC0415
+
+        config = settings.debate
+        if fallback_only:
+            config = config.model_copy(
+                update={
+                    "agent_timeout": _FALLBACK_ONLY_TIMEOUT_SEC,
+                    "max_total_duration": _FALLBACK_ONLY_TIMEOUT_SEC,
+                    "min_recommendation_score": 0.0,
+                }
+            )
+
+        if not should_recommend(ticker_score, config):
+            err_console.print(
+                f"[yellow]{ticker} score ({ticker_score.composite_score:.1f}) "
+                f"below threshold ({config.min_recommendation_score:.1f}) "
+                f"or direction is neutral. Skipping recommendation.[/yellow]"
+            )
+            return
+
         # Create services for live data fetching
         market_data = MarketDataService(settings.service, cache, limiter)
         options_data = OptionsDataService(
@@ -914,33 +1072,21 @@ async def _debate_async(
         )
         fred = FredService(settings.service, settings.pricing, cache)
 
-        if not no_recon and settings.intelligence.enabled:
-            intelligence_svc = IntelligenceService(settings.intelligence, cache, limiter)
-
-        if settings.financial_datasets.enabled and settings.financial_datasets.api_key is not None:
-            fd_svc = FinancialDatasetsService(
-                config=settings.financial_datasets,
-                cache=cache,
-                limiter=limiter,
-            )
-
         err_console.print(f"[cyan]Fetching live data for {ticker}...[/cyan]")
-        err_console.print(f"[cyan]Running debate for {ticker}...[/cyan]")
+        err_console.print(f"[cyan]Running recommendation for {ticker}...[/cyan]")
 
-        result = await _debate_single(
+        result = await _recommendation_single(
             ticker_score=ticker_score,
-            settings=settings,
+            settings=settings.model_copy(update={"debate": config}),
             market_data=market_data,
             options_data=options_data,
             fred=fred,
             repo=repo,
             fallback_only=fallback_only,
-            intelligence_svc=intelligence_svc,
-            fd_svc=fd_svc,
         )
 
-        # Render debate output
-        render_debate_panels(console, result)
+        # Render recommendation output
+        render_recommendation(console, result)
 
         # Token usage and duration
         total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens
@@ -950,7 +1096,7 @@ async def _debate_async(
 
         # Export to file (after terminal rendering)
         if export is not None:
-            _export_result(result, ticker, export, export_dir)
+            _export_recommendation_result(result, ticker, export, export_dir)
 
     except KeyboardInterrupt:
         err_console.print("\n[yellow]Debate cancelled.[/yellow]")
@@ -962,10 +1108,6 @@ async def _debate_async(
         err_console.print("[red]Debate failed. Check logs/options_arena.log for details.[/red]")
         raise typer.Exit(code=1) from exc
     finally:
-        if fd_svc is not None:
-            await fd_svc.close()
-        if intelligence_svc is not None:
-            await intelligence_svc.close()
         if market_data is not None:
             await market_data.close()
         if options_data is not None:

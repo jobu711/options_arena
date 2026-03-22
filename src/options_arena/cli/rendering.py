@@ -29,6 +29,11 @@ from options_arena.models import (
 )
 from options_arena.models.constants import UNLIMITED_SENTINEL
 from options_arena.models.health import HealthStatus
+from options_arena.models.recommendation import (
+    DomainAssessment,
+    PositionRecommendation,
+    RecommendationResult,
+)
 from options_arena.scan.models import ScanResult
 
 logger = logging.getLogger(__name__)
@@ -780,5 +785,235 @@ def render_debate_history(debates: list[DebateRow], ticker: str) -> Table:
             fallback_text,
             summary_str,
         )
+
+    return table
+
+
+# ---------------------------------------------------------------------------
+# Recommendation rendering (unified agent system)
+# ---------------------------------------------------------------------------
+
+
+def render_recommendation(
+    console: Console,
+    result: RecommendationResult,
+) -> None:
+    """Render a recommendation result as Rich panels for the unified agent pipeline.
+
+    Layout: Fallback warning (if applicable) -> 6 domain assessment panels ->
+    Position recommendation table.
+
+    Agent text is rendered with ``markup=False`` to prevent Rich from interpreting
+    ``[brackets]`` (e.g., ``[RSI]``, ``[AAPL]``) as style tags.
+
+    Args:
+        console: Rich Console instance for stdout output.
+        result: Complete recommendation output from ``run_recommendation()``.
+    """
+    # Fallback warning banner
+    if result.is_fallback:
+        console.print(
+            Panel(
+                Text(
+                    "Data-driven analysis -- AI unavailable. Exercise additional caution.",
+                    style="bold yellow",
+                ),
+                border_style="yellow",
+                title="FALLBACK",
+            )
+        )
+        console.print()
+
+    # --- Domain assessment panels ---
+    if result.assessments:
+        for assessment in result.assessments:
+            _render_assessment_panel(console, assessment)
+    else:
+        console.print(
+            Panel(
+                Text("No assessments available.", style="dim"),
+                border_style="dim",
+                title="ASSESSMENTS",
+            )
+        )
+        console.print()
+
+    # --- Position recommendation ---
+    rec = result.recommendation
+    _render_position_recommendation(console, rec)
+
+
+def _render_assessment_panel(
+    console: Console,
+    assessment: DomainAssessment,
+) -> None:
+    """Render a single domain assessment as a Rich Panel.
+
+    Args:
+        console: Rich Console instance for stdout output.
+        assessment: A concrete DomainAssessment subclass instance.
+    """
+    desk_name = assessment.desk.value.upper()
+    direction = assessment.direction.value.upper()
+    direction_style = _DIRECTION_STYLES.get(assessment.direction.value, "")
+    confidence_str = (
+        f"{assessment.confidence * 100:.0f}%" if math.isfinite(assessment.confidence) else "--"
+    )
+
+    lines: list[str] = [
+        f"Direction: {direction}  |  Confidence: {confidence_str}",
+        "",
+        _safe_text(assessment.summary),
+    ]
+
+    if assessment.key_factors:
+        lines.append("")
+        lines.append("Key Factors:")
+        for factor in assessment.key_factors:
+            lines.append(f"  - {_safe_text(factor)}")
+
+    if assessment.risks:
+        lines.append("")
+        lines.append("Risks:")
+        for risk in assessment.risks:
+            lines.append(f"  - {_safe_text(risk)}")
+
+    body = Text("\n".join(lines))
+    # Color the direction portion on the first line
+    if direction_style:
+        direction_label = f"Direction: {direction}"
+        body.stylize(direction_style, 0, len(direction_label))
+
+    border_style = _DIRECTION_STYLES.get(assessment.direction.value, "dim")
+    console.print(
+        Panel(
+            body,
+            border_style=border_style,
+            title=f"{desk_name} ASSESSMENT",
+            title_align="left",
+        )
+    )
+    console.print()
+
+
+def _render_position_recommendation(
+    console: Console,
+    rec: PositionRecommendation,
+) -> None:
+    """Render the position recommendation as a Rich Table + summary panel.
+
+    Args:
+        console: Rich Console instance for stdout output.
+        rec: The position recommendation from synthesis.
+    """
+    direction = rec.direction.value.upper()
+    direction_style = _DIRECTION_STYLES.get(rec.direction.value, "bold white")
+    confidence_str = f"{rec.confidence * 100:.0f}%" if math.isfinite(rec.confidence) else "--"
+    strategy_str = (
+        rec.recommended_strategy.value.upper()
+        if rec.recommended_strategy is not None
+        else "SINGLE LEG"
+    )
+
+    # Contract + position details table
+    table = Table(title="Position Recommendation", show_header=True)
+    table.add_column("Detail", style="bold white", no_wrap=True)
+    table.add_column("Value", justify="right")
+
+    table.add_row("Ticker", rec.ticker)
+    table.add_row("Contract", _safe_text(rec.recommended_contract))
+    table.add_row("Direction", Text(direction, style=direction_style))
+    table.add_row("Confidence", confidence_str)
+    table.add_row("Entry Price", f"${rec.entry_price:.2f}")
+
+    if rec.stop_loss is not None:
+        table.add_row("Stop Loss", f"${rec.stop_loss:.2f}")
+    if rec.take_profit is not None:
+        table.add_row("Take Profit", f"${rec.take_profit:.2f}")
+
+    table.add_row("Position Size", f"{rec.position_size_pct:.0%}")
+    rr_str = f"{rec.risk_reward_ratio:.2f}" if math.isfinite(rec.risk_reward_ratio) else "--"
+    table.add_row("Risk/Reward", rr_str)
+    table.add_row("Max Loss", _safe_text(rec.max_loss_estimate))
+    table.add_row("Strategy", strategy_str)
+    console.print(table)
+    console.print()
+
+    # Strategy rationale panel
+    rationale_lines: list[str] = [
+        _safe_text(rec.strategy_rationale),
+        "",
+        f"Entry: {_safe_text(rec.entry_criteria)}",
+        f"Exit: {_safe_text(rec.exit_criteria)}",
+    ]
+
+    if rec.key_factors:
+        rationale_lines.append("")
+        rationale_lines.append("Key Factors:")
+        for factor in rec.key_factors:
+            rationale_lines.append(f"  - {_safe_text(factor)}")
+
+    rationale_lines.append("")
+    rationale_lines.append(f"Risk Assessment: {_safe_text(rec.risk_assessment)}")
+
+    if rec.agent_agreement_score is not None and math.isfinite(rec.agent_agreement_score):
+        rationale_lines.append(f"Agent Agreement: {rec.agent_agreement_score:.0%}")
+
+    if rec.dissenting_desks:
+        desk_names = ", ".join(d.value.title() for d in rec.dissenting_desks)
+        rationale_lines.append(f"Dissenting Desks: {desk_names}")
+
+    console.print(
+        Panel(
+            Text("\n".join(rationale_lines)),
+            border_style=direction_style,
+            title="RATIONALE",
+            title_align="left",
+        )
+    )
+
+
+def render_recommendation_batch_summary(
+    results: list[tuple[str, RecommendationResult | None, str | None]],
+) -> Table:
+    """Render batch recommendation results as a compact summary table.
+
+    Args:
+        results: List of (ticker, recommendation_result_or_none, error_or_none) tuples.
+
+    Returns:
+        Rich Table with one row per ticker.
+    """
+    table = Table(title="Batch Recommendation Summary")
+    table.add_column("Ticker", style="bold white", no_wrap=True)
+    table.add_column("Direction", justify="center")
+    table.add_column("Confidence", justify="right")
+    table.add_column("Contract", justify="center")
+    table.add_column("Fallback", justify="center")
+    table.add_column("Duration", justify="right")
+    table.add_column("Status", justify="center")
+
+    for ticker, result, error in results:
+        if result is not None:
+            rec = result.recommendation
+            direction_style = _DIRECTION_STYLES.get(rec.direction.value, "")
+            direction_text: Text | str = Text(rec.direction.value.upper(), style=direction_style)
+            conf_str = f"{rec.confidence * 100:.0f}%" if math.isfinite(rec.confidence) else "--"
+            contract_str = rec.recommended_contract[:25] if rec.recommended_contract else "--"
+            fallback: Text | str = (
+                Text("Yes", style="yellow") if result.is_fallback else Text("No", style="dim")
+            )
+            duration = f"{result.duration_ms / 1000:.1f}s"
+            status: Text | str = Text("OK", style="bold green")
+        else:
+            direction_text = "--"
+            conf_str = "--"
+            contract_str = "--"
+            fallback = "--"
+            duration = "--"
+            err_msg = (error or "Unknown error")[:40]
+            status = Text(f"FAIL: {err_msg}", style="bold red")
+
+        table.add_row(ticker, direction_text, conf_str, contract_str, fallback, duration, status)
 
     return table
