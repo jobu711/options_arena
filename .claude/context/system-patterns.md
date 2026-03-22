@@ -146,7 +146,7 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **Orchestration**: `options_data.py` tries CBOE with timeout, falls back to yfinance on exception
 
 ### OpenBB Enrichment Pattern (Optional)
-- **Guarded imports**: `_get_obb()`/`_get_vader()` return SDK or `None` — never-raises contract
+- **Guarded imports**: `_get_obb()` returns SDK or `None` — never-raises contract
 - **Config-gated**: `OpenBBConfig.enabled` master toggle + per-source toggles
 - **MarketContext**: 11 enrichment fields + `enrichment_ratio()` (separate from `completeness_ratio()`)
 

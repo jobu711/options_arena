@@ -555,20 +555,25 @@ async def start_batch_debate(
     bridge = BatchProgressBridge()
     request.app.state.batch_queues[batch_id] = bridge.queue
 
-    task = asyncio.create_task(
-        _run_batch_debate_background(
-            request,
-            batch_id,
-            tickers,
-            body.scan_id,
-            settings,
-            repo,
-            market_data,
-            options_data,
-            bridge,
-            lock,
+    # Guard create_task — if it fails, release lock to avoid permanent hold.
+    try:
+        task = asyncio.create_task(
+            _run_batch_debate_background(
+                request,
+                batch_id,
+                tickers,
+                body.scan_id,
+                settings,
+                repo,
+                market_data,
+                options_data,
+                bridge,
+                lock,
+            )
         )
-    )
+    except BaseException:
+        lock.release()
+        raise
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
 

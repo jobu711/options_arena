@@ -1664,3 +1664,150 @@ def build_research_toolset() -> list[object]:
     except ImportError:
         pass
     return tools
+
+
+# ---------------------------------------------------------------------------
+# Synthesis toolset — lightweight lookup tools for synthesis agent
+# ---------------------------------------------------------------------------
+
+# The synthesis agent uses SynthesisDeps (not DeskDeps). These tools access
+# the pre-fetched data already available in deps (MarketContext, contracts).
+# RunContext is typed as object to avoid circular imports with synthesis_agent.py.
+
+
+async def synth_fetch_current_quote(
+    ctx: RunContext[object],
+    ticker: str,
+) -> str:
+    """Fetch the current quote snapshot for *ticker* from the market context.
+
+    Returns price, 52-week range, IV rank, RSI, and sector from the
+    pre-fetched ``MarketContext`` in deps. Only the ticker matching the
+    analysis context is available.
+    """
+    if err := _validate_ticker(ticker):
+        return err
+    try:
+        context = ctx.deps.context  # type: ignore[attr-defined]
+        upper = ticker.upper()
+        if upper != context.ticker.upper():
+            return f"Error: only {context.ticker} data is available in this session"
+
+        lines: list[str] = [
+            f"Quote for {context.ticker}:",
+            f"  Price: ${context.current_price}",
+            f"  52W High: ${context.price_52w_high}  52W Low: ${context.price_52w_low}",
+            f"  RSI(14): {context.rsi_14:.1f}",
+            f"  Sector: {context.sector}",
+            f"  Dividend Yield: {context.dividend_yield * 100:.2f}%",
+        ]
+        if context.iv_rank is not None and math.isfinite(context.iv_rank):
+            lines.append(f"  IV Rank: {context.iv_rank:.1f}")
+        if context.iv_percentile is not None and math.isfinite(context.iv_percentile):
+            lines.append(f"  IV Percentile: {context.iv_percentile:.1f}")
+        if context.atm_iv_30d is not None and math.isfinite(context.atm_iv_30d):
+            lines.append(f"  ATM IV 30D: {context.atm_iv_30d * 100:.1f}%")
+        if context.put_call_ratio is not None and math.isfinite(context.put_call_ratio):
+            lines.append(f"  Put/Call Ratio: {context.put_call_ratio:.2f}")
+
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("synth_fetch_current_quote failed: %s", exc)
+        return f"Error: could not fetch quote for {ticker}"
+
+
+async def synth_fetch_chain_summary(
+    ctx: RunContext[object],
+    ticker: str,
+) -> str:
+    """Summarize the available option contracts for *ticker*.
+
+    Returns total contracts, call/put breakdown, OI and volume totals,
+    put/call ratios, and average bid-ask spread percentage from the
+    pre-fetched contract list in deps.
+    """
+    if err := _validate_ticker(ticker):
+        return err
+    try:
+        contracts: list[OptionContract] = ctx.deps.contracts  # type: ignore[attr-defined]
+        if not contracts:
+            return f"No contracts available for {ticker}"
+
+        call_count = 0
+        put_count = 0
+        call_oi = 0
+        put_oi = 0
+        call_vol = 0
+        put_vol = 0
+        spread_pcts: list[float] = []
+
+        for c in contracts:
+            mid = float(c.mid)
+            if mid > 0:
+                spread_pct = float(c.spread) / mid
+                if math.isfinite(spread_pct):
+                    spread_pcts.append(spread_pct)
+
+            if c.option_type.value == "call":
+                call_count += 1
+                call_oi += c.open_interest
+                call_vol += c.volume
+            else:
+                put_count += 1
+                put_oi += c.open_interest
+                put_vol += c.volume
+
+        pc_oi_ratio = put_oi / call_oi if call_oi > 0 else float("nan")
+        pc_vol_ratio = put_vol / call_vol if call_vol > 0 else float("nan")
+        avg_spread = sum(spread_pcts) / len(spread_pcts) if spread_pcts else float("nan")
+
+        lines: list[str] = [
+            f"Chain summary for {ticker} ({len(contracts)} contracts):",
+            f"  Calls: {call_count}, OI={call_oi:,}, Vol={call_vol:,}",
+            f"  Puts: {put_count}, OI={put_oi:,}, Vol={put_vol:,}",
+            f"  Total OI: {call_oi + put_oi:,}",
+            f"  Total Volume: {call_vol + put_vol:,}",
+        ]
+        if math.isfinite(pc_oi_ratio):
+            lines.append(f"  Put/Call OI Ratio: {pc_oi_ratio:.2f}")
+        else:
+            lines.append("  Put/Call OI Ratio: N/A")
+        if math.isfinite(pc_vol_ratio):
+            lines.append(f"  Put/Call Volume Ratio: {pc_vol_ratio:.2f}")
+        else:
+            lines.append("  Put/Call Volume Ratio: N/A")
+        if math.isfinite(avg_spread):
+            lines.append(f"  Avg Bid-Ask Spread: {avg_spread * 100:.1f}%")
+        else:
+            lines.append("  Avg Bid-Ask Spread: N/A")
+
+        # Show individual contract details
+        for c in contracts:
+            greeks_str = ""
+            if c.greeks is not None:
+                greeks_str = (
+                    f" D={c.greeks.delta:.2f} G={c.greeks.gamma:.4f}"
+                    f" T={c.greeks.theta:.4f} V={c.greeks.vega:.4f}"
+                )
+            iv_str = f"{c.market_iv * 100:.1f}%" if math.isfinite(c.market_iv) else "N/A"
+            lines.append(
+                f"  {c.option_type.value.upper()} ${c.strike} "
+                f"exp {c.expiration.isoformat()} "
+                f"Bid=${c.bid} Ask=${c.ask} IV={iv_str}"
+                f" OI={c.open_interest:,} Vol={c.volume:,}{greeks_str}"
+            )
+
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("synth_fetch_chain_summary failed: %s", exc)
+        return f"Error: could not summarize chain for {ticker}"
+
+
+def build_synthesis_toolset() -> list[object]:
+    """Return the tools for the Synthesis agent.
+
+    Lightweight tools: ``synth_fetch_current_quote`` (market context summary),
+    ``synth_fetch_chain_summary`` (contract list summary with Greeks).
+    These operate on pre-fetched data in ``SynthesisDeps`` — no service calls.
+    """
+    return [synth_fetch_current_quote, synth_fetch_chain_summary]

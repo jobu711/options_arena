@@ -144,6 +144,18 @@ from options_arena.models.options import (
     SpreadAnalysis,
     SpreadLeg,
 )
+from options_arena.models.recommendation import (
+    AnyAssessment,
+    ContrarianAssessment,
+    DomainAssessment,
+    FlowAssessment,
+    FundamentalAssessment,
+    PositionRecommendation,
+    RecommendationResult,
+    RiskDeskAssessment,
+    TrendAssessment,
+    VolatilityAssessment,
+)
 from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
 from options_arena.models.scan_delta import ScanDiff, TickerDelta
 from options_arena.models.scoring import DimensionalScores, DirectionSignal
@@ -309,6 +321,17 @@ __all__ = [
     "AuditFinding",
     "AuditLayerSummary",
     "AuditReport",
+    # Recommendation
+    "AnyAssessment",
+    "ContrarianAssessment",
+    "DomainAssessment",
+    "FlowAssessment",
+    "FundamentalAssessment",
+    "PositionRecommendation",
+    "RecommendationResult",
+    "RiskDeskAssessment",
+    "TrendAssessment",
+    "VolatilityAssessment",
     # Strategy
     "AgentMemory",
     "StrategyCondition",

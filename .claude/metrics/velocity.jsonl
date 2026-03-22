@@ -13,3 +13,4 @@
 {"epic":"ai-agency-desk-foundation","completed":"2026-03-17T16:45:00Z","tasks":4,"planned_hours":18,"proxy_hours":0.5,"ratio":0.03,"tests_added":99,"files_changed":18,"insertions":1827,"post_merge_fixes":0}
 {"epic":"ai-agency-analysis-tools","planned_hours":14,"actual_proxy_hours":0.5,"tasks":4,"tests_added":63,"lines_added":1440,"lines_removed":39,"date":"2026-03-20","verdict":"PASS","warn":1,"fail":0}
 {"epic":"ai-agency-ml-tools","completed":"2026-03-21T15:47:00Z","tasks":4,"planned_hours":15,"proxy_hours":1.0,"ratio":0.07,"tests_added":70,"files_changed":17,"insertions":1755,"deletions":54,"post_merge_fixes":0}
+{"epic":"unified-agent-system-foundation","completed":"2026-03-22","tasks":5,"tests":125,"loc_source":656,"loc_tests":1489,"commits":6,"planned_hours_low":14,"planned_hours_high":20,"proxy_hours":0.3,"regressions":0,"post_merge_fixes":0,"verification":"22/22 PASS"}

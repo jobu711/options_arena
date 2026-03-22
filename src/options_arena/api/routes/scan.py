@@ -230,10 +230,15 @@ async def start_scan(
     request.app.state.active_scans[scan_id] = token
     request.app.state.scan_queues[scan_id] = bridge.queue
 
-    # Background task owns the lock and releases it on completion
-    task = asyncio.create_task(
-        _run_scan_background(request, scan_id, body.source, token, bridge, pipeline, lock)
-    )
+    # Background task owns the lock and releases it on completion.
+    # Guard create_task — if it fails, release lock to avoid permanent hold.
+    try:
+        task = asyncio.create_task(
+            _run_scan_background(request, scan_id, body.source, token, bridge, pipeline, lock)
+        )
+    except BaseException:
+        lock.release()
+        raise
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
     return ScanStarted(scan_id=scan_id)
