@@ -68,7 +68,9 @@ class TestRunFundamentalDeskRecommendation:
         deps = _make_deps()
         config = AgencyConfig(agent_timeout=0.001)
         result = await run_fundamental_desk_recommendation(
-            deps, model=TestModel(), config=config,
+            deps,
+            model=TestModel(),
+            config=config,
         )
         assert isinstance(result, FundamentalAssessment)
 
@@ -88,6 +90,8 @@ class TestRunFundamentalDeskRecommendation:
         deps = _make_deps()
         settings = ModelSettings(temperature=0.5)
         result = await run_fundamental_desk_recommendation(
-            deps, model=TestModel(), model_settings=settings,
+            deps,
+            model=TestModel(),
+            model_settings=settings,
         )
         assert isinstance(result, FundamentalAssessment)

@@ -71,9 +71,7 @@ class TestRecommendationPromptStructure:
 
     def test_prompt_has_version_header(self, prompt_name: str, prompt: str) -> None:
         """Each prompt includes a VERSION header in the prompt text."""
-        assert "VERSION" in prompt, (
-            f"{prompt_name} prompt is missing VERSION header"
-        )
+        assert "VERSION" in prompt, f"{prompt_name} prompt is missing VERSION header"
 
     def test_prompt_has_rules_appendix(self, prompt_name: str, prompt: str) -> None:
         """Recommendation prompts include PROMPT_RULES_APPENDIX (unlike desk prompts)."""

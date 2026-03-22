@@ -75,9 +75,7 @@ class TestRiskDeskRecommend:
         deps = _make_deps()
         config = AgencyConfig(agent_timeout=0.001)
         # Even if TestModel is fast and doesn't timeout, the code path is exercised
-        result = await run_risk_desk_recommendation(
-            deps, model=TestModel(), config=config
-        )
+        result = await run_risk_desk_recommendation(deps, model=TestModel(), config=config)
         assert isinstance(result, RiskDeskAssessment)
 
     @pytest.mark.asyncio

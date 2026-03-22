@@ -19,9 +19,7 @@ from options_arena.models.recommendation import ContrarianAssessment
 models.ALLOW_MODEL_REQUESTS = False
 
 
-def _make_deps(
-    query: str = "Challenge AAPL consensus", ticker: str = "AAPL"
-) -> DeskDeps:
+def _make_deps(query: str = "Challenge AAPL consensus", ticker: str = "AAPL") -> DeskDeps:
     return DeskDeps(
         query=query,
         ticker=ticker,
@@ -78,9 +76,7 @@ class TestContrarianDeskRecommend:
         deps = _make_deps()
         config = AgencyConfig(agent_timeout=0.001)
         # Even if TestModel is fast and doesn't timeout, the code path is exercised
-        result = await run_contrarian_desk_recommendation(
-            deps, model=TestModel(), config=config
-        )
+        result = await run_contrarian_desk_recommendation(deps, model=TestModel(), config=config)
         assert isinstance(result, ContrarianAssessment)
 
     @pytest.mark.asyncio
