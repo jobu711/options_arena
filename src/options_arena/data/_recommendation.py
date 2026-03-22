@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from sqlite3 import Row
 
-from options_arena.models.recommendation import RecommendationResult
+from options_arena.models import RecommendationResult
 
 from ._base import RepositoryBase
 
@@ -53,6 +53,9 @@ class RecommendationRow:
     duration_ms: int
     is_fallback: bool
     citation_density: float
+    position_rationale: str
+    strategy_rationale: str
+    max_loss_estimate: str
     model_used: str
     created_at: str
 
@@ -76,15 +79,19 @@ class RecommendationMixin(RepositoryBase):
         self,
         result: RecommendationResult,
         scan_run_id: int | None = None,
+        *,
+        commit: bool = True,
     ) -> int:
         """Persist a ``RecommendationResult``.  Returns the database-assigned ID."""
         conn = self._db.conn
         rec = result.recommendation
         created_at = datetime.now(UTC).isoformat()
 
-        # Serialize complex fields to JSON
-        assessment_dicts = [a.model_dump(mode="python") for a in result.assessments]
-        assessments_json = json.dumps(assessment_dicts, default=str)
+        # Serialize complex fields to JSON — mode="json" produces JSON-safe types
+        # natively (StrEnum → str, Decimal → str via field_serializer) without
+        # the fragile default=str fallback.
+        assessment_dicts = [a.model_dump(mode="json") for a in result.assessments]
+        assessments_json = json.dumps(assessment_dicts)
         key_factors_json = json.dumps(rec.key_factors)
         dissenting_desks_json = json.dumps([d.value for d in rec.dissenting_desks])
 
@@ -96,10 +103,11 @@ class RecommendationMixin(RepositoryBase):
             "key_factors_json, risk_assessment, agent_agreement_score, "
             "dissenting_desks_json, assessments_json, total_input_tokens, "
             "total_output_tokens, duration_ms, is_fallback, citation_density, "
+            "position_rationale, strategy_rationale, max_loss_estimate, "
             "model_used, created_at) "
             "VALUES ("
             "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
-            "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 rec.ticker,
                 scan_run_id,
@@ -125,12 +133,17 @@ class RecommendationMixin(RepositoryBase):
                 result.duration_ms,
                 int(result.is_fallback),
                 result.citation_density,
+                rec.position_rationale,
+                rec.strategy_rationale,
+                rec.max_loss_estimate,
                 rec.model_used,
                 created_at,
             ),
         )
-        await conn.commit()
-        assert cursor.lastrowid is not None
+        if commit:
+            await conn.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("INSERT into recommendation_results returned no lastrowid")
         row_id: int = cursor.lastrowid
         logger.debug("Saved recommendation id=%d for ticker=%s", row_id, rec.ticker)
         return row_id
@@ -209,6 +222,9 @@ class RecommendationMixin(RepositoryBase):
             duration_ms=int(row["duration_ms"]),
             is_fallback=bool(row["is_fallback"]),
             citation_density=float(row["citation_density"]),
+            position_rationale=str(row["position_rationale"]),
+            strategy_rationale=str(row["strategy_rationale"]),
+            max_loss_estimate=str(row["max_loss_estimate"]),
             model_used=str(row["model_used"]),
             created_at=str(row["created_at"]),
         )

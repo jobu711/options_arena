@@ -117,7 +117,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `SpreadConfig` | model |  | 569 | Spread strategy configuration — controls multi-leg strategy construction. |
 | `OpenBBConfig` | model |  | 631 | CBOE chain provider configuration (legacy name retained for settings compat). |
 | `AgencyConfig` | model |  | 645 | AI agency desk system configuration. |
-| `AppSettings` | model |  | 691 | Root application settings — the sole BaseSettings subclass. |
+| `AppSettings` | model |  | 700 | Root application settings — the sole BaseSettings subclass. |
 
 #### models/constants.py
 
@@ -872,6 +872,17 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `.get_stale_tickers` | async method | `(max_age_days: int = 30) -> list[str]` | 105 | Return tickers whose ``last_updated`` is older than *max_age_days*. |
 | `.get_metadata_coverage` | async method | `() -> MetadataCoverage` | 121 | Return coverage statistics for the ``ticker_metadata`` table. |
 
+#### data/_recommendation.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `RecommendationRow` | dataclass |  | 24 | Raw row from ``recommendation_results`` table. |
+| `RecommendationMixin` | class | `(RepositoryBase)` | 63 | Recommendation result CRUD operations. |
+| `.save_recommendation` | async method | `(result: RecommendationResult, scan_run_id: int \| None = None, *, commit: bool = True) -> int` | 78 | Persist a ``RecommendationResult``.  Returns the database-assigned ID. |
+| `.get_recommendation_by_id` | async method | `(rec_id: int) -> RecommendationRow \| None` | 151 | Retrieve a single recommendation by ID, or ``None`` if not found. |
+| `.get_recent_recommendations` | async method | `(limit: int = 20) -> list[RecommendationRow]` | 162 | Retrieve the *limit* most recent recommendations, newest first. |
+| `.get_recommendations_for_ticker` | async method | `(ticker: str, limit: int = 5) -> list[RecommendationRow]` | 174 | Retrieve recommendations for a specific ticker, newest first. |
+
 #### data/_scan.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -907,11 +918,21 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `Repository` | class | `(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin, AgencyMixin, LearningMixin)` | 26 | Typed CRUD for all persistence domains. |
+| `Repository` | class | `(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin, AgencyMixin, RecommendationMixin, LearningMixin)` | 27 | Typed CRUD for all persistence domains. |
 
 ---
 
 ### 1.8 `agents/` — PydanticAI Debate System
+
+#### agents/_context.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `should_debate` | func | `(ticker_score: TickerScore, config: DebateConfig) -> bool` | 39 | Return False if signal is too weak for meaningful AI debate. |
+| `should_recommend` | func | `(ticker_score: TickerScore, config: DebateConfig) -> bool` | 50 | Alias for should_debate() — used by the recommendation pipeline. |
+| `classify_macd_signal` | func | `(macd_value: float \| None) -> MacdSignal` | 55 | Classify a centered MACD value into a signal. |
+| `build_market_context` | func | `(ticker_score: TickerScore, quote: Quote, ticker_info: TickerInfo, contracts: list[OptionContract...` | 86 | Map scan pipeline output to ``MarketContext`` for agent consumption. |
+| `extract_agent_predictions` | func | `(debate_id: int, result: DebateResult, recommended_contract_id: int \| None = None) -> list[AgentP...` | 477 | Extract per-agent predictions from a DebateResult for accuracy tracking. |
 
 #### agents/_desk_deps.py
 
@@ -1051,15 +1072,11 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `DebatePhase` | StrEnum |  | 103 | Phases of the AI debate pipeline, reported via progress callback. |
-| `should_debate` | func | `(ticker_score: TickerScore, config: DebateConfig) -> bool` | 118 | Return False if signal is too weak for meaningful AI debate. |
-| `build_market_context` | func | `(ticker_score: TickerScore, quote: Quote, ticker_info: TickerInfo, contracts: list[OptionContract...` | 129 | Map scan pipeline output to ``MarketContext`` for agent consumption. |
-| `classify_macd_signal` | func | `(macd_value: float \| None) -> MacdSignal` | 518 | Classify a centered MACD value into a signal. |
-| `extract_agent_predictions` | func | `(debate_id: int, result: DebateResult, recommended_contract_id: int \| None = None) -> list[AgentP...` | 735 | Extract per-agent predictions from a DebateResult for accuracy tracking. |
-| `compute_agreement_score` | func | `(agent_directions: dict[str, SignalDirection]) -> float` | 931 | Compute fraction of directional agents agreeing with the majority. |
-| `synthesize_verdict` | func | `(agent_outputs: dict[str, AgentResponse \| FlowThesis ..., risk_assessment: RiskAssessment \| None,...` | 1120 | Algorithmic verdict synthesis from all agent outputs. |
-| `run_debate` | async func | `(ticker_score: TickerScore, contracts: list[OptionContract], quote: Quote, ticker_info: TickerInf...` | 1273 | Run 6-agent debate protocol. Falls back to data-driven on failure — never raises. |
-| `effective_batch_ticker_delay` | func | `(config: DebateConfig) -> float` | 1554 | Return inter-ticker batch delay, auto-adjusted for Anthropic provider. |
+| `DebatePhase` | StrEnum |  | 115 | Phases of the AI debate pipeline, reported via progress callback. |
+| `compute_agreement_score` | func | `(agent_directions: dict[str, SignalDirection]) -> float` | 405 | Compute fraction of directional agents agreeing with the majority. |
+| `synthesize_verdict` | func | `(agent_outputs: dict[str, AgentResponse \| FlowThesis ..., risk_assessment: RiskAssessment \| None,...` | 594 | Algorithmic verdict synthesis from all agent outputs. |
+| `run_debate` | async func | `(ticker_score: TickerScore, contracts: list[OptionContract], quote: Quote, ticker_info: TickerInf...` | 747 | Run 6-agent debate protocol. Falls back to data-driven on failure — never raises. |
+| `effective_batch_ticker_delay` | func | `(config: DebateConfig) -> float` | 1007 | Return inter-ticker batch delay, auto-adjusted for Anthropic provider. |
 
 #### agents/prompts/contrarian_agent.py
 
@@ -1180,6 +1197,12 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `VOLATILITY_SYSTEM_PROMPT` | const |  | 20 |  |
+
+#### agents/recommendation_orchestrator.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `run_recommendation` | async func | `(ticker: str, ticker_score: TickerScore, contracts: list[OptionContract], quote: Quote, ticker_in...` | 300 | Run the 4-phase recommendation pipeline — never raises. |
 
 #### agents/research_desk.py
 
@@ -1974,6 +1997,7 @@ Each row maps a source file to its test files and approximate test count.
 | `data/_debate.py` | — | 0 |
 | `data/_learning.py` | — | 0 |
 | `data/_metadata.py` | — | 0 |
+| `data/_recommendation.py` | — | 0 |
 | `data/_scan.py` | — | 0 |
 | `data/_spreads.py` | — | 0 |
 | `data/database.py` | `tests/unit/data/test_database.py` | 10 |
@@ -1983,6 +2007,7 @@ Each row maps a source file to its test files and approximate test count.
 
 | Source File | Test File(s) | Tests |
 |------------|--------------|-------|
+| `agents/_context.py` | — | 0 |
 | `agents/_desk_deps.py` | `tests/unit/agents/test_desk_deps.py` | 10 |
 | `agents/_parsing.py` | `tests/unit/agents/test_parsing.py` | 56 |
 | `agents/_routing.py` | `tests/unit/agents/test_routing.py` | 58 |
@@ -2016,6 +2041,7 @@ Each row maps a source file to its test files and approximate test count.
 | `agents/prompts/synthesis.py` | — | 0 |
 | `agents/prompts/trend_agent.py` | — | 0 |
 | `agents/prompts/volatility.py` | `tests/unit/agents/test_volatility.py` | 11 |
+| `agents/recommendation_orchestrator.py` | `tests/unit/agents/test_recommendation_orchestrator.py` | 26 |
 | `agents/research_desk.py` | `tests/unit/agents/test_research_desk.py` | 21 |
 | `agents/risk.py` | `tests/unit/agents/test_risk.py` | 13 |
 | `agents/risk_desk.py` | `tests/unit/agents/test_risk_desk.py` | 23 |
@@ -2089,10 +2115,10 @@ Each row maps a source file to its test files and approximate test count.
 | pricing/ | 8 | 25 | 7 | 244 |
 | services/ | 13 | 112 | 12 | 360 |
 | scoring/ | 6 | 29 | 6 | 227 |
-| data/ | 10 | 72 | 2 | 46 |
-| agents/ | 41 | 118 | 17 | 449 |
+| data/ | 11 | 78 | 2 | 46 |
+| agents/ | 43 | 120 | 18 | 475 |
 | scan/ | 8 | 23 | 3 | 82 |
 | reporting/ | 1 | 2 | 1 | 10 |
 | api/ | 16 | 114 | 13 | 150 |
 | cli/ | 7 | 45 | 3 | 27 |
-| **Total** | **151** | **779** | **95** | **2741** |
+| **Total** | **154** | **787** | **96** | **2767** |

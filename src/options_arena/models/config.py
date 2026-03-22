@@ -660,9 +660,9 @@ class AgencyConfig(BaseModel):
     @field_validator("desk_parallelism")
     @classmethod
     def _validate_desk_parallelism(cls, v: int) -> int:
-        """Ensure desk_parallelism is >= 1."""
-        if v < 1:
-            raise ValueError(f"desk_parallelism must be >= 1, got {v}")
+        """Ensure desk_parallelism is in [1, 12]."""
+        if not 1 <= v <= 12:
+            raise ValueError(f"desk_parallelism must be in [1, 12], got {v}")
         return v
 
     @field_validator("agent_timeout")

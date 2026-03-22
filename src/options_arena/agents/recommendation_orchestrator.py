@@ -48,31 +48,31 @@ from options_arena.agents.trend_desk import run_trend_desk_recommendation
 from options_arena.agents.volatility_desk import run_vol_desk_recommendation
 from options_arena.data.repository import Repository
 from options_arena.models import (
+    TICKER_RE,
     AgencyConfig,
-    AgentPrediction,
     AppSettings,
-    DeskType,
-    MarketContext,
-    OptionContract,
-    Quote,
-    SignalDirection,
-    TickerInfo,
-    TickerScore,
-)
-from options_arena.models.enums import RuleStatus
-from options_arena.models.options import SpreadAnalysis
-from options_arena.models.recommendation import (
-    AnyAssessment,
     ContrarianAssessment,
+    DeskType,
     DomainAssessment,
+    ExerciseStyle,
     FlowAssessment,
     FundamentalAssessment,
+    MacdSignal,
+    MarketContext,
+    OptionContract,
     PositionRecommendation,
+    Quote,
     RecommendationResult,
     RiskDeskAssessment,
+    RuleStatus,
+    SignalDirection,
+    SpreadAnalysis,
+    TickerInfo,
+    TickerScore,
     TrendAssessment,
     VolatilityAssessment,
 )
+from options_arena.models.recommendation import AnyAssessment
 from options_arena.services.fred import FredService
 from options_arena.services.market_data import MarketDataService
 from options_arena.services.options_data import OptionsDataService
@@ -103,15 +103,6 @@ class _DeskRunner(Protocol):
 # ---------------------------------------------------------------------------
 # Fallback builders
 # ---------------------------------------------------------------------------
-
-_DESK_ASSESSMENT_MAP: dict[DeskType, type[DomainAssessment]] = {
-    DeskType.TREND: TrendAssessment,
-    DeskType.VOLATILITY: VolatilityAssessment,
-    DeskType.FLOW: FlowAssessment,
-    DeskType.FUNDAMENTAL: FundamentalAssessment,
-    DeskType.RISK: RiskDeskAssessment,
-    DeskType.CONTRARIAN: ContrarianAssessment,
-}
 
 
 def _build_fallback_assessment(desk_type: DeskType, ticker: str) -> DomainAssessment:
@@ -359,6 +350,12 @@ async def run_recommendation(
     """
     t0 = time.monotonic()
 
+    # Validate ticker before any string interpolation (prompt injection defense)
+    if not TICKER_RE.fullmatch(ticker):
+        logger.warning("Invalid ticker symbol rejected: %s", ticker[:20])
+        context = _build_emergency_context(ticker[:10], quote)
+        return _build_fallback_recommendation_result(context, ticker[:10])
+
     try:
         return await _run_recommendation_pipeline(
             ticker=ticker,
@@ -375,13 +372,12 @@ async def run_recommendation(
             progress_callback=progress_callback,
             t0=t0,
         )
-    except Exception as exc:
+    except Exception:
         duration_ms = int((time.monotonic() - t0) * 1000)
         logger.warning(
-            "Recommendation pipeline failed for %s: %s (%s) — returning fallback",
+            "Recommendation pipeline failed for %s — returning fallback",
             ticker,
-            exc,
-            type(exc).__name__,
+            exc_info=True,
         )
         # Build a minimal MarketContext for the fallback
         try:
@@ -443,19 +439,21 @@ async def _run_recommendation_pipeline(
     except (OSError, ValueError, KeyError, TypeError, sqlite3.Error, ImportError):
         logger.warning("Failed to fetch learned patterns — proceeding without them")
 
-    # Build DeskDeps for all desk agents
-    desk_deps = DeskDeps(
-        query=f"Produce a structured assessment for {ticker}.",
-        ticker=ticker,
-        market_data=market_data,
-        options_data=options_data,
-        repo=repo,
-        fred=fred,
-        learned_patterns=learned_patterns,
-        ticker_score=ticker_score,
-        contracts=list(contracts),
-        market_context=context,
-    )
+    # Build a fresh DeskDeps per desk agent to avoid shared mutable state
+    # (each agent appends to tools_used concurrently).
+    def _make_desk_deps() -> DeskDeps:
+        return DeskDeps(
+            query=f"Produce a structured assessment for {ticker}.",
+            ticker=ticker,
+            market_data=market_data,
+            options_data=options_data,
+            repo=repo,
+            fred=fred,
+            learned_patterns=learned_patterns,
+            ticker_score=ticker_score,
+            contracts=list(contracts),
+            market_context=context,
+        )
 
     # ------------------------------------------------------------------
     # Phase 1: Parallel desk recommendations
@@ -472,31 +470,31 @@ async def _run_recommendation_pipeline(
         """Run a single desk under the semaphore — never raises."""
         async with semaphore:
             try:
-                result = await runner(
-                    desk_deps,
+                return await runner(
+                    _make_desk_deps(),
                     model=model,
                     model_settings=model_settings,
                     config=agency_config,
                 )
-                if isinstance(result, BaseException):
-                    logger.warning(
-                        "Desk %s returned exception: %s",
-                        desk_type.value,
-                        result,
-                    )
-                    return _build_fallback_assessment(desk_type, ticker)
-                return result
             except Exception as exc:
                 logger.warning(
-                    "Desk %s failed: %s (%s)",
+                    "Desk %s failed: %s",
                     desk_type.value,
-                    exc,
                     type(exc).__name__,
                 )
                 return _build_fallback_assessment(desk_type, ticker)
 
     tasks = [_run_desk(dt, runner) for dt, runner in _DESK_RUNNERS]
-    desk_results: list[DomainAssessment] = await asyncio.gather(*tasks)
+    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Replace any BaseException results (e.g. CancelledError) with fallback
+    desk_results: list[DomainAssessment] = []
+    for (dt, _runner), result in zip(_DESK_RUNNERS, raw_results, strict=True):
+        if isinstance(result, BaseException):
+            logger.warning("Desk %s returned %s", dt.value, type(result).__name__)
+            desk_results.append(_build_fallback_assessment(dt, ticker))
+        else:
+            desk_results.append(result)
 
     # Cast to AnyAssessment list for RecommendationResult
     assessments: list[AnyAssessment] = list(desk_results)  # type: ignore[arg-type]
@@ -531,7 +529,7 @@ async def _run_recommendation_pipeline(
 
     duration_ms = int((time.monotonic() - t0) * 1000)
 
-    result = RecommendationResult(
+    rec_result = RecommendationResult(
         context=context,
         assessments=assessments,
         recommendation=recommendation,
@@ -547,9 +545,9 @@ async def _run_recommendation_pipeline(
     if progress_callback is not None:
         progress_callback("persist", 3, 4)
 
-    await _persist_recommendation(result, repo, scan_run_id, assessments, ticker)
+    await _persist_recommendation(rec_result, repo, scan_run_id, assessments, ticker)
 
-    return result
+    return rec_result
 
 
 async def _persist_recommendation(
@@ -563,45 +561,25 @@ async def _persist_recommendation(
     try:
         rec_id = await repo.save_recommendation(result, scan_run_id)
         logger.info("Saved recommendation id=%d for %s", rec_id, ticker)
-    except Exception as exc:
+    except Exception:
         logger.warning(
-            "Failed to save recommendation for %s: %s (%s)",
+            "Failed to save recommendation for %s",
             ticker,
-            exc,
-            type(exc).__name__,
+            exc_info=True,
         )
         return
 
-    # Extract and save agent predictions
-    try:
-        now = datetime.now(UTC)
-        predictions: list[AgentPrediction] = []
-        for assessment in assessments:
-            if isinstance(assessment, DomainAssessment):
-                predictions.append(
-                    AgentPrediction(
-                        debate_id=rec_id,
-                        recommended_contract_id=None,
-                        agent_name=assessment.desk.value,
-                        direction=assessment.direction,
-                        confidence=assessment.confidence,
-                        created_at=now,
-                    )
-                )
-        if predictions:
-            await repo.save_agent_predictions(predictions)
-            logger.debug(
-                "Saved %d agent predictions for recommendation %d",
-                len(predictions),
-                rec_id,
-            )
-    except Exception as exc:
-        logger.warning(
-            "Failed to save agent predictions for %s: %s (%s)",
-            ticker,
-            exc,
-            type(exc).__name__,
-        )
+    # NOTE: Agent prediction persistence is deferred to the cutover epic.
+    # The agent_predictions table has a FK constraint (debate_id REFERENCES
+    # ai_theses(id)) that prevents saving predictions with recommendation_results
+    # IDs.  A future migration will either relax the FK or add a
+    # recommendation_id column.  See AUDIT P1 finding and integration test
+    # test_agent_predictions_fk_constraint_handled.
+    logger.debug(
+        "Skipping agent prediction persistence for recommendation %d "
+        "(FK constraint — deferred to cutover)",
+        rec_id,
+    )
 
 
 def _build_emergency_context(ticker: str, quote: Quote) -> MarketContext:
@@ -609,8 +587,6 @@ def _build_emergency_context(ticker: str, quote: Quote) -> MarketContext:
 
     Used when even ``build_market_context()`` fails.
     """
-    from options_arena.models import ExerciseStyle, MacdSignal
-
     return MarketContext(
         ticker=ticker,
         current_price=quote.price,

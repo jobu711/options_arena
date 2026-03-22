@@ -100,6 +100,9 @@ async def test_recommendation_results_table_exists(db: Database) -> None:
         "duration_ms": "INTEGER",
         "is_fallback": "INTEGER",
         "citation_density": "REAL",
+        "position_rationale": "TEXT",
+        "strategy_rationale": "TEXT",
+        "max_loss_estimate": "TEXT",
         "model_used": "TEXT",
         "created_at": "TEXT",
     }

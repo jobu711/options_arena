@@ -27,6 +27,9 @@ CREATE TABLE IF NOT EXISTS recommendation_results (
     duration_ms INTEGER NOT NULL,
     is_fallback INTEGER NOT NULL DEFAULT 0,
     citation_density REAL NOT NULL DEFAULT 0.0,
+    position_rationale TEXT NOT NULL DEFAULT '',
+    strategy_rationale TEXT NOT NULL DEFAULT '',
+    max_loss_estimate TEXT NOT NULL DEFAULT '',
     model_used TEXT NOT NULL,
     created_at TEXT NOT NULL,
     FOREIGN KEY (scan_run_id) REFERENCES scan_runs(id)

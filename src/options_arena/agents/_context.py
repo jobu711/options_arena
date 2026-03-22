@@ -147,7 +147,9 @@ def build_market_context(
         iv_percentile=signals.iv_percentile,
         atm_iv_30d=(
             first_contract.market_iv
-            if first_contract is not None and first_contract.market_iv > 0
+            if first_contract is not None
+            and math.isfinite(first_contract.market_iv)
+            and first_contract.market_iv > 0
             else None
         ),
         rsi_14=signals.rsi if signals.rsi is not None else 50.0,
