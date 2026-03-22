@@ -1,9 +1,15 @@
 """Options Arena — Self-Improvement Learning Module.
 
 Re-exports the public API for the learning package: weight tuning algorithms,
-constants, and orchestration functions.
+constants, confidence decay, and orchestration functions.
 """
 
+from options_arena.learning.confidence_decay import (
+    decay_confidence as decay_confidence,
+)
+from options_arena.learning.confidence_decay import (
+    run_confidence_decay as run_confidence_decay,
+)
 from options_arena.learning.strategy_book import (
     render_learned_patterns as render_learned_patterns,
 )
@@ -40,6 +46,8 @@ __all__ = [
     "auto_tune_weights",
     "compute_auto_tune_weights",
     "compute_indicator_tune_weights",
+    "decay_confidence",
     "render_learned_patterns",
+    "run_confidence_decay",
     "run_strategy_mining",
 ]

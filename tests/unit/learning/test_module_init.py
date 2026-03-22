@@ -46,7 +46,9 @@ class TestPublicApiExports:
             "auto_tune_weights",
             "compute_auto_tune_weights",
             "compute_indicator_tune_weights",
+            "decay_confidence",
             "render_learned_patterns",
+            "run_confidence_decay",
             "run_strategy_mining",
         }
         assert set(mod.__all__) == expected
