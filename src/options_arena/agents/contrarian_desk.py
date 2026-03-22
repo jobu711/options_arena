@@ -1,14 +1,15 @@
-"""Contrarian desk agent for interactive mode.
+"""Contrarian desk agent for interactive and recommendation modes.
 
-Distinct from the debate-mode contrarian agent (``contrarian_agent.py``). Returns
-plain ``str`` output (no structured Pydantic model), uses tool wrappers via the
-toolset builder, and enforces a deliberately low tool-call budget (2) via
-``UsageLimits`` to emphasize reasoning over data gathering.
+Distinct from the debate-mode contrarian agent (``contrarian_agent.py``). Two agent
+instances:
 
-Architecture:
-- ``contrarian_desk``: Module-level ``Agent[DeskDeps, str]`` instance (``model=None``).
-- ``run_contrarian_desk_query()``: Wraps ``contrarian_desk.run()`` with timeout,
-  think-tag stripping, and never-raises error handling.
+- ``contrarian_desk``: Interactive ``Agent[DeskDeps, str]`` — plain text output.
+- ``contrarian_desk_recommend``: Recommendation ``Agent[DeskDeps, ContrarianAssessment]``
+  — structured output for the unified recommendation pipeline.
+
+Both share the same toolset (``build_contrarian_toolset()``) and learned-patterns
+injection.  ``run_contrarian_desk_query()`` serves interactive mode;
+``run_contrarian_desk_recommendation()`` serves the recommendation pipeline.
 """
 
 from __future__ import annotations
@@ -17,13 +18,17 @@ import asyncio
 import logging
 
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models import Model
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
 from options_arena.agents._desk_deps import DeskDeps
-from options_arena.agents._parsing import strip_think_tags
+from options_arena.agents._parsing import build_cleaned_domain_assessment, strip_think_tags
 from options_arena.agents._toolsets import DESK_SUCCESS_CONFIDENCE, build_contrarian_toolset
+from options_arena.agents.prompts import RECOMMEND_CONTRARIAN_PROMPT
 from options_arena.agents.prompts.desk_contrarian import DESK_CONTRARIAN_PROMPT
-from options_arena.models import AgencyConfig, DeskResponse, DeskType
+from options_arena.models import AgencyConfig, DeskResponse, DeskType, SignalDirection
+from options_arena.models.recommendation import ContrarianAssessment
 
 logger = logging.getLogger(__name__)
 
@@ -108,3 +113,93 @@ async def run_contrarian_desk_query(
             tools_used=list(deps.tools_used),
             confidence=0.0,
         )
+
+
+# ---------------------------------------------------------------------------
+# Recommendation agent — structured ``ContrarianAssessment`` output
+# ---------------------------------------------------------------------------
+
+contrarian_desk_recommend: Agent[DeskDeps, ContrarianAssessment] = Agent(
+    model=None,
+    deps_type=DeskDeps,
+    output_type=ContrarianAssessment,
+    retries=2,
+    tools=build_contrarian_toolset(),  # type: ignore[arg-type]
+)
+
+
+@contrarian_desk_recommend.system_prompt(dynamic=True)
+async def _contrarian_recommend_prompt(ctx: RunContext[DeskDeps]) -> str:
+    """Return the contrarian recommendation prompt with learned patterns."""
+    base = RECOMMEND_CONTRARIAN_PROMPT
+    if ctx.deps.learned_patterns:
+        base += f"\n\n{ctx.deps.learned_patterns}"
+    return base
+
+
+@contrarian_desk_recommend.output_validator
+async def _clean_contrarian_assessment(
+    ctx: RunContext[DeskDeps],  # noqa: ARG001
+    output: ContrarianAssessment,
+) -> ContrarianAssessment:
+    """Strip ``<think>`` tags from structured assessment fields."""
+    return build_cleaned_domain_assessment(output)
+
+
+def _build_contrarian_recommend_fallback(deps: DeskDeps) -> ContrarianAssessment:
+    """Build a low-confidence fallback ``ContrarianAssessment``."""
+    return ContrarianAssessment(
+        desk=DeskType.CONTRARIAN,
+        direction=SignalDirection.NEUTRAL,
+        confidence=0.2,
+        summary=f"Contrarian assessment unavailable for {deps.ticker}",
+        key_factors=["Assessment unavailable"],
+        risks=["Unable to analyze contrarian view"],
+        contracts_referenced=[],
+        tools_used=list(deps.tools_used),
+        model_used="data-driven-fallback",
+        consensus_challenged=None,
+        contrarian_thesis=None,
+    )
+
+
+async def run_contrarian_desk_recommendation(
+    deps: DeskDeps,
+    *,
+    model: Model | None = None,
+    model_settings: ModelSettings | None = None,
+    config: AgencyConfig | None = None,
+) -> ContrarianAssessment:
+    """Run the contrarian recommendation agent — never raises.
+
+    Returns a ``ContrarianAssessment`` on success or a low-confidence fallback
+    on any failure (no model, timeout, exception).
+    """
+    cfg = config or AgencyConfig()
+    if model is None:
+        logger.warning("Contrarian desk recommendation called without a model")
+        return _build_contrarian_recommend_fallback(deps)
+    try:
+        limits = UsageLimits(
+            request_limit=cfg.contrarian_tool_budget + 2,
+            tool_calls_limit=cfg.contrarian_tool_budget,
+        )
+        result = await asyncio.wait_for(
+            contrarian_desk_recommend.run(
+                deps.query,
+                model=model,
+                deps=deps,
+                usage_limits=limits,
+                model_settings=model_settings,
+            ),
+            timeout=cfg.agent_timeout,
+        )
+        return result.output
+    except TimeoutError:
+        logger.warning(
+            "Contrarian desk recommendation timed out after %.1fs", cfg.agent_timeout
+        )
+        return _build_contrarian_recommend_fallback(deps)
+    except Exception as exc:
+        logger.warning("Contrarian desk recommendation failed: %s", exc)
+        return _build_contrarian_recommend_fallback(deps)

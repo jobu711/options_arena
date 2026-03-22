@@ -1,13 +1,14 @@
-"""Risk desk agent for interactive mode.
+"""Risk desk agent for interactive and recommendation modes.
 
-Distinct from the debate-mode risk agent (``risk.py``). Returns plain ``str``
-output (no structured Pydantic model), uses tool wrappers via the toolset builder,
-and enforces a higher tool-call budget (5) via ``UsageLimits``.
+Distinct from the debate-mode risk agent (``risk.py``). Two agent instances:
 
-Architecture:
-- ``risk_desk``: Module-level ``Agent[DeskDeps, str]`` instance (``model=None``).
-- ``run_risk_desk_query()``: Wraps ``risk_desk.run()`` with timeout, think-tag
-  stripping, and never-raises error handling.
+- ``risk_desk``: Interactive ``Agent[DeskDeps, str]`` — plain text output.
+- ``risk_desk_recommend``: Recommendation ``Agent[DeskDeps, RiskDeskAssessment]``
+  — structured output for the unified recommendation pipeline.
+
+Both share the same toolset (``build_risk_toolset()``) and learned-patterns
+injection.  ``run_risk_desk_query()`` serves interactive mode;
+``run_risk_desk_recommendation()`` serves the recommendation pipeline.
 """
 
 from __future__ import annotations
@@ -16,13 +17,17 @@ import asyncio
 import logging
 
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models import Model
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
 from options_arena.agents._desk_deps import DeskDeps
-from options_arena.agents._parsing import strip_think_tags
+from options_arena.agents._parsing import build_cleaned_domain_assessment, strip_think_tags
 from options_arena.agents._toolsets import DESK_SUCCESS_CONFIDENCE, build_risk_toolset
+from options_arena.agents.prompts import RECOMMEND_RISK_PROMPT
 from options_arena.agents.prompts.desk_risk import DESK_RISK_PROMPT
-from options_arena.models import AgencyConfig, DeskResponse, DeskType
+from options_arena.models import AgencyConfig, DeskResponse, DeskType, SignalDirection
+from options_arena.models.recommendation import RiskDeskAssessment
 
 logger = logging.getLogger(__name__)
 
@@ -107,3 +112,94 @@ async def run_risk_desk_query(
             tools_used=list(deps.tools_used),
             confidence=0.0,
         )
+
+
+# ---------------------------------------------------------------------------
+# Recommendation agent — structured ``RiskDeskAssessment`` output
+# ---------------------------------------------------------------------------
+
+risk_desk_recommend: Agent[DeskDeps, RiskDeskAssessment] = Agent(
+    model=None,
+    deps_type=DeskDeps,
+    output_type=RiskDeskAssessment,
+    retries=2,
+    tools=build_risk_toolset(),  # type: ignore[arg-type]
+)
+
+
+@risk_desk_recommend.system_prompt(dynamic=True)
+async def _risk_recommend_prompt(ctx: RunContext[DeskDeps]) -> str:
+    """Return the risk recommendation prompt with learned patterns."""
+    base = RECOMMEND_RISK_PROMPT
+    if ctx.deps.learned_patterns:
+        base += f"\n\n{ctx.deps.learned_patterns}"
+    return base
+
+
+@risk_desk_recommend.output_validator
+async def _clean_risk_assessment(
+    ctx: RunContext[DeskDeps],  # noqa: ARG001
+    output: RiskDeskAssessment,
+) -> RiskDeskAssessment:
+    """Strip ``<think>`` tags from structured assessment fields."""
+    return build_cleaned_domain_assessment(output)
+
+
+def _build_risk_recommend_fallback(deps: DeskDeps) -> RiskDeskAssessment:
+    """Build a low-confidence fallback ``RiskDeskAssessment``."""
+    return RiskDeskAssessment(
+        desk=DeskType.RISK,
+        direction=SignalDirection.NEUTRAL,
+        confidence=0.2,
+        summary=f"Risk assessment unavailable for {deps.ticker}",
+        key_factors=["Assessment unavailable"],
+        risks=["Unable to analyze risk"],
+        contracts_referenced=[],
+        tools_used=list(deps.tools_used),
+        model_used="data-driven-fallback",
+        max_position_pct=0.02,
+        hedging_suggestion="Review required",
+        portfolio_correlation_note=None,
+    )
+
+
+async def run_risk_desk_recommendation(
+    deps: DeskDeps,
+    *,
+    model: Model | None = None,
+    model_settings: ModelSettings | None = None,
+    config: AgencyConfig | None = None,
+) -> RiskDeskAssessment:
+    """Run the risk recommendation agent — never raises.
+
+    Returns a ``RiskDeskAssessment`` on success or a low-confidence fallback
+    on any failure (no model, timeout, exception).
+    """
+    cfg = config or AgencyConfig()
+    if model is None:
+        logger.warning("Risk desk recommendation called without a model")
+        return _build_risk_recommend_fallback(deps)
+    try:
+        limits = UsageLimits(
+            request_limit=cfg.risk_tool_budget + 2,
+            tool_calls_limit=cfg.risk_tool_budget,
+        )
+        result = await asyncio.wait_for(
+            risk_desk_recommend.run(
+                deps.query,
+                model=model,
+                deps=deps,
+                usage_limits=limits,
+                model_settings=model_settings,
+            ),
+            timeout=cfg.agent_timeout,
+        )
+        return result.output
+    except TimeoutError:
+        logger.warning(
+            "Risk desk recommendation timed out after %.1fs", cfg.agent_timeout
+        )
+        return _build_risk_recommend_fallback(deps)
+    except Exception as exc:
+        logger.warning("Risk desk recommendation failed: %s", exc)
+        return _build_risk_recommend_fallback(deps)
