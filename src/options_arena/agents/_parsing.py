@@ -30,6 +30,7 @@ from options_arena.models import (
     TradeThesis,
     VolatilityThesis,
 )
+from options_arena.models.recommendation import DomainAssessment
 
 logger = logging.getLogger(__name__)
 
@@ -285,6 +286,29 @@ def build_cleaned_fundamental_thesis(output: FundamentalThesis) -> FundamentalTh
         key_fundamental_factors=[strip_think_tags(f) for f in output.key_fundamental_factors],
         model_used=strip_think_tags(output.model_used),
     )
+
+
+def build_cleaned_domain_assessment[T: DomainAssessment](output: T) -> T:
+    """Strip ``<think>`` tags from all string fields of a ``DomainAssessment`` subclass.
+
+    Iterates over model fields and cleans any ``str`` or ``list[str]`` values.
+    Returns the original instance unchanged if no ``<think>`` tags are found.
+    Uses ``model_copy(update=...)`` to produce a cleaned frozen copy.
+    """
+    updates: dict[str, object] = {}
+    for name, _field_info in type(output).model_fields.items():
+        value = getattr(output, name)
+        if isinstance(value, str):
+            cleaned = strip_think_tags(value)
+            if cleaned != value:
+                updates[name] = cleaned
+        elif isinstance(value, list) and value and isinstance(value[0], str):
+            cleaned_list = [strip_think_tags(item) for item in value]
+            if cleaned_list != value:
+                updates[name] = cleaned_list
+    if not updates:
+        return output
+    return output.model_copy(update=updates)
 
 
 @dataclass
