@@ -2,15 +2,10 @@
 
 Re-exports the public API for the agents package: recommendation orchestrator,
 desk agents, synthesis agent, shared utilities, and routing.
-
-Debate-era exports (``run_debate``, ``DebateResult``, ``DebateDeps``, debate agent
-instances) are retained as importable backward-compat shims but removed from
-``__all__``.  They will be deleted once all consumers migrate to the
-recommendation pipeline (cutover tasks #667-#669).
 """
 
 # ---------------------------------------------------------------------------
-# Shared context utilities (used by BOTH debate and recommendation systems)
+# Shared context utilities
 # ---------------------------------------------------------------------------
 from options_arena.agents._context import (
     build_market_context as build_market_context,
@@ -22,9 +17,6 @@ from options_arena.agents._context import (
     extract_agent_predictions as extract_agent_predictions,
 )
 from options_arena.agents._context import (
-    should_debate as should_debate,
-)
-from options_arena.agents._context import (
     should_recommend as should_recommend,
 )
 from options_arena.agents._desk_deps import (
@@ -32,15 +24,8 @@ from options_arena.agents._desk_deps import (
 )
 
 # ---------------------------------------------------------------------------
-# Backward-compat shims — importable but NOT in __all__.
-# These will be removed once all consumers migrate (cutover tasks #667-#669).
+# Backward-compat rendering helpers (still used by desk/synthesis agents)
 # ---------------------------------------------------------------------------
-from options_arena.agents._parsing import (  # noqa: F811
-    DebateDeps as DebateDeps,
-)
-from options_arena.agents._parsing import (
-    DebateResult as DebateResult,
-)
 from options_arena.agents._parsing import (
     render_context_block as render_context_block,
 )
@@ -134,36 +119,6 @@ from options_arena.agents.fundamental_desk import (
 # ---------------------------------------------------------------------------
 from options_arena.agents.model_config import (
     build_debate_model as build_debate_model,
-)
-from options_arena.agents.orchestrator import (
-    AGENT_VOTE_WEIGHTS as AGENT_VOTE_WEIGHTS,
-)
-from options_arena.agents.orchestrator import (
-    DebatePhase as DebatePhase,
-)
-from options_arena.agents.orchestrator import (
-    DebateProgressCallback as DebateProgressCallback,
-)
-from options_arena.agents.orchestrator import (
-    VoteWeights as VoteWeights,
-)
-from options_arena.agents.orchestrator import (
-    auto_tune_weights as auto_tune_weights,
-)
-from options_arena.agents.orchestrator import (
-    compute_agreement_score as compute_agreement_score,
-)
-from options_arena.agents.orchestrator import (
-    compute_auto_tune_weights as compute_auto_tune_weights,
-)
-from options_arena.agents.orchestrator import (
-    effective_batch_ticker_delay as effective_batch_ticker_delay,
-)
-from options_arena.agents.orchestrator import (
-    run_debate as run_debate,
-)
-from options_arena.agents.orchestrator import (
-    synthesize_verdict as synthesize_verdict,
 )
 
 # ---------------------------------------------------------------------------

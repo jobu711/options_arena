@@ -7,7 +7,6 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 
-from options_arena.agents import auto_tune_weights
 from options_arena.analysis.correlation import compute_correlation_matrix
 from options_arena.api.app import limiter
 from options_arena.api.deps import (
@@ -18,6 +17,7 @@ from options_arena.api.deps import (
 )
 from options_arena.api.schemas import OutcomeCollectionResult
 from options_arena.data import Repository
+from options_arena.learning import auto_tune_weights
 from options_arena.models import (
     AgentAccuracyReport,
     AgentCalibrationData,

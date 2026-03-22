@@ -7,7 +7,6 @@ from decimal import Decimal
 
 import pytest
 
-from options_arena.agents._parsing import DebateDeps
 from options_arena.models import (
     AgentResponse,
     DebateConfig,
@@ -127,20 +126,6 @@ def mock_ticker_info() -> TickerInfo:
         current_price=Decimal("185.50"),
         fifty_two_week_high=Decimal("199.62"),
         fifty_two_week_low=Decimal("164.08"),
-    )
-
-
-@pytest.fixture()
-def mock_debate_deps(
-    mock_market_context: MarketContext,
-    mock_ticker_score: TickerScore,
-    mock_option_contract: OptionContract,
-) -> DebateDeps:
-    """DebateDeps with context, score, and one contract."""
-    return DebateDeps(
-        context=mock_market_context,
-        ticker_score=mock_ticker_score,
-        contracts=[mock_option_contract],
     )
 
 

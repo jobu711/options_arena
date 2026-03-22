@@ -14,7 +14,7 @@ from collections.abc import Sequence
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from options_arena.agents import DebatePhase
+from options_arena.agents._context import DebatePhase
 from options_arena.scan import ScanPhase
 
 logger = logging.getLogger(__name__)

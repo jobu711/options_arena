@@ -15,10 +15,8 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from options_arena.agents import (
-    effective_batch_ticker_delay,
-    run_recommendation,
-)
+from options_arena.agents import run_recommendation
+from options_arena.agents._context import effective_batch_ticker_delay
 from options_arena.api.app import limiter
 from options_arena.api.deps import (
     get_fred,

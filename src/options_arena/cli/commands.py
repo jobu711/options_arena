@@ -54,18 +54,14 @@ from options_arena.scan.indicators import (
 )
 from options_arena.scoring import recommend_contracts
 from options_arena.services.cache import ServiceCache
-from options_arena.services.financial_datasets import FinancialDatasetsService
 from options_arena.services.fred import FredService
 from options_arena.services.health import HealthService
-from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.market_data import MarketDataService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.services.universe import UniverseService
 
 if TYPE_CHECKING:
-    from options_arena.agents import DebateResult
-    from options_arena.models import DimensionalScores
     from options_arena.models.market_data import OHLCV, Quote, TickerInfo
     from options_arena.models.recommendation import RecommendationResult
     from options_arena.services.options_data import ExpirationChain
@@ -577,7 +573,7 @@ async def _batch_async(
         results: list[tuple[str, RecommendationResult | None, str | None]] = []
         start_time = time.monotonic()
 
-        from options_arena.agents import effective_batch_ticker_delay  # noqa: PLC0415
+        from options_arena.agents._context import effective_batch_ticker_delay  # noqa: PLC0415
 
         batch_delay = effective_batch_ticker_delay(settings.debate)
 
@@ -643,27 +639,6 @@ async def _batch_async(
             await fred.close()
         await cache.close()
         await db.close()
-
-
-def _export_result(
-    result: DebateResult,
-    ticker: str,
-    fmt: str,
-    export_dir: str,
-) -> None:
-    """Export a debate result to file. Prints status or error to stderr."""
-    from datetime import date  # noqa: PLC0415
-
-    from options_arena.reporting import export_debate_to_file  # noqa: PLC0415
-
-    export_path = Path(export_dir) / f"debate_{ticker}_{date.today().isoformat()}.{fmt}"
-    export_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        export_debate_to_file(result, export_path, fmt=fmt)
-        err_console.print(f"[green]Exported: {export_path}[/green]")
-    except OSError:
-        logger.exception("Failed to write export file: %s", export_path)
-        err_console.print(f"[red]Failed to write: {export_path}[/red]")
 
 
 def _export_recommendation_result(
@@ -817,167 +792,6 @@ async def _recommendation_single(
         options_data=options_data,
         fred=fred,
         scan_run_id=scan_run_id,
-    )
-
-
-async def _debate_single(
-    ticker_score: TickerScore,
-    settings: AppSettings,
-    market_data: MarketDataService,
-    options_data: OptionsDataService,
-    fred: FredService,
-    repo: Repository,
-    *,
-    fallback_only: bool = False,
-    intelligence_svc: IntelligenceService | None = None,
-    fd_svc: FinancialDatasetsService | None = None,
-) -> DebateResult:
-    """Run a single AI debate for one ticker. Returns result without rendering.
-
-    Fetches live market data, recommends contracts, and runs the debate pipeline.
-    The caller is responsible for service lifecycle (creation and cleanup) and
-    any console output (status messages, rendering, disclaimers).
-
-    Args:
-        ticker_score: Scored ticker from a prior scan run.
-        settings: Application settings (debate config, pricing config, service config).
-        market_data: Pre-created market data service.
-        options_data: Pre-created options data service.
-        fred: Pre-created FRED service.
-        repo: Database repository for debate persistence.
-        fallback_only: If True, force data-driven path by using near-zero timeouts.
-        intelligence_svc: Optional intelligence service for analyst/insider/institutional data.
-        fd_svc: Optional Financial Datasets service for fundamental data enrichment.
-
-    Returns:
-        DebateResult with agent responses, thesis, usage, and duration.
-    """
-    ticker = ticker_score.ticker
-
-    # Fetch quote, ticker info, OHLCV, risk-free rate, and option chains concurrently
-    quote_task = market_data.fetch_quote(ticker)
-    info_task = market_data.fetch_ticker_info(ticker)
-    ohlcv_task = market_data.fetch_ohlcv(ticker, period="1y")
-    risk_free_task = fred.fetch_risk_free_rate()
-    chains_task = options_data.fetch_chain_all_expirations(ticker)
-
-    gather_results = await asyncio.gather(
-        quote_task,
-        info_task,
-        ohlcv_task,
-        risk_free_task,
-        chains_task,
-        return_exceptions=True,
-    )
-    # Re-raise the first exception with context (gather prevents one failure from
-    # cancelling the other tasks, but we still need all critical results)
-    for result in gather_results:
-        if isinstance(result, BaseException):
-            raise RuntimeError(f"Data fetch failed: {type(result).__name__}") from result
-    # Exception check above guarantees all values are their expected types
-    quote = cast("Quote", gather_results[0])
-    ticker_info = cast("TickerInfo", gather_results[1])
-    ohlcv_list = cast("list[OHLCV]", gather_results[2])
-    risk_free_rate = cast("float", gather_results[3])
-    chain_results = cast("list[ExpirationChain]", gather_results[4])
-
-    # Compute raw indicators from OHLCV data so the debate context gets
-    # actual values (e.g., RSI=65.3) instead of percentile-ranked values
-    # (e.g., RSI=99.0 meaning "higher than 99% of peers").
-    # TickerScore.signals from the DB contains percentile-ranked values.
-    raw_signals: IndicatorSignals
-    if ohlcv_list:
-        df = ohlcv_to_dataframe(ohlcv_list)
-        raw_signals = compute_indicators(df, INDICATOR_REGISTRY)
-    else:
-        raw_signals = ticker_score.signals
-
-    # Create a ticker score copy with raw indicator signals for the debate
-    debate_score = ticker_score.model_copy(update={"signals": raw_signals})
-
-    # Flatten all contracts across expirations
-    all_contracts = [c for chain in chain_results for c in chain.contracts]
-
-    # Enrich with options-specific indicators from the full chain
-    spot = float(ticker_info.current_price)
-    if all_contracts:
-        from options_arena.scan.indicators import compute_options_indicators  # noqa: PLC0415
-
-        options_signals = compute_options_indicators(all_contracts, spot)
-        if options_signals.put_call_ratio is not None:
-            debate_score.signals.put_call_ratio = options_signals.put_call_ratio
-        if options_signals.max_pain_distance is not None:
-            debate_score.signals.max_pain_distance = options_signals.max_pain_distance
-
-    # Select best contract via scoring/contracts.py (mirrors scan pipeline Phase 3)
-    contracts = recommend_contracts(
-        contracts=all_contracts,
-        direction=debate_score.direction,
-        spot=spot,
-        risk_free_rate=risk_free_rate,
-        dividend_yield=ticker_info.dividend_yield,
-        filters=settings.scan.filters.options,
-        delta_target=settings.pricing.delta_target,
-    )
-
-    logger.info(
-        "Debate %s: %d chains fetched, %d total contracts, %d recommended",
-        ticker,
-        len(chain_results),
-        len(all_contracts),
-        len(contracts),
-    )
-
-    # Fetch intelligence data (never raises -- returns None on error)
-    from options_arena.models.intelligence import IntelligencePackage  # noqa: PLC0415
-
-    intel: IntelligencePackage | None = None
-    if intelligence_svc is not None:
-        intel = await intelligence_svc.fetch_intelligence(ticker, spot)
-
-    # Fetch Financial Datasets enrichment (never raises — returns None on error)
-    from options_arena.models.financial_datasets import (  # noqa: PLC0415
-        FinancialDatasetsPackage,
-    )
-
-    fd_package: FinancialDatasetsPackage | None = None
-    if fd_svc is not None:
-        fd_package = await fd_svc.fetch_package(ticker)
-
-    # Lazy import: agents/ depends on pydantic-ai which may not be available.
-    # Importing at call time keeps CLI tests (scan, health, universe) working
-    # even when the optional dependency is absent.
-    from options_arena.agents import run_debate  # noqa: PLC0415
-    from options_arena.scoring import compute_dimensional_scores  # noqa: PLC0415
-
-    # Force fallback mode if requested (near-zero timeout triggers data-driven path)
-    config = settings.debate
-    if fallback_only:
-        config = settings.debate.model_copy(
-            update={
-                "agent_timeout": _FALLBACK_ONLY_TIMEOUT_SEC,
-                "max_total_duration": _FALLBACK_ONLY_TIMEOUT_SEC,
-                "min_recommendation_score": 0.0,
-            }
-        )
-
-    # Compute dimensional scores from the debate signals for the 6-agent protocol
-    dim_scores: DimensionalScores | None = None
-    try:
-        dim_scores = compute_dimensional_scores(debate_score.signals)
-    except Exception:
-        logger.debug("Could not compute dimensional scores for %s", ticker, exc_info=True)
-
-    return await run_debate(
-        ticker_score=debate_score,
-        contracts=contracts,
-        quote=quote,
-        ticker_info=ticker_info,
-        config=config,
-        repository=repo,
-        dimensional_scores=dim_scores,
-        intelligence=intel,
-        fd_package=fd_package,
     )
 
 

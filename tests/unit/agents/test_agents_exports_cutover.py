@@ -3,9 +3,11 @@
 Verifies that:
 - Recommendation system exports are present and importable.
 - Debate agent instance names are removed from ``__all__``.
-- ``run_debate`` is removed from ``__all__``.
+- ``run_debate`` is fully removed (not even backward-compat).
 - Desk agent and synthesis agent exports remain intact.
-- Backward-compat shims are still importable (not in ``__all__``).
+- ``DebatePhase`` and ``effective_batch_ticker_delay`` moved to ``_context.py``.
+
+Updated for issue #669 — debate files deleted, backward-compat shims removed.
 """
 
 from __future__ import annotations
@@ -103,62 +105,20 @@ class TestDebateAgentsRemoved:
         assert "compute_agreement_score" not in agents_mod.__all__
 
 
-class TestBackwardCompatShims:
-    """Backward-compat imports still work (not in __all__ but importable)."""
+class TestMovedSymbolsAccessibleViaContext:
+    """Symbols moved from orchestrator.py to _context.py are still importable."""
 
-    def test_run_debate_still_importable(self) -> None:
-        """run_debate can still be imported for backward compat."""
-        from options_arena.agents import run_debate
+    def test_debate_phase_importable_from_context(self) -> None:
+        """DebatePhase moved to _context.py for backward-compat WS bridges."""
+        from options_arena.agents._context import DebatePhase
 
-        assert callable(run_debate)
+        assert DebatePhase.TREND == "trend"
 
-    def test_debate_result_still_importable(self) -> None:
-        """DebateResult can still be imported for backward compat."""
-        from options_arena.agents import DebateResult
-
-        assert DebateResult is not None
-
-    def test_debate_deps_still_importable(self) -> None:
-        """DebateDeps can still be imported for backward compat."""
-        from options_arena.agents import DebateDeps
-
-        assert DebateDeps is not None
-
-    def test_debate_phase_still_importable(self) -> None:
-        """DebatePhase can still be imported for backward compat."""
-        from options_arena.agents import DebatePhase
-
-        assert DebatePhase is not None
-
-    def test_effective_batch_ticker_delay_still_importable(self) -> None:
-        """effective_batch_ticker_delay can still be imported for backward compat."""
-        from options_arena.agents import effective_batch_ticker_delay
+    def test_effective_batch_ticker_delay_importable_from_context(self) -> None:
+        """effective_batch_ticker_delay moved to _context.py."""
+        from options_arena.agents._context import effective_batch_ticker_delay
 
         assert callable(effective_batch_ticker_delay)
-
-    def test_auto_tune_weights_still_importable(self) -> None:
-        """auto_tune_weights can still be imported for backward compat."""
-        from options_arena.agents import auto_tune_weights
-
-        assert callable(auto_tune_weights)
-
-    def test_agent_vote_weights_still_importable(self) -> None:
-        """AGENT_VOTE_WEIGHTS can still be imported for backward compat."""
-        from options_arena.agents import AGENT_VOTE_WEIGHTS
-
-        assert AGENT_VOTE_WEIGHTS is not None
-
-    def test_compute_auto_tune_weights_still_importable(self) -> None:
-        """compute_auto_tune_weights can still be imported for backward compat."""
-        from options_arena.agents import compute_auto_tune_weights
-
-        assert callable(compute_auto_tune_weights)
-
-    def test_should_debate_still_importable(self) -> None:
-        """should_debate can still be imported for backward compat."""
-        from options_arena.agents import should_debate
-
-        assert callable(should_debate)
 
 
 class TestDeskAgentsPreserved:
