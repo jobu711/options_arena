@@ -83,7 +83,7 @@ def mock_option_contract() -> OptionContract:
         ticker="AAPL",
         option_type=OptionType.CALL,
         strike=Decimal("190.00"),
-        expiration=date.today() + timedelta(days=45),
+        expiration=date(2026, 5, 15),
         bid=Decimal("4.50"),
         ask=Decimal("4.80"),
         last=Decimal("4.65"),
