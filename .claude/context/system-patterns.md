@@ -45,27 +45,24 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **Batch isolation**: `asyncio.gather(*tasks, return_exceptions=True)` — one failure never crashes batch.
 - **FRED/OpenBB never raise**: return fallback/None on error.
 
-### PydanticAI Agent Pattern
-- Module-level `Agent[Deps, OutputType]` instances (6 agents: trend, volatility, flow, fundamental, risk, contrarian) — no classes
+### PydanticAI Agent Pattern (Unified Recommendation System)
+- **Debate agents deleted** — 6 debate agents, 6 debate prompts, orchestrator.py all removed in cutover epic
+- **Recommendation pipeline**: 6 desk recommendation agents → synthesis agent → `PositionRecommendation`
+- `run_recommendation()` is the sole analysis entry point. Never raises — fallback with `confidence=0.2`, `is_fallback=True`
+- Module-level `Agent[Deps, OutputType]` instances — no classes
 - `model=None` at init, actual model passed at `agent.run(model=...)` time (enables `TestModel`)
-- `@dataclass` deps (`DebateDeps` with 16 fields), `output_type=PydanticModel` for structured JSON output
 - `retries=2`, `model_settings` passed at run time via `_build_model_settings()` (per-provider)
-- `@agent.output_validator` on all 8 agents — delegates to shared helpers: `build_cleaned_agent_response()` (most agents) and `build_cleaned_risk_assessment()` (risk) — strips `<think>` tags without costly retries
-- **Shared prompt appendix**: `PROMPT_RULES_APPENDIX` appended to all agent prompts.
-- **Multi-provider dispatch**: `build_debate_model()` in `model_config.py` dispatches on `LLMProvider` enum — `GroqModel` (default) or `AnthropicModel`. Conditional `ModelSettings` for extended thinking on Anthropic. `--provider` CLI flag selects at runtime.
-- **Single debate path**: `run_debate()` — 6-agent pipeline, no legacy code paths.
-- **Score-confidence clamping**: `TradeThesis` model_validator clamps confidence <=0.5 when scores contradict direction
+- `@agent.output_validator` strips `<think>` tags on all agents
+- **Shared prompt appendix**: `PROMPT_RULES_APPENDIX` appended to recommendation + synthesis prompts
+- **Multi-provider dispatch**: `build_debate_model()` in `model_config.py` dispatches on `LLMProvider` enum — `GroqModel` (default) or `AnthropicModel`. `--provider` CLI flag selects at runtime.
 - **Citation density**: `compute_citation_density()` measures fraction of context labels cited in agent output
-- Orchestrator never raises: catches errors -> data-driven fallback (confidence=0.3)
-- **Domain context partitioning**: Phase 1 agents receive only domain-specific context via `render_trend_context()`, `render_volatility_context()`, `render_flow_context()`, `render_fundamental_context()` — no composite score or direction anchoring
-- **Log-odds pooling**: Bordley 1982 weighted confidence compounding replaces naive averaging. `AGENT_VOTE_WEIGHTS` sum intentionally < 1.0 (risk excluded from directional voting)
-- **Ensemble diversity**: `_vote_entropy()` (Shannon entropy of direction votes), `compute_agreement_score()` (fraction agreeing with majority). Confidence capped at 0.4 when agreement < 0.4
-- **Agent prediction persistence**: `AgentPrediction` model + migration 025 + `extract_agent_predictions()`. "bull" DB field holds trend output (legacy column name preserved for backward compat)
-- **DebatePhase enum**: 6 members (TREND, VOLATILITY, FLOW, FUNDAMENTAL, RISK, CONTRARIAN) — matches agent pipeline order. Progress callback fires before each agent run.
+- **Domain context partitioning**: Recommendation agents receive only domain-specific context via `render_trend_context()`, `render_volatility_context()`, `render_flow_context()`, `render_fundamental_context()` — no composite score or direction anchoring
+- **Backward compat**: `DebateResult`, `DebatePhase`, `DebateProgressCallback` retained in `_context.py` for old data parsing. `GET /api/debate/{old_id}` dual-table lookup returns old debate data from `ai_theses`.
+- **DebateConfig name preserved**: Env var prefix `ARENA_DEBATE__*` unchanged. Dead fields removed, new fields: `synthesis_timeout`, `recommendation_protocol`, `min_recommendation_score`, `desk_parallelism`, `disabled_desks`.
 
 ### Desk Agent Pattern (Interactive Mode)
 - **7 desk agents**: Volatility, Risk, Trend, Flow, Fundamental, Contrarian, Research — `Agent[DeskDeps, str]` (plain text output)
-- Separate from debate agents — `*_desk.py` files in `agents/`
+- `*_desk.py` files in `agents/`
 - `DeskDeps` `@dataclass` with service instances (market_data, options_data, fred, repo) + `tools_used: list[str]`
 - Tool wrappers in `_toolsets.py`: per-desk toolset builders (e.g. `build_volatility_toolset()`, `build_risk_toolset()`, `build_trend_toolset()`, `build_research_toolset()`, etc.)
 - Tools: never-raise contract, `TICKER_RE` validation, `math.isfinite()` guards, sanitized error messages
@@ -115,13 +112,13 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - **Prompt**: `SYNTHESIS_SYSTEM_PROMPT` + `PROMPT_RULES_APPENDIX`. Dynamic injection of `<<<TUNED_WEIGHTS>>>` and `<<<LEARNED_PATTERNS>>>` blocks
 - **Tools**: `build_synthesis_toolset()` — 2 lightweight tools (`synth_fetch_current_quote`, `synth_fetch_chain_summary`)
 - **Runner**: `run_synthesis()` — never-raises, `asyncio.wait_for` timeout, fallback with `confidence=0.2`, `direction=NEUTRAL`
-- **Status**: Foundation complete. Not yet wired into orchestrator (desk-recommend + orchestrator epics pending)
+- **Status**: Fully wired into `run_recommendation()` orchestrator. Sole analysis path.
 
-### Scan Pipeline & Debate Flow — See `scan/CLAUDE.md` and `agents/CLAUDE.md`
+### Scan Pipeline — See `scan/CLAUDE.md` and `agents/CLAUDE.md`
 
-### Batch Debate & Export Patterns
-- `_debate_single()` reusable for single and batch; `_batch_async()` iterates sequentially with per-ticker error isolation
-- `reporting/debate_export.py` generates markdown from `DebateResult`
+### Batch Recommendation & Export Patterns
+- `_recommendation_single()` reusable for single and batch; `_batch_async()` iterates sequentially with per-ticker error isolation
+- `reporting/debate_export.py` has `export_recommendation_markdown()` for `RecommendationResult` + `export_debate_markdown()` for old data
 
 ### Web API Patterns
 - **App factory**: `create_app()` with `lifespan()` — services created once, stored on `app.state`

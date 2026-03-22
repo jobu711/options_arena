@@ -13,23 +13,25 @@ Condensed from 13 module CLAUDE.md files. Read the full module CLAUDE.md for dee
 - `recommendation.py`: `DomainAssessment` base + 6 subclasses, `AnyAssessment` discriminated union (`Discriminator("desk")` + `Tag()`), `PositionRecommendation` (21 fields, Decimal prices), `RecommendationResult` (`arbitrary_types_allowed=True` for `RunUsage`)
 
 ## agents/
-- **Debate agents** (6): Trend, Volatility, Flow, Fundamental, Risk, Contrarian — structured output
 - **Desk agents** (7): Volatility, Risk, Trend, Flow, Fundamental, Contrarian, Research — `Agent[DeskDeps, str]` for interactive queries
+- **Recommendation agents** (6): One per desk (excl. Research) — `Agent[DeskDeps, *Assessment]` producing typed `DomainAssessment` subclasses
 - **Synthesis agent** (1): `Agent[SynthesisDeps, PositionRecommendation]` — weighs 6 domain assessments, produces contract recommendation. `run_synthesis()` never-raises with fallback.
+- **Recommendation orchestrator**: `run_recommendation()` — primary entry point. Runs 6 desk recommendation agents → synthesis agent → `RecommendationResult`. Never raises.
 - **Routing**: `_routing.py` — intent classification (`classify_intent`) + desk dispatch (`route_query`)
-- No inter-agent imports — orchestrator coordinates debate; desks are independent
+- No inter-agent imports — orchestrator coordinates recommendation; desks are independent
 - `Agent(model=None)` at init, actual model at `agent.run(model=...)` — enables TestModel
-- All debate agents: `@output_validator` using `build_cleaned_agent_response()` (think tags)
 - All desk agents: `@output_validator` using `strip_think_tags()` + post-run defense-in-depth
 - Synthesis agent: `@output_validator` strips think tags from `PositionRecommendation` string fields
-- `run_debate()` / `run_*_desk_query()` / `run_synthesis()` never raise — catch all exceptions
+- `run_recommendation()` / `run_*_desk_query()` / `run_synthesis()` never raise — catch all exceptions
 - Desk agents access services via `DeskDeps` (tool-based data fetching, not pre-fetched)
 - `asyncio.wait_for(agent.run(...), timeout=config.agent_timeout)` on every agent call
 - `_toolsets.py`: per-desk toolset builders + `build_synthesis_toolset()` with `TICKER_RE` validation, `isfinite()` guards, sanitized errors
+- **Backward compat**: `DebateResult`, `DebatePhase`, `DebateProgressCallback` retained in `_context.py` for old data parsing. Not in `__all__`.
+- **Debate agents deleted**: 6 debate agents, 6 debate prompts, orchestrator.py — all removed in cutover epic
 
 ## agents/prompts/
-- 6 debate prompt files + 7 desk prompt files + 1 synthesis prompt file
-- Debate + Synthesis: `*_SYSTEM_PROMPT` constant concatenated with `PROMPT_RULES_APPENDIX`
+- 7 desk prompt files + 6 recommendation prompt files + 1 synthesis prompt file
+- Recommendation + Synthesis: `*_SYSTEM_PROMPT` constant concatenated with `PROMPT_RULES_APPENDIX`
 - Desk: `DESK_*_PROMPT` constant, conversational, NO `PROMPT_RULES_APPENDIX`
 - < 8000 chars per prompt; static only — dynamic injection stays in agent modules
 
