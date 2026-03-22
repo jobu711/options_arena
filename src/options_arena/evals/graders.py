@@ -62,68 +62,80 @@ class CodeGrader:
         # Check direction if expected
         if definition.expected_direction is not None:
             direction_ok = assessment.direction == definition.expected_direction
-            checks.append({
-                "check": "direction",
-                "expected": definition.expected_direction.value,
-                "actual": assessment.direction.value,
-                "passed": direction_ok,
-            })
+            checks.append(
+                {
+                    "check": "direction",
+                    "expected": definition.expected_direction.value,
+                    "actual": assessment.direction.value,
+                    "passed": direction_ok,
+                }
+            )
             if direction_ok:
                 checks_passed += 1
 
         # Check confidence bounds
         if definition.expected_confidence_min is not None:
             conf_min_ok = assessment.confidence >= definition.expected_confidence_min
-            checks.append({
-                "check": "confidence_min",
-                "expected": f">= {definition.expected_confidence_min}",
-                "actual": str(assessment.confidence),
-                "passed": conf_min_ok,
-            })
+            checks.append(
+                {
+                    "check": "confidence_min",
+                    "expected": f">= {definition.expected_confidence_min}",
+                    "actual": str(assessment.confidence),
+                    "passed": conf_min_ok,
+                }
+            )
             if conf_min_ok:
                 checks_passed += 1
 
         if definition.expected_confidence_max is not None:
             conf_max_ok = assessment.confidence <= definition.expected_confidence_max
-            checks.append({
-                "check": "confidence_max",
-                "expected": f"<= {definition.expected_confidence_max}",
-                "actual": str(assessment.confidence),
-                "passed": conf_max_ok,
-            })
+            checks.append(
+                {
+                    "check": "confidence_max",
+                    "expected": f"<= {definition.expected_confidence_max}",
+                    "actual": str(assessment.confidence),
+                    "passed": conf_max_ok,
+                }
+            )
             if conf_max_ok:
                 checks_passed += 1
 
         # Check key_factors has content
         has_factors = len(assessment.key_factors) >= 1
-        checks.append({
-            "check": "key_factors_present",
-            "expected": ">= 1 factor",
-            "actual": str(len(assessment.key_factors)),
-            "passed": has_factors,
-        })
+        checks.append(
+            {
+                "check": "key_factors_present",
+                "expected": ">= 1 factor",
+                "actual": str(len(assessment.key_factors)),
+                "passed": has_factors,
+            }
+        )
         if has_factors:
             checks_passed += 1
 
         # Check summary is non-empty
         has_summary = len(assessment.summary.strip()) > 0
-        checks.append({
-            "check": "summary_present",
-            "expected": "non-empty",
-            "actual": f"{len(assessment.summary)} chars",
-            "passed": has_summary,
-        })
+        checks.append(
+            {
+                "check": "summary_present",
+                "expected": "non-empty",
+                "actual": f"{len(assessment.summary)} chars",
+                "passed": has_summary,
+            }
+        )
         if has_summary:
             checks_passed += 1
 
         # Check risks listed
         has_risks = len(assessment.risks) >= 1
-        checks.append({
-            "check": "risks_present",
-            "expected": ">= 1 risk",
-            "actual": str(len(assessment.risks)),
-            "passed": has_risks,
-        })
+        checks.append(
+            {
+                "check": "risks_present",
+                "expected": ">= 1 risk",
+                "actual": str(len(assessment.risks)),
+                "passed": has_risks,
+            }
+        )
         if has_risks:
             checks_passed += 1
 
@@ -160,56 +172,66 @@ class CodeGrader:
         # Check direction
         if definition.expected_direction is not None:
             direction_ok = recommendation.direction == definition.expected_direction
-            checks.append({
-                "check": "direction",
-                "expected": definition.expected_direction.value,
-                "actual": recommendation.direction.value,
-                "passed": direction_ok,
-            })
+            checks.append(
+                {
+                    "check": "direction",
+                    "expected": definition.expected_direction.value,
+                    "actual": recommendation.direction.value,
+                    "passed": direction_ok,
+                }
+            )
             if direction_ok:
                 checks_passed += 1
 
         # Check confidence bounds
         if definition.expected_confidence_min is not None:
             conf_min_ok = recommendation.confidence >= definition.expected_confidence_min
-            checks.append({
-                "check": "confidence_min",
-                "expected": f">= {definition.expected_confidence_min}",
-                "actual": str(recommendation.confidence),
-                "passed": conf_min_ok,
-            })
+            checks.append(
+                {
+                    "check": "confidence_min",
+                    "expected": f">= {definition.expected_confidence_min}",
+                    "actual": str(recommendation.confidence),
+                    "passed": conf_min_ok,
+                }
+            )
             if conf_min_ok:
                 checks_passed += 1
 
         if definition.expected_confidence_max is not None:
             conf_max_ok = recommendation.confidence <= definition.expected_confidence_max
-            checks.append({
-                "check": "confidence_max",
-                "expected": f"<= {definition.expected_confidence_max}",
-                "actual": str(recommendation.confidence),
-                "passed": conf_max_ok,
-            })
+            checks.append(
+                {
+                    "check": "confidence_max",
+                    "expected": f"<= {definition.expected_confidence_max}",
+                    "actual": str(recommendation.confidence),
+                    "passed": conf_max_ok,
+                }
+            )
             if conf_max_ok:
                 checks_passed += 1
 
         # Check entry/exit criteria present
         has_entry = len(recommendation.entry_criteria) >= 1
-        checks.append({
-            "check": "entry_criteria_present",
-            "expected": ">= 1 criterion",
-            "actual": str(len(recommendation.entry_criteria)),
-            "passed": has_entry,
-        })
+        checks.append(
+            {
+                "check": "entry_criteria_present",
+                "expected": ">= 1 criterion",
+                "actual": str(len(recommendation.entry_criteria)),
+                "passed": has_entry,
+            }
+        )
         if has_entry:
             checks_passed += 1
 
         has_exit = len(recommendation.exit_criteria) >= 1
-        checks.append({
-            "check": "exit_criteria_present",
-            "expected": ">= 1 criterion",
-            "actual": str(len(recommendation.exit_criteria)),
-            "passed": has_exit,
-        })
+        checks.append(
+            {
+                "check": "exit_criteria_present",
+                "expected": ">= 1 criterion",
+                "actual": str(len(recommendation.exit_criteria)),
+                "passed": has_exit,
+            }
+        )
         if has_exit:
             checks_passed += 1
 
@@ -279,12 +301,14 @@ class ModelGrader:
             if any(c.isdigit() for c in f) or "%" in f or "$" in f
         )
         specificity_ok = data_bearing_factors >= max(1, len(assessment.key_factors) // 2)
-        checks.append({
-            "check": "specificity",
-            "expected": f">= {max(1, len(assessment.key_factors) // 2)} data-bearing factors",
-            "actual": f"{data_bearing_factors} of {len(assessment.key_factors)}",
-            "passed": specificity_ok,
-        })
+        checks.append(
+            {
+                "check": "specificity",
+                "expected": f">= {max(1, len(assessment.key_factors) // 2)} data-bearing factors",
+                "actual": f"{data_bearing_factors} of {len(assessment.key_factors)}",
+                "passed": specificity_ok,
+            }
+        )
         if specificity_ok:
             checks_passed += 1
 
@@ -301,37 +325,45 @@ class ModelGrader:
             consistency_ok = bear_count >= bull_count
         else:
             consistency_ok = True  # NEUTRAL is always consistent
-        checks.append({
-            "check": "consistency",
-            "expected": f"factors align with {assessment.direction.value}",
-            "actual": f"bull={bull_count} bear={bear_count}",
-            "passed": consistency_ok,
-        })
+        checks.append(
+            {
+                "check": "consistency",
+                "expected": f"factors align with {assessment.direction.value}",
+                "actual": f"bull={bull_count} bear={bear_count}",
+                "passed": consistency_ok,
+            }
+        )
         if consistency_ok:
             checks_passed += 1
 
         # Check summary length (actionable summaries need substance)
         summary_ok = len(assessment.summary.strip()) >= 20
-        checks.append({
-            "check": "summary_length",
-            "expected": ">= 20 chars",
-            "actual": f"{len(assessment.summary.strip())} chars",
-            "passed": summary_ok,
-        })
+        checks.append(
+            {
+                "check": "summary_length",
+                "expected": ">= 20 chars",
+                "actual": f"{len(assessment.summary.strip())} chars",
+                "passed": summary_ok,
+            }
+        )
         if summary_ok:
             checks_passed += 1
 
         # Check risk specificity
         risk_specific = sum(
-            1 for r in assessment.risks if len(r) > 15  # noqa: PLR2004
+            1
+            for r in assessment.risks
+            if len(r) > 15  # noqa: PLR2004
         )
         risks_ok = risk_specific >= max(1, len(assessment.risks) // 2)
-        checks.append({
-            "check": "risk_specificity",
-            "expected": f">= {max(1, len(assessment.risks) // 2)} detailed risks",
-            "actual": f"{risk_specific} of {len(assessment.risks)}",
-            "passed": risks_ok,
-        })
+        checks.append(
+            {
+                "check": "risk_specificity",
+                "expected": f">= {max(1, len(assessment.risks) // 2)} detailed risks",
+                "actual": f"{risk_specific} of {len(assessment.risks)}",
+                "passed": risks_ok,
+            }
+        )
         if risks_ok:
             checks_passed += 1
 
@@ -392,18 +424,18 @@ class OutcomeGrader:
 
         # Overall direction accuracy
         correct_direction = sum(
-            1
-            for o in outcomes
-            if self._direction_correct(o.direction, o.pnl_pct)
+            1 for o in outcomes if self._direction_correct(o.direction, o.pnl_pct)
         )
         accuracy = correct_direction / len(outcomes)
         accuracy_ok = accuracy >= 0.5  # noqa: PLR2004 — minimum 50% accuracy
-        checks.append({
-            "check": "direction_accuracy",
-            "expected": ">= 0.50",
-            "actual": f"{accuracy:.3f}",
-            "passed": accuracy_ok,
-        })
+        checks.append(
+            {
+                "check": "direction_accuracy",
+                "expected": ">= 0.50",
+                "actual": f"{accuracy:.3f}",
+                "passed": accuracy_ok,
+            }
+        )
         if accuracy_ok:
             checks_passed += 1
 
@@ -416,29 +448,32 @@ class OutcomeGrader:
             high_accuracy = high_correct / len(high_conf)
             # High-confidence should beat overall accuracy
             high_ok = high_accuracy >= accuracy
-            checks.append({
-                "check": "high_confidence_calibration",
-                "expected": f">= {accuracy:.3f} (overall accuracy)",
-                "actual": f"{high_accuracy:.3f} ({len(high_conf)} samples)",
-                "passed": high_ok,
-            })
+            checks.append(
+                {
+                    "check": "high_confidence_calibration",
+                    "expected": f">= {accuracy:.3f} (overall accuracy)",
+                    "actual": f"{high_accuracy:.3f} ({len(high_conf)} samples)",
+                    "passed": high_ok,
+                }
+            )
             if high_ok:
                 checks_passed += 1
 
         # Average P&L should be positive for correct-direction calls
         correct_pnls = [
-            o.pnl_pct for o in outcomes
-            if self._direction_correct(o.direction, o.pnl_pct)
+            o.pnl_pct for o in outcomes if self._direction_correct(o.direction, o.pnl_pct)
         ]
         if correct_pnls:
             avg_correct_pnl = sum(correct_pnls) / len(correct_pnls)
             pnl_ok = avg_correct_pnl > 0.0
-            checks.append({
-                "check": "avg_correct_pnl",
-                "expected": "> 0.0%",
-                "actual": f"{avg_correct_pnl:.2f}%",
-                "passed": pnl_ok,
-            })
+            checks.append(
+                {
+                    "check": "avg_correct_pnl",
+                    "expected": "> 0.0%",
+                    "actual": f"{avg_correct_pnl:.2f}%",
+                    "passed": pnl_ok,
+                }
+            )
             if pnl_ok:
                 checks_passed += 1
 

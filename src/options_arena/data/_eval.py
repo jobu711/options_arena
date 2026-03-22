@@ -75,11 +75,7 @@ class EvalMixin(RepositoryBase):
                 definition.description,
                 definition.grader_type.value,
                 definition.market_context_fixture,
-                (
-                    definition.expected_direction.value
-                    if definition.expected_direction
-                    else None
-                ),
+                (definition.expected_direction.value if definition.expected_direction else None),
                 definition.expected_confidence_min,
                 definition.expected_confidence_max,
                 custom_json,
@@ -99,9 +95,7 @@ class EvalMixin(RepositoryBase):
             All definitions ordered by name.
         """
         conn = self._db.conn
-        async with conn.execute(
-            "SELECT * FROM eval_definitions ORDER BY name"
-        ) as cursor:
+        async with conn.execute("SELECT * FROM eval_definitions ORDER BY name") as cursor:
             rows = await cursor.fetchall()
         return [self._row_to_eval_definition(row) for row in rows]
 
@@ -189,10 +183,7 @@ class EvalMixin(RepositoryBase):
         """
         conn = self._db.conn
         if eval_name is not None:
-            query = (
-                "SELECT * FROM eval_runs WHERE eval_name = ? "
-                "ORDER BY timestamp DESC LIMIT ?"
-            )
+            query = "SELECT * FROM eval_runs WHERE eval_name = ? ORDER BY timestamp DESC LIMIT ?"
             params: tuple[str | int, ...] = (eval_name, limit)
         else:
             query = "SELECT * FROM eval_runs ORDER BY timestamp DESC LIMIT ?"

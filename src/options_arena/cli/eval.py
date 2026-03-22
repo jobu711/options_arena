@@ -111,9 +111,7 @@ async def _check_async(desk_name: str | None) -> None:
             "blocked": "bold red",
         }
         console.print(
-            f"\npass@1: {report.pass_at_1:.1%}  "
-            f"pass@3: {report.pass_at_3:.1%}  "
-            f"Verdict: ",
+            f"\npass@1: {report.pass_at_1:.1%}  pass@3: {report.pass_at_3:.1%}  Verdict: ",
             end="",
         )
         console.print(
@@ -122,9 +120,7 @@ async def _check_async(desk_name: str | None) -> None:
         )
 
         if report.regressions:
-            console.print(
-                f"\n[bold red]Regressions:[/] {', '.join(report.regressions)}"
-            )
+            console.print(f"\n[bold red]Regressions:[/] {', '.join(report.regressions)}")
 
     finally:
         await db.close()

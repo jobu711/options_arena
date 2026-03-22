@@ -1,8 +1,8 @@
 ---
 name: agent-infra-eval-harness
-status: backlog
+status: complete
 created: 2026-03-22T16:13:36Z
-progress: 0%
+progress: 100%
 prd: .claude/prds/agent-infrastructure-evolution.md
 parent_epic: agent-infrastructure-evolution
 branch: epic/agent-infrastructure-evolution
@@ -111,15 +111,15 @@ foundational quality measurement layer — without it, prompt changes are blind.
 - Largest epic in this PRD — new module with 3 grader types
 
 ## Tasks Created
-- [ ] #655 - Eval data models and enums (parallel: true)
-- [ ] #657 - Eval persistence layer — migration + EvalMixin (parallel: false, depends: #655)
-- [ ] #660 - Code grader implementation (parallel: true, depends: #655)
-- [ ] #656 - Model grader — LLM-as-judge (parallel: true, depends: #655)
-- [ ] #659 - Outcome grader — P&L calibration (parallel: true, depends: #655, #657)
-- [ ] #661 - Eval runner with pass@k and baseline comparison (parallel: false, depends: #657-#659)
-- [ ] #658 - CLI eval subcommand group (parallel: true, depends: #661)
-- [ ] #662 - API eval endpoints (parallel: true, depends: #661)
-- [ ] #663 - Regression fixture generator and test suite (parallel: true, depends: #657)
+- [x] #655 - Eval data models and enums (parallel: true)
+- [x] #657 - Eval persistence layer — migration + EvalMixin (parallel: false, depends: #655)
+- [x] #660 - Code grader implementation (parallel: true, depends: #655)
+- [x] #656 - Model grader — LLM-as-judge (parallel: true, depends: #655)
+- [x] #659 - Outcome grader — P&L calibration (parallel: true, depends: #655, #657)
+- [x] #661 - Eval runner with pass@k and baseline comparison (parallel: false, depends: #657-#659)
+- [x] #658 - CLI eval subcommand group (parallel: true, depends: #661)
+- [x] #662 - API eval endpoints (parallel: true, depends: #661)
+- [x] #663 - Regression fixture generator and test suite (parallel: true, depends: #657)
 
 Total tasks: 9
 Parallel tasks: 7

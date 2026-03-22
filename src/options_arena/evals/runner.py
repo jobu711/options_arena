@@ -49,8 +49,7 @@ async def run_eval_check(
     definitions = await repo.get_eval_definitions()
     if desk_filter is not None:
         definitions = [
-            d for d in definitions
-            if d.target_desk == desk_filter or d.target_desk is None
+            d for d in definitions if d.target_desk == desk_filter or d.target_desk is None
         ]
 
     if not definitions:
@@ -87,16 +86,16 @@ async def run_eval_check(
             attempts=pass_at_k,
             successes=successes,
             model_used=(
-                "code_grader"
-                if definition.grader_type == GraderType.CODE
-                else "model_grader"
+                "code_grader" if definition.grader_type == GraderType.CODE else "model_grader"
             ),
             duration_ms=elapsed_ms,
-            details=json.dumps({
-                "successes": successes,
-                "attempts": pass_at_k,
-                "grader_type": definition.grader_type.value,
-            }),
+            details=json.dumps(
+                {
+                    "successes": successes,
+                    "attempts": pass_at_k,
+                    "grader_type": definition.grader_type.value,
+                }
+            ),
         )
         runs.append(run)
 
