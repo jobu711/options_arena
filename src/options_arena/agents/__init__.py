@@ -118,10 +118,16 @@ from options_arena.agents.fundamental_desk import (
 )
 
 # ---------------------------------------------------------------------------
-# Model configuration
+# Model configuration + routing
 # ---------------------------------------------------------------------------
 from options_arena.agents.model_config import (
     build_debate_model as build_debate_model,
+)
+from options_arena.agents.model_routing import (
+    build_model_for_tier as build_model_for_tier,
+)
+from options_arena.agents.model_routing import (
+    route_model_tier as route_model_tier,
 )
 
 # ---------------------------------------------------------------------------
@@ -227,6 +233,8 @@ __all__ = [
     # --- Toolsets ---
     "build_contrarian_toolset",
     "build_debate_model",
+    "build_model_for_tier",
+    "route_model_tier",
     "build_flow_toolset",
     "build_fundamental_toolset",
     "build_research_toolset",
