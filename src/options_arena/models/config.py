@@ -249,6 +249,55 @@ class DataConfig(BaseModel):
     db_path: str | None = None
 
 
+class RoutingConfig(BaseModel):
+    """Complexity-based model routing configuration.
+
+    When ``enable_model_routing`` is ``True``, each desk agent receives a model
+    selected by complexity assessment. When ``False`` (default), all desks use
+    the same model (backward compatible).
+
+    Override via ``ARENA_DEBATE__ROUTING__ENABLE_MODEL_ROUTING=true``.
+    """
+
+    enable_model_routing: bool = False
+    complexity_threshold_fast: float = 0.3
+    complexity_threshold_premium: float = 0.7
+    fast_model: str = "llama-3.1-8b-instant"
+    premium_model: str = ""  # empty means use default model
+    cost_per_million_tokens: dict[str, float] = {
+        "llama-3.3-70b-versatile": 0.59,
+        "llama-3.1-8b-instant": 0.05,
+    }
+
+    @field_validator("complexity_threshold_fast", "complexity_threshold_premium")
+    @classmethod
+    def _validate_threshold(cls, v: float) -> float:
+        """Ensure threshold is finite and within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"threshold must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"threshold must be in [0.0, 1.0], got {v}")
+        return v
+
+    @model_validator(mode="after")
+    def _validate_threshold_ordering(self) -> Self:
+        """Ensure fast threshold is strictly less than premium threshold."""
+        if self.complexity_threshold_fast >= self.complexity_threshold_premium:
+            raise ValueError(
+                f"complexity_threshold_fast ({self.complexity_threshold_fast}) "
+                f"must be < complexity_threshold_premium ({self.complexity_threshold_premium})"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def validate_all_finite(self) -> Self:
+        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
+        for name, value in self.__dict__.items():
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+        return self
+
+
 class DebateConfig(BaseModel):
     """AI debate configuration — controls LLM provider, timeouts, and fallback behavior.
 
@@ -281,6 +330,7 @@ class DebateConfig(BaseModel):
     rate_limit_retries: int = 3  # max 429 retries at transport level (0 = disabled)
     rate_limit_max_wait: float = 30.0  # max single retry wait in seconds
     auto_tune_weights: bool = False  # opt-in auto-tuned agent vote weights from accuracy data
+    routing: RoutingConfig = RoutingConfig()
 
     @field_validator("thinking_budget_tokens")
     @classmethod
@@ -707,6 +757,34 @@ class AgencyConfig(BaseModel):
         return self
 
 
+class EvalConfig(BaseModel):
+    """Evaluation harness configuration.
+
+    Controls eval directory location, pass@k attempts, and model grader provider.
+    """
+
+    eval_dir: str = ".claude/evals"
+    pass_at_k: int = 3
+    model_grader_provider: str = "groq"
+    eval_timeout: float = 120.0
+
+    @field_validator("pass_at_k")
+    @classmethod
+    def _validate_pass_at_k(cls, v: int) -> int:
+        if not 1 <= v <= 10:
+            raise ValueError(f"pass_at_k must be in [1, 10], got {v}")
+        return v
+
+    @field_validator("eval_timeout")
+    @classmethod
+    def _validate_eval_timeout(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError(f"eval_timeout must be finite, got {v}")
+        if v <= 0.0:
+            raise ValueError(f"eval_timeout must be > 0, got {v}")
+        return v
+
+
 class AppSettings(BaseSettings):
     """Root application settings — the sole BaseSettings subclass.
 
@@ -736,3 +814,4 @@ class AppSettings(BaseSettings):
     spread: SpreadConfig = SpreadConfig()
     position_sizing: PositionSizingConfig = PositionSizingConfig()
     agency: AgencyConfig = AgencyConfig()
+    eval: EvalConfig = EvalConfig()

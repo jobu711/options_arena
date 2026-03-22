@@ -418,6 +418,19 @@ class RuleStatus(StrEnum):
     REJECTED = "rejected"
 
 
+class ModelTier(StrEnum):
+    """LLM model tier for complexity-based routing.
+
+    FAST uses a smaller, cheaper model for clear-cut tickers.
+    STANDARD is the default full-capability model.
+    PREMIUM uses the most capable model for complex analysis.
+    """
+
+    FAST = "fast"
+    STANDARD = "standard"
+    PREMIUM = "premium"
+
+
 class ToolStatus(StrEnum):
     """Status of a tool invocation result.
 
@@ -429,6 +442,43 @@ class ToolStatus(StrEnum):
     SUCCESS = "success"
     WARNING = "warning"
     ERROR = "error"
+
+
+class EvalType(StrEnum):
+    """Type of agent evaluation.
+
+    CAPABILITY — can the agent do X it couldn't before?
+    REGRESSION — did a change break existing behavior?
+    """
+
+    CAPABILITY = "capability"
+    REGRESSION = "regression"
+
+
+class GraderType(StrEnum):
+    """Grader mechanism for agent evaluation.
+
+    CODE    — deterministic pytest assertions on assessment fields.
+    MODEL   — LLM-as-judge on qualitative fields (key_factors, summary).
+    OUTCOME — compare direction/confidence vs actual P&L calibration.
+    """
+
+    CODE = "code"
+    MODEL = "model"
+    OUTCOME = "outcome"
+
+
+class EvalVerdict(StrEnum):
+    """Verdict from comparing eval results against baseline.
+
+    SHIP       — all evals pass at or above baseline.
+    NEEDS_WORK — some evals regressed but none critically.
+    BLOCKED    — critical evals failed; changes should not ship.
+    """
+
+    SHIP = "ship"
+    NEEDS_WORK = "needs_work"
+    BLOCKED = "blocked"
 
 
 class SurfaceMethod(StrEnum):

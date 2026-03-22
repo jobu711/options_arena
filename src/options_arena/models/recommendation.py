@@ -26,6 +26,7 @@ from options_arena.models.analysis import MarketContext
 from options_arena.models.enums import (
     DeskType,
     IVTermStructureShape,
+    ModelTier,
     SignalDirection,
     SpreadType,
     ValuationSignal,
@@ -147,6 +148,88 @@ AnyAssessment = Annotated[
 
 
 # ---------------------------------------------------------------------------
+# Observability models — per-desk metrics, assessment summary, cost
+# ---------------------------------------------------------------------------
+
+
+class DeskMetrics(BaseModel):
+    """Per-desk timing, model selection, and token usage for observability."""
+
+    model_config = ConfigDict(frozen=True)
+
+    desk: DeskType
+    status: str  # "success" or "fallback"
+    duration_ms: int
+    model_tier: ModelTier
+    model_used: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+    @field_validator("duration_ms")
+    @classmethod
+    def _validate_duration_ms(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError(f"duration_ms must be >= 0, got {v}")
+        return v
+
+    @field_validator("input_tokens", "output_tokens")
+    @classmethod
+    def _validate_token_counts(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError(f"token count must be >= 0, got {v}")
+        return v
+
+
+class AssessmentSummary(BaseModel):
+    """Consensus summary computed from 6 DomainAssessments between desk and synthesis phases."""
+
+    model_config = ConfigDict(frozen=True)
+
+    direction_votes: dict[SignalDirection, int]
+    avg_confidence: float
+    disagreement_desks: list[DeskType]
+    risk_flags: list[str]
+    data_completeness: float
+
+    @field_validator("avg_confidence")
+    @classmethod
+    def _validate_avg_confidence(cls, v: float) -> float:
+        return validate_unit_interval(v, "avg_confidence")
+
+    @field_validator("data_completeness")
+    @classmethod
+    def _validate_data_completeness(cls, v: float) -> float:
+        return validate_unit_interval(v, "data_completeness")
+
+
+class RecommendationCost(BaseModel):
+    """Aggregated token and cost data across all desks in a recommendation run."""
+
+    model_config = ConfigDict(frozen=True)
+
+    total_input_tokens: int
+    total_output_tokens: int
+    total_cost_usd: float
+    tier_distribution: dict[ModelTier, int]
+
+    @field_validator("total_input_tokens", "total_output_tokens")
+    @classmethod
+    def _validate_token_counts(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError(f"token count must be >= 0, got {v}")
+        return v
+
+    @field_validator("total_cost_usd")
+    @classmethod
+    def _validate_total_cost_usd(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError(f"total_cost_usd must be finite, got {v}")
+        if v < 0.0:
+            raise ValueError(f"total_cost_usd must be >= 0, got {v}")
+        return v
+
+
+# ---------------------------------------------------------------------------
 # Position recommendation & result
 # ---------------------------------------------------------------------------
 
@@ -234,6 +317,9 @@ class RecommendationResult(BaseModel):
     duration_ms: int
     is_fallback: bool
     citation_density: float = 0.0
+    desk_metrics: list[DeskMetrics] = Field(default_factory=list)
+    assessment_summary: AssessmentSummary | None = None
+    cost: RecommendationCost | None = None
 
     @field_validator("citation_density")
     @classmethod
