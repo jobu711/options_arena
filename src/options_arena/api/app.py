@@ -243,7 +243,11 @@ def create_app() -> FastAPI:
                     content={"detail": "Non-loopback access denied"},
                 )
         except ValueError:
-            pass  # Unparseable IP — allow (testclient uses "testclient")
+            if client_host != "testclient":
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Non-loopback access denied"},
+                )
         return await call_next(request)
 
     # CORS — allow Vite dev server (loopback only)

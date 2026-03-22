@@ -119,7 +119,7 @@ class LearningMixin(RepositoryBase):
             query = "SELECT * FROM strategy_rules ORDER BY created_at DESC LIMIT ?"
             params = (limit,)
         else:
-            query = "SELECT * FROM strategy_rules ORDER BY created_at DESC"
+            query = "SELECT * FROM strategy_rules ORDER BY created_at DESC LIMIT 5000"
 
         async with conn.execute(query, params) as cursor:
             rows = await cursor.fetchall()
@@ -331,6 +331,8 @@ class LearningMixin(RepositoryBase):
         if limit is not None:
             query += " LIMIT ?"
             query_params.append(limit)
+        else:
+            query += " LIMIT 5000"
 
         async with conn.execute(query, tuple(query_params)) as cursor:
             rows = await cursor.fetchall()

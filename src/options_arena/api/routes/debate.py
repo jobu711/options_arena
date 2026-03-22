@@ -143,12 +143,14 @@ async def _prepare_ticker_data(
     for chain in chain_results:
         contracts.extend(chain.contracts)
 
-    # Enrich with options-specific indicators from the full chain
+    # Enrich with options-specific indicators from the full chain.
+    # Defensive copy avoids mutating shared objects from concurrent tasks.
     if contracts:
         from options_arena.scan.indicators import (  # noqa: PLC0415
             compute_options_indicators,
         )
 
+        score_match = score_match.model_copy(deep=True)
         spot = float(ticker_info.current_price)
         options_signals = compute_options_indicators(contracts, spot)
         if options_signals.put_call_ratio is not None:
