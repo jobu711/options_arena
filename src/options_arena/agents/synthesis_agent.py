@@ -255,34 +255,9 @@ async def run_synthesis(
             ),
             timeout=timeout,
         )
-        # Defense-in-depth: strip think tags from the output
-        output = result.output
-        cleaned_summary = strip_think_tags(output.summary)
-        if cleaned_summary != output.summary:
-            output = PositionRecommendation(
-                ticker=output.ticker,
-                direction=output.direction,
-                confidence=output.confidence,
-                recommended_contract=output.recommended_contract,
-                entry_price=output.entry_price,
-                entry_criteria=output.entry_criteria,
-                exit_criteria=output.exit_criteria,
-                stop_loss=output.stop_loss,
-                take_profit=output.take_profit,
-                position_size_pct=output.position_size_pct,
-                position_rationale=output.position_rationale,
-                risk_reward_ratio=output.risk_reward_ratio,
-                max_loss_estimate=output.max_loss_estimate,
-                recommended_strategy=output.recommended_strategy,
-                strategy_rationale=output.strategy_rationale,
-                summary=cleaned_summary,
-                key_factors=output.key_factors,
-                risk_assessment=output.risk_assessment,
-                agent_agreement_score=output.agent_agreement_score,
-                dissenting_desks=list(output.dissenting_desks),
-                model_used=output.model_used,
-            )
-        return output
+        # The @output_validator (_strip_think_tags) already handles ALL string
+        # fields before result.output is returned — no additional stripping needed.
+        return result.output
     except TimeoutError:
         logger.warning("Synthesis agent timed out after %.1fs", timeout)
         return _build_fallback_recommendation(deps)

@@ -196,9 +196,7 @@ async def run_risk_desk_recommendation(
         )
         return result.output
     except TimeoutError:
-        logger.warning(
-            "Risk desk recommendation timed out after %.1fs", cfg.agent_timeout
-        )
+        logger.warning("Risk desk recommendation timed out after %.1fs", cfg.agent_timeout)
         return _build_risk_recommend_fallback(deps)
     except Exception as exc:
         logger.warning("Risk desk recommendation failed: %s", exc)

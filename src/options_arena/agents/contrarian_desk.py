@@ -196,9 +196,7 @@ async def run_contrarian_desk_recommendation(
         )
         return result.output
     except TimeoutError:
-        logger.warning(
-            "Contrarian desk recommendation timed out after %.1fs", cfg.agent_timeout
-        )
+        logger.warning("Contrarian desk recommendation timed out after %.1fs", cfg.agent_timeout)
         return _build_contrarian_recommend_fallback(deps)
     except Exception as exc:
         logger.warning("Contrarian desk recommendation failed: %s", exc)

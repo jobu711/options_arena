@@ -160,12 +160,17 @@ async def run_flow_desk_recommendation(
         return _build_flow_fallback(deps)
     cfg = config or AgencyConfig()
     try:
+        limits = UsageLimits(
+            request_limit=cfg.default_tool_budget + 2,
+            tool_calls_limit=cfg.default_tool_budget,
+        )
         result = await asyncio.wait_for(
             flow_desk_recommend.run(
                 f"Produce a structured flow assessment for {deps.ticker}.",
                 model=model,
                 deps=deps,
                 model_settings=model_settings,
+                usage_limits=limits,
             ),
             timeout=cfg.agent_timeout,
         )

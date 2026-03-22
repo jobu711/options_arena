@@ -1,11 +1,11 @@
 """Tests for neural context rendering functions.
 
-Verifies that ``_render_neural_context()`` and ``_render_neural_surface_comparison()``
-produce correct output when neural fields are populated, and produce empty strings
-when neural features are disabled (``None`` fields).
+Verifies that ``_render_neural_context()`` produces correct output when neural
+fields are populated, and produces empty strings when neural features are
+disabled (``None`` fields).
 
-Also verifies that the volatility agent context includes neural surface comparison
-when the neural pipeline has run, and excludes it when not.
+Also verifies that the volatility agent context excludes neural surface
+comparison when the neural pipeline has not run.
 """
 
 from __future__ import annotations
@@ -17,7 +17,6 @@ import pytest
 
 from options_arena.agents._parsing import (
     _render_neural_context,
-    _render_neural_surface_comparison,
     render_context_block,
     render_volatility_context,
 )
@@ -130,66 +129,6 @@ class TestRenderNeuralContext:
 
         assert "Neural Trajectory" not in block
         assert "NEURAL P(PROFIT)" not in block
-
-
-# ---------------------------------------------------------------------------
-# _render_neural_surface_comparison
-# ---------------------------------------------------------------------------
-
-
-class TestRenderNeuralSurfaceComparison:
-    """Tests for spline vs neural surface R-squared comparison rendering.
-
-    The comparison function gates on ``neural_surface_r2`` (a dedicated neural
-    surface field). When this field is absent from MarketContext, the function
-    returns an empty string. ``prob_profit_neural`` (trajectory model) is NOT
-    used as a proxy.
-    """
-
-    def test_empty_when_no_neural_surface_r2(self) -> None:
-        """Verify empty string when neural_surface_r2 is not available."""
-        ctx = _make_context(
-            surface_fit_r2=0.85,
-            prob_profit_neural=0.65,
-        )
-        result = _render_neural_surface_comparison(ctx)
-
-        assert result == ""
-
-    def test_empty_when_no_neural(self) -> None:
-        """Verify empty string when neural surface not used."""
-        ctx = _make_context(
-            surface_fit_r2=0.85,
-            prob_profit_neural=None,
-        )
-        result = _render_neural_surface_comparison(ctx)
-
-        assert result == ""
-
-    def test_empty_when_no_spline(self) -> None:
-        """Verify empty string when spline R-squared is None."""
-        ctx = _make_context(
-            surface_fit_r2=None,
-            prob_profit_neural=0.65,
-        )
-        result = _render_neural_surface_comparison(ctx)
-
-        assert result == ""
-
-    def test_isfinite_guard_on_r2(self) -> None:
-        """Verify NaN R-squared is rejected by model validator.
-
-        MarketContext's ``validate_optional_finite`` validator rejects non-finite
-        values at the boundary. The rendering layer's ``math.isfinite()`` guard
-        provides defense-in-depth.
-        """
-        import pydantic
-
-        with pytest.raises(pydantic.ValidationError, match="surface_fit_r2"):
-            _make_context(
-                surface_fit_r2=float("nan"),
-                prob_profit_neural=0.65,
-            )
 
 
 # ---------------------------------------------------------------------------

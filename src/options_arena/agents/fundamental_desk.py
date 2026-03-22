@@ -161,12 +161,17 @@ async def run_fundamental_desk_recommendation(
         return _build_fundamental_fallback(deps)
     cfg = config or AgencyConfig()
     try:
+        limits = UsageLimits(
+            request_limit=cfg.default_tool_budget + 2,
+            tool_calls_limit=cfg.default_tool_budget,
+        )
         result = await asyncio.wait_for(
             fundamental_desk_recommend.run(
                 f"Produce a structured fundamental assessment for {deps.ticker}.",
                 model=model,
                 deps=deps,
                 model_settings=model_settings,
+                usage_limits=limits,
             ),
             timeout=cfg.agent_timeout,
         )

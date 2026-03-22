@@ -9,6 +9,7 @@ from decimal import Decimal
 from sqlite3 import Row
 
 import numpy as np
+from pydantic import ValidationError
 
 from options_arena.analysis.performance import compute_risk_adjusted_metrics
 from options_arena.models import (
@@ -1378,8 +1379,8 @@ class AnalyticsMixin(RepositoryBase):
                 signals = IndicatorSignals.model_validate_json(r["signals_json"])
                 pnl = float(r["contract_return_pct"])
                 pairs.append((signals, pnl))
-            except Exception:
-                logger.debug("Skipping invalid signal/P&L row", exc_info=True)
+            except (ValueError, KeyError, ValidationError) as exc:
+                logger.debug("Skipping malformed signal/P&L row: %s", exc)
                 continue
 
         logger.debug(

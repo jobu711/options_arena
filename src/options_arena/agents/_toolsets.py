@@ -1006,7 +1006,10 @@ async def compute_position_size_tool(
     try:
         from options_arena.analysis.position_sizing import compute_position_size
 
-        # Guard non-finite correlation from LLM-controlled input
+        # Guard non-finite inputs from LLM-controlled parameters
+        if not math.isfinite(annualized_iv):
+            ctx.deps.tools_used.append(tool_name)
+            return f"Error: annualized_iv is not a finite number for {ticker}"
         if correlation is not None and not math.isfinite(correlation):
             correlation = None
 
