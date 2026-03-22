@@ -268,3 +268,114 @@ class TestAgentMemory:
         mem = _make_memory()
         restored = AgentMemory.model_validate_json(mem.model_dump_json())
         assert restored == mem
+
+
+# ---------------------------------------------------------------------------
+# StrategyRule — Confidence / Validation Fields (Issue #675)
+# ---------------------------------------------------------------------------
+
+
+class TestStrategyRuleConfidenceFields:
+    """Tests for the confidence, last_validated, and validation_count fields."""
+
+    def test_default_confidence_is_half(self) -> None:
+        rule = _make_rule()
+        assert rule.confidence == 0.5
+
+    @pytest.mark.parametrize("value", [0.0, 0.5, 1.0])
+    def test_confidence_accepts_valid_range(self, value: float) -> None:
+        rule = _make_rule(confidence=value)
+        assert rule.confidence == value
+
+    def test_confidence_rejects_nan(self) -> None:
+        with pytest.raises(ValidationError, match="finite"):
+            _make_rule(confidence=float("nan"))
+
+    @pytest.mark.parametrize("value", [-0.1, 1.1])
+    def test_confidence_rejects_out_of_range(self, value: float) -> None:
+        with pytest.raises(ValidationError, match="confidence"):
+            _make_rule(confidence=value)
+
+    def test_confidence_rejects_inf(self) -> None:
+        with pytest.raises(ValidationError, match="finite"):
+            _make_rule(confidence=float("inf"))
+
+    def test_confidence_rejects_neg_inf(self) -> None:
+        with pytest.raises(ValidationError, match="finite"):
+            _make_rule(confidence=float("-inf"))
+
+    def test_last_validated_default_none(self) -> None:
+        rule = _make_rule()
+        assert rule.last_validated is None
+
+    def test_last_validated_accepts_utc(self) -> None:
+        ts = datetime(2026, 3, 21, 15, 30, 0, tzinfo=UTC)
+        rule = _make_rule(last_validated=ts)
+        assert rule.last_validated == ts
+
+    def test_last_validated_rejects_naive(self) -> None:
+        with pytest.raises(ValidationError, match="last_validated must be UTC"):
+            _make_rule(last_validated=datetime(2026, 3, 21, 15, 30, 0))
+
+    def test_last_validated_rejects_non_utc(self) -> None:
+        from datetime import timedelta as td
+
+        non_utc = datetime(2026, 3, 21, 15, 30, 0, tzinfo=timezone(offset=td(hours=-5)))
+        with pytest.raises(ValidationError, match="last_validated must be UTC"):
+            _make_rule(last_validated=non_utc)
+
+    def test_validation_count_default_zero(self) -> None:
+        rule = _make_rule()
+        assert rule.validation_count == 0
+
+    def test_validation_count_accepts_positive(self) -> None:
+        rule = _make_rule(validation_count=42)
+        assert rule.validation_count == 42
+
+    def test_validation_count_accepts_zero(self) -> None:
+        rule = _make_rule(validation_count=0)
+        assert rule.validation_count == 0
+
+    def test_validation_count_rejects_negative(self) -> None:
+        with pytest.raises(ValidationError, match="validation_count"):
+            _make_rule(validation_count=-1)
+
+    def test_json_roundtrip_with_new_fields(self) -> None:
+        ts = datetime(2026, 3, 21, 15, 30, 0, tzinfo=UTC)
+        rule = _make_rule(confidence=0.85, last_validated=ts, validation_count=7)
+        restored = StrategyRule.model_validate_json(rule.model_dump_json())
+        assert restored == rule
+        assert restored.confidence == 0.85
+        assert restored.last_validated == ts
+        assert restored.validation_count == 7
+
+    def test_json_roundtrip_with_none_last_validated(self) -> None:
+        rule = _make_rule(confidence=0.3, last_validated=None, validation_count=0)
+        restored = StrategyRule.model_validate_json(rule.model_dump_json())
+        assert restored == rule
+        assert restored.last_validated is None
+
+    def test_backward_compat_without_new_fields(self) -> None:
+        """StrategyRule can be constructed without providing the new fields."""
+        rule = StrategyRule(
+            rule_id="r_compat",
+            pattern="backward compat test",
+            conditions=[],
+            win_rate=0.5,
+            avg_return=0.0,
+            sample_size=20,
+            created_at=_NOW,
+        )
+        assert rule.confidence == 0.5
+        assert rule.last_validated is None
+        assert rule.validation_count == 0
+
+    def test_frozen_new_fields(self) -> None:
+        """New fields are frozen along with the rest of the model."""
+        rule = _make_rule(confidence=0.8, validation_count=3)
+        with pytest.raises(ValidationError):
+            rule.confidence = 0.9  # type: ignore[misc]
+        with pytest.raises(ValidationError):
+            rule.validation_count = 4  # type: ignore[misc]
+        with pytest.raises(ValidationError):
+            rule.last_validated = _NOW  # type: ignore[misc]
