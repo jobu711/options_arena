@@ -4,6 +4,7 @@ Re-exports the public API for the agents package: orchestrator entry points,
 debate data structures, model configuration, and context rendering.
 """
 
+from options_arena.agents._context import should_recommend
 from options_arena.agents._desk_deps import (
     DeskDeps as DeskDeps,  # noqa: PLC0414 -- explicit re-export
 )
@@ -125,6 +126,7 @@ __all__ = [
     "run_vol_desk_query",
     "run_vol_desk_recommendation",
     "should_debate",
+    "should_recommend",
     "synthesis_agent",
     "synthesize_verdict",
     "SynthesisDeps",
