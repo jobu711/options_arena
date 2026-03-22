@@ -7,7 +7,7 @@ prd: .claude/prds/unified-agent-system.md
 parent_epic: unified-agent-system
 depends_on:
   - unified-agent-system-orchestrator
-github: null
+github: https://github.com/jobu711/options_arena/issues/654
 ---
 
 # Epic: unified-agent-system-cutover
@@ -124,3 +124,45 @@ Rename: `min_debate_score` → `min_recommendation_score`
 - ~1,200 LOC deleted (13 debate files)
 - ~400-600 LOC test changes (rewrite/remove old + add new)
 - High risk — widest blast radius, most files touched. Mitigated by: all prior epics verified, grep before delete, test-first approach
+
+## Tasks Created
+
+- [ ] #664 - Update DebateConfig — remove dead fields, add new fields (parallel: true)
+- [ ] #666 - Update agents/__init__.py — replace debate exports with recommendation exports (parallel: true)
+- [ ] #668 - Update reporting/debate_export.py for RecommendationResult (parallel: true)
+- [ ] #670 - Rewrite API debate routes and schemas for run_recommendation() (parallel: true, depends: #664, #666)
+- [ ] #665 - Rewrite CLI debate command for run_recommendation() (parallel: true, depends: #664, #666, #668)
+- [ ] #667 - Write recommendation regression tests (parallel: false, depends: #670, #665)
+- [ ] #669 - Delete 13 debate files and clean up _parsing.py (parallel: false, depends: #670, #665, #667)
+- [ ] #671 - Delete old debate tests, update CLAUDE.md files, learning module, full regression (parallel: false, depends: #667, #669)
+
+Total tasks: 8
+Parallel tasks: 5 (#664-#670 in waves)
+Sequential tasks: 3 (#667-#671 must follow)
+Estimated total effort: 28-39 hours
+
+### Execution Waves
+
+```
+Wave 1 (parallel): #664, #666, #668  — Foundation (config, exports, reporting)
+Wave 2 (parallel): #670, #665        — Core rewrites (API, CLI)
+Wave 3 (sequential): #667            — Regression tests (verify new system)
+Wave 4 (sequential): #669            — File deletion (irreversible step)
+Wave 5 (sequential): #671            — Cleanup + full regression (final gate)
+```
+
+## Test Coverage Plan
+
+Total test files planned: 9
+Total test cases planned: ~45
+
+| Task | Test Files | Est. Cases |
+|------|-----------|------------|
+| #664 | test_debate_config_cutover.py | 7 |
+| #666 | test_agents_exports_cutover.py | 6 |
+| #668 | test_recommendation_export.py | 6 |
+| #670 | test_recommendation_routes.py, test_recommendation_schemas.py | 8 |
+| #665 | test_recommendation_cli.py, test_batch_recommendation.py | 8 |
+| #667 | test_recommendation_regression.py (x3) | ~20 |
+| #669 | test_debate_files_deleted.py | 6 |
+| #671 | test_learning_recommendation_filter.py | 4 |

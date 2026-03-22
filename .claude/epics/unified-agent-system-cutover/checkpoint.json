@@ -1,13 +1,13 @@
 {
   "epic": "unified-agent-system-cutover",
-  "phase": "planning",
-  "last_command": "/pm:prd-parse unified-agent-system",
-  "last_updated": "2026-03-21T16:31:55Z",
-  "completed_phases": ["prd-created", "planning"],
+  "phase": "synced",
+  "last_command": "/pm:epic-sync unified-agent-system-cutover",
+  "last_updated": "2026-03-22T16:41:38Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced"],
   "parent_epic": "unified-agent-system",
   "current_task": null,
   "tasks_completed": [],
   "tasks_in_progress": [],
   "blockers": [],
-  "notes": "Depends on orchestrator. Big bang: rewire CLI/API, delete 13 files, rewrite tests."
+  "notes": "8 tasks synced to GitHub. Epic #654, tasks #664-#671. Wave 1 (#664,#666,#668) parallel. Wave 2 (#670,#665) parallel. Waves 3-5 (#667,#669,#671) sequential."
 }
