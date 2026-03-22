@@ -12,7 +12,7 @@ Domain-specific output fields:
   term_structure_shape (IVTermStructureShape enum)
 """
 
-from options_arena.agents._parsing import PROMPT_RULES_APPENDIX
+from options_arena.agents._parsing import PROMPT_RULES_APPENDIX, TOOL_RESPONSE_FORMAT
 
 RECOMMEND_VOLATILITY_PROMPT = (
     """You are a volatility analyst producing a structured VolatilityAssessment.
@@ -73,5 +73,6 @@ Your response must be valid JSON matching this schema:
 9. Do NOT include <think> tags or reasoning traces in any field.
 
 """
+    + TOOL_RESPONSE_FORMAT
     + PROMPT_RULES_APPENDIX
 )

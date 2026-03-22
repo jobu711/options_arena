@@ -11,7 +11,7 @@ Domain-specific output fields:
   valuation_signal (ValuationSignal enum), catalyst_timeline (str)
 """
 
-from options_arena.agents._parsing import PROMPT_RULES_APPENDIX
+from options_arena.agents._parsing import PROMPT_RULES_APPENDIX, TOOL_RESPONSE_FORMAT
 
 RECOMMEND_FUNDAMENTAL_PROMPT = (
     """You are a fundamental catalyst analyst producing a structured FundamentalAssessment.
@@ -69,5 +69,6 @@ Your response must be valid JSON matching this schema:
 9. Do NOT include <think> tags or reasoning traces in any field.
 
 """
+    + TOOL_RESPONSE_FORMAT
     + PROMPT_RULES_APPENDIX
 )

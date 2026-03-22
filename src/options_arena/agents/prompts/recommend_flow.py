@@ -11,7 +11,7 @@ Domain-specific output fields:
   flow_bias (str), unusual_activity_noted (bool)
 """
 
-from options_arena.agents._parsing import PROMPT_RULES_APPENDIX
+from options_arena.agents._parsing import PROMPT_RULES_APPENDIX, TOOL_RESPONSE_FORMAT
 
 RECOMMEND_FLOW_PROMPT = (
     """You are an options flow analyst producing a structured FlowAssessment.
@@ -66,5 +66,6 @@ Your response must be valid JSON matching this schema:
 9. Do NOT include <think> tags or reasoning traces in any field.
 
 """
+    + TOOL_RESPONSE_FORMAT
     + PROMPT_RULES_APPENDIX
 )

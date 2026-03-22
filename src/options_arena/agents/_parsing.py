@@ -65,6 +65,18 @@ def strip_think_tags(text: str) -> str:
     return cleaned
 
 
+TOOL_RESPONSE_FORMAT: str = (
+    "\n## Tool Response Format\n"
+    'Tools return JSON: {"status": "success|warning|error", '
+    '"summary": "...", "data": ..., "next_actions": [...]}\n'
+    "- **success**: Data is complete. Use data and summary for your analysis.\n"
+    "- **warning**: Partial data. Follow next_actions to adjust assessment scope.\n"
+    "- **error**: Data unavailable. Follow next_actions to handle the gap "
+    "(reduce confidence, note limitation).\n"
+    "Always check status before using tool output. "
+    "Never ignore next_actions on warning/error.\n"
+)
+
 PROMPT_RULES_APPENDIX = """Confidence calibration (MUST follow these guidelines):
 - 0.0-0.2: Extremely weak case, minimal data support
 - 0.2-0.4: Weak case, some data but significant contradictions
