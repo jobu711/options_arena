@@ -1,7 +1,7 @@
-"""Markdown export for debate results.
+"""Markdown export for debate results and recommendation results.
 
-Pure function that converts a ``DebateResult`` dataclass into a
-GitHub-flavored Markdown report string. No I/O, no side effects.
+Pure functions that convert ``DebateResult`` and ``RecommendationResult``
+into GitHub-flavored Markdown report strings. No I/O, no side effects.
 """
 
 from __future__ import annotations
@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime
 import logging
 import math
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -25,6 +26,11 @@ if TYPE_CHECKING:
         RiskAssessment,
         SpreadAnalysis,
         VolatilityThesis,
+    )
+    from options_arena.models.recommendation import (
+        DomainAssessment,
+        PositionRecommendation,
+        RecommendationResult,
     )
 
 logger = logging.getLogger(__name__)
@@ -451,6 +457,275 @@ def export_debate_markdown(
 
     verdict_lines.append("")
     sections.append("\n".join(verdict_lines))
+
+    return "\n".join(sections)
+
+
+def _format_decimal(value: Decimal) -> str:
+    """Format a Decimal to 2 decimal places without float conversion.
+
+    Args:
+        value: The Decimal value to format.
+
+    Returns:
+        String with 2 decimal places.
+    """
+    return f"{value:.2f}"
+
+
+def _render_desk_specific_fields(assessment: DomainAssessment) -> list[str]:
+    """Render desk-specific fields for a domain assessment as markdown lines.
+
+    Inspects the concrete subclass type and renders any populated optional fields
+    that are unique to that desk.
+
+    Args:
+        assessment: A concrete DomainAssessment subclass instance.
+
+    Returns:
+        List of markdown lines for desk-specific fields (may be empty).
+    """
+    from options_arena.models.recommendation import (  # noqa: PLC0415
+        ContrarianAssessment,
+        FlowAssessment,
+        FundamentalAssessment,
+        RiskDeskAssessment,
+        TrendAssessment,
+        VolatilityAssessment,
+    )
+
+    lines: list[str] = []
+
+    if isinstance(assessment, TrendAssessment):
+        if assessment.trend_strength is not None and math.isfinite(assessment.trend_strength):
+            lines.append(f"**Trend Strength**: {assessment.trend_strength:.2f}")
+            lines.append("")
+        if assessment.momentum_signal is not None:
+            lines.append(f"**Momentum Signal**: {assessment.momentum_signal}")
+            lines.append("")
+
+    elif isinstance(assessment, VolatilityAssessment):
+        if assessment.iv_regime is not None:
+            lines.append(f"**IV Regime**: {assessment.iv_regime.value}")
+            lines.append("")
+        if assessment.vol_skew_assessment is not None:
+            lines.append(f"**Vol Skew**: {assessment.vol_skew_assessment}")
+            lines.append("")
+        if assessment.term_structure_shape is not None:
+            lines.append(f"**Term Structure**: {assessment.term_structure_shape.value}")
+            lines.append("")
+
+    elif isinstance(assessment, FlowAssessment):
+        if assessment.flow_bias is not None:
+            lines.append(f"**Flow Bias**: {assessment.flow_bias}")
+            lines.append("")
+        if assessment.unusual_activity_noted:
+            lines.append("**Unusual Activity**: Yes")
+            lines.append("")
+
+    elif isinstance(assessment, FundamentalAssessment):
+        if assessment.valuation_signal is not None:
+            lines.append(f"**Valuation Signal**: {assessment.valuation_signal.value}")
+            lines.append("")
+        if assessment.catalyst_timeline is not None:
+            lines.append(f"**Catalyst Timeline**: {assessment.catalyst_timeline}")
+            lines.append("")
+
+    elif isinstance(assessment, RiskDeskAssessment):
+        if assessment.max_position_pct is not None and math.isfinite(assessment.max_position_pct):
+            lines.append(f"**Max Position**: {assessment.max_position_pct:.0%}")
+            lines.append("")
+        if assessment.hedging_suggestion is not None:
+            lines.append(f"**Hedging Suggestion**: {assessment.hedging_suggestion}")
+            lines.append("")
+        if assessment.portfolio_correlation_note is not None:
+            lines.append(f"**Portfolio Correlation**: {assessment.portfolio_correlation_note}")
+            lines.append("")
+
+    elif isinstance(assessment, ContrarianAssessment):
+        if assessment.consensus_challenged is not None:
+            lines.append(f"**Consensus Challenged**: {assessment.consensus_challenged}")
+            lines.append("")
+        if assessment.contrarian_thesis is not None:
+            lines.append(f"**Contrarian Thesis**: {assessment.contrarian_thesis}")
+            lines.append("")
+
+    return lines
+
+
+def _render_assessment_section(assessment: DomainAssessment) -> str:
+    """Render a single domain assessment as a Markdown section.
+
+    Args:
+        assessment: A concrete DomainAssessment subclass instance.
+
+    Returns:
+        Markdown string for the assessment section.
+    """
+    desk_name = assessment.desk.value.title()
+    lines: list[str] = [
+        f"### {desk_name} (Confidence: {assessment.confidence:.0%})",
+        "",
+        f"**Direction**: {assessment.direction.value.title()}",
+        "",
+        assessment.summary,
+        "",
+    ]
+
+    # Desk-specific fields
+    desk_lines = _render_desk_specific_fields(assessment)
+    if desk_lines:
+        lines.extend(desk_lines)
+
+    # Key factors
+    if assessment.key_factors:
+        lines.append("**Key Factors**")
+        for factor in assessment.key_factors:
+            lines.append(f"- {factor}")
+        lines.append("")
+
+    # Risks
+    if assessment.risks:
+        lines.append("**Risks**")
+        for risk in assessment.risks:
+            lines.append(f"- {risk}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def _render_recommendation_section(rec: PositionRecommendation) -> str:
+    """Render the position recommendation as a Markdown section.
+
+    Decimal fields are formatted with 2 decimal places using f-string formatting
+    on the Decimal value directly -- never converted to float.
+
+    Args:
+        rec: The position recommendation from synthesis.
+
+    Returns:
+        Markdown string for the recommendation section.
+    """
+    strategy_str = rec.recommended_strategy.value if rec.recommended_strategy else "None"
+
+    lines: list[str] = [
+        "## Position Recommendation",
+        "",
+        f"**Ticker**: {rec.ticker} | **Direction**: {rec.direction.value.title()} "
+        f"| **Confidence**: {rec.confidence:.0%}",
+        "",
+        f"**Contract**: {rec.recommended_contract}",
+        "",
+        "| Detail | Value |",
+        "|--------|-------|",
+        f"| Entry Price | ${_format_decimal(rec.entry_price)} |",
+    ]
+
+    if rec.stop_loss is not None:
+        lines.append(f"| Stop Loss | ${_format_decimal(rec.stop_loss)} |")
+    if rec.take_profit is not None:
+        lines.append(f"| Take Profit | ${_format_decimal(rec.take_profit)} |")
+
+    lines.append(f"| Position Size | {rec.position_size_pct:.0%} |")
+    lines.append(f"| Risk/Reward | {rec.risk_reward_ratio:.2f} |")
+    lines.append(f"| Strategy | {strategy_str} |")
+    lines.append("")
+
+    lines.append(f"**Entry Criteria**: {rec.entry_criteria}")
+    lines.append("")
+    lines.append(f"**Exit Criteria**: {rec.exit_criteria}")
+    lines.append("")
+    lines.append(f"**Max Loss Estimate**: {rec.max_loss_estimate}")
+    lines.append("")
+    lines.append(f"**Position Rationale**: {rec.position_rationale}")
+    lines.append("")
+    lines.append(f"**Strategy Rationale**: {rec.strategy_rationale}")
+    lines.append("")
+
+    if rec.agent_agreement_score is not None and math.isfinite(rec.agent_agreement_score):
+        lines.append(f"**Agent Agreement**: {rec.agent_agreement_score:.0%}")
+        lines.append("")
+
+    if rec.dissenting_desks:
+        desk_names = ", ".join(d.value.title() for d in rec.dissenting_desks)
+        lines.append(f"**Dissenting Desks**: {desk_names}")
+        lines.append("")
+
+    # Summary and risk
+    lines.append("### Summary")
+    lines.append("")
+    lines.append(rec.summary)
+    lines.append("")
+
+    if rec.key_factors:
+        lines.append("### Key Factors")
+        for factor in rec.key_factors:
+            lines.append(f"- {factor}")
+        lines.append("")
+
+    lines.append("### Risk Assessment")
+    lines.append("")
+    lines.append(rec.risk_assessment)
+    lines.append("")
+
+    return "\n".join(lines)
+
+
+def export_recommendation_markdown(result: RecommendationResult) -> str:
+    """Convert a recommendation result into a Markdown report string.
+
+    This is a pure function with no side effects. The caller is responsible
+    for writing the returned string to a file or displaying it.
+
+    Args:
+        result: Complete recommendation output from the unified agent pipeline.
+
+    Returns:
+        A GitHub-flavored Markdown string containing the full report
+        with header, recommendation, and domain assessment sections.
+    """
+    now_utc = datetime.datetime.now(datetime.UTC)
+    date_str = now_utc.strftime("%Y-%m-%d %H:%M UTC")
+    duration_s = result.duration_ms / 1000
+    model_name = result.recommendation.model_used
+    ticker = result.recommendation.ticker
+    fallback_str = "Yes" if result.is_fallback else "No"
+
+    sections: list[str] = []
+
+    # --- Header ---
+    header_lines: list[str] = [
+        f"# Options Arena Recommendation Report: {ticker}",
+        "",
+        f"**Date**: {date_str} | **Duration**: {duration_s:.1f}s | **Model**: {model_name}",
+        f"**Fallback**: {fallback_str}",
+    ]
+
+    if result.is_fallback:
+        header_lines.append("")
+        header_lines.append(
+            "> **Data-Driven Fallback** -- AI agents were unavailable; "
+            "this recommendation is based on quantitative data only."
+        )
+
+    header_lines.append("")
+    sections.append("\n".join(header_lines))
+
+    # --- Market Snapshot ---
+    sections.append(_render_market_snapshot(result.context))
+
+    # --- Position Recommendation ---
+    sections.append(_render_recommendation_section(result.recommendation))
+
+    # --- Domain Assessments ---
+    if result.assessments:
+        assessment_lines: list[str] = ["## Domain Assessments", ""]
+        sections.append("\n".join(assessment_lines))
+
+        for assessment in result.assessments:
+            sections.append(_render_assessment_section(assessment))
+    else:
+        sections.append("## Domain Assessments\n\nNo assessments available.\n")
 
     return "\n".join(sections)
 
