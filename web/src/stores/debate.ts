@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api } from '@/composables/useApi'
 import type {
-  DebateResultSummary,
   DebateResult,
   AgentProgressEntry,
 } from '@/types/debate'
@@ -19,7 +18,6 @@ export interface BatchTickerProgress {
 
 export const useDebateStore = defineStore('debate', () => {
   // --- State ---
-  const debates = ref<DebateResultSummary[]>([])
   const currentDebate = ref<DebateResult | null>(null)
   const currentDebateId = ref<number | null>(null)
   const agentProgress = ref<AgentProgressEntry[]>([])
@@ -42,15 +40,6 @@ export const useDebateStore = defineStore('debate', () => {
   )
 
   // --- Actions ---
-  async function fetchDebates(limit = 20): Promise<void> {
-    loading.value = true
-    try {
-      debates.value = await api<DebateResultSummary[]>('/api/debate', { params: { limit } })
-    } finally {
-      loading.value = false
-    }
-  }
-
   async function fetchDebate(id: number): Promise<void> {
     loading.value = true
     error.value = null
@@ -63,11 +52,7 @@ export const useDebateStore = defineStore('debate', () => {
     }
   }
 
-  interface DebateOptions {
-    scanId?: number | null
-  }
-
-  async function startDebate(ticker: string, scanId: number | null, options?: DebateOptions): Promise<number> {
+  async function startDebate(ticker: string, scanId: number | null): Promise<number> {
     const body: Record<string, unknown> = { ticker }
     if (scanId !== null) body.scan_id = scanId
     const res = await api<{ debate_id: number }>('/api/debate', {
@@ -235,7 +220,6 @@ export const useDebateStore = defineStore('debate', () => {
   }
 
   return {
-    debates,
     currentDebate,
     currentDebateId,
     agentProgress,
@@ -248,7 +232,6 @@ export const useDebateStore = defineStore('debate', () => {
     isDebating,
     isBatching,
     batchCurrentTicker,
-    fetchDebates,
     fetchDebate,
     startDebate,
     startBatchDebate,

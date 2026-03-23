@@ -38,12 +38,6 @@ export interface TickerScore {
   market_regime?: 'trending' | 'mean_reverting' | 'volatile' | 'crisis' | null
 }
 
-/** Sector option from GET /api/universe/sectors (flat, backward compat). */
-export interface SectorOption {
-  name: string
-  ticker_count: number
-}
-
 /** Industry group info within a sector hierarchy. */
 export interface IndustryGroupInfo {
   name: string

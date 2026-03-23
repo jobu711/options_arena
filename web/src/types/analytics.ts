@@ -20,16 +20,6 @@ export interface ScoreCalibrationBucket {
   win_rate: number
 }
 
-/** Indicator attribution from GET /api/analytics/indicator-attribution/{indicator}. */
-export interface IndicatorAttributionResult {
-  indicator_name: string
-  holding_days: number
-  correlation: number
-  avg_return_when_high: number
-  avg_return_when_low: number
-  sample_size: number
-}
-
 /** Holding period stats from GET /api/analytics/holding-period. */
 export interface HoldingPeriodResult {
   holding_days: number

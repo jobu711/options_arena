@@ -54,10 +54,6 @@ export async function submitAgencyQuery(
   })
 }
 
-export async function getAgencyQuery(queryId: string): Promise<AgencyResponseData> {
-  return api<AgencyResponseData>(`/api/agency/query/${queryId}`)
-}
-
 export async function listAgencyQueries(
   limit: number = 20,
 ): Promise<AgencyResponseData[]> {

@@ -1,5 +1,5 @@
 export type { HealthStatus } from './health'
-export type { ScanRun, TickerScore, DimensionalScores, PaginatedResponse, TickerDelta, ScanDiff, SectorOption, IndustryGroupInfo, SectorHierarchy, MarketRegime, FilterParams, TickerInfoResponse, RecommendedContract, PresetInfo, PreScanFilterPayload, HeatmapTicker } from './scan'
+export type { ScanRun, TickerScore, DimensionalScores, PaginatedResponse, TickerDelta, ScanDiff, IndustryGroupInfo, SectorHierarchy, MarketRegime, FilterParams, TickerInfoResponse, RecommendedContract, PresetInfo, PreScanFilterPayload, HeatmapTicker } from './scan'
 export type {
   DebateResultSummary,
   DebateResult,
@@ -11,8 +11,8 @@ export type {
   ContrarianThesis,
   AgentProgressEntry,
 } from './debate'
-export type { ConfigResponse } from './config'
-export type { WinRateResult, ScoreCalibrationBucket, IndicatorAttributionResult, HoldingPeriodResult, DeltaPerformanceResult, PerformanceSummary, OutcomeCollectionResult } from './analytics'
+export type { ConfigResponse, RoutingConfig, DeskCostDetail, RecommendationCostDetail } from './config'
+export type { WinRateResult, ScoreCalibrationBucket, HoldingPeriodResult, DeltaPerformanceResult, PerformanceSummary, OutcomeCollectionResult } from './analytics'
 export type { HistoryPoint, TrendingTicker } from './history'
 export type {
   EquityCurvePoint,
@@ -27,14 +27,6 @@ export type {
   AgentCalibrationData,
 } from './backtest'
 export type { AgentWeightsComparison, WeightSnapshot } from './weights'
-export type {
-  DeskInfo,
-  DeskResponseData,
-  QueryIntent,
-  Citation,
-  AgencyResponse,
-  AgencyQueryRequest,
-} from './agency'
 export type {
   ScanProgressEvent,
   ScanErrorEvent,
