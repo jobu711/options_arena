@@ -20,7 +20,7 @@ import logging
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
-from pydantic_ai.usage import UsageLimits
+from pydantic_ai.usage import RunUsage, UsageLimits
 
 from options_arena.agents._desk_deps import DeskDeps
 from options_arena.agents._parsing import build_cleaned_domain_assessment, strip_think_tags
@@ -169,16 +169,17 @@ async def run_contrarian_desk_recommendation(
     model: Model | None = None,
     model_settings: ModelSettings | None = None,
     config: AgencyConfig | None = None,
-) -> ContrarianAssessment:
+) -> tuple[ContrarianAssessment, RunUsage]:
     """Run the contrarian recommendation agent — never raises.
 
-    Returns a ``ContrarianAssessment`` on success or a low-confidence fallback
-    on any failure (no model, timeout, exception).
+    Returns a ``(ContrarianAssessment, RunUsage)`` tuple on success or a
+    low-confidence fallback with empty usage on any failure (no model,
+    timeout, exception).
     """
     cfg = config or AgencyConfig()
     if model is None:
         logger.warning("Contrarian desk recommendation called without a model")
-        return _build_contrarian_recommend_fallback(deps)
+        return _build_contrarian_recommend_fallback(deps), RunUsage()
     try:
         limits = UsageLimits(
             request_limit=cfg.contrarian_tool_budget + 2,
@@ -194,10 +195,10 @@ async def run_contrarian_desk_recommendation(
             ),
             timeout=cfg.agent_timeout,
         )
-        return result.output
+        return result.output, result.usage()
     except TimeoutError:
         logger.warning("Contrarian desk recommendation timed out after %.1fs", cfg.agent_timeout)
-        return _build_contrarian_recommend_fallback(deps)
+        return _build_contrarian_recommend_fallback(deps), RunUsage()
     except Exception as exc:
         logger.warning("Contrarian desk recommendation failed: %s", exc)
-        return _build_contrarian_recommend_fallback(deps)
+        return _build_contrarian_recommend_fallback(deps), RunUsage()
