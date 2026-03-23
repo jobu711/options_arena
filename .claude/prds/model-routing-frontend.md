@@ -1,7 +1,7 @@
 ---
 name: model-routing-frontend
 description: Dashboard panel for runtime model routing configuration and per-recommendation cost metrics
-status: planned
+status: complete
 created: 2026-03-23T12:37:16Z
 ---
 
