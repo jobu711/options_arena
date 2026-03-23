@@ -3,7 +3,6 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
-import Checkbox from 'primevue/checkbox'
 import { useToast } from 'primevue/usetoast'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
@@ -37,8 +36,6 @@ const quickTicker = ref('')
 const debateLoading = ref(false)
 const showDebateProgress = ref(false)
 const quickDebateTicker = ref('')
-const enableRebuttal = ref(false)
-const enableVolatilityAgent = ref(false)
 let closeWs: (() => void) | null = null
 
 // Outcome collection state
@@ -76,10 +73,7 @@ async function submitQuickDebate(): Promise<void> {
   debateStore.reset()
 
   try {
-    const debateId = await debateStore.startDebate(ticker, null, {
-      enableRebuttal: enableRebuttal.value || undefined,
-      enableVolatilityAgent: enableVolatilityAgent.value || undefined,
-    })
+    const debateId = await debateStore.startDebate(ticker, null)
     showDebateProgress.value = true
     quickTicker.value = ''
 
@@ -233,16 +227,6 @@ onUnmounted(() => {
           :disabled="debateLoading"
           @input="quickTicker = quickTicker.toUpperCase()"
         />
-        <div class="debate-toggles">
-          <label class="debate-toggle">
-            <Checkbox v-model="enableRebuttal" :binary="true" data-testid="toggle-rebuttal" />
-            <span>Rebuttal</span>
-          </label>
-          <label class="debate-toggle">
-            <Checkbox v-model="enableVolatilityAgent" :binary="true" data-testid="toggle-volatility" />
-            <span>Vol Agent</span>
-          </label>
-        </div>
         <Button
           label="Debate"
           icon="pi pi-comments"
@@ -523,21 +507,6 @@ onUnmounted(() => {
   min-width: 80px;
   max-width: 100%;
   text-transform: uppercase;
-}
-
-.debate-toggles {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.debate-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.8rem;
-  color: var(--p-surface-300, #aaa);
-  cursor: pointer;
-  white-space: nowrap;
 }
 
 .section {

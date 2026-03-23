@@ -298,11 +298,11 @@ class TestClassifyIntentMultiDesk:
 class TestClassifyIntentDefaults:
     """classify_intent default behavior when no keywords match."""
 
-    def test_default_desk_is_volatility(self) -> None:
+    def test_default_desk_is_research(self) -> None:
         from options_arena.agents._routing import classify_intent
 
         intent = classify_intent("Tell me about AAPL")
-        assert DeskType.VOLATILITY in intent.desks
+        assert DeskType.RESEARCH in intent.desks
 
     def test_default_query_type_is_general(self) -> None:
         from options_arena.agents._routing import classify_intent
@@ -314,7 +314,7 @@ class TestClassifyIntentDefaults:
         from options_arena.agents._routing import classify_intent
 
         intent = classify_intent("")
-        assert DeskType.VOLATILITY in intent.desks
+        assert DeskType.RESEARCH in intent.desks
         assert intent.query_type == QueryType.GENERAL
         assert intent.tickers == []
 

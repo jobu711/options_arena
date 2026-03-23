@@ -55,12 +55,13 @@ _DESK_KEYWORDS: dict[DeskType, list[str]] = {
         "volatility",
         "iv",
         "vega",
-        "vol",
         "implied",
         "skew",
         "term structure",
         "vol surface",
         "implied vol",
+        "iv rank",
+        "iv percentile",
     ],
     DeskType.RISK: [
         "risk",
@@ -70,6 +71,9 @@ _DESK_KEYWORDS: dict[DeskType, list[str]] = {
         "position size",
         "drawdown",
         "var",
+        "protect",
+        "downside",
+        "stop loss",
     ],
     DeskType.TREND: [
         "trend",
@@ -80,6 +84,13 @@ _DESK_KEYWORDS: dict[DeskType, list[str]] = {
         "sma",
         "macd",
         "ema",
+        "bullish",
+        "bearish",
+        "uptrend",
+        "downtrend",
+        "breakout",
+        "support",
+        "resistance",
     ],
     DeskType.FLOW: [
         "flow",
@@ -88,6 +99,8 @@ _DESK_KEYWORDS: dict[DeskType, list[str]] = {
         "put call ratio",
         "open interest",
         "unusual activity",
+        "sweep",
+        "block trade",
     ],
     DeskType.FUNDAMENTAL: [
         "fundamental",
@@ -96,6 +109,10 @@ _DESK_KEYWORDS: dict[DeskType, list[str]] = {
         "p/e",
         "revenue",
         "dividend",
+        "eps",
+        "balance sheet",
+        "profit",
+        "growth",
     ],
     DeskType.CONTRARIAN: [
         "contrarian",
@@ -115,6 +132,11 @@ _DESK_KEYWORDS: dict[DeskType, list[str]] = {
         "comprehensive",
         "multi",
         "cross",
+        "explain",
+        "what is",
+        "what are",
+        "how does",
+        "how do",
     ],
 }
 
@@ -254,18 +276,28 @@ def classify_intent(query: str) -> QueryIntent:
     """
     query_lower = query.lower()
 
-    # --- Desk matching (word-boundary to prevent "vol" matching "volume") ---
+    # --- Desk matching ---
+    # Use \b prefix for word start, but allow suffixes (e.g. "trending" matches "trend",
+    # "risks" matches "risk"). Multi-word phrases use substring match.
     matched_desks: list[DeskType] = []
     for desk, keywords in _DESK_KEYWORDS.items():
         for kw in keywords:
-            if re.search(rf"\b{re.escape(kw)}\b", query_lower):
-                if desk not in matched_desks:
-                    matched_desks.append(desk)
-                break  # one keyword match per desk is sufficient
+            if " " in kw:
+                # Multi-word phrase: substring match
+                if kw in query_lower:
+                    if desk not in matched_desks:
+                        matched_desks.append(desk)
+                    break
+            else:
+                # Single word: word-start boundary + allow suffixes (stem matching)
+                if re.search(rf"\b{re.escape(kw)}", query_lower):
+                    if desk not in matched_desks:
+                        matched_desks.append(desk)
+                    break
 
-    # Default to VOLATILITY if no keywords match
+    # Default to RESEARCH if no keywords match (general-purpose desk)
     if not matched_desks:
-        matched_desks = [DeskType.VOLATILITY]
+        matched_desks = [DeskType.RESEARCH]
 
     # --- Query type classification ---
     query_type = QueryType.GENERAL

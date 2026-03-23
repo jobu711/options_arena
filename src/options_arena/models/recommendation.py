@@ -16,6 +16,7 @@ from pydantic import (
     Discriminator,
     Field,
     Tag,
+    WithJsonSchema,
     field_serializer,
     field_validator,
 )
@@ -33,6 +34,11 @@ from options_arena.models.enums import (
     ValuationSignal,
     VolRegime,
 )
+
+# Groq's JSON schema validator rejects Pydantic's Decimal pattern (negative lookahead).
+# Override to plain {"type": "string"} so LLM returns a string, Pydantic parses to Decimal.
+_LLM_DECIMAL_SCHEMA = WithJsonSchema({"type": "string", "description": "Decimal number as string"})
+LLMDecimal = Annotated[Decimal, _LLM_DECIMAL_SCHEMA]
 
 
 class DomainAssessment(BaseModel):
@@ -244,11 +250,11 @@ class PositionRecommendation(BaseModel):
     direction: SignalDirection
     confidence: float
     recommended_contract: str  # e.g., "AAPL 190C 2026-04-18"
-    entry_price: Decimal
+    entry_price: LLMDecimal
     entry_criteria: str
     exit_criteria: str
-    stop_loss: Decimal | None = None
-    take_profit: Decimal | None = None
+    stop_loss: LLMDecimal | None = None
+    take_profit: LLMDecimal | None = None
     position_size_pct: float
     position_rationale: str
     risk_reward_ratio: float
