@@ -217,6 +217,34 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - `constraints.py`: Structured output validation for debate agents — enforces score ranges, direction consistency, citation requirements
 - Applied post-generation; violations logged but don't reject output (soft constraints)
 
+### ToolResponse Pattern (Structured Tool Results)
+- `ToolResponse` frozen model with `ToolStatus` enum (SUCCESS/WARNING/ERROR) + typed `data` field
+- All desk agent tool wrappers return `ToolResponse` instead of raw strings
+- Agents branch on `status` field rather than parsing free-text error messages
+- `DeskRunStatus` StrEnum (SUCCESS/FALLBACK) for per-desk outcome tracking
+
+### Model Routing Pattern (Complexity-Based Tier Selection)
+- `ModelTier` StrEnum: FAST (cheap/fast), STANDARD (default), PREMIUM (most capable)
+- `_assess_complexity()`: scores ticker difficulty 0.0-1.0 from MarketContext + TickerScore heuristics (completeness, earnings proximity, RSI extremes, IV rank, flow, ADX, composite score)
+- `route_model_tier()`: maps complexity to tier with Risk desk safety floor (never FAST) and synthesis always PREMIUM
+- `build_model_for_tier()`: constructs PydanticAI Model per tier via model name override on DebateConfig
+- `DeskMetrics` frozen model: per-desk timing (`duration_ms`), model selection (`model_tier`, `model_used`), token usage
+- `AssessmentSummary`: direction votes, avg confidence, disagreement desks, risk flags — computed between Phase 1 (desks) and Phase 2 (synthesis)
+- `RecommendationCost`: aggregated tokens + estimated USD cost from config-driven `cost_per_million_tokens` pricing map
+- `RoutingConfig` on `DebateConfig`: `enable_model_routing` (opt-in, default False), thresholds, tier model names
+
+### Eval Harness Pattern (Agent Regression Testing)
+- `evals/` directory: YAML eval definitions with expected outputs, pass@k scoring
+- `EvalDefinition`, `EvalRun`, `EvalBaseline` models in `models/eval.py`
+- `EvalConfig` on AppSettings: eval_dir, pass_at_k, model_grader_provider
+- Migration 039: `eval_runs` table for persistence
+- CLI: `eval run`, `eval list`, `eval show` subcommands
+
+### Confidence Decay Pattern (Strategy Rule Aging)
+- `confidence_decay.py` in `learning/`: exponential decay on strategy rule confidence over time
+- Rules auto-demote from `approved` → `candidate` when confidence drops below threshold
+- CLI: `learn decay` command, playbook confidence columns show decay state
+
 ### Competitive Analysis Modules (`analysis/`)
 - `valuation.py`: DCF, DDM, residual income, Graham number — pure computation, no I/O
 - `correlation.py`: Cross-asset correlation matrices, rolling correlation windows

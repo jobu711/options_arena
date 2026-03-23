@@ -10,13 +10,18 @@ Condensed from 13 module CLAUDE.md files. Read the full module CLAUDE.md for dee
 - Every `confidence` field needs `[0.0, 1.0]` validator; every `datetime` needs UTC validator
 - Decimal fields need `field_serializer` to `str` for JSON precision
 - `BaseSettings` only on `AppSettings`; sub-configs (`ScanConfig` etc.) are plain `BaseModel`
-- `recommendation.py`: `DomainAssessment` base + 6 subclasses, `AnyAssessment` discriminated union (`Discriminator("desk")` + `Tag()`), `PositionRecommendation` (21 fields, Decimal prices), `RecommendationResult` (`arbitrary_types_allowed=True` for `RunUsage`)
+- `recommendation.py`: `DomainAssessment` base + 6 subclasses, `AnyAssessment` discriminated union (`Discriminator("desk")` + `Tag()`), `PositionRecommendation` (21 fields, Decimal prices), `RecommendationResult` (`arbitrary_types_allowed=True` for `RunUsage`), `DeskMetrics` (per-desk timing/tokens), `AssessmentSummary` (consensus data), `RecommendationCost` (aggregated cost)
+- `enums.py`: `ModelTier` (FAST/STANDARD/PREMIUM), `DeskRunStatus` (SUCCESS/FALLBACK), `ToolStatus` (SUCCESS/WARNING/ERROR)
+- `config.py`: `RoutingConfig` nested on `DebateConfig` — complexity thresholds, tier model names, cost pricing map
+- `eval.py`: `EvalDefinition`, `EvalRun`, `EvalBaseline` — eval harness models
+- `tool_response.py`: `ToolResponse` frozen model for structured agent tool results
 
 ## agents/
 - **Desk agents** (7): Volatility, Risk, Trend, Flow, Fundamental, Contrarian, Research — `Agent[DeskDeps, str]` for interactive queries
 - **Recommendation agents** (6): One per desk (excl. Research) — `Agent[DeskDeps, *Assessment]` producing typed `DomainAssessment` subclasses
 - **Synthesis agent** (1): `Agent[SynthesisDeps, PositionRecommendation]` — weighs 6 domain assessments, produces contract recommendation. `run_synthesis()` never-raises with fallback.
-- **Recommendation orchestrator**: `run_recommendation()` — primary entry point. Runs 6 desk recommendation agents → synthesis agent → `RecommendationResult`. Never raises.
+- **Recommendation orchestrator**: `run_recommendation()` — primary entry point. Runs 6 desk recommendation agents → synthesis agent → `RecommendationResult`. Per-desk model routing, metrics accumulation, assessment summary, cost computation. Never raises.
+- **Model routing**: `model_routing.py` — `_assess_complexity()`, `route_model_tier()`, `build_model_for_tier()`. Risk desk never FAST, synthesis always PREMIUM when routing enabled.
 - **Routing**: `_routing.py` — intent classification (`classify_intent`) + desk dispatch (`route_query`)
 - No inter-agent imports — orchestrator coordinates recommendation; desks are independent
 - `Agent(model=None)` at init, actual model at `agent.run(model=...)` — enables TestModel
