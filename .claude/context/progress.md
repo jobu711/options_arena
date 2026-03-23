@@ -2,7 +2,7 @@
 
 ## Current State
 
-- **Version**: 2.10.0 — live smoke test passed (2026-03-22), 3 post-cutover bugs fixed, ready for 3.0.0 bump
+- **Version**: 3.0.0 — live smoke test passed (2026-03-22), 3 post-cutover bugs fixed
 - **All 9 phases + 42 epics**: Complete and merged to master (8/8 AI Agency epics done, 3 agent-infra epics done)
 - **Unified agent system**: All 4 sub-epics complete and merged. Debate system fully replaced by recommendation system.
 - **Agent infrastructure**: 3 sub-epics complete — tool-response (#693), eval-harness (#694), model-routing (#695)
