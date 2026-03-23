@@ -8,7 +8,7 @@ parent_epic: dead-code-cleanup
 depends_on: []
 worktree: ../wt-refactor
 branch: epic/dead-code-cleanup-refactor
-github: null
+github: https://github.com/jobu711/options_arena/issues/709
 ---
 
 # Epic: dead-code-cleanup-refactor
@@ -135,3 +135,27 @@ Resolution: rebase onto master after quickwins merges. Conflicts are non-overlap
 - 9 tasks
 - ~2-3 hours wall-clock
 - Merges second (rebase after quickwins)
+
+## Tasks Created
+- [ ] #712 - Delete 10 dead debate rendering functions from rendering.py (parallel: true)
+- [ ] #717 - Update/delete 4 rendering test files (parallel: false, depends: #712)
+- [ ] #725 - Delete 6 dead context renderers from _parsing.py + remove re-exports (parallel: true)
+- [ ] #715 - Update/delete 5 context renderer test files (parallel: false, depends: #725)
+- [ ] #719 - Extract cache serialization helpers to services/helpers.py (parallel: true)
+- [ ] #728 - Extract _check_api_provider in health.py (parallel: true)
+- [ ] #716 - Extract FiniteFieldsMixin + apply to 10 config classes (parallel: true)
+- [ ] #721 - Fix enrichment_ratio dead code path (parallel: false, depends: #725)
+- [ ] #729 - Verification — lint + typecheck + tests + docs regen (parallel: false, depends: all)
+
+Total tasks: 9
+Parallel tasks: 5 (#712, #725, #719, #728, #716)
+Sequential tasks: 4 (#717→#712, #715→#725, #721→#725, #729→all)
+Estimated total effort: 3.0 hours
+
+## Test Coverage Plan
+Total test files planned: 4 new
+Total test cases planned: ~20 new test cases
+- `tests/unit/services/test_cache_serialization.py` (6 cases)
+- `tests/unit/services/test_health_provider_helper.py` (7 cases)
+- `tests/unit/models/test_finite_fields_mixin.py` (7 cases)
+- `tests/unit/models/test_enrichment_ratio_cleanup.py` (3 cases, optional)
