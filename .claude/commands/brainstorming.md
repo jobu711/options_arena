@@ -123,7 +123,7 @@ Explore context → Ask questions (one at a time, multiple turns)
 
 ### Context Exploration (silent — do not narrate individual steps)
 
-- Read `CLAUDE.md`, `.claude/context/progress.md`, `.claude/context/system-patterns.md`
+- Read `CLAUDE.md`, `.claude/context/progress.md`, `.claude/context/architecture.md`
 - Glob for files related to keywords from `FEATURE_DESCRIPTION`
 - Check recent git commits (`git log --oneline -20`)
 - Scan existing PRDs in `.claude/prds/` for related work

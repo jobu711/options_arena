@@ -1,104 +1,30 @@
-# CLAUDE.md — Data Models (`models/`)
+# CLAUDE.md -- Data Models (`models/`)
 
 ## Purpose
+
 All Pydantic v2 models, enums, and type definitions. No business logic. No I/O.
 Every piece of data that crosses a module boundary is a typed model from here.
 
-## Files
-
-| File | Contents |
-|------|----------|
-| `enums.py` | 33 StrEnum classes + `TICKER_RE`, `SECTOR_ALIASES`, `INDUSTRY_GROUP_ALIASES`, `SECTOR_TO_INDUSTRY_GROUPS` |
-| `_validators.py` | Shared validation helpers: `validate_unit_interval()`, `validate_non_empty_list()` |
-| `market_data.py` | `OHLCV`, `Quote`, `TickerInfo` |
-| `options.py` | `OptionGreeks`, `OptionContract`, `SpreadLeg`, `OptionSpread`, `SpreadAnalysis` |
-| `analysis.py` | `MarketContext`, `AgentResponse`, `TradeThesis`, `VolatilityThesis`, `FlowThesis`, `RiskAssessment`, `FundamentalThesis`, `ContrarianThesis`, `ExtendedTradeThesis`, `AgentPrediction`, `ContractConstraint`, `PositionSizeResult` |
-| `analytics.py` | `RecommendedContract`, `ContractOutcome`, `NormalizationStats`, `WinRateResult`, `ScoreCalibrationBucket`, `IndicatorAttributionResult`, `HoldingPeriodResult`, `DeltaPerformanceResult`, `PerformanceSummary`, `AgentAccuracyReport`, `CalibrationBucket`, `AgentCalibrationData`, `AgentWeightsComparison`, `EquityCurvePoint`, `DrawdownPoint`, `SectorPerformanceResult`, `DTEBucketResult`, `IVRankBucketResult`, `GreeksDecompositionResult`, `HoldingPeriodComparison`, `WeightSnapshot`, `RiskAdjustedMetrics` |
-| `scan.py` | `IndicatorSignals`, `TickerScore`, `ScanRun` |
-| `scan_delta.py` | `TickerDelta`, `ScanDiff` — computed diff between two scan runs |
-| `scoring.py` | `DimensionalScores` (8 per-family sub-scores), `DirectionSignal` |
-| `config.py` | `MLConfig`, `ScanConfig`, `PricingConfig`, `ServiceConfig`, `LogConfig`, `DataConfig`, `DebateConfig`, `IntelligenceConfig`, `AnalyticsConfig`, `FinancialDatasetsConfig`, `PositionSizingConfig`, `SpreadConfig`, `OpenBBConfig`, `AppSettings` |
-| `health.py` | `HealthStatus` |
-| `history.py` | `HistoryPoint`, `TrendingTicker` — score history tracking |
-| `intelligence.py` | `AnalystSnapshot`, `UpgradeDowngrade`, `AnalystActivitySnapshot`, `InsiderTransaction`, `InsiderSnapshot`, `InstitutionalSnapshot`, `IntelligencePackage` |
-| `macro.py` | `FredSeriesConfig` (NamedTuple), `MacroContext`, `MacroSignals`, `MacroRegimeResult` |
-| `metadata.py` | `TickerMetadata`, `MetadataCoverage` — ticker classification cache |
-| `filters.py` | `UniverseFilters`, `ScoringFilters`, `OptionsFilters`, `ScanFilterSpec` — pre-scan pipeline filter specs |
-| `financial_datasets.py` | `FinancialMetricsData`, `IncomeStatementData`, `BalanceSheetData`, `FinancialDatasetsPackage` |
-| `correlation.py` | `PairwiseCorrelation`, `CorrelationMatrix` — portfolio correlation analysis |
-| `valuation.py` | `ValuationModelResult`, `CompositeValuation` — multi-methodology equity valuation |
-| `audit.py` | `AuditFinding`, `AuditLayerSummary`, `AuditReport` — math computation audit framework |
-| `recommendation.py` | `DomainAssessment` (base) + 6 subclasses (`TrendAssessment`, `VolatilityAssessment`, `FlowAssessment`, `FundamentalAssessment`, `RiskDeskAssessment`, `ContrarianAssessment`), `AnyAssessment` (discriminated union via `Discriminator("desk")` + `Tag()`), `PositionRecommendation` (21 fields, Decimal prices, frozen), `RecommendationResult` (`arbitrary_types_allowed=True` for `RunUsage`) |
-| `constants.py` | `UNLIMITED_SENTINEL` — shared sentinel string for spread analysis |
-| `__init__.py` | Re-exports all public models, enums, and constants (~140 names) |
+Use Glob to discover files. Use `__init__.py` for available re-exports (~140 names).
+Consumers import from the package: `from options_arena.models import OptionContract`.
 
 ---
 
-## Pydantic v2 Rules (Context7-Verified)
+## Pydantic v2 Rules
 
 - Import from `pydantic`, never `pydantic.v1`.
-- `model_dump()` not `.dict()`. `field_validator` not `@validator`. `model_config = ConfigDict(...)`.
+- `model_dump()` not `.dict()`. `field_validator` not `@validator`.
+  `model_config = ConfigDict(...)` not `class Config:`.
 - `frozen=True` on snapshot models: `OHLCV`, `Quote`, `OptionContract`, `OptionGreeks`.
-- JSON roundtrip must work: `Model.model_validate_json(m.model_dump_json()) == m`. Test this.
-
-### frozen=True Pattern (Context7-Verified)
-```python
-from pydantic import BaseModel, ConfigDict
-
-class ImmutableModel(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    # Raises ValidationError on attribute reassignment
-```
-
-### computed_field Pattern (Context7-Verified)
-```python
-from pydantic import BaseModel, computed_field
-
-class MyModel(BaseModel):
-    x: float
-    y: float
-
-    @computed_field
-    @property
-    def total(self) -> float:
-        return self.x + self.y
-# Included in model_dump() and JSON schema automatically
-```
-
-### field_serializer Pattern (Context7-Verified)
-```python
-from decimal import Decimal
-from pydantic import BaseModel, field_serializer
-
-class PriceModel(BaseModel):
-    strike: Decimal
-
-    @field_serializer("strike")
-    def serialize_decimal(self, v: Decimal) -> str:
-        return str(v)
-# Prevents Decimal -> float precision loss in JSON
-```
-
-### field_validator Pattern (Context7-Verified)
-```python
-from pydantic import BaseModel, field_validator
-
-class RangeModel(BaseModel):
-    value: float
-
-    @field_validator("value")
-    @classmethod
-    def check_range(cls, v: float) -> float:
-        if not -1.0 <= v <= 1.0:
-            raise ValueError(f"must be in [-1, 1], got {v}")
-        return v
-```
+- JSON roundtrip must work: `Model.model_validate_json(m.model_dump_json()) == m`.
+- `computed_field` properties are included in `model_dump()` and JSON schema automatically.
+- `field_serializer` for Decimal fields -- serialize to `str` to prevent float precision loss.
 
 ---
 
-## Enums — All Use StrEnum (33 classes)
+## Enums -- 33 StrEnum Classes
 
-All enums in `enums.py` are Python 3.13+ `enum.StrEnum` with lowercase string values.
+All in `enums.py`, Python 3.13+ `enum.StrEnum` with lowercase string values.
 Never raw strings in business logic. Always `OptionType.CALL`, `ExerciseStyle.AMERICAN`.
 
 | Category | Enums |
@@ -110,359 +36,192 @@ Never raw strings in business logic. Always `OptionType.CALL`, `ExerciseStyle.AM
 | **Market classification** | `MarketCapTier`, `MarketRegime`, `DividendSource` |
 | **GICS taxonomy** | `GICSSector`, `GICSIndustryGroup` |
 | **Scan & pipeline** | `ScanPreset`, `ScanSource`, `OutcomeCollectionMethod` |
-| **Agent & debate** | `LLMProvider`, `ConstraintViolationType`, `ConstraintSeverity` |
+| **Agent** | `LLMProvider`, `ConstraintViolationType`, `ConstraintSeverity` |
+| **Routing/Eval** | `ModelTier`, `DeskRunStatus`, `ToolStatus` |
 | **Valuation & macro** | `ValuationSignal`, `MacroRegime`, `FredTransform` |
 | **Audit** | `AuditSeverity`, `AuditLayer` |
 
-Also exported: `TICKER_RE` (compiled regex), `SECTOR_ALIASES`, `INDUSTRY_GROUP_ALIASES`, `SECTOR_TO_INDUSTRY_GROUPS` (lookup dicts).
+Also exported: `TICKER_RE` (compiled regex), `SECTOR_ALIASES`, `INDUSTRY_GROUP_ALIASES`,
+`SECTOR_TO_INDUSTRY_GROUPS` (lookup dicts).
 
 ---
 
-## OptionContract — Required Shape
+## OptionContract -- Critical Shape
 
-```python
-class OptionContract(BaseModel):
-    model_config = ConfigDict(frozen=True)
+Frozen model. Key field constraints:
 
-    ticker: str
-    option_type: OptionType
-    strike: Decimal                        # string-constructed: Decimal("185.00")
-    expiration: date                       # datetime.date, never string
-    bid: Decimal
-    ask: Decimal
-    last: Decimal
-    volume: int
-    open_interest: int
-    exercise_style: ExerciseStyle          # NEW — AMERICAN for all U.S. equities
-    market_iv: float                       # NEW — yfinance impliedVolatility passthrough
-    greeks: OptionGreeks | None = None     # computed by pricing/dispatch.py, never yfinance
+- `strike`, `bid`, `ask`, `last`: `Decimal` (string-constructed: `Decimal("185.00")`)
+- `expiration`: `datetime.date`, never string
+- `volume`: `int`, `open_interest`: `int`
+- `exercise_style`: `ExerciseStyle` -- drives pricing dispatch (BAW for AMERICAN, BSM for EUROPEAN)
+- `market_iv`: `float` -- yfinance `impliedVolatility` passthrough. Already annualized. Used as
+  IV solver seed and sanity-check. Do NOT re-annualize.
+- `greeks: OptionGreeks | None = None` -- ALWAYS `None` from yfinance/services. `pricing/dispatch.py`
+  is the sole source. Field populated after local computation.
 
-    @computed_field
-    @property
-    def mid(self) -> Decimal:
-        return (self.bid + self.ask) / Decimal("2")
+Computed fields:
+- `mid`: `(bid + ask) / Decimal("2")` -- divides by `Decimal("2")` not `2` for full precision.
+- `spread`: `ask - bid`
+- `dte`: `(expiration - date.today()).days`
 
-    @computed_field
-    @property
-    def spread(self) -> Decimal:
-        return self.ask - self.bid
-
-    @computed_field
-    @property
-    def dte(self) -> int:
-        return (self.expiration - date.today()).days
-
-    @field_serializer("strike", "bid", "ask", "last")
-    def serialize_decimal(self, v: Decimal) -> str:
-        return str(v)
-```
-
-Key points:
-- `exercise_style` drives pricing dispatch (BAW for AMERICAN, BSM for EUROPEAN).
-- `market_iv` is yfinance's `impliedVolatility` — used as IV solver seed (Newton-Raphson for BSM) and sanity-check against locally computed IV.
-- `greeks` is always `None` from yfinance. `pricing/dispatch.py` is the sole source of Greeks. The field is populated after local computation.
-- `mid` divides by `Decimal("2")` not `2` — keeps full Decimal precision.
+All Decimal fields have `field_serializer` to `str` for JSON precision.
 
 ---
 
-## OptionGreeks — Validate Ranges
+## OptionGreeks -- Validate Ranges
 
-```python
-class OptionGreeks(BaseModel):
-    model_config = ConfigDict(frozen=True)
+Frozen model. Every instance MUST set `pricing_model` (`PricingModel.BSM` or `PricingModel.BAW`).
 
-    delta: float         # -1.0 to 1.0 (puts negative, calls positive)
-    gamma: float         # >= 0
-    theta: float         # usually negative (time decay costs money)
-    vega: float          # >= 0
-    rho: float           # small, either sign
-    pricing_model: PricingModel  # NEW — BSM or BAW, tracks which model produced these
-
-    @field_validator("delta")
-    @classmethod
-    def validate_delta(cls, v: float) -> float:
-        if not -1.0 <= v <= 1.0:
-            raise ValueError(f"delta must be in [-1.0, 1.0], got {v}")
-        return v
-
-    @field_validator("gamma", "vega")
-    @classmethod
-    def validate_non_negative(cls, v: float) -> float:
-        if v < 0.0:
-            raise ValueError(f"must be >= 0, got {v}")
-        return v
-```
+| Field | Range | Notes |
+|-------|-------|-------|
+| `delta` | `[-1.0, 1.0]` | Puts negative, calls positive |
+| `gamma` | `>= 0` | Always non-negative |
+| `theta` | any | Usually negative (time decay costs money) |
+| `vega` | `>= 0` | Always non-negative |
+| `rho` | any | Small, either sign |
+| `pricing_model` | BSM or BAW | Required -- tracks which model produced these |
 
 Validate at the boundary. Bad data from pricing edge cases corrupts everything downstream.
 
 ---
 
-## TickerInfo — Dividend Yield with Provenance
+## TickerInfo -- Dividend Yield with Provenance
 
-```python
-class TickerInfo(BaseModel):
-    model_config = ConfigDict(frozen=True)
+Frozen model. Key dividend fields:
 
-    ticker: str
-    company_name: str
-    sector: str
-    market_cap: int | None = None
-    market_cap_tier: MarketCapTier | None = None
+- `dividend_yield: float = 0.0` -- decimal fraction (0.005 = 0.5%), NEVER `None`. Pricing
+  engine receives a guaranteed float.
+- `dividend_source: DividendSource = DividendSource.NONE` -- tracks which waterfall tier
+  produced the value (FORWARD, TRAILING, COMPUTED, NONE).
+- `dividend_rate: float | None = None` -- forward annual $ amount, audit/cross-validation only.
+- `trailing_dividend_rate: float | None = None` -- trailing annual $, audit only.
 
-    # Dividend fields — populated by service layer 3-tier waterfall (FR-M7/M7.1)
-    dividend_yield: float = 0.0            # decimal fraction (0.005 = 0.5%), NEVER None
-    dividend_source: DividendSource = DividendSource.NONE
-    dividend_rate: float | None = None     # forward annual $ — audit/cross-validation only
-    trailing_dividend_rate: float | None = None  # trailing annual $ — audit only
+**Critical**: Waterfall fall-through condition is `value is None`, NOT falsy. `0.0` is valid
+data for non-dividend-paying growth stocks. Checking `if not value:` skips `0.0` and corrupts
+provenance tracking.
 
-    current_price: Decimal
-    fifty_two_week_high: Decimal
-    fifty_two_week_low: Decimal
-```
-
-Critical rules:
-- `dividend_yield` is `float`, default `0.0`, **never `None`**. Pricing engine receives a guaranteed float.
-- All yfinance yield values are **decimal fractions** (0.005 = 0.5%), not percentages.
-- `dividend_source` tracks which waterfall tier produced the value.
-- `dividend_rate` / `trailing_dividend_rate` are audit fields for cross-validation — not used in pricing.
-- Waterfall fall-through condition is `value is None`, NOT falsy. `0.0` is valid data (growth stocks).
+Also: `current_price: Decimal`, `fifty_two_week_high: Decimal`, `fifty_two_week_low: Decimal`,
+`sector: str`, `market_cap_tier: MarketCapTier | None`.
 
 ---
 
-## IndicatorSignals — Replaces `dict[str, float]`
+## IndicatorSignals -- 18 Named Fields
 
-```python
-class IndicatorSignals(BaseModel):
-    """18 named indicator fields. Replaces dict[str, float] on TickerScore.
-    All fields are float | None — None means indicator could not be computed."""
+Replaces `dict[str, float]`. All fields are `float | None`, default `None`.
 
-    # Oscillators
-    rsi: float | None = None
-    stochastic_rsi: float | None = None
-    williams_r: float | None = None
-
-    # Trend
-    adx: float | None = None
-    roc: float | None = None
-    supertrend: float | None = None
-
-    # Volatility
-    bb_width: float | None = None
-    atr_pct: float | None = None
-    keltner_width: float | None = None
-
-    # Volume
-    obv: float | None = None
-    ad: float | None = None
-    relative_volume: float | None = None
-
-    # Moving Averages
-    sma_alignment: float | None = None
-    vwap_deviation: float | None = None
-
-    # Options-specific
-    iv_rank: float | None = None
-    iv_percentile: float | None = None
-    put_call_ratio: float | None = None
-    max_pain_distance: float | None = None
-```
-
-- All 18 fields default to `None` — no indicator is required.
-- This is a `BaseModel`, NOT frozen — scores get populated incrementally during pipeline.
+- NOT frozen -- populated incrementally during pipeline.
 - Values are **normalized 0-100** (percentile-ranked), not raw indicator values.
-- Test: all-None construction, partial fill, serialization round-trip.
+- All-None construction is valid.
+
+Fields by category:
+- **Oscillators**: `rsi`, `stochastic_rsi`, `williams_r`
+- **Trend**: `adx`, `roc`, `supertrend`
+- **Volatility**: `bb_width`, `atr_pct`, `keltner_width`
+- **Volume**: `obv`, `ad`, `relative_volume`
+- **Moving Averages**: `sma_alignment`, `vwap_deviation`
+- **Options-specific**: `iv_rank`, `iv_percentile`, `put_call_ratio`, `max_pain_distance`
 
 ---
 
 ## ScanRun and TickerScore
 
-```python
-class ScanRun(BaseModel):
-    model_config = ConfigDict(frozen=True)
+**ScanRun**: Frozen. `id: int | None = None` (DB-assigned). `save_scan_run()` returns `int` ID.
+Cannot mutate after construction -- callers reconstruct if they need one with ID set.
 
-    id: int | None = None                  # DB-assigned
-    started_at: datetime                   # UTC
-    completed_at: datetime | None = None
-    preset: str                            # "full", "sp500", "etfs"
-    tickers_scanned: int
-    tickers_scored: int
-    recommendations: int
-
-class TickerScore(BaseModel):
-    ticker: str
-    composite_score: float                 # 0-100
-    direction: SignalDirection
-    signals: IndicatorSignals              # typed model, NOT dict[str, float]
-    scan_run_id: int | None = None
-```
+**TickerScore**: NOT frozen (direction updated after scoring).
+- `composite_score: float` (0-100)
+- `direction: SignalDirection`
+- `signals: IndicatorSignals` -- typed model, NOT `dict[str, float]`
+- `scan_run_id: int | None = None`
 
 ---
 
-## AppSettings — Configuration (Context7-Verified)
+## MarketContext -- Flat, Not Nested
 
-Pattern: `AppSettings(BaseSettings)` is the **sole** `BaseSettings` subclass.
-`ScanConfig`, `PricingConfig`, `ServiceConfig` are plain `BaseModel` — NOT `BaseSettings`.
-This is the pydantic-settings v2 pattern for nested config (Context7-verified).
+Snapshot of ticker state for analysis and recommendation agents. Keep flat -- agents parse
+flat text better than nested objects.
 
-```python
-from pydantic import BaseModel
-from pydantic_settings import BaseSettings, SettingsConfigDict
+Key fields: `ticker`, `current_price` (Decimal), `iv_rank`, `iv_percentile` (float | None),
+`rsi_14`, `macd_signal`, `put_call_ratio`, `next_earnings` (date | None), `sector`,
+`dividend_yield` (float), `exercise_style`, `data_timestamp` (datetime, UTC).
 
-class ScanConfig(BaseModel):
-    top_n: int = 50
-    min_score: float = 0.0
-    min_price: float = 10.0
-    min_dollar_volume: float = 10_000_000.0
-    ohlcv_min_bars: int = 200
-    adx_trend_threshold: float = 15.0
-    rsi_overbought: float = 70.0
-    rsi_oversold: float = 30.0
+`completeness_ratio()` measures populated optional fields: <0.4 -> data-driven fallback;
+<0.6 -> warning; >=0.6 -> full analysis.
 
-class PricingConfig(BaseModel):
-    risk_free_rate_fallback: float = 0.05
-    delta_primary_min: float = 0.20
-    delta_primary_max: float = 0.50
-    delta_fallback_min: float = 0.10
-    delta_fallback_max: float = 0.80
-    delta_target: float = 0.35
-    dte_min: int = 30
-    dte_max: int = 60
-    min_oi: int = 100
-    min_volume: int = 1
-    max_spread_pct: float = 0.30
-    iv_solver_tol: float = 1e-6
-    iv_solver_max_iter: int = 50
-
-class ServiceConfig(BaseModel):
-    yfinance_timeout: float = 15.0
-    fred_timeout: float = 10.0
-    rate_limit_rps: float = 2.0
-    max_concurrent_requests: int = 5
-    cache_ttl_market_hours: int = 300
-    cache_ttl_after_hours: int = 3600
-    groq_api_key: str | None = None        # for Groq health check
-
-class AppSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="ARENA_",
-        env_nested_delimiter="__",
-    )
-
-    scan: ScanConfig = ScanConfig()
-    pricing: PricingConfig = PricingConfig()
-    service: ServiceConfig = ServiceConfig()
-```
-
-Env override examples:
-- `ARENA_SCAN__TOP_N=30` → `settings.scan.top_n == 30`
-- `ARENA_PRICING__DELTA_TARGET=0.40` → `settings.pricing.delta_target == 0.40`
-- `ARENA_SERVICE__GROQ_API_KEY=gsk_...` → `settings.service.groq_api_key`
-
-Source priority (Context7-verified): init kwargs > env vars > field defaults.
-`AppSettings()` with no args is a valid production config — all defaults are production-ready.
-No `.env` file in MVP; add `env_file=".env"` later without model changes.
-
-Dependency injection: `cli.py` creates `AppSettings()`, passes `settings.scan` to scan pipeline,
-`settings.pricing` to pricing module, `settings.service` to services. Modules accept their config
-slice, never the full `AppSettings`.
+All Decimal fields have `field_serializer` to `str`.
 
 ---
 
-## MarketContext — Flat, Not Nested
+## AppSettings -- Configuration
 
-```python
-class MarketContext(BaseModel):
-    """Snapshot of ticker state for analysis and debate agents.
-    Keep flat — agents parse flat text better than nested objects."""
-    ticker: str
-    current_price: Decimal
-    price_52w_high: Decimal
-    price_52w_low: Decimal
-    iv_rank: float | None = None           # None when unavailable
-    iv_percentile: float | None = None     # None when unavailable
-    atm_iv_30d: float | None = None        # None when unavailable
-    rsi_14: float = 50.0
-    macd_signal: MacdSignal
-    put_call_ratio: float | None = None    # None when unavailable
-    next_earnings: date | None
-    dte_target: int
-    target_strike: Decimal
-    target_delta: float
-    sector: str
-    dividend_yield: float                  # decimal fraction, from TickerInfo
-    exercise_style: ExerciseStyle          # for pricing dispatch
-    data_timestamp: datetime
+`AppSettings(BaseSettings)` is the **sole** `BaseSettings` subclass. All nested configs
+(`ScanConfig`, `PricingConfig`, `ServiceConfig`, `DebateConfig`, etc.) are plain `BaseModel`.
 
-    @field_serializer("current_price", "price_52w_high", "price_52w_low", "target_strike")
-    def serialize_decimal(self, v: Decimal) -> str:
-        return str(v)
-```
+- Env prefix: `ARENA_`, nested delimiter: `__`
+- Example: `ARENA_SCAN__TOP_N=30` -> `settings.scan.top_n == 30`
+- Source priority: init kwargs > env vars > field defaults.
+- `AppSettings()` with no args is a valid production config.
+- DI pattern: `cli/` creates it, passes config slices to modules. Modules accept their
+  slice, never the full `AppSettings`.
+
+### Key Config Classes and Defaults
+
+- `ScanConfig`: `top_n=50`, `min_score=0.0`, `min_price=10.0`, `min_dollar_volume=10_000_000.0`,
+  `ohlcv_min_bars=200`, `adx_trend_threshold=15.0`, `rsi_overbought=70.0`, `rsi_oversold=30.0`
+- `PricingConfig`: `risk_free_rate_fallback=0.05`, `delta_primary_min=0.20`, `delta_primary_max=0.50`,
+  `delta_target=0.35`, `dte_min=30`, `dte_max=60`, `max_spread_pct=0.30`
+- `ServiceConfig`: `yfinance_timeout=15.0`, `fred_timeout=10.0`, `rate_limit_rps=2.0`,
+  `max_concurrent_requests=5`
+- `DebateConfig`: includes `RoutingConfig` for model tier selection, `enable_model_routing` (default False)
 
 ---
 
-## Analysis Models (Shapes for v2 Debate — Define Now)
+## Recommendation Models
 
-```python
-class AgentResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+- `DomainAssessment` base + 6 subclasses (`TrendAssessment`, `VolatilityAssessment`,
+  `FlowAssessment`, `FundamentalAssessment`, `RiskDeskAssessment`, `ContrarianAssessment`)
+- `AnyAssessment`: discriminated union via `Discriminator("desk")` + `Tag()` for polymorphic
+  JSON round-trip
+- `PositionRecommendation`: 21 fields, `LLMDecimal` prices (not bare `Decimal`), frozen
+- `RecommendationResult`: wraps context + assessments + recommendation + `RunUsage`
+  (`arbitrary_types_allowed=True` for RunUsage)
+- `DeskMetrics`: per-desk timing (`duration_ms`), model selection (`model_tier`, `model_used`), tokens
+- `AssessmentSummary`: direction votes, avg confidence, disagreement desks, risk flags
+- `RecommendationCost`: aggregated tokens + estimated USD cost
 
-    agent_name: str                        # "bull", "bear", "risk"
-    direction: SignalDirection
-    confidence: float                      # 0.0 to 1.0
-    argument: str
-    key_points: list[str]
-    risks_cited: list[str]
-    contracts_referenced: list[str]        # specific strikes/expirations
-    model_used: str
-
-    @field_validator("confidence")
-    @classmethod
-    def validate_confidence(cls, v: float) -> float:
-        if not 0.0 <= v <= 1.0:
-            raise ValueError(f"confidence must be in [0, 1], got {v}")
-        return v
-
-class TradeThesis(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    ticker: str
-    direction: SignalDirection
-    confidence: float
-    summary: str
-    bull_score: float
-    bear_score: float
-    key_factors: list[str]
-    risk_assessment: str
-    recommended_strategy: SpreadType | None = None
-```
+**LLMDecimal**: `Annotated[Decimal, WithJsonSchema({"type": "string"})]` -- Groq rejects
+Pydantic's Decimal regex pattern. Use for ALL agent output Decimal fields.
 
 ---
 
-## HealthStatus
+## Model Routing Models
 
-```python
-class HealthStatus(BaseModel):
-    model_config = ConfigDict(frozen=True)
+- `ModelTier` StrEnum: FAST, STANDARD, PREMIUM
+- `RoutingConfig` on `DebateConfig`: `enable_model_routing` (opt-in), complexity thresholds,
+  tier model names, cost pricing map (`cost_per_million_tokens`)
 
-    service_name: str
-    available: bool
-    latency_ms: float | None = None
-    error: str | None = None
-    checked_at: datetime
-```
+---
+
+## Eval Harness Models
+
+- `EvalDefinition`: YAML-loaded eval definitions with expected outputs
+- `EvalRun`: persisted eval execution with pass@k scoring
+- `EvalBaseline`: reference outputs for regression detection
+- `EvalConfig` on `AppSettings`: `eval_dir`, `pass_at_k`, `model_grader_provider`
+
+---
+
+## Tool Response Model
+
+- `ToolResponse`: frozen model with `ToolStatus` enum (SUCCESS/WARNING/ERROR) + typed `data` field
+- All desk agent tool wrappers return `ToolResponse` instead of raw strings
 
 ---
 
 ## Decimal Serialization Rules
 
-Pydantic silently converts `Decimal` to `float` in JSON, causing precision loss.
-Every model with `Decimal` fields **must** have a `field_serializer` that converts to `str`.
-
-```python
-@field_serializer("strike", "bid", "ask", "last")
-def serialize_decimal(self, v: Decimal) -> str:
-    return str(v)
-```
+Pydantic silently converts `Decimal` to `float` in JSON, causing precision loss. Every model
+with `Decimal` fields **must** have a `field_serializer` that converts to `str`.
 
 Test that `Decimal("1.05")` survives a JSON roundtrip without becoming `1.0500000000000000444`.
 
@@ -472,91 +231,31 @@ Test that `Decimal("1.05")` survives a JSON roundtrip without becoming `1.050000
 
 | Data Type | Python Type | Construction | Examples |
 |-----------|------------|--------------|----------|
-| Prices, P&L, cost basis | `Decimal` | From string: `Decimal("185.50")` | strike, bid, ask, last, current_price |
+| Prices, P&L, cost | `Decimal` | From string: `Decimal("185.50")` | strike, bid, ask, last |
 | Greeks, IV, indicators | `float` | Direct: `0.45` | delta, gamma, iv_rank, rsi |
-| Volume, open interest | `int` | Direct: `1500` | volume, open_interest, tickers_scanned |
+| Volume, open interest | `int` | Direct: `1500` | volume, open_interest |
 | Expiration dates | `date` | `datetime.date` | expiration |
 | Timestamps | `datetime` | `datetime.datetime` with UTC | data_timestamp, checked_at |
 
 ---
 
-## Re-Export Pattern (`__init__.py`)
-
-`__init__.py` re-exports ~130 names from all submodules. Grouped by source file:
-
-| Source file | Re-exported names |
-|-------------|-------------------|
-| `enums.py` | All 33 StrEnum classes + `TICKER_RE`, `SECTOR_ALIASES`, `INDUSTRY_GROUP_ALIASES`, `SECTOR_TO_INDUSTRY_GROUPS` |
-| `market_data.py` | `OHLCV`, `Quote`, `TickerInfo` |
-| `options.py` | `OptionContract`, `OptionGreeks`, `OptionSpread`, `SpreadAnalysis`, `SpreadLeg` |
-| `analysis.py` | `AgentPrediction`, `AgentResponse`, `ContractConstraint`, `ContrarianThesis`, `ExtendedTradeThesis`, `FlowThesis`, `FundamentalThesis`, `MarketContext`, `PositionSizeResult`, `RiskAssessment`, `TradeThesis`, `VolatilityThesis` |
-| `analytics.py` | `AgentAccuracyReport`, `AgentCalibrationData`, `AgentWeightsComparison`, `CalibrationBucket`, `ContractOutcome`, `DTEBucketResult`, `DeltaPerformanceResult`, `DrawdownPoint`, `EquityCurvePoint`, `GreeksDecompositionResult`, `HoldingPeriodComparison`, `HoldingPeriodResult`, `IVRankBucketResult`, `IndicatorAttributionResult`, `NormalizationStats`, `PerformanceSummary`, `RecommendedContract`, `RiskAdjustedMetrics`, `ScoreCalibrationBucket`, `SectorPerformanceResult`, `WeightSnapshot`, `WinRateResult` |
-| `scan.py` | `IndicatorSignals`, `ScanRun`, `TickerScore` |
-| `scan_delta.py` | `ScanDiff`, `TickerDelta` |
-| `scoring.py` | `DimensionalScores`, `DirectionSignal` |
-| `config.py` | `AnalyticsConfig`, `AppSettings`, `DataConfig`, `DebateConfig`, `FinancialDatasetsConfig`, `IntelligenceConfig`, `LogConfig`, `MLConfig`, `OpenBBConfig`, `PositionSizingConfig`, `PricingConfig`, `ScanConfig`, `ServiceConfig`, `SpreadConfig` |
-| `health.py` | `HealthStatus` |
-| `history.py` | `HistoryPoint`, `TrendingTicker` |
-| `intelligence.py` | `AnalystActivitySnapshot`, `AnalystSnapshot`, `InsiderSnapshot`, `InsiderTransaction`, `InstitutionalSnapshot`, `IntelligencePackage`, `UpgradeDowngrade` |
-| `macro.py` | `MacroContext`, `MacroRegimeResult`, `MacroSignals` |
-| `metadata.py` | `MetadataCoverage`, `TickerMetadata` |
-| `filters.py` | `OptionsFilters`, `ScanFilterSpec`, `ScoringFilters`, `UniverseFilters` |
-| `financial_datasets.py` | `BalanceSheetData`, `FinancialDatasetsPackage`, `FinancialMetricsData`, `IncomeStatementData` |
-| `correlation.py` | `CorrelationMatrix`, `PairwiseCorrelation` |
-| `valuation.py` | `CompositeValuation`, `ValuationModelResult` |
-| `audit.py` | `AuditFinding`, `AuditLayerSummary`, `AuditReport` |
-
-Consumers import from the package: `from options_arena.models import OptionContract`.
-
----
-
-## Test Requirements (~150 tests)
-
-### Enums (`test_enums.py`)
-- Each enum: member count, values, `StrEnum` subclass check, exhaustive iteration.
-- `OptionType` has exactly 2 members. `SpreadType` has exactly 6. `DividendSource` has exactly 4. etc.
-
-### Models — Construction & Frozen (`test_*.py`)
-- Happy path: construct with valid data, assert all fields.
-- Frozen: `pytest.raises(ValidationError)` on attribute reassignment for frozen models.
-- Computed fields: `mid`, `spread`, `dte` return correct values.
-- Validation: `OptionGreeks` rejects delta outside [-1, 1], gamma < 0, vega < 0.
-- Defaults: `TickerInfo.dividend_yield` defaults to `0.0`, `dividend_source` defaults to `NONE`.
-
-### Serialization (`test_serialization.py`)
-- JSON roundtrip: `Model.model_validate_json(m.model_dump_json()) == m` for every model.
-- Decimal precision: `Decimal("1.05")` survives roundtrip as `"1.05"` not `1.0500000...`.
-- StrEnum serialization: `OptionType.CALL` serializes to `"call"` in JSON.
-
-### AppSettings (`test_config.py`)
-- Default construction: `AppSettings()` succeeds, all nested defaults correct.
-- Env var override: monkeypatch `ARENA_SCAN__TOP_N=30`, assert `settings.scan.top_n == 30`.
-- Nested delimiter: `ARENA_PRICING__DELTA_TARGET=0.40` works.
-- Type coercion: string env vars correctly parsed to `int`, `float`.
-
-### IndicatorSignals (`test_indicator_signals.py`)
-- All-None: `IndicatorSignals()` constructs with all fields `None`.
-- Partial fill: set 5 of 18 fields, rest remain `None`.
-- Serialization round-trip.
-- Field count: exactly 18 fields.
-
----
-
 ## What Claude Gets Wrong Here (Fix These)
 
-1. **Raw dicts as fields** — `signals: dict[str, float]` is WRONG. Use `IndicatorSignals` with 18 named fields.
-2. **float for prices** — `strike: float` is WRONG. Use `Decimal` with string construction.
-3. **Skipping Greek validation** — Bad delta from pricing edge cases corrupts everything downstream. Validate at the boundary.
-4. **Mutable snapshot models** — `OptionContract`, `OptionGreeks`, `Quote`, `OHLCV` MUST be `frozen=True`.
-5. **Missing field_serializer** — Every model with `Decimal` fields needs `field_serializer` to prevent `float` precision loss in JSON.
-6. **Optional[X] syntax** — Use `X | None`, never `Optional[X]`. Never import from `typing`.
-7. **typing.List, typing.Dict** — Use `list`, `dict` lowercase. Python 3.13+.
-8. **BaseSettings for sub-configs** — `ScanConfig`, `PricingConfig`, `ServiceConfig` are `BaseModel`, NOT `BaseSettings`. Only `AppSettings` is `BaseSettings`.
-9. **None vs falsy for dividend_yield** — `dividend_yield` is `float` with default `0.0`, never `None`. Waterfall fall-through is `value is None`, not falsy.
-10. **Forgetting pricing_model on OptionGreeks** — Every Greeks instance must track which pricing model (BSM/BAW) produced it.
-11. **Assuming yfinance provides Greeks** — It does NOT. `greeks` on `OptionContract` is always `None` from yfinance, populated after local computation by `pricing/dispatch.py`.
-12. **`mid` dividing by int 2** — Use `Decimal("2")` to keep full Decimal precision in the computed field.
-13. **Raw strings for categorical fields** — Never use `str` for fields with a known set of values. Use a `StrEnum` (e.g., `MacdSignal`, `ScanPreset`). Every categorical field must have a corresponding enum in `enums.py`.
-14. **Timezone-aware ≠ UTC** — Don't just check `tzinfo is not None`. Enforce actual UTC with `v.utcoffset() != timedelta(0)`. Every `datetime` field must have a `field_validator` that rejects both naive and non-UTC datetimes.
-15. **Missing validators on confidence/probability fields** — Every `confidence: float` field must have a `field_validator` constraining to `[0.0, 1.0]`. Don't add it to one model and forget the others.
-16. **Unbounded domain-constrained floats** — `market_iv` must be `>= 0`, `quantity` must be `>= 1`, `legs` must be non-empty. Add `field_validator` for any field with a known domain constraint.
+1. **Raw dicts as fields** -- `signals: dict[str, float]` is WRONG. Use `IndicatorSignals`.
+2. **float for prices** -- `strike: float` is WRONG. Use `Decimal` with string construction.
+3. **Skipping Greek validation** -- Bad delta from pricing edge cases corrupts everything downstream.
+4. **Mutable snapshot models** -- `OptionContract`, `OptionGreeks`, `Quote`, `OHLCV` MUST be frozen.
+5. **Missing field_serializer** -- Every Decimal model needs it. Prevents float precision loss in JSON.
+6. **`Optional[X]` syntax** -- Use `X | None`. Never import from `typing`.
+7. **`typing.List`, `typing.Dict`** -- Use lowercase `list`, `dict`. Python 3.13+.
+8. **BaseSettings for sub-configs** -- Only `AppSettings` is `BaseSettings`. Nested configs are `BaseModel`.
+9. **None vs falsy for dividend_yield** -- `float` default `0.0`, never `None`. Waterfall uses `is None`.
+10. **Forgetting pricing_model on OptionGreeks** -- Every instance must track BSM or BAW.
+11. **Assuming yfinance provides Greeks** -- It does NOT. `greeks` always `None` from yfinance.
+12. **`mid` dividing by int 2** -- Use `Decimal("2")` for Decimal precision.
+13. **Raw strings for categorical fields** -- Use StrEnum from `enums.py`. Every categorical
+    field must have a corresponding enum.
+14. **Timezone-aware != UTC** -- Enforce `v.utcoffset() != timedelta(0)`. Every `datetime` field
+    needs validator rejecting both naive and non-UTC.
+15. **Missing confidence validators** -- Every `confidence: float` must have `[0.0, 1.0]` validator.
+16. **Unbounded domain floats** -- `market_iv >= 0`, `quantity >= 1`, `legs` non-empty. Add validators.

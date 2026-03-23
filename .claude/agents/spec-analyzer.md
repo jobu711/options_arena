@@ -66,7 +66,7 @@ Evaluate each requirement against this checklist:
 7. **Observability?** — Logging, metrics, or progress reporting specified?
 8. **Testability?** — Can we write a test for each acceptance criterion?
 9. **Migration required?** — DB schema changes, config migration, backward compat?
-10. **Documentation updates?** — Module CLAUDE.md, system-patterns.md, progress.md?
+10. **Documentation updates?** — Module CLAUDE.md, architecture.md, progress.md?
 
 ### Phase 4 — Question Formulation
 

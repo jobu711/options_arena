@@ -2,6 +2,14 @@
 
 Historical completion logs for Options Arena. Current state is in `progress.md`.
 
+## Agent Infrastructure Epics (2026-03-22)
+
+- **agent-infra-model-routing** (#679-#683, PR #695): Complexity-based model routing — `ModelTier` enum, `_assess_complexity()`, `route_model_tier()`, per-desk `DeskMetrics`, `AssessmentSummary`, `RecommendationCost`, `RoutingConfig`. CLI `--cost-summary`, API `/api/analytics/recommendation-costs`. 82 new tests.
+- **agent-infra-eval-harness** (PR #694): Eval framework — `EvalDefinition`, `EvalRun`, `EvalBaseline` models, `EvalConfig`, migration 039, `evals/` directory, CLI `eval` subcommand, pass@k scoring.
+- **agent-infra-tool-response** (PR #693): Unified `ToolResponse` model with `ToolStatus` enum for all desk agent tool wrappers.
+- **agent-infra-learning-decay** (PR #692): Confidence decay for strategy rules, `learn decay` CLI command, playbook confidence columns.
+- **unified-agent-system-cutover** (#664-#671, PR #691): Big bang cutover to recommendation system. Net -7,445 lines. 239 new tests.
+
 ## Epic 32: DevOps Audit (2026-03-14) — #495-#497, PR #498
 3-phase devops-audit command (static analysis, dynamic probes, gap analysis).
 New commands: `/devops-audit`, `/full-audit`, `/fix-loop`, `/release-prep`, `/compound`.

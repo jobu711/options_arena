@@ -1,107 +1,71 @@
-# CLAUDE.md — Options Arena
-
-@.claude/context/tech-context.md
-@.claude/context/progress.md
-@.claude/context/system-patterns.md
-@.claude/context/system-patterns-reference.md
-@.claude/context/product-context.md
-@.claude/context/module-summaries.md
+# CLAUDE.md -- Options Arena
 
 ## What This Project Does
 
-AI-powered options analysis tool for American-style options on U.S. equities. Eight AI
-agents (Bull, Bear, Risk, Volatility, Contrarian, Flow, Fundamental, Trend) debate via
-Groq cloud API (Llama 3.3 70B) on options contracts. The tool fetches market data,
-computes technical indicators, runs a structured debate, and produces a verdict with
-risk assessment. Data-driven fallback when the LLM provider is unreachable.
+AI-powered options analysis for American-style options on U.S. equities. Six desk
+recommendation agents + synthesis agent produce a `PositionRecommendation` via Groq
+(Llama 3.3 70B) or Anthropic. Fetches market data, computes 27 technical indicators,
+runs structured AI analysis, and outputs a risk-assessed recommendation with contract
+selection. Data-driven fallback when the LLM provider is unreachable.
 
 ## Tech Stack
 
-- **Python 3.13+** — use modern syntax: `match`, `type X = ...`, `X | None` unions, `StrEnum`
-- **Package manager**: `uv` — always `uv add <pkg>`, never `pip install` or manual pyproject.toml edits
+- **Python 3.13+** -- modern syntax: `match`, `type X = ...`, `X | None` unions, `StrEnum`
+- **Package manager**: `uv` -- always `uv add <pkg>`, never `pip install`
 - **Linter/Formatter**: `ruff` (target `py313`, line-length 99, rules: E, F, I, UP, B, SIM, ANN)
-- **Type checker**: `mypy --strict` — full annotations on every function, no exceptions
-- **Async**: `asyncio` + `httpx` — debate loop, data fetching, and scan pipeline are async
-- **Models**: Pydantic v2 — all structured data crosses module boundaries as typed models, never raw dicts
-- **Config**: `pydantic-settings` v2 — single `AppSettings(BaseSettings)` root, nested `BaseModel` submodels
-- **AI SDK**: `pydantic-ai` + Groq (default) / Anthropic (`--provider anthropic`). See `agents/CLAUDE.md`
-- **Pricing**: `scipy` — BSM (Merton 1973) + BAW (Barone-Adesi-Whaley 1987) for American options
-- **CLI**: `typer` + `rich` — subcommands, Rich tables, progress bars, colored terminal output
-- **Data**: `pandas` + `numpy` for indicators, `yfinance` wrapped in services, `aiosqlite` for persistence
+- **Type checker**: `mypy --strict` -- full annotations on every function
+- **Async**: `asyncio` + `httpx` -- recommendation loop, data fetching, scan pipeline
+- **Models**: Pydantic v2 -- all structured data crosses boundaries as typed models, never raw dicts
+- **Config**: `pydantic-settings` v2 -- single `AppSettings(BaseSettings)` root, nested `BaseModel` submodels
+- **AI SDK**: `pydantic-ai` + Groq (default) / Anthropic (`--provider anthropic`)
+- **Pricing**: `scipy` -- BSM (Merton 1973) + BAW (Barone-Adesi-Whaley 1987)
+- **CLI**: `typer` + `rich` -- subcommands, Rich tables, progress bars
+- **Data**: `pandas` + `numpy` for indicators, `yfinance` via services, `aiosqlite` for persistence
 
 ## Project Layout
 
 ```
 src/options_arena/
-    cli/          # Typer CLI entry point                    → has own CLAUDE.md
-    agents/       # PydanticAI debate agents (Groq/Anthropic)  → has own CLAUDE.md
-      prompts/    #   Prompt templates & versioning          → has own CLAUDE.md
-    models/       # Pydantic models, enums, config           → has own CLAUDE.md
-    pricing/      # BSM + BAW option pricing & Greeks        → has own CLAUDE.md
-    indicators/   # Technical indicator math (18 functions)  → has own CLAUDE.md
-    scoring/      # Normalization, composite, contracts      → has own CLAUDE.md
-    services/     # External API access, caching, rate limit → has own CLAUDE.md
-    scan/         # 4-phase pipeline orchestration           → has own CLAUDE.md
-    data/         # SQLite persistence (WAL, migrations)     → has own CLAUDE.md
-    api/          # FastAPI REST + WebSocket backend          → has own CLAUDE.md
-    reporting/    # Report generation & disclaimers          → has own CLAUDE.md
+    cli/          # Typer CLI entry point
+    agents/       # PydanticAI recommendation + desk agents
+      prompts/    #   Prompt templates & versioning
+    models/       # Pydantic models, enums, config
+    pricing/      # BSM + BAW option pricing & Greeks
+    indicators/   # Technical indicator math (18 functions)
+    scoring/      # Normalization, composite, contracts
+    services/     # External API access, caching, rate limit
+    scan/         # 4-phase pipeline orchestration
+    data/         # SQLite persistence (WAL, migrations)
+    api/          # FastAPI REST + WebSocket backend
+    reporting/    # Report generation
+    analysis/     # Vol surface, HV estimators, valuation
+    learning/     # Weight tuning, strategy mining
     utils/        # DataFetchError exception hierarchy
 data/migrations/  # Sequential SQL migration files
-web/              # Vue 3 SPA (TypeScript, Pinia, PrimeVue)  → has own CLAUDE.md
-tests/            # 4,522 tests (24K parametrized) + 107 E2E  → has own CLAUDE.md
+web/              # Vue 3 SPA (TypeScript, Pinia, PrimeVue)
+tests/            # ~370 files, 27K+ parametrized + 107 E2E
 ```
 
-Each module's CLAUDE.md has the detailed file listing. Read it before modifying that module.
+## Context Router -- Read Before Working
 
-## Module-Level Instructions — MANDATORY
+| Task Type | Read These First |
+|-----------|-----------------|
+| Bug fix in single module | That module's `CLAUDE.md` |
+| Cross-module feature | `.claude/context/architecture.md` + affected module `CLAUDE.md` files |
+| Pricing / scoring / indicators | `.claude/context/algorithms.md` + module `CLAUDE.md` |
+| PRD / brainstorming / design | `.claude/context/product.md` |
+| New to project / onboarding | `.claude/context/architecture.md` + `.claude/context/product.md` |
+| Audit / review | `.claude/context/architecture.md` |
+| Check current state / progress | `.claude/context/progress.md` |
+| Workflow guides (git, testing, etc.) | `.claude/guides/` directory (load specific guide when needed) |
 
-Before creating, editing, or reviewing ANY file in a module, you MUST first read
-that module's CLAUDE.md. These contain rules that override or extend the root instructions.
+## Module-Level Instructions -- MANDATORY
 
-A task touching files in `agents/prompts/` requires reading BOTH `agents/CLAUDE.md` AND
-`agents/prompts/CLAUDE.md` — child rules inherit from parent.
+Before creating, editing, or reviewing ANY file in a module, you MUST first read that
+module's `CLAUDE.md`. Child modules inherit parent rules (e.g., `agents/prompts/` requires
+reading both `agents/CLAUDE.md` and `agents/prompts/CLAUDE.md`).
 
-## Options Domain Knowledge
-
-### Key Concepts Claude Must Understand
-
-- An **option contract** has: ticker, type (call/put), strike price, expiration date, bid, ask, volume, open interest, implied volatility, and Greeks (delta, gamma, theta, vega, rho).
-- **Greeks** are sensitivity measures: delta (price), gamma (delta acceleration), theta (time decay), vega (volatility), rho (interest rates).
-- **IV Rank** ≠ **IV Percentile**. Rank = where current IV sits in its 52-week range. Percentile = % of days IV was lower. Never confuse them.
-- **DTE** (days to expiration) drives everything — theta decay accelerates as DTE shrinks.
-- Options have **bid-ask spreads** that indicate liquidity. Wide spread = illiquid = dangerous.
-- The **mid price** `(bid + ask) / 2` is a better fair value estimate than `last` which can be stale.
-- **American vs European exercise**: American options can be exercised any time before expiry (all U.S. equity options). European only at expiry. This project uses BAW for American, BSM for European.
-- **yfinance option chains provide NO Greeks** — only `impliedVolatility`. All Greeks are computed locally via `pricing/dispatch.py`. This is the single most common assumption error.
-
-### Financial Precision Rules
-
-- Prices, P&L, cost basis: `Decimal` (constructed from strings: `Decimal("1.05")`).
-- Greeks, IV, indicators, ratios: `float` (speed over precision).
-- Volume, open interest: `int` (always whole numbers).
-- Dates: `datetime.date` for expiration, `datetime.datetime` with `UTC` for timestamps. Never strings.
-
-## Code Patterns — Project-Wide
-
-### NO RAW DICTS — Typed Models Everywhere
-
-This is the most commonly violated rule. **Every function that returns structured data
-MUST return a Pydantic model, a dataclass, or a StrEnum — NEVER a `dict`, `dict[str, Any]`,
-`dict[str, float]`, or any `dict` variant.**
-
-```python
-# WRONG — raw dict
-def get_greeks(contract: OptionContract) -> dict[str, float]: ...
-
-# RIGHT — typed model
-def get_greeks(contract: OptionContract) -> OptionGreeks: ...
-```
-
-This applies to: function returns, function parameters, model fields, intermediate variables
-passed between modules, and API response parsing. The ONLY exception is `indicators/` which
-uses pandas Series/DataFrames (not dicts) as its data interchange format.
-
-### Architecture Boundaries
+## Architecture Boundaries
 
 | Module | Responsibility | Can Access | Cannot Access |
 |--------|---------------|------------|---------------|
@@ -123,112 +87,62 @@ uses pandas Series/DataFrames (not dicts) as its data interchange format.
 **Key boundary rules**:
 - `services/` is the ONLY layer that touches external APIs or data sources.
 - `indicators/` takes pandas in, returns pandas out. No API calls, no Pydantic models.
-- `scoring/` imports from `pricing/dispatch` only — never `pricing/bsm` or `pricing/american`.
+- `scoring/` imports from `pricing/dispatch` only -- never `pricing/bsm` or `pricing/american`.
 - `scan/` orchestrates but never calls `pricing/` directly (that's `scoring/contracts.py`'s job).
 - `agents/` have no knowledge of each other. The orchestrator coordinates them.
 - `models/` defines data shapes. No business logic, no I/O.
-- `api/` and `cli/` are sibling entry points — neither imports from the other.
+- `api/` and `cli/` are sibling entry points -- neither imports from the other.
 
-### Pydantic Model Patterns (Context7-verified)
+## Code Patterns -- Project-Wide
 
-```python
-from pydantic import BaseModel, ConfigDict, field_validator
+**No raw dicts**: Every function returning structured data MUST return a Pydantic model, dataclass, or StrEnum -- never `dict`, `dict[str, Any]`, or `dict[str, float]`. Only exception: `indicators/` uses pandas Series/DataFrames.
 
-# Immutable snapshot model
-class Quote(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    # fields...
+**Immutable snapshots**: Use `ConfigDict(frozen=True)` on data models representing point-in-time snapshots (quotes, contracts, verdicts).
 
-# UTC datetime enforcement (required on EVERY datetime field)
-@field_validator("timestamp")
-@classmethod
-def _validate_utc(cls, v: datetime) -> datetime:
-    if v.tzinfo is None or v.utcoffset() != timedelta(0):
-        raise ValueError("must be UTC")
-    return v
+**Pydantic models**: Every `datetime` field needs a UTC validator. Every `confidence` field needs a `[0.0, 1.0]` validator. Every numeric validator must check `math.isfinite()` before range checks.
 
-# Confidence bounds (required on EVERY confidence field)
-@field_validator("confidence")
-@classmethod
-def _validate_confidence(cls, v: float) -> float:
-    if not 0.0 <= v <= 1.0:
-        raise ValueError("must be between 0.0 and 1.0")
-    return v
-```
+**Configuration**: Only one `BaseSettings` subclass (`AppSettings`). All nested configs are plain `BaseModel`. Env prefix `ARENA_`, nested delimiter `__`.
 
-### Configuration Pattern (Context7-verified: pydantic-settings v2)
+**CLI commands**: Sync Typer commands with `asyncio.run()` for async work -- Typer does not support `async def`. Use `RichHandler(markup=False)` always. Use `signal.signal()` for SIGINT (not `loop.add_signal_handler()`, unsupported on Windows).
 
-```python
-from pydantic import BaseModel
-from pydantic_settings import BaseSettings, SettingsConfigDict
+**Error handling**: Custom domain exceptions only (`TickerNotFoundError`, `InsufficientDataError`, etc.). Never bare `except:`. Use `logging` -- never `print()` outside `cli/`.
 
-# Nested submodels are BaseModel, NOT BaseSettings
-class ScanConfig(BaseModel):
-    top_n: int = 50
+**Naming**: Descriptive variables (`implied_vol_30d`, `daily_prices_df`), uppercase constants (`RSI_OVERBOUGHT = 70`), `_df` suffix on DataFrames. No abbreviations, no magic numbers.
 
-# Single BaseSettings root — the ONLY BaseSettings subclass in the project
-class AppSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="ARENA_",
-        env_nested_delimiter="__",     # ARENA_SCAN__TOP_N=30 → settings.scan.top_n
-    )
-    scan: ScanConfig = ScanConfig()
-```
+**Async**: One client type per module. `asyncio.wait_for(coro, timeout=N)` on every external call. `asyncio.gather(*tasks, return_exceptions=True)` for batch operations.
 
-**DI pattern**: `cli/` creates `AppSettings()`, passes config slices to modules.
-`AppSettings()` with no args is a valid production config.
+**Financial precision**: Prices/P&L use `Decimal` (from strings: `Decimal("1.05")`). Greeks/IV/ratios use `float`. Volume/OI use `int`. Dates use `datetime.date`; timestamps use `datetime.datetime` with UTC.
 
-### CLI Patterns (Context7-verified: Typer + Rich)
+**Agent pattern**: `Agent(model=None)` at init, actual model at `agent.run(model=...)`. All desk/recommendation runners never-raise -- catch all exceptions. Use `LLMDecimal` (not bare `Decimal`) for agent output types (Groq rejects Pydantic's Decimal regex).
 
-```python
-import asyncio
-import typer
+**Self-improvement**: After corrections, run `/compound` to capture solutions. Before fragile-area tasks, check `docs/solutions/` for past fixes.
 
-app = typer.Typer()
+**Context7 verification**: Before mapping external library output to models, use Context7 to verify field names, return types, and signatures.
 
-# Typer does NOT support async commands — always use asyncio.run()
-@app.command()
-def scan(preset: ScanPreset = ScanPreset.SP500) -> None:
-    asyncio.run(_scan_async(preset))
-```
+## What Claude Gets Wrong -- Fix These
 
-**Critical gotchas**:
-- `RichHandler(markup=False)` — library logs contain `[AAPL]` brackets that crash Rich markup
-- `signal.signal()` for SIGINT, NOT `loop.add_signal_handler()` (unsupported on Windows)
+- Never return raw dicts -- always typed models (including `dict[str, float]`, `dict[str, Any]`)
+- Use `X | None` not `Optional[X]`; use lowercase `list`/`dict` not `typing.List`/`Dict`
+- Use `StrEnum` for categorical fields, not raw `str`
+- Every `datetime` field needs UTC validator; every `confidence` field needs `[0.0, 1.0]` validator
+- Every numeric validator must check `math.isfinite()` first -- NaN passes `v >= 0` silently
+- Import `pricing/dispatch` from `scoring/`, never `pricing/bsm` or `pricing/american` directly
+- Use `logging.getLogger(__name__)` in library code, never `print()` (reserved for `cli/`)
+- yfinance provides NO Greeks -- only `impliedVolatility`. All Greeks come from `pricing/dispatch.py`
+- Typer commands must be sync (`def`) with `asyncio.run()`, never `async def`
+- Use `RichHandler(markup=False)` always -- `[TICKER]` brackets crash Rich markup
+- Use `signal.signal()` for SIGINT, not `loop.add_signal_handler()` (Windows incompatible)
+- Use `LLMDecimal` not bare `Decimal` on PydanticAI agent output types (Groq rejects the regex)
 
-### Error Handling
+## Options Domain Knowledge
 
-- Custom domain exceptions: `TickerNotFoundError`, `InsufficientDataError`, `DataSourceUnavailableError`, `RateLimitExceededError`.
-- Never bare `except:` — always catch specific types.
-- `logging` module only — never `print()` in library code. `print()` is reserved for `cli/`.
+- **IV Rank** is not **IV Percentile**. Rank = position in 52-week range. Percentile = % of days IV was lower.
+- **yfinance chains provide NO Greeks** -- only `impliedVolatility`. All Greeks computed locally via `pricing/dispatch.py`.
+- **American options** (all U.S. equity) use BAW pricing. European (SPX) would use BSM.
+- **Mid price** `(bid + ask) / 2` is fair value estimate; `last` can be stale.
+- **Dividend yield** uses `float` default `0.0`, never `None`. Waterfall fall-through checks `is None`, not falsy.
 
-### Naming
-
-- Variables: `implied_vol_30d`, `daily_prices_df`, `atm_call` — descriptive, no abbreviations.
-- Constants: `RSI_OVERBOUGHT = 70` — uppercase, defined once. No magic numbers.
-- DataFrames: always suffixed `_df`.
-
-### Async Convention
-
-- Pick ONE client type per module — don't mix sync/async.
-- `asyncio.wait_for(coro, timeout=N)` on every external call. No unbounded waits.
-- `asyncio.gather(*tasks, return_exceptions=True)` for batch operations.
-- Typer commands are sync wrappers: `def scan() -> None: asyncio.run(_scan_async())`.
-
-### Demand Elegance (Balanced)
-
-For non-trivial changes, pause and ask: is there a more elegant way? If a fix feels
-hacky, find the elegant solution with full codebase knowledge. Challenge your own work
-before presenting it. Skip this for simple fixes.
-
-### Self-Improvement Loop
-
-After any correction from user, run `/compound` to capture the solution in
-`docs/solutions/`. Before tasks in known-fragile areas (pricing, NaN defense, async),
-invoke `learnings-researcher` to check for relevant past solutions. Knowledge compounds
-— first fix is research, subsequent fixes are lookup.
-
-## Verification — Run Before Every Commit
+## Verification -- Run Before Every Commit
 
 ```bash
 uv run ruff check . --fix && uv run ruff format .   # lint + format
@@ -240,71 +154,10 @@ python tools/docgen.py                               # regenerate technical refe
 python tools/tldr_analyzer.py                        # refresh TLDR code summaries
 ```
 
-Always run lint, tests, and type checking via `uv run`. Regenerate docs before commit. A task is not done until all pass.
-
-## Context7 Verification
-
-Before writing code that maps external library output to typed models, use Context7
-(`resolve-library-id` → `query-docs`) to verify field names, return types, and signatures.
-Full protocol: `.claude/guides/context7-verification.md`.
+Always run lint, tests, and type checking via `uv run`. A task is not done until all pass.
 
 ## Git Discipline
 
 - Atomic commits: `feat: add Bollinger Bands with configurable std dev`, not `update stuff`.
 - Branch per feature. Never commit directly to main.
 - Every commit message starts with: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, or `chore:`.
-
-## What Claude Gets Wrong — Fix These
-
-- Don't return raw dicts — always typed models (including `dict[str, float]`, `dict[str, Any]`).
-- Don't use `Optional[X]` — use `X | None`. Don't use `typing.List`/`Dict` — use lowercase.
-- Don't use raw `str` for categorical fields — use `StrEnum` from `enums.py`.
-- Don't add `datetime` fields without UTC validator (`v.tzinfo is None or v.utcoffset() != timedelta(0)`).
-- Don't forget `field_validator` on `confidence` fields — constrain to `[0.0, 1.0]`.
-- Don't leave numeric validators without `math.isfinite()` — NaN silently passes `v >= 0`.
-- Don't import `pricing/bsm` or `pricing/american` from `scoring/` — use `pricing/dispatch` only.
-- Don't use `print()` outside `cli/` — use `logging.getLogger(__name__)`.
-- Don't assume yfinance provides Greeks — only `impliedVolatility`. All Greeks from `pricing/dispatch.py`.
-- Don't use `async def` on Typer commands — use sync def + `asyncio.run()`.
-- Don't use `RichHandler(markup=True)` — `[TICKER]` brackets crash Rich. Always `markup=False`.
-- Don't use `loop.add_signal_handler()` — unsupported on Windows. Use `signal.signal()`.
-
-## Guides (Load When Needed)
-
-Reference guides in `.claude/guides/` — NOT auto-loaded, read when relevant:
-
-| Guide | When to load |
-|-------|-------------|
-| `context7-verification.md` | Writing code that maps external library output to models |
-| `agent-coordination.md` | Multi-agent parallel work on same epic |
-| `branch-operations.md` | Git branching for epics |
-| `worktree-operations.md` | Git worktree parallel development |
-| `path-standards.md` | Documentation/GitHub sync with path privacy |
-| `strip-frontmatter.md` | Preparing markdown for GitHub sync |
-| `frontmatter-operations.md` | Creating/editing YAML frontmatter |
-| `test-execution.md` | Running tests with test-runner agent |
-| `use-ast-grep.md` | Structural code search/refactoring |
-| `datetime.md` | Writing frontmatter timestamps (PRDs, epics, tasks) |
-| `github-operations.md` | Creating/editing GitHub issues or PRs |
-| `dependency-reference.md` | Checking web/optional/dev dependency versions |
-
-Auto-generated reference: `docs/technical-reference.md` — API signatures, dependency graphs, traceability matrix. Regenerated by `python tools/docgen.py`.
-
-## Context Budget Policy
-
-With 1M token context, the cost of loading context is near-zero but the cost of
-missing context is high (wrong code, rework, violations). Budget is generous.
-
-| Category | Current | Max |
-|----------|---------|-----|
-| CLAUDE.md | 308 lines | 500 lines |
-| @-referenced context files | 569 lines | 2,000 lines |
-| .claude/rules/ files | 109 lines | 1,000 lines |
-| **Grand total** | **986** | **3,500** |
-
-Rules:
-- `progress.md`: Current state only. Move completed work to `progress-archive.md`.
-- `system-patterns.md`: Unique patterns only. No duplication with CLAUDE.md.
-- Rules: Universally-needed rules in `.claude/rules/`. Workflow-specific → `.claude/guides/`.
-- `module-summaries.md`: Condensed critical constraints from all 13 module CLAUDE.md files.
-- Verify: `wc -l CLAUDE.md .claude/context/*.md .claude/rules/*.md`

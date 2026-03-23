@@ -9,7 +9,7 @@ on the last.
 <context>
 {{CLAUDE.md from project root}}
 {{.claude/context/progress.md}}
-{{.claude/context/system-patterns.md}}
+{{.claude/context/architecture.md}}
 
 ### Current State — v2.8.0 ({{CURRENT_DATE}})
 - 21 epics completed across 9 phases

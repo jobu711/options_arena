@@ -73,20 +73,20 @@ For each context file, determine if updates are needed:
   - Update: New directories, moved files, structural reorganization
   - Only update if significant structural changes occurred
 
-#### `tech-context.md` - **Update if Dependencies Changed**
-  - Check: Package files for new dependencies or version changes
-  - Update: New libraries, upgraded versions, new dev tools
-  - Include security updates or breaking changes
-
-#### `system-patterns.md` - **Update if Architecture Changed**
-  - Check: New design patterns, architectural decisions
-  - Update: New patterns adopted, refactoring done
+#### `architecture.md` - **Update if Architecture Changed**
+  - Check: New design patterns, architectural decisions, module constraints
+  - Update: New patterns adopted, refactoring done, module boundary changes
   - Only update for significant architectural changes
 
-#### `product-context.md` - **Update if Requirements Changed**
-  - Check: New features implemented, user feedback incorporated
-  - Update: New user stories, changed requirements
+#### `product.md` - **Update if Requirements Changed**
+  - Check: New features implemented, CLI commands added, API endpoints changed
+  - Update: New capabilities, changed constraints
   - Include any pivot in product direction
+
+#### `algorithms.md` - **Update if Algorithms Changed**
+  - Check: New pricing models, scoring changes, indicator algorithm updates
+  - Update: Algorithm details, parameter changes
+  - Only update for significant algorithm changes
 
 #### `project-brief.md` - **Rarely Update**
   - Check: Only if fundamental project goals changed
@@ -173,13 +173,13 @@ Provide detailed summary of updates:
 
 📝 Updated Files:
   ✅ progress.md - Updated recent commits, current status
-  ✅ tech-context.md - Added 3 new dependencies
+  ✅ architecture.md - Added new design pattern
   ✅ project-structure.md - Noted new /utils directory
 
 ⏭️ Skipped Files (no changes):
   - project-brief.md (last updated: 5 days ago)
   - project-vision.md (last updated: 2 weeks ago)
-  - system-patterns.md (last updated: 3 days ago)
+  - product.md (last updated: 3 days ago)
 
 ⚠️ Issues:
   {any warnings or errors}

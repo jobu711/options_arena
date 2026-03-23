@@ -1,7 +1,7 @@
 # Dependency Reference
 
 Full version pinning for web, optional, and dev dependencies. Runtime Python deps
-are in `tech-context.md`. Check `pyproject.toml` and `web/package.json` for latest.
+are in `CLAUDE.md`. Check `pyproject.toml` and `web/package.json` for latest.
 
 ## Web Runtime (`web/package.json`)
 
