@@ -174,7 +174,7 @@ After dedup against 6 existing rules: 4 candidates remain (10 skipped).
 - Sources: `docs/solutions/async-bugs/gather-crash.md`, `prompts/synthesis.py`
 - Principle: `asyncio.gather()` in batch operations must pass `return_exceptions=True` so one failure doesn't crash the entire batch.
 - Proposed file: `.claude/rules/gather-exceptions.md`
-- Status: SKIP (already in system-patterns.md: "Batch isolation" section)
+- Status: SKIP (already in architecture.md: Service Layer "Batch isolation" pattern)
 
 ### Theme: LLM Output Safety
 

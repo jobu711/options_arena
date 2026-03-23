@@ -13,11 +13,10 @@ Load incremental context not already provided by CLAUDE.md auto-loaded `@` refer
 
 ## Load Incremental Context
 
-CLAUDE.md already auto-loads `tech-context.md`, `progress.md`, and `system-patterns.md`.
-`project-brief.md` and `project-style-guide.md` duplicate CLAUDE.md content. Skip all five.
+CLAUDE.md auto-loads `progress.md`, `architecture.md`, `product.md`, and `algorithms.md`.
+`project-brief.md` and `project-style-guide.md` duplicate CLAUDE.md content. Skip those.
 
-Read only files with unique content not covered by CLAUDE.md:
-1. Read `.claude/context/product-context.md` — CLI/API reference, capabilities, constraints
+All core context is auto-loaded. No additional files to read.
 
 ## Active Epic Check
 

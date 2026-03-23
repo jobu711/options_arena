@@ -317,10 +317,11 @@ Finding tag: `[CHANGE]`
 - **Action**: Count lines in auto-loaded context files:
   1. `wc -l CLAUDE.md` (max 350 lines)
   2. `wc -l .claude/context/progress.md` (part of @-referenced, max 300 combined)
-  3. `wc -l .claude/context/system-patterns.md` (part of @-referenced)
-  4. `wc -l .claude/context/tech-context.md` (part of @-referenced)
-  5. Count total lines in `.claude/rules/*.md` (max 400 lines)
-  6. Sum grand total (max 1050 lines)
+  3. `wc -l .claude/context/architecture.md` (part of @-referenced)
+  4. `wc -l .claude/context/product.md` (part of @-referenced)
+  5. `wc -l .claude/context/algorithms.md` (part of @-referenced)
+  6. Count total lines in `.claude/rules/*.md` (max 400 lines)
+  7. Sum grand total (max 1050 lines)
 - **Pass**: All individual and grand total limits are within budget.
 - **Fail**: Any limit exceeded.
 - **Severity**: P3

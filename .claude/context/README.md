@@ -21,13 +21,13 @@ When fully initialized, this directory contains:
 - **`progress.md`** - Current project status, completed work, and immediate next steps
 
 ### Technical Context
-- **`tech-context.md`** - Dependencies, technologies, and development tools
+- **`architecture.md`** - Design patterns, module constraints, and architectural decisions
+- **`algorithms.md`** - Pricing, scoring, and indicator algorithm details
 - **`project-structure.md`** - Directory structure and file organization
-- **`system-patterns.md`** - Architectural patterns and design decisions
 - **`project-style-guide.md`** - Coding standards, conventions, and style preferences
 
 ### Product Context
-- **`product-context.md`** - Product requirements, target users, and core functionality
+- **`product.md`** - Product capabilities, CLI commands, API surface, constraints
 
 ## Context Commands
 

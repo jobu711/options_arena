@@ -1,34 +1,18 @@
-# CLAUDE.md — Data Layer (`data/`)
+# CLAUDE.md -- Data Layer (`data/`)
 
 ## Purpose
 
 Async SQLite persistence for scan results, ticker scores, debates, analytics, metadata,
-spreads, and migration management. The **only** module that touches SQLite for business
-data. `services/cache.py` has its own SQLite connection for ephemeral cache data — these
-are separate concerns.
+spreads, recommendations, and migration management. The **only** module that touches SQLite
+for business data. `services/cache.py` has its own SQLite connection for ephemeral cache
+data -- these are separate concerns.
 
 Every public method returns typed Pydantic models from `models/`. No raw dicts, no
 tuples, no `sqlite3.Row` objects cross the package boundary.
 
-## Files
+Use Glob to discover files.
 
-| File | Class / Purpose | Public? |
-|------|----------------|---------|
-| `database.py` | `Database` — async SQLite lifecycle, WAL mode, migration runner | Yes |
-| `repository.py` | `Repository` — mixin-composed typed CRUD (see below); also defines `DebateRow` dataclass | Yes |
-| `_base.py` | `RepositoryBase` — shared `_db` reference + `commit()` for atomic multi-step persistence | No (internal) |
-| `_scan.py` | `ScanMixin` — scan run and ticker score CRUD, score history, trending | No (internal) |
-| `_debate.py` | `DebateMixin` — debate persistence, agent predictions, calibration, auto-tune weights | No (internal) |
-| `_analytics.py` | `AnalyticsMixin` — contracts, outcomes, normalization, backtesting, performance analytics | No (internal) |
-| `_metadata.py` | `MetadataMixin` — ticker metadata upsert/query, staleness, coverage stats | No (internal) |
-| `_spreads.py` | `SpreadsMixin` — spread recommendation persistence and reconstruction | No (internal) |
-| `_recommendation.py` | `RecommendationMixin` — `RecommendationResult` persistence and retrieval | No (internal) |
-| `__init__.py` | Re-exports `Database`, `DebateRow`, `Repository` with `__all__` | Yes |
-
-External:
-| File | Purpose |
-|------|---------|
-| `data/migrations/*.sql` | 37 sequential migration files (`001_initial.sql` through `037_recommendation_results.sql`), project root |
+---
 
 ## Mixin Decomposition
 
@@ -36,20 +20,24 @@ External:
 
 ```
 Repository(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin, RecommendationMixin)
-    └── all inherit from RepositoryBase (provides _db + commit())
+    all inherit from RepositoryBase (provides _db + commit())
 ```
 
 | Mixin | Domain | Key Methods |
 |-------|--------|-------------|
 | `ScanMixin` | Scan runs + scores | `save_scan_run`, `save_ticker_scores`, `get_latest_scan`, `get_scan_by_id`, `get_scores_for_scan`, `get_recent_scans`, `get_score_history`, `get_trending_tickers` |
-| `DebateMixin` | Debates + agents | `save_debate`, `save_agent_predictions`, `get_debate_by_id`, `get_recent_debates`, `get_debates_for_ticker`, `get_agent_accuracy`, `get_agent_calibration`, `get_latest_auto_tune_weights`, `save_auto_tune_weights`, `get_weight_history` |
-| `AnalyticsMixin` | Contracts + outcomes + backtesting | `save_recommended_contracts`, `get_contracts_for_scan`, `save_normalization_stats`, `save_contract_outcomes`, `get_contracts_needing_outcomes`, `get_win_rate_by_direction`, `get_equity_curve`, `get_drawdown_series`, `get_performance_summary`, `get_risk_adjusted_metrics`, + 10 more analytics queries |
+| `DebateMixin` | Debates + agents + agency | `save_debate`, `save_agent_predictions`, `get_debate_by_id`, `get_recent_debates`, `get_agent_accuracy`, `get_agent_calibration`, agency query persistence |
+| `AnalyticsMixin` | Contracts + outcomes + backtesting | `save_recommended_contracts`, `save_contract_outcomes`, `get_win_rate_by_direction`, `get_equity_curve`, `get_drawdown_series`, `get_performance_summary`, + 10 more |
 | `MetadataMixin` | Ticker classification cache | `upsert_ticker_metadata`, `upsert_ticker_metadata_batch`, `get_all_ticker_metadata`, `get_stale_tickers`, `get_metadata_coverage` |
 | `SpreadsMixin` | Spread recommendations | `save_spread_recommendation`, `get_spread_for_ticker` |
 | `RecommendationMixin` | Unified recommendations | `save_recommendation_result`, `get_recommendation_by_id`, `get_recent_recommendations` |
 
-All mixins follow the same patterns: parameterized queries, `aiosqlite.Row` for named access,
-optional `commit=False` for batched atomic persistence, typed model returns.
+All mixins: parameterized queries, `aiosqlite.Row` for named access, optional `commit=False`
+for batched atomic persistence, typed model returns.
+
+`DebateRow` is a `@dataclass` defined in `_debate.py` (re-exported from `repository.py`
+and `__init__.py`). It holds raw JSON strings from `ai_theses` -- not Pydantic because
+fields contain unparsed JSON that callers deserialize on demand.
 
 ---
 
@@ -57,124 +45,51 @@ optional `commit=False` for batched atomic persistence, typed model returns.
 
 | Rule | Detail |
 |------|--------|
-| **Typed boundary** | Every public method returns a Pydantic model (`ScanRun`, `TickerScore`, `list[...]`) or a primitive (`int` for lastrowid, `None` for not-found). Never `dict`, `tuple`, `Row`. |
+| **Typed boundary** | Every public method returns a Pydantic model or primitive (`int` for lastrowid, `None` for not-found). Never `dict`, `tuple`, `Row`. |
 | **Async-only** | All public methods are `async`. aiosqlite is inherently async. |
 | **DI constructor** | `Database(db_path)`, `Repository(db)`. No global state, no singletons. |
 | **Explicit lifecycle** | `await db.connect()` before use, `await db.close()` when done. Close is idempotent. |
-| **Logging only** | `logging` module — never `print()`. Log migrations at INFO, queries at DEBUG. |
-| **No business logic** | This module persists and retrieves. It does not score, filter, price, or analyze. |
+| **Logging only** | `logging` module -- never `print()`. Migrations INFO, queries DEBUG. |
+| **No business logic** | Persists and retrieves. Does not score, filter, price, or analyze. |
 
 ### Import Rules
 
 | Can Import From | Cannot Import From |
 |----------------|-------------------|
-| `models/` (ScanRun, TickerScore, IndicatorSignals, RecommendedContract, ContractOutcome, TickerMetadata, AgentPrediction, OptionSpread, etc.) | `services/` |
-| `analysis/performance` (for `compute_risk_adjusted_metrics` in analytics mixin) | `pricing/`, `scoring/` |
-| `utils/exceptions.py` (for custom exception, if needed) | `indicators/`, `agents/` |
-| stdlib: `asyncio`, `logging`, `pathlib`, `json`, `datetime`, `statistics`, `decimal`, `dataclasses`, `sqlite3.Row` | `cli/`, `reporting/` |
+| `models/` (ScanRun, TickerScore, IndicatorSignals, ContractOutcome, etc.) | `services/` |
+| `analysis/performance` (for risk-adjusted metrics) | `pricing/`, `scoring/` |
+| `utils/exceptions.py` | `indicators/`, `agents/` |
+| stdlib: `asyncio`, `logging`, `pathlib`, `json`, `datetime`, `decimal`, `dataclasses` | `cli/`, `reporting/` |
 | External: `aiosqlite`, `numpy` | `scan/` |
 
 ---
 
-## aiosqlite Patterns (Context7-Verified)
+## aiosqlite Patterns
 
 ### Connection Lifecycle
 
 ```python
-import aiosqlite
-
-# Open connection — supports both direct await and async-with context manager.
-# This project uses direct await with explicit close() lifecycle.
 db = await aiosqlite.connect(db_path)
-
-# Configure for performance
 await db.execute("PRAGMA journal_mode=WAL")
-await db.execute("PRAGMA foreign_keys=ON")
-
+await db.execute("PRAGMA foreign_keys=ON")  # SQLite defaults to OFF!
 # ... use db ...
-
-# Close when done
 await db.close()
 ```
 
-**Critical**: `aiosqlite.connect()` accepts `str` or `Path`. Pass `":memory:"` (string)
-for in-memory databases (tests). Pass a `Path` for file-backed databases (production).
+- Pass `":memory:"` (string) for tests. `Path` for file-backed (production).
+- Set `db.row_factory = aiosqlite.Row` for named column access (`row["column_name"]`).
 
-### Execute + Commit
+### Critical Rules
 
-```python
-# Writes MUST be followed by commit — aiosqlite does NOT auto-commit
-await db.execute(
-    "INSERT INTO scan_runs (started_at, preset, ...) VALUES (?, ?, ...)",
-    (started_at_iso, preset_str, ...),
-)
-await db.commit()
-```
-
-**Critical**: Every write (`INSERT`, `UPDATE`, `DELETE`) needs `await db.commit()`.
-Without it, changes are lost when the connection closes.
-
-### Query with Cursor
-
-```python
-# Context-managed cursor — recommended pattern
-async with db.execute(
-    "SELECT * FROM scan_runs WHERE id = ?", (scan_id,)
-) as cursor:
-    row = await cursor.fetchone()
-    # row is tuple | None
-
-# For multiple rows:
-async with db.execute(
-    "SELECT * FROM ticker_scores WHERE scan_run_id = ?", (scan_id,)
-) as cursor:
-    rows = await cursor.fetchall()
-    # rows is list[tuple]
-```
-
-### Row Factory for Named Access
-
-```python
-import aiosqlite
-
-db.row_factory = aiosqlite.Row
-async with db.execute("SELECT * FROM scan_runs") as cursor:
-    async for row in cursor:
-        value = row["preset"]  # dict-like access by column name
-```
-
-**Use `aiosqlite.Row`** on the `Database` connection after opening. This allows
-`row["column_name"]` access in the Repository instead of fragile positional indexing.
-
-### executescript for Migrations
-
-```python
-# executescript runs multiple SQL statements in one call
-# NOTE: executescript issues an implicit COMMIT before execution
-sql_content = migration_path.read_text(encoding="utf-8")
-await db.executescript(sql_content)
-```
-
-**Critical**: `executescript()` auto-commits before running. This is sqlite3 behavior
-inherited by aiosqlite. Each migration file is atomic at the file level.
-
-### lastrowid
-
-```python
-cursor = await db.execute("INSERT INTO scan_runs (...) VALUES (...)", params)
-await db.commit()
-row_id = cursor.lastrowid  # int — the ID of the inserted row
-```
-
-### executemany for Batch Inserts
-
-```python
-await db.executemany(
-    "INSERT INTO ticker_scores (scan_run_id, ticker, ...) VALUES (?, ?, ...)",
-    [(scan_id, score.ticker, ...) for score in scores],
-)
-await db.commit()
-```
+1. **`await db.commit()` after EVERY write** -- aiosqlite does NOT auto-commit. Without it,
+   changes are silently lost on connection close.
+2. **Cursor as context manager** -- `async with db.execute(...) as cursor:` for queries.
+3. **`executescript()` auto-commits** before execution (sqlite3 behavior). Each migration
+   file is atomic at the file level.
+4. **`lastrowid`** available on cursor after INSERT + commit.
+5. **`executemany`** for batch inserts, followed by commit.
+6. **`PRAGMA foreign_keys=ON`** required on every connection. SQLite defaults to OFF,
+   silently ignoring `REFERENCES` constraints.
 
 ---
 
@@ -183,7 +98,6 @@ await db.commit()
 ### schema_version Table
 
 Created by `Database.connect()` BEFORE reading any migration files:
-
 ```sql
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY,
@@ -191,256 +105,111 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 ```
 
-This table tracks which numbered migrations have been applied.
-
 ### Migration File Convention
 
 - Location: `data/migrations/` (project root, NOT inside `src/`)
-- Naming: `{NNN}_{description}.sql` — e.g., `001_initial.sql`, `002_debate_columns.sql` (currently 33 files, up to `033_spread_recommendations.sql`)
+- Naming: `{NNN}_{description}.sql` -- e.g., `001_initial.sql` (37 files through `037_recommendation_results.sql`)
 - Sorted by numeric prefix: `sorted(paths, key=lambda p: int(p.stem.split("_")[0]))`
-- Each file contains one or more `CREATE TABLE` / `CREATE INDEX` statements
 - All tables use `CREATE TABLE IF NOT EXISTS` for safety
 
-### Migration Execution Flow
+### Execution Flow
 
-```text
-1. Database.connect() called
-2. Open aiosqlite connection
-3. Set PRAGMA journal_mode=WAL
-4. Set PRAGMA foreign_keys=ON
-5. CREATE TABLE IF NOT EXISTS schema_version(...)
-6. Read migration files from migrations_dir, sorted by prefix number
-7. For each migration:
-   a. Check if version number exists in schema_version
-   b. If already applied → skip
-   c. If not applied → executescript(sql_content)
-   d. INSERT INTO schema_version (version, applied_at) VALUES (?, ?)
-   e. Commit
-8. Connection is ready for use
-```
+1. Open aiosqlite connection
+2. Set `PRAGMA journal_mode=WAL`, `PRAGMA foreign_keys=ON`
+3. Create `schema_version` table
+4. Read migration files sorted by prefix
+5. For each: check version in `schema_version`, skip if applied, `executescript()` if not
+6. INSERT into `schema_version`, commit
 
 ### migrations_dir Resolution
 
-The `Database` class accepts an optional `migrations_dir: Path | None` parameter:
-- If provided, use it directly
-- If `None`, default to `Path(__file__).resolve().parents[3] / "data" / "migrations"`
-  (navigates from `src/options_arena/data/database.py` → project root → `data/migrations/`)
-- For tests, pass `migrations_dir=None` with `:memory:` — migration files are still read
-  from the project root (tests verify real migrations work)
+`Database` accepts optional `migrations_dir: Path | None`:
+- If provided, use directly
+- If `None`, navigate from `database.py` to project root -> `data/migrations/`
+- Tests: pass `migrations_dir=None` with `:memory:` -- real migrations still run
 
 ---
 
 ## Serialization Rules
 
-### IndicatorSignals ↔ JSON TEXT
+### IndicatorSignals <-> JSON TEXT
 
 ```python
-# Serialize (write)
-signals_json = score.signals.model_dump_json()
-# Produces: '{"rsi": 65.2, "adx": null, "bb_width": 42.1, ...}'
-
-# Deserialize (read)
-signals = IndicatorSignals.model_validate_json(row["signals_json"])
+# Write: signals_json = score.signals.model_dump_json()
+# Read:  signals = IndicatorSignals.model_validate_json(row["signals_json"])
 ```
 
-- `model_dump_json()` handles `None` → JSON `null` naturally
-- `model_validate_json()` handles JSON `null` → Python `None` naturally
-- 18 named fields round-trip perfectly — no data loss
-- Forward-compatible: if new fields are added to `IndicatorSignals`, old JSON
-  without those fields will deserialize with the new fields as `None` (default)
+- `model_dump_json()` handles `None` -> JSON `null`
+- `model_validate_json()` handles `null` -> `None`
+- Forward-compatible: new fields added to `IndicatorSignals` deserialize as `None` from old JSON
 
-### StrEnum ↔ TEXT
+### StrEnum <-> TEXT
 
-```python
-# Serialize (write) — StrEnum.value is already a string
-preset_str = scan_run.preset.value  # "full", "sp500", "etfs"
-# Or just: str(scan_run.preset) — StrEnum is a str subclass
+Use the enum constructor for deserialization: `ScanPreset(row["preset"])`. NOT `getattr()` --
+constructor raises `ValueError` on unknown values (fail-fast).
 
-# Deserialize (read) — enum constructor from string
-preset = ScanPreset(row["preset"])  # ScanPreset("full") → ScanPreset.FULL
-direction = SignalDirection(row["direction"])
-```
+### datetime <-> ISO 8601 TEXT
 
-**Critical**: Use the enum constructor, NOT `getattr`. `ScanPreset(row["preset"])` raises
-`ValueError` on unknown values (fail-fast). `getattr` would silently return nonsense.
+Store via `.isoformat()` (always UTC). Read via `datetime.fromisoformat()` (Python 3.11+
+handles `+00:00`). The `ScanRun` validator requires UTC -- guaranteed because we store
+`.isoformat()` output from UTC datetimes.
 
-### datetime ↔ ISO 8601 TEXT
+### Decimal
 
-```python
-# Serialize (write) — always UTC
-started_at_str = scan_run.started_at.isoformat()
-# Produces: "2026-02-23T17:55:14+00:00"
-
-# Deserialize (read)
-from datetime import datetime
-started_at = datetime.fromisoformat(row["started_at"])
-# Returns: datetime(2026, 2, 23, 17, 55, 14, tzinfo=timezone.utc)
-```
-
-**Critical**: `datetime.fromisoformat()` (Python 3.11+) handles `+00:00` suffix and
-produces a timezone-aware datetime. The `ScanRun` validator requires UTC — this is
-guaranteed because we always store `.isoformat()` output from UTC datetimes.
-
-### Decimal — NOT stored directly
-
-`ScanRun` and `TickerScore` don't have `Decimal` fields, so no Decimal serialization
-is needed in this module. If future models add Decimal fields, store as TEXT via `str()`,
-reconstruct via `Decimal(row["column"])`.
-
----
-
-## Repository Construction & Usage
-
-```python
-class Repository(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin):
-    def __init__(self, db: Database) -> None:
-        self._db = db
-
-    # All methods inherited from mixins — see Mixin Decomposition table above.
-    # ~50+ async methods total across the 5 mixins.
-
-    async def commit(self) -> None:
-        """Explicit commit for atomic multi-step persistence (inherited from RepositoryBase)."""
-```
-
-`DebateRow` is a `@dataclass` defined in `_debate.py` (re-exported from `repository.py`
-and `__init__.py`). It holds raw JSON strings from the `ai_theses` table — not a Pydantic
-model because its fields contain unparsed JSON that callers deserialize on demand.
-
-All mixin methods:
-- Accept and return Pydantic models (not dicts, not tuples) — except `DebateRow`
-- Use parameterized queries (`?` placeholders) — never f-strings or string formatting
-- Support `commit=False` kwarg for batched atomic persistence (caller calls `repo.commit()`)
-- Use `aiosqlite.Row` for named column access in queries
+Store as TEXT via `str()`. Reconstruct via `Decimal(row["column"])`.
 
 ---
 
 ## Error Handling
 
-- **No new exception class needed** — use stdlib `sqlite3.IntegrityError` (re-raised by
-  aiosqlite) for constraint violations (duplicate scan_run_id + ticker). Let it propagate
-  to the caller.
-- **Connection state**: raise `RuntimeError` if operations attempted on a closed Database.
-- **Never bare `except:`** — always catch specific types.
+- **No new exception class** -- use stdlib `sqlite3.IntegrityError` for constraint violations.
+- **Connection state**: raise `RuntimeError` if operations on closed Database.
+- **Never bare `except:`** -- always specific types.
 - **Logging**: `logger = logging.getLogger(__name__)` in each file.
   - Migrations: INFO (`"Applied migration %s"`)
-  - Queries: DEBUG (`"Saved scan run id=%d"`, `"Retrieved %d scores for scan %d"`)
+  - Queries: DEBUG (`"Saved scan run id=%d"`)
   - Errors: WARNING or ERROR with exception info
 
 ---
 
-## Test Patterns
+## Testing Guidance
 
-### In-Memory Database for All Tests
-
-```python
-import pytest
-import pytest_asyncio
-
-@pytest_asyncio.fixture
-async def db():
-    database = Database(":memory:")
-    await database.connect()
-    yield database
-    await database.close()
-
-@pytest_asyncio.fixture
-async def repo(db: Database):
-    return Repository(db)
-```
-
-- Every test gets a fresh `:memory:` database — no file I/O, no cleanup needed
-- Migrations run on each fresh database (verifies migration correctness every time)
-- `pytest-asyncio` with `@pytest.mark.asyncio` on all async tests
-
-### Test Fixtures for Models
-
-```python
-from datetime import UTC, datetime
-from options_arena.models import ScanRun, ScanPreset, TickerScore, SignalDirection, IndicatorSignals
-
-def make_scan_run(**overrides):
-    defaults = {
-        "started_at": datetime(2026, 1, 15, 10, 30, 0, tzinfo=UTC),
-        "completed_at": datetime(2026, 1, 15, 10, 35, 0, tzinfo=UTC),
-        "preset": ScanPreset.SP500,
-        "tickers_scanned": 500,
-        "tickers_scored": 450,
-        "recommendations": 8,
-    }
-    defaults.update(overrides)
-    return ScanRun(**defaults)
-
-def make_ticker_score(**overrides):
-    defaults = {
-        "ticker": "AAPL",
-        "composite_score": 78.5,
-        "direction": SignalDirection.BULLISH,
-        "signals": IndicatorSignals(rsi=65.2, adx=28.4, bb_width=42.1),
-    }
-    defaults.update(overrides)
-    return TickerScore(**defaults)
-```
-
-### What to Assert
-
-- **Round-trip fidelity**: Write → Read → assert all fields match original model
-- **Enum reconstruction**: `ScanPreset` and `SignalDirection` come back as enum members, not strings
-- **datetime preservation**: UTC timezone survives round-trip
-- **IndicatorSignals JSON**: `None` fields stay `None`, float fields preserve values
-- **Ordering**: `get_recent_scans` returns newest first
-- **Isolation**: Scores for scan A don't appear when querying scan B
-- **Empty state**: `get_latest_scan()` returns `None` on empty DB, `get_scores_for_scan(999)` returns `[]`
+- **In-memory DB** for all tests: `Database(":memory:")`. Fresh per test, no cleanup.
+- Migrations run on each fresh DB. `pytest-asyncio` for all async tests.
+- Assert: round-trip fidelity, enum reconstruction, UTC preservation, ordering, isolation.
 
 ---
 
 ## What Claude Gets Wrong Here (Fix These)
 
-1. **Forgetting `await db.commit()` after writes** — aiosqlite does NOT auto-commit.
-   Every INSERT/UPDATE/DELETE must be followed by `await db.commit()`. Without it,
-   data is silently lost on connection close.
+1. **Forgetting `await db.commit()`** -- aiosqlite does NOT auto-commit. Data silently lost.
 
-2. **Positional row indexing instead of named access** — `row[0]`, `row[3]` is fragile
-   and breaks when columns are reordered. Set `db.row_factory = aiosqlite.Row` and use
-   `row["column_name"]`.
+2. **Positional row indexing** -- `row[0]`, `row[3]` is fragile. Use `row["column_name"]`
+   with `db.row_factory = aiosqlite.Row`.
 
-3. **Returning raw tuples from queries** — The Repository MUST reconstruct Pydantic models
-   from every query result. Never return `list[tuple]` or `dict`.
+3. **Returning raw tuples** -- Reconstruct Pydantic models from every query. Never `list[tuple]`.
 
-4. **String formatting in SQL** — `f"SELECT * FROM x WHERE id = {id}"` is SQL injection.
-   Always use parameterized queries: `"SELECT * FROM x WHERE id = ?"`, `(id,)`.
+4. **String formatting in SQL** -- `f"SELECT * FROM x WHERE id = {id}"` is SQL injection.
+   Always parameterized: `"... WHERE id = ?"`, `(id,)`.
 
-5. **Forgetting to handle `None` for optional fields** — `completed_at` can be `None` on
-   `ScanRun`. Store as SQL `NULL`, check for `None` when reconstructing.
+5. **Forgetting `None` for optional fields** -- `completed_at` can be None. Store as NULL.
 
-6. **Using `json.dumps`/`json.loads` for IndicatorSignals** — Use Pydantic's
-   `model_dump_json()` and `model_validate_json()` which handle all field types correctly
-   (including `None` → `null`). Don't bypass Pydantic serialization.
+6. **`json.dumps` for IndicatorSignals** -- Use `model_dump_json()` / `model_validate_json()`.
 
-7. **Creating `schema_version` inside the migration file** — The migration runner needs
-   `schema_version` to exist BEFORE reading migration files. `Database.connect()` creates
-   it, then runs migrations. Never put it in `001_initial.sql`.
+7. **`schema_version` in migration file** -- Created by `Database.connect()` BEFORE migrations.
 
-8. **Using `executescript()` without understanding it auto-commits** — `executescript()`
-   issues an implicit COMMIT before execution (sqlite3 behavior). This means any pending
-   uncommitted changes are committed. Be aware of this side effect.
+8. **`executescript()` side effect** -- Issues implicit COMMIT before execution.
 
-9. **Missing `PRAGMA foreign_keys=ON`** — SQLite has foreign keys OFF by default. Without
-   this PRAGMA, `REFERENCES` constraints are ignored. Set it on every connection.
+9. **Missing `PRAGMA foreign_keys=ON`** -- SQLite defaults to OFF. Constraints silently ignored.
 
-10. **Storing datetimes as epoch integers** — Use ISO 8601 TEXT. Epoch integers lose timezone
-    info and are unreadable in manual queries. `datetime.fromisoformat()` round-trips cleanly.
+10. **Datetimes as epoch integers** -- Use ISO 8601 TEXT. `fromisoformat()` round-trips cleanly.
 
-11. **Not handling ScanRun.id being `None` on input** — `ScanRun` has `id: int | None = None`.
-    When saving, `id` is `None` (DB assigns it). When reading, `id` is the DB value. The
-    Repository must handle both states correctly.
+11. **ScanRun.id `None` on input** -- `id: int | None = None`. DB assigns. Return `int` ID.
 
-12. **Forgetting `frozen=True` on ScanRun** — `ScanRun` is frozen. You cannot set
-    `scan_run.id = lastrowid` after construction. The `save_scan_run` method returns the
-    `int` ID; callers reconstruct the model if they need one with the ID set.
+12. **ScanRun is frozen** -- Cannot `scan_run.id = lastrowid`. Return ID separately.
 
-13. **Using `typing.Optional[X]`** — Use `X | None`. Python 3.13+ project.
+13. **`typing.Optional[X]`** -- Use `X | None`. Python 3.13+.
 
-14. **Bare `except:`** — Always catch specific exception types.
+14. **Bare `except:`** -- Always catch specific exception types.
 
-15. **`print()` in data layer code** — Use `logging` module. `logger = logging.getLogger(__name__)`.
+15. **`print()` in data layer** -- Use `logging`. `logger = logging.getLogger(__name__)`.
