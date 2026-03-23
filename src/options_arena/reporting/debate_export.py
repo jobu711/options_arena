@@ -10,7 +10,6 @@ import datetime
 import logging
 import math
 from decimal import Decimal
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from options_arena.models.constants import UNLIMITED_SENTINEL
@@ -728,30 +727,3 @@ def export_recommendation_markdown(result: RecommendationResult) -> str:
         sections.append("## Domain Assessments\n\nNo assessments available.\n")
 
     return "\n".join(sections)
-
-
-def export_debate_to_file(
-    result: DebateResult,
-    path: Path,
-    fmt: str = "md",
-    spread: SpreadAnalysis | None = None,
-) -> Path:
-    """Write debate result to file as Markdown.
-
-    Args:
-        result: Complete debate output from ``run_debate()``.
-        path: Destination file path.
-        fmt: Output format — ``"md"`` (default).
-        spread: Optional spread analysis to include in the report.
-
-    Returns:
-        The path that was written.
-
-    Raises:
-        ValueError: If *fmt* is not ``"md"``.
-    """
-    md_content = export_debate_markdown(result, spread=spread)
-    if fmt == "md":
-        path.write_text(md_content, encoding="utf-8")
-        return path
-    raise ValueError(f"Unsupported format: {fmt}")

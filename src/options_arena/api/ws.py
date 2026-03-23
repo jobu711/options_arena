@@ -94,44 +94,6 @@ class WebSocketProgressBridge:
 
 
 # ---------------------------------------------------------------------------
-# Debate progress bridge
-# ---------------------------------------------------------------------------
-
-
-class DebateProgressBridge:
-    """Bridges ``DebateProgressCallback`` to ``asyncio.Queue`` for WebSocket."""
-
-    def __init__(self) -> None:
-        self.queue: asyncio.Queue[dict[str, object]] = asyncio.Queue(maxsize=1000)
-
-    def _safe_put(self, event: dict[str, object]) -> None:
-        """Put event on queue, dropping oldest if full."""
-        if self.queue.full():
-            with contextlib.suppress(asyncio.QueueEmpty):
-                self.queue.get_nowait()
-            logger.debug("WS queue full — dropped oldest event")
-        self.queue.put_nowait(event)
-
-    def __call__(self, phase: DebatePhase, status: str, confidence: float | None) -> None:
-        event: dict[str, object] = {
-            "type": "agent",
-            "name": phase.value,
-            "status": status,
-        }
-        if confidence is not None:
-            event["confidence"] = confidence
-        self._safe_put(event)
-
-    def complete(self, debate_id: int) -> None:
-        """Signal debate completion."""
-        self._safe_put({"type": "complete", "debate_id": debate_id})
-
-    def error(self, message: str) -> None:
-        """Signal an error event."""
-        self._safe_put({"type": "error", "message": message})
-
-
-# ---------------------------------------------------------------------------
 # Recommendation progress bridge (#670)
 # ---------------------------------------------------------------------------
 

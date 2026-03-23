@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from pathlib import Path
 
 import pytest
 from pydantic_ai.usage import RunUsage
@@ -24,7 +23,6 @@ from options_arena.models import AgentResponse, MarketContext, TradeThesis, Vola
 from options_arena.models.enums import ExerciseStyle, MacdSignal, SignalDirection, SpreadType
 from options_arena.reporting.debate_export import (
     export_debate_markdown,
-    export_debate_to_file,
 )
 
 
@@ -195,46 +193,3 @@ def test_markdown_contains_ticker() -> None:
     md = export_debate_markdown(result)
 
     assert "AAPL" in md
-
-
-# ---------------------------------------------------------------------------
-# File export tests
-# ---------------------------------------------------------------------------
-
-
-def test_export_to_file_writes_markdown(tmp_path: Path) -> None:
-    """export_debate_to_file writes a valid markdown file to the given path."""
-    result = _make_debate_result()
-    dest = tmp_path / "report.md"
-
-    returned_path = export_debate_to_file(result, dest, fmt="md")
-
-    assert returned_path == dest
-    assert dest.exists()
-    content = dest.read_text(encoding="utf-8")
-    assert "## Trend Analysis" in content
-    assert "## Verdict" in content
-    assert "DISCLAIMER" not in content
-
-
-def test_export_works_with_nested_directory(tmp_path: Path) -> None:
-    """export_debate_to_file writes successfully into a nested directory structure."""
-    result = _make_debate_result()
-    nested_dir = tmp_path / "reports" / "2026"
-    nested_dir.mkdir(parents=True, exist_ok=True)
-    dest = nested_dir / "report.md"
-
-    returned_path = export_debate_to_file(result, dest, fmt="md")
-    assert returned_path == dest
-    assert dest.exists()
-    content = dest.read_text(encoding="utf-8")
-    assert "AAPL" in content
-
-
-def test_export_raises_value_error_for_unsupported_format(tmp_path: Path) -> None:
-    """export_debate_to_file raises ValueError for unsupported format strings."""
-    result = _make_debate_result()
-    dest = tmp_path / "report.html"
-
-    with pytest.raises(ValueError, match="Unsupported format"):
-        export_debate_to_file(result, dest, fmt="html")

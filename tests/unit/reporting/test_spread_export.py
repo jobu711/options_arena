@@ -11,11 +11,9 @@ Tests cover:
 from __future__ import annotations
 
 from decimal import Decimal
-from pathlib import Path
 
 from options_arena.reporting.debate_export import (
     export_debate_markdown,
-    export_debate_to_file,
 )
 from tests.factories import make_debate_result, make_spread_analysis
 
@@ -91,14 +89,3 @@ class TestMarkdownSpreadSection:
         lines = md.split("\n")
         leg_rows = [line for line in lines if line.startswith("| 1 ") or line.startswith("| 2 ")]
         assert len(leg_rows) == 2
-
-    def test_file_export_passes_spread(self, tmp_path: Path) -> None:
-        """export_debate_to_file passes spread through to markdown."""
-        spread = make_spread_analysis()
-        result = make_debate_result()
-        dest = tmp_path / "report.md"
-
-        export_debate_to_file(result, dest, fmt="md", spread=spread)
-
-        content = dest.read_text(encoding="utf-8")
-        assert "## Spread Strategy: VERTICAL" in content

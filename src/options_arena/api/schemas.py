@@ -932,13 +932,6 @@ class AgencyQueryRequest(BaseModel):
         return result
 
 
-class AgencyQueryStarted(BaseModel):
-    """Response for submitted agency query."""
-
-    query_id: str
-    status: str = "completed"
-
-
 class LivenessResponse(BaseModel):
     """Basic liveness check response for ``GET /api/health``."""
 
