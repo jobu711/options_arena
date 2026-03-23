@@ -4,7 +4,7 @@
 const DEFAULT_TIMEOUT_MS = 30_000
 
 interface ApiOptions {
-  method?: 'GET' | 'POST' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   body?: unknown
   params?: Record<string, string | number | undefined>
   signal?: AbortSignal
