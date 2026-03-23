@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 from datetime import date, timedelta
 from decimal import Decimal
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -28,7 +28,6 @@ from options_arena.models import (
     SignalDirection,
     SpreadAnalysis,
     SpreadConfig,
-    SurfaceMethod,
     TickerScore,
 )
 from options_arena.models.filters import OptionsFilters, UniverseFilters
@@ -121,7 +120,11 @@ class TestProcessTickerOptionsCoordinator:
         )
 
         with (
-            patch(f"{MODULE}._fetch_ticker_data", new_callable=AsyncMock, return_value=td) as m_fetch,
+            patch(
+                f"{MODULE}._fetch_ticker_data",
+                new_callable=AsyncMock,
+                return_value=td,
+            ) as m_fetch,
             patch(f"{MODULE}._compute_dse_indicators", return_value=dse) as m_dse,
             patch(f"{MODULE}._select_and_score_contracts", return_value=recommended) as m_select,
             patch(f"{MODULE}._build_spread", return_value=None) as m_spread,

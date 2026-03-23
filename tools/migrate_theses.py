@@ -18,7 +18,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -218,9 +217,7 @@ def _reconstruct_assessments(row: dict[str, Any]) -> str:
         try:
             agent_data = json.loads(raw_json)
         except (json.JSONDecodeError, TypeError):
-            logger.warning(
-                "Failed to parse %s for thesis id=%s", column, row.get("id")
-            )
+            logger.warning("Failed to parse %s for thesis id=%s", column, row.get("id"))
             continue
 
         # Extract direction and confidence based on agent type
@@ -317,9 +314,7 @@ def migrate_row(row: dict[str, Any]) -> dict[str, Any] | None:
     # Step 2: Parse verdict
     verdict = _parse_verdict_json(row.get("verdict_json"))
     if verdict is None:
-        logger.warning(
-            "Skipping thesis id=%s: unparseable verdict_json", row.get("id")
-        )
+        logger.warning("Skipping thesis id=%s: unparseable verdict_json", row.get("id"))
         return None
 
     for verdict_field, target_col in VERDICT_FIELD_MAP.items():
@@ -486,12 +481,8 @@ def main() -> None:
         mode = "DRY RUN" if args.dry_run else "EXECUTE"
         logger.info("=== MIGRATION MODE: %s ===", mode)
         logger.info("Database: %s", args.db)
-        logger.info(
-            "This is a skeleton script. Actual migration logic is not yet implemented."
-        )
-        logger.info(
-            "See docs/plans/debate-sunset-migration.md for the full migration plan."
-        )
+        logger.info("This is a skeleton script. Actual migration logic is not yet implemented.")
+        logger.info("See docs/plans/debate-sunset-migration.md for the full migration plan.")
 
 
 if __name__ == "__main__":
