@@ -51,7 +51,7 @@ Use `@pytest.mark.exhaustive` for large parametrize grids (>100 cases).
 - Test: success, partial failure, full failure→fallback, timeout
 
 ## Conftest Fixtures
-`sample_prices` (DataFrame), `sample_option_chain`, `mock_debate_config`,
+`sample_prices` (DataFrame), `sample_option_chain`,
 `market_context` (fully populated). Keep fixtures small (~100-250 rows).
 
 Root conftest provides `sample_contract`, `sample_quote`, `sample_market_context` via

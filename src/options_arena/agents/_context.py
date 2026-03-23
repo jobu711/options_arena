@@ -259,7 +259,6 @@ def build_market_context(
         gex=signals.gex,
         unusual_activity_score=signals.unusual_activity_score,
         skew_ratio=signals.skew_ratio,
-        vix_term_structure=signals.vix_term_structure,
         market_regime=signals.market_regime,
         rsi_divergence=signals.rsi_divergence,
         expected_move=signals.expected_move,

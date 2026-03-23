@@ -123,14 +123,14 @@ class TestIndicatorSignals:
         assert partial_signals.put_call_ratio is None
         assert partial_signals.max_pain_distance is None
 
-    def test_exactly_75_model_fields(self) -> None:
-        """IndicatorSignals has exactly 75 model fields.
+    def test_exactly_71_model_fields(self) -> None:
+        """IndicatorSignals has exactly 71 model fields.
 
-        Breakdown: 19 core + 40 DSE + 2 liquidity + 4 native quant
+        Breakdown: 15 core + 40 DSE + 2 liquidity + 4 native quant
         + 3 vol surface + 1 hurst + 2 ML vol + 2 ML regime
         + 1 ML GBM regime + 1 ML flow anomaly.
         """
-        assert len(IndicatorSignals.model_fields) == 75
+        assert len(IndicatorSignals.model_fields) == 71
 
     def test_not_frozen_can_reassign(self, empty_signals: IndicatorSignals) -> None:
         """IndicatorSignals is NOT frozen: fields can be reassigned."""
