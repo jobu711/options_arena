@@ -10,7 +10,8 @@ Condensed from 13 module CLAUDE.md files. Read the full module CLAUDE.md for dee
 - Every `confidence` field needs `[0.0, 1.0]` validator; every `datetime` needs UTC validator
 - Decimal fields need `field_serializer` to `str` for JSON precision
 - `BaseSettings` only on `AppSettings`; sub-configs (`ScanConfig` etc.) are plain `BaseModel`
-- `recommendation.py`: `DomainAssessment` base + 6 subclasses, `AnyAssessment` discriminated union (`Discriminator("desk")` + `Tag()`), `PositionRecommendation` (21 fields, Decimal prices), `RecommendationResult` (`arbitrary_types_allowed=True` for `RunUsage`), `DeskMetrics` (per-desk timing/tokens), `AssessmentSummary` (consensus data), `RecommendationCost` (aggregated cost)
+- `recommendation.py`: `DomainAssessment` base + 6 subclasses, `AnyAssessment` discriminated union (`Discriminator("desk")` + `Tag()`), `PositionRecommendation` (21 fields, `LLMDecimal` prices), `RecommendationResult` (`arbitrary_types_allowed=True` for `RunUsage`), `DeskMetrics` (per-desk timing/tokens), `AssessmentSummary` (consensus data), `RecommendationCost` (aggregated cost)
+- `LLMDecimal = Annotated[Decimal, WithJsonSchema({"type": "string"})]` — Groq rejects Pydantic's Decimal regex pattern; use for all agent output Decimal fields
 - `enums.py`: `ModelTier` (FAST/STANDARD/PREMIUM), `DeskRunStatus` (SUCCESS/FALLBACK), `ToolStatus` (SUCCESS/WARNING/ERROR)
 - `config.py`: `RoutingConfig` nested on `DebateConfig` — complexity thresholds, tier model names, cost pricing map
 - `eval.py`: `EvalDefinition`, `EvalRun`, `EvalBaseline` — eval harness models

@@ -268,6 +268,7 @@ Full protocol: `.claude/guides/context7-verification.md`.
 - Don't use `async def` on Typer commands — use sync def + `asyncio.run()`.
 - Don't use `RichHandler(markup=True)` — `[TICKER]` brackets crash Rich. Always `markup=False`.
 - Don't use `loop.add_signal_handler()` — unsupported on Windows. Use `signal.signal()`.
+- Don't use bare `Decimal` on PydanticAI agent output types — Groq rejects the regex pattern. Use `LLMDecimal` from `models/recommendation.py`.
 
 ## Guides (Load When Needed)
 

@@ -74,11 +74,14 @@ typed Pydantic v2 models. Module boundary table and key rules are in `CLAUDE.md`
 - `AgencyConfig` BaseModel on `AppSettings` — `agent_timeout`, per-desk tool budgets
 
 ### Intent Classification & Routing Pattern (Agency)
-- `_routing.py`: `classify_intent()` maps user queries to `DeskType` + `QueryType` via keyword/regex matching
+- `_routing.py`: `classify_intent()` maps user queries to `DeskType` + `QueryType` via keyword stem matching
+- Single-word keywords use `\b{kw}` (word-start, allows suffixes like "trending"→"trend")
+- Multi-word phrases use substring match (`kw in query`)
+- Default fallback: `DeskType.RESEARCH` (general-purpose), NOT `VOLATILITY`
 - `route_query()` orchestrates: classify → select desk → run desk agent → persist → return `DeskResponse`
 - `AgencyMixin` in `data/_debate.py`: SQLite persistence for agency queries (migration 034)
 - API: `/api/agency/ask` (single query), `/api/agency/chat` (conversation)
-- CLI: `agency ask "query"`, `agency chat` (interactive REPL)
+- CLI: `agency ask "query"`, `agency chat` (interactive REPL), `agency learn` (weight tuning, mining, playbook, decay)
 - Frontend: `AgencyChat.vue` chat interface, `DeskSelector.vue` desk picker
 
 ### Learning & Weight Tuning Pattern

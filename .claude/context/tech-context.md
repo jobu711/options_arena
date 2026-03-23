@@ -49,7 +49,7 @@ For web/optional/dev deps, build system, and tool config: `.claude/guides/depend
 ## CLI Entry Point
 
 - **Command**: `options-arena` — entry point `options_arena.cli:app` (Typer)
-- **Commands**: `scan` (`--sector`), `health`, `universe`, `debate` (`--batch`, `--export md`, `--provider`), `serve`, `outcomes` (collect, summary, backtest, equity-curve), `agency` (ask, chat), `learn` (tune-indicators, tune-votes, status, mine, playbook)
+- **Commands**: `scan` (`--sector`), `health`, `universe`, `debate` (`--batch`, `--export md`, `--provider`, `--cost-summary`), `serve`, `outcomes` (collect, summary, backtest, equity-curve), `agency` (ask, history, `learn` (status, weights, mine, playbook, decay)), `audit`, `eval` (check, report, list)
 - **Logging**: Dual-handler (RichHandler stderr + RotatingFileHandler `logs/options_arena.log`)
 - **SIGINT**: `signal.signal()` double-press pattern (graceful then force)
 
