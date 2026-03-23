@@ -104,7 +104,7 @@ class _DeskRunner(Protocol):
         model: Model | None,
         model_settings: ModelSettings | None,
         config: AgencyConfig | None,
-    ) -> Coroutine[Any, Any, DomainAssessment]: ...
+    ) -> Coroutine[Any, Any, tuple[DomainAssessment, RunUsage]]: ...
 
 
 # ---------------------------------------------------------------------------
@@ -561,7 +561,7 @@ async def _run_recommendation_pipeline(
         t_desk = time.monotonic()
         async with semaphore:
             try:
-                assessment = await runner(
+                assessment, usage = await runner(
                     _make_desk_deps(),
                     model=desk_model,
                     model_settings=model_settings,
@@ -574,6 +574,8 @@ async def _run_recommendation_pipeline(
                     duration_ms=dur,
                     model_tier=tier,
                     model_used=model_name,
+                    input_tokens=usage.input_tokens,
+                    output_tokens=usage.output_tokens,
                 )
                 return assessment, metrics
             except Exception as exc:
@@ -586,6 +588,8 @@ async def _run_recommendation_pipeline(
                     duration_ms=dur,
                     model_tier=tier,
                     model_used=model_name,
+                    input_tokens=0,
+                    output_tokens=0,
                 )
                 return fallback, metrics
 
@@ -606,6 +610,8 @@ async def _run_recommendation_pipeline(
                     duration_ms=0,
                     model_tier=ModelTier.STANDARD,
                     model_used=config.model,
+                    input_tokens=0,
+                    output_tokens=0,
                 )
             )
         else:
@@ -656,20 +662,21 @@ async def _run_recommendation_pipeline(
     # Determine if this is a fallback result
     is_fallback = recommendation.model_used == "data-driven-fallback"
 
-    # Compute cost when routing is enabled
-    cost = (
-        _compute_recommendation_cost(desk_metrics, routing_config.cost_per_million_tokens)
-        if routing_config.enable_model_routing
-        else None
-    )
+    # Always compute cost — useful even with default model
+    cost = _compute_recommendation_cost(desk_metrics, routing_config.cost_per_million_tokens)
 
     duration_ms = int((time.monotonic() - t0) * 1000)
+
+    # Aggregate token usage from all desk metrics
+    total_in = sum(m.input_tokens for m in desk_metrics)
+    total_out = sum(m.output_tokens for m in desk_metrics)
+    total_usage = RunUsage(input_tokens=total_in, output_tokens=total_out)
 
     rec_result = RecommendationResult(
         context=context,
         assessments=assessments,
         recommendation=recommendation,
-        total_usage=RunUsage(),
+        total_usage=total_usage,
         duration_ms=duration_ms,
         is_fallback=is_fallback,
         citation_density=citation_density,
