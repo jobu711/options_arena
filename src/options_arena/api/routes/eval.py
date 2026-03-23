@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/eval", tags=["eval"])
 
 
 @router.post("/check")
-@limiter.limit("5/minute")
+@limiter.limit("1/minute")
 async def trigger_eval_check(
     request: Request,
     repo: Repository = Depends(get_repo),

@@ -13,11 +13,36 @@ import logging
 import math
 from dataclasses import dataclass
 
+from options_arena.models import DomainAssessment, PositionRecommendation
 from options_arena.models.enums import SignalDirection
 from options_arena.models.eval import EvalDefinition
-from options_arena.models.recommendation import DomainAssessment, PositionRecommendation
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class GraderCheck:
+    """A single check result from a grader."""
+
+    check: str
+    expected: str
+    actual: str
+    passed: bool
+
+
+def _serialize_checks(checks: list[GraderCheck]) -> str:
+    """Serialize GraderCheck list to JSON string."""
+    return json.dumps(
+        [
+            {
+                "check": c.check,
+                "expected": c.expected,
+                "actual": c.actual,
+                "passed": c.passed,
+            }
+            for c in checks
+        ]
+    )
 
 
 @dataclass(frozen=True)
@@ -28,6 +53,16 @@ class GraderResult:
     details: str  # JSON-serializable explanation
     checks_run: int = 0
     checks_passed: int = 0
+
+
+def _gc(
+    check: str,
+    expected: str,
+    actual: str,
+    passed: bool,
+) -> GraderCheck:
+    """Shorthand constructor for GraderCheck."""
+    return GraderCheck(check=check, expected=expected, actual=actual, passed=passed)
 
 
 class CodeGrader:
@@ -42,107 +77,89 @@ class CodeGrader:
         assessment: DomainAssessment,
         definition: EvalDefinition,
     ) -> GraderResult:
-        """Run code-based assertions on a domain assessment.
-
-        Parameters
-        ----------
-        assessment
-            The assessment to grade.
-        definition
-            The eval definition specifying expected values.
-
-        Returns
-        -------
-        GraderResult
-            Pass/fail with details of each check.
-        """
-        checks: list[dict[str, str | bool]] = []
+        """Run code-based assertions on a domain assessment."""
+        checks: list[GraderCheck] = []
         checks_passed = 0
 
-        # Check direction if expected
         if definition.expected_direction is not None:
-            direction_ok = assessment.direction == definition.expected_direction
+            ok = assessment.direction == definition.expected_direction
             checks.append(
-                {
-                    "check": "direction",
-                    "expected": definition.expected_direction.value,
-                    "actual": assessment.direction.value,
-                    "passed": direction_ok,
-                }
+                _gc(
+                    "direction",
+                    definition.expected_direction.value,
+                    assessment.direction.value,
+                    ok,
+                )
             )
-            if direction_ok:
+            if ok:
                 checks_passed += 1
 
-        # Check confidence bounds
         if definition.expected_confidence_min is not None:
-            conf_min_ok = assessment.confidence >= definition.expected_confidence_min
+            ok = assessment.confidence >= definition.expected_confidence_min
             checks.append(
-                {
-                    "check": "confidence_min",
-                    "expected": f">= {definition.expected_confidence_min}",
-                    "actual": str(assessment.confidence),
-                    "passed": conf_min_ok,
-                }
+                _gc(
+                    "confidence_min",
+                    f">= {definition.expected_confidence_min}",
+                    str(assessment.confidence),
+                    ok,
+                )
             )
-            if conf_min_ok:
+            if ok:
                 checks_passed += 1
 
         if definition.expected_confidence_max is not None:
-            conf_max_ok = assessment.confidence <= definition.expected_confidence_max
+            ok = assessment.confidence <= definition.expected_confidence_max
             checks.append(
-                {
-                    "check": "confidence_max",
-                    "expected": f"<= {definition.expected_confidence_max}",
-                    "actual": str(assessment.confidence),
-                    "passed": conf_max_ok,
-                }
+                _gc(
+                    "confidence_max",
+                    f"<= {definition.expected_confidence_max}",
+                    str(assessment.confidence),
+                    ok,
+                )
             )
-            if conf_max_ok:
+            if ok:
                 checks_passed += 1
 
-        # Check key_factors has content
-        has_factors = len(assessment.key_factors) >= 1
+        ok = len(assessment.key_factors) >= 1
         checks.append(
-            {
-                "check": "key_factors_present",
-                "expected": ">= 1 factor",
-                "actual": str(len(assessment.key_factors)),
-                "passed": has_factors,
-            }
+            _gc(
+                "key_factors_present",
+                ">= 1 factor",
+                str(len(assessment.key_factors)),
+                ok,
+            )
         )
-        if has_factors:
+        if ok:
             checks_passed += 1
 
-        # Check summary is non-empty
-        has_summary = len(assessment.summary.strip()) > 0
+        ok = len(assessment.summary.strip()) > 0
         checks.append(
-            {
-                "check": "summary_present",
-                "expected": "non-empty",
-                "actual": f"{len(assessment.summary)} chars",
-                "passed": has_summary,
-            }
+            _gc(
+                "summary_present",
+                "non-empty",
+                f"{len(assessment.summary)} chars",
+                ok,
+            )
         )
-        if has_summary:
+        if ok:
             checks_passed += 1
 
-        # Check risks listed
-        has_risks = len(assessment.risks) >= 1
+        ok = len(assessment.risks) >= 1
         checks.append(
-            {
-                "check": "risks_present",
-                "expected": ">= 1 risk",
-                "actual": str(len(assessment.risks)),
-                "passed": has_risks,
-            }
+            _gc(
+                "risks_present",
+                ">= 1 risk",
+                str(len(assessment.risks)),
+                ok,
+            )
         )
-        if has_risks:
+        if ok:
             checks_passed += 1
 
-        all_passed = all(c["passed"] for c in checks)
+        all_passed = all(c.passed for c in checks)
         return GraderResult(
             passed=all_passed,
-            details=json.dumps(checks),
+            details=_serialize_checks(checks),
             checks_run=len(checks),
             checks_passed=checks_passed,
         )
@@ -152,93 +169,81 @@ class CodeGrader:
         recommendation: PositionRecommendation,
         definition: EvalDefinition,
     ) -> GraderResult:
-        """Run code-based assertions on a position recommendation.
-
-        Parameters
-        ----------
-        recommendation
-            The recommendation to grade.
-        definition
-            The eval definition specifying expected values.
-
-        Returns
-        -------
-        GraderResult
-            Pass/fail with details of each check.
-        """
-        checks: list[dict[str, str | bool]] = []
+        """Run code-based assertions on a position recommendation."""
+        checks: list[GraderCheck] = []
         checks_passed = 0
 
-        # Check direction
         if definition.expected_direction is not None:
-            direction_ok = recommendation.direction == definition.expected_direction
+            ok = recommendation.direction == definition.expected_direction
             checks.append(
-                {
-                    "check": "direction",
-                    "expected": definition.expected_direction.value,
-                    "actual": recommendation.direction.value,
-                    "passed": direction_ok,
-                }
+                _gc(
+                    "direction",
+                    definition.expected_direction.value,
+                    recommendation.direction.value,
+                    ok,
+                )
             )
-            if direction_ok:
+            if ok:
                 checks_passed += 1
 
-        # Check confidence bounds
         if definition.expected_confidence_min is not None:
-            conf_min_ok = recommendation.confidence >= definition.expected_confidence_min
+            ok = recommendation.confidence >= definition.expected_confidence_min
             checks.append(
-                {
-                    "check": "confidence_min",
-                    "expected": f">= {definition.expected_confidence_min}",
-                    "actual": str(recommendation.confidence),
-                    "passed": conf_min_ok,
-                }
+                _gc(
+                    "confidence_min",
+                    f">= {definition.expected_confidence_min}",
+                    str(recommendation.confidence),
+                    ok,
+                )
             )
-            if conf_min_ok:
+            if ok:
                 checks_passed += 1
 
         if definition.expected_confidence_max is not None:
-            conf_max_ok = recommendation.confidence <= definition.expected_confidence_max
+            ok = recommendation.confidence <= definition.expected_confidence_max
             checks.append(
-                {
-                    "check": "confidence_max",
-                    "expected": f"<= {definition.expected_confidence_max}",
-                    "actual": str(recommendation.confidence),
-                    "passed": conf_max_ok,
-                }
+                _gc(
+                    "confidence_max",
+                    f"<= {definition.expected_confidence_max}",
+                    str(recommendation.confidence),
+                    ok,
+                )
             )
-            if conf_max_ok:
+            if ok:
                 checks_passed += 1
 
-        # Check entry/exit criteria present
-        has_entry = len(recommendation.entry_criteria) >= 1
+        # entry_criteria and exit_criteria are str fields, not list[str]
+        _min_len = 20
+        entry_text = recommendation.entry_criteria.strip()
+        ok = len(entry_text) >= _min_len
         checks.append(
-            {
-                "check": "entry_criteria_present",
-                "expected": ">= 1 criterion",
-                "actual": str(len(recommendation.entry_criteria)),
-                "passed": has_entry,
-            }
+            _gc(
+                "entry_criteria_present",
+                f">= {_min_len} chars",
+                f"{len(entry_text)} chars",
+                ok,
+            )
         )
-        if has_entry:
+        if ok:
             checks_passed += 1
 
-        has_exit = len(recommendation.exit_criteria) >= 1
+        exit_text = recommendation.exit_criteria.strip()
+        ok = len(exit_text) >= _min_len
         checks.append(
-            {
-                "check": "exit_criteria_present",
-                "expected": ">= 1 criterion",
-                "actual": str(len(recommendation.exit_criteria)),
-                "passed": has_exit,
-            }
+            _gc(
+                "exit_criteria_present",
+                f">= {_min_len} chars",
+                f"{len(exit_text)} chars",
+                ok,
+            )
         )
-        if has_exit:
+        if ok:
             checks_passed += 1
 
-        all_passed = all(c["passed"] for c in checks)
+        all_passed = all(c.passed for c in checks)
         return GraderResult(
             passed=all_passed,
-            details=json.dumps(checks),
+            details=_serialize_checks(checks),
             checks_run=len(checks),
             checks_passed=checks_passed,
         )
@@ -247,72 +252,44 @@ class CodeGrader:
 class ModelGrader:
     """LLM-as-judge grader for qualitative assessment fields.
 
-    Uses a PydanticAI agent with a rubric prompt to evaluate whether
+    Uses heuristic checks for reliability and speed. Evaluates whether
     key_factors are specific and data-cited, summaries are actionable,
     and analysis is internally consistent.
-
-    NOTE: The actual LLM call requires a model at runtime. For tests,
-    use ``pydantic_ai.models.test.TestModel``.
     """
 
-    RUBRIC = (
-        "You are an expert options analyst reviewing an AI agent's assessment. "
-        "Evaluate the following assessment on these criteria:\n"
-        "1. SPECIFICITY: Are key_factors specific with data references (prices, "
-        "percentages, dates), not generic statements?\n"
-        "2. CONSISTENCY: Does the direction match the key_factors? Are confidence "
-        "and risks consistent with each other?\n"
-        "3. ACTIONABILITY: Does the summary provide clear, actionable insight?\n"
-        "4. RISK AWARENESS: Are risks specific and relevant to the analysis?\n\n"
-        "Respond with a JSON object: "
-        '{"passed": true/false, "score": 0-100, "reasoning": "..."}'
-    )
+    _MIN_SPECIFICITY_RATIO = 2
+    _MIN_RISK_DETAIL_LEN = 15
+    _MIN_SUMMARY_LEN = 20
 
     def grade_assessment(
         self,
         assessment: DomainAssessment,
         definition: EvalDefinition,
     ) -> GraderResult:
-        """Grade an assessment using heuristic rubric checks.
-
-        This synchronous version uses heuristic checks rather than LLM calls
-        for reliability and speed. For LLM-based grading, use
-        ``grade_assessment_async``.
-
-        Parameters
-        ----------
-        assessment
-            The assessment to grade.
-        definition
-            The eval definition (used for context).
-
-        Returns
-        -------
-        GraderResult
-            Pass/fail based on heuristic quality checks.
-        """
-        checks: list[dict[str, str | bool]] = []
+        """Grade an assessment using heuristic rubric checks."""
+        checks: list[GraderCheck] = []
         checks_passed = 0
 
-        # Check specificity: key_factors should contain numbers or data
-        data_bearing_factors = sum(
+        # Specificity: key_factors should contain numbers or data
+        data_bearing = sum(
             1
             for f in assessment.key_factors
             if any(c.isdigit() for c in f) or "%" in f or "$" in f
         )
-        specificity_ok = data_bearing_factors >= max(1, len(assessment.key_factors) // 2)
+        threshold = max(1, len(assessment.key_factors) // self._MIN_SPECIFICITY_RATIO)
+        ok = data_bearing >= threshold
         checks.append(
-            {
-                "check": "specificity",
-                "expected": f">= {max(1, len(assessment.key_factors) // 2)} data-bearing factors",
-                "actual": f"{data_bearing_factors} of {len(assessment.key_factors)}",
-                "passed": specificity_ok,
-            }
+            _gc(
+                "specificity",
+                f">= {threshold} data-bearing factors",
+                f"{data_bearing} of {len(assessment.key_factors)}",
+                ok,
+            )
         )
-        if specificity_ok:
+        if ok:
             checks_passed += 1
 
-        # Check consistency: direction should align with sentiment of key_factors
+        # Consistency: direction should align with sentiment
         bullish_words = {"bullish", "upside", "growth", "strong", "positive", "support"}
         bearish_words = {"bearish", "downside", "decline", "weak", "negative", "resistance"}
         factors_text = " ".join(assessment.key_factors).lower()
@@ -320,69 +297,74 @@ class ModelGrader:
         bear_count = sum(1 for w in bearish_words if w in factors_text)
 
         if assessment.direction == SignalDirection.BULLISH:
-            consistency_ok = bull_count >= bear_count
+            ok = bull_count >= bear_count
         elif assessment.direction == SignalDirection.BEARISH:
-            consistency_ok = bear_count >= bull_count
+            ok = bear_count >= bull_count
         else:
-            consistency_ok = True  # NEUTRAL is always consistent
+            ok = True  # NEUTRAL is always consistent
         checks.append(
-            {
-                "check": "consistency",
-                "expected": f"factors align with {assessment.direction.value}",
-                "actual": f"bull={bull_count} bear={bear_count}",
-                "passed": consistency_ok,
-            }
+            _gc(
+                "consistency",
+                f"factors align with {assessment.direction.value}",
+                f"bull={bull_count} bear={bear_count}",
+                ok,
+            )
         )
-        if consistency_ok:
+        if ok:
             checks_passed += 1
 
-        # Check summary length (actionable summaries need substance)
-        summary_ok = len(assessment.summary.strip()) >= 20
+        # Summary length
+        ok = len(assessment.summary.strip()) >= self._MIN_SUMMARY_LEN
         checks.append(
-            {
-                "check": "summary_length",
-                "expected": ">= 20 chars",
-                "actual": f"{len(assessment.summary.strip())} chars",
-                "passed": summary_ok,
-            }
+            _gc(
+                "summary_length",
+                f">= {self._MIN_SUMMARY_LEN} chars",
+                f"{len(assessment.summary.strip())} chars",
+                ok,
+            )
         )
-        if summary_ok:
+        if ok:
             checks_passed += 1
 
-        # Check risk specificity
-        risk_specific = sum(
-            1
-            for r in assessment.risks
-            if len(r) > 15  # noqa: PLR2004
-        )
-        risks_ok = risk_specific >= max(1, len(assessment.risks) // 2)
+        # Risk specificity
+        risk_specific = sum(1 for r in assessment.risks if len(r) > self._MIN_RISK_DETAIL_LEN)
+        risk_threshold = max(1, len(assessment.risks) // self._MIN_SPECIFICITY_RATIO)
+        ok = risk_specific >= risk_threshold
         checks.append(
-            {
-                "check": "risk_specificity",
-                "expected": f">= {max(1, len(assessment.risks) // 2)} detailed risks",
-                "actual": f"{risk_specific} of {len(assessment.risks)}",
-                "passed": risks_ok,
-            }
+            _gc(
+                "risk_specificity",
+                f">= {risk_threshold} detailed risks",
+                f"{risk_specific} of {len(assessment.risks)}",
+                ok,
+            )
         )
-        if risks_ok:
+        if ok:
             checks_passed += 1
 
-        all_passed = all(c["passed"] for c in checks)
+        all_passed = all(c.passed for c in checks)
         return GraderResult(
             passed=all_passed,
-            details=json.dumps(checks),
+            details=_serialize_checks(checks),
             checks_run=len(checks),
             checks_passed=checks_passed,
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class OutcomeRecord:
     """A single outcome for calibration comparison."""
 
     direction: SignalDirection
     confidence: float
     pnl_pct: float
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.confidence):
+            raise ValueError(f"confidence must be finite, got {self.confidence}")
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError(f"confidence must be in [0, 1], got {self.confidence}")
+        if not math.isfinite(self.pnl_pct):
+            raise ValueError(f"pnl_pct must be finite, got {self.pnl_pct}")
 
 
 class OutcomeGrader:
@@ -397,20 +379,7 @@ class OutcomeGrader:
         outcomes: list[OutcomeRecord],
         definition: EvalDefinition,
     ) -> GraderResult:
-        """Grade calibration across a set of historical outcomes.
-
-        Parameters
-        ----------
-        outcomes
-            Historical outcomes with direction, confidence, and P&L.
-        definition
-            The eval definition (used for context).
-
-        Returns
-        -------
-        GraderResult
-            Pass/fail based on calibration accuracy.
-        """
+        """Grade calibration across a set of historical outcomes."""
         if not outcomes:
             return GraderResult(
                 passed=False,
@@ -419,68 +388,65 @@ class OutcomeGrader:
                 checks_passed=0,
             )
 
-        checks: list[dict[str, str | bool | float]] = []
+        checks: list[GraderCheck] = []
         checks_passed = 0
 
         # Overall direction accuracy
-        correct_direction = sum(
-            1 for o in outcomes if self._direction_correct(o.direction, o.pnl_pct)
-        )
-        accuracy = correct_direction / len(outcomes)
-        accuracy_ok = accuracy >= 0.5  # noqa: PLR2004 — minimum 50% accuracy
+        correct = sum(1 for o in outcomes if self._direction_correct(o.direction, o.pnl_pct))
+        accuracy = correct / len(outcomes)
+        ok = accuracy >= 0.5  # noqa: PLR2004
         checks.append(
-            {
-                "check": "direction_accuracy",
-                "expected": ">= 0.50",
-                "actual": f"{accuracy:.3f}",
-                "passed": accuracy_ok,
-            }
+            _gc(
+                "direction_accuracy",
+                ">= 0.50",
+                f"{accuracy:.3f}",
+                ok,
+            )
         )
-        if accuracy_ok:
+        if ok:
             checks_passed += 1
 
-        # High-confidence calibration (confidence >= 0.7 should be more accurate)
+        # High-confidence calibration
         high_conf = [o for o in outcomes if o.confidence >= 0.7]  # noqa: PLR2004
         if high_conf:
             high_correct = sum(
                 1 for o in high_conf if self._direction_correct(o.direction, o.pnl_pct)
             )
             high_accuracy = high_correct / len(high_conf)
-            # High-confidence should beat overall accuracy
-            high_ok = high_accuracy >= accuracy
+            ok = high_accuracy >= accuracy
             checks.append(
-                {
-                    "check": "high_confidence_calibration",
-                    "expected": f">= {accuracy:.3f} (overall accuracy)",
-                    "actual": f"{high_accuracy:.3f} ({len(high_conf)} samples)",
-                    "passed": high_ok,
-                }
+                _gc(
+                    "high_confidence_calibration",
+                    f">= {accuracy:.3f} (overall accuracy)",
+                    f"{high_accuracy:.3f} ({len(high_conf)} samples)",
+                    ok,
+                )
             )
-            if high_ok:
+            if ok:
                 checks_passed += 1
 
-        # Average P&L should be positive for correct-direction calls
+        # Average P&L for correct-direction calls
         correct_pnls = [
             o.pnl_pct for o in outcomes if self._direction_correct(o.direction, o.pnl_pct)
         ]
         if correct_pnls:
-            avg_correct_pnl = sum(correct_pnls) / len(correct_pnls)
-            pnl_ok = avg_correct_pnl > 0.0
+            avg_pnl = sum(correct_pnls) / len(correct_pnls)
+            ok = avg_pnl > 0.0
             checks.append(
-                {
-                    "check": "avg_correct_pnl",
-                    "expected": "> 0.0%",
-                    "actual": f"{avg_correct_pnl:.2f}%",
-                    "passed": pnl_ok,
-                }
+                _gc(
+                    "avg_correct_pnl",
+                    "> 0.0%",
+                    f"{avg_pnl:.2f}%",
+                    ok,
+                )
             )
-            if pnl_ok:
+            if ok:
                 checks_passed += 1
 
-        all_passed = all(c["passed"] for c in checks)
+        all_passed = all(c.passed for c in checks)
         return GraderResult(
             passed=all_passed,
-            details=json.dumps(checks),
+            details=_serialize_checks(checks),
             checks_run=len(checks),
             checks_passed=checks_passed,
         )

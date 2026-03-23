@@ -68,6 +68,7 @@ async def _check_async(desk_name: str | None) -> None:
     from options_arena.models.enums import DeskType  # noqa: PLC0415
 
     settings = AppSettings()
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
     db = Database(_DATA_DIR / "options_arena.db")
     await db.connect()
     repo = Repository(db)
@@ -78,10 +79,13 @@ async def _check_async(desk_name: str | None) -> None:
             try:
                 desk_filter = DeskType(desk_name.lower())
             except ValueError:
-                err_console.print(f"[red]Unknown desk: {desk_name}[/]")
+                err_console.print(Text(f"Unknown desk: {desk_name}", style="red"))
                 raise typer.Exit(code=1) from None
 
-        report = await run_eval_check(repo, settings.eval, desk_filter=desk_filter)
+        report = await asyncio.wait_for(
+            run_eval_check(repo, settings.eval, desk_filter=desk_filter),
+            timeout=settings.eval.eval_timeout,
+        )
 
         # Display results table
         table = Table(title="Eval Check Results")
@@ -130,6 +134,7 @@ async def _report_async() -> None:
     """Display the latest eval runs."""
     from options_arena.data import Database, Repository  # noqa: PLC0415
 
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
     db = Database(_DATA_DIR / "options_arena.db")
     await db.connect()
     repo = Repository(db)
@@ -178,6 +183,7 @@ async def _list_async() -> None:
     """List all eval definitions."""
     from options_arena.data import Database, Repository  # noqa: PLC0415
 
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
     db = Database(_DATA_DIR / "options_arena.db")
     await db.connect()
     repo = Repository(db)

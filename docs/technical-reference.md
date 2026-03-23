@@ -190,9 +190,10 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `EvalDefinition` | model | `frozen=True` | 23 | Specification for a single evaluation case. |
-| `EvalRun` | model | `frozen=True` | 60 | Record of a single eval execution. |
-| `EvalReport` | model | `frozen=True` | 97 | Aggregated eval results with pass@k metrics and baseline comparison. |
-| `EvalBaseline` | model | `frozen=True` | 114 | Stored baseline for comparison — pass rates per eval name. |
+| `EvalRun` | model | `frozen=True` | 76 | Record of a single eval execution. |
+| `EvalReport` | model | `frozen=True` | 113 | Aggregated eval results with pass@k metrics and baseline comparison. |
+| `EvalOutcome` | model | `frozen=True` | 130 | Single eval outcome for baseline comparison. |
+| `EvalBaseline` | model | `frozen=True` | 139 | Stored baseline for comparison — pass rates per eval name. |
 
 #### models/filters.py
 
@@ -881,24 +882,24 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 |--------|------|-----------|------|-------------|
 | `EvalMixin` | class | `(RepositoryBase)` | 27 | CRUD operations for eval definitions and runs. |
 | `.save_eval_definition` | async method | `(definition: EvalDefinition, *, commit: bool = True) -> None` | 46 | Persist an eval definition (upsert by name). |
-| `.get_eval_definitions` | async method | `() -> list[EvalDefinition]` | 93 | Retrieve all eval definitions. |
-| `.get_eval_definition` | async method | `(name: str) -> EvalDefinition \| None` | 108 | Retrieve a single eval definition by name. |
-| `.save_eval_run` | async method | `(run: EvalRun, *, commit: bool = True) -> int` | 128 | Persist an eval run. |
-| `.get_eval_runs` | async method | `(eval_name: str \| None = None, limit: int = 100) -> list[EvalRun]` | 171 | Retrieve eval runs, optionally filtered by eval name. |
-| `.get_latest_eval_runs` | async method | `() -> list[EvalRun]` | 205 | Get the most recent run for each eval definition. |
+| `.get_eval_definitions` | async method | `(limit: int = 1000) -> list[EvalDefinition]` | 100 | Retrieve all eval definitions. |
+| `.get_eval_definition` | async method | `(name: str) -> EvalDefinition \| None` | 124 | Retrieve a single eval definition by name. |
+| `.save_eval_run` | async method | `(run: EvalRun, *, commit: bool = True) -> int` | 144 | Persist an eval run. |
+| `.get_eval_runs` | async method | `(eval_name: str \| None = None, limit: int = 100) -> list[EvalRun]` | 187 | Retrieve eval runs, optionally filtered by eval name. |
+| `.get_latest_eval_runs` | async method | `() -> list[EvalRun]` | 218 | Get the most recent run for each eval definition. |
 
 #### data/_learning.py
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `LearningMixin` | class | `(RepositoryBase)` | 23 | CRUD operations for strategy rules and agent memory. |
-| `.save_strategy_rule` | async method | `(rule: StrategyRule, *, commit: bool = True) -> None` | 44 | Persist a strategy rule (upsert by rule_id). |
-| `.get_strategy_rules` | async method | `(status: RuleStatus \| None = None, limit: int \| None = None) -> list[StrategyRule]` | 88 | Retrieve strategy rules, optionally filtered by status. |
-| `.update_rule_status` | async method | `(rule_id: str, status: RuleStatus, *, commit: bool = True) -> bool` | 129 | Update the status of a strategy rule. |
-| `.update_rule_confidence` | async method | `(rule_id: str, confidence: float, last_validated: datetime \| None, validation_count: int, *, comm...` | 164 | Update confidence, last_validated, and validation_count for a rule. |
-| `.update_rule_status_and_confidence` | async method | `(rule_id: str, status: RuleStatus, confidence: float, *, commit: bool = True) -> bool` | 217 | Atomically update both status and confidence for a rule. |
-| `.save_agent_memory` | async method | `(memory: AgentMemory, *, commit: bool = True) -> None` | 260 | Persist an agent memory entry (upsert by memory_id). |
-| `.get_agent_memories` | async method | `(agent_name: str \| None = None, scope_type: str \| None = None, limit: int \| None = None) -> list[...` | 296 | Retrieve agent memory entries, optionally filtered. |
+| `LearningMixin` | class | `(RepositoryBase)` | 24 | CRUD operations for strategy rules and agent memory. |
+| `.save_strategy_rule` | async method | `(rule: StrategyRule, *, commit: bool = True) -> None` | 45 | Persist a strategy rule (upsert by rule_id). |
+| `.get_strategy_rules` | async method | `(status: RuleStatus \| None = None, limit: int \| None = None) -> list[StrategyRule]` | 89 | Retrieve strategy rules, optionally filtered by status. |
+| `.update_rule_status` | async method | `(rule_id: str, status: RuleStatus, *, commit: bool = True) -> bool` | 130 | Update the status of a strategy rule. |
+| `.update_rule_confidence` | async method | `(rule_id: str, confidence: float, last_validated: datetime \| None, validation_count: int, *, comm...` | 165 | Update confidence, last_validated, and validation_count for a rule. |
+| `.update_rule_status_and_confidence` | async method | `(rule_id: str, status: RuleStatus, confidence: float, *, commit: bool = True) -> bool` | 220 | Atomically update both status and confidence for a rule. |
+| `.save_agent_memory` | async method | `(memory: AgentMemory, *, commit: bool = True) -> None` | 265 | Persist an agent memory entry (upsert by memory_id). |
+| `.get_agent_memories` | async method | `(agent_name: str \| None = None, scope_type: str \| None = None, limit: int \| None = None) -> list[...` | 301 | Retrieve agent memory entries, optionally filtered. |
 
 #### data/_metadata.py
 
@@ -957,7 +958,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `Repository` | class | `(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin, AgencyMixin, RecommendationMixin, LearningMixin)` | 27 | Typed CRUD for all persistence domains. |
+| `Repository` | class | `(ScanMixin, DebateMixin, AnalyticsMixin, MetadataMixin, SpreadsMixin, AgencyMixin, RecommendationMixin, LearningMixin, EvalMixin)` | 28 | Typed CRUD for all persistence domains. |
 
 ---
 
@@ -1082,6 +1083,13 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 |--------|------|-----------|------|-------------|
 | `build_debate_model` | func | `(config: DebateConfig) -> Model` | 118 | Build a PydanticAI model for the configured LLM provider. |
 
+#### agents/model_routing.py
+
+| Symbol | Kind | Signature | Line | Description |
+|--------|------|-----------|------|-------------|
+| `route_model_tier` | func | `(desk: DeskType, context: MarketContext, ticker_score: TickerScore, config: RoutingConfig) -> Mod...` | 83 | Select the model tier for a desk agent based on complexity. |
+| `build_model_for_tier` | func | `(tier: ModelTier, config: DebateConfig) -> Model` | 114 | Construct a PydanticAI Model for the given tier. |
+
 #### agents/prompts/desk_contrarian.py
 
 | Symbol | Kind | Signature | Line | Description |
@@ -1170,7 +1178,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `run_recommendation` | async func | `(ticker: str, ticker_score: TickerScore, contracts: list[OptionContract], quote: Quote, ticker_in...` | 300 | Run the 4-phase recommendation pipeline — never raises. |
+| `run_recommendation` | async func | `(ticker: str, ticker_score: TickerScore, contracts: list[OptionContract], quote: Quote, ticker_in...` | 378 | Run the 4-phase recommendation pipeline — never raises. |
 
 #### agents/research_desk.py
 
@@ -1895,7 +1903,7 @@ Each row maps a source file to its test files and approximate test count.
 | `models/scan.py` | `tests/unit/models/test_scan.py` | 31 |
 | `models/scan_delta.py` | — | 0 |
 | `models/scoring.py` | `tests/unit/models/test_scoring.py` | 28 |
-| `models/strategy.py` | `tests/unit/models/test_strategy.py` | 35 |
+| `models/strategy.py` | `tests/unit/models/test_strategy.py` | 56 |
 | `models/tool_response.py` | `tests/unit/models/test_tool_response.py` | 16 |
 | `models/valuation.py` | — | 0 |
 
@@ -1994,6 +2002,7 @@ Each row maps a source file to its test files and approximate test count.
 | `agents/flow_desk.py` | `tests/unit/agents/test_flow_desk.py` | 20 |
 | `agents/fundamental_desk.py` | `tests/unit/agents/test_fundamental_desk.py` | 21 |
 | `agents/model_config.py` | `tests/unit/agents/test_model_config.py` | 19 |
+| `agents/model_routing.py` | `tests/unit/agents/test_model_routing.py` | 18 |
 | `agents/prompts/desk_contrarian.py` | — | 0 |
 | `agents/prompts/desk_flow.py` | — | 0 |
 | `agents/prompts/desk_fundamental.py` | — | 0 |
@@ -2076,15 +2085,15 @@ Each row maps a source file to its test files and approximate test count.
 | Module | Files | Public Symbols | Test Files | Tests |
 |--------|-------|----------------|------------|-------|
 | utils/ | 1 | 4 | 1 | 11 |
-| models/ | 25 | 177 | 15 | 636 |
+| models/ | 25 | 178 | 15 | 657 |
 | indicators/ | 17 | 73 | 16 | 504 |
 | pricing/ | 8 | 25 | 7 | 244 |
 | services/ | 13 | 112 | 12 | 360 |
 | scoring/ | 6 | 29 | 6 | 227 |
 | data/ | 12 | 87 | 2 | 46 |
-| agents/ | 30 | 93 | 15 | 370 |
+| agents/ | 31 | 95 | 16 | 388 |
 | scan/ | 8 | 23 | 3 | 82 |
 | reporting/ | 1 | 3 | 1 | 10 |
 | api/ | 17 | 124 | 13 | 150 |
 | cli/ | 8 | 51 | 3 | 27 |
-| **Total** | **146** | **801** | **94** | **2667** |
+| **Total** | **147** | **804** | **95** | **2706** |
