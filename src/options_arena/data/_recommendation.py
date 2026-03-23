@@ -57,6 +57,7 @@ class RecommendationRow:
     strategy_rationale: str
     max_loss_estimate: str
     model_used: str
+    desk_metrics_json: str
     created_at: str
 
 
@@ -94,6 +95,7 @@ class RecommendationMixin(RepositoryBase):
         assessments_json = json.dumps(assessment_dicts)
         key_factors_json = json.dumps(rec.key_factors)
         dissenting_desks_json = json.dumps([d.value for d in rec.dissenting_desks])
+        desk_metrics_json = json.dumps([m.model_dump(mode="json") for m in result.desk_metrics])
 
         cursor = await conn.execute(
             "INSERT INTO recommendation_results "
@@ -104,10 +106,10 @@ class RecommendationMixin(RepositoryBase):
             "dissenting_desks_json, assessments_json, total_input_tokens, "
             "total_output_tokens, duration_ms, is_fallback, citation_density, "
             "position_rationale, strategy_rationale, max_loss_estimate, "
-            "model_used, created_at) "
+            "model_used, desk_metrics_json, created_at) "
             "VALUES ("
             "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
-            "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 rec.ticker,
                 scan_run_id,
@@ -137,6 +139,7 @@ class RecommendationMixin(RepositoryBase):
                 rec.strategy_rationale,
                 rec.max_loss_estimate,
                 rec.model_used,
+                desk_metrics_json,
                 created_at,
             ),
         )
@@ -226,5 +229,6 @@ class RecommendationMixin(RepositoryBase):
             strategy_rationale=str(row["strategy_rationale"]),
             max_loss_estimate=str(row["max_loss_estimate"]),
             model_used=str(row["model_used"]),
+            desk_metrics_json=str(row["desk_metrics_json"] or "[]"),
             created_at=str(row["created_at"]),
         )
