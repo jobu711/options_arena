@@ -25,6 +25,15 @@ from options_arena.indicators.vol_forecast import (
 )
 from options_arena.models.scan import IndicatorSignals
 
+# Optional ML dependencies — tests that need the real library are marked
+_has_arch = pytest.importorskip.__module__ is not None  # always True, just a namespace trick
+_skip_no_arch = pytest.mark.skipif(
+    _get_arch() is None, reason="arch library not installed"
+)
+_skip_no_statsmodels = pytest.mark.skipif(
+    _get_adfuller() is None, reason="statsmodels library not installed"
+)
+
 # ---------------------------------------------------------------------------
 # Helpers: synthetic data generators
 # ---------------------------------------------------------------------------
@@ -76,6 +85,7 @@ def _make_garch_like_returns(n: int = 500, seed: int = 42) -> pd.Series:
 class TestStationarity:
     """Tests for the ADF stationarity test function."""
 
+    @_skip_no_statsmodels
     def test_stationary_series(self) -> None:
         """Stationary returns should be detected as stationary."""
         returns = _make_stationary_returns(n=500)
@@ -85,6 +95,7 @@ class TestStationarity:
         assert is_stationary is True
         assert 0.0 <= p_value < 0.05
 
+    @_skip_no_statsmodels
     def test_nonstationary_series(self) -> None:
         """Non-stationary random walk should be detected as non-stationary."""
         series = _make_nonstationary_series(n=500)
@@ -100,6 +111,7 @@ class TestStationarity:
         result = adf_test_stationarity(short_returns)
         assert result is None
 
+    @_skip_no_statsmodels
     def test_exactly_252_observations(self) -> None:
         """Exactly 252 observations should be enough."""
         returns = _make_stationary_returns(n=252)
@@ -113,6 +125,7 @@ class TestStationarity:
             result = adf_test_stationarity(returns)
             assert result is None
 
+    @_skip_no_statsmodels
     def test_nan_handling(self) -> None:
         """Series with NaN values is cleaned before test; still works if enough data."""
         returns = _make_stationary_returns(n=300)
@@ -123,6 +136,7 @@ class TestStationarity:
         # Should still work — 298 clean obs > 252
         assert result is not None
 
+    @_skip_no_statsmodels
     def test_returns_finite_p_value(self) -> None:
         """P-value returned must be finite."""
         returns = _make_stationary_returns(n=500)
@@ -140,6 +154,7 @@ class TestStationarity:
 class TestGARCHForecast:
     """Tests for compute_garch_forecast()."""
 
+    @_skip_no_arch
     def test_synthetic_data_returns_float(self) -> None:
         """GARCH forecast on GARCH-like data should return a positive float."""
         returns = _make_garch_like_returns(n=500)
@@ -174,6 +189,7 @@ class TestGARCHForecast:
         result = compute_garch_forecast(series)
         assert result is None
 
+    @_skip_no_arch
     def test_result_is_annualized(self) -> None:
         """GARCH forecast should be in annualized volatility scale (typically 0.05-2.0)."""
         returns = _make_garch_like_returns(n=500)
@@ -214,6 +230,7 @@ class TestGARCHForecast:
         # Either None (convergence failure) or extremely small value is acceptable
         assert result is None or (isinstance(result, float) and result >= 0.0)
 
+    @_skip_no_arch
     def test_stationary_returns_produce_result(self) -> None:
         """Normal stationary returns should produce a valid GARCH forecast."""
         returns = _make_stationary_returns(n=500)
@@ -299,12 +316,14 @@ class TestIndicatorSignalsMLFields:
 class TestGuardedImports:
     """Tests for guarded import functions."""
 
+    @_skip_no_arch
     def test_get_arch_returns_module_when_installed(self) -> None:
         """_get_arch() should return the arch module when installed."""
         result = _get_arch()
         assert result is not None
         assert hasattr(result, "arch_model")
 
+    @_skip_no_statsmodels
     def test_get_adfuller_returns_callable_when_installed(self) -> None:
         """_get_adfuller() should return the adfuller function when installed."""
         result = _get_adfuller()

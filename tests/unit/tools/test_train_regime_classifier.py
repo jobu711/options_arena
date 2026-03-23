@@ -41,6 +41,24 @@ from train_regime_classifier import (  # noqa: E402, I001
 
 from options_arena.models.scan import IndicatorSignals  # noqa: E402
 
+# Check availability of optional ML dependencies for skip markers
+try:
+    import sklearn as _sklearn  # noqa: F401
+
+    _has_sklearn = True
+except ImportError:
+    _has_sklearn = False
+
+try:
+    import joblib as _joblib  # noqa: F401
+
+    _has_joblib = True
+except ImportError:
+    _has_joblib = False
+
+_skip_no_sklearn = pytest.mark.skipif(not _has_sklearn, reason="scikit-learn not installed")
+_skip_no_joblib = pytest.mark.skipif(not _has_joblib, reason="joblib not installed")
+
 # Type alias to keep annotation lines within 99 chars
 type _SyntheticData = tuple[
     np.ndarray[Any, np.dtype[np.floating[Any]]],
@@ -209,6 +227,7 @@ class TestLabelRegime:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_sklearn
 class TestTrainClassifier:
     """Tests for train_classifier()."""
 
@@ -276,6 +295,8 @@ class TestTrainClassifier:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_sklearn
+@_skip_no_joblib
 class TestModelSerialization:
     """Tests for save_model() and load_model()."""
 

@@ -251,6 +251,12 @@ async def _run_pipeline_with_test_model(
         _mock_synthesis,
     )
 
+    # Monkeypatch build_debate_model to avoid requiring an API key in tests
+    monkeypatch.setattr(
+        "options_arena.agents.recommendation_orchestrator.build_debate_model",
+        lambda config: TestModel(),
+    )
+
     overrides = _enter_desk_overrides()
     try:
         result = await run_recommendation(
@@ -438,6 +444,12 @@ class TestRecommendationPipeline:
         monkeypatch.setattr(
             "options_arena.agents.recommendation_orchestrator.run_synthesis",
             _mock_synthesis,
+        )
+
+        # Monkeypatch build_debate_model to avoid requiring an API key in tests
+        monkeypatch.setattr(
+            "options_arena.agents.recommendation_orchestrator.build_debate_model",
+            lambda config: TestModel(),
         )
 
         # Override remaining desk agents

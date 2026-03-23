@@ -12,6 +12,7 @@ Uses ``unittest.mock.patch`` to test missing-dependency code paths.
 
 from __future__ import annotations
 
+import builtins
 import math
 import os
 from pathlib import Path
@@ -354,6 +355,7 @@ class TestGuardedImports:
 
     def test_get_torch_returns_none_when_missing(self) -> None:
         """_get_torch returns None when torch cannot be imported."""
+        _real_import = builtins.__import__
         with (
             patch.dict("sys.modules", {"torch": None}),
             patch(
@@ -361,8 +363,8 @@ class TestGuardedImports:
                 side_effect=lambda name, *a, **kw: (
                     (_ for _ in ()).throw(ImportError)
                     if name == "torch"
-                    else __builtins__.__import__(name, *a, **kw)
-                ),  # type: ignore[union-attr]
+                    else _real_import(name, *a, **kw)
+                ),
             ),
         ):
             result = _get_torch()
@@ -370,6 +372,7 @@ class TestGuardedImports:
 
     def test_get_lightning_returns_none_when_missing(self) -> None:
         """_get_lightning returns None when lightning cannot be imported."""
+        _real_import = builtins.__import__
         with (
             patch.dict("sys.modules", {"lightning": None}),
             patch(
@@ -377,8 +380,8 @@ class TestGuardedImports:
                 side_effect=lambda name, *a, **kw: (
                     (_ for _ in ()).throw(ImportError)
                     if name == "lightning"
-                    else __builtins__.__import__(name, *a, **kw)
-                ),  # type: ignore[union-attr]
+                    else _real_import(name, *a, **kw)
+                ),
             ),
         ):
             result = _get_lightning()

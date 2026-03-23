@@ -269,13 +269,23 @@ class TestRecommendationPersistence:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_recommendation_calls_save(self) -> None:
+    async def test_recommendation_calls_save(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """repo.save_recommendation is called with the result."""
+        from pydantic_ai.models.test import TestModel
+
         market_data, options_data, fred = _make_mock_services()
         repo = _make_mock_repo()
         settings = AppSettings()
         settings.debate.agent_timeout = 1.0
         settings.debate.max_total_duration = 10.0
+
+        # Monkeypatch build_debate_model to avoid requiring an API key
+        monkeypatch.setattr(
+            "options_arena.agents.recommendation_orchestrator.build_debate_model",
+            lambda config: TestModel(),
+        )
 
         await run_recommendation(
             ticker="NVDA",

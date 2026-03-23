@@ -95,7 +95,7 @@ class TestRunRiskDeskQuery:
         assert isinstance(result, DeskResponse)
 
     async def test_higher_tool_budget_than_vol(self) -> None:
-        """Risk desk uses risk_tool_budget (5) vs vol desk's default_tool_budget (4)."""
+        """Risk desk uses risk_tool_budget (10) vs vol desk's default_tool_budget (8)."""
         cfg = AgencyConfig()
         assert cfg.risk_tool_budget > cfg.default_tool_budget
 

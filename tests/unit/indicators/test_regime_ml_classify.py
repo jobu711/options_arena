@@ -211,9 +211,12 @@ class TestModelCaching:
         mock_joblib = MagicMock()
         mock_joblib.load.return_value = fake_model
 
-        with patch(
-            "options_arena.indicators.regime_ml._get_joblib",
-            return_value=mock_joblib,
+        with (
+            patch(
+                "options_arena.indicators.regime_ml._get_joblib",
+                return_value=mock_joblib,
+            ),
+            patch("pathlib.PurePath.is_relative_to", return_value=True),
         ):
             result1 = _load_model(model_path)
             result2 = _load_model(model_path)
@@ -241,9 +244,12 @@ class TestModelCaching:
         mock_joblib = MagicMock()
         mock_joblib.load.side_effect = [model_a, model_b]
 
-        with patch(
-            "options_arena.indicators.regime_ml._get_joblib",
-            return_value=mock_joblib,
+        with (
+            patch(
+                "options_arena.indicators.regime_ml._get_joblib",
+                return_value=mock_joblib,
+            ),
+            patch("pathlib.PurePath.is_relative_to", return_value=True),
         ):
             result1 = _load_model(path_a)
             result2 = _load_model(path_b)
