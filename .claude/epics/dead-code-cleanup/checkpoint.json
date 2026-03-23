@@ -1,0 +1,12 @@
+{
+  "epic": "dead-code-cleanup",
+  "phase": "planning",
+  "last_command": "/pm:prd-parse dead-code-cleanup",
+  "last_updated": "2026-03-23T13:21:12Z",
+  "completed_phases": ["prd-created", "planning"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "Parent epic with 4 child epics. All execute in parallel via worktrees, merge sequentially."
+}
