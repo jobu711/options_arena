@@ -10,12 +10,14 @@ import HealthDot from '@/components/HealthDot.vue'
 import MarketHeatmap from '@/components/MarketHeatmap.vue'
 import SparklineChart from '@/components/SparklineChart.vue'
 import DebateProgressModal from '@/components/DebateProgressModal.vue'
+import ModelRoutingPanel from '@/components/ModelRoutingPanel.vue'
+import RecommendationCostTable from '@/components/RecommendationCostTable.vue'
 import { useHealthStore } from '@/stores/health'
 import { useDebateStore } from '@/stores/debate'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { api, ApiError } from '@/composables/useApi'
 import { formatScanDuration, formatDateTime } from '@/utils/formatters'
-import type { ScanRun, DebateResultSummary, ConfigResponse, DebateEvent, TrendingTicker } from '@/types'
+import type { ScanRun, DebateResultSummary, ConfigResponse, DebateEvent, TrendingTicker, RecommendationCostDetail } from '@/types'
 
 const router = useRouter()
 const toast = useToast()
@@ -38,6 +40,10 @@ const showDebateProgress = ref(false)
 const quickDebateTicker = ref('')
 let closeWs: (() => void) | null = null
 
+// Recommendation cost data
+const costDetails = ref<RecommendationCostDetail[]>([])
+const costLoading = ref(false)
+
 // Outcome collection state
 const outcomeLoading = ref(false)
 const outcomeSummary = ref<{ total_recommendations: number; total_outcomes: number; overall_win_rate: number | null } | null>(null)
@@ -45,13 +51,14 @@ const outcomeSummary = ref<{ total_recommendations: number; total_outcomes: numb
 async function loadDashboard(): Promise<void> {
   loading.value = true
   try {
-    const [scans, debates, cfg, bullish, bearish, summary] = await Promise.all([
+    const [scans, debates, cfg, bullish, bearish, summary, costs] = await Promise.all([
       api<ScanRun[]>('/api/scan', { params: { limit: 1 } }),
       api<DebateResultSummary[]>('/api/debate', { params: { limit: 5 } }),
       api<ConfigResponse>('/api/config'),
       api<TrendingTicker[]>('/api/ticker/trending', { params: { direction: 'bullish' } }).catch(() => [] as TrendingTicker[]),
       api<TrendingTicker[]>('/api/ticker/trending', { params: { direction: 'bearish' } }).catch(() => [] as TrendingTicker[]),
       api<{ total_recommendations: number; total_outcomes: number; overall_win_rate: number | null }>('/api/analytics/summary').catch(() => null),
+      api<RecommendationCostDetail[]>('/api/analytics/recommendation-costs', { params: { limit: 10 } }).catch(() => [] as RecommendationCostDetail[]),
     ])
     latestScan.value = scans[0] ?? null
     recentDebates.value = debates
@@ -59,6 +66,7 @@ async function loadDashboard(): Promise<void> {
     trendingUp.value = bullish.slice(0, 5)
     trendingDown.value = bearish.slice(0, 5)
     outcomeSummary.value = summary
+    costDetails.value = costs
   } finally {
     loading.value = false
   }
@@ -158,6 +166,19 @@ async function collectOutcomes(): Promise<void> {
     }
   } finally {
     outcomeLoading.value = false
+  }
+}
+
+async function refreshRoutingData(): Promise<void> {
+  try {
+    const [cfg, costs] = await Promise.all([
+      api<ConfigResponse>('/api/config'),
+      api<RecommendationCostDetail[]>('/api/analytics/recommendation-costs', { params: { limit: 10 } }).catch(() => [] as RecommendationCostDetail[]),
+    ])
+    config.value = cfg
+    costDetails.value = costs
+  } catch {
+    // Silently fail — config section will show stale data
   }
 }
 
@@ -442,6 +463,22 @@ onUnmounted(() => {
           <span class="config-value">{{ config.recommendation_protocol }}</span>
         </div>
       </div>
+    </section>
+
+    <!-- Model Routing -->
+    <section class="section">
+      <ModelRoutingPanel
+        :initial-config="config?.routing ?? null"
+        @updated="refreshRoutingData"
+      />
+    </section>
+
+    <!-- Recommendation Costs -->
+    <section class="section">
+      <RecommendationCostTable
+        :costs="costDetails"
+        :loading="costLoading"
+      />
     </section>
   </div>
 </template>
