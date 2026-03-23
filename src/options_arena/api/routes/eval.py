@@ -70,7 +70,7 @@ async def get_eval_report(
 async def get_eval_history(
     request: Request,
     repo: Repository = Depends(get_repo),
-    eval_name: str | None = Query(None, description="Filter by eval name"),
+    eval_name: str | None = Query(None, max_length=200, description="Filter by eval name"),
     limit: int = Query(50, ge=1, le=500),
 ) -> list[EvalRun]:
     """Retrieve historical eval runs, newest first."""

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 
 from options_arena.api.app import limiter
 from options_arena.api.deps import get_operation_lock, get_repo
@@ -137,12 +137,12 @@ async def get_playbook(
 @limiter.limit("30/minute")
 async def update_rule_status(
     request: Request,
-    rule_id: str,
+    rule_id: str = Path(max_length=100),  # noqa: B008
     status: RuleStatus = Query(..., description="New status: approved or rejected"),
     repo: Repository = Depends(get_repo),
 ) -> UpdateStatusResponse:
     """Update the status of a strategy rule (approve/reject)."""
     updated = await repo.update_rule_status(rule_id, status)
     if not updated:
-        raise HTTPException(404, f"Rule not found: {rule_id}")
+        raise HTTPException(404, "Rule not found")
     return UpdateStatusResponse(updated=True)

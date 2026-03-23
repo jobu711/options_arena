@@ -21,11 +21,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import sqlite3
 import time
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
@@ -55,6 +56,7 @@ from options_arena.models import (
     AssessmentSummary,
     ContrarianAssessment,
     DeskMetrics,
+    DeskRunStatus,
     DeskType,
     DomainAssessment,
     ExerciseStyle,
@@ -273,7 +275,7 @@ def _build_fallback_recommendation_result(
     # valid AnyAssessment member.  The cast is safe because every DeskType maps
     # to its correct subclass in the match statement.
     raw_assessments = [_build_fallback_assessment(dt, ticker) for dt in desk_types]
-    assessments: list[AnyAssessment] = raw_assessments  # type: ignore[assignment]
+    assessments: list[AnyAssessment] = cast(list[AnyAssessment], raw_assessments)
     recommendation = _build_fallback_recommendation(context, ticker)
 
     return RecommendationResult(
@@ -309,7 +311,7 @@ def _compute_assessment_summary(
         if isinstance(a, RiskDeskAssessment):
             risk_flags.extend(a.risks)
 
-        for field_name in a.model_fields:
+        for field_name in type(a).model_fields:
             if field_name in ("desk", "direction", "confidence", "summary", "model_used"):
                 continue
             total_fields += 1
@@ -317,7 +319,11 @@ def _compute_assessment_summary(
                 non_none_count += 1
 
     avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
-    majority_direction = max(direction_votes, key=lambda d: direction_votes[d])
+    majority_direction = (
+        max(direction_votes, key=lambda d: direction_votes[d])
+        if direction_votes
+        else SignalDirection.NEUTRAL
+    )
     disagreement_desks = [a.desk for a in assessments if a.direction != majority_direction]
     data_completeness = non_none_count / total_fields if total_fields > 0 else 0.0
 
@@ -341,6 +347,8 @@ def _compute_recommendation_cost(
     total_cost = 0.0
     for m in all_metrics:
         rate = cost_map.get(m.model_used, 0.0)
+        if not math.isfinite(rate):
+            rate = 0.0
         total_cost += (m.input_tokens + m.output_tokens) / 1_000_000 * rate
 
     tier_dist: dict[ModelTier, int] = {}
@@ -562,7 +570,7 @@ async def _run_recommendation_pipeline(
                 dur = int((time.monotonic() - t_desk) * 1000)
                 metrics = DeskMetrics(
                     desk=desk_type,
-                    status="success",
+                    status=DeskRunStatus.SUCCESS,
                     duration_ms=dur,
                     model_tier=tier,
                     model_used=model_name,
@@ -574,7 +582,7 @@ async def _run_recommendation_pipeline(
                 fallback = _build_fallback_assessment(desk_type, ticker)
                 metrics = DeskMetrics(
                     desk=desk_type,
-                    status="fallback",
+                    status=DeskRunStatus.FALLBACK,
                     duration_ms=dur,
                     model_tier=tier,
                     model_used=model_name,
@@ -594,7 +602,7 @@ async def _run_recommendation_pipeline(
             desk_metrics.append(
                 DeskMetrics(
                     desk=dt,
-                    status="fallback",
+                    status=DeskRunStatus.FALLBACK,
                     duration_ms=0,
                     model_tier=ModelTier.STANDARD,
                     model_used=config.model,
@@ -606,7 +614,7 @@ async def _run_recommendation_pipeline(
             desk_metrics.append(metrics)
 
     # Cast to AnyAssessment list for RecommendationResult
-    assessments: list[AnyAssessment] = list(desk_results)  # type: ignore[arg-type]
+    assessments: list[AnyAssessment] = cast(list[AnyAssessment], list(desk_results))
 
     # Compute assessment summary between Phase 1 and Phase 2
     assessment_summary = _compute_assessment_summary(desk_results)
@@ -639,9 +647,11 @@ async def _run_recommendation_pipeline(
         timeout=agency_config.agent_timeout * 2,  # synthesis gets extra time
     )
 
-    # Compute citation density
+    # Compute citation density — guard empty context block
     context_block = render_context_block(context)
-    citation_density = compute_citation_density(context_block, recommendation.summary)
+    citation_density = (
+        compute_citation_density(context_block, recommendation.summary) if context_block else 0.0
+    )
 
     # Determine if this is a fallback result
     is_fallback = recommendation.model_used == "data-driven-fallback"

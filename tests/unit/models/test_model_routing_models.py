@@ -432,25 +432,29 @@ class TestRecommendationResultExtended:
         }
 
     def test_desk_metrics_default_empty(
-        self, _minimal_result_kwargs: dict,  # type: ignore[type-arg]
+        self,
+        _minimal_result_kwargs: dict,  # type: ignore[type-arg]
     ) -> None:
         result = RecommendationResult(**_minimal_result_kwargs)
         assert result.desk_metrics == []
 
     def test_cost_default_none(
-        self, _minimal_result_kwargs: dict,  # type: ignore[type-arg]
+        self,
+        _minimal_result_kwargs: dict,  # type: ignore[type-arg]
     ) -> None:
         result = RecommendationResult(**_minimal_result_kwargs)
         assert result.cost is None
 
     def test_assessment_summary_default_none(
-        self, _minimal_result_kwargs: dict,  # type: ignore[type-arg]
+        self,
+        _minimal_result_kwargs: dict,  # type: ignore[type-arg]
     ) -> None:
         result = RecommendationResult(**_minimal_result_kwargs)
         assert result.assessment_summary is None
 
     def test_with_metrics_and_cost(
-        self, _minimal_result_kwargs: dict,  # type: ignore[type-arg]
+        self,
+        _minimal_result_kwargs: dict,  # type: ignore[type-arg]
     ) -> None:
         metrics = [
             DeskMetrics(

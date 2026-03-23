@@ -7,19 +7,19 @@ from datetime import UTC, datetime
 import pytest
 
 from options_arena.api.schemas import (
-    AssessmentSummary,
+    DeskAssessmentBrief,
     DebateRequest,
     PositionRecommendationResponse,
     RecommendationResponse,
 )
 
 
-class TestAssessmentSummary:
-    """Verify AssessmentSummary schema fields and validation."""
+class TestDeskAssessmentBrief:
+    """Verify DeskAssessmentBrief schema fields and validation."""
 
     def test_valid_assessment_summary(self) -> None:
         """Construct with valid fields."""
-        summary = AssessmentSummary(
+        summary = DeskAssessmentBrief(
             desk="trend",
             direction="bullish",
             confidence=0.75,
@@ -34,7 +34,7 @@ class TestAssessmentSummary:
     def test_confidence_must_be_finite(self) -> None:
         """Reject NaN confidence."""
         with pytest.raises(ValueError, match="finite"):
-            AssessmentSummary(
+            DeskAssessmentBrief(
                 desk="risk",
                 direction="neutral",
                 confidence=float("nan"),
@@ -45,7 +45,7 @@ class TestAssessmentSummary:
     def test_confidence_bounds(self) -> None:
         """Reject confidence outside [0, 1]."""
         with pytest.raises(ValueError, match="between 0.0 and 1.0"):
-            AssessmentSummary(
+            DeskAssessmentBrief(
                 desk="risk",
                 direction="neutral",
                 confidence=1.5,
@@ -54,8 +54,8 @@ class TestAssessmentSummary:
             )
 
     def test_frozen(self) -> None:
-        """AssessmentSummary is frozen."""
-        summary = AssessmentSummary(
+        """DeskAssessmentBrief is frozen."""
+        summary = DeskAssessmentBrief(
             desk="flow",
             direction="bearish",
             confidence=0.5,
@@ -165,7 +165,7 @@ class TestRecommendationResponse:
             "id": 1,
             "ticker": "AAPL",
             "assessments": [
-                AssessmentSummary(
+                DeskAssessmentBrief(
                     desk="trend",
                     direction="bullish",
                     confidence=0.8,

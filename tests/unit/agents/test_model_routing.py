@@ -116,7 +116,10 @@ class TestAssessComplexity:
         """All-None signals doesn't crash, returns low complexity."""
         context = _make_context()
         score = _make_ticker_score(
-            rsi=None, iv_rank=None, put_call_ratio=None, adx=None,
+            rsi=None,
+            iv_rank=None,
+            put_call_ratio=None,
+            adx=None,
         )
         result = _assess_complexity(context, score)
         assert 0.0 <= result <= 1.0
@@ -200,7 +203,11 @@ class TestRouteModelTier:
             put_call_ratio=3.0,
         )
         score = _make_ticker_score(
-            composite_score=20.0, rsi=85.0, iv_rank=90.0, put_call_ratio=3.0, adx=10.0,
+            composite_score=20.0,
+            rsi=85.0,
+            iv_rank=90.0,
+            put_call_ratio=3.0,
+            adx=10.0,
         )
         tier = route_model_tier(DeskType.TREND, context, score, config)
         assert tier == ModelTier.PREMIUM

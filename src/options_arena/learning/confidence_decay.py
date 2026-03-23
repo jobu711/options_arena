@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from options_arena.data.repository import Repository
 from options_arena.learning.strategy_book import OutcomeWithContext
@@ -61,6 +61,10 @@ def decay_confidence(rule: StrategyRule, now: datetime) -> float:
     # Guard non-finite input — NaN silently passes max/min clamp
     if not math.isfinite(rule.confidence):
         return 0.0
+
+    # Enforce UTC — subtracting naive from tz-aware raises TypeError at runtime
+    if now.tzinfo is None or now.utcoffset() != timedelta(0):
+        raise ValueError("now must be UTC")
 
     reference_date = rule.last_validated if rule.last_validated is not None else rule.created_at
 
@@ -299,9 +303,9 @@ async def _fetch_outcomes_for_validation(
 ) -> list[OutcomeWithContext]:
     """Fetch recent outcomes for rule validation.
 
-    Delegates to ``strategy_book._fetch_outcomes_with_context`` to avoid
+    Delegates to :func:`strategy_book.fetch_outcomes_with_context` to avoid
     duplicating the SQL query.
     """
-    from options_arena.learning.strategy_book import _fetch_outcomes_with_context
+    from options_arena.learning.strategy_book import fetch_outcomes_with_context
 
-    return await _fetch_outcomes_with_context(repo)
+    return await fetch_outcomes_with_context(repo)

@@ -581,7 +581,7 @@ class DebateResultDetail(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AssessmentSummary(BaseModel):
+class DeskAssessmentBrief(BaseModel):
     """Lightweight assessment rendering per desk for recommendation response."""
 
     model_config = ConfigDict(frozen=True)
@@ -660,7 +660,7 @@ class RecommendationResponse(BaseModel):
 
     id: int
     ticker: str
-    assessments: list[AssessmentSummary]
+    assessments: list[DeskAssessmentBrief]
     recommendation: PositionRecommendationResponse
     is_fallback: bool
     recommendation_protocol: str
@@ -949,3 +949,15 @@ class UpdateStatusResponse(BaseModel):
     """Response for status update operations (strategy rules, etc.)."""
 
     updated: bool
+
+
+class RecommendationCostSummary(BaseModel):
+    """Cost and token summary for a single recommendation run."""
+
+    model_config = ConfigDict(frozen=True)
+
+    ticker: str
+    created_at: str
+    duration_ms: int
+    total_tokens: int
+    is_fallback: bool

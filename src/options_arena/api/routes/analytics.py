@@ -15,7 +15,7 @@ from options_arena.api.deps import (
     get_outcome_collector,
     get_repo,
 )
-from options_arena.api.schemas import OutcomeCollectionResult
+from options_arena.api.schemas import OutcomeCollectionResult, RecommendationCostSummary
 from options_arena.data import Repository
 from options_arena.learning import auto_tune_weights
 from options_arena.models import (
@@ -305,7 +305,7 @@ async def get_recommendation_costs(
     ticker: str | None = Query(default=None, description="Filter by ticker symbol"),
     limit: int = Query(default=20, ge=1, le=100),
     repo: Repository = Depends(get_repo),
-) -> list[dict[str, object]]:
+) -> list[RecommendationCostSummary]:
     """Get cost summaries from recent recommendations.
 
     Returns token usage and timing data from the ``recommendation_results`` table.
@@ -315,16 +315,13 @@ async def get_recommendation_costs(
         results = await repo.get_recommendations_for_ticker(ticker, limit=limit)
     else:
         results = await repo.get_recent_recommendations(limit=limit)
-    items: list[dict[str, object]] = []
-    for rec in results:
-        total_tokens = rec.total_input_tokens + rec.total_output_tokens
-        items.append(
-            {
-                "ticker": rec.ticker,
-                "created_at": rec.created_at,
-                "duration_ms": rec.duration_ms,
-                "total_tokens": total_tokens,
-                "is_fallback": rec.is_fallback,
-            }
+    return [
+        RecommendationCostSummary(
+            ticker=rec.ticker,
+            created_at=rec.created_at,
+            duration_ms=rec.duration_ms,
+            total_tokens=rec.total_input_tokens + rec.total_output_tokens,
+            is_fallback=rec.is_fallback,
         )
-    return items
+        for rec in results
+    ]

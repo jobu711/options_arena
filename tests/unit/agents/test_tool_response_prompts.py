@@ -57,9 +57,7 @@ class TestToolResponseInPrompts:
     """Verify TOOL_RESPONSE_FORMAT is embedded in all 7 prompts."""
 
     @pytest.mark.critical
-    def test_contains_tool_response_format_heading(
-        self, prompt_name: str, prompt: str
-    ) -> None:
+    def test_contains_tool_response_format_heading(self, prompt_name: str, prompt: str) -> None:
         """Each prompt contains the 'Tool Response Format' section heading."""
         assert "Tool Response Format" in prompt, (
             f"{prompt_name} prompt is missing 'Tool Response Format' section"
