@@ -1,8 +1,8 @@
 """IV and volatility analytics indicators.
 
-13 indicator functions for IV modeling: IV-HV spread, term structure analysis,
+12 indicator functions for IV modeling: IV-HV spread, term structure analysis,
 skew metrics, volatility regime classification, EWMA forecasting, volatility
-cone percentile, VIX correlation, and expected move computations.
+cone percentile, and expected move computations.
 
 Rules:
 - Takes typed inputs (float, pd.Series), returns float | None.
@@ -326,46 +326,6 @@ def compute_vol_cone_pctl(
     count_below = int(np.sum(clean < hv_20d))
     pctl = float(count_below / len(clean) * 100.0)
     return pctl if math.isfinite(pctl) else None
-
-
-def compute_vix_correlation(
-    ticker_returns: pd.Series,
-    vix_changes: pd.Series,
-) -> float | None:
-    """Rolling 60-day correlation between ticker returns and VIX changes.
-
-    Most equities have negative correlation with VIX (market falls -> VIX rises).
-    Stocks with weaker negative or positive VIX correlation may behave differently
-    in vol spikes.
-
-    Reference: Whaley (2009) "Understanding the VIX", Journal of Portfolio Management.
-
-    Args:
-        ticker_returns: Daily log returns for the ticker.
-        vix_changes: Daily VIX percentage changes (or log changes).
-
-    Returns:
-        60-day rolling correlation (last value), or ``None`` if insufficient data
-        or series lengths are mismatched.
-    """
-    if len(ticker_returns) < 60 or len(vix_changes) < 60:
-        return None
-    if len(ticker_returns) != len(vix_changes):
-        return None
-
-    # Use last 60 observations
-    t_ret = ticker_returns.iloc[-60:]
-    v_chg = vix_changes.iloc[-60:]
-
-    # Drop pairs where either is NaN
-    combined = pd.DataFrame({"t": t_ret.values, "v": v_chg.values}).dropna()
-    if len(combined) < 30:
-        return None
-
-    corr = float(combined["t"].corr(combined["v"]))
-    if not math.isfinite(corr):
-        return None
-    return corr
 
 
 def compute_expected_move(

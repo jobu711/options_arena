@@ -45,7 +45,6 @@ FAMILY_INDICATOR_MAP: dict[str, list[str]] = {
         "vol_regime",
         "ewma_vol_forecast",
         "vol_cone_percentile",
-        "vix_correlation",
         "put_skew_index",
         "call_skew_index",
         "skew_ratio",
@@ -95,9 +94,6 @@ FAMILY_INDICATOR_MAP: dict[str, list[str]] = {
     ],
     "regime": [
         "market_regime",
-        "vix_term_structure",
-        "risk_on_off_score",
-        "sector_relative_momentum",
         "correlation_regime_shift",
         "hurst_exponent",
         "regime_transition_prob",

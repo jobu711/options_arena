@@ -1,7 +1,7 @@
 """Regime and macro indicator functions.
 
-Six indicator functions for VIX term structure, risk-on/off scoring, sector
-momentum, relative strength, correlation regime shifts, and volume profile skew.
+Three indicator functions for relative strength, correlation regime shifts,
+and volume profile skew.
 
 All functions take float/Series in, return float | None out.
 No API calls. No Pydantic models. Pure math.
@@ -15,79 +15,6 @@ import numpy as np
 import pandas as pd
 
 from options_arena.indicators._validation import validate_aligned
-
-
-def compute_vix_term_structure(
-    vix: float,
-    vix3m: float | None,
-) -> float | None:
-    """VIX term structure: (VIX3M - VIX) / VIX.
-
-    Positive values indicate contango (normal market — longer-dated vol > short-dated).
-    Negative values indicate backwardation (fear — near-term vol > longer-dated).
-
-    When VIX3M is unavailable, returns None (caller should use absolute VIX thresholds).
-
-    Args:
-        vix: Current VIX level (spot).
-        vix3m: 3-month VIX level, or None if unavailable.
-
-    Returns:
-        Term structure ratio, or None if VIX3M unavailable or VIX is zero.
-    """
-    if vix3m is None:
-        return None
-    if not math.isfinite(vix) or not math.isfinite(vix3m):
-        return None
-    if vix == 0.0:
-        return None
-    return (vix3m - vix) / vix
-
-
-def compute_risk_on_off(
-    hyg_return: float | None,
-    lqd_return: float | None,
-) -> float | None:
-    """Risk-on/off score: HYG 20-day return minus LQD 20-day return.
-
-    Positive = risk-on (high yield outperforming investment grade, credit expansion).
-    Negative = risk-off (flight to quality, credit contraction).
-
-    Args:
-        hyg_return: 20-day cumulative return of HYG (high yield corporate bonds).
-        lqd_return: 20-day cumulative return of LQD (investment grade corporate bonds).
-
-    Returns:
-        Risk-on/off spread, or None if either input is unavailable.
-    """
-    if hyg_return is None or lqd_return is None:
-        return None
-    if not math.isfinite(hyg_return) or not math.isfinite(lqd_return):
-        return None
-    return hyg_return - lqd_return
-
-
-def compute_sector_momentum(
-    sector_etf_return: float | None,
-    spx_return: float,
-) -> float | None:
-    """Sector relative momentum: sector ETF 20-day return minus SPX 20-day return.
-
-    Positive = sector outperforming the broad market.
-    Negative = sector underperforming the broad market.
-
-    Args:
-        sector_etf_return: 20-day cumulative return of the sector ETF.
-        spx_return: 20-day cumulative return of SPX (^GSPC).
-
-    Returns:
-        Relative momentum, or None if sector ETF return is unavailable.
-    """
-    if sector_etf_return is None:
-        return None
-    if not math.isfinite(sector_etf_return) or not math.isfinite(spx_return):
-        return None
-    return sector_etf_return - spx_return
 
 
 def compute_rs_vs_spx(

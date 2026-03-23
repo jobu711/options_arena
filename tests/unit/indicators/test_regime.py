@@ -1,8 +1,7 @@
 """Tests for regime/macro indicator functions.
 
-Tests for 6 functions: VIX term structure, risk-on/off, sector momentum,
-RS vs SPX, correlation regime shift, and volume profile skew. Each function
-tested with:
+Tests for 3 functions: RS vs SPX, correlation regime shift, and volume profile
+skew. Each function tested with:
 1. Known-value / expected-behavior test
 2. None/missing input test
 3. Insufficient data test
@@ -18,133 +17,9 @@ import pytest
 
 from options_arena.indicators.regime import (
     compute_correlation_regime_shift,
-    compute_risk_on_off,
     compute_rs_vs_spx,
-    compute_sector_momentum,
-    compute_vix_term_structure,
     compute_volume_profile_skew,
 )
-
-# ---------------------------------------------------------------------------
-# compute_vix_term_structure tests
-# ---------------------------------------------------------------------------
-
-
-class TestVixTermStructure:
-    """Tests for VIX term structure indicator."""
-
-    def test_contango(self) -> None:
-        """VIX3M > VIX → positive (contango, normal)."""
-        result = compute_vix_term_structure(20.0, 25.0)
-        assert result is not None
-        assert result == pytest.approx(0.25, rel=1e-6)
-
-    def test_backwardation(self) -> None:
-        """VIX3M < VIX → negative (backwardation, fear)."""
-        result = compute_vix_term_structure(25.0, 20.0)
-        assert result is not None
-        assert result == pytest.approx(-0.2, rel=1e-6)
-
-    def test_flat(self) -> None:
-        """VIX3M == VIX → 0.0 (flat)."""
-        result = compute_vix_term_structure(20.0, 20.0)
-        assert result is not None
-        assert result == pytest.approx(0.0, abs=1e-9)
-
-    def test_vix3m_none(self) -> None:
-        """VIX3M unavailable → None."""
-        assert compute_vix_term_structure(20.0, None) is None
-
-    def test_zero_vix(self) -> None:
-        """Zero VIX → None (division by zero)."""
-        assert compute_vix_term_structure(0.0, 25.0) is None
-
-    def test_inf_vix(self) -> None:
-        """Infinity VIX → None."""
-        assert compute_vix_term_structure(float("inf"), 25.0) is None
-
-    def test_nan_vix3m(self) -> None:
-        """NaN VIX3M → None."""
-        assert compute_vix_term_structure(20.0, float("nan")) is None
-
-
-# ---------------------------------------------------------------------------
-# compute_risk_on_off tests
-# ---------------------------------------------------------------------------
-
-
-class TestRiskOnOff:
-    """Tests for risk-on/off score."""
-
-    def test_risk_on(self) -> None:
-        """HYG outperforming LQD → positive (risk-on)."""
-        result = compute_risk_on_off(0.02, 0.005)
-        assert result is not None
-        assert result == pytest.approx(0.015, rel=1e-6)
-
-    def test_risk_off(self) -> None:
-        """LQD outperforming HYG → negative (risk-off)."""
-        result = compute_risk_on_off(-0.01, 0.01)
-        assert result is not None
-        assert result == pytest.approx(-0.02, rel=1e-6)
-
-    def test_neutral(self) -> None:
-        """Equal returns → 0.0."""
-        result = compute_risk_on_off(0.01, 0.01)
-        assert result is not None
-        assert result == pytest.approx(0.0, abs=1e-9)
-
-    def test_hyg_none(self) -> None:
-        """None HYG → None."""
-        assert compute_risk_on_off(None, 0.01) is None
-
-    def test_lqd_none(self) -> None:
-        """None LQD → None."""
-        assert compute_risk_on_off(0.01, None) is None
-
-    def test_both_none(self) -> None:
-        """Both None → None."""
-        assert compute_risk_on_off(None, None) is None
-
-    def test_inf_input(self) -> None:
-        """Infinity input → None."""
-        assert compute_risk_on_off(float("inf"), 0.01) is None
-
-
-# ---------------------------------------------------------------------------
-# compute_sector_momentum tests
-# ---------------------------------------------------------------------------
-
-
-class TestSectorMomentum:
-    """Tests for sector relative momentum."""
-
-    def test_outperforming(self) -> None:
-        """Sector > SPX → positive."""
-        result = compute_sector_momentum(0.05, 0.02)
-        assert result is not None
-        assert result == pytest.approx(0.03, rel=1e-6)
-
-    def test_underperforming(self) -> None:
-        """Sector < SPX → negative."""
-        result = compute_sector_momentum(0.01, 0.04)
-        assert result is not None
-        assert result == pytest.approx(-0.03, rel=1e-6)
-
-    def test_inline(self) -> None:
-        """Sector == SPX → 0.0."""
-        result = compute_sector_momentum(0.03, 0.03)
-        assert result is not None
-        assert result == pytest.approx(0.0, abs=1e-9)
-
-    def test_sector_none(self) -> None:
-        """None sector return → None."""
-        assert compute_sector_momentum(None, 0.02) is None
-
-    def test_inf_spx(self) -> None:
-        """Infinity SPX → None."""
-        assert compute_sector_momentum(0.03, float("inf")) is None
-
 
 # ---------------------------------------------------------------------------
 # compute_rs_vs_spx tests
