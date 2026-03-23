@@ -15,7 +15,7 @@ from options_arena.api.deps import (
     get_outcome_collector,
     get_repo,
 )
-from options_arena.api.schemas import OutcomeCollectionResult
+from options_arena.api.schemas import OutcomeCollectionResult, RecommendationCostSummary
 from options_arena.data import Repository
 from options_arena.learning import auto_tune_weights
 from options_arena.models import (
@@ -296,3 +296,32 @@ async def get_correlation(
         )
 
     return compute_correlation_matrix(price_data, min_overlap=30)
+
+
+@router.get("/recommendation-costs")
+@limiter.limit("60/minute")
+async def get_recommendation_costs(
+    request: Request,
+    ticker: str | None = Query(default=None, description="Filter by ticker symbol"),
+    limit: int = Query(default=20, ge=1, le=100),
+    repo: Repository = Depends(get_repo),
+) -> list[RecommendationCostSummary]:
+    """Get cost summaries from recent recommendations.
+
+    Returns token usage and timing data from the ``recommendation_results`` table.
+    Per-desk cost breakdowns require model routing to be enabled.
+    """
+    if ticker is not None:
+        results = await repo.get_recommendations_for_ticker(ticker, limit=limit)
+    else:
+        results = await repo.get_recent_recommendations(limit=limit)
+    return [
+        RecommendationCostSummary(
+            ticker=rec.ticker,
+            created_at=rec.created_at,
+            duration_ms=rec.duration_ms,
+            total_tokens=rec.total_input_tokens + rec.total_output_tokens,
+            is_fallback=rec.is_fallback,
+        )
+        for rec in results
+    ]

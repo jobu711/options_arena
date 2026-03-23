@@ -81,6 +81,7 @@ from options_arena.models.enums import (
     ConditionOperator,
     ConstraintSeverity,
     ConstraintViolationType,
+    DeskRunStatus,
     DeskType,
     DividendSource,
     EvalType,
@@ -188,6 +189,7 @@ __all__ = [
     "ConditionOperator",
     "ConstraintSeverity",
     "ConstraintViolationType",
+    "DeskRunStatus",
     "DeskType",
     "DividendSource",
     "EvalType",
@@ -369,6 +371,7 @@ __all__ = [
     # Eval
     "EvalBaseline",
     "EvalDefinition",
+    "EvalOutcome",
     "EvalReport",
     "EvalRun",
     # Correlation

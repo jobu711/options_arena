@@ -303,7 +303,7 @@ async def ws_scan(websocket: WebSocket, scan_id: int) -> None:
         if reserved:
             async with _scan_ws_lock:
                 _scan_ws_count -= 1
-        scan_queues.pop(scan_id, None)
+        # Queue cleanup owned by scan background task — don't double-pop
         with contextlib.suppress(Exception):
             await websocket.close()
 
@@ -351,7 +351,7 @@ async def ws_debate(websocket: WebSocket, debate_id: int) -> None:
         if reserved:
             async with _debate_ws_lock:
                 _debate_ws_count -= 1
-        debate_queues.pop(debate_id, None)
+        # Queue cleanup owned by debate background task — don't double-pop
         with contextlib.suppress(Exception):
             await websocket.close()
 
@@ -399,6 +399,6 @@ async def ws_batch(websocket: WebSocket, batch_id: int) -> None:
         if reserved:
             async with _batch_ws_lock:
                 _batch_ws_count -= 1
-        batch_queues.pop(batch_id, None)
+        # Queue cleanup owned by batch background task — don't double-pop
         with contextlib.suppress(Exception):
             await websocket.close()

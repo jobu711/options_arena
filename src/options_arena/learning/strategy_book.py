@@ -64,7 +64,7 @@ class OutcomeWithContext(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     sector: str
-    iv_level: float  # raw IV * 100 (NOT IV rank — see _fetch_outcomes_with_context)
+    iv_level: float  # raw IV * 100 (NOT IV rank — see fetch_outcomes_with_context)
     dte_at_entry: int
     direction: str
     return_pct: float
@@ -442,7 +442,7 @@ async def run_strategy_mining(repo: Repository) -> list[StrategyRule]:
 async def _run_mining_pipeline(repo: Repository) -> list[StrategyRule]:
     """Internal mining pipeline (may raise)."""
     # Fetch outcome data with dimensional context
-    outcomes = await _fetch_outcomes_with_context(repo)
+    outcomes = await fetch_outcomes_with_context(repo)
 
     if len(outcomes) < MIN_TOTAL_OUTCOMES:
         logger.warning(
@@ -475,7 +475,7 @@ async def _run_mining_pipeline(repo: Repository) -> list[StrategyRule]:
     return rules
 
 
-async def _fetch_outcomes_with_context(
+async def fetch_outcomes_with_context(
     repo: Repository,
 ) -> list[OutcomeWithContext]:
     """Fetch outcomes with dimensional context from the database.

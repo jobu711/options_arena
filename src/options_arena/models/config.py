@@ -269,6 +269,17 @@ class RoutingConfig(BaseModel):
         "llama-3.1-8b-instant": 0.05,
     }
 
+    @field_validator("cost_per_million_tokens")
+    @classmethod
+    def _validate_cost_values(cls, v: dict[str, float]) -> dict[str, float]:
+        """Ensure all cost values are finite and non-negative."""
+        for key, val in v.items():
+            if not math.isfinite(val):
+                raise ValueError(f"cost for {key!r} must be finite, got {val}")
+            if val < 0.0:
+                raise ValueError(f"cost for {key!r} must be >= 0, got {val}")
+        return v
+
     @field_validator("complexity_threshold_fast", "complexity_threshold_premium")
     @classmethod
     def _validate_threshold(cls, v: float) -> float:

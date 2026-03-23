@@ -24,6 +24,7 @@ from pydantic_ai.usage import RunUsage
 from options_arena.models._validators import validate_non_empty_list, validate_unit_interval
 from options_arena.models.analysis import MarketContext
 from options_arena.models.enums import (
+    DeskRunStatus,
     DeskType,
     IVTermStructureShape,
     ModelTier,
@@ -158,7 +159,7 @@ class DeskMetrics(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     desk: DeskType
-    status: str  # "success" or "fallback"
+    status: DeskRunStatus
     duration_ms: int
     model_tier: ModelTier
     model_used: str

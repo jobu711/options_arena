@@ -57,11 +57,7 @@ def _assess_complexity(context: MarketContext, ticker_score: TickerScore) -> flo
         score += 0.1
 
     # Extreme IV regime
-    if (
-        signals.iv_rank is not None
-        and math.isfinite(signals.iv_rank)
-        and signals.iv_rank > 80
-    ):
+    if signals.iv_rank is not None and math.isfinite(signals.iv_rank) and signals.iv_rank > 80:
         score += 0.15
 
     # Unusual flow

@@ -507,6 +507,13 @@ class DeskType(StrEnum):
     RESEARCH = "research"
 
 
+class DeskRunStatus(StrEnum):
+    """Outcome status of a desk agent run."""
+
+    SUCCESS = "success"
+    FALLBACK = "fallback"
+
+
 class QueryType(StrEnum):
     """Classification of user query intent for desk routing."""
 

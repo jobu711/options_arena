@@ -10,7 +10,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime
+import math
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -27,7 +28,6 @@ from options_arena.api.deps import (
     get_settings,
 )
 from options_arena.api.schemas import (
-    AssessmentSummary,
     BatchDebateRequest,
     BatchDebateStarted,
     BatchTickerResult,
@@ -35,6 +35,7 @@ from options_arena.api.schemas import (
     DebateResultDetail,
     DebateResultSummary,
     DebateStarted,
+    DeskAssessmentBrief,
     PositionRecommendationResponse,
     RecommendationResponse,
     SpreadDetail,
@@ -172,19 +173,24 @@ def _recommendation_row_to_response(
 ) -> RecommendationResponse:
     """Convert a ``RecommendationRow`` to a ``RecommendationResponse`` schema."""
     # Parse assessments JSON
-    assessments: list[AssessmentSummary] = []
+    assessments: list[DeskAssessmentBrief] = []
     try:
         assessment_dicts = json.loads(row.assessments_json)
         for ad in assessment_dicts:
-            assessments.append(
-                AssessmentSummary(
-                    desk=str(ad.get("desk", "unknown")),
-                    direction=str(ad.get("direction", "neutral")),
-                    confidence=float(ad.get("confidence", 0.0)),
-                    summary=str(ad.get("summary", "")),
-                    key_findings=list(ad.get("key_factors", [])),
+            try:
+                raw_conf = float(ad.get("confidence", 0.0))
+                conf = raw_conf if math.isfinite(raw_conf) else 0.0
+                assessments.append(
+                    DeskAssessmentBrief(
+                        desk=str(ad.get("desk", "unknown")),
+                        direction=str(ad.get("direction", "neutral")),
+                        confidence=conf,
+                        summary=str(ad.get("summary", "")),
+                        key_findings=list(ad.get("key_factors", [])),
+                    )
                 )
-            )
+            except (TypeError, ValueError):
+                logger.warning("Skipping malformed assessment in recommendation %d", row.id)
     except (json.JSONDecodeError, TypeError, ValueError):
         logger.warning("Failed to parse assessments JSON for recommendation %d", row.id)
 
@@ -204,8 +210,10 @@ def _recommendation_row_to_response(
         rationale=row.position_rationale,
     )
 
-    # Parse created_at datetime
+    # Parse created_at datetime — add UTC if naive (legacy data defense)
     created_at = datetime.fromisoformat(row.created_at)
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=UTC)
 
     return RecommendationResponse(
         id=row.id,
@@ -506,13 +514,15 @@ async def list_debates(
         if ticker is not None:
             ticker_upper = ticker.upper()
             if not TICKER_RE.match(ticker_upper):
-                raise HTTPException(422, f"Invalid ticker format: {ticker!r}")
+                raise HTTPException(422, "Invalid ticker format")
             rec_rows = await repo.get_recommendations_for_ticker(ticker_upper, limit=limit)
         else:
             rec_rows = await repo.get_recent_recommendations(limit=limit)
 
         for rr in rec_rows:
             created_at = datetime.fromisoformat(rr.created_at)
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=UTC)
             direction = SignalDirection(rr.direction) if rr.direction else SignalDirection.NEUTRAL
             rec_summaries.append(
                 DebateResultSummary(
@@ -537,7 +547,7 @@ async def list_debates(
         if ticker is not None:
             ticker_upper = ticker.upper()
             if not TICKER_RE.match(ticker_upper):
-                raise HTTPException(422, f"Invalid ticker format: {ticker!r}")
+                raise HTTPException(422, "Invalid ticker format")
             rows = await repo.get_debates_for_ticker(ticker_upper, limit=limit)
         else:
             rows = await repo.get_recent_debates(limit=limit)

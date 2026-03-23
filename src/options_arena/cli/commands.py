@@ -469,6 +469,9 @@ def debate(
     provider: LLMProvider = typer.Option(  # noqa: B008
         LLMProvider.GROQ, "--provider", help="LLM provider: groq (free) or anthropic"
     ),
+    cost_summary: bool = typer.Option(
+        False, "--cost-summary", help="Show per-desk cost breakdown"
+    ),
 ) -> None:
     """Run AI debate on a scored ticker."""
     if batch and ticker is not None:
@@ -508,6 +511,7 @@ def debate(
                 export_dir,
                 no_recon=no_recon,
                 provider=provider,
+                cost_summary=cost_summary,
             )
         )
 
@@ -795,6 +799,60 @@ async def _recommendation_single(
     )
 
 
+def _render_cost_summary(con: Console, result: RecommendationResult) -> None:
+    """Render per-desk cost breakdown as a Rich table."""
+    from rich.table import Table  # noqa: PLC0415
+
+    if not result.desk_metrics:
+        con.print("\n[dim]No desk metrics available.[/dim]")
+        return
+
+    if result.cost is None:
+        con.print("\n[dim]Model routing disabled — no cost data available.[/dim]")
+        return
+
+    tier_styles = {"fast": "green", "standard": "yellow", "premium": "red"}
+
+    table = Table(title="Per-Desk Cost Breakdown")
+    table.add_column("Desk", style="bold")
+    table.add_column("Tier", justify="center")
+    table.add_column("Model", style="dim")
+    table.add_column("Tokens (In)", justify="right")
+    table.add_column("Tokens (Out)", justify="right")
+    table.add_column("Duration", justify="right")
+    table.add_column("Status", justify="center")
+
+    for m in result.desk_metrics:
+        tier_style = tier_styles.get(m.model_tier.value, "white")
+        status_style = "green" if m.status == "success" else "red"
+        table.add_row(
+            m.desk.value.title(),
+            f"[{tier_style}]{m.model_tier.value.upper()}[/{tier_style}]",
+            m.model_used,
+            f"{m.input_tokens:,}",
+            f"{m.output_tokens:,}",
+            f"{m.duration_ms:,}ms",
+            f"[{status_style}]{m.status}[/{status_style}]",
+        )
+
+    # Total row
+    total_in = sum(m.input_tokens for m in result.desk_metrics)
+    total_out = sum(m.output_tokens for m in result.desk_metrics)
+    table.add_section()
+    table.add_row(
+        "[bold]Total[/bold]",
+        "",
+        "",
+        f"[bold]{total_in:,}[/bold]",
+        f"[bold]{total_out:,}[/bold]",
+        "",
+        "",
+    )
+
+    con.print(table)
+    con.print(f"[dim]Estimated cost: ${result.cost.total_cost_usd:.4f}[/dim]")
+
+
 async def _debate_async(
     ticker: str,
     history: bool,
@@ -804,6 +862,7 @@ async def _debate_async(
     *,
     no_recon: bool = False,
     provider: LLMProvider = LLMProvider.GROQ,
+    cost_summary: bool = False,
 ) -> None:
     """Run AI recommendation with full service lifecycle management."""
     settings = AppSettings()
@@ -907,6 +966,10 @@ async def _debate_async(
         console.print(
             f"\n[dim]Duration: {result.duration_ms / 1000:.1f}s | Tokens: {total_tokens}[/dim]"
         )
+
+        # Cost summary (opt-in via --cost-summary flag)
+        if cost_summary:
+            _render_cost_summary(console, result)
 
         # Export to file (after terminal rendering)
         if export is not None:
