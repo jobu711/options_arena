@@ -110,37 +110,25 @@ class TestScanBackgroundOutcomeCollection:
         lock = asyncio.Lock()
         await lock.acquire()
 
-        # Build mock request with app.state
+        # Build mock request with app.state — outcome_collector on app.state
         mock_analytics = MagicMock()
         mock_analytics.collection_timeout = 120.0
         mock_request = MagicMock()
         mock_request.app.state.settings.analytics = mock_analytics
-        mock_request.app.state.repo = MagicMock()
-        mock_request.app.state.market_data = MagicMock()
-        mock_request.app.state.options_data = MagicMock()
+        mock_request.app.state.outcome_collector = mock_collector_instance
         mock_request.app.state.active_scans = {1: MagicMock()}
         mock_request.app.state.scan_queues = {1: bridge.queue}
 
-        with patch(
-            "options_arena.api.routes.scan.OutcomeCollector",
-            return_value=mock_collector_instance,
-        ) as mock_oc_class:
-            await _run_scan_background(
-                mock_request,
-                1,
-                ScanSource.MANUAL,
-                MagicMock(),
-                bridge,
-                mock_pipeline,
-                lock,
-            )
-
-        mock_oc_class.assert_called_once_with(
-            config=mock_analytics,
-            repository=mock_request.app.state.repo,
-            market_data=mock_request.app.state.market_data,
-            options_data=mock_request.app.state.options_data,
+        await _run_scan_background(
+            mock_request,
+            1,
+            ScanSource.MANUAL,
+            MagicMock(),
+            bridge,
+            mock_pipeline,
+            lock,
         )
+
         mock_collector_instance.collect_outcomes.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -196,25 +184,19 @@ class TestScanBackgroundOutcomeCollection:
         mock_analytics.collection_timeout = 120.0
         mock_request = MagicMock()
         mock_request.app.state.settings.analytics = mock_analytics
-        mock_request.app.state.repo = MagicMock()
-        mock_request.app.state.market_data = MagicMock()
-        mock_request.app.state.options_data = MagicMock()
+        mock_request.app.state.outcome_collector = mock_collector_instance
         mock_request.app.state.active_scans = {1: MagicMock()}
         mock_request.app.state.scan_queues = {1: bridge.queue}
 
-        with patch(
-            "options_arena.api.routes.scan.OutcomeCollector",
-            return_value=mock_collector_instance,
-        ):
-            await _run_scan_background(
-                mock_request,
-                1,
-                ScanSource.MANUAL,
-                MagicMock(),
-                bridge,
-                mock_pipeline,
-                lock,
-            )
+        await _run_scan_background(
+            mock_request,
+            1,
+            ScanSource.MANUAL,
+            MagicMock(),
+            bridge,
+            mock_pipeline,
+            lock,
+        )
 
         # Drain the queue and find the complete event
         event = bridge.queue.get_nowait()
@@ -243,26 +225,20 @@ class TestScanBackgroundOutcomeCollection:
         mock_analytics.collection_timeout = 120.0
         mock_request = MagicMock()
         mock_request.app.state.settings.analytics = mock_analytics
-        mock_request.app.state.repo = MagicMock()
-        mock_request.app.state.market_data = MagicMock()
-        mock_request.app.state.options_data = MagicMock()
+        mock_request.app.state.outcome_collector = mock_collector_instance
         mock_request.app.state.active_scans = {1: MagicMock()}
         mock_request.app.state.scan_queues = {1: bridge.queue}
 
-        with patch(
-            "options_arena.api.routes.scan.OutcomeCollector",
-            return_value=mock_collector_instance,
-        ):
-            # Should NOT raise — the exception is caught internally
-            await _run_scan_background(
-                mock_request,
-                1,
-                ScanSource.MANUAL,
-                MagicMock(),
-                bridge,
-                mock_pipeline,
-                lock,
-            )
+        # Should NOT raise — the exception is caught internally
+        await _run_scan_background(
+            mock_request,
+            1,
+            ScanSource.MANUAL,
+            MagicMock(),
+            bridge,
+            mock_pipeline,
+            lock,
+        )
 
         # The complete event should still be sent with outcomes_collected=0
         event = bridge.queue.get_nowait()
@@ -335,25 +311,19 @@ class TestScanBackgroundOutcomeCollection:
         mock_request = MagicMock()
         mock_request.app.state.settings.analytics = MagicMock()
         mock_request.app.state.settings.analytics.collection_timeout = 1.0
-        mock_request.app.state.repo = MagicMock()
-        mock_request.app.state.market_data = MagicMock()
-        mock_request.app.state.options_data = MagicMock()
+        mock_request.app.state.outcome_collector = mock_collector_instance
         mock_request.app.state.active_scans = {1: MagicMock()}
         mock_request.app.state.scan_queues = {1: bridge.queue}
 
-        with patch(
-            "options_arena.api.routes.scan.OutcomeCollector",
-            return_value=mock_collector_instance,
-        ):
-            await _run_scan_background(
-                mock_request,
-                1,
-                ScanSource.MANUAL,
-                MagicMock(),
-                bridge,
-                mock_pipeline,
-                lock,
-            )
+        await _run_scan_background(
+            mock_request,
+            1,
+            ScanSource.MANUAL,
+            MagicMock(),
+            bridge,
+            mock_pipeline,
+            lock,
+        )
 
         event = bridge.queue.get_nowait()
         assert event["type"] == "complete"

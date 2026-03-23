@@ -24,9 +24,25 @@ def _make_signals(**kwargs: float | None) -> IndicatorSignals:
     return IndicatorSignals(**kwargs)
 
 
+# Fields with unit-interval [0, 1] validators — cannot accept arbitrary 0-100 values.
+# Set to None (excluded from computation) when building uniform signals outside [0, 1].
+_UNIT_INTERVAL_FIELDS: set[str] = {"ml_regime_confidence"}
+
+
 def _make_full_signals(value: float = 60.0) -> IndicatorSignals:
-    """Build IndicatorSignals with ALL 58 fields set to *value*."""
-    return IndicatorSignals(**{f: value for f in ALL_INDICATOR_FIELDS})
+    """Build IndicatorSignals with ALL fields set to *value*.
+
+    Fields with restricted ranges (e.g. [0, 1]) are set to None when the value
+    falls outside their valid range, so they don't distort averages.
+    """
+    return IndicatorSignals(
+        **{
+            f: (value if 0.0 <= value <= 1.0 else None)
+            if f in _UNIT_INTERVAL_FIELDS
+            else value
+            for f in ALL_INDICATOR_FIELDS
+        }
+    )
 
 
 # ---------------------------------------------------------------------------

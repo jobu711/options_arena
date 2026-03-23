@@ -68,7 +68,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # Load .env from project root so API keys are available via os.environ
     from dotenv import load_dotenv  # noqa: PLC0415
 
-    load_dotenv(_PROJECT_ROOT / ".env", override=False)
+    load_dotenv(_PROJECT_ROOT / ".env", override=True)
 
     settings = AppSettings()
 
@@ -324,7 +324,7 @@ def _register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(TickerNotFoundError)
     async def _ticker_not_found(request: object, exc: TickerNotFoundError) -> JSONResponse:
         logger.warning("Ticker not found: %s", exc)
-        return JSONResponse(status_code=404, content={"detail": "Ticker not found"})
+        return JSONResponse(status_code=404, content={"detail": f"Ticker not found: {exc}"})
 
     @app.exception_handler(InsufficientDataError)
     async def _insufficient_data(request: object, exc: InsufficientDataError) -> JSONResponse:

@@ -20,9 +20,25 @@ from options_arena.scoring.composite import (
 ALL_INDICATOR_FIELDS: list[str] = list(IndicatorSignals.model_fields.keys())
 
 
+# Fields with unit-interval [0, 1] validators — cannot accept arbitrary 0-100 values.
+# Set to None (excluded from computation) when building uniform signals outside [0, 1].
+_UNIT_INTERVAL_FIELDS: set[str] = {"ml_regime_confidence"}
+
+
 def _make_uniform_signals(value: float) -> IndicatorSignals:
-    """Build IndicatorSignals with all 18 fields set to *value*."""
-    return IndicatorSignals(**{field: value for field in ALL_INDICATOR_FIELDS})
+    """Build IndicatorSignals with all fields set to *value*.
+
+    Fields with restricted ranges (e.g. [0, 1]) are set to None when the value
+    falls outside their valid range, so they don't distort averages.
+    """
+    return IndicatorSignals(
+        **{
+            field: (value if 0.0 <= value <= 1.0 else None)
+            if field in _UNIT_INTERVAL_FIELDS
+            else value
+            for field in ALL_INDICATOR_FIELDS
+        }
+    )
 
 
 # ---------------------------------------------------------------------------

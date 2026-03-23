@@ -95,11 +95,15 @@ def test_config_response() -> None:
     """ConfigResponse holds safe config values."""
     resp = ConfigResponse(
         groq_api_key_set=True,
+        anthropic_api_key_set=False,
+        provider="groq",
         scan_preset_default="sp500",
         agent_timeout=60.0,
         recommendation_protocol="unified_v1",
     )
     assert resp.groq_api_key_set is True
+    assert resp.anthropic_api_key_set is False
+    assert resp.provider == "groq"
     assert resp.agent_timeout == 60.0
     assert resp.recommendation_protocol == "unified_v1"
 

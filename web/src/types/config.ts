@@ -33,6 +33,8 @@ export interface RecommendationCostDetail {
 /** Read-only safe config values from GET /api/config. */
 export interface ConfigResponse {
   groq_api_key_set: boolean
+  anthropic_api_key_set: boolean
+  provider: string
   scan_preset_default: string
   agent_timeout: number
   recommendation_protocol: string

@@ -36,14 +36,19 @@ async def get_config(
     override: RoutingConfig | None = Depends(get_routing_override),
 ) -> ConfigResponse:
     """Return safe configuration values (never the actual API key)."""
-    has_api_key = settings.debate.api_key is not None or bool(os.environ.get("GROQ_API_KEY"))
+    has_groq_key = settings.debate.api_key is not None or bool(os.environ.get("GROQ_API_KEY"))
+    has_anthropic_key = settings.debate.anthropic_api_key is not None or bool(
+        os.environ.get("ANTHROPIC_API_KEY")
+    )
 
     # Resolve routing: override if set, else base config
     resolved = override if override is not None else settings.debate.routing
     routing = _routing_response(resolved, is_override=override is not None)
 
     return ConfigResponse(
-        groq_api_key_set=has_api_key,
+        groq_api_key_set=has_groq_key,
+        anthropic_api_key_set=has_anthropic_key,
+        provider=settings.debate.provider.value,
         scan_preset_default="sp500",
         agent_timeout=settings.debate.agent_timeout,
         recommendation_protocol=settings.debate.recommendation_protocol,

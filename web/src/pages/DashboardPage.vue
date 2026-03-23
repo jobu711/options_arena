@@ -449,9 +449,19 @@ onUnmounted(() => {
       <h2>Configuration</h2>
       <div class="config-grid">
         <div class="config-item">
+          <span class="config-label">Provider</span>
+          <span class="config-value provider-value">{{ config.provider }}</span>
+        </div>
+        <div class="config-item">
           <span class="config-label">Groq API Key</span>
           <span :class="config.groq_api_key_set ? 'status-ok' : 'status-down'">
             {{ config.groq_api_key_set ? 'Set' : 'Missing' }}
+          </span>
+        </div>
+        <div class="config-item">
+          <span class="config-label">Anthropic API Key</span>
+          <span :class="config.anthropic_api_key_set ? 'status-ok' : 'status-down'">
+            {{ config.anthropic_api_key_set ? 'Set' : 'Missing' }}
           </span>
         </div>
         <div class="config-item">

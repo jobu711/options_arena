@@ -11,7 +11,6 @@ from options_arena.data._agency import AgencyMixin
 from options_arena.data._analytics import AnalyticsMixin
 from options_arena.data._base import RepositoryBase
 from options_arena.data._debate import DebateMixin
-from options_arena.data._eval import EvalMixin
 from options_arena.data._metadata import MetadataMixin
 from options_arena.data._recommendation import RecommendationMixin
 from options_arena.data._scan import ScanMixin
@@ -34,7 +33,6 @@ class TestRepositoryDecomposition:
             "AgencyMixin",
             "RecommendationMixin",
             "LearningMixin",
-            "EvalMixin",
             "RepositoryBase",
             "object",
         ]
@@ -91,13 +89,6 @@ class TestRepositoryDecomposition:
             "get_recommendation_by_id",
             "get_recent_recommendations",
             "get_recommendations_for_ticker",
-            # EvalMixin
-            "save_eval_definition",
-            "get_eval_definitions",
-            "get_eval_definition",
-            "save_eval_run",
-            "get_eval_runs",
-            "get_latest_eval_runs",
             # RepositoryBase
             "commit",
         }
@@ -135,7 +126,6 @@ class TestRepositoryDecomposition:
             SpreadsMixin,
             AgencyMixin,
             RecommendationMixin,
-            EvalMixin,
         ):
             assert issubclass(mixin, RepositoryBase), f"{mixin.__name__} missing RepositoryBase"
 

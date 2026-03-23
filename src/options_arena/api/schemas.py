@@ -756,6 +756,8 @@ class ConfigResponse(BaseModel):
     """Read-only safe config values (no secrets)."""
 
     groq_api_key_set: bool
+    anthropic_api_key_set: bool
+    provider: str
     scan_preset_default: str
     agent_timeout: float
     recommendation_protocol: str

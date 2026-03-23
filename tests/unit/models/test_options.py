@@ -604,4 +604,4 @@ class TestOptionSpread:
             ticker="AAPL",
         )
         with pytest.raises(ValidationError):
-            spread.spread_type = SpreadType.CALENDAR  # type: ignore[misc]
+            spread.spread_type = SpreadType.IRON_CONDOR  # type: ignore[misc]
