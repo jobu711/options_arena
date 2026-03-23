@@ -12,7 +12,6 @@ from options_arena.indicators.options_specific import (
     iv_percentile,
     iv_rank,
     max_pain,
-    put_call_ratio_oi,
     put_call_ratio_volume,
 )
 from options_arena.indicators.oscillators import rsi, stoch_rsi, williams_r
@@ -56,7 +55,6 @@ __all__ = [
     "macd",
     "max_pain",
     "obv_trend",
-    "put_call_ratio_oi",
     "put_call_ratio_volume",
     "relative_volume",
     "roc",

@@ -196,13 +196,13 @@ class TestComputeDimensionalScores:
     def test_regime_family_specific_fields(self) -> None:
         """Regime family computed from its indicator subset."""
         signals = _make_signals(
-            vix_term_structure=40.0,
-            risk_on_off_score=60.0,
             market_regime=50.0,
+            correlation_regime_shift=40.0,
+            hurst_exponent=60.0,
         )
         result = compute_dimensional_scores(signals)
 
-        expected = (40.0 + 60.0 + 50.0) / 3.0
+        expected = (50.0 + 40.0 + 60.0) / 3.0
         assert result.regime == pytest.approx(expected, rel=1e-4)
 
     def test_risk_family_specific_fields(self) -> None:

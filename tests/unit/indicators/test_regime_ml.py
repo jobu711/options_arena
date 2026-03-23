@@ -21,9 +21,7 @@ from options_arena.indicators.regime_ml import (
     MarkovRegimeOutput,
     _get_markov_regression,
     compute_markov_regime,
-    map_regime_label_to_market_regime,
 )
-from options_arena.models.enums import MarketRegime
 from options_arena.models.scan import IndicatorSignals
 
 # ---------------------------------------------------------------------------
@@ -270,27 +268,6 @@ class TestMarkovRegime:
 # ===========================================================================
 
 
-class TestMapRegimeLabelToMarketRegime:
-    """Tests for map_regime_label_to_market_regime()."""
-
-    def test_low_vol_maps_to_mean_reverting(self) -> None:
-        """low_vol -> MarketRegime.MEAN_REVERTING."""
-        assert map_regime_label_to_market_regime("low_vol") == MarketRegime.MEAN_REVERTING
-
-    def test_normal_maps_to_trending(self) -> None:
-        """normal -> MarketRegime.TRENDING."""
-        assert map_regime_label_to_market_regime("normal") == MarketRegime.TRENDING
-
-    def test_high_vol_maps_to_volatile(self) -> None:
-        """high_vol -> MarketRegime.VOLATILE."""
-        assert map_regime_label_to_market_regime("high_vol") == MarketRegime.VOLATILE
-
-    def test_unknown_label_defaults_to_mean_reverting(self) -> None:
-        """Unknown labels default to MarketRegime.MEAN_REVERTING."""
-        assert map_regime_label_to_market_regime("unknown") == MarketRegime.MEAN_REVERTING
-        assert map_regime_label_to_market_regime("") == MarketRegime.MEAN_REVERTING
-
-
 # ===========================================================================
 # TestMarkovRegimeOutput
 # ===========================================================================
@@ -382,6 +359,6 @@ class TestIndicatorSignalsMarkovFields:
         assert restored.regime_markov_label == pytest.approx(2.0)
         assert restored.regime_transition_prob == pytest.approx(0.92)
 
-    def test_total_field_count_is_75(self) -> None:
-        """IndicatorSignals should now have exactly 75 fields."""
-        assert len(IndicatorSignals.model_fields) == 75
+    def test_total_field_count_is_71(self) -> None:
+        """IndicatorSignals should now have exactly 71 fields."""
+        assert len(IndicatorSignals.model_fields) == 71

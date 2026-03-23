@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from options_arena.agents import DebatePhase
-from options_arena.api.ws import DebateProgressBridge, WebSocketProgressBridge
+from options_arena.api.ws import WebSocketProgressBridge
 from options_arena.scan import ScanPhase
 
 
@@ -61,40 +58,3 @@ async def test_scan_bridge_multiple_events() -> None:
     assert e2["current"] == 50
     e3 = bridge.queue.get_nowait()
     assert e3["phase"] == "scoring"
-
-
-async def test_debate_bridge_agent_event() -> None:
-    """DebateProgressBridge queues agent events."""
-    bridge = DebateProgressBridge()
-    bridge(DebatePhase.TREND, "started", None)
-    event = bridge.queue.get_nowait()
-    assert event["type"] == "agent"
-    assert event["name"] == "trend"
-    assert event["status"] == "started"
-    assert "confidence" not in event
-
-
-async def test_debate_bridge_agent_with_confidence() -> None:
-    """DebateProgressBridge includes confidence when provided."""
-    bridge = DebateProgressBridge()
-    bridge(DebatePhase.VOLATILITY, "completed", 0.75)
-    event = bridge.queue.get_nowait()
-    assert event["confidence"] == pytest.approx(0.75)
-
-
-async def test_debate_bridge_complete_event() -> None:
-    """DebateProgressBridge queues complete event."""
-    bridge = DebateProgressBridge()
-    bridge.complete(99)
-    event = bridge.queue.get_nowait()
-    assert event["type"] == "complete"
-    assert event["debate_id"] == 99
-
-
-async def test_debate_bridge_error_event() -> None:
-    """DebateProgressBridge queues error events."""
-    bridge = DebateProgressBridge()
-    bridge.error("Debate failed")
-    event = bridge.queue.get_nowait()
-    assert event["type"] == "error"
-    assert event["message"] == "Debate failed"

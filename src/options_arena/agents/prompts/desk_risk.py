@@ -1,7 +1,7 @@
 """Risk desk agent system prompt for interactive mode.
 
-Conversational prompt for the risk desk -- shorter and more focused than
-the debate-mode risk prompt.  Desk prompts do NOT use PROMPT_RULES_APPENDIX.
+Conversational prompt for the risk desk.  Desk prompts do NOT use
+PROMPT_RULES_APPENDIX.
 """
 
 DESK_RISK_PROMPT = """You are a risk management specialist on an options trading desk.

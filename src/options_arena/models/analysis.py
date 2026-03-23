@@ -36,8 +36,6 @@ from pydantic import (
 from options_arena.models._validators import validate_non_empty_list, validate_unit_interval
 from options_arena.models.enums import (
     CatalystImpact,
-    ConstraintSeverity,
-    ConstraintViolationType,
     DeskType,
     ExerciseStyle,
     MacdSignal,
@@ -990,22 +988,6 @@ class AgencyResponse(BaseModel):
         if v.tzinfo is None or v.utcoffset() != timedelta(0):
             raise ValueError("created_at must be UTC")
         return v
-
-
-class ContractConstraint(BaseModel):
-    """A single constraint violation detected during contract pre-check.
-
-    Frozen (immutable after construction) -- represents a completed violation finding.
-    Hard violations disqualify contracts from debate; soft violations inject caution
-    warnings into agent context.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    contract_label: str  # "AAPL 200C 2026-04-18"
-    violation_type: ConstraintViolationType
-    detail: str
-    severity: ConstraintSeverity
 
 
 # Valid volatility tier labels for position sizing

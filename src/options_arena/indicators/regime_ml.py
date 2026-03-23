@@ -27,8 +27,6 @@ from typing import Any, NamedTuple
 import numpy as np
 import pandas as pd
 
-from options_arena.models.enums import MarketRegime
-
 logger = logging.getLogger(__name__)
 
 # Minimum observations required for regime estimation (1 year of trading days)
@@ -42,13 +40,6 @@ _SEARCH_REPS: int = 20
 
 # Regime label mapping by variance rank (ascending)
 _REGIME_LABELS: list[str] = ["low_vol", "normal", "high_vol"]
-
-# Map regime labels to MarketRegime enum values
-_REGIME_TO_MARKET_REGIME: dict[str, MarketRegime] = {
-    "low_vol": MarketRegime.MEAN_REVERTING,
-    "normal": MarketRegime.TRENDING,
-    "high_vol": MarketRegime.VOLATILE,
-}
 
 
 class MarkovRegimeOutput(NamedTuple):
@@ -207,24 +198,6 @@ def compute_markov_regime(
     except Exception:
         logger.warning("Markov regime detection failed", exc_info=True)
         return None
-
-
-def map_regime_label_to_market_regime(label: str) -> MarketRegime:
-    """Map a Markov regime label to the ``MarketRegime`` enum.
-
-    Mapping:
-        ``"low_vol"``  -> ``MarketRegime.MEAN_REVERTING``
-        ``"normal"``   -> ``MarketRegime.TRENDING``
-        ``"high_vol"`` -> ``MarketRegime.VOLATILE``
-
-    Args:
-        label: Regime label from ``MarkovRegimeOutput.regime_label``.
-
-    Returns:
-        Corresponding ``MarketRegime`` enum value, defaults to
-        ``MarketRegime.MEAN_REVERTING`` for unknown labels.
-    """
-    return _REGIME_TO_MARKET_REGIME.get(label, MarketRegime.MEAN_REVERTING)
 
 
 # ---------------------------------------------------------------------------

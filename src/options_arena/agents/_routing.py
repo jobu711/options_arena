@@ -338,110 +338,6 @@ def classify_intent(query: str) -> QueryIntent:
 # ---------------------------------------------------------------------------
 
 
-async def _run_vol(
-    query: str,
-    deps: DeskDeps,
-    *,
-    model: object | None,
-    config: AgencyConfig,
-) -> DeskResponse:
-    """Delegate to run_vol_desk_query."""
-    return await run_vol_desk_query(query, deps, model=model, config=config)
-
-
-async def _run_risk(
-    query: str,
-    deps: DeskDeps,
-    *,
-    model: object | None,
-    config: AgencyConfig,
-) -> DeskResponse:
-    """Delegate to run_risk_desk_query."""
-    return await run_risk_desk_query(query, deps, model=model, config=config)
-
-
-async def _run_trend(
-    query: str,
-    deps: DeskDeps,
-    *,
-    model: object | None,
-    config: AgencyConfig,
-) -> DeskResponse:
-    """Delegate to run_trend_desk_query."""
-    return await run_trend_desk_query(query, deps, model=model, config=config)
-
-
-async def _run_flow(
-    query: str,
-    deps: DeskDeps,
-    *,
-    model: object | None,
-    config: AgencyConfig,
-) -> DeskResponse:
-    """Delegate to run_flow_desk_query."""
-    return await run_flow_desk_query(query, deps, model=model, config=config)
-
-
-async def _run_fundamental(
-    query: str,
-    deps: DeskDeps,
-    *,
-    model: object | None,
-    config: AgencyConfig,
-) -> DeskResponse:
-    """Delegate to run_fundamental_desk_query."""
-    return await run_fundamental_desk_query(query, deps, model=model, config=config)
-
-
-async def _run_contrarian(
-    query: str,
-    deps: DeskDeps,
-    *,
-    model: object | None,
-    config: AgencyConfig,
-) -> DeskResponse:
-    """Delegate to run_contrarian_desk_query."""
-    return await run_contrarian_desk_query(query, deps, model=model, config=config)
-
-
-async def _run_research(
-    query: str,
-    deps: DeskDeps,
-    *,
-    model: object | None,
-    config: AgencyConfig,
-) -> DeskResponse:
-    """Delegate to run_research_desk_query."""
-    return await run_research_desk_query(query, deps, model=model, config=config)
-
-
-async def _run_unimplemented(
-    desk: DeskType,
-) -> DeskResponse:
-    """Return an error DeskResponse for desks not yet implemented."""
-    return DeskResponse(
-        desk=desk,
-        response="All desks are available. Supported: volatility, risk, trend, flow, "
-        "fundamental, contrarian, research.",
-        tools_used=[],
-        confidence=0.0,
-    )
-
-
-# Map implemented desks to their runners
-_IMPLEMENTED_DESKS: frozenset[DeskType] = frozenset(
-    {
-        DeskType.VOLATILITY,
-        DeskType.RISK,
-        DeskType.TREND,
-        DeskType.FLOW,
-        DeskType.FUNDAMENTAL,
-        DeskType.CONTRARIAN,
-        DeskType.RESEARCH,
-    }
-)
-
-
 def _extract_citations(
     desk_responses: list[DeskResponse],
 ) -> list[Citation]:
@@ -534,10 +430,9 @@ async def run_agency_query(
     Orchestration flow:
     1. Classify intent (or use desk_override if set).
     2. Dispatch to desk(s) via asyncio.gather with return_exceptions=True.
-    3. For implemented desks (all 7): call desk runners.
-    4. For unrecognized desks: return error DeskResponse(confidence=0.0).
-    5. Synthesize AgencyResponse with merged citations and averaged confidence.
-    6. Never raises -- catches all exceptions, returns error AgencyResponse.
+    3. Call desk runners for all matched desks.
+    4. Synthesize AgencyResponse with merged citations and averaged confidence.
+    5. Never raises -- catches all exceptions, returns error AgencyResponse.
 
     Parameters
     ----------
@@ -587,13 +482,13 @@ async def run_agency_query(
 
         # Dispatch table: DeskType -> runner coroutine factory
         _desk_runners = {
-            DeskType.VOLATILITY: _run_vol,
-            DeskType.RISK: _run_risk,
-            DeskType.TREND: _run_trend,
-            DeskType.FLOW: _run_flow,
-            DeskType.FUNDAMENTAL: _run_fundamental,
-            DeskType.CONTRARIAN: _run_contrarian,
-            DeskType.RESEARCH: _run_research,
+            DeskType.VOLATILITY: run_vol_desk_query,
+            DeskType.RISK: run_risk_desk_query,
+            DeskType.TREND: run_trend_desk_query,
+            DeskType.FLOW: run_flow_desk_query,
+            DeskType.FUNDAMENTAL: run_fundamental_desk_query,
+            DeskType.CONTRARIAN: run_contrarian_desk_query,
+            DeskType.RESEARCH: run_research_desk_query,
         }
 
         # Fetch approved learned patterns for prompt injection (never-raises)
@@ -609,20 +504,17 @@ async def run_agency_query(
 
         for desk in intent.desks:
             desk_order.append(desk)
-            runner = _desk_runners.get(desk)
-            if runner is not None:
-                deps = DeskDeps(
-                    query=query.query_text,
-                    ticker=primary_ticker,
-                    market_data=market_data,
-                    options_data=options_data,
-                    fred=fred,
-                    repo=repo,
-                    learned_patterns=patterns_text,
-                )
-                awaitables.append(runner(query.query_text, deps, model=model, config=config))
-            else:
-                awaitables.append(_run_unimplemented(desk))
+            runner = _desk_runners[desk]
+            deps = DeskDeps(
+                query=query.query_text,
+                ticker=primary_ticker,
+                market_data=market_data,
+                options_data=options_data,
+                fred=fred,
+                repo=repo,
+                learned_patterns=patterns_text,
+            )
+            awaitables.append(runner(query.query_text, deps, model=model, config=config))
 
         # 4. Dispatch atomically — no orphan risk from ensure_future
         results = await asyncio.gather(*awaitables, return_exceptions=True)

@@ -25,7 +25,6 @@ from options_arena.indicators.iv_analytics import (
     compute_iv_term_slope,
     compute_put_skew,
     compute_skew_ratio,
-    compute_vix_correlation,
     compute_vol_cone_pctl,
 )
 from options_arena.models.enums import IVTermStructureShape, VolRegime
@@ -539,88 +538,6 @@ class TestVolConePctl:
         """All-NaN history returns None."""
         hv_history = pd.Series([float("nan")] * 20)
         assert compute_vol_cone_pctl(0.30, hv_history) is None
-
-
-# ---------------------------------------------------------------------------
-# compute_vix_correlation tests
-# ---------------------------------------------------------------------------
-
-
-class TestVIXCorrelation:
-    """Tests for compute_vix_correlation."""
-
-    def test_negative_correlation(self) -> None:
-        """Inversely correlated series produces negative correlation."""
-        np.random.seed(42)
-        ticker_returns = pd.Series(np.random.randn(60) * 0.01)
-        # VIX typically moves opposite to stocks
-        vix_changes = -ticker_returns + np.random.randn(60) * 0.002
-        result = compute_vix_correlation(ticker_returns, vix_changes)
-        assert result is not None
-        assert result < 0.0
-
-    def test_positive_correlation(self) -> None:
-        """Positively correlated series produces positive correlation."""
-        np.random.seed(42)
-        ticker_returns = pd.Series(np.random.randn(60) * 0.01)
-        vix_changes = pd.Series(ticker_returns.values + np.random.randn(60) * 0.001)
-        result = compute_vix_correlation(ticker_returns, vix_changes)
-        assert result is not None
-        assert result > 0.0
-
-    def test_correlation_bounds(self) -> None:
-        """Correlation is bounded [-1, 1]."""
-        np.random.seed(42)
-        ticker_returns = pd.Series(np.random.randn(60) * 0.01)
-        vix_changes = pd.Series(np.random.randn(60) * 0.01)
-        result = compute_vix_correlation(ticker_returns, vix_changes)
-        assert result is not None
-        assert -1.0 <= result <= 1.0
-
-    def test_insufficient_data(self) -> None:
-        """Fewer than 60 data points returns None."""
-        ticker_returns = pd.Series(np.random.randn(59) * 0.01)
-        vix_changes = pd.Series(np.random.randn(59) * 0.01)
-        assert compute_vix_correlation(ticker_returns, vix_changes) is None
-
-    def test_mismatched_lengths(self) -> None:
-        """Mismatched series lengths returns None."""
-        ticker_returns = pd.Series(np.random.randn(60) * 0.01)
-        vix_changes = pd.Series(np.random.randn(70) * 0.01)
-        assert compute_vix_correlation(ticker_returns, vix_changes) is None
-
-    def test_uses_last_60_observations(self) -> None:
-        """Uses last 60 observations from longer series."""
-        np.random.seed(42)
-        # 100 observations, but function uses last 60
-        ticker_returns = pd.Series(np.random.randn(100) * 0.01)
-        vix_changes = pd.Series(-ticker_returns.values + np.random.randn(100) * 0.002)
-        result = compute_vix_correlation(ticker_returns, vix_changes)
-        assert result is not None
-
-    def test_nan_handling(self) -> None:
-        """NaN values are dropped before computing correlation."""
-        np.random.seed(42)
-        t_data = np.random.randn(60) * 0.01
-        v_data = np.random.randn(60) * 0.01
-        t_data[5] = float("nan")
-        t_data[10] = float("nan")
-        ticker_returns = pd.Series(t_data)
-        vix_changes = pd.Series(v_data)
-        result = compute_vix_correlation(ticker_returns, vix_changes)
-        # Should work since we still have >= 30 non-NaN pairs
-        assert result is not None
-
-    def test_too_many_nans_returns_none(self) -> None:
-        """Fewer than 30 non-NaN pairs returns None."""
-        t_data = np.full(60, float("nan"))
-        t_data[:20] = np.random.randn(20) * 0.01
-        v_data = np.full(60, float("nan"))
-        v_data[:20] = np.random.randn(20) * 0.01
-        ticker_returns = pd.Series(t_data)
-        vix_changes = pd.Series(v_data)
-        result = compute_vix_correlation(ticker_returns, vix_changes)
-        assert result is None
 
 
 # ---------------------------------------------------------------------------

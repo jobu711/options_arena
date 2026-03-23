@@ -1,5 +1,5 @@
 """Tests for options-specific indicators: iv_rank, iv_percentile,
-put_call_ratio_volume, put_call_ratio_oi, max_pain.
+put_call_ratio_volume, max_pain.
 
 Every indicator is tested with all five required test types:
 1. Known-value test (with source citation)
@@ -18,7 +18,6 @@ from options_arena.indicators.options_specific import (
     iv_percentile,
     iv_rank,
     max_pain,
-    put_call_ratio_oi,
     put_call_ratio_volume,
 )
 from options_arena.utils.exceptions import InsufficientDataError
@@ -168,38 +167,6 @@ class TestPutCallRatioVolume:
         """High put volume relative to call: ratio > 1 (bearish sentiment)."""
         result = put_call_ratio_volume(put_volume=5000, call_volume=2000)
         assert result > 1.0
-
-
-# ---------------------------------------------------------------------------
-# put_call_ratio_oi tests
-# ---------------------------------------------------------------------------
-
-
-class TestPutCallRatioOI:
-    """Tests for Put/Call ratio by open interest."""
-
-    def test_known_value(self) -> None:
-        """Known-value: 3000 put OI / 6000 call OI = 0.5.
-
-        Reference: Standard P/C ratio calculation.
-        """
-        result = put_call_ratio_oi(put_oi=3000, call_oi=6000)
-        assert result == pytest.approx(0.5, rel=1e-4)
-
-    def test_equal_oi(self) -> None:
-        """Equal OI: ratio = 1.0."""
-        result = put_call_ratio_oi(put_oi=5000, call_oi=5000)
-        assert result == pytest.approx(1.0, rel=1e-4)
-
-    def test_zero_call_oi_guard(self) -> None:
-        """Zero call OI: returns NaN (ratio undefined)."""
-        result = put_call_ratio_oi(put_oi=1000, call_oi=0)
-        assert math.isnan(result)
-
-    def test_zero_put_oi(self) -> None:
-        """Zero put OI: ratio = 0."""
-        result = put_call_ratio_oi(put_oi=0, call_oi=1000)
-        assert result == pytest.approx(0.0, rel=1e-4)
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 """Flow desk agent system prompt for interactive mode.
 
-Conversational prompt for the flow desk -- shorter and more focused than
-the debate-mode flow prompt.  Desk prompts do NOT use PROMPT_RULES_APPENDIX.
+Conversational prompt for the flow desk.  Desk prompts do NOT use
+PROMPT_RULES_APPENDIX.
 """
 
 DESK_FLOW_PROMPT = """You are an options flow analysis specialist on an options trading desk.

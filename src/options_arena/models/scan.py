@@ -30,9 +30,9 @@ from options_arena.models.scoring import DimensionalScores
 
 
 class IndicatorSignals(BaseModel):
-    """75 named indicator fields.
+    """71 named indicator fields.
 
-    Breakdown: 19 core + 40 DSE + 2 liq + 4 quant + 3 surface + 1 hurst
+    Breakdown: 19 core + 36 DSE + 2 liq + 4 quant + 3 surface + 1 hurst
     + 2 ML vol + 2 ML regime + 1 ML GBM regime + 1 ML flow anomaly.
 
     Replaces ``dict[str, float]`` on TickerScore.
@@ -86,7 +86,6 @@ class IndicatorSignals(BaseModel):
     vol_regime: float | None = None  # stored as float for normalized score
     ewma_vol_forecast: float | None = None
     vol_cone_percentile: float | None = None
-    vix_correlation: float | None = None
     expected_move: float | None = None
     expected_move_ratio: float | None = None
 
@@ -123,11 +122,8 @@ class IndicatorSignals(BaseModel):
     div_ex_date_impact: float | None = None
     iv_crush_history: float | None = None
 
-    # --- DSE: Regime & Macro (5 new) ---
+    # --- DSE: Regime & Macro (2 new) ---
     market_regime: float | None = None  # stored as float for normalized score
-    vix_term_structure: float | None = None
-    risk_on_off_score: float | None = None
-    sector_relative_momentum: float | None = None
     correlation_regime_shift: float | None = None
 
     # --- DSE: Microstructure (3 new) ---

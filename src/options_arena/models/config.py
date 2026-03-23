@@ -327,7 +327,6 @@ class DebateConfig(BaseModel):
     enable_extended_thinking: bool = False
     thinking_budget_tokens: int = 5000
     agent_timeout: float = 60.0
-    num_ctx: int = 8192
     retries: int = 2
     temperature: float = 0.3
     fallback_confidence: float = 0.3
@@ -407,14 +406,6 @@ class DebateConfig(BaseModel):
             raise ValueError(f"fallback_confidence must be finite, got {v}")
         if not 0.0 <= v <= 1.0:
             raise ValueError(f"fallback_confidence must be in [0, 1], got {v}")
-        return v
-
-    @field_validator("num_ctx")
-    @classmethod
-    def validate_num_ctx(cls, v: int) -> int:
-        """Ensure num_ctx is within reasonable bounds."""
-        if not 128 <= v <= 131_072:
-            raise ValueError(f"num_ctx must be in [128, 131072], got {v}")
         return v
 
     @field_validator("retries")

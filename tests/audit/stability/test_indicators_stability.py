@@ -37,7 +37,6 @@ from options_arena.indicators.iv_analytics import (
     compute_iv_term_slope,
     compute_put_skew,
     compute_skew_ratio,
-    compute_vix_correlation,
     compute_vol_cone_pctl,
 )
 from options_arena.indicators.moving_averages import sma_alignment, vwap_deviation
@@ -46,16 +45,12 @@ from options_arena.indicators.options_specific import (
     compute_optimal_dte,
     compute_pop,
     compute_spread_quality,
-    put_call_ratio_oi,
     put_call_ratio_volume,
 )
 from options_arena.indicators.oscillators import rsi, stoch_rsi, williams_r
 from options_arena.indicators.regime import (
     compute_correlation_regime_shift,
-    compute_risk_on_off,
     compute_rs_vs_spx,
-    compute_sector_momentum,
-    compute_vix_term_structure,
     compute_volume_profile_skew,
 )
 from options_arena.indicators.trend import (
@@ -1089,30 +1084,6 @@ class TestComputeVolConePctlStability:
         assert compute_vol_cone_pctl(float("nan"), pd.Series([0.20] * 20)) is None
 
 
-class TestComputeVixCorrelationStability:
-    """Stability tests for compute_vix_correlation."""
-
-    @pytest.mark.audit_stability
-    def test_vix_correlation_valid(self) -> None:
-        """Valid inputs produce result in [-1, 1]."""
-        rng = np.random.default_rng(42)
-        ticker_returns = pd.Series(rng.normal(0, 0.01, 80))
-        vix_changes = pd.Series(-ticker_returns + rng.normal(0, 0.005, 80))
-        result = compute_vix_correlation(ticker_returns, vix_changes)
-        assert result is not None
-        assert -1.0 <= result <= 1.0
-
-    @pytest.mark.audit_stability
-    def test_vix_correlation_insufficient_data(self) -> None:
-        """Short series returns None."""
-        assert compute_vix_correlation(pd.Series([0.01] * 30), pd.Series([0.01] * 30)) is None
-
-    @pytest.mark.audit_stability
-    def test_vix_correlation_mismatched_length(self) -> None:
-        """Mismatched lengths return None."""
-        assert compute_vix_correlation(pd.Series([0.01] * 60), pd.Series([0.01] * 61)) is None
-
-
 class TestComputeExpectedMoveStability:
     """Stability tests for compute_expected_move."""
 
@@ -1174,78 +1145,8 @@ class TestComputeExpectedMoveRatioStability:
 
 
 # ===========================================================================
-# Regime Stability (6 functions)
+# Regime Stability (3 functions)
 # ===========================================================================
-
-
-class TestComputeVixTermStructureStability:
-    """Stability tests for compute_vix_term_structure."""
-
-    @pytest.mark.audit_stability
-    def test_vix_term_structure_contango(self) -> None:
-        """VIX3M > VIX produces positive value."""
-        result = compute_vix_term_structure(20.0, 22.0)
-        assert result is not None
-        assert result > 0.0
-
-    @pytest.mark.audit_stability
-    def test_vix_term_structure_none(self) -> None:
-        """None VIX3M returns None."""
-        assert compute_vix_term_structure(20.0, None) is None
-
-    @pytest.mark.audit_stability
-    def test_vix_term_structure_zero_vix(self) -> None:
-        """Zero VIX returns None."""
-        assert compute_vix_term_structure(0.0, 22.0) is None
-
-    @pytest.mark.audit_stability
-    def test_vix_term_structure_nan(self) -> None:
-        """NaN VIX returns None."""
-        assert compute_vix_term_structure(float("nan"), 22.0) is None
-
-
-class TestComputeRiskOnOffStability:
-    """Stability tests for compute_risk_on_off."""
-
-    @pytest.mark.audit_stability
-    def test_risk_on_off_valid(self) -> None:
-        """Valid inputs produce finite result."""
-        result = compute_risk_on_off(0.02, 0.01)
-        assert result is not None
-        assert math.isfinite(result)
-        assert result == pytest.approx(0.01, abs=1e-10)
-
-    @pytest.mark.audit_stability
-    def test_risk_on_off_none(self) -> None:
-        """None inputs return None."""
-        assert compute_risk_on_off(None, 0.01) is None
-        assert compute_risk_on_off(0.02, None) is None
-
-    @pytest.mark.audit_stability
-    def test_risk_on_off_nan(self) -> None:
-        """NaN inputs return None."""
-        assert compute_risk_on_off(float("nan"), 0.01) is None
-
-
-class TestComputeSectorMomentumStability:
-    """Stability tests for compute_sector_momentum."""
-
-    @pytest.mark.audit_stability
-    def test_sector_momentum_valid(self) -> None:
-        """Valid inputs produce finite result."""
-        result = compute_sector_momentum(0.05, 0.03)
-        assert result is not None
-        assert math.isfinite(result)
-
-    @pytest.mark.audit_stability
-    def test_sector_momentum_none(self) -> None:
-        """None sector return returns None."""
-        assert compute_sector_momentum(None, 0.03) is None
-
-    @pytest.mark.audit_stability
-    def test_sector_momentum_nan(self) -> None:
-        """NaN inputs return None."""
-        assert compute_sector_momentum(float("nan"), 0.03) is None
 
 
 class TestComputeRSVsSPXStability:
@@ -1351,23 +1252,6 @@ class TestPutCallRatioVolumeStability:
     def test_pcr_volume_zero_calls(self) -> None:
         """Zero call volume returns NaN."""
         result = put_call_ratio_volume(500, 0)
-        assert math.isnan(result)
-
-
-class TestPutCallRatioOIStability:
-    """Stability tests for put_call_ratio_oi."""
-
-    @pytest.mark.audit_stability
-    def test_pcr_oi_valid(self) -> None:
-        """Valid inputs produce finite positive result."""
-        result = put_call_ratio_oi(600, 1000)
-        assert math.isfinite(result)
-        assert result == pytest.approx(0.6, abs=1e-10)
-
-    @pytest.mark.audit_stability
-    def test_pcr_oi_zero_calls(self) -> None:
-        """Zero call OI returns NaN."""
-        result = put_call_ratio_oi(600, 0)
         assert math.isnan(result)
 
 

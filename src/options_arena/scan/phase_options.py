@@ -118,7 +118,6 @@ _PHASE3_FIELDS: tuple[str, ...] = (
     "vol_regime",
     "ewma_vol_forecast",
     "vol_cone_percentile",
-    "vix_correlation",
     "expected_move",
     "expected_move_ratio",
     # Flow Analytics
@@ -145,9 +144,6 @@ _PHASE3_FIELDS: tuple[str, ...] = (
     "rs_vs_spx",
     "correlation_regime_shift",
     "market_regime",
-    "vix_term_structure",
-    "risk_on_off_score",
-    "sector_relative_momentum",
     # Liquidity
     "chain_spread_pct",
     "chain_oi_depth",

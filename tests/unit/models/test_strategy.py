@@ -1,4 +1,4 @@
-"""Tests for strategy mining models: StrategyCondition, StrategyRule, AgentMemory."""
+"""Tests for strategy mining models: StrategyCondition, StrategyRule."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ import pytest
 from pydantic import ValidationError
 
 from options_arena.models import (
-    AgentMemory,
     ConditionOperator,
     RuleStatus,
     StrategyCondition,
@@ -45,21 +44,6 @@ def _make_rule(**overrides: object) -> StrategyRule:
     }
     defaults.update(overrides)
     return StrategyRule(**defaults)  # type: ignore[arg-type]
-
-
-def _make_memory(**overrides: object) -> AgentMemory:
-    defaults: dict[str, object] = {
-        "memory_id": "mem_001",
-        "agent_name": "volatility",
-        "scope": "AAPL",
-        "scope_type": "ticker",
-        "content": "AAPL IV typically expands before earnings.",
-        "sample_size": 10,
-        "win_rate": 0.7,
-        "created_at": _NOW,
-    }
-    defaults.update(overrides)
-    return AgentMemory(**defaults)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -214,60 +198,6 @@ class TestStrategyRule:
             created_at=_NOW,
         )
         assert rule.status == RuleStatus.CANDIDATE
-
-
-# ---------------------------------------------------------------------------
-# AgentMemory
-# ---------------------------------------------------------------------------
-
-
-class TestAgentMemory:
-    def test_construction(self) -> None:
-        mem = _make_memory()
-        assert mem.memory_id == "mem_001"
-        assert mem.agent_name == "volatility"
-        assert mem.scope == "AAPL"
-        assert mem.scope_type == "ticker"
-        assert mem.sample_size == 10
-        assert mem.win_rate == 0.7
-
-    def test_frozen(self) -> None:
-        mem = _make_memory()
-        with pytest.raises(ValidationError):
-            mem.content = "new content"  # type: ignore[misc]
-
-    def test_win_rate_bounds(self) -> None:
-        with pytest.raises(ValidationError, match="win_rate"):
-            _make_memory(win_rate=1.5)
-
-    def test_win_rate_nan_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="finite"):
-            _make_memory(win_rate=float("nan"))
-
-    def test_sample_size_negative_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="sample_size"):
-            _make_memory(sample_size=-1)
-
-    def test_created_at_utc_required(self) -> None:
-        with pytest.raises(ValidationError, match="UTC"):
-            _make_memory(created_at=datetime(2026, 1, 1))
-
-    def test_defaults(self) -> None:
-        mem = AgentMemory(
-            memory_id="m1",
-            agent_name="risk",
-            scope="global",
-            scope_type="market",
-            content="test",
-            created_at=_NOW,
-        )
-        assert mem.sample_size == 0
-        assert mem.win_rate == 0.0
-
-    def test_json_roundtrip(self) -> None:
-        mem = _make_memory()
-        restored = AgentMemory.model_validate_json(mem.model_dump_json())
-        assert restored == mem
 
 
 # ---------------------------------------------------------------------------

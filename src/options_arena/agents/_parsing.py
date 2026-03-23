@@ -636,8 +636,7 @@ def render_context_block(
     ctx
         Market context snapshot.
     constraint_warnings
-        Optional rendered constraint warnings to append. Produced by
-        ``agents.constraints.render_constraint_warnings()``.
+        Optional rendered constraint warnings to append.
     """
     # Static block — always present
     lines: list[str] = [

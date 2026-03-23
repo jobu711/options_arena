@@ -91,6 +91,12 @@ class TestDebateAgentsRemoved:
 
         assert "should_debate" not in agents_mod.__all__
 
+    def test_extract_agent_predictions_not_in_all(self) -> None:
+        """extract_agent_predictions is not in __all__ (dead code removed)."""
+        import options_arena.agents as agents_mod
+
+        assert "extract_agent_predictions" not in agents_mod.__all__
+
     def test_synthesize_verdict_not_in_all(self) -> None:
         """synthesize_verdict is not in __all__."""
         import options_arena.agents as agents_mod
@@ -245,11 +251,6 @@ class TestSharedUtilitiesPreserved:
         import options_arena.agents as agents_mod
 
         assert "build_market_context" in agents_mod.__all__
-
-    def test_extract_agent_predictions_in_all(self) -> None:
-        import options_arena.agents as agents_mod
-
-        assert "extract_agent_predictions" in agents_mod.__all__
 
     def test_classify_macd_signal_in_all(self) -> None:
         import options_arena.agents as agents_mod

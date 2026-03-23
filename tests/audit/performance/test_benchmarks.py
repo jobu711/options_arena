@@ -554,13 +554,6 @@ class TestOptionsSpecificBenchmarks:
         benchmark(put_call_ratio_volume, 15000, 20000)
 
     @pytest.mark.benchmark(group="indicators")
-    def test_put_call_ratio_oi(self, benchmark: BenchmarkFixture) -> None:
-        """Benchmark put/call ratio by open interest."""
-        from options_arena.indicators.options_specific import put_call_ratio_oi
-
-        benchmark(put_call_ratio_oi, 50000, 60000)
-
-    @pytest.mark.benchmark(group="indicators")
     def test_max_pain(
         self, benchmark: BenchmarkFixture, sample_option_chain_df: pd.DataFrame
     ) -> None:
@@ -687,20 +680,6 @@ class TestIVAnalyticsBenchmarks:
         benchmark(compute_vol_cone_pctl, 0.25, sample_iv_history)
 
     @pytest.mark.benchmark(group="indicators")
-    def test_compute_vix_correlation(
-        self, benchmark: BenchmarkFixture, sample_returns_series: pd.Series
-    ) -> None:
-        """Benchmark VIX correlation."""
-        from options_arena.indicators.iv_analytics import compute_vix_correlation
-
-        # Use shifted returns as proxy for VIX changes
-        vix_changes = sample_returns_series * -1.2 + np.random.default_rng(42).normal(
-            0, 0.01, len(sample_returns_series)
-        )
-        vix_series = pd.Series(vix_changes, index=sample_returns_series.index)
-        benchmark(compute_vix_correlation, sample_returns_series, vix_series)
-
-    @pytest.mark.benchmark(group="indicators")
     def test_compute_expected_move(self, benchmark: BenchmarkFixture) -> None:
         """Benchmark expected move."""
         from options_arena.indicators.iv_analytics import compute_expected_move
@@ -811,27 +790,6 @@ class TestFlowAnalyticsBenchmarks:
 @pytest.mark.audit_performance
 class TestRegimeBenchmarks:
     """Regime and macro indicator benchmarks."""
-
-    @pytest.mark.benchmark(group="indicators")
-    def test_compute_vix_term_structure(self, benchmark: BenchmarkFixture) -> None:
-        """Benchmark VIX term structure."""
-        from options_arena.indicators.regime import compute_vix_term_structure
-
-        benchmark(compute_vix_term_structure, 20.0, 22.0)
-
-    @pytest.mark.benchmark(group="indicators")
-    def test_compute_risk_on_off(self, benchmark: BenchmarkFixture) -> None:
-        """Benchmark risk-on/off score."""
-        from options_arena.indicators.regime import compute_risk_on_off
-
-        benchmark(compute_risk_on_off, 0.02, 0.005)
-
-    @pytest.mark.benchmark(group="indicators")
-    def test_compute_sector_momentum(self, benchmark: BenchmarkFixture) -> None:
-        """Benchmark sector momentum."""
-        from options_arena.indicators.regime import compute_sector_momentum
-
-        benchmark(compute_sector_momentum, 0.06, 0.03)
 
     @pytest.mark.benchmark(group="indicators")
     def test_compute_rs_vs_spx(

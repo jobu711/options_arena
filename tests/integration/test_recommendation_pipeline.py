@@ -570,14 +570,12 @@ class TestBackwardCompatibility:
         from options_arena.agents._context import (
             build_market_context,
             classify_macd_signal,
-            extract_agent_predictions,
-            should_debate,
+            should_recommend,
         )
 
         # Verify they are callable
         assert callable(build_market_context)
-        assert callable(should_debate)
-        assert callable(extract_agent_predictions)
+        assert callable(should_recommend)
         assert callable(classify_macd_signal)
 
     @pytest.mark.asyncio
@@ -587,12 +585,10 @@ class TestBackwardCompatibility:
         from options_arena.agents import (
             build_market_context,
             classify_macd_signal,
-            extract_agent_predictions,
             should_recommend,
         )
 
         # Verify they are callable
         assert callable(build_market_context)
         assert callable(should_recommend)
-        assert callable(extract_agent_predictions)
         assert callable(classify_macd_signal)

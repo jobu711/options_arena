@@ -68,16 +68,6 @@ def put_call_ratio_volume(put_volume: int, call_volume: int) -> float:
     return float(put_volume / call_volume)
 
 
-def put_call_ratio_oi(put_oi: int, call_oi: int) -> float:
-    """Put/Call ratio by open interest.
-
-    Guard div-by-zero: returns NaN if call_oi is 0 (ratio is undefined).
-    """
-    if call_oi == 0:
-        return float("nan")
-    return float(put_oi / call_oi)
-
-
 def max_pain(
     strikes: pd.Series,
     call_oi: pd.Series,

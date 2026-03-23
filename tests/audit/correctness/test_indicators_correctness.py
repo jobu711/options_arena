@@ -39,7 +39,6 @@ from options_arena.indicators.iv_analytics import (
     compute_iv_term_slope,
     compute_put_skew,
     compute_skew_ratio,
-    compute_vix_correlation,
     compute_vol_cone_pctl,
 )
 from options_arena.indicators.moving_averages import sma_alignment, vwap_deviation
@@ -51,16 +50,12 @@ from options_arena.indicators.options_specific import (
     iv_percentile,
     iv_rank,
     max_pain,
-    put_call_ratio_oi,
     put_call_ratio_volume,
 )
 from options_arena.indicators.oscillators import rsi, stoch_rsi, williams_r
 from options_arena.indicators.regime import (
     compute_correlation_regime_shift,
-    compute_risk_on_off,
     compute_rs_vs_spx,
-    compute_sector_momentum,
-    compute_vix_term_structure,
     compute_volume_profile_skew,
 )
 from options_arena.indicators.trend import (
@@ -667,12 +662,6 @@ class TestPutCallRatioCorrectness:
         result = put_call_ratio_volume(put_volume=6000, call_volume=6000)
         assert float(result) == pytest.approx(1.0, abs=_IND_ABS)
 
-    def test_put_call_oi_ratio(self) -> None:
-        """2x put OI vs call OI produces ratio = 2.0."""
-        # put_call_ratio_oi(put_oi: int, call_oi: int) -> float
-        result = put_call_ratio_oi(put_oi=6000, call_oi=3000)
-        assert float(result) == pytest.approx(2.0, abs=_IND_ABS)
-
 
 @pytest.mark.audit_correctness
 class TestMaxPainCorrectness:
@@ -851,14 +840,6 @@ class TestIVAnalyticsCorrectness:
         assert result is not None
         assert 0.0 <= float(result) <= 100.0
 
-    def test_vix_correlation(self) -> None:
-        """VIX correlation returns value in [-1, 1]."""
-        stock_returns = pd.Series(np.random.default_rng(42).normal(0, 0.02, 60), dtype=float)
-        vix_changes = pd.Series(np.random.default_rng(43).normal(0, 0.03, 60), dtype=float)
-        result = compute_vix_correlation(stock_returns, vix_changes)
-        assert result is not None
-        assert -1.0 <= float(result) <= 1.0
-
     def test_expected_move(self) -> None:
         """Expected move is positive for valid IV and DTE."""
         # compute_expected_move(spot, atm_iv, dte) -> float | None
@@ -976,27 +957,6 @@ class TestFlowAnalyticsCorrectness:
 @pytest.mark.audit_correctness
 class TestRegimeCorrectness:
     """Regime classification functions correctness."""
-
-    def test_vix_term_structure(self) -> None:
-        """VIX term structure returns finite value."""
-        # compute_vix_term_structure(vix, vix3m) -> float | None
-        result = compute_vix_term_structure(vix=20.0, vix3m=22.0)
-        assert result is not None
-        assert math.isfinite(float(result))
-
-    def test_risk_on_off(self) -> None:
-        """Risk on/off signal returns valid value."""
-        # compute_risk_on_off(hyg_return, lqd_return) -> float | None
-        result = compute_risk_on_off(hyg_return=0.01, lqd_return=-0.005)
-        assert result is not None
-        assert math.isfinite(float(result))
-
-    def test_sector_momentum(self) -> None:
-        """Sector momentum returns finite value."""
-        # compute_sector_momentum(sector_etf_return, spx_return) -> float | None
-        result = compute_sector_momentum(sector_etf_return=0.03, spx_return=0.01)
-        assert result is not None
-        assert math.isfinite(float(result))
 
     def test_rs_vs_spx(self) -> None:
         """Relative strength vs SPX returns finite value."""

@@ -1,4 +1,4 @@
-"""Tests for LearningMixin — strategy rule and agent memory CRUD."""
+"""Tests for LearningMixin — strategy rule CRUD."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import pytest_asyncio
 
 from options_arena.data import Database, Repository
 from options_arena.models import (
-    AgentMemory,
     ConditionOperator,
     RuleStatus,
     StrategyCondition,
@@ -66,24 +65,6 @@ def _make_rule(
     }
     defaults.update(overrides)
     return StrategyRule(**defaults)  # type: ignore[arg-type]
-
-
-def _make_memory(
-    memory_id: str = "mem_001",
-    agent_name: str = "volatility",
-    scope_type: str = "ticker",
-    created_at: datetime = _NOW,
-) -> AgentMemory:
-    return AgentMemory(
-        memory_id=memory_id,
-        agent_name=agent_name,
-        scope="AAPL",
-        scope_type=scope_type,
-        content="AAPL IV expands before earnings.",
-        sample_size=10,
-        win_rate=0.7,
-        created_at=created_at,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -176,80 +157,6 @@ class TestStrategyRuleCRUD:
         assert rules[0].conditions[0].value == "Energy"
         assert rules[0].conditions[1].value == 30.0
         assert rules[0].conditions[2].operator == ConditionOperator.EQ
-
-
-# ---------------------------------------------------------------------------
-# Agent Memory CRUD
-# ---------------------------------------------------------------------------
-
-
-class TestAgentMemoryCRUD:
-    @pytest.mark.asyncio
-    async def test_save_and_get_agent_memory(self, repo: Repository) -> None:
-        """Verify round-trip save/get for AgentMemory."""
-        mem = _make_memory()
-        await repo.save_agent_memory(mem)
-
-        memories = await repo.get_agent_memories()
-        assert len(memories) == 1
-        assert memories[0].memory_id == "mem_001"
-        assert memories[0].agent_name == "volatility"
-        assert memories[0].content == "AAPL IV expands before earnings."
-        assert memories[0].win_rate == pytest.approx(0.7, rel=1e-4)
-
-    @pytest.mark.asyncio
-    async def test_get_memories_by_agent(self, repo: Repository) -> None:
-        """Verify filtering memories by agent_name."""
-        await repo.save_agent_memory(_make_memory("m1", agent_name="volatility"))
-        await repo.save_agent_memory(_make_memory("m2", agent_name="risk", created_at=_LATER))
-
-        vol_mems = await repo.get_agent_memories(agent_name="volatility")
-        assert len(vol_mems) == 1
-        assert vol_mems[0].agent_name == "volatility"
-
-        risk_mems = await repo.get_agent_memories(agent_name="risk")
-        assert len(risk_mems) == 1
-
-    @pytest.mark.asyncio
-    async def test_get_memories_by_scope_type(self, repo: Repository) -> None:
-        """Verify filtering memories by scope_type."""
-        await repo.save_agent_memory(_make_memory("m1", scope_type="ticker"))
-        await repo.save_agent_memory(_make_memory("m2", scope_type="sector", created_at=_LATER))
-
-        ticker_mems = await repo.get_agent_memories(scope_type="ticker")
-        assert len(ticker_mems) == 1
-        assert ticker_mems[0].scope_type == "ticker"
-
-    @pytest.mark.asyncio
-    async def test_combined_filters(self, repo: Repository) -> None:
-        """Verify combining agent_name and scope_type filters."""
-        await repo.save_agent_memory(
-            _make_memory("m1", agent_name="volatility", scope_type="ticker")
-        )
-        await repo.save_agent_memory(
-            _make_memory("m2", agent_name="volatility", scope_type="sector", created_at=_LATER)
-        )
-        await repo.save_agent_memory(_make_memory("m3", agent_name="risk", scope_type="ticker"))
-
-        result = await repo.get_agent_memories(agent_name="volatility", scope_type="ticker")
-        assert len(result) == 1
-        assert result[0].memory_id == "m1"
-
-    @pytest.mark.asyncio
-    async def test_empty_state_memories(self, repo: Repository) -> None:
-        """Verify get_agent_memories returns empty list on fresh DB."""
-        memories = await repo.get_agent_memories()
-        assert memories == []
-
-    @pytest.mark.asyncio
-    async def test_upsert_on_duplicate_memory_id(self, repo: Repository) -> None:
-        """Verify saving with same memory_id replaces the entry."""
-        await repo.save_agent_memory(_make_memory("m1", agent_name="volatility"))
-        await repo.save_agent_memory(_make_memory("m1", agent_name="risk"))
-
-        memories = await repo.get_agent_memories()
-        assert len(memories) == 1
-        assert memories[0].agent_name == "risk"
 
 
 # ---------------------------------------------------------------------------

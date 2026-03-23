@@ -465,7 +465,6 @@ def debate(
     ),
     export: str | None = typer.Option(None, "--export", help="Export format: md"),
     export_dir: str = typer.Option("./reports", "--export-dir", help="Export output directory"),
-    no_recon: bool = typer.Option(False, "--no-recon", help="Skip intelligence fetching"),
     provider: LLMProvider = typer.Option(  # noqa: B008
         LLMProvider.GROQ, "--provider", help="LLM provider: groq (free) or anthropic"
     ),
@@ -496,7 +495,6 @@ def debate(
             _batch_async(
                 batch_limit,
                 fallback_only,
-                no_recon=no_recon,
                 provider=provider,
             )
         )
@@ -509,7 +507,6 @@ def debate(
                 fallback_only,
                 export,
                 export_dir,
-                no_recon=no_recon,
                 provider=provider,
                 cost_summary=cost_summary,
             )
@@ -520,7 +517,6 @@ async def _batch_async(
     batch_limit: int,
     fallback_only: bool,
     *,
-    no_recon: bool = False,
     provider: LLMProvider = LLMProvider.GROQ,
 ) -> None:
     """Batch recommendation: run recommendations for top-scored tickers from the latest scan."""
@@ -860,7 +856,6 @@ async def _debate_async(
     export: str | None = None,
     export_dir: str = "./reports",
     *,
-    no_recon: bool = False,
     provider: LLMProvider = LLMProvider.GROQ,
     cost_summary: bool = False,
 ) -> None:

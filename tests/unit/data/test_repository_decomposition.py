@@ -53,7 +53,6 @@ class TestRepositoryDecomposition:
             "get_trending_tickers",
             # DebateMixin
             "save_debate",
-            "save_agent_predictions",
             "get_debate_by_id",
             "get_recent_debates",
             "get_debates_for_ticker",

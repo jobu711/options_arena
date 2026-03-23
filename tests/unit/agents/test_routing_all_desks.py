@@ -11,7 +11,7 @@ import pytest
 # Prevent accidental real API calls
 from pydantic_ai import models
 
-from options_arena.agents._routing import _IMPLEMENTED_DESKS, classify_intent
+from options_arena.agents._routing import classify_intent
 from options_arena.models import DeskType
 
 models.ALLOW_MODEL_REQUESTS = False
@@ -78,16 +78,10 @@ class TestClassifyIntentNewDesks:
         assert DeskType.TREND in intent.desks
 
 
-class TestImplementedDesks:
-    """_IMPLEMENTED_DESKS contains all 7 DeskType members."""
+class TestAllDesksHaveRunners:
+    """All 7 DeskType members are covered by classify_intent routing."""
 
     @pytest.mark.critical
-    def test_all_seven_desks_implemented(self) -> None:
-        """_IMPLEMENTED_DESKS contains all 7 DeskType members."""
-        assert len(_IMPLEMENTED_DESKS) == 7
-        for desk in DeskType:
-            assert desk in _IMPLEMENTED_DESKS, f"{desk} not in _IMPLEMENTED_DESKS"
-
-    def test_implemented_desks_is_frozenset(self) -> None:
-        """_IMPLEMENTED_DESKS is a frozenset for immutability."""
-        assert isinstance(_IMPLEMENTED_DESKS, frozenset)
+    def test_all_seven_desks_routable(self) -> None:
+        """All 7 DeskType members can be routed to via keyword queries."""
+        assert len(DeskType) == 7

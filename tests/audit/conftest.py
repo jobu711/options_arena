@@ -61,14 +61,13 @@ def _build_registry() -> dict[str, Any]:
         compute_iv_term_slope,
         compute_put_skew,
         compute_skew_ratio,
-        compute_vix_correlation,
         compute_vol_cone_pctl,
     )
 
     # -- Indicators: Moving Averages (2) --
     from options_arena.indicators.moving_averages import sma_alignment, vwap_deviation
 
-    # -- Indicators: Options Specific (9) --
+    # -- Indicators: Options Specific (8) --
     from options_arena.indicators.options_specific import (
         compute_max_loss_ratio,
         compute_optimal_dte,
@@ -77,20 +76,16 @@ def _build_registry() -> dict[str, Any]:
         iv_percentile,
         iv_rank,
         max_pain,
-        put_call_ratio_oi,
         put_call_ratio_volume,
     )
 
     # -- Indicators: Oscillators (3) --
     from options_arena.indicators.oscillators import rsi, stoch_rsi, williams_r
 
-    # -- Indicators: Regime (6) --
+    # -- Indicators: Regime (3) --
     from options_arena.indicators.regime import (
         compute_correlation_regime_shift,
-        compute_risk_on_off,
         compute_rs_vs_spx,
-        compute_sector_momentum,
-        compute_vix_term_structure,
         compute_volume_profile_skew,
     )
 
@@ -219,7 +214,6 @@ def _build_registry() -> dict[str, Any]:
         "indicators.options_specific.iv_rank": iv_rank,
         "indicators.options_specific.iv_percentile": iv_percentile,
         "indicators.options_specific.put_call_ratio_volume": put_call_ratio_volume,
-        "indicators.options_specific.put_call_ratio_oi": put_call_ratio_oi,
         "indicators.options_specific.max_pain": max_pain,
         "indicators.options_specific.compute_pop": compute_pop,
         "indicators.options_specific.compute_optimal_dte": compute_optimal_dte,
@@ -236,7 +230,6 @@ def _build_registry() -> dict[str, Any]:
         "indicators.iv_analytics.classify_vol_regime": classify_vol_regime,
         "indicators.iv_analytics.compute_ewma_vol_forecast": compute_ewma_vol_forecast,
         "indicators.iv_analytics.compute_vol_cone_pctl": compute_vol_cone_pctl,
-        "indicators.iv_analytics.compute_vix_correlation": compute_vix_correlation,
         "indicators.iv_analytics.compute_expected_move": compute_expected_move,
         "indicators.iv_analytics.compute_expected_move_ratio": compute_expected_move_ratio,
         # ---- Indicators: HV Estimators (1) ----
@@ -247,10 +240,7 @@ def _build_registry() -> dict[str, Any]:
         "indicators.flow_analytics.compute_unusual_activity": compute_unusual_activity,
         "indicators.flow_analytics.compute_max_pain_magnet": compute_max_pain_magnet,
         "indicators.flow_analytics.compute_dollar_volume_trend": compute_dollar_volume_trend,
-        # ---- Indicators: Regime (6) ----
-        "indicators.regime.compute_vix_term_structure": compute_vix_term_structure,
-        "indicators.regime.compute_risk_on_off": compute_risk_on_off,
-        "indicators.regime.compute_sector_momentum": compute_sector_momentum,
+        # ---- Indicators: Regime (3) ----
         "indicators.regime.compute_rs_vs_spx": compute_rs_vs_spx,
         "indicators.regime.compute_correlation_regime_shift": compute_correlation_regime_shift,
         "indicators.regime.compute_volume_profile_skew": compute_volume_profile_skew,
