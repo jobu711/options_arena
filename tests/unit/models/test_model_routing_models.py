@@ -1,4 +1,4 @@
-"""Tests for model routing models: ModelTier, DeskMetrics, AssessmentSummary, RecommendationCost, RoutingConfig."""
+"""Tests for model routing models: ModelTier, DeskMetrics, AssessmentSummary, etc."""
 
 from __future__ import annotations
 
