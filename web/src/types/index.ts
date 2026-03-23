@@ -11,7 +11,7 @@ export type {
   ContrarianThesis,
   AgentProgressEntry,
 } from './debate'
-export type { ConfigResponse } from './config'
+export type { ConfigResponse, RoutingConfig, DeskCostDetail, RecommendationCostDetail } from './config'
 export type { WinRateResult, ScoreCalibrationBucket, IndicatorAttributionResult, HoldingPeriodResult, DeltaPerformanceResult, PerformanceSummary, OutcomeCollectionResult } from './analytics'
 export type { HistoryPoint, TrendingTicker } from './history'
 export type {

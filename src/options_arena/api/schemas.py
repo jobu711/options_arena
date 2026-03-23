@@ -759,6 +759,7 @@ class ConfigResponse(BaseModel):
     scan_preset_default: str
     agent_timeout: float
     recommendation_protocol: str
+    routing: RoutingConfigResponse | None = None
 
 
 class CancelScanResponse(BaseModel):
@@ -961,3 +962,70 @@ class RecommendationCostSummary(BaseModel):
     duration_ms: int
     total_tokens: int
     is_fallback: bool
+    desk_details: list[DeskCostDetail] = []
+
+
+class RoutingConfigUpdate(BaseModel):
+    """Request body for ``PUT /api/config/routing``."""
+
+    enable_model_routing: bool
+    complexity_threshold_fast: float
+    complexity_threshold_premium: float
+    fast_model: str
+    premium_model: str
+    cost_per_million_tokens: dict[str, float]
+
+    @field_validator("complexity_threshold_fast", "complexity_threshold_premium")
+    @classmethod
+    def _validate_threshold(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError(f"threshold must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"threshold must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("cost_per_million_tokens")
+    @classmethod
+    def _validate_costs(cls, v: dict[str, float]) -> dict[str, float]:
+        for key, val in v.items():
+            if not math.isfinite(val):
+                raise ValueError(f"cost for {key!r} must be finite, got {val}")
+            if val < 0.0:
+                raise ValueError(f"cost for {key!r} must be >= 0, got {val}")
+        return v
+
+    @model_validator(mode="after")
+    def _validate_threshold_ordering(self) -> Self:
+        if self.complexity_threshold_fast >= self.complexity_threshold_premium:
+            raise ValueError(
+                f"complexity_threshold_fast ({self.complexity_threshold_fast}) "
+                f"must be < complexity_threshold_premium "
+                f"({self.complexity_threshold_premium})"
+            )
+        return self
+
+
+class RoutingConfigResponse(BaseModel):
+    """Current resolved routing config with override indicator."""
+
+    enable_model_routing: bool
+    complexity_threshold_fast: float
+    complexity_threshold_premium: float
+    fast_model: str
+    premium_model: str
+    cost_per_million_tokens: dict[str, float]
+    is_override: bool
+
+
+class DeskCostDetail(BaseModel):
+    """Per-desk cost breakdown within a recommendation."""
+
+    model_config = ConfigDict(frozen=True)
+
+    desk: str
+    tier: str
+    model_used: str
+    input_tokens: int
+    output_tokens: int
+    duration_ms: int
+    status: str

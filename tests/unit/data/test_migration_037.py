@@ -105,6 +105,7 @@ async def test_recommendation_results_table_exists(db: Database) -> None:
         "max_loss_estimate": "TEXT",
         "model_used": "TEXT",
         "created_at": "TEXT",
+        "desk_metrics_json": "TEXT",  # Added by migration 040
     }
     async with db.conn.execute("PRAGMA table_info(recommendation_results)") as cursor:
         rows = await cursor.fetchall()

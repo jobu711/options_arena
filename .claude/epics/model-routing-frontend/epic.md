@@ -1,8 +1,8 @@
 ---
 name: model-routing-frontend
-status: backlog
+status: completed
 created: 2026-03-23T13:15:13Z
-progress: 0%
+progress: 100%
 prd: .claude/prds/model-routing-frontend.md
 github: https://github.com/jobu711/options_arena/issues/696
 ---

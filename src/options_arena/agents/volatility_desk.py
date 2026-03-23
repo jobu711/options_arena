@@ -22,7 +22,7 @@ import logging
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
-from pydantic_ai.usage import UsageLimits
+from pydantic_ai.usage import RunUsage, UsageLimits
 
 from options_arena.agents._desk_deps import DeskDeps
 from options_arena.agents._parsing import build_cleaned_domain_assessment, strip_think_tags
@@ -154,11 +154,11 @@ async def run_vol_desk_recommendation(
     model: Model | None = None,
     model_settings: ModelSettings | None = None,
     config: AgencyConfig | None = None,
-) -> VolatilityAssessment:
+) -> tuple[VolatilityAssessment, RunUsage]:
     """Run volatility desk recommendation -- never raises."""
     if model is None:
         logger.warning("Volatility desk recommendation called without model")
-        return _build_vol_fallback(deps)
+        return _build_vol_fallback(deps), RunUsage()
     cfg = config or AgencyConfig()
     try:
         limits = UsageLimits(
@@ -178,13 +178,13 @@ async def run_vol_desk_recommendation(
         output = result.output
         # Defense-in-depth: strip think tags again
         cleaned = build_cleaned_domain_assessment(output)
-        return cleaned
+        return cleaned, result.usage()
     except TimeoutError:
         logger.warning("Volatility desk recommendation timed out")
-        return _build_vol_fallback(deps)
+        return _build_vol_fallback(deps), RunUsage()
     except Exception as exc:
         logger.warning("Volatility desk recommendation failed: %s", exc)
-        return _build_vol_fallback(deps)
+        return _build_vol_fallback(deps), RunUsage()
 
 
 def _build_vol_fallback(deps: DeskDeps) -> VolatilityAssessment:

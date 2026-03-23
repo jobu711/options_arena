@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic_ai import models
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
 
 from options_arena.agents._desk_deps import DeskDeps
 from options_arena.agents.contrarian_desk import (
@@ -43,41 +44,45 @@ class TestContrarianDeskRecommend:
 
     @pytest.mark.asyncio
     async def test_produces_assessment(self) -> None:
-        """Happy path: returns ContrarianAssessment with correct desk enum."""
+        """Happy path: returns (ContrarianAssessment, RunUsage) tuple."""
         deps = _make_deps()
         with contrarian_desk_recommend.override(model=TestModel()):
-            result = await run_contrarian_desk_recommendation(deps, model=TestModel())
-        assert isinstance(result, ContrarianAssessment)
-        assert result.desk == DeskType.CONTRARIAN
+            assessment, usage = await run_contrarian_desk_recommendation(deps, model=TestModel())
+        assert isinstance(assessment, ContrarianAssessment)
+        assert assessment.desk == DeskType.CONTRARIAN
+        assert isinstance(usage, RunUsage)
 
     @pytest.mark.asyncio
     async def test_confidence_in_valid_range(self) -> None:
         """Confidence is within [0.0, 1.0]."""
         deps = _make_deps()
         with contrarian_desk_recommend.override(model=TestModel()):
-            result = await run_contrarian_desk_recommendation(deps, model=TestModel())
-        assert 0.0 <= result.confidence <= 1.0
+            assessment, _usage = await run_contrarian_desk_recommendation(deps, model=TestModel())
+        assert 0.0 <= assessment.confidence <= 1.0
 
     @pytest.mark.asyncio
     async def test_no_model_returns_fallback(self) -> None:
         """No model -> fallback with contrarian-specific fields."""
         deps = _make_deps()
-        result = await run_contrarian_desk_recommendation(deps)
-        assert isinstance(result, ContrarianAssessment)
-        assert result.desk == DeskType.CONTRARIAN
-        assert result.confidence == pytest.approx(0.2)
-        assert result.model_used == "data-driven-fallback"
-        assert result.consensus_challenged is None
-        assert result.contrarian_thesis is None
+        assessment, usage = await run_contrarian_desk_recommendation(deps)
+        assert isinstance(assessment, ContrarianAssessment)
+        assert assessment.desk == DeskType.CONTRARIAN
+        assert assessment.confidence == pytest.approx(0.2)
+        assert assessment.model_used == "data-driven-fallback"
+        assert assessment.consensus_challenged is None
+        assert assessment.contrarian_thesis is None
+        assert isinstance(usage, RunUsage)
 
     @pytest.mark.asyncio
     async def test_timeout_returns_fallback(self) -> None:
         """Timeout -> fallback assessment (never raises)."""
         deps = _make_deps()
         config = AgencyConfig(agent_timeout=0.001)
-        # Even if TestModel is fast and doesn't timeout, the code path is exercised
-        result = await run_contrarian_desk_recommendation(deps, model=TestModel(), config=config)
-        assert isinstance(result, ContrarianAssessment)
+        assessment, usage = await run_contrarian_desk_recommendation(
+            deps, model=TestModel(), config=config
+        )
+        assert isinstance(assessment, ContrarianAssessment)
+        assert isinstance(usage, RunUsage)
 
     @pytest.mark.asyncio
     async def test_tools_used_tracked(self) -> None:
@@ -85,6 +90,14 @@ class TestContrarianDeskRecommend:
         deps = _make_deps()
         deps.tools_used.append("fetch_quote")
         # Fallback path uses deps.tools_used
-        result = await run_contrarian_desk_recommendation(deps)
-        assert isinstance(result.tools_used, list)
-        assert "fetch_quote" in result.tools_used
+        assessment, _usage = await run_contrarian_desk_recommendation(deps)
+        assert isinstance(assessment.tools_used, list)
+        assert "fetch_quote" in assessment.tools_used
+
+    @pytest.mark.asyncio
+    async def test_fallback_returns_zero_usage(self) -> None:
+        """Fallback paths return RunUsage() with zero tokens."""
+        deps = _make_deps()
+        _assessment, usage = await run_contrarian_desk_recommendation(deps)
+        assert usage.input_tokens == 0
+        assert usage.output_tokens == 0

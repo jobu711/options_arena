@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
@@ -15,7 +17,11 @@ from options_arena.api.deps import (
     get_outcome_collector,
     get_repo,
 )
-from options_arena.api.schemas import OutcomeCollectionResult, RecommendationCostSummary
+from options_arena.api.schemas import (
+    DeskCostDetail,
+    OutcomeCollectionResult,
+    RecommendationCostSummary,
+)
 from options_arena.data import Repository
 from options_arena.learning import auto_tune_weights
 from options_arena.models import (
@@ -315,13 +321,38 @@ async def get_recommendation_costs(
         results = await repo.get_recommendations_for_ticker(ticker, limit=limit)
     else:
         results = await repo.get_recent_recommendations(limit=limit)
-    return [
-        RecommendationCostSummary(
-            ticker=rec.ticker,
-            created_at=rec.created_at,
-            duration_ms=rec.duration_ms,
-            total_tokens=rec.total_input_tokens + rec.total_output_tokens,
-            is_fallback=rec.is_fallback,
+
+    summaries: list[RecommendationCostSummary] = []
+    for rec in results:
+        # Parse per-desk metrics from stored JSON
+        desk_details: list[DeskCostDetail] = []
+        if rec.desk_metrics_json and rec.desk_metrics_json not in ("", "[]"):
+            try:
+                metrics_list = json.loads(rec.desk_metrics_json)
+                for dm in metrics_list:
+                    with contextlib.suppress(TypeError, ValueError):
+                        desk_details.append(
+                            DeskCostDetail(
+                                desk=str(dm.get("desk", "unknown")),
+                                tier=str(dm.get("model_tier", "standard")),
+                                model_used=str(dm.get("model_used", "")),
+                                input_tokens=int(dm.get("input_tokens", 0)),
+                                output_tokens=int(dm.get("output_tokens", 0)),
+                                duration_ms=int(dm.get("duration_ms", 0)),
+                                status=str(dm.get("status", "unknown")),
+                            )
+                        )
+            except (json.JSONDecodeError, TypeError):
+                pass  # desk_details stays empty for unparseable JSON
+
+        summaries.append(
+            RecommendationCostSummary(
+                ticker=rec.ticker,
+                created_at=rec.created_at,
+                duration_ms=rec.duration_ms,
+                total_tokens=rec.total_input_tokens + rec.total_output_tokens,
+                is_fallback=rec.is_fallback,
+                desk_details=desk_details,
+            )
         )
-        for rec in results
-    ]
+    return summaries

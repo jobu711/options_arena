@@ -9,8 +9,7 @@ return valid ToolResponse JSON on all code paths.
 from __future__ import annotations
 
 import json
-import math
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -146,7 +145,7 @@ def _make_mock_debate(
     debate.id = debate_id
     debate.ticker = ticker
     debate.is_fallback = is_fallback
-    debate.created_at = datetime(2026, 3, 20, 12, 0, 0, tzinfo=timezone.utc)
+    debate.created_at = datetime(2026, 3, 20, 12, 0, 0, tzinfo=UTC)
     debate.verdict_json = verdict_json
     return debate
 
