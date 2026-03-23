@@ -296,3 +296,35 @@ async def get_correlation(
         )
 
     return compute_correlation_matrix(price_data, min_overlap=30)
+
+
+@router.get("/recommendation-costs")
+@limiter.limit("60/minute")
+async def get_recommendation_costs(
+    request: Request,
+    ticker: str | None = Query(default=None, description="Filter by ticker symbol"),
+    limit: int = Query(default=20, ge=1, le=100),
+    repo: Repository = Depends(get_repo),
+) -> list[dict[str, object]]:
+    """Get cost summaries from recent recommendations.
+
+    Returns token usage and timing data from the ``recommendation_results`` table.
+    Per-desk cost breakdowns require model routing to be enabled.
+    """
+    if ticker is not None:
+        results = await repo.get_recommendations_for_ticker(ticker, limit=limit)
+    else:
+        results = await repo.get_recent_recommendations(limit=limit)
+    items: list[dict[str, object]] = []
+    for rec in results:
+        total_tokens = rec.total_input_tokens + rec.total_output_tokens
+        items.append(
+            {
+                "ticker": rec.ticker,
+                "created_at": rec.created_at,
+                "duration_ms": rec.duration_ms,
+                "total_tokens": total_tokens,
+                "is_fallback": rec.is_fallback,
+            }
+        )
+    return items
