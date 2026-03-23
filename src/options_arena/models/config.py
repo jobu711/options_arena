@@ -32,6 +32,17 @@ from options_arena.models.filters import ScanFilterSpec
 ALLOWED_FINANCIAL_DATASETS_HOSTNAMES: frozenset[str] = frozenset({"api.financialdatasets.ai"})
 
 
+class FiniteFieldsMixin(BaseModel):
+    """Mixin that rejects NaN/Inf on all float fields (defense-in-depth)."""
+
+    @model_validator(mode="after")
+    def validate_all_finite(self) -> Self:
+        for name, value in self.__dict__.items():
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+        return self
+
+
 class MLConfig(BaseModel):
     """Machine learning feature flags and parameters.
 
@@ -133,7 +144,7 @@ class MLConfig(BaseModel):
         return v
 
 
-class ScanConfig(BaseModel):
+class ScanConfig(FiniteFieldsMixin):
     """Scan pipeline configuration — scoring thresholds, timeouts, toggles, and filters.
 
     Filter fields that previously lived directly on ``ScanConfig`` and ``PricingConfig``
@@ -172,16 +183,8 @@ class ScanConfig(BaseModel):
             raise ValueError(f"options_concurrency must be >= 1, got {v}")
         return v
 
-    @model_validator(mode="after")
-    def validate_all_finite(self) -> Self:
-        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
-        for name, value in self.__dict__.items():
-            if isinstance(value, float) and not math.isfinite(value):
-                raise ValueError(f"{name} must be finite, got {value}")
-        return self
 
-
-class PricingConfig(BaseModel):
+class PricingConfig(FiniteFieldsMixin):
     """Options pricing configuration — delta targeting and IV solver parameters.
 
     Contract selection fields (delta ranges, DTE, OI, volume, spread) have moved
@@ -195,16 +198,8 @@ class PricingConfig(BaseModel):
     iv_solver_max_iter: int = 50
     use_parity_smoothing: bool = True
 
-    @model_validator(mode="after")
-    def validate_all_finite(self) -> Self:
-        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
-        for name, value in self.__dict__.items():
-            if isinstance(value, float) and not math.isfinite(value):
-                raise ValueError(f"{name} must be finite, got {value}")
-        return self
 
-
-class ServiceConfig(BaseModel):
+class ServiceConfig(FiniteFieldsMixin):
     """External service configuration — timeouts, rate limits, cache TTLs."""
 
     yfinance_timeout: float = 15.0
@@ -218,14 +213,6 @@ class ServiceConfig(BaseModel):
     max_concurrent_requests: int = 5
     cache_ttl_market_hours: int = 300
     cache_ttl_after_hours: int = 3600
-
-    @model_validator(mode="after")
-    def validate_all_finite(self) -> Self:
-        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
-        for name, value in self.__dict__.items():
-            if isinstance(value, float) and not math.isfinite(value):
-                raise ValueError(f"{name} must be finite, got {value}")
-        return self
 
     @model_validator(mode="after")
     def validate_timeouts_positive(self) -> Self:
@@ -249,7 +236,7 @@ class DataConfig(BaseModel):
     db_path: str | None = None
 
 
-class RoutingConfig(BaseModel):
+class RoutingConfig(FiniteFieldsMixin):
     """Complexity-based model routing configuration.
 
     When ``enable_model_routing`` is ``True``, each desk agent receives a model
@@ -300,16 +287,8 @@ class RoutingConfig(BaseModel):
             )
         return self
 
-    @model_validator(mode="after")
-    def validate_all_finite(self) -> Self:
-        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
-        for name, value in self.__dict__.items():
-            if isinstance(value, float) and not math.isfinite(value):
-                raise ValueError(f"{name} must be finite, got {value}")
-        return self
 
-
-class DebateConfig(BaseModel):
+class DebateConfig(FiniteFieldsMixin):
     """AI debate configuration — controls LLM provider, timeouts, and fallback behavior.
 
     Supports Groq (default, free) and Anthropic (Claude) providers. Provider selection
@@ -444,16 +423,8 @@ class DebateConfig(BaseModel):
             raise ValueError(f"rate_limit_max_wait must be > 0, got {v}")
         return v
 
-    @model_validator(mode="after")
-    def validate_all_finite(self) -> Self:
-        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
-        for name, value in self.__dict__.items():
-            if isinstance(value, float) and not math.isfinite(value):
-                raise ValueError(f"{name} must be finite, got {value}")
-        return self
 
-
-class IntelligenceConfig(BaseModel):
+class IntelligenceConfig(FiniteFieldsMixin):
     """Intelligence data configuration — controls yfinance intelligence fetching.
 
     All features default to enabled. When ``enabled`` is ``False``, the entire
@@ -472,14 +443,6 @@ class IntelligenceConfig(BaseModel):
     institutional_cache_ttl: int = 86400  # 24h
     news_cache_ttl: int = 900  # 15min
     request_timeout: float = 15.0
-
-    @model_validator(mode="after")
-    def validate_all_finite(self) -> Self:
-        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
-        for name, value in self.__dict__.items():
-            if isinstance(value, float) and not math.isfinite(value):
-                raise ValueError(f"{name} must be finite, got {value}")
-        return self
 
 
 class AnalyticsConfig(BaseModel):
@@ -525,7 +488,7 @@ class AnalyticsConfig(BaseModel):
         return v
 
 
-class FinancialDatasetsConfig(BaseModel):
+class FinancialDatasetsConfig(FiniteFieldsMixin):
     """Financial Datasets AI configuration — controls optional fundamental data enrichment.
 
     When ``enabled`` is ``False``, the entire financialdatasets.ai integration is
@@ -586,16 +549,8 @@ class FinancialDatasetsConfig(BaseModel):
             raise ValueError(f"request_timeout must be > 0, got {v}")
         return v
 
-    @model_validator(mode="after")
-    def validate_all_finite(self) -> Self:
-        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
-        for name, value in self.__dict__.items():
-            if isinstance(value, float) and not math.isfinite(value):
-                raise ValueError(f"{name} must be finite, got {value}")
-        return self
 
-
-class PositionSizingConfig(BaseModel):
+class PositionSizingConfig(FiniteFieldsMixin):
     """Volatility-regime-aware position sizing configuration.
 
     Maps annualized IV to allocation tiers with linear interpolation within
@@ -619,16 +574,8 @@ class PositionSizingConfig(BaseModel):
     high_corr_threshold: float = 0.70
     corr_penalty: float = 0.50
 
-    @model_validator(mode="after")
-    def validate_all_finite(self) -> Self:
-        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
-        for name, value in self.__dict__.items():
-            if isinstance(value, float) and not math.isfinite(value):
-                raise ValueError(f"{name} must be finite, got {value}")
-        return self
 
-
-class SpreadConfig(BaseModel):
+class SpreadConfig(FiniteFieldsMixin):
     """Spread strategy configuration — controls multi-leg strategy construction.
 
     ``vertical_width`` and ``iron_condor_wing_width`` set default strike widths.
@@ -681,14 +628,6 @@ class SpreadConfig(BaseModel):
             raise ValueError(f"min_pop must be in [0.0, 1.0], got {v}")
         return v
 
-    @model_validator(mode="after")
-    def validate_all_finite(self) -> Self:
-        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
-        for name, value in self.__dict__.items():
-            if isinstance(value, float) and not math.isfinite(value):
-                raise ValueError(f"{name} must be finite, got {value}")
-        return self
-
 
 class OpenBBConfig(BaseModel):
     """CBOE chain provider configuration (legacy name retained for settings compat).
@@ -704,7 +643,7 @@ class OpenBBConfig(BaseModel):
     max_retries: int = 2
 
 
-class AgencyConfig(BaseModel):
+class AgencyConfig(FiniteFieldsMixin):
     """AI agency desk system configuration.
 
     Controls timeout, tool budgets for desk agents. ``agent_timeout`` is the
@@ -749,14 +688,6 @@ class AgencyConfig(BaseModel):
         if not 1 <= v <= 20:
             raise ValueError(f"tool_budget must be in [1, 20], got {v}")
         return v
-
-    @model_validator(mode="after")
-    def validate_all_finite(self) -> Self:
-        """Reject NaN/Inf on all float config fields (defense-in-depth)."""
-        for name, value in self.__dict__.items():
-            if isinstance(value, float) and not math.isfinite(value):
-                raise ValueError(f"{name} must be finite, got {value}")
-        return self
 
 
 class EvalConfig(BaseModel):

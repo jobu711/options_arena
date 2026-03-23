@@ -38,6 +38,8 @@ from options_arena.services.base import ServiceBase
 from options_arena.services.cache import ServiceCache
 from options_arena.services.cboe_provider import CBOEChainProvider
 from options_arena.services.helpers import (
+    cache_bytes_to_contracts,
+    contracts_to_cache_bytes,
     fetch_with_limiter_retry,
     safe_decimal,
     safe_float,
@@ -121,17 +123,6 @@ def _row_to_contract(
         market_iv=safe_float(row.get("impliedVolatility")) or 0.0,
         greeks=None,
     )
-
-
-def _contracts_to_cache_bytes(contracts: list[OptionContract]) -> bytes:
-    """Serialize a list of contracts to JSON bytes for caching."""
-    return json.dumps([c.model_dump(mode="json") for c in contracts]).encode("utf-8")
-
-
-def _cache_bytes_to_contracts(data: bytes) -> list[OptionContract]:
-    """Deserialize cached JSON bytes back to a list of contracts."""
-    raw: list[dict[str, object]] = json.loads(data.decode("utf-8"))
-    return [OptionContract.model_validate(item) for item in raw]
 
 
 # ---------------------------------------------------------------------------
@@ -304,7 +295,7 @@ class YFinanceChainProvider:
         # Check cache first
         cached = await self._cache.get(cache_key)
         if cached is not None:
-            return _cache_bytes_to_contracts(cached)
+            return cache_bytes_to_contracts(cached)
 
         ticker_obj = yf.Ticker(ticker)
         chain_data = await fetch_with_limiter_retry(
@@ -336,7 +327,7 @@ class YFinanceChainProvider:
 
         # Cache the result
         ttl = self._cache.ttl_for("chain")
-        await self._cache.set(cache_key, _contracts_to_cache_bytes(contracts), ttl=ttl)
+        await self._cache.set(cache_key, contracts_to_cache_bytes(contracts), ttl=ttl)
 
         self._log.debug(
             "Fetched chain for %s exp %s: %d contracts (after liquidity filter)",

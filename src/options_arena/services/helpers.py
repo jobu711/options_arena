@@ -5,6 +5,7 @@ NOT exported in ``__init__.py`` — internal use only.
 """
 
 import asyncio
+import json
 import logging
 import math
 import os
@@ -14,6 +15,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
+from options_arena.models.options import OptionContract
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.utils.exceptions import DataSourceUnavailableError
 
@@ -197,3 +199,38 @@ def clear_stale_yf_cookies(max_age_hours: float = 4.0) -> int:
     except Exception:
         logger.debug("Failed to clear yfinance cookies", exc_info=True)
         return 0
+
+
+# ---------------------------------------------------------------------------
+# Cache serialization for OptionContract lists
+# ---------------------------------------------------------------------------
+
+
+def contracts_to_cache_bytes(contracts: list[OptionContract]) -> bytes:
+    """Serialize a list of contracts to JSON bytes for caching.
+
+    Uses Pydantic's ``model_dump(mode="json")`` for each contract, ensuring
+    ``Decimal`` fields are serialized as strings and survive round-trip.
+
+    Args:
+        contracts: List of ``OptionContract`` models to serialize.
+
+    Returns:
+        UTF-8 encoded JSON bytes.
+    """
+    return json.dumps([c.model_dump(mode="json") for c in contracts]).encode("utf-8")
+
+
+def cache_bytes_to_contracts(data: bytes) -> list[OptionContract]:
+    """Deserialize cached JSON bytes back to a list of contracts.
+
+    Applies full Pydantic validation on each element.
+
+    Args:
+        data: UTF-8 encoded JSON bytes (as produced by :func:`contracts_to_cache_bytes`).
+
+    Returns:
+        List of validated ``OptionContract`` models.
+    """
+    raw: list[dict[str, object]] = json.loads(data.decode("utf-8"))
+    return [OptionContract.model_validate(item) for item in raw]

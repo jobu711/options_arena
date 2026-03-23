@@ -24,25 +24,10 @@ from options_arena.agents._desk_deps import (
 )
 
 # ---------------------------------------------------------------------------
-# Backward-compat rendering helpers (still used by desk/synthesis agents)
+# Rendering helpers (used by recommendation orchestrator)
 # ---------------------------------------------------------------------------
 from options_arena.agents._parsing import (
     render_context_block as render_context_block,
-)
-from options_arena.agents._parsing import (
-    render_flow_context as render_flow_context,
-)
-from options_arena.agents._parsing import (
-    render_fundamental_context as render_fundamental_context,
-)
-from options_arena.agents._parsing import (
-    render_macro_context as render_macro_context,
-)
-from options_arena.agents._parsing import (
-    render_trend_context as render_trend_context,
-)
-from options_arena.agents._parsing import (
-    render_volatility_context as render_volatility_context,
 )
 
 # ---------------------------------------------------------------------------
@@ -247,9 +232,4 @@ __all__ = [
     "run_agency_query",
     # --- Rendering helpers ---
     "render_context_block",
-    "render_flow_context",
-    "render_fundamental_context",
-    "render_macro_context",
-    "render_trend_context",
-    "render_volatility_context",
 ]

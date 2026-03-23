@@ -114,14 +114,98 @@ class HealthService:
                 checked_at=datetime.now(UTC),
             )
 
+    async def _check_api_provider(
+        self,
+        *,
+        name: str,
+        url: str,
+        headers: dict[str, str],
+        timeout: float,
+    ) -> HealthStatus:
+        """Check an API provider endpoint with standard status-code handling.
+
+        Sends ``GET url`` with the given headers and interprets the response:
+        - 401 → invalid API key (unavailable)
+        - 403 → forbidden (unavailable)
+        - 429 → rate limited (available, with warning)
+        - 500+ → server error (unavailable)
+        - Otherwise → healthy (available)
+
+        On any exception (timeout, network error, etc.) returns unavailable.
+        Latency is always recorded via ``time.monotonic()``.
+        """
+        start = time.monotonic()
+        try:
+            response = await asyncio.wait_for(
+                self._client.get(url, headers=headers),
+                timeout=timeout,
+            )
+            latency_ms = (time.monotonic() - start) * 1000
+
+            if response.status_code == 401:
+                logger.warning("%s health check failed: invalid API key", name)
+                return HealthStatus(
+                    service_name=name,
+                    available=False,
+                    latency_ms=latency_ms,
+                    error="invalid API key (401)",
+                    checked_at=datetime.now(UTC),
+                )
+
+            if response.status_code == 403:
+                logger.warning("%s health check failed: forbidden (403)", name)
+                return HealthStatus(
+                    service_name=name,
+                    available=False,
+                    latency_ms=latency_ms,
+                    error="forbidden (403)",
+                    checked_at=datetime.now(UTC),
+                )
+
+            if response.status_code == 429:
+                logger.warning("%s health check: rate limited (429)", name)
+                return HealthStatus(
+                    service_name=name,
+                    available=True,
+                    latency_ms=latency_ms,
+                    error="rate limited (429)",
+                    checked_at=datetime.now(UTC),
+                )
+
+            if response.status_code >= 500:
+                logger.warning("%s health check failed: HTTP %d", name, response.status_code)
+                return HealthStatus(
+                    service_name=name,
+                    available=False,
+                    latency_ms=latency_ms,
+                    error=f"HTTP {response.status_code}",
+                    checked_at=datetime.now(UTC),
+                )
+
+            logger.info("%s health check OK (%.1fms)", name, latency_ms)
+            return HealthStatus(
+                service_name=name,
+                available=True,
+                latency_ms=latency_ms,
+                checked_at=datetime.now(UTC),
+            )
+        except Exception as exc:
+            latency_ms = (time.monotonic() - start) * 1000
+            logger.warning("%s health check failed: %s", name, exc)
+            return HealthStatus(
+                service_name=name,
+                available=False,
+                latency_ms=latency_ms,
+                error=type(exc).__name__,
+                checked_at=datetime.now(UTC),
+            )
+
     async def check_groq(self) -> HealthStatus:
         """Check Groq API availability by listing models.
 
         Checks if an API key is configured (config or ``GROQ_API_KEY`` env),
         then sends ``GET https://api.groq.com/openai/v1/models`` with Bearer token.
         """
-        start = time.monotonic()
-
         # Resolve API key: config > env > None
         api_key: str | None = None
         if self._config.groq_api_key is not None:
@@ -129,6 +213,7 @@ class HealthService:
         else:
             api_key = os.environ.get("GROQ_API_KEY")
         if api_key is None:
+            start = time.monotonic()
             latency_ms = (time.monotonic() - start) * 1000
             logger.warning("Groq health check failed: no API key configured")
             return HealthStatus(
@@ -139,73 +224,12 @@ class HealthService:
                 checked_at=datetime.now(UTC),
             )
 
-        try:
-            response = await asyncio.wait_for(
-                self._client.get(
-                    "https://api.groq.com/openai/v1/models",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                ),
-                timeout=self._config.health_check_timeout,
-            )
-            latency_ms = (time.monotonic() - start) * 1000
-
-            if response.status_code == 401:
-                logger.warning("Groq health check failed: invalid API key")
-                return HealthStatus(
-                    service_name="groq",
-                    available=False,
-                    latency_ms=latency_ms,
-                    error="invalid API key (401)",
-                    checked_at=datetime.now(UTC),
-                )
-
-            if response.status_code == 403:
-                logger.warning("Groq health check failed: forbidden (403)")
-                return HealthStatus(
-                    service_name="groq",
-                    available=False,
-                    latency_ms=latency_ms,
-                    error="forbidden (403)",
-                    checked_at=datetime.now(UTC),
-                )
-
-            if response.status_code == 429:
-                logger.warning("Groq health check: rate limited (429)")
-                return HealthStatus(
-                    service_name="groq",
-                    available=True,
-                    latency_ms=latency_ms,
-                    error="rate limited (429)",
-                    checked_at=datetime.now(UTC),
-                )
-
-            if response.status_code >= 500:
-                logger.warning("Groq health check failed: HTTP %d", response.status_code)
-                return HealthStatus(
-                    service_name="groq",
-                    available=False,
-                    latency_ms=latency_ms,
-                    error=f"HTTP {response.status_code}",
-                    checked_at=datetime.now(UTC),
-                )
-
-            logger.info("Groq health check OK (%.1fms)", latency_ms)
-            return HealthStatus(
-                service_name="groq",
-                available=True,
-                latency_ms=latency_ms,
-                checked_at=datetime.now(UTC),
-            )
-        except Exception as exc:
-            latency_ms = (time.monotonic() - start) * 1000
-            logger.warning("Groq health check failed: %s", exc)
-            return HealthStatus(
-                service_name="groq",
-                available=False,
-                latency_ms=latency_ms,
-                error=type(exc).__name__,
-                checked_at=datetime.now(UTC),
-            )
+        return await self._check_api_provider(
+            name="groq",
+            url="https://api.groq.com/openai/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=self._config.health_check_timeout,
+        )
 
     async def check_anthropic(self) -> HealthStatus:
         """Check Anthropic API availability by listing models.
@@ -213,8 +237,6 @@ class HealthService:
         Checks if an API key is configured (config or ``ANTHROPIC_API_KEY`` env),
         then sends ``GET https://api.anthropic.com/v1/models`` with ``x-api-key`` header.
         """
-        start = time.monotonic()
-
         # Resolve API key: config > env > None
         api_key: str | None = None
         if self._config.anthropic_api_key is not None:
@@ -222,6 +244,7 @@ class HealthService:
         else:
             api_key = os.environ.get("ANTHROPIC_API_KEY")
         if api_key is None:
+            start = time.monotonic()
             latency_ms = (time.monotonic() - start) * 1000
             logger.warning("Anthropic health check failed: no API key configured")
             return HealthStatus(
@@ -232,76 +255,15 @@ class HealthService:
                 checked_at=datetime.now(UTC),
             )
 
-        try:
-            response = await asyncio.wait_for(
-                self._client.get(
-                    "https://api.anthropic.com/v1/models",
-                    headers={
-                        "x-api-key": api_key,
-                        "anthropic-version": "2023-06-01",
-                    },
-                ),
-                timeout=self._config.health_check_timeout,
-            )
-            latency_ms = (time.monotonic() - start) * 1000
-
-            if response.status_code == 401:
-                logger.warning("Anthropic health check failed: invalid API key")
-                return HealthStatus(
-                    service_name="anthropic",
-                    available=False,
-                    latency_ms=latency_ms,
-                    error="invalid API key (401)",
-                    checked_at=datetime.now(UTC),
-                )
-
-            if response.status_code == 403:
-                logger.warning("Anthropic health check failed: forbidden (403)")
-                return HealthStatus(
-                    service_name="anthropic",
-                    available=False,
-                    latency_ms=latency_ms,
-                    error="forbidden (403)",
-                    checked_at=datetime.now(UTC),
-                )
-
-            if response.status_code == 429:
-                logger.warning("Anthropic health check: rate limited (429)")
-                return HealthStatus(
-                    service_name="anthropic",
-                    available=True,
-                    latency_ms=latency_ms,
-                    error="rate limited (429)",
-                    checked_at=datetime.now(UTC),
-                )
-
-            if response.status_code >= 500:
-                logger.warning("Anthropic health check failed: HTTP %d", response.status_code)
-                return HealthStatus(
-                    service_name="anthropic",
-                    available=False,
-                    latency_ms=latency_ms,
-                    error=f"HTTP {response.status_code}",
-                    checked_at=datetime.now(UTC),
-                )
-
-            logger.info("Anthropic health check OK (%.1fms)", latency_ms)
-            return HealthStatus(
-                service_name="anthropic",
-                available=True,
-                latency_ms=latency_ms,
-                checked_at=datetime.now(UTC),
-            )
-        except Exception as exc:
-            latency_ms = (time.monotonic() - start) * 1000
-            logger.warning("Anthropic health check failed: %s", exc)
-            return HealthStatus(
-                service_name="anthropic",
-                available=False,
-                latency_ms=latency_ms,
-                error=type(exc).__name__,
-                checked_at=datetime.now(UTC),
-            )
+        return await self._check_api_provider(
+            name="anthropic",
+            url="https://api.anthropic.com/v1/models",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+            },
+            timeout=self._config.health_check_timeout,
+        )
 
     async def check_cboe(self) -> HealthStatus:
         """Check CBOE CSV download endpoint reachability with HTTP HEAD."""

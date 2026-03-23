@@ -7,8 +7,8 @@ from datetime import UTC, datetime
 import pytest
 
 from options_arena.api.schemas import (
-    DeskAssessmentBrief,
     DebateRequest,
+    DeskAssessmentBrief,
     PositionRecommendationResponse,
     RecommendationResponse,
 )

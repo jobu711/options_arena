@@ -270,14 +270,6 @@ class MarketContext(BaseModel):
         populated = sum(1 for f in checkable_fields if f is not None)
         return populated / len(checkable_fields)
 
-    def enrichment_ratio(self) -> float:
-        """Legacy enrichment ratio — always returns 0.0.
-
-        OpenBB enrichment fields have been removed. This method is retained
-        for backward compatibility with callers that check enrichment_ratio().
-        """
-        return 0.0
-
     @field_validator("rsi_14", "target_delta", "dividend_yield", "composite_score")
     @classmethod
     def validate_required_finite(cls, v: float) -> float:

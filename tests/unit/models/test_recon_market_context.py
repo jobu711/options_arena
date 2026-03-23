@@ -3,7 +3,7 @@
 Tests cover:
 - 8 Arena Recon intelligence fields (analyst, insider, institutional)
 - 22 DSE fields (dimensional scores, indicators, second-order Greeks, confidence)
-- Existing completeness_ratio() and enrichment_ratio() are NOT affected by new fields
+- Existing completeness_ratio() is NOT affected by new fields
 - NaN/Inf rejection on all new float fields via validate_optional_finite
 """
 
@@ -260,7 +260,7 @@ class TestMarketContextDSEFields:
 
 
 class TestExistingRatiosUnchanged:
-    """Ensure completeness_ratio() and enrichment_ratio() are NOT affected by new fields."""
+    """Ensure completeness_ratio() is NOT affected by new fields."""
 
     def test_completeness_ratio_excludes_new_fields(self) -> None:
         """Adding new fields with non-None values should NOT change completeness_ratio."""
@@ -277,22 +277,6 @@ class TestExistingRatiosUnchanged:
         ctx_full = _make_ctx(**all_new)
 
         assert ctx_full.completeness_ratio() == pytest.approx(base_ratio)
-
-    def test_enrichment_ratio_excludes_new_fields(self) -> None:
-        """Adding new fields with non-None values should NOT change enrichment_ratio."""
-        ctx_base = _make_ctx()
-        base_ratio = ctx_base.enrichment_ratio()
-
-        # Set ALL 30 new fields to non-None values (respect [0,1] validators)
-        all_new: dict[str, object] = {name: 50.0 for name in DSE_FIELDS}
-        all_new["direction_confidence"] = 0.85  # [0, 1] range
-        all_new.update({name: 10.0 for name in INTELLIGENCE_FLOAT_FIELDS})
-        all_new["insider_buy_ratio"] = 0.7  # [0, 1] range
-        all_new["institutional_pct"] = 0.85  # [0, 1] range
-        all_new.update({name: 5 for name in INTELLIGENCE_INT_FIELDS})
-        ctx_full = _make_ctx(**all_new)
-
-        assert ctx_full.enrichment_ratio() == pytest.approx(base_ratio)
 
     def test_completeness_ratio_still_works_with_core_fields(self) -> None:
         """Verify completeness_ratio still works correctly with its existing fields."""
@@ -313,8 +297,3 @@ class TestExistingRatiosUnchanged:
         )
         # 13 of 13 checkable fields populated (no contract_mid, so no Greeks)
         assert ctx.completeness_ratio() == pytest.approx(1.0)
-
-    def test_enrichment_ratio_returns_zero(self) -> None:
-        """Verify enrichment_ratio returns 0.0 (OpenBB fields removed)."""
-        ctx = _make_ctx()
-        assert ctx.enrichment_ratio() == pytest.approx(0.0)

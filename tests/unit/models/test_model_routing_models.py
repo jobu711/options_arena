@@ -20,7 +20,6 @@ from options_arena.models import (
 )
 from options_arena.models.analysis import MarketContext
 
-
 # ---------------------------------------------------------------------------
 # ModelTier
 # ---------------------------------------------------------------------------

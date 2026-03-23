@@ -28,7 +28,13 @@ from options_arena.models.config import OpenBBConfig
 from options_arena.models.enums import ExerciseStyle, GreeksSource, OptionType, PricingModel
 from options_arena.models.options import OptionContract, OptionGreeks
 from options_arena.services.cache import ServiceCache
-from options_arena.services.helpers import safe_decimal, safe_float, safe_int
+from options_arena.services.helpers import (
+    cache_bytes_to_contracts,
+    contracts_to_cache_bytes,
+    safe_decimal,
+    safe_float,
+    safe_int,
+)
 from options_arena.services.rate_limiter import RateLimiter
 from options_arena.utils.exceptions import DataSourceUnavailableError
 
@@ -217,17 +223,6 @@ def _cboe_row_to_contract(
     )
 
 
-def _contracts_to_cache_bytes(contracts: list[OptionContract]) -> bytes:
-    """Serialize a list of contracts to JSON bytes for caching."""
-    return json.dumps([c.model_dump(mode="json") for c in contracts]).encode("utf-8")
-
-
-def _cache_bytes_to_contracts(data: bytes) -> list[OptionContract]:
-    """Deserialize cached JSON bytes back to a list of contracts."""
-    raw: list[dict[str, object]] = json.loads(data.decode("utf-8"))
-    return [OptionContract.model_validate(item) for item in raw]
-
-
 class CBOEChainProvider:
     """CBOE option chain provider using OpenBB Platform SDK.
 
@@ -365,7 +360,7 @@ class CBOEChainProvider:
                     contracts.append(contract)
             await self._cache.set(
                 chain_cache_key,
-                _contracts_to_cache_bytes(contracts),
+                contracts_to_cache_bytes(contracts),
                 ttl=self._config.chains_cache_ttl,
             )
         logger.debug(
@@ -413,7 +408,7 @@ class CBOEChainProvider:
         # Check cache first
         cached = await self._cache.get(cache_key)
         if cached is not None:
-            return _cache_bytes_to_contracts(cached)
+            return cache_bytes_to_contracts(cached)
 
         # Fetch the full chain from CBOE
         async with self._limiter:
@@ -430,7 +425,7 @@ class CBOEChainProvider:
         if df.empty:
             logger.debug("CBOE chain for %s is empty", ticker)
             await self._cache.set(
-                cache_key, _contracts_to_cache_bytes([]), ttl=self._config.chains_cache_ttl
+                cache_key, contracts_to_cache_bytes([]), ttl=self._config.chains_cache_ttl
             )
             return []
 
@@ -443,7 +438,7 @@ class CBOEChainProvider:
         if df.empty:
             logger.debug("No CBOE contracts for %s exp %s", ticker, expiration.isoformat())
             await self._cache.set(
-                cache_key, _contracts_to_cache_bytes([]), ttl=self._config.chains_cache_ttl
+                cache_key, contracts_to_cache_bytes([]), ttl=self._config.chains_cache_ttl
             )
             return []
 
@@ -460,7 +455,7 @@ class CBOEChainProvider:
 
         # Cache the result
         await self._cache.set(
-            cache_key, _contracts_to_cache_bytes(contracts), ttl=self._config.chains_cache_ttl
+            cache_key, contracts_to_cache_bytes(contracts), ttl=self._config.chains_cache_ttl
         )
 
         logger.debug(
