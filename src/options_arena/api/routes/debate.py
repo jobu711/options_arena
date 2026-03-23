@@ -55,6 +55,7 @@ from options_arena.models import (
     SignalDirection,
     TradeThesis,
 )
+from options_arena.models.config import RoutingConfig
 from options_arena.models.enums import TICKER_RE
 from options_arena.models.market_data import Quote, TickerInfo
 from options_arena.models.options import OptionContract
@@ -69,6 +70,24 @@ logger = logging.getLogger(__name__)
 _background_tasks: set[asyncio.Task[None]] = set()
 
 router = APIRouter(prefix="/api", tags=["debate"])
+
+
+# ---------------------------------------------------------------------------
+# Routing overlay resolution
+# ---------------------------------------------------------------------------
+
+
+def _resolve_routing_overlay(request: Request, settings: AppSettings) -> AppSettings:
+    """Apply runtime routing override if one is active on ``app.state``.
+
+    Returns a modified ``AppSettings`` copy with the overridden debate routing
+    config, or the original settings unchanged if no override is set.
+    """
+    routing_override: RoutingConfig | None = getattr(request.app.state, "routing_override", None)
+    if routing_override is not None:
+        debate_copy = settings.debate.model_copy(update={"routing": routing_override})
+        return settings.model_copy(update={"debate": debate_copy})
+    return settings
 
 
 # ---------------------------------------------------------------------------
@@ -315,6 +334,9 @@ async def start_debate(
     Groq). To use Anthropic from the web UI, set the env var before starting the
     server. The CLI ``--provider`` flag is the only per-invocation override.
     """
+    # Resolve routing overlay — apply runtime override if active
+    effective_settings = _resolve_routing_overlay(request, settings)
+
     bridge = RecommendationProgressBridge()
 
     # Use a counter for debate IDs (initialized in lifespan)
@@ -328,7 +350,7 @@ async def start_debate(
             debate_id,
             body.ticker.upper(),
             body.scan_id,
-            settings,
+            effective_settings,
             repo,
             market_data,
             options_data,
@@ -444,6 +466,9 @@ async def start_batch_debate(
     fred: FredService = Depends(get_fred),
 ) -> BatchDebateStarted:
     """Start a batch recommendation for top N tickers from a scan."""
+    # Resolve routing overlay — apply runtime override if active
+    effective_settings = _resolve_routing_overlay(request, settings)
+
     # Determine tickers to debate (before acquiring lock — these are read-only ops)
     if body.tickers is not None:
         tickers = [t.upper() for t in body.tickers]
@@ -477,7 +502,7 @@ async def start_batch_debate(
                 batch_id,
                 tickers,
                 body.scan_id,
-                settings,
+                effective_settings,
                 repo,
                 market_data,
                 options_data,

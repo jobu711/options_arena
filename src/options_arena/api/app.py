@@ -174,6 +174,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.batch_counter = itertools.count(1)
     app.state.batch_queues = {}
     app.state.index_counter = itertools.count(1)
+    app.state.routing_override = None
 
     logger.info("API services started")
     yield

@@ -92,6 +92,7 @@ def _make_recommendation_row(
         strategy_rationale="Bull call spread for defined risk.",
         max_loss_estimate="$250 per contract",
         model_used="data-driven-fallback" if is_fallback else "llama-3.3-70b-versatile",
+        desk_metrics_json="[]",
         created_at="2026-03-22T12:00:00+00:00",
     )
 

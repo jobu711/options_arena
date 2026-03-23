@@ -12,7 +12,7 @@ from typing import cast
 from fastapi import Request
 
 from options_arena.data import Repository
-from options_arena.models.config import AppSettings
+from options_arena.models.config import AppSettings, RoutingConfig
 from options_arena.services.fred import FredService
 from options_arena.services.market_data import MarketDataService
 from options_arena.services.options_data import OptionsDataService
@@ -53,6 +53,11 @@ def get_settings(request: Request) -> AppSettings:
 def get_operation_lock(request: Request) -> asyncio.Lock:
     """Inject the global operation mutex."""
     return cast(asyncio.Lock, request.app.state.operation_lock)
+
+
+def get_routing_override(request: Request) -> RoutingConfig | None:
+    """Inject the runtime routing config override (None if no override is active)."""
+    return cast(RoutingConfig | None, request.app.state.routing_override)
 
 
 def get_outcome_collector(request: Request) -> OutcomeCollector:
