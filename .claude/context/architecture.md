@@ -7,7 +7,7 @@ For algorithm details, see `algorithms.md`. For product context, see `product.md
 
 ### Repository (Persistence) -- Mixin Decomposition
 - `Database` handles connection lifecycle, WAL mode, migrations
-- `Repository` composed via multiple inheritance: `BaseMixin` (connection helpers), `ScanMixin`, `DebateMixin`, `AnalyticsMixin`, `MetadataMixin`, `LearningMixin`
+- `Repository` composed via multiple inheritance: `BaseMixin` (connection helpers), `ScanMixin`, `DebateMixin`, `AnalyticsMixin`, `MetadataMixin`, `LearningMixin` (EvalMixin removed in dead-code-cleanup)
 - Single public class, all queries return typed models
 
 ### Re-export
@@ -24,7 +24,7 @@ For algorithm details, see `algorithms.md`. For product context, see `product.md
 - MarketContext: `completeness_ratio()` measures populated fields. <0.4 = fallback; <0.6 = warning; >=0.6 = full analysis
 
 ### Service Layer
-- `ServiceBase[ConfigT]` generic mixin: `_config`, `_cache`, `_limiter`, `_log`, opt-in helpers (`_cached_fetch`, `_retried_fetch`, `_yf_call`)
+- `ServiceBase[ConfigT]` generic mixin: `_config`, `_cache`, `_limiter`, `_log`, opt-in helpers (`_retried_fetch`, `_yf_call`)
 - Logger: `self._log = logging.getLogger(type(self).__module__)`
 - `close()` chain: subclasses override and call `await super().close()`
 - httpx: one `AsyncClient` per service, closed via `aclose()`, retry with exponential backoff (1s->16s)
@@ -42,7 +42,7 @@ For algorithm details, see `algorithms.md`. For product context, see `product.md
 - `PROMPT_RULES_APPENDIX` appended to recommendation + synthesis prompts (NOT desk prompts)
 - `build_debate_model()` dispatches on `LLMProvider` enum: `GroqModel` or `AnthropicModel`
 - Domain context partitioning: agents receive only domain-specific context, no composite score anchoring
-- Backward compat: `DebateResult`, `DebatePhase` retained in `_context.py` for old data parsing
+- Backward compat: `DebateResult` (in `_parsing.py`), `DebatePhase` retained for old data parsing
 
 ### Synthesis Agent
 - `Agent[SynthesisDeps, PositionRecommendation]` -- weighs 6 assessments, selects contract
@@ -116,19 +116,19 @@ For algorithm details, see `algorithms.md`. For product context, see `product.md
 ### Other Patterns
 - **Sector filtering**: `GICSSector` StrEnum + `SECTOR_ALIASES`, `field_validator` normalizes
 - **Earnings calendar**: warning in prompts when within 7 days
-- **OpenBB enrichment**: guarded imports, config-gated, 11 enrichment fields + `enrichment_ratio()`
+- **OpenBB enrichment**: guarded imports, config-gated, 11 enrichment fields (enrichment_ratio() removed — was hardcoded 0.0)
 - **Metadata index**: `ticker_metadata` SQLite table, 30-day TTL, bulk upsert
 - **Liquidity scoring**: spread (70%) + OI depth (30%), inverted normalization, floor guards
 - **Heatmap**: `BatchQuote` + chunked download, client-side squarify treemap
 - **ML pipeline**: guarded imports for arch/statsmodels, config-gated per feature (GARCH, regime, macro, Hurst)
 - **ToolResponse**: frozen model with `ToolStatus` enum, all tool wrappers return it
-- **Eval harness**: YAML definitions, pass@k scoring, `eval_runs` table (migration 039)
 - **Batch export**: `_recommendation_single()` reusable; `export_recommendation_markdown()` for output
+- **FiniteFieldsMixin**: shared `validate_all_finite` model_validator extracted from 9 config classes
 
 ## Module Constraints
 
 ### models/
-- `IndicatorSignals` has 18 named `float | None` fields
+- `IndicatorSignals` has named `float | None` fields (4 dead fields removed: vix_term_structure, risk_on_off_score, sector_relative_momentum, vix_correlation)
 - `OptionGreeks` must set `pricing_model` and validate delta in [-1,1]
 - Decimal fields need `field_serializer` to `str` for JSON precision
 - `recommendation.py`: `RecommendationResult` needs `arbitrary_types_allowed=True` for `RunUsage`

@@ -30,7 +30,6 @@ options analysis on U.S. equities. Also researchers exploring multi-agent AI sys
 | `learn` | Weight tuning (tune-indicators, tune-votes, status, mine, playbook, decay) |
 | `serve` | Launch FastAPI + Vue 3 SPA (loopback-only) |
 | `audit` | Code audit tools |
-| `eval` | Eval harness (check, report, list) |
 
 ## REST API Surface
 
@@ -39,10 +38,10 @@ options analysis on U.S. equities. Also researchers exploring multi-agent AI sys
 - **Universe**: Stats, tickers, refresh, metadata
 - **Health**: Service status + latency
 - **Watchlist**: CRUD
-- **Analytics**: Win-rate, calibration, holding-period, delta-performance, indicator-attribution, backtest (equity curve, drawdown, sector, DTE, IV), recommendation costs
+- **Analytics**: Win-rate, calibration, holding-period, delta-performance, backtest (equity curve, drawdown, sector, DTE, IV)
 - **Agency**: Ask (single query), chat (conversation)
-- **Learning**: Tune indicators, tune votes, mine strategies, playbook CRUD, status
 - **Config**: Routing config, model tiers
+- *Removed*: 14 dead API endpoints (indicator-attribution, risk-metrics, correlation, recommendation-costs, all learning/*, all eval/*, 3 universe admin endpoints) — CLI equivalents retained
 - **WebSocket**: `WS /ws/scan/{id}` (4-phase progress), `WS /ws/debate/{id}` (agent steps)
 - **Operation mutex**: One scan or batch at a time (409 if busy)
 
