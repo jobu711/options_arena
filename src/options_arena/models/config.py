@@ -631,8 +631,8 @@ class AgencyConfig(FiniteFieldsMixin):
     """
 
     agent_timeout: float = 60.0
-    default_tool_budget: int = 5
-    risk_tool_budget: int = 8
+    default_tool_budget: int = 8
+    risk_tool_budget: int = 10
     research_tool_budget: int = 13
     contrarian_tool_budget: int = 2
     desk_parallelism: int = 6

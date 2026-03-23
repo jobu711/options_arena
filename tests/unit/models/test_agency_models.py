@@ -214,21 +214,21 @@ class TestAgencyConfig:
     def test_default_construction(self) -> None:
         config = AgencyConfig()
         assert config.agent_timeout == pytest.approx(60.0)
-        assert config.default_tool_budget == 5
-        assert config.risk_tool_budget == 8
+        assert config.default_tool_budget == 8
+        assert config.risk_tool_budget == 10
         assert config.research_tool_budget == 13
 
     def test_field_overrides(self) -> None:
         config = AgencyConfig(
             agent_timeout=90.0,
-            default_tool_budget=5,
+            default_tool_budget=10,
             risk_tool_budget=10,
-            research_tool_budget=8,
+            research_tool_budget=15,
         )
         assert config.agent_timeout == pytest.approx(90.0)
-        assert config.default_tool_budget == 5
+        assert config.default_tool_budget == 10
         assert config.risk_tool_budget == 10
-        assert config.research_tool_budget == 8
+        assert config.research_tool_budget == 15
 
     def test_nested_on_app_settings_via_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ARENA_AGENCY__AGENT_TIMEOUT", "120.0")
@@ -238,7 +238,7 @@ class TestAgencyConfig:
     def test_default_agency_on_app_settings(self) -> None:
         settings = AppSettings()
         assert settings.agency.agent_timeout == pytest.approx(60.0)
-        assert settings.agency.default_tool_budget == 5
+        assert settings.agency.default_tool_budget == 8
 
     def test_agent_timeout_nan_rejected(self) -> None:
         with pytest.raises(ValidationError, match="finite"):

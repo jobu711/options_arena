@@ -547,6 +547,7 @@ def recommend_contracts(
     delta_target: float = _DEFAULT_DELTA_TARGET,
     *,
     surface_residuals: dict[tuple[OptionType, Decimal, date], float] | None = None,
+    top_n: int = 3,
 ) -> list[OptionContract]:
     """Run the full recommendation pipeline: filter -> expiration -> greeks -> delta.
 
@@ -560,9 +561,11 @@ def recommend_contracts(
         delta_target: Target delta value (from ``PricingConfig``).
         surface_residuals: Map of ``(option_type, strike, expiration)`` to IV
             surface residual z-score for vol-mispricing tiebreaker.
+        top_n: Maximum number of contracts to return, ranked by delta
+            proximity. Enables spread construction when > 1. Default 3.
 
     Returns:
-        List of 0 or 1 recommended contracts.
+        List of up to ``top_n`` recommended contracts, best first.
     """
     cfg = _default_filters(filters)
 
@@ -587,16 +590,80 @@ def recommend_contracts(
         logger.info("recommend_contracts: Greeks computation failed for all contracts")
         return []
 
-    # Step 5: Select by delta (with optional vol-mispricing tiebreaker)
-    best = select_by_delta(
+    # Step 5: Select top N by delta (primary range first, then fallback)
+    if top_n <= 1:
+        best = select_by_delta(
+            with_greeks,
+            cfg,
+            delta_target,
+            direction=direction,
+            surface_residuals=surface_residuals,
+        )
+        return [best] if best is not None else []
+
+    return _select_top_n_by_delta(
         with_greeks,
         cfg,
         delta_target,
+        top_n=top_n,
         direction=direction,
         surface_residuals=surface_residuals,
     )
-    if best is None:
-        logger.info("recommend_contracts: no contracts matched delta target")
-        return []
 
-    return [best]
+
+def _select_top_n_by_delta(
+    contracts: list[OptionContract],
+    filters: OptionsFilters,
+    delta_target: float,
+    *,
+    top_n: int,
+    direction: SignalDirection | None = None,
+    surface_residuals: dict[tuple[OptionType, Decimal, date], float] | None = None,
+) -> list[OptionContract]:
+    """Return up to ``top_n`` contracts ranked by delta proximity.
+
+    Uses the same primary/fallback partitioning as ``select_by_delta`` but
+    returns multiple results so the synthesis agent can evaluate spreads.
+    """
+    primary: list[tuple[OptionContract, float]] = []
+    fallback: list[tuple[OptionContract, float]] = []
+
+    for contract in contracts:
+        if contract.greeks is None:
+            continue
+        abs_delta = abs(contract.greeks.delta)
+        if not math.isfinite(abs_delta):
+            continue
+        distance = abs(abs_delta - delta_target)
+
+        if filters.delta_primary_min <= abs_delta <= filters.delta_primary_max:
+            primary.append((contract, distance))
+        elif filters.delta_fallback_min <= abs_delta <= filters.delta_fallback_max:
+            fallback.append((contract, distance))
+
+    def _sort_key(pair: tuple[OptionContract, float]) -> tuple[float, Decimal]:
+        c, delta_dist = pair
+        liq = _compute_liquidity_score(c, filters.max_spread_pct)
+        effective = delta_dist / max(liq, 0.01)
+        return (effective, c.strike)
+
+    # Prefer primary range; pad with fallback if needed
+    primary.sort(key=_sort_key)
+    fallback.sort(key=_sort_key)
+
+    result: list[OptionContract] = [c for c, _ in primary[:top_n]]
+    remaining = top_n - len(result)
+    if remaining > 0:
+        result.extend(c for c, _ in fallback[:remaining])
+
+    if result:
+        logger.debug(
+            "recommend_contracts: selected %d contracts (primary=%d, fallback=%d)",
+            len(result),
+            min(len(primary), top_n),
+            max(0, len(result) - min(len(primary), top_n)),
+        )
+    else:
+        logger.debug("recommend_contracts: no contracts in any acceptable delta range")
+
+    return result

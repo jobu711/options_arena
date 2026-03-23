@@ -442,8 +442,8 @@ class TestSelectByDelta:
 class TestRecommendContracts:
     """Tests for recommend_contracts pipeline."""
 
-    def test_happy_path_returns_one_recommendation(self) -> None:
-        """Valid contracts through the full pipeline should return 1 recommendation."""
+    def test_happy_path_returns_recommendations(self) -> None:
+        """Valid contracts through the full pipeline should return up to top_n."""
         contracts = [
             make_contract(
                 option_type=OptionType.CALL,
@@ -473,8 +473,19 @@ class TestRecommendContracts:
             risk_free_rate=0.05,
             dividend_yield=0.01,
         )
-        assert len(result) == 1
+        assert 1 <= len(result) <= 3
         assert result[0].greeks is not None
+
+        # top_n=1 returns exactly 1
+        result_single = recommend_contracts(
+            contracts,
+            SignalDirection.BULLISH,
+            spot=150.0,
+            risk_free_rate=0.05,
+            dividend_yield=0.01,
+            top_n=1,
+        )
+        assert len(result_single) == 1
 
     def test_no_liquid_contracts_returns_empty(self) -> None:
         """No contracts passing liquidity filter should return empty list."""
@@ -602,7 +613,7 @@ class TestRecommendContracts:
             risk_free_rate=0.05,
             dividend_yield=0.01,
         )
-        assert len(result) == 1
+        assert len(result) >= 1
         assert result[0].option_type == OptionType.CALL
         assert result[0].greeks is not None
 

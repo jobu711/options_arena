@@ -94,9 +94,9 @@ class TestRunFundamentalDeskQuery:
         assert isinstance(result, DeskResponse)
 
     async def test_uses_default_tool_budget(self) -> None:
-        """Fundamental desk uses default_tool_budget (5), same as vol desk."""
+        """Fundamental desk uses default_tool_budget (8), same as vol desk."""
         cfg = AgencyConfig()
-        assert cfg.default_tool_budget == 5
+        assert cfg.default_tool_budget == 8
 
     async def test_successful_response_has_confidence(self) -> None:
         from options_arena.agents._toolsets import DESK_SUCCESS_CONFIDENCE

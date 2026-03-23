@@ -62,6 +62,7 @@ from options_arena.models import (
     ExerciseStyle,
     FlowAssessment,
     FundamentalAssessment,
+    LLMProvider,
     MacdSignal,
     MarketContext,
     ModelTier,
@@ -543,7 +544,12 @@ async def _run_recommendation_pipeline(
     if progress_callback is not None:
         progress_callback("desks", 1, 4)
 
-    semaphore = asyncio.Semaphore(agency_config.desk_parallelism)
+    # Groq free tier rate-limits hard with 6 parallel agents; cap at 3
+    parallelism = agency_config.desk_parallelism
+    if config.provider == LLMProvider.GROQ and parallelism > 3:
+        parallelism = 3
+        logger.debug("Groq provider: capping desk parallelism to %d", parallelism)
+    semaphore = asyncio.Semaphore(parallelism)
 
     async def _run_desk(
         desk_type: DeskType,
