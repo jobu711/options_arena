@@ -926,39 +926,25 @@ async def process_ticker_options(
     surface_method: SurfaceMethod = SurfaceMethod.SPLINE,
     ml_config: MLConfig | None = None,
 ) -> tuple[str, list[OptionContract], date | None, Decimal | None, SpreadAnalysis | None]:
-    """Fetch chains + ticker info + earnings date for a single ticker.
+    """Coordinator for per-ticker Phase 3 processing.
 
-    Also computes Phase 3 DSE indicators (IV analytics, flow, fundamental,
-    relative strength) from chain + ticker data and merges them into the
-    ticker's ``IndicatorSignals``.
+    Thin orchestrator that delegates to four extracted helpers:
 
-    When ``spread_config`` is provided and enabled, ``select_strategy()`` is
-    called after the single-contract recommendation to construct an optimal
-    multi-leg spread from the available contracts.
+      1. ``_fetch_ticker_data()`` — async data fetching (chains, ticker info,
+         earnings, metadata) with earnings-proximity and market-cap filtering.
+      2. ``_compute_dse_indicators()`` — sync DSE indicator computation
+         (options-specific, vol surface, Phase 3 indicators, IV rank filter).
+      3. ``_select_and_score_contracts()`` — sync contract recommendation via
+         ``recommend_contracts`` with surface-residual tiebreaker and surface
+         indicator enrichment.
+      4. ``_build_spread()`` — sync multi-leg spread construction via
+         ``select_strategy`` when spread config is enabled.
+
+    Early returns at three checkpoints: fetch filtered out, IV rank filtered
+    out, or no contracts available.
 
     Isolated per-ticker: exceptions propagate up to ``asyncio.gather``
     with ``return_exceptions=True``.
-
-    Args:
-        ticker_score: Scored ticker with direction set.
-        risk_free_rate: Shared risk-free rate for this scan.
-        ohlcv_map: Ticker to OHLCV bars from Phase 1 (for close/volume series).
-        spx_close: SPX daily close prices for relative strength (None if unavailable).
-        market_data: Market data service for ticker info and earnings.
-        options_data: Options data service for chain fetching.
-        repository: Data layer for metadata upserts.
-        options_filters: Phase 3 option chain filters (exclude_near_earnings_days,
-            min_iv_rank).
-        universe_filters: Phase 1 universe filters (market_cap_tiers).
-        pricing_config: Pricing configuration for Greeks computation (delta_target).
-        spread_config: Spread strategy configuration (``None`` disables spread
-            construction).
-        recommend_contracts_fn: Optional override for ``recommend_contracts`` (used
-            by ``ScanPipeline`` wrappers for test-patching compatibility).
-        map_yfinance_fn: Optional override for ``map_yfinance_to_metadata`` (used
-            by ``ScanPipeline`` wrappers for test-patching compatibility).
-        surface_method: Surface fitting method (``"spline"`` or ``"neural"``).
-            Passed through to ``compute_vol_surface()``.  Default ``"spline"``.
 
     Returns:
         Tuple of (ticker, recommended contracts, next_earnings_date | None,
@@ -968,7 +954,7 @@ async def process_ticker_options(
     _map_yfinance = map_yfinance_fn or map_yfinance_to_metadata
     ticker = ticker_score.ticker
 
-    # Fetch chains, ticker info, earnings, metadata; filter by earnings/market-cap
+    # 1. Fetch chains, ticker info, earnings, metadata; filter by earnings/market-cap
     td = await _fetch_ticker_data(
         ticker_score,
         market_data=market_data,
@@ -978,44 +964,36 @@ async def process_ticker_options(
         universe_filters=universe_filters,
         map_yfinance_fn=_map_yfinance,
     )
-
-    earnings_date = td.earnings_date
-    entry_stock_price = td.entry_stock_price
-
-    if td.filtered_out:
-        return (ticker, [], earnings_date, entry_stock_price, None)
+    if td.filtered_out or not td.all_contracts:
+        if not td.filtered_out and not td.all_contracts:
+            logger.info("No contracts found for %s", ticker)
+        return (ticker, [], td.earnings_date, td.entry_stock_price, None)
 
     # ticker_info is guaranteed non-None when filtered_out is False
     assert td.ticker_info is not None  # noqa: S101
     ticker_info = td.ticker_info
-    all_contracts = td.all_contracts
-
-    if not all_contracts:
-        logger.info("No contracts found for %s", ticker)
-        return (ticker, [], earnings_date, entry_stock_price, None)
-
     spot = float(ticker_info.current_price)
 
-    # Compute DSE indicators (options-specific, vol surface, Phase 3 indicators, IV rank filter)
+    # 2. Compute DSE indicators (options-specific, vol surface, IV rank filter)
     dse = _compute_dse_indicators(
         ticker_score=ticker_score,
-        all_contracts=all_contracts,
+        all_contracts=td.all_contracts,
         spot=spot,
         ohlcv_map=ohlcv_map,
         spx_close=spx_close,
         ticker_info=ticker_info,
-        earnings_date=earnings_date,
+        earnings_date=td.earnings_date,
         risk_free_rate=risk_free_rate,
         options_filters=options_filters,
         surface_method=surface_method,
         ml_config=ml_config,
     )
-
     if dse.iv_filtered_out:
-        return (ticker, [], earnings_date, entry_stock_price, None)
+        return (ticker, [], td.earnings_date, td.entry_stock_price, None)
 
+    # 3. Select recommended contract(s) and merge surface indicators
     recommended = _select_and_score_contracts(
-        all_contracts=all_contracts,
+        all_contracts=td.all_contracts,
         direction=ticker_score.direction,
         spot=spot,
         risk_free_rate=risk_free_rate,
@@ -1029,9 +1007,10 @@ async def process_ticker_options(
         recommend_fn=_recommend,
     )
 
+    # 4. Construct multi-leg spread (when enabled)
     spread_result = _build_spread(
         ticker=ticker,
-        all_contracts=all_contracts,
+        all_contracts=td.all_contracts,
         recommended=recommended,
         direction=ticker_score.direction,
         composite_score=ticker_score.composite_score,
@@ -1043,7 +1022,7 @@ async def process_ticker_options(
         spread_config=spread_config,
     )
 
-    return (ticker, recommended, earnings_date, entry_stock_price, spread_result)
+    return (ticker, recommended, td.earnings_date, td.entry_stock_price, spread_result)
 
 
 # ---------------------------------------------------------------------------
