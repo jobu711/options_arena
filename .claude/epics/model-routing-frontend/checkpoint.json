@@ -1,0 +1,12 @@
+{
+  "epic": "model-routing-frontend",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync model-routing-frontend",
+  "last_updated": "2026-03-23T13:25:00Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "Token attribution included in epic (Wave 1). Cost always computed (routing gate removed). Both decisions confirmed by user."
+}
