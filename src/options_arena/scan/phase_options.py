@@ -20,6 +20,7 @@ import asyncio
 import logging
 import math
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -94,6 +95,27 @@ type ProcessTickerFn = Callable[
         tuple[str, list[OptionContract], date | None, Decimal | None, SpreadAnalysis | None]
     ],
 ]
+
+
+@dataclass(frozen=True)
+class _TickerData:
+    """Result of per-ticker data fetching in Phase 3.
+
+    Encapsulates the outcome of the early-earnings check, concurrent
+    chain/info fetch, market-cap tier filter, metadata enrichment, and
+    contract flattening steps.  When ``filtered_out`` is ``True`` the
+    ticker was excluded (earnings proximity or market-cap tier) and the
+    caller should return early.
+
+    ``ticker_info`` is ``None`` when the ticker is filtered out before
+    the chain/info fetch (e.g. earnings proximity filter).
+    """
+
+    all_contracts: list[OptionContract]
+    ticker_info: TickerInfo | None
+    earnings_date: date | None
+    entry_stock_price: Decimal | None
+    filtered_out: bool
 
 
 # ---------------------------------------------------------------------------
@@ -556,85 +578,27 @@ async def process_ticker_options(
     _map_yfinance = map_yfinance_fn or map_yfinance_to_metadata
     ticker = ticker_score.ticker
 
-    # Early earnings check — before expensive chain fetch (saves API calls)
-    earnings_date: date | None = None
-    if options_filters.exclude_near_earnings_days is not None:
-        try:
-            earnings_date = await market_data.fetch_earnings_date(ticker)
-        except Exception:
-            logger.warning("Earnings fetch failed for %s", ticker, exc_info=True)
+    # Fetch chains, ticker info, earnings, metadata; filter by earnings/market-cap
+    td = await _fetch_ticker_data(
+        ticker_score,
+        market_data=market_data,
+        options_data=options_data,
+        repository=repository,
+        options_filters=options_filters,
+        universe_filters=universe_filters,
+        map_yfinance_fn=_map_yfinance,
+    )
 
-        if earnings_date is not None:
-            market_today = datetime.now(ZoneInfo("America/New_York")).date()
-            days_to_earnings = (earnings_date - market_today).days
-            if 0 <= days_to_earnings <= options_filters.exclude_near_earnings_days:
-                logger.info(
-                    "Filtered %s: earnings in %d days (<= %d)",
-                    ticker,
-                    days_to_earnings,
-                    options_filters.exclude_near_earnings_days,
-                )
-                return (ticker, [], earnings_date, None, None)
+    earnings_date = td.earnings_date
+    entry_stock_price = td.entry_stock_price
 
-    # Fetch chains, ticker info (and earnings if not already fetched) concurrently
-    chain_task = options_data.fetch_chain_all_expirations(ticker)
-    info_task = market_data.fetch_ticker_info(ticker)
+    if td.filtered_out:
+        return (ticker, [], earnings_date, entry_stock_price, None)
 
-    if earnings_date is None and options_filters.exclude_near_earnings_days is None:
-        # Earnings not fetched yet — fetch concurrently with chains
-        earnings_task = market_data.fetch_earnings_date(ticker)
-        chain_results, ticker_info, earnings_result = await asyncio.gather(
-            chain_task, info_task, earnings_task, return_exceptions=True
-        )
-        if isinstance(earnings_result, BaseException):
-            logger.warning("Earnings fetch failed for %s: %s", ticker, earnings_result)
-        else:
-            earnings_date = earnings_result
-    else:
-        chain_results, ticker_info = await asyncio.gather(
-            chain_task, info_task, return_exceptions=True
-        )
-
-    # Re-raise required data failures
-    if isinstance(chain_results, BaseException):
-        raise chain_results
-    if isinstance(ticker_info, BaseException):
-        raise ticker_info
-
-    # Pre-scan narrowing: check market cap tier
-    if (
-        universe_filters.market_cap_tiers
-        and ticker_info.market_cap_tier is not None
-        and ticker_info.market_cap_tier not in universe_filters.market_cap_tiers
-    ):
-        logger.info(
-            "Filtered %s: market_cap_tier %s not in %s",
-            ticker,
-            ticker_info.market_cap_tier.value,
-            [t.value for t in universe_filters.market_cap_tiers],
-        )
-        return (ticker, [], earnings_date, ticker_info.current_price, None)
-
-    # Enrich ticker_score with company_name from ticker info
-    ticker_score.company_name = ticker_info.company_name
-
-    # Write back metadata for this ticker
-    try:
-        metadata = _map_yfinance(ticker_info)
-        if ticker_score.sector is None and metadata.sector is not None:
-            ticker_score.sector = metadata.sector
-        if ticker_score.industry_group is None and metadata.industry_group is not None:
-            ticker_score.industry_group = metadata.industry_group
-        await repository.upsert_ticker_metadata(metadata)
-    except Exception:
-        logger.warning("Failed to upsert metadata for %s", ticker_info.ticker, exc_info=True)
-
-    # Flatten all contracts across expirations
-    all_contracts: list[OptionContract] = []
-    for chain in chain_results:
-        all_contracts.extend(chain.contracts)
-
-    entry_stock_price = ticker_info.current_price
+    # ticker_info is guaranteed non-None when filtered_out is False
+    assert td.ticker_info is not None  # noqa: S101
+    ticker_info = td.ticker_info
+    all_contracts = td.all_contracts
 
     if not all_contracts:
         logger.info("No contracts found for %s", ticker)
@@ -842,6 +806,160 @@ async def process_ticker_options(
             logger.warning("Spread construction failed for %s", ticker, exc_info=True)
 
     return (ticker, recommended, earnings_date, entry_stock_price, spread_result)
+
+
+# ---------------------------------------------------------------------------
+# Data-fetching helper (extracted from process_ticker_options)
+# ---------------------------------------------------------------------------
+
+
+async def _fetch_ticker_data(
+    ticker_score: TickerScore,
+    *,
+    market_data: MarketDataService,
+    options_data: OptionsDataService,
+    repository: Repository,
+    options_filters: OptionsFilters,
+    universe_filters: UniverseFilters,
+    map_yfinance_fn: MapYfinanceFn,
+) -> _TickerData:
+    """Fetch chains, ticker info, earnings, and metadata for a single ticker.
+
+    Performs the following steps:
+      1. Early earnings check — skip ticker if within exclusion window.
+      2. Concurrent fetch of option chains, ticker info, and (optionally)
+         earnings date via ``asyncio.gather``.
+      3. Market-cap tier filter — skip ticker if tier not in allowed set.
+      4. Metadata enrichment — populate ``ticker_score.company_name``,
+         ``sector``, ``industry_group`` and upsert metadata to repository.
+      5. Flatten all expiration chains into a single contract list.
+
+    When the ticker is filtered out (earnings proximity or market-cap tier),
+    ``filtered_out=True`` is set and ``all_contracts`` will be empty.
+
+    Side effects:
+      - Mutates ``ticker_score.company_name``, ``ticker_score.sector``,
+        ``ticker_score.industry_group`` from fetched ``TickerInfo``.
+      - Upserts ``TickerMetadata`` to ``repository``.
+
+    Args:
+        ticker_score: Scored ticker with direction set.
+        market_data: Market data service for ticker info and earnings.
+        options_data: Options data service for chain fetching.
+        repository: Data layer for metadata upserts.
+        options_filters: Phase 3 option chain filters.
+        universe_filters: Phase 1 universe filters (market_cap_tiers).
+        map_yfinance_fn: Callable to convert ``TickerInfo`` to
+            ``TickerMetadata``.
+
+    Returns:
+        ``_TickerData`` with fetched data and ``filtered_out`` flag.
+
+    Raises:
+        Exception: Re-raises failures from chain or ticker-info fetches
+            (required data).
+    """
+    ticker = ticker_score.ticker
+
+    # 1. Early earnings check — before expensive chain fetch (saves API calls)
+    earnings_date: date | None = None
+    if options_filters.exclude_near_earnings_days is not None:
+        try:
+            earnings_date = await market_data.fetch_earnings_date(ticker)
+        except Exception:
+            logger.warning("Earnings fetch failed for %s", ticker, exc_info=True)
+
+        if earnings_date is not None:
+            market_today = datetime.now(ZoneInfo("America/New_York")).date()
+            days_to_earnings = (earnings_date - market_today).days
+            if 0 <= days_to_earnings <= options_filters.exclude_near_earnings_days:
+                logger.info(
+                    "Filtered %s: earnings in %d days (<= %d)",
+                    ticker,
+                    days_to_earnings,
+                    options_filters.exclude_near_earnings_days,
+                )
+                return _TickerData(
+                    all_contracts=[],
+                    ticker_info=None,
+                    earnings_date=earnings_date,
+                    entry_stock_price=None,
+                    filtered_out=True,
+                )
+
+    # 2. Fetch chains, ticker info (and earnings if not already fetched) concurrently
+    chain_task = options_data.fetch_chain_all_expirations(ticker)
+    info_task = market_data.fetch_ticker_info(ticker)
+
+    if earnings_date is None and options_filters.exclude_near_earnings_days is None:
+        # Earnings not fetched yet — fetch concurrently with chains
+        earnings_task = market_data.fetch_earnings_date(ticker)
+        chain_results, ticker_info, earnings_result = await asyncio.gather(
+            chain_task, info_task, earnings_task, return_exceptions=True
+        )
+        if isinstance(earnings_result, BaseException):
+            logger.warning("Earnings fetch failed for %s: %s", ticker, earnings_result)
+        else:
+            earnings_date = earnings_result
+    else:
+        chain_results, ticker_info = await asyncio.gather(
+            chain_task, info_task, return_exceptions=True
+        )
+
+    # Re-raise required data failures
+    if isinstance(chain_results, BaseException):
+        raise chain_results
+    if isinstance(ticker_info, BaseException):
+        raise ticker_info
+
+    # 3. Pre-scan narrowing: check market cap tier
+    if (
+        universe_filters.market_cap_tiers
+        and ticker_info.market_cap_tier is not None
+        and ticker_info.market_cap_tier not in universe_filters.market_cap_tiers
+    ):
+        logger.info(
+            "Filtered %s: market_cap_tier %s not in %s",
+            ticker,
+            ticker_info.market_cap_tier.value,
+            [t.value for t in universe_filters.market_cap_tiers],
+        )
+        return _TickerData(
+            all_contracts=[],
+            ticker_info=ticker_info,
+            earnings_date=earnings_date,
+            entry_stock_price=ticker_info.current_price,
+            filtered_out=True,
+        )
+
+    # 4. Enrich ticker_score with company_name from ticker info
+    ticker_score.company_name = ticker_info.company_name
+
+    # Write back metadata for this ticker
+    try:
+        metadata = map_yfinance_fn(ticker_info)
+        if ticker_score.sector is None and metadata.sector is not None:
+            ticker_score.sector = metadata.sector
+        if ticker_score.industry_group is None and metadata.industry_group is not None:
+            ticker_score.industry_group = metadata.industry_group
+        await repository.upsert_ticker_metadata(metadata)
+    except Exception:
+        logger.warning("Failed to upsert metadata for %s", ticker_info.ticker, exc_info=True)
+
+    # 5. Flatten all contracts across expirations
+    all_contracts: list[OptionContract] = []
+    for chain in chain_results:
+        all_contracts.extend(chain.contracts)
+
+    entry_stock_price = ticker_info.current_price
+
+    return _TickerData(
+        all_contracts=all_contracts,
+        ticker_info=ticker_info,
+        earnings_date=earnings_date,
+        entry_stock_price=entry_stock_price,
+        filtered_out=False,
+    )
 
 
 # ---------------------------------------------------------------------------
