@@ -1,13 +1,13 @@
 {
   "epic": "dead-code-cleanup-sunset",
-  "phase": "planning",
-  "last_command": "/pm:prd-parse dead-code-cleanup",
-  "last_updated": "2026-03-23T13:21:12Z",
-  "completed_phases": ["prd-created", "planning"],
+  "phase": "synced",
+  "last_command": "/pm:epic-sync dead-code-cleanup-sunset",
+  "last_updated": "2026-03-23T13:50:24Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced"],
   "parent_epic": "dead-code-cleanup",
   "current_task": null,
   "tasks_completed": [],
   "tasks_in_progress": [],
   "blockers": [],
-  "notes": "Wave 4: process_ticker_options refactor + deferred debate sunset. Merges last."
+  "notes": "6 tasks synced to GitHub. Epic #710, tasks #723/#727/#734/#730/#731/#736."
 }

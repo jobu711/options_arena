@@ -8,7 +8,7 @@ parent_epic: dead-code-cleanup
 depends_on: []
 worktree: ../wt-sunset
 branch: epic/dead-code-cleanup-sunset
-github: null
+github: https://github.com/jobu711/options_arena/issues/710
 ---
 
 # Epic: dead-code-cleanup-sunset
@@ -75,14 +75,23 @@ When ready to execute:
 **This task is intentionally deferred.** Create the migration script first, verify
 all historical data is migrated and accessible via new schema, then execute.
 
-## Task Breakdown Preview
+## Tasks Created
 
-- [ ] Task 1: Extract `_fetch_chain_data` helper from process_ticker_options
-- [ ] Task 2: Extract `_compute_flow_indicators` and `_compute_fundamental_indicators`
-- [ ] Task 3: Extract `_build_spread_analysis` and `_merge_phase3_results`
-- [ ] Task 4: Slim down process_ticker_options to ~50-line coordinator
-- [ ] Task 5: Verification — lint + typecheck + integration tests
-- [ ] Task 6: (DEFERRED) Plan data migration script for ai_theses → recommendation_results
+- [ ] #723 - Extract `_fetch_ticker_data` helper from process_ticker_options (parallel: false)
+- [ ] #727 - Extract `_compute_dse_indicators` helper from process_ticker_options (parallel: false)
+- [ ] #734 - Extract `_select_and_score_contracts` and `_build_spread` helpers (parallel: false)
+- [ ] #730 - Slim `process_ticker_options` to ~50-line coordinator (parallel: false)
+- [ ] #731 - Final verification — lint, typecheck, full test suite (parallel: false)
+- [ ] #736 - (DEFERRED) Plan data migration for ai_theses sunset (parallel: true)
+
+Total tasks: 6
+Parallel tasks: 1 (#736 only — deferred planning)
+Sequential tasks: 5 (#723 → #727 → #734 → #730 → #731)
+Estimated total effort: 3.5 hours
+
+## Test Coverage Plan
+Total test files planned: 5
+Total test cases planned: ~30
 
 ## Shared File Conflicts (with sibling epics)
 
