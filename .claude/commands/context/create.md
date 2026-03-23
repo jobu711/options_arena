@@ -80,12 +80,10 @@ Generate the following initial context files:
     - Include: Current branch, recent commits, outstanding changes
   - `project-structure.md` - Map out the directory structure and file organization
     - Include: Key directories, file naming patterns, module organization
-  - `tech-context.md` - Catalog current dependencies, technologies, and development tools
-    - Include: Language version, framework versions, dev dependencies
-  - `system-patterns.md` - Identify existing architectural patterns and design decisions
-    - Include: Design patterns observed, architectural style, data flow
-  - `product-context.md` - Define product requirements, target users, and core functionality
-    - Include: User personas, core features, use cases
+  - `architecture.md` - Identify existing architectural patterns, module constraints, and design decisions
+    - Include: Design patterns observed, architectural style, data flow, module boundaries
+  - `product.md` - Define product capabilities, CLI commands, API surface, and constraints
+    - Include: Core features, CLI reference, API endpoints, user personas
   - `project-brief.md` - Establish project scope, goals, and key objectives
     - Include: What it does, why it exists, success criteria
   - `project-overview.md` - Provide a high-level summary of features and capabilities
