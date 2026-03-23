@@ -118,6 +118,179 @@ class _TickerData:
     filtered_out: bool
 
 
+@dataclass(frozen=True)
+class _DSEResult:
+    """Result of Phase 3 DSE indicator computation.
+
+    Encapsulates the outputs of options-specific indicators, vol surface
+    computation, Phase 3 DSE indicators, and IV rank filtering.  Signals
+    are mutated in-place on ``ticker_score.signals`` (same as the original
+    inline logic).
+
+    When ``iv_filtered_out`` is ``True`` the ticker failed the IV rank
+    filter and the caller should return early with no recommendations.
+    """
+
+    vol_result: VolSurfaceResult | None
+    vs_strikes: np.ndarray | None
+    vs_dtes: np.ndarray | None
+    mp_strike: float | None
+    iv_filtered_out: bool
+
+
+# ---------------------------------------------------------------------------
+# DSE indicator computation helper (extracted from process_ticker_options)
+# ---------------------------------------------------------------------------
+
+
+def _compute_dse_indicators(
+    ticker_score: TickerScore,
+    all_contracts: list[OptionContract],
+    spot: float,
+    ohlcv_map: dict[str, list[OHLCV]],
+    spx_close: pd.Series | None,
+    ticker_info: TickerInfo,
+    earnings_date: date | None,
+    risk_free_rate: float,
+    options_filters: OptionsFilters,
+    surface_method: SurfaceMethod,
+    ml_config: MLConfig | None,
+) -> _DSEResult:
+    """Compute Phase 3 DSE indicators and merge into ticker signals.
+
+    Performs the following steps:
+      1. Compute options-specific indicators (put/call ratio, max pain distance)
+         from the full chain and merge into ``ticker_score.signals``.
+      2. Extract ``mp_strike`` from the chain via ``_extract_mp_strike()``.
+      3. Build vol surface arrays and call ``compute_vol_surface()`` (graceful
+         degradation on failure).
+      4. Call ``compute_phase3_indicators()`` with full context and merge the
+         resulting DSE signals into ``ticker_score.signals``.
+      5. Apply IV rank filter: if ``iv_rank < min_iv_rank``, set
+         ``iv_filtered_out=True``.
+
+    This is a pure function extraction — no behavioral change from the original
+    inline logic in ``process_ticker_options``.  Signals are mutated in-place on
+    ``ticker_score.signals`` (same as original).
+
+    This function is synchronous — all async I/O was already done in
+    ``_fetch_ticker_data()``.
+
+    Args:
+        ticker_score: Scored ticker with direction set (signals mutated in-place).
+        all_contracts: All option contracts across expirations.
+        spot: Current stock price as float.
+        ohlcv_map: Ticker to OHLCV bars from Phase 1 (for close/volume series).
+        spx_close: SPX daily close prices for relative strength (None if unavailable).
+        ticker_info: Ticker info with dividend yield and short ratio.
+        earnings_date: Next earnings date or None.
+        risk_free_rate: Shared risk-free rate for this scan.
+        options_filters: Phase 3 option chain filters (min_iv_rank).
+        surface_method: Surface fitting method (``"spline"`` or ``"neural"``).
+        ml_config: ML configuration for neural surface and GARCH (None disables).
+
+    Returns:
+        ``_DSEResult`` with vol surface outputs and IV filter outcome.
+    """
+    ticker = ticker_score.ticker
+
+    # 1. Compute options-specific indicators from full chain before filtering
+    options_signals = compute_options_indicators(all_contracts, spot)
+    if options_signals.put_call_ratio is not None:
+        ticker_score.signals.put_call_ratio = options_signals.put_call_ratio
+    if options_signals.max_pain_distance is not None:
+        ticker_score.signals.max_pain_distance = options_signals.max_pain_distance
+
+    # 2. Compute max_pain strike directly from chain for Phase 3 indicators
+    mp_strike = _extract_mp_strike(all_contracts)
+
+    # 3-4. Compute Phase 3 DSE indicators (IV analytics, flow, fundamental, RS)
+    ohlcv_list = ohlcv_map.get(ticker)
+    vol_result: VolSurfaceResult | None = None
+    vs_strikes: np.ndarray | None = None
+    vs_dtes: np.ndarray | None = None
+    if ohlcv_list is not None and len(ohlcv_list) > 0:
+        try:
+            ticker_df = ohlcv_to_dataframe(ohlcv_list)
+            close_series: pd.Series = ticker_df["close"]
+
+            # Compute vol surface from option chain (graceful degradation on failure)
+            try:
+                if len(all_contracts) >= 3:
+                    vs_strikes = np.array([float(c.strike) for c in all_contracts], dtype=float)
+                    vs_ivs = np.array([c.market_iv for c in all_contracts], dtype=float)
+                    vs_dtes = np.array([float(c.dte) for c in all_contracts], dtype=float)
+                    vs_types = np.array(
+                        [1.0 if c.option_type == OptionType.CALL else -1.0 for c in all_contracts],
+                        dtype=float,
+                    )
+                    vol_result = compute_vol_surface(
+                        vs_strikes,
+                        vs_ivs,
+                        vs_dtes,
+                        vs_types,
+                        spot,
+                        risk_free_rate,
+                        ticker_info.dividend_yield,
+                        surface_method=surface_method,
+                        ml_config=ml_config,
+                    )
+            except Exception:
+                logger.warning(
+                    "Vol surface computation failed for %s; continuing without",
+                    ticker,
+                    exc_info=True,
+                )
+
+            dse_signals = compute_phase3_indicators(
+                contracts=all_contracts,
+                spot=spot,
+                close_series=close_series,
+                dividend_yield=ticker_info.dividend_yield,
+                next_earnings=earnings_date,
+                mp_strike=mp_strike,
+                spx_close=spx_close,
+                ohlcv_df=ticker_df,
+                vol_result=vol_result,
+                short_ratio=ticker_info.short_ratio,
+            )
+
+            # Merge DSE signals into the ticker's existing signals
+            _merge_signals(ticker_score.signals, dse_signals)
+
+            logger.debug(
+                "Phase 3 DSE indicators computed for %s",
+                ticker,
+            )
+        except Exception:
+            logger.warning(
+                "Phase 3 DSE indicators failed for %s; continuing with partial signals",
+                ticker,
+                exc_info=True,
+            )
+
+    # 5. Pre-scan narrowing: IV rank filter (applied after Phase 3 DSE populates iv_rank)
+    iv_filtered_out = False
+    if options_filters.min_iv_rank is not None:
+        iv_rank = ticker_score.signals.iv_rank
+        if iv_rank is None or iv_rank < options_filters.min_iv_rank:
+            logger.info(
+                "Filtered %s: iv_rank %s < min_iv_rank %.1f",
+                ticker,
+                iv_rank,
+                options_filters.min_iv_rank,
+            )
+            iv_filtered_out = True
+
+    return _DSEResult(
+        vol_result=vol_result,
+        vs_strikes=vs_strikes,
+        vs_dtes=vs_dtes,
+        mp_strike=mp_strike,
+        iv_filtered_out=iv_filtered_out,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -606,92 +779,27 @@ async def process_ticker_options(
 
     spot = float(ticker_info.current_price)
 
-    # Compute options-specific indicators from full chain before filtering
-    options_signals = compute_options_indicators(all_contracts, spot)
-    if options_signals.put_call_ratio is not None:
-        ticker_score.signals.put_call_ratio = options_signals.put_call_ratio
-    if options_signals.max_pain_distance is not None:
-        ticker_score.signals.max_pain_distance = options_signals.max_pain_distance
+    # Compute DSE indicators (options-specific, vol surface, Phase 3 indicators, IV rank filter)
+    dse = _compute_dse_indicators(
+        ticker_score=ticker_score,
+        all_contracts=all_contracts,
+        spot=spot,
+        ohlcv_map=ohlcv_map,
+        spx_close=spx_close,
+        ticker_info=ticker_info,
+        earnings_date=earnings_date,
+        risk_free_rate=risk_free_rate,
+        options_filters=options_filters,
+        surface_method=surface_method,
+        ml_config=ml_config,
+    )
 
-    # Compute max_pain strike directly from chain for Phase 3 indicators
-    mp_strike = _extract_mp_strike(all_contracts)
+    if dse.iv_filtered_out:
+        return (ticker, [], earnings_date, entry_stock_price, None)
 
-    # Compute Phase 3 DSE indicators (IV analytics, flow, fundamental, RS)
-    ohlcv_list = ohlcv_map.get(ticker)
-    vol_result: VolSurfaceResult | None = None
-    vs_strikes: np.ndarray | None = None
-    vs_dtes: np.ndarray | None = None
-    if ohlcv_list is not None and len(ohlcv_list) > 0:
-        try:
-            ticker_df = ohlcv_to_dataframe(ohlcv_list)
-            close_series: pd.Series = ticker_df["close"]
-
-            # Compute vol surface from option chain (graceful degradation on failure)
-            try:
-                if len(all_contracts) >= 3:
-                    vs_strikes = np.array([float(c.strike) for c in all_contracts], dtype=float)
-                    vs_ivs = np.array([c.market_iv for c in all_contracts], dtype=float)
-                    vs_dtes = np.array([float(c.dte) for c in all_contracts], dtype=float)
-                    vs_types = np.array(
-                        [1.0 if c.option_type == OptionType.CALL else -1.0 for c in all_contracts],
-                        dtype=float,
-                    )
-                    vol_result = compute_vol_surface(
-                        vs_strikes,
-                        vs_ivs,
-                        vs_dtes,
-                        vs_types,
-                        spot,
-                        risk_free_rate,
-                        ticker_info.dividend_yield,
-                        surface_method=surface_method,
-                        ml_config=ml_config,
-                    )
-            except Exception:
-                logger.warning(
-                    "Vol surface computation failed for %s; continuing without",
-                    ticker,
-                    exc_info=True,
-                )
-
-            dse_signals = compute_phase3_indicators(
-                contracts=all_contracts,
-                spot=spot,
-                close_series=close_series,
-                dividend_yield=ticker_info.dividend_yield,
-                next_earnings=earnings_date,
-                mp_strike=mp_strike,
-                spx_close=spx_close,
-                ohlcv_df=ticker_df,
-                vol_result=vol_result,
-                short_ratio=ticker_info.short_ratio,
-            )
-
-            # Merge DSE signals into the ticker's existing signals
-            _merge_signals(ticker_score.signals, dse_signals)
-
-            logger.debug(
-                "Phase 3 DSE indicators computed for %s",
-                ticker,
-            )
-        except Exception:
-            logger.warning(
-                "Phase 3 DSE indicators failed for %s; continuing with partial signals",
-                ticker,
-                exc_info=True,
-            )
-
-    # Pre-scan narrowing: IV rank filter (applied after Phase 3 DSE populates iv_rank)
-    if options_filters.min_iv_rank is not None:
-        iv_rank = ticker_score.signals.iv_rank
-        if iv_rank is None or iv_rank < options_filters.min_iv_rank:
-            logger.info(
-                "Filtered %s: iv_rank %s < min_iv_rank %.1f",
-                ticker,
-                iv_rank,
-                options_filters.min_iv_rank,
-            )
-            return (ticker, [], earnings_date, entry_stock_price, None)
+    vol_result = dse.vol_result
+    vs_strikes = dse.vs_strikes
+    vs_dtes = dse.vs_dtes
 
     # Build surface residuals mapping for direction-aware delta tiebreaker.
     # Key includes option_type so calls and puts at the same strike/expiration
