@@ -1,15 +1,14 @@
 """Tests for services.base — ServiceBase mixin infrastructure.
 
-Tests cover init, close, _cached_fetch, _retried_fetch, _yf_call, and
-generic config compatibility. No real API calls — all async operations
-are mocked.
+Tests cover init, close, _retried_fetch, _yf_call, and generic config
+compatibility. No real API calls — all async operations are mocked.
 """
 
 import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 from options_arena.models.config import ServiceConfig
 from options_arena.services.base import ServiceBase
@@ -37,15 +36,6 @@ class _AltConfig(BaseModel):
 
     enabled: bool = True
     url: str = "https://example.com"
-
-
-class _SampleModel(BaseModel):
-    """Pydantic model for cache serde tests."""
-
-    model_config = ConfigDict(frozen=True)
-
-    ticker: str
-    value: float
 
 
 class _ConcreteService(ServiceBase[ServiceConfig]):
@@ -169,138 +159,6 @@ class TestServiceBaseClose:
         assert not svc.closed
         await svc.close()
         assert svc.closed
-
-
-# ===========================================================================
-# TestCachedFetch
-# ===========================================================================
-
-
-class TestCachedFetch:
-    """Tests for ServiceBase._cached_fetch — cache-first with model serde."""
-
-    @pytest.mark.asyncio
-    async def test_cache_hit_returns_deserialized(
-        self, service: _ConcreteService, mock_cache: MagicMock
-    ) -> None:
-        model = _SampleModel(ticker="AAPL", value=42.0)
-        mock_cache.get = AsyncMock(return_value=model.model_dump_json().encode("utf-8"))
-
-        factory = AsyncMock()
-        result = await service._cached_fetch("test:key", _SampleModel, factory, ttl=300)
-
-        assert result == model
-        factory.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_cache_miss_calls_factory(
-        self, service: _ConcreteService, mock_cache: MagicMock
-    ) -> None:
-        model = _SampleModel(ticker="MSFT", value=99.5)
-        mock_cache.get = AsyncMock(return_value=None)
-        factory = AsyncMock(return_value=model)
-
-        result = await service._cached_fetch("test:miss", _SampleModel, factory, ttl=60)
-
-        assert result == model
-        factory.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_cache_miss_stores_result(
-        self, service: _ConcreteService, mock_cache: MagicMock
-    ) -> None:
-        model = _SampleModel(ticker="GOOG", value=10.0)
-        mock_cache.get = AsyncMock(return_value=None)
-        factory = AsyncMock(return_value=model)
-
-        await service._cached_fetch("test:store", _SampleModel, factory, ttl=120)
-
-        mock_cache.set.assert_awaited_once()
-        call_args = mock_cache.set.call_args
-        assert call_args[0][0] == "test:store"
-        assert call_args[1]["ttl"] == 120
-        # Verify the bytes are valid JSON for the model
-        stored_bytes: bytes = call_args[0][1]
-        roundtripped = _SampleModel.model_validate_json(stored_bytes)
-        assert roundtripped == model
-
-    @pytest.mark.asyncio
-    async def test_ttl_passed_to_cache(
-        self, service: _ConcreteService, mock_cache: MagicMock
-    ) -> None:
-        model = _SampleModel(ticker="X", value=1.0)
-        mock_cache.get = AsyncMock(return_value=None)
-        factory = AsyncMock(return_value=model)
-
-        await service._cached_fetch("test:ttl", _SampleModel, factory, ttl=999)
-
-        mock_cache.set.assert_awaited_once()
-        assert mock_cache.set.call_args[1]["ttl"] == 999
-
-    @pytest.mark.asyncio
-    async def test_custom_deserializer_used_on_hit(
-        self, service: _ConcreteService, mock_cache: MagicMock
-    ) -> None:
-        raw_bytes = b'{"ticker":"TSLA","value":777.0}'
-        mock_cache.get = AsyncMock(return_value=raw_bytes)
-
-        custom = MagicMock(return_value=_SampleModel(ticker="TSLA", value=777.0))
-
-        result = await service._cached_fetch(
-            "test:custom",
-            _SampleModel,
-            AsyncMock(),
-            ttl=60,
-            deserializer=custom,
-        )
-
-        custom.assert_called_once_with(raw_bytes)
-        assert result.ticker == "TSLA"
-        assert result.value == pytest.approx(777.0)
-
-    @pytest.mark.asyncio
-    async def test_factory_exception_propagates(
-        self, service: _ConcreteService, mock_cache: MagicMock
-    ) -> None:
-        mock_cache.get = AsyncMock(return_value=None)
-        factory = AsyncMock(side_effect=DataSourceUnavailableError("test failure"))
-
-        with pytest.raises(DataSourceUnavailableError, match="test failure"):
-            await service._cached_fetch("test:err", _SampleModel, factory, ttl=60)
-
-    @pytest.mark.asyncio
-    async def test_model_serde_roundtrip(
-        self, service: _ConcreteService, mock_cache: MagicMock
-    ) -> None:
-        """Verify that model_dump_json -> model_validate_json roundtrip preserves data."""
-        model = _SampleModel(ticker="NVDA", value=123.456)
-        mock_cache.get = AsyncMock(return_value=None)
-        factory = AsyncMock(return_value=model)
-
-        # First call: cache miss -> factory called -> result stored
-        result = await service._cached_fetch("test:rt", _SampleModel, factory, ttl=60)
-        assert result == model
-
-        # Now simulate cache hit with the bytes that were stored
-        stored_bytes = mock_cache.set.call_args[0][1]
-        mock_cache.get = AsyncMock(return_value=stored_bytes)
-        factory2 = AsyncMock()
-
-        result2 = await service._cached_fetch("test:rt", _SampleModel, factory2, ttl=60)
-        assert result2 == model
-        factory2.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_cache_key_forwarded(
-        self, service: _ConcreteService, mock_cache: MagicMock
-    ) -> None:
-        mock_cache.get = AsyncMock(return_value=None)
-        factory = AsyncMock(return_value=_SampleModel(ticker="X", value=0.0))
-
-        await service._cached_fetch("yf:quote:SPY:v1", _SampleModel, factory, ttl=60)
-
-        mock_cache.get.assert_awaited_once_with("yf:quote:SPY:v1")
-        assert mock_cache.set.call_args[0][0] == "yf:quote:SPY:v1"
 
 
 # ===========================================================================

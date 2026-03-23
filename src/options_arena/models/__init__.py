@@ -149,7 +149,7 @@ from options_arena.models.intelligence import (
     IntelligencePackage,
     UpgradeDowngrade,
 )
-from options_arena.models.macro import MacroContext, MacroRegimeResult, MacroSignals
+from options_arena.models.macro import MacroContext
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
 from options_arena.models.metadata import MetadataCoverage, TickerMetadata
 from options_arena.models.options import (
@@ -177,7 +177,7 @@ from options_arena.models.recommendation import (
 from options_arena.models.scan import IndicatorSignals, ScanRun, TickerScore
 from options_arena.models.scan_delta import ScanDiff, TickerDelta
 from options_arena.models.scoring import DimensionalScores, DirectionSignal
-from options_arena.models.strategy import AgentMemory, StrategyCondition, StrategyRule
+from options_arena.models.strategy import StrategyCondition, StrategyRule
 from options_arena.models.tool_response import ToolResponse
 from options_arena.models.valuation import CompositeValuation, ValuationModelResult
 
@@ -294,8 +294,6 @@ __all__ = [
     "DirectionSignal",
     # Macro
     "MacroContext",
-    "MacroRegimeResult",
-    "MacroSignals",
     # Config
     "AgencyConfig",
     "AnalyticsConfig",
@@ -365,7 +363,6 @@ __all__ = [
     "TrendAssessment",
     "VolatilityAssessment",
     # Strategy
-    "AgentMemory",
     "StrategyCondition",
     "StrategyRule",
     # Eval

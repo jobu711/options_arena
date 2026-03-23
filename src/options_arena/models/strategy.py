@@ -1,9 +1,8 @@
 """Strategy mining models for Options Arena.
 
-Three frozen Pydantic v2 models for the strategy mining pipeline:
+Two frozen Pydantic v2 models for the strategy mining pipeline:
   StrategyCondition — single dimensional condition (field, operator, value).
   StrategyRule      — mined pattern with conditions, stats, and approval status.
-  AgentMemory       — long-term agent memory entries.
 
 All snapshot models use ``frozen=True``. All float validators check ``math.isfinite()``.
 All datetime fields enforce UTC.
@@ -105,46 +104,4 @@ class StrategyRule(BaseModel):
     def _validate_validation_count(cls, v: int) -> int:
         if v < 0:
             raise ValueError(f"validation_count must be >= 0, got {v}")
-        return v
-
-
-class AgentMemory(BaseModel):
-    """Long-term memory entry for a desk agent.
-
-    Stores learned patterns, contextual knowledge, or strategy observations
-    scoped by agent and scope type.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    memory_id: str
-    agent_name: str
-    scope: str
-    scope_type: str
-    content: str
-    sample_size: int = 0
-    win_rate: float = 0.0
-    created_at: datetime
-
-    @field_validator("win_rate")
-    @classmethod
-    def _validate_win_rate(cls, v: float) -> float:
-        if not math.isfinite(v):
-            raise ValueError(f"win_rate must be finite, got {v}")
-        if not 0.0 <= v <= 1.0:
-            raise ValueError(f"win_rate must be in [0.0, 1.0], got {v}")
-        return v
-
-    @field_validator("sample_size")
-    @classmethod
-    def _validate_sample_size(cls, v: int) -> int:
-        if v < 0:
-            raise ValueError(f"sample_size must be >= 0, got {v}")
-        return v
-
-    @field_validator("created_at")
-    @classmethod
-    def _validate_utc(cls, v: datetime) -> datetime:
-        if v.tzinfo is None or v.utcoffset() != timedelta(0):
-            raise ValueError("created_at must be UTC")
         return v

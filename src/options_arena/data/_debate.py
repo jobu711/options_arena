@@ -11,7 +11,6 @@ from sqlite3 import Row
 from options_arena.models import (
     AgentAccuracyReport,
     AgentCalibrationData,
-    AgentPrediction,
     AgentWeightsComparison,
     CalibrationBucket,
     ContrarianThesis,
@@ -131,62 +130,6 @@ class DebateMixin(RepositoryBase):
         row_id: int = cursor.lastrowid
         logger.debug("Saved debate id=%d for ticker=%s", row_id, ticker)
         return row_id
-
-    async def save_agent_predictions(self, predictions: list[AgentPrediction]) -> None:
-        """Persist per-agent predictions for accuracy tracking.
-
-        Uses ``INSERT OR IGNORE`` with ``UNIQUE(debate_id, agent_name)`` for idempotency.
-        Skips empty prediction lists without touching the database.
-        """
-        if not predictions:
-            return
-        conn = self._db.conn
-        await conn.executemany(
-            "INSERT OR IGNORE INTO agent_predictions "
-            "(debate_id, agent_name, recommended_contract_id, direction, confidence, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            [
-                (
-                    p.debate_id,
-                    p.agent_name,
-                    p.recommended_contract_id,
-                    p.direction.value if p.direction is not None else None,
-                    p.confidence,
-                    p.created_at.isoformat(),
-                )
-                for p in predictions
-            ],
-        )
-        await conn.commit()
-        logger.debug(
-            "Saved %d agent predictions for debate_id=%d",
-            len(predictions),
-            predictions[0].debate_id,
-        )
-
-    async def get_recommended_contract_id(
-        self,
-        scan_run_id: int | None,
-        ticker: str,
-    ) -> int | None:
-        """Look up the recommended_contracts.id for a scan_run + ticker pair.
-
-        Returns the most recently inserted contract ID, or ``None`` if no match
-        (e.g. standalone debates without a prior scan run).
-        """
-        if scan_run_id is None:
-            return None
-        conn = self._db.conn
-        async with conn.execute(
-            "SELECT id FROM recommended_contracts "
-            "WHERE scan_run_id = ? AND ticker = ? "
-            "ORDER BY id DESC LIMIT 1",
-            (scan_run_id, ticker),
-        ) as cursor:
-            row = await cursor.fetchone()
-        if row is None:
-            return None
-        return int(row["id"])
 
     async def get_debate_by_id(self, debate_id: int) -> DebateRow | None:
         """Get a single debate by its primary key, or None if not found."""

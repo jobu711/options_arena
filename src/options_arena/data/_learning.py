@@ -1,8 +1,7 @@
-"""LearningMixin — strategy rule and agent memory persistence for Repository.
+"""LearningMixin — strategy rule persistence for Repository.
 
-Provides CRUD operations for strategy rules (mined patterns with human approval)
-and agent memory (long-term knowledge entries).  All methods return typed Pydantic
-models from ``models/strategy.py``.
+Provides CRUD operations for strategy rules (mined patterns with human approval).
+All methods return typed Pydantic models from ``models/strategy.py``.
 """
 
 from __future__ import annotations
@@ -14,7 +13,7 @@ from datetime import UTC, datetime
 from sqlite3 import Row
 
 from options_arena.models.enums import RuleStatus
-from options_arena.models.strategy import AgentMemory, StrategyCondition, StrategyRule
+from options_arena.models.strategy import StrategyCondition, StrategyRule
 
 from ._base import RepositoryBase
 
@@ -22,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class LearningMixin(RepositoryBase):
-    """CRUD operations for strategy rules and agent memory.
+    """CRUD operations for strategy rules.
 
     Methods
     -------
@@ -36,10 +35,6 @@ class LearningMixin(RepositoryBase):
         Update confidence, last_validated, and validation_count for a rule.
     update_rule_status_and_confidence
         Atomically update both status and confidence for a rule.
-    save_agent_memory
-        Persist (upsert) an agent memory entry.
-    get_agent_memories
-        Retrieve agent memories, optionally filtered by agent or scope type.
     """
 
     async def save_strategy_rule(
@@ -262,86 +257,6 @@ class LearningMixin(RepositoryBase):
             )
         return updated
 
-    async def save_agent_memory(
-        self,
-        memory: AgentMemory,
-        *,
-        commit: bool = True,
-    ) -> None:
-        """Persist an agent memory entry (upsert by memory_id).
-
-        Parameters
-        ----------
-        memory
-            The ``AgentMemory`` to save.
-        commit
-            Whether to commit immediately (default ``True``).
-        """
-        conn = self._db.conn
-        await conn.execute(
-            "INSERT OR REPLACE INTO agent_memory "
-            "(memory_id, agent_name, scope, scope_type, content, "
-            "sample_size, win_rate, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                memory.memory_id,
-                memory.agent_name,
-                memory.scope,
-                memory.scope_type,
-                memory.content,
-                memory.sample_size,
-                memory.win_rate,
-                memory.created_at.isoformat(),
-            ),
-        )
-        if commit:
-            await conn.commit()
-        logger.debug("Saved agent memory %s", memory.memory_id)
-
-    async def get_agent_memories(
-        self,
-        agent_name: str | None = None,
-        scope_type: str | None = None,
-        limit: int | None = None,
-    ) -> list[AgentMemory]:
-        """Retrieve agent memory entries, optionally filtered.
-
-        Parameters
-        ----------
-        agent_name
-            If provided, only return memories for this agent.
-        scope_type
-            If provided, only return memories with this scope type.
-        limit
-            Maximum number of memories to return.  ``None`` returns all rows.
-
-        Returns
-        -------
-        list[AgentMemory]
-            Memories ordered by ``created_at`` DESC.
-        """
-        conn = self._db.conn
-        conditions: list[str] = []
-        query_params: list[str | int] = []
-
-        if agent_name is not None:
-            conditions.append("agent_name = ?")
-            query_params.append(agent_name)
-        if scope_type is not None:
-            conditions.append("scope_type = ?")
-            query_params.append(scope_type)
-
-        where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
-        query = f"SELECT * FROM agent_memory{where} ORDER BY created_at DESC"
-        if limit is not None:
-            query += " LIMIT ?"
-            query_params.append(limit)
-
-        async with conn.execute(query, tuple(query_params)) as cursor:
-            rows = await cursor.fetchall()
-
-        return [self._row_to_agent_memory(row) for row in rows]
-
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
@@ -382,22 +297,4 @@ class LearningMixin(RepositoryBase):
             confidence=confidence,
             last_validated=last_validated,
             validation_count=validation_count,
-        )
-
-    @staticmethod
-    def _row_to_agent_memory(row: Row) -> AgentMemory:
-        """Reconstruct an ``AgentMemory`` from a database row."""
-        created_at = datetime.fromisoformat(str(row["created_at"]))
-        if created_at.tzinfo is None:
-            created_at = created_at.replace(tzinfo=UTC)
-
-        return AgentMemory(
-            memory_id=str(row["memory_id"]),
-            agent_name=str(row["agent_name"]),
-            scope=str(row["scope"]),
-            scope_type=str(row["scope_type"]),
-            content=str(row["content"]),
-            sample_size=int(row["sample_size"]),
-            win_rate=float(row["win_rate"]),
-            created_at=created_at,
         )

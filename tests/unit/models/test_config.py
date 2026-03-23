@@ -234,7 +234,6 @@ class TestDebateConfigDefaults:
         assert config.model == "llama-3.3-70b-versatile"
         assert config.api_key is None
         assert config.agent_timeout == pytest.approx(60.0)
-        assert config.num_ctx == 8192
         assert config.retries == 2
         assert config.temperature == pytest.approx(0.3)
         assert config.fallback_confidence == pytest.approx(0.3)
@@ -250,19 +249,12 @@ class TestDebateConfigDefaults:
         """AppSettings().debate has correct defaults."""
         settings = AppSettings()
         assert settings.debate.model == "llama-3.3-70b-versatile"
-        assert settings.debate.num_ctx == 8192
         assert settings.debate.fallback_confidence == pytest.approx(0.3)
 
     def test_debate_config_is_base_model(self) -> None:
         """DebateConfig is a BaseModel, not BaseSettings."""
         assert issubclass(DebateConfig, BaseModel)
         assert not issubclass(DebateConfig, BaseSettings)
-
-    def test_env_override_debate_num_ctx(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """ARENA_DEBATE__NUM_CTX env var overrides default."""
-        monkeypatch.setenv("ARENA_DEBATE__NUM_CTX", "16384")
-        settings = AppSettings()
-        assert settings.debate.num_ctx == 16384
 
     def test_env_override_debate_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ARENA_DEBATE__MODEL env var overrides default."""
@@ -306,8 +298,6 @@ class TestDebateConfigDefaults:
             ("agent_timeout", 0.0, "timeout must be > 0"),
             ("agent_timeout", -1.0, "timeout must be > 0"),
             ("max_total_duration", 0.0, "timeout must be > 0"),
-            ("num_ctx", 64, "num_ctx must be in"),
-            ("num_ctx", 200_000, "num_ctx must be in"),
             ("retries", -1, "retries must be in"),
             ("retries", 6, "retries must be in"),
         ],
@@ -323,7 +313,6 @@ class TestDebateConfigDefaults:
         "field,low,high",
         [
             ("temperature", 0.0, 2.0),
-            ("num_ctx", 128, 131_072),
             ("retries", 0, 5),
         ],
     )
