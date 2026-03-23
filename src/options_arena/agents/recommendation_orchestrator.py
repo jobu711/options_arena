@@ -42,6 +42,7 @@ from options_arena.agents.contrarian_desk import run_contrarian_desk_recommendat
 from options_arena.agents.flow_desk import run_flow_desk_recommendation
 from options_arena.agents.fundamental_desk import run_fundamental_desk_recommendation
 from options_arena.agents.model_config import build_debate_model
+from options_arena.agents.model_routing import build_model_for_tier, route_model_tier
 from options_arena.agents.risk_desk import run_risk_desk_recommendation
 from options_arena.agents.synthesis_agent import SynthesisDeps, run_synthesis
 from options_arena.agents.trend_desk import run_trend_desk_recommendation
@@ -51,7 +52,9 @@ from options_arena.models import (
     TICKER_RE,
     AgencyConfig,
     AppSettings,
+    AssessmentSummary,
     ContrarianAssessment,
+    DeskMetrics,
     DeskType,
     DomainAssessment,
     ExerciseStyle,
@@ -59,9 +62,11 @@ from options_arena.models import (
     FundamentalAssessment,
     MacdSignal,
     MarketContext,
+    ModelTier,
     OptionContract,
     PositionRecommendation,
     Quote,
+    RecommendationCost,
     RecommendationResult,
     RiskDeskAssessment,
     RuleStatus,
@@ -283,6 +288,74 @@ def _build_fallback_recommendation_result(
 
 
 # ---------------------------------------------------------------------------
+# Observability helpers
+# ---------------------------------------------------------------------------
+
+
+def _compute_assessment_summary(
+    assessments: list[DomainAssessment],
+) -> AssessmentSummary:
+    """Compute consensus summary from desk assessments."""
+    direction_votes: dict[SignalDirection, int] = {}
+    confidences: list[float] = []
+    risk_flags: list[str] = []
+    non_none_count = 0
+    total_fields = 0
+
+    for a in assessments:
+        direction_votes[a.direction] = direction_votes.get(a.direction, 0) + 1
+        confidences.append(a.confidence)
+
+        if isinstance(a, RiskDeskAssessment):
+            risk_flags.extend(a.risks)
+
+        for field_name in a.model_fields:
+            if field_name in ("desk", "direction", "confidence", "summary", "model_used"):
+                continue
+            total_fields += 1
+            if getattr(a, field_name) is not None:
+                non_none_count += 1
+
+    avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
+    majority_direction = max(direction_votes, key=lambda d: direction_votes[d])
+    disagreement_desks = [a.desk for a in assessments if a.direction != majority_direction]
+    data_completeness = non_none_count / total_fields if total_fields > 0 else 0.0
+
+    return AssessmentSummary(
+        direction_votes=direction_votes,
+        avg_confidence=avg_confidence,
+        disagreement_desks=disagreement_desks,
+        risk_flags=risk_flags,
+        data_completeness=data_completeness,
+    )
+
+
+def _compute_recommendation_cost(
+    all_metrics: list[DeskMetrics],
+    cost_map: dict[str, float],
+) -> RecommendationCost:
+    """Compute aggregated cost from desk metrics and pricing map."""
+    total_in = sum(m.input_tokens for m in all_metrics)
+    total_out = sum(m.output_tokens for m in all_metrics)
+
+    total_cost = 0.0
+    for m in all_metrics:
+        rate = cost_map.get(m.model_used, 0.0)
+        total_cost += (m.input_tokens + m.output_tokens) / 1_000_000 * rate
+
+    tier_dist: dict[ModelTier, int] = {}
+    for m in all_metrics:
+        tier_dist[m.model_tier] = tier_dist.get(m.model_tier, 0) + 1
+
+    return RecommendationCost(
+        total_input_tokens=total_in,
+        total_output_tokens=total_out,
+        total_cost_usd=total_cost,
+        tier_distribution=tier_dist,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Core pipeline
 # ---------------------------------------------------------------------------
 
@@ -425,9 +498,10 @@ async def _run_recommendation_pipeline(
         duration_ms = int((time.monotonic() - t0) * 1000)
         return _build_fallback_recommendation_result(context, ticker, duration_ms)
 
-    # Build LLM model + settings
-    model = build_debate_model(config)
+    # Build default LLM model + settings (used when routing is disabled)
+    default_model = build_debate_model(config)
     model_settings = _build_model_settings(config)
+    routing_config = config.routing
 
     # Fetch learned patterns (never-raises)
     learned_patterns = ""
@@ -466,38 +540,76 @@ async def _run_recommendation_pipeline(
     async def _run_desk(
         desk_type: DeskType,
         runner: _DeskRunner,
-    ) -> DomainAssessment:
+    ) -> tuple[DomainAssessment, DeskMetrics]:
         """Run a single desk under the semaphore — never raises."""
+        tier = route_model_tier(desk_type, context, ticker_score, routing_config)
+        desk_model = (
+            build_model_for_tier(tier, config)
+            if routing_config.enable_model_routing
+            else default_model
+        )
+        model_name = config.routing.fast_model if tier == ModelTier.FAST else config.model
+
+        t_desk = time.monotonic()
         async with semaphore:
             try:
-                return await runner(
+                assessment = await runner(
                     _make_desk_deps(),
-                    model=model,
+                    model=desk_model,
                     model_settings=model_settings,
                     config=agency_config,
                 )
-            except Exception as exc:
-                logger.warning(
-                    "Desk %s failed: %s",
-                    desk_type.value,
-                    type(exc).__name__,
+                dur = int((time.monotonic() - t_desk) * 1000)
+                metrics = DeskMetrics(
+                    desk=desk_type,
+                    status="success",
+                    duration_ms=dur,
+                    model_tier=tier,
+                    model_used=model_name,
                 )
-                return _build_fallback_assessment(desk_type, ticker)
+                return assessment, metrics
+            except Exception as exc:
+                dur = int((time.monotonic() - t_desk) * 1000)
+                logger.warning("Desk %s failed: %s", desk_type.value, type(exc).__name__)
+                fallback = _build_fallback_assessment(desk_type, ticker)
+                metrics = DeskMetrics(
+                    desk=desk_type,
+                    status="fallback",
+                    duration_ms=dur,
+                    model_tier=tier,
+                    model_used=model_name,
+                )
+                return fallback, metrics
 
     tasks = [_run_desk(dt, runner) for dt, runner in _DESK_RUNNERS]
     raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # Replace any BaseException results (e.g. CancelledError) with fallback
+    # Separate assessments and metrics; replace BaseException with fallback
     desk_results: list[DomainAssessment] = []
+    desk_metrics: list[DeskMetrics] = []
     for (dt, _runner), result in zip(_DESK_RUNNERS, raw_results, strict=True):
         if isinstance(result, BaseException):
             logger.warning("Desk %s returned %s", dt.value, type(result).__name__)
             desk_results.append(_build_fallback_assessment(dt, ticker))
+            desk_metrics.append(
+                DeskMetrics(
+                    desk=dt,
+                    status="fallback",
+                    duration_ms=0,
+                    model_tier=ModelTier.STANDARD,
+                    model_used=config.model,
+                )
+            )
         else:
-            desk_results.append(result)
+            assessment, metrics = result
+            desk_results.append(assessment)
+            desk_metrics.append(metrics)
 
     # Cast to AnyAssessment list for RecommendationResult
     assessments: list[AnyAssessment] = list(desk_results)  # type: ignore[arg-type]
+
+    # Compute assessment summary between Phase 1 and Phase 2
+    assessment_summary = _compute_assessment_summary(desk_results)
 
     # ------------------------------------------------------------------
     # Phase 2: Synthesis
@@ -513,9 +625,16 @@ async def _run_recommendation_pipeline(
         learned_patterns=learned_patterns,
     )
 
+    # Synthesis model: PREMIUM when routing enabled, else default
+    synth_model = (
+        build_model_for_tier(ModelTier.PREMIUM, config)
+        if routing_config.enable_model_routing
+        else default_model
+    )
+
     recommendation = await run_synthesis(
         deps=synthesis_deps,
-        model=model,
+        model=synth_model,
         model_settings=model_settings,
         timeout=agency_config.agent_timeout * 2,  # synthesis gets extra time
     )
@@ -527,6 +646,13 @@ async def _run_recommendation_pipeline(
     # Determine if this is a fallback result
     is_fallback = recommendation.model_used == "data-driven-fallback"
 
+    # Compute cost when routing is enabled
+    cost = (
+        _compute_recommendation_cost(desk_metrics, routing_config.cost_per_million_tokens)
+        if routing_config.enable_model_routing
+        else None
+    )
+
     duration_ms = int((time.monotonic() - t0) * 1000)
 
     rec_result = RecommendationResult(
@@ -537,6 +663,9 @@ async def _run_recommendation_pipeline(
         duration_ms=duration_ms,
         is_fallback=is_fallback,
         citation_density=citation_density,
+        desk_metrics=desk_metrics,
+        assessment_summary=assessment_summary,
+        cost=cost,
     )
 
     # ------------------------------------------------------------------
