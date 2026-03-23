@@ -61,13 +61,24 @@ class EvalMixin(RepositoryBase):
         conn = self._db.conn
         custom_json = json.dumps(definition.custom_assertions)
 
+        now_iso = datetime.now(UTC).isoformat()
         await conn.execute(
-            "INSERT OR REPLACE INTO eval_definitions "
+            "INSERT INTO eval_definitions "
             "(name, eval_type, target_desk, description, grader_type, "
             "market_context_fixture, expected_direction, "
             "expected_confidence_min, expected_confidence_max, "
             "custom_assertions_json, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(name) DO UPDATE SET "
+            "eval_type=excluded.eval_type, "
+            "target_desk=excluded.target_desk, "
+            "description=excluded.description, "
+            "grader_type=excluded.grader_type, "
+            "market_context_fixture=excluded.market_context_fixture, "
+            "expected_direction=excluded.expected_direction, "
+            "expected_confidence_min=excluded.expected_confidence_min, "
+            "expected_confidence_max=excluded.expected_confidence_max, "
+            "custom_assertions_json=excluded.custom_assertions_json",
             (
                 definition.name,
                 definition.eval_type.value,
@@ -75,23 +86,27 @@ class EvalMixin(RepositoryBase):
                 definition.description,
                 definition.grader_type.value,
                 definition.market_context_fixture,
-                (
-                    definition.expected_direction.value
-                    if definition.expected_direction
-                    else None
-                ),
+                (definition.expected_direction.value if definition.expected_direction else None),
                 definition.expected_confidence_min,
                 definition.expected_confidence_max,
                 custom_json,
-                datetime.now(UTC).isoformat(),
+                now_iso,
             ),
         )
         if commit:
             await conn.commit()
         logger.debug("Saved eval definition %s", definition.name)
 
-    async def get_eval_definitions(self) -> list[EvalDefinition]:
+    async def get_eval_definitions(
+        self,
+        limit: int = 1000,
+    ) -> list[EvalDefinition]:
         """Retrieve all eval definitions.
+
+        Parameters
+        ----------
+        limit
+            Maximum number of definitions to return.
 
         Returns
         -------
@@ -100,7 +115,8 @@ class EvalMixin(RepositoryBase):
         """
         conn = self._db.conn
         async with conn.execute(
-            "SELECT * FROM eval_definitions ORDER BY name"
+            "SELECT * FROM eval_definitions ORDER BY name LIMIT ?",
+            (limit,),
         ) as cursor:
             rows = await cursor.fetchall()
         return [self._row_to_eval_definition(row) for row in rows]
@@ -189,10 +205,7 @@ class EvalMixin(RepositoryBase):
         """
         conn = self._db.conn
         if eval_name is not None:
-            query = (
-                "SELECT * FROM eval_runs WHERE eval_name = ? "
-                "ORDER BY timestamp DESC LIMIT ?"
-            )
+            query = "SELECT * FROM eval_runs WHERE eval_name = ? ORDER BY timestamp DESC LIMIT ?"
             params: tuple[str | int, ...] = (eval_name, limit)
         else:
             query = "SELECT * FROM eval_runs ORDER BY timestamp DESC LIMIT ?"
@@ -240,7 +253,8 @@ class EvalMixin(RepositoryBase):
         )
 
         raw_assertions = row["custom_assertions_json"]
-        custom_assertions: list[str] = json.loads(str(raw_assertions))
+        parsed = json.loads(str(raw_assertions))
+        custom_assertions: list[str] = parsed if isinstance(parsed, list) else []
 
         return EvalDefinition(
             name=str(row["name"]),

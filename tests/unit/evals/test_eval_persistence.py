@@ -98,12 +98,8 @@ class TestEvalDefinitionCRUD:
 
     @pytest.mark.asyncio
     async def test_upsert_overwrites(self, repo: Repository) -> None:
-        await repo.save_eval_definition(
-            _make_eval_definition(description="original")
-        )
-        await repo.save_eval_definition(
-            _make_eval_definition(description="updated")
-        )
+        await repo.save_eval_definition(_make_eval_definition(description="original"))
+        await repo.save_eval_definition(_make_eval_definition(description="updated"))
 
         result = await repo.get_eval_definition("test_trend_bullish")
         assert result is not None
@@ -120,9 +116,7 @@ class TestEvalDefinitionCRUD:
 
     @pytest.mark.asyncio
     async def test_null_direction(self, repo: Repository) -> None:
-        defn = _make_eval_definition(
-            name="no_direction", expected_direction=None
-        )
+        defn = _make_eval_definition(name="no_direction", expected_direction=None)
         await repo.save_eval_definition(defn)
 
         result = await repo.get_eval_definition("no_direction")
@@ -177,12 +171,16 @@ class TestEvalRunCRUD:
     async def test_runs_ordered_by_timestamp_desc(self, repo: Repository) -> None:
         await repo.save_eval_definition(_make_eval_definition())
 
-        await repo.save_eval_run(_make_eval_run(
-            timestamp=datetime(2026, 3, 20, 12, 0, 0, tzinfo=UTC),
-        ))
-        await repo.save_eval_run(_make_eval_run(
-            timestamp=datetime(2026, 3, 22, 12, 0, 0, tzinfo=UTC),
-        ))
+        await repo.save_eval_run(
+            _make_eval_run(
+                timestamp=datetime(2026, 3, 20, 12, 0, 0, tzinfo=UTC),
+            )
+        )
+        await repo.save_eval_run(
+            _make_eval_run(
+                timestamp=datetime(2026, 3, 22, 12, 0, 0, tzinfo=UTC),
+            )
+        )
 
         runs = await repo.get_eval_runs()
         assert runs[0].timestamp > runs[1].timestamp
@@ -193,20 +191,26 @@ class TestEvalRunCRUD:
         await repo.save_eval_definition(_make_eval_definition(name="eval_b"))
 
         # Two runs for eval_a, one for eval_b
-        await repo.save_eval_run(_make_eval_run(
-            eval_name="eval_a",
-            timestamp=datetime(2026, 3, 20, 12, 0, 0, tzinfo=UTC),
-            passed=False,
-        ))
-        await repo.save_eval_run(_make_eval_run(
-            eval_name="eval_a",
-            timestamp=datetime(2026, 3, 22, 12, 0, 0, tzinfo=UTC),
-            passed=True,
-        ))
-        await repo.save_eval_run(_make_eval_run(
-            eval_name="eval_b",
-            timestamp=datetime(2026, 3, 21, 12, 0, 0, tzinfo=UTC),
-        ))
+        await repo.save_eval_run(
+            _make_eval_run(
+                eval_name="eval_a",
+                timestamp=datetime(2026, 3, 20, 12, 0, 0, tzinfo=UTC),
+                passed=False,
+            )
+        )
+        await repo.save_eval_run(
+            _make_eval_run(
+                eval_name="eval_a",
+                timestamp=datetime(2026, 3, 22, 12, 0, 0, tzinfo=UTC),
+                passed=True,
+            )
+        )
+        await repo.save_eval_run(
+            _make_eval_run(
+                eval_name="eval_b",
+                timestamp=datetime(2026, 3, 21, 12, 0, 0, tzinfo=UTC),
+            )
+        )
 
         latest = await repo.get_latest_eval_runs()
         assert len(latest) == 2
@@ -230,9 +234,11 @@ class TestEvalRunCRUD:
         await repo.save_eval_definition(_make_eval_definition())
 
         for i in range(5):
-            await repo.save_eval_run(_make_eval_run(
-                timestamp=datetime(2026, 3, 20 + i, 12, 0, 0, tzinfo=UTC),
-            ))
+            await repo.save_eval_run(
+                _make_eval_run(
+                    timestamp=datetime(2026, 3, 20 + i, 12, 0, 0, tzinfo=UTC),
+                )
+            )
 
         runs = await repo.get_eval_runs(limit=3)
         assert len(runs) == 3

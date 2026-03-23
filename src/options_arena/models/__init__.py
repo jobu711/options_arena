@@ -118,7 +118,13 @@ from options_arena.models.enums import (
     VolRegimeTier,
     WeightType,
 )
-from options_arena.models.eval import EvalBaseline, EvalDefinition, EvalReport, EvalRun
+from options_arena.models.eval import (
+    EvalBaseline,
+    EvalDefinition,
+    EvalOutcome,
+    EvalReport,
+    EvalRun,
+)
 from options_arena.models.filters import (
     OptionsFilters,
     ScanFilterSpec,

@@ -14,7 +14,13 @@ from options_arena.models.enums import (
     GraderType,
     SignalDirection,
 )
-from options_arena.models.eval import EvalBaseline, EvalDefinition, EvalReport, EvalRun
+from options_arena.models.eval import (
+    EvalBaseline,
+    EvalDefinition,
+    EvalOutcome,
+    EvalReport,
+    EvalRun,
+)
 
 
 class TestEvalEnums:
@@ -233,18 +239,21 @@ class TestEvalBaseline:
 
     def test_happy_path(self) -> None:
         baseline = EvalBaseline(
-            eval_results={"trend_bullish": True, "vol_high": False},
+            eval_results=[
+                EvalOutcome(eval_name="trend_bullish", passed=True),
+                EvalOutcome(eval_name="vol_high", passed=False),
+            ],
             pass_at_1=0.5,
             pass_at_3=0.75,
             timestamp=datetime(2026, 3, 22, 12, 0, 0, tzinfo=UTC),
         )
-        assert baseline.eval_results["trend_bullish"] is True
+        assert baseline.eval_results[0].passed is True
         assert baseline.pass_at_1 == pytest.approx(0.5)
 
     def test_utc_required(self) -> None:
         with pytest.raises(ValidationError, match="UTC"):
             EvalBaseline(
-                eval_results={},
+                eval_results=[],
                 pass_at_1=0.0,
                 pass_at_3=0.0,
                 timestamp=datetime(2026, 3, 22, 12, 0, 0),  # naive

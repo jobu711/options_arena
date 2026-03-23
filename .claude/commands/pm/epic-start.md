@@ -31,11 +31,20 @@ Launch parallel agents to work on epic tasks in a shared branch or worktree.
 
 4. **Parse flags:** Check if `$ARGUMENTS` contains `--worktree`. Strip the flag to get `<epic_name>`.
 
+5. **Parallel epic auto-detection:**
+   ```bash
+   current_branch=$(git branch --show-current)
+   ```
+   If `current_branch` starts with `epic/` AND the target epic name differs from the current epic:
+   - **Force worktree mode** regardless of whether `--worktree` was passed
+   - Print: `"Auto-selecting worktree mode: currently on {current_branch}, cannot switch to epic/{target} in shared directory."`
+   - Continue to worktree path below
+
 ## Instructions
 
 ### 1. Create or Enter Branch / Worktree
 
-**If `--worktree` flag is present** — follow `/rules/worktree-operations.md`:
+**If `--worktree` flag is present OR parallel epic auto-detected** — follow `/rules/worktree-operations.md`:
 
 ```bash
 if ! git worktree list | grep -q "epic-$ARGUMENTS"; then

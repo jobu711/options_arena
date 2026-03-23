@@ -45,6 +45,16 @@ def _git_section() -> str:
     if branch:
         lines.append(f"Branch: {branch}")
 
+    # Parallel epic safety warning
+    if branch.startswith("epic/"):
+        other_epics = _get_other_epic_branches(branch)
+        if other_epics:
+            lines.append(
+                f"WARNING: On {branch}. Do NOT switch to other epic branches "
+                f"(shared directory). Use --worktree for parallel epics."
+            )
+            lines.append(f"Other local epic branches: {', '.join(other_epics)}")
+
     log = _run_git(["log", "--oneline", "-5"])
     if log:
         lines.append("Recent commits:")
@@ -61,6 +71,15 @@ def _git_section() -> str:
             lines.append(f"  ... and {len(status_lines) - 10} more")
 
     return "\n".join(lines)
+
+
+def _get_other_epic_branches(current_branch: str) -> list[str]:
+    """Return local epic/* branches other than the current one."""
+    raw = _run_git(["branch", "--list", "epic/*"])
+    if not raw:
+        return []
+    branches = [b.strip().lstrip("* ") for b in raw.splitlines()]
+    return [b for b in branches if b and b != current_branch]
 
 
 # ---------------------------------------------------------------------------

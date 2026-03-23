@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS eval_definitions (
 
 CREATE TABLE IF NOT EXISTS eval_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    eval_name TEXT NOT NULL REFERENCES eval_definitions(name),
+    eval_name TEXT NOT NULL,
     timestamp TEXT NOT NULL,
     passed INTEGER NOT NULL,
     attempts INTEGER NOT NULL,

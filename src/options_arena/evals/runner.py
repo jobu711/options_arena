@@ -8,20 +8,48 @@ verdict.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import math
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from options_arena.data import Repository
-from options_arena.models.config import EvalConfig
-from options_arena.models.enums import DeskType, EvalVerdict, GraderType
-from options_arena.models.eval import EvalBaseline, EvalDefinition, EvalReport, EvalRun
+from options_arena.models import (
+    EvalBaseline,
+    EvalConfig,
+    EvalDefinition,
+    EvalReport,
+    EvalRun,
+)
+from options_arena.models.enums import DeskType, EvalVerdict, GraderType, SignalDirection
+from options_arena.models.eval import EvalOutcome
 
 from .graders import CodeGrader, GraderResult, ModelGrader
 
 logger = logging.getLogger(__name__)
+
+# Maximum fixture file size (10 MB) — defense against DoS via large files
+_MAX_FIXTURE_BYTES = 10 * 1024 * 1024
+
+# Project root for fixture path confinement
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _sanitize_error(exc: Exception) -> str:
+    """Sanitize exception message for storage — strip file paths."""
+    msg = type(exc).__name__
+    exc_str = str(exc)
+    # Strip anything that looks like a file path
+    exc_str = exc_str.replace(str(_PROJECT_ROOT), "<project>")
+    # Truncate to prevent oversized details
+    if len(exc_str) > 200:  # noqa: PLR2004
+        exc_str = exc_str[:200] + "..."
+    return f"{msg}: {exc_str}"
 
 
 async def run_eval_check(
@@ -49,8 +77,7 @@ async def run_eval_check(
     definitions = await repo.get_eval_definitions()
     if desk_filter is not None:
         definitions = [
-            d for d in definitions
-            if d.target_desk == desk_filter or d.target_desk is None
+            d for d in definitions if d.target_desk == desk_filter or d.target_desk is None
         ]
 
     if not definitions:
@@ -70,33 +97,38 @@ async def run_eval_check(
 
     for definition in definitions:
         start_ms = _now_ms()
+        first_attempt_passed = False
         successes = 0
 
-        for _attempt in range(pass_at_k):
-            result = _run_single_eval(definition, code_grader, model_grader)
+        for attempt_idx in range(pass_at_k):
+            result = await asyncio.to_thread(
+                _run_single_eval, definition, code_grader, model_grader
+            )
             if result.passed:
                 successes += 1
+                if attempt_idx == 0:
+                    first_attempt_passed = True
 
         elapsed_ms = _now_ms() - start_ms
-        passed = successes >= 1  # pass@1: at least one success
 
         run = EvalRun(
             eval_name=definition.name,
             timestamp=datetime.now(UTC),
-            passed=passed,
+            passed=first_attempt_passed,
             attempts=pass_at_k,
             successes=successes,
             model_used=(
-                "code_grader"
-                if definition.grader_type == GraderType.CODE
-                else "model_grader"
+                "code_grader" if definition.grader_type == GraderType.CODE else "model_grader"
             ),
             duration_ms=elapsed_ms,
-            details=json.dumps({
-                "successes": successes,
-                "attempts": pass_at_k,
-                "grader_type": definition.grader_type.value,
-            }),
+            details=json.dumps(
+                {
+                    "successes": successes,
+                    "attempts": pass_at_k,
+                    "first_attempt_passed": first_attempt_passed,
+                    "grader_type": definition.grader_type.value,
+                }
+            ),
         )
         runs.append(run)
 
@@ -105,7 +137,7 @@ async def run_eval_check(
 
     # Compute pass@k metrics
     pass_at_1 = _compute_pass_at_1(runs)
-    pass_at_3 = _compute_pass_at_3(runs, pass_at_k)
+    pass_at_3 = _compute_pass_at_k(runs, pass_at_k)
 
     # Compare against baseline
     baseline = await _load_baseline(repo)
@@ -122,34 +154,6 @@ async def run_eval_check(
     )
 
 
-async def save_baseline(
-    repo: Repository,
-    report: EvalReport,
-) -> EvalBaseline:
-    """Save the current eval results as the baseline for future comparison.
-
-    Parameters
-    ----------
-    repo
-        Repository (currently baselines stored in-memory; future: SQLite).
-    report
-        The eval report to use as baseline.
-
-    Returns
-    -------
-    EvalBaseline
-        The saved baseline.
-    """
-    eval_results = {run.eval_name: run.passed for run in report.runs}
-    baseline = EvalBaseline(
-        eval_results=eval_results,
-        pass_at_1=report.pass_at_1,
-        pass_at_3=report.pass_at_3,
-        timestamp=datetime.now(UTC),
-    )
-    return baseline
-
-
 def _run_single_eval(
     definition: EvalDefinition,
     code_grader: CodeGrader,
@@ -159,28 +163,46 @@ def _run_single_eval(
 
     For code and model graders, we need assessment data from the fixture.
     Since fixtures are file-based and may not exist yet during initial setup,
-    return a pass result for definitions with missing fixtures.
+    return a fail result for definitions with missing fixtures.
     """
-    fixture_path = Path(definition.market_context_fixture)
+    fixture_path = (_PROJECT_ROOT / definition.market_context_fixture).resolve()
+
+    # Path confinement — reject paths outside project root
+    if not fixture_path.is_relative_to(_PROJECT_ROOT):
+        return GraderResult(
+            passed=False,
+            details=json.dumps({"error": "fixture path outside project root"}),
+        )
 
     if not fixture_path.exists():
         logger.debug(
             "Fixture not found for eval %s: %s",
             definition.name,
-            fixture_path,
+            fixture_path.name,
         )
         return GraderResult(
             passed=False,
-            details=json.dumps({"error": f"fixture not found: {fixture_path}"}),
+            details=json.dumps({"error": f"fixture not found: {fixture_path.name}"}),
+        )
+
+    # File size guard — reject oversized fixtures
+    if fixture_path.stat().st_size > _MAX_FIXTURE_BYTES:
+        return GraderResult(
+            passed=False,
+            details=json.dumps({"error": "fixture file exceeds 10 MB limit"}),
         )
 
     try:
         fixture_data = json.loads(fixture_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
-        logger.warning("Failed to load fixture for %s: %s", definition.name, exc)
+        logger.warning(
+            "Failed to load fixture for %s: %s",
+            definition.name,
+            type(exc).__name__,
+        )
         return GraderResult(
             passed=False,
-            details=json.dumps({"error": f"fixture load error: {exc}"}),
+            details=json.dumps({"error": _sanitize_error(exc)}),
         )
 
     # Dispatch to appropriate grader
@@ -191,6 +213,15 @@ def _run_single_eval(
             return _run_model_eval(fixture_data, definition, model_grader)
         case GraderType.OUTCOME:
             return _run_outcome_eval(fixture_data, definition)
+        case _:
+            return GraderResult(
+                passed=False,
+                details=json.dumps(
+                    {
+                        "error": f"unknown grader type: {definition.grader_type}",
+                    }
+                ),
+            )
 
 
 def _run_code_eval(
@@ -199,7 +230,7 @@ def _run_code_eval(
     grader: CodeGrader,
 ) -> GraderResult:
     """Run a code-based eval from fixture data."""
-    from options_arena.models.recommendation import DomainAssessment  # noqa: PLC0415
+    from options_arena.models import DomainAssessment  # noqa: PLC0415
 
     try:
         assessment_data = fixture_data.get("assessment")
@@ -210,11 +241,11 @@ def _run_code_eval(
             )
         assessment = DomainAssessment.model_validate(assessment_data)
         return grader.grade_assessment(assessment, definition)
-    except Exception as exc:
-        logger.warning("Code eval %s failed: %s", definition.name, exc)
+    except (ValueError, KeyError, ValidationError) as exc:
+        logger.warning("Code eval %s failed: %s", definition.name, type(exc).__name__)
         return GraderResult(
             passed=False,
-            details=json.dumps({"error": str(exc)}),
+            details=json.dumps({"error": _sanitize_error(exc)}),
         )
 
 
@@ -224,7 +255,7 @@ def _run_model_eval(
     grader: ModelGrader,
 ) -> GraderResult:
     """Run a model-based (heuristic) eval from fixture data."""
-    from options_arena.models.recommendation import DomainAssessment  # noqa: PLC0415
+    from options_arena.models import DomainAssessment  # noqa: PLC0415
 
     try:
         assessment_data = fixture_data.get("assessment")
@@ -235,11 +266,11 @@ def _run_model_eval(
             )
         assessment = DomainAssessment.model_validate(assessment_data)
         return grader.grade_assessment(assessment, definition)
-    except Exception as exc:
-        logger.warning("Model eval %s failed: %s", definition.name, exc)
+    except (ValueError, KeyError, ValidationError) as exc:
+        logger.warning("Model eval %s failed: %s", definition.name, type(exc).__name__)
         return GraderResult(
             passed=False,
-            details=json.dumps({"error": str(exc)}),
+            details=json.dumps({"error": _sanitize_error(exc)}),
         )
 
 
@@ -249,11 +280,10 @@ def _run_outcome_eval(
 ) -> GraderResult:
     """Run an outcome-based eval from fixture data."""
     from options_arena.evals.graders import OutcomeGrader, OutcomeRecord  # noqa: PLC0415
-    from options_arena.models.enums import SignalDirection  # noqa: PLC0415
 
     try:
-        outcomes_data = fixture_data.get("outcomes", [])
-        if not outcomes_data:
+        raw_outcomes = fixture_data.get("outcomes", [])
+        if not isinstance(raw_outcomes, list) or not raw_outcomes:
             return GraderResult(
                 passed=False,
                 details=json.dumps({"error": "no 'outcomes' key in fixture"}),
@@ -265,16 +295,16 @@ def _run_outcome_eval(
                 confidence=float(o["confidence"]),
                 pnl_pct=float(o["pnl_pct"]),
             )
-            for o in outcomes_data
+            for o in raw_outcomes
         ]
 
         grader = OutcomeGrader()
         return grader.grade_calibration(outcomes, definition)
-    except Exception as exc:
-        logger.warning("Outcome eval %s failed: %s", definition.name, exc)
+    except (ValueError, KeyError, ValidationError) as exc:
+        logger.warning("Outcome eval %s failed: %s", definition.name, type(exc).__name__)
         return GraderResult(
             passed=False,
-            details=json.dumps({"error": str(exc)}),
+            details=json.dumps({"error": _sanitize_error(exc)}),
         )
 
 
@@ -286,12 +316,31 @@ def _compute_pass_at_1(runs: list[EvalRun]) -> float:
     return passed / len(runs)
 
 
-def _compute_pass_at_3(runs: list[EvalRun], k: int) -> float:
-    """Compute pass@k: fraction of evals with at least one success in k attempts."""
-    if not runs:
+def _compute_pass_at_k(runs: list[EvalRun], k: int) -> float:
+    """Compute pass@k: fraction of evals with at least one success in k attempts.
+
+    Uses the unbiased estimator: 1 - C(n-c, k) / C(n, k)
+    where n = total attempts, c = successes.
+    """
+    if not runs or k < 1:
         return 0.0
-    passed = sum(1 for r in runs if r.successes >= 1)
-    return passed / len(runs)
+    total_pass = 0
+    for r in runs:
+        n = r.attempts
+        c = r.successes
+        if c >= k:
+            total_pass += 1
+        elif n <= 0 or c <= 0:
+            pass  # no successes
+        else:
+            # 1 - C(n-c, k) / C(n, k)
+            numerator = math.comb(n - c, k)
+            denominator = math.comb(n, k)
+            if denominator > 0:
+                pass_k = 1.0 - numerator / denominator
+                if pass_k > 0.5:  # noqa: PLR2004
+                    total_pass += 1
+    return total_pass / len(runs)
 
 
 async def _load_baseline(repo: Repository) -> EvalBaseline | None:
@@ -304,7 +353,7 @@ async def _load_baseline(repo: Repository) -> EvalBaseline | None:
     if not latest_runs:
         return None
 
-    eval_results = {run.eval_name: run.passed for run in latest_runs}
+    eval_results = [EvalOutcome(eval_name=run.eval_name, passed=run.passed) for run in latest_runs]
     passed_count = sum(1 for r in latest_runs if r.passed)
     total = len(latest_runs)
 
@@ -324,9 +373,10 @@ def _find_regressions(
     if baseline is None:
         return []
 
+    baseline_map = {o.eval_name: o.passed for o in baseline.eval_results}
     regressions: list[str] = []
     for run in runs:
-        baseline_passed = baseline.eval_results.get(run.eval_name)
+        baseline_passed = baseline_map.get(run.eval_name)
         if baseline_passed is True and not run.passed:
             regressions.append(run.eval_name)
     return regressions

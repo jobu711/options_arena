@@ -89,6 +89,4 @@ def test_high_confidence_failures_documented(fixture: dict[str, object]) -> None
     description = fixture.get("description", "")
     assert isinstance(description, str)
     if confidence >= 0.7:  # noqa: PLR2004
-        assert len(str(description)) > 0, (
-            "High-confidence failures should have a description"
-        )
+        assert len(str(description)) > 0, "High-confidence failures should have a description"

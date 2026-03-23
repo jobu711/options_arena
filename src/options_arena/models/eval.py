@@ -33,7 +33,7 @@ class EvalDefinition(BaseModel):
     target_desk: DeskType | None = None  # None = synthesis agent
     description: str
     grader_type: GraderType
-    market_context_fixture: str  # path to JSON fixture
+    market_context_fixture: str  # relative path to JSON fixture
     expected_direction: SignalDirection | None = None
     expected_confidence_min: float | None = None
     expected_confidence_max: float | None = None
@@ -44,6 +44,22 @@ class EvalDefinition(BaseModel):
     def _validate_name(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("name must not be empty")
+        return v
+
+    @field_validator("market_context_fixture")
+    @classmethod
+    def _validate_fixture_path(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("market_context_fixture must not be empty")
+        if "\x00" in v:
+            raise ValueError("market_context_fixture must not contain null bytes")
+        from pathlib import PurePosixPath  # noqa: PLC0415
+
+        parts = PurePosixPath(v).parts
+        if ".." in parts:
+            raise ValueError("market_context_fixture must not contain '..'")
+        if PurePosixPath(v).is_absolute():
+            raise ValueError("market_context_fixture must be a relative path")
         return v
 
     @field_validator("expected_confidence_min", "expected_confidence_max")
@@ -111,12 +127,21 @@ class EvalReport(BaseModel):
         return validate_unit_interval(v, "pass_rate")
 
 
+class EvalOutcome(BaseModel):
+    """Single eval outcome for baseline comparison."""
+
+    model_config = ConfigDict(frozen=True)
+
+    eval_name: str
+    passed: bool
+
+
 class EvalBaseline(BaseModel):
     """Stored baseline for comparison — pass rates per eval name."""
 
     model_config = ConfigDict(frozen=True)
 
-    eval_results: dict[str, bool]  # eval_name -> passed
+    eval_results: list[EvalOutcome]
     pass_at_1: float
     pass_at_3: float
     timestamp: datetime

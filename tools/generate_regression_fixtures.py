@@ -108,11 +108,15 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Generate regression test fixtures")
     parser.add_argument(
-        "--min-confidence", type=float, default=0.6,
+        "--min-confidence",
+        type=float,
+        default=0.6,
         help="Minimum confidence threshold (default: 0.6)",
     )
     parser.add_argument(
-        "--max-pnl", type=float, default=-20.0,
+        "--max-pnl",
+        type=float,
+        default=-20.0,
         help="Maximum P&L percentage (default: -20.0)",
     )
     args = parser.parse_args()
