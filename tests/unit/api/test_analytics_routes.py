@@ -1,14 +1,12 @@
 """Tests for analytics API routes.
 
-Covers all 9 endpoints in ``api/routes/analytics.py``:
+Covers endpoints in ``api/routes/analytics.py``:
   - GET /api/analytics/win-rate
   - GET /api/analytics/score-calibration
-  - GET /api/analytics/indicator-attribution/{indicator}
   - GET /api/analytics/holding-period
   - GET /api/analytics/delta-performance
   - GET /api/analytics/summary
   - POST /api/analytics/collect-outcomes
-  - GET /api/analytics/scan/{scan_id}/contracts
   - GET /api/analytics/ticker/{ticker}/contracts
 
 Uses FastAPI TestClient with mocked dependencies (conftest fixtures).
@@ -33,7 +31,6 @@ from options_arena.models import (
     ExerciseStyle,
     GreeksSource,
     HoldingPeriodResult,
-    IndicatorAttributionResult,
     OptionType,
     PerformanceSummary,
     PricingModel,
@@ -65,17 +62,6 @@ def _make_score_bucket() -> ScoreCalibrationBucket:
         contract_count=5,
         avg_return_pct=12.5,
         win_rate=0.8,
-    )
-
-
-def _make_indicator_result() -> IndicatorAttributionResult:
-    return IndicatorAttributionResult(
-        indicator_name="rsi",
-        holding_days=5,
-        correlation=0.42,
-        avg_return_when_high=15.0,
-        avg_return_when_low=-3.0,
-        sample_size=50,
     )
 
 
@@ -185,19 +171,6 @@ class TestAnalyticsRoutes:
         mock_repo.get_score_calibration.assert_called_once_with(bucket_size=5.0)
 
     @pytest.mark.asyncio
-    async def test_get_indicator_attribution(
-        self, client: AsyncClient, mock_repo: MagicMock
-    ) -> None:
-        """Verify GET /api/analytics/indicator-attribution/{indicator} returns 200."""
-        mock_repo.get_indicator_attribution = AsyncMock(return_value=[_make_indicator_result()])
-        response = await client.get("/api/analytics/indicator-attribution/rsi")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        assert data[0]["indicator_name"] == "rsi"
-        assert data[0]["correlation"] == pytest.approx(0.42)
-
-    @pytest.mark.asyncio
     async def test_get_holding_period(self, client: AsyncClient, mock_repo: MagicMock) -> None:
         """Verify GET /api/analytics/holding-period returns 200."""
         mock_repo.get_optimal_holding_period = AsyncMock(return_value=[_make_holding_period()])
@@ -252,26 +225,6 @@ class TestAnalyticsRoutes:
         data = response.json()
         assert data["outcomes_collected"] == 0
         mock_collector.collect_outcomes.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_get_scan_contracts(self, client: AsyncClient, mock_repo: MagicMock) -> None:
-        """Verify GET /api/analytics/scan/{id}/contracts returns contracts."""
-        mock_repo.get_contracts_for_scan = AsyncMock(return_value=[_make_contract()])
-        response = await client.get("/api/analytics/scan/1/contracts")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        assert data[0]["ticker"] == "AAPL"
-
-    @pytest.mark.asyncio
-    async def test_get_scan_contracts_empty(
-        self, client: AsyncClient, mock_repo: MagicMock
-    ) -> None:
-        """Verify empty list for scan with no contracts."""
-        mock_repo.get_contracts_for_scan = AsyncMock(return_value=[])
-        response = await client.get("/api/analytics/scan/999/contracts")
-        assert response.status_code == 200
-        assert response.json() == []
 
     @pytest.mark.asyncio
     async def test_get_ticker_contracts(self, client: AsyncClient, mock_repo: MagicMock) -> None:

@@ -811,35 +811,6 @@ class OutcomeCollectionResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Metadata index schemas (#274)
-# ---------------------------------------------------------------------------
-
-
-class MetadataStats(BaseModel):
-    """Metadata coverage statistics."""
-
-    total: int
-    with_sector: int
-    with_industry_group: int
-    coverage: float  # with_sector / total, 0.0 if total == 0
-
-    @field_validator("coverage")
-    @classmethod
-    def _validate_coverage(cls, v: float) -> float:
-        if not math.isfinite(v):
-            raise ValueError(f"coverage must be finite, got {v}")
-        if not 0.0 <= v <= 1.0:
-            raise ValueError(f"coverage must be in [0, 1], got {v}")
-        return v
-
-
-class IndexStarted(BaseModel):
-    """Response for ``POST /api/universe/index`` (202)."""
-
-    index_task_id: int
-
-
-# ---------------------------------------------------------------------------
 # Pre-scan preset schemas (#285)
 # ---------------------------------------------------------------------------
 
@@ -939,25 +910,6 @@ class LivenessResponse(BaseModel):
     status: str = "ok"
 
 
-class UpdateStatusResponse(BaseModel):
-    """Response for status update operations (strategy rules, etc.)."""
-
-    updated: bool
-
-
-class RecommendationCostSummary(BaseModel):
-    """Cost and token summary for a single recommendation run."""
-
-    model_config = ConfigDict(frozen=True)
-
-    ticker: str
-    created_at: str
-    duration_ms: int
-    total_tokens: int
-    is_fallback: bool
-    desk_details: list[DeskCostDetail] = []
-
-
 class RoutingConfigUpdate(BaseModel):
     """Request body for ``PUT /api/config/routing``."""
 
@@ -1008,17 +960,3 @@ class RoutingConfigResponse(BaseModel):
     premium_model: str
     cost_per_million_tokens: dict[str, float]
     is_override: bool
-
-
-class DeskCostDetail(BaseModel):
-    """Per-desk cost breakdown within a recommendation."""
-
-    model_config = ConfigDict(frozen=True)
-
-    desk: str
-    tier: str
-    model_used: str
-    input_tokens: int
-    output_tokens: int
-    duration_ms: int
-    status: str

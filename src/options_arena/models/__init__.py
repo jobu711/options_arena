@@ -55,9 +55,7 @@ from options_arena.models.config import (
     AppSettings,
     DataConfig,
     DebateConfig,
-    EvalConfig,
     FinancialDatasetsConfig,
-    IntelligenceConfig,
     LogConfig,
     MLConfig,
     OpenBBConfig,
@@ -116,13 +114,6 @@ from options_arena.models.enums import (
     VolRegimeTier,
     WeightType,
 )
-from options_arena.models.eval import (
-    EvalBaseline,
-    EvalDefinition,
-    EvalOutcome,
-    EvalReport,
-    EvalRun,
-)
 from options_arena.models.filters import (
     OptionsFilters,
     ScanFilterSpec,
@@ -137,15 +128,6 @@ from options_arena.models.financial_datasets import (
 )
 from options_arena.models.health import HealthStatus
 from options_arena.models.history import HistoryPoint, TrendingTicker
-from options_arena.models.intelligence import (
-    AnalystActivitySnapshot,
-    AnalystSnapshot,
-    InsiderSnapshot,
-    InsiderTransaction,
-    InstitutionalSnapshot,
-    IntelligencePackage,
-    UpgradeDowngrade,
-)
 from options_arena.models.macro import MacroContext
 from options_arena.models.market_data import OHLCV, Quote, TickerInfo
 from options_arena.models.metadata import MetadataCoverage, TickerMetadata
@@ -294,9 +276,7 @@ __all__ = [
     "AppSettings",
     "DataConfig",
     "DebateConfig",
-    "EvalConfig",
     "FinancialDatasetsConfig",
-    "IntelligenceConfig",
     "LogConfig",
     "MLConfig",
     "OpenBBConfig",
@@ -322,14 +302,6 @@ __all__ = [
     "TrendingTicker",
     # Health
     "HealthStatus",
-    # Intelligence
-    "AnalystActivitySnapshot",
-    "AnalystSnapshot",
-    "InsiderSnapshot",
-    "InsiderTransaction",
-    "InstitutionalSnapshot",
-    "IntelligencePackage",
-    "UpgradeDowngrade",
     # Metadata
     "MetadataCoverage",
     "TickerMetadata",
@@ -359,12 +331,6 @@ __all__ = [
     # Strategy
     "StrategyCondition",
     "StrategyRule",
-    # Eval
-    "EvalBaseline",
-    "EvalDefinition",
-    "EvalOutcome",
-    "EvalReport",
-    "EvalRun",
     # Correlation
     "CorrelationMatrix",
     "PairwiseCorrelation",

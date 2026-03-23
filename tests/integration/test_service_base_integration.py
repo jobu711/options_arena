@@ -1,6 +1,6 @@
 """Integration tests for ServiceBase unification.
 
-Verifies that all 6 services inherit from ServiceBase, instantiate with shared
+Verifies that all 5 services inherit from ServiceBase, instantiate with shared
 infrastructure (cache + rate limiter), and close without error.  Uses in-memory
 cache (``db_path=None``) and a fast limiter (1000 req/s, 100 concurrent) so no
 external APIs are contacted.
@@ -12,7 +12,6 @@ import pytest
 
 from options_arena.models.config import (
     FinancialDatasetsConfig,
-    IntelligenceConfig,
     PricingConfig,
     ServiceConfig,
 )
@@ -21,7 +20,6 @@ from options_arena.services.base import ServiceBase
 from options_arena.services.cache import ServiceCache
 from options_arena.services.financial_datasets import FinancialDatasetsService
 from options_arena.services.fred import FredService
-from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.market_data import MarketDataService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.rate_limiter import RateLimiter
@@ -40,11 +38,6 @@ def service_config() -> ServiceConfig:
 @pytest.fixture
 def pricing_config() -> PricingConfig:
     return PricingConfig()
-
-
-@pytest.fixture
-def intelligence_config() -> IntelligenceConfig:
-    return IntelligenceConfig()
 
 
 @pytest.fixture
@@ -72,12 +65,11 @@ def limiter() -> RateLimiter:
 def _build_all_services(
     service_config: ServiceConfig,
     pricing_config: PricingConfig,
-    intelligence_config: IntelligenceConfig,
     financial_datasets_config: FinancialDatasetsConfig,
     cache: ServiceCache,
     limiter: RateLimiter,
 ) -> list[ServiceBase[object]]:
-    """Instantiate all 6 services with shared cache and limiter."""
+    """Instantiate all 5 services with shared cache and limiter."""
     return [
         MarketDataService(config=service_config, cache=cache, limiter=limiter),
         UniverseService(config=service_config, cache=cache, limiter=limiter),
@@ -92,7 +84,6 @@ def _build_all_services(
             pricing_config=pricing_config,
             cache=cache,
         ),
-        IntelligenceService(config=intelligence_config, cache=cache, limiter=limiter),
         FinancialDatasetsService(
             config=financial_datasets_config,
             cache=cache,
@@ -101,13 +92,12 @@ def _build_all_services(
     ]
 
 
-# The 6 service classes that must all inherit ServiceBase
+# The 5 service classes that must all inherit ServiceBase
 ALL_SERVICE_CLASSES: list[type[ServiceBase[object]]] = [
     MarketDataService,  # type: ignore[list-item]
     UniverseService,  # type: ignore[list-item]
     OptionsDataService,  # type: ignore[list-item]
     FredService,  # type: ignore[list-item]
-    IntelligenceService,  # type: ignore[list-item]
     FinancialDatasetsService,  # type: ignore[list-item]
 ]
 
@@ -118,12 +108,12 @@ ALL_SERVICE_CLASSES: list[type[ServiceBase[object]]] = [
 
 
 class TestServiceBaseIntegration:
-    """Integration tests verifying all 6 services inherit ServiceBase."""
+    """Integration tests verifying all 5 services inherit ServiceBase."""
 
     def test_all_services_inherit_service_base(self) -> None:
-        """Verify all 6 services are ServiceBase subclasses."""
-        assert len(ALL_SERVICE_CLASSES) == 6, (  # noqa: PLR2004
-            f"Expected exactly 6 service classes, got {len(ALL_SERVICE_CLASSES)}"
+        """Verify all 5 services are ServiceBase subclasses."""
+        assert len(ALL_SERVICE_CLASSES) == 5, (  # noqa: PLR2004
+            f"Expected exactly 5 service classes, got {len(ALL_SERVICE_CLASSES)}"
         )
         for cls in ALL_SERVICE_CLASSES:
             assert issubclass(cls, ServiceBase), (
@@ -134,21 +124,19 @@ class TestServiceBaseIntegration:
         self,
         service_config: ServiceConfig,
         pricing_config: PricingConfig,
-        intelligence_config: IntelligenceConfig,
         financial_datasets_config: FinancialDatasetsConfig,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
-        """Verify all 6 services can be created with shared cache and limiter."""
+        """Verify all 5 services can be created with shared cache and limiter."""
         services = _build_all_services(
             service_config,
             pricing_config,
-            intelligence_config,
             financial_datasets_config,
             cache,
             limiter,
         )
-        assert len(services) == 6  # noqa: PLR2004
+        assert len(services) == 5  # noqa: PLR2004
         for svc in services:
             assert isinstance(svc, ServiceBase)
 
@@ -157,16 +145,14 @@ class TestServiceBaseIntegration:
         self,
         service_config: ServiceConfig,
         pricing_config: PricingConfig,
-        intelligence_config: IntelligenceConfig,
         financial_datasets_config: FinancialDatasetsConfig,
         cache: ServiceCache,
         limiter: RateLimiter,
     ) -> None:
-        """Verify close() works on all 6 services without raising."""
+        """Verify close() works on all 5 services without raising."""
         services = _build_all_services(
             service_config,
             pricing_config,
-            intelligence_config,
             financial_datasets_config,
             cache,
             limiter,
@@ -178,7 +164,6 @@ class TestServiceBaseIntegration:
         self,
         service_config: ServiceConfig,
         pricing_config: PricingConfig,
-        intelligence_config: IntelligenceConfig,
         financial_datasets_config: FinancialDatasetsConfig,
         cache: ServiceCache,
         limiter: RateLimiter,
@@ -205,9 +190,6 @@ class TestServiceBaseIntegration:
         )
         assert fred._config is service_config  # noqa: SLF001
 
-        intel = IntelligenceService(config=intelligence_config, cache=cache, limiter=limiter)
-        assert intel._config is intelligence_config  # noqa: SLF001
-
         fd = FinancialDatasetsService(
             config=financial_datasets_config,
             cache=cache,
@@ -219,7 +201,6 @@ class TestServiceBaseIntegration:
         self,
         service_config: ServiceConfig,
         pricing_config: PricingConfig,
-        intelligence_config: IntelligenceConfig,
         financial_datasets_config: FinancialDatasetsConfig,
         cache: ServiceCache,
         limiter: RateLimiter,
@@ -228,7 +209,6 @@ class TestServiceBaseIntegration:
         services = _build_all_services(
             service_config,
             pricing_config,
-            intelligence_config,
             financial_datasets_config,
             cache,
             limiter,
@@ -242,7 +222,6 @@ class TestServiceBaseIntegration:
         self,
         service_config: ServiceConfig,
         pricing_config: PricingConfig,
-        intelligence_config: IntelligenceConfig,
         financial_datasets_config: FinancialDatasetsConfig,
         cache: ServiceCache,
         limiter: RateLimiter,
@@ -262,9 +241,6 @@ class TestServiceBaseIntegration:
         )
         assert opts._limiter is limiter  # noqa: SLF001
 
-        intel = IntelligenceService(config=intelligence_config, cache=cache, limiter=limiter)
-        assert intel._limiter is limiter  # noqa: SLF001
-
         fd = FinancialDatasetsService(
             config=financial_datasets_config,
             cache=cache,
@@ -283,14 +259,13 @@ class TestServiceBaseIntegration:
     def test_consumer_code_unchanged(self) -> None:
         """Verify import signatures match expected patterns.
 
-        All 6 service classes must be importable from their respective modules
+        All 5 service classes must be importable from their respective modules
         and from the package ``__init__.py`` re-exports.
         """
         # Package-level re-exports
         from options_arena.services import (  # noqa: F401
             FinancialDatasetsService,
             FredService,
-            IntelligenceService,
             MarketDataService,
             OptionsDataService,
             ServiceBase,
@@ -302,9 +277,6 @@ class TestServiceBaseIntegration:
             FinancialDatasetsService as FD,
         )
         from options_arena.services.fred import FredService as FS  # noqa: F401
-        from options_arena.services.intelligence import (  # noqa: F401
-            IntelligenceService as IS,
-        )
         from options_arena.services.market_data import (  # noqa: F401
             MarketDataService as MD,
         )
@@ -315,12 +287,12 @@ class TestServiceBaseIntegration:
             UniverseService as US,
         )
 
-    def test_six_services_count(self) -> None:
-        """Verify exactly 6 service classes inherit ServiceBase.
+    def test_five_services_count(self) -> None:
+        """Verify exactly 5 service classes inherit ServiceBase.
 
         This is a guard against accidentally missing a service during
         the migration or adding a new service without updating tests.
         """
-        assert len(ALL_SERVICE_CLASSES) == 6  # noqa: PLR2004
+        assert len(ALL_SERVICE_CLASSES) == 5  # noqa: PLR2004
         # Verify they are distinct
-        assert len(set(ALL_SERVICE_CLASSES)) == 6  # noqa: PLR2004
+        assert len(set(ALL_SERVICE_CLASSES)) == 5  # noqa: PLR2004

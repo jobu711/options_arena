@@ -64,19 +64,6 @@ async def test_universe_stats(client: AsyncClient, mock_universe: MagicMock) -> 
     assert data["etf_count"] == 2
 
 
-async def test_universe_refresh(client: AsyncClient, mock_universe: MagicMock) -> None:
-    """POST /api/universe/refresh returns updated stats with etf_count."""
-    mock_universe.fetch_optionable_tickers = AsyncMock(
-        return_value=["AAPL", "MSFT", "GOOGL", "TSLA"]
-    )
-    mock_universe.fetch_sp500_constituents = AsyncMock(return_value=["AAPL", "MSFT"])
-    mock_universe.fetch_etf_tickers = AsyncMock(return_value=["SPY"])
-    response = await client.post("/api/universe/refresh")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["optionable_count"] == 4
-    assert data["etf_count"] == 1
-
 
 async def test_universe_sectors(client: AsyncClient, mock_universe: MagicMock) -> None:
     """GET /api/universe/sectors returns hierarchical GICS sectors with ticker counts."""

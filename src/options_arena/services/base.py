@@ -5,7 +5,7 @@ Services opt into the helpers they need by calling the protected methods.
 No abstract methods — this is a mixin, not an interface.
 
 Generic on ``ConfigT`` so each service can declare its own config type
-(``ServiceConfig``, ``IntelligenceConfig``, etc.).
+(``ServiceConfig``, ``FinancialDatasetsConfig``, etc.).
 """
 
 import asyncio

@@ -9,7 +9,6 @@ decorators fire and attach scan, health, and universe commands to ``app``.
 import options_arena.cli.agency as _agency  # noqa: F401, E402
 import options_arena.cli.audit as _audit  # noqa: F401, E402
 import options_arena.cli.commands as _commands  # noqa: F401, E402
-import options_arena.cli.eval as _eval  # noqa: F401, E402
 import options_arena.cli.outcomes as _outcomes  # noqa: F401, E402
 from options_arena.cli.app import app
 

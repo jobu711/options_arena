@@ -10,7 +10,6 @@ from options_arena.services.cboe_provider import CBOEChainProvider
 from options_arena.services.financial_datasets import FinancialDatasetsService
 from options_arena.services.fred import FredService
 from options_arena.services.health import HealthService
-from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.market_data import (
     BatchOHLCVResult,
     BatchQuote,
@@ -43,7 +42,6 @@ __all__ = [
     "FinancialDatasetsService",
     "FredService",
     "HealthService",
-    "IntelligenceService",
     "MarketDataService",
     "OptionsDataService",
     "OutcomeCollector",

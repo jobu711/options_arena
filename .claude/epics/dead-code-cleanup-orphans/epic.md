@@ -8,7 +8,7 @@ parent_epic: dead-code-cleanup
 depends_on: []
 worktree: ../wt-orphans
 branch: epic/dead-code-cleanup-orphans
-github: null
+github: https://github.com/jobu711/options_arena/issues/708
 ---
 
 # Epic: dead-code-cleanup-orphans
@@ -119,18 +119,27 @@ Recommendation: **(a) Keep** — the code is well-tested, behind guarded imports
 doesn't affect users who don't install `[neural]`. Removal gains no runtime benefit.
 Add `# EXPERIMENTAL: requires [neural] extra` header comment to each file.
 
-## Task Breakdown Preview
+## Tasks Created
 
-- [ ] Task 1: Delete IntelligenceService + models
-- [ ] Task 2: Remove IntelligenceConfig from settings + lifespan wiring
-- [ ] Task 3: Remove 5 dead analytics API endpoints
-- [ ] Task 4: Remove learning API routes (entire file)
-- [ ] Task 5: Remove eval API routes (entire file)
-- [ ] Task 6: Remove 3 dead universe API endpoints
-- [ ] Task 7: Delete eval harness framework (runner, graders, models)
-- [ ] Task 8: Remove EvalMixin from Repository + EvalConfig from settings + CLI eval subcommand
-- [ ] Task 9: Document neural pricing modules (or remove per decision)
-- [ ] Task 10: Verification — lint + typecheck + tests + docs regen
+- [ ] #713 - Delete IntelligenceService + models (parallel: true)
+- [ ] #718 - Remove IntelligenceConfig from settings + lifespan wiring (parallel: false, depends: #713)
+- [ ] #726 - Remove 5 dead analytics API endpoints (parallel: true)
+- [ ] #735 - Remove learning API routes — entire file (parallel: true)
+- [ ] #739 - Remove eval API routes — entire file (parallel: true)
+- [ ] #714 - Remove 3 dead universe API endpoints (parallel: true)
+- [ ] #720 - Delete eval harness framework — runner, graders, models (parallel: true)
+- [ ] #733 - Remove EvalMixin from Repository + EvalConfig from settings + CLI eval subcommand (parallel: false, depends: #720)
+- [ ] #742 - Document neural pricing modules as experimental (parallel: true)
+- [ ] #743 - Verification — lint + typecheck + tests + docs regen (parallel: false, depends: all)
+
+Total tasks: 10
+Parallel tasks: 6 (#713, #726, #735, #739, #714, #720, #742)
+Sequential tasks: 4 (#718→#713, #733→#720, #743→all)
+Estimated total effort: 2.5 hours
+
+## Test Coverage Plan
+Total test files planned: 0 (deletion epic — existing tests removed, no new tests)
+Total test cases planned: 0 (verification via existing suite minus deleted tests)
 
 ## Shared File Conflicts (with sibling epics)
 

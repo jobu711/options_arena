@@ -30,7 +30,6 @@ from options_arena.models import (
     TickerScore,
 )
 from options_arena.models.financial_datasets import FinancialDatasetsPackage
-from options_arena.models.intelligence import IntelligencePackage
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +82,6 @@ def build_market_context(
     ticker_info: TickerInfo,
     contracts: list[OptionContract],
     next_earnings: date | None = None,
-    intelligence: IntelligencePackage | None = None,
     fd_package: FinancialDatasetsPackage | None = None,
     macro_regime: MacroRegime | None = None,
     macro_yield_spread: float | None = None,
@@ -187,43 +185,6 @@ def build_market_context(
         # Short interest
         short_ratio=ticker_info.short_ratio,
         short_pct_of_float=ticker_info.short_pct_of_float,
-        # --- Arena Recon: Intelligence fields ---
-        analyst_target_mean=(
-            intelligence.analyst.target_mean if intelligence and intelligence.analyst else None
-        ),
-        analyst_target_upside_pct=(
-            intelligence.analyst.target_upside_pct
-            if intelligence and intelligence.analyst
-            else None
-        ),
-        analyst_consensus_score=(
-            intelligence.analyst.consensus_score if intelligence and intelligence.analyst else None
-        ),
-        analyst_upgrades_30d=(
-            intelligence.analyst_activity.upgrades_30d
-            if intelligence and intelligence.analyst_activity
-            else None
-        ),
-        analyst_downgrades_30d=(
-            intelligence.analyst_activity.downgrades_30d
-            if intelligence and intelligence.analyst_activity
-            else None
-        ),
-        insider_net_buys_90d=(
-            intelligence.insider.net_insider_buys_90d
-            if intelligence and intelligence.insider
-            else None
-        ),
-        insider_buy_ratio=(
-            intelligence.insider.insider_buy_ratio
-            if intelligence and intelligence.insider
-            else None
-        ),
-        institutional_pct=(
-            intelligence.institutional.institutional_pct
-            if intelligence and intelligence.institutional
-            else None
-        ),
         # --- DSE: Dimensional scores (from TickerScore.dimensional_scores) ---
         dim_trend=(
             ticker_score.dimensional_scores.trend if ticker_score.dimensional_scores else None

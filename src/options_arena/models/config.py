@@ -424,27 +424,6 @@ class DebateConfig(FiniteFieldsMixin):
         return v
 
 
-class IntelligenceConfig(FiniteFieldsMixin):
-    """Intelligence data configuration — controls yfinance intelligence fetching.
-
-    All features default to enabled. When ``enabled`` is ``False``, the entire
-    intelligence integration is skipped. Individual data sources can be toggled via
-    ``analyst_enabled``, ``insider_enabled``, ``institutional_enabled``, and
-    ``news_fallback_enabled``.
-    """
-
-    enabled: bool = True
-    analyst_enabled: bool = True
-    insider_enabled: bool = True
-    institutional_enabled: bool = True
-    news_fallback_enabled: bool = True
-    analyst_cache_ttl: int = 86400  # 24h
-    insider_cache_ttl: int = 21600  # 6h
-    institutional_cache_ttl: int = 86400  # 24h
-    news_cache_ttl: int = 900  # 15min
-    request_timeout: float = 15.0
-
-
 class AnalyticsConfig(BaseModel):
     """Analytics persistence configuration — controls outcome collection and batch sizing.
 
@@ -690,34 +669,6 @@ class AgencyConfig(FiniteFieldsMixin):
         return v
 
 
-class EvalConfig(BaseModel):
-    """Evaluation harness configuration.
-
-    Controls eval directory location, pass@k attempts, and model grader provider.
-    """
-
-    eval_dir: str = ".claude/evals"
-    pass_at_k: int = 3
-    model_grader_provider: str = "groq"
-    eval_timeout: float = 120.0
-
-    @field_validator("pass_at_k")
-    @classmethod
-    def _validate_pass_at_k(cls, v: int) -> int:
-        if not 1 <= v <= 10:
-            raise ValueError(f"pass_at_k must be in [1, 10], got {v}")
-        return v
-
-    @field_validator("eval_timeout")
-    @classmethod
-    def _validate_eval_timeout(cls, v: float) -> float:
-        if not math.isfinite(v):
-            raise ValueError(f"eval_timeout must be finite, got {v}")
-        if v <= 0.0:
-            raise ValueError(f"eval_timeout must be > 0, got {v}")
-        return v
-
-
 class AppSettings(BaseSettings):
     """Root application settings — the sole BaseSettings subclass.
 
@@ -741,10 +692,8 @@ class AppSettings(BaseSettings):
     data: DataConfig = DataConfig()
     log: LogConfig = LogConfig()
     openbb: OpenBBConfig = OpenBBConfig()
-    intelligence: IntelligenceConfig = IntelligenceConfig()
     analytics: AnalyticsConfig = AnalyticsConfig()
     financial_datasets: FinancialDatasetsConfig = FinancialDatasetsConfig()
     spread: SpreadConfig = SpreadConfig()
     position_sizing: PositionSizingConfig = PositionSizingConfig()
     agency: AgencyConfig = AgencyConfig()
-    eval: EvalConfig = EvalConfig()

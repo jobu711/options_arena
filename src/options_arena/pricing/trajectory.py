@@ -12,6 +12,10 @@ Rules:
 - ``logging`` only, never ``print()``.
 """
 
+# EXPERIMENTAL: requires [neural] extra (PyTorch + Lightning)
+# Install with: uv pip install ".[neural]"
+# This module is behind guarded imports and has no effect without the extra.
+
 from __future__ import annotations
 
 import logging

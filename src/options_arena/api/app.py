@@ -28,7 +28,6 @@ from options_arena.models.config import AppSettings
 from options_arena.services.cache import ServiceCache
 from options_arena.services.financial_datasets import FinancialDatasetsService
 from options_arena.services.fred import FredService
-from options_arena.services.intelligence import IntelligenceService
 from options_arena.services.market_data import MarketDataService
 from options_arena.services.options_data import OptionsDataService
 from options_arena.services.outcome_collector import OutcomeCollector
@@ -109,12 +108,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         universe = UniverseService(settings.service, cache, rate_limiter)
         _closeable.append(universe)
 
-        # Intelligence service — created only when enabled in config
-        intelligence_svc: IntelligenceService | None = None
-        if settings.intelligence.enabled:
-            intelligence_svc = IntelligenceService(settings.intelligence, cache, rate_limiter)
-            _closeable.append(intelligence_svc)
-
         # Financial Datasets service — created only when enabled and API key set
         fd_svc: FinancialDatasetsService | None = None
         if settings.financial_datasets.enabled and settings.financial_datasets.api_key is not None:
@@ -143,7 +136,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.options_data = options_data
     app.state.fred = fred
     app.state.universe = universe
-    app.state.intelligence = intelligence_svc
     app.state.financial_datasets = fd_svc
     app.state.operation_lock = asyncio.Lock()
 
@@ -173,7 +165,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.debate_queues = {}
     app.state.batch_counter = itertools.count(1)
     app.state.batch_queues = {}
-    app.state.index_counter = itertools.count(1)
     app.state.routing_override = None
 
     logger.info("API services started")
@@ -188,7 +179,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # Shutdown with error isolation — one failure must not skip remaining closes
     _to_close: list[tuple[str, _Closeable | None]] = [
         ("financial_datasets", fd_svc),
-        ("intelligence", intelligence_svc),
         ("market_data", market_data),
         ("options_data", options_data),
         ("fred", fred),
@@ -271,10 +261,8 @@ def create_app() -> FastAPI:
     from options_arena.api.routes.backtest import router as backtest_router  # noqa: PLC0415
     from options_arena.api.routes.config import router as config_router  # noqa: PLC0415
     from options_arena.api.routes.debate import router as debate_router  # noqa: PLC0415
-    from options_arena.api.routes.eval import router as eval_router  # noqa: PLC0415
     from options_arena.api.routes.export import router as export_router  # noqa: PLC0415
     from options_arena.api.routes.health import router as health_router  # noqa: PLC0415
-    from options_arena.api.routes.learning import router as learning_router  # noqa: PLC0415
     from options_arena.api.routes.market import router as market_router  # noqa: PLC0415
     from options_arena.api.routes.scan import router as scan_router  # noqa: PLC0415
     from options_arena.api.routes.ticker import router as ticker_router  # noqa: PLC0415
@@ -286,13 +274,11 @@ def create_app() -> FastAPI:
     app.include_router(market_router)
     app.include_router(scan_router)
     app.include_router(debate_router)
-    app.include_router(eval_router)
     app.include_router(export_router)
     app.include_router(universe_router)
     app.include_router(config_router)
     app.include_router(ticker_router)
     app.include_router(analytics_router)
-    app.include_router(learning_router)
     app.include_router(backtest_router)
     app.include_router(ws_router)
 

@@ -22,6 +22,10 @@ References:
 - Goodfellow, Bengio, Courville (2016) "Deep Learning", Ch. 6 (MLPs)
 """
 
+# EXPERIMENTAL: requires [neural] extra (PyTorch + Lightning)
+# Install with: uv pip install ".[neural]"
+# This module is behind guarded imports and has no effect without the extra.
+
 from __future__ import annotations
 
 import logging

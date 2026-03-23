@@ -3,25 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
-import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 
-from options_arena.analysis.correlation import compute_correlation_matrix
 from options_arena.api.app import limiter
 from options_arena.api.deps import (
-    get_market_data,
     get_operation_lock,
     get_outcome_collector,
     get_repo,
 )
-from options_arena.api.schemas import (
-    DeskCostDetail,
-    OutcomeCollectionResult,
-    RecommendationCostSummary,
-)
+from options_arena.api.schemas import OutcomeCollectionResult
 from options_arena.data import Repository
 from options_arena.learning import auto_tune_weights
 from options_arena.models import (
@@ -30,19 +22,14 @@ from options_arena.models import (
     AgentWeightsComparison,
     DeltaPerformanceResult,
     HoldingPeriodResult,
-    IndicatorAttributionResult,
-    IndicatorSignals,
     PerformanceSummary,
     RecommendedContract,
-    RiskAdjustedMetrics,
     ScoreCalibrationBucket,
     SignalDirection,
     WeightSnapshot,
     WinRateResult,
 )
-from options_arena.models.correlation import CorrelationMatrix
 from options_arena.models.enums import TICKER_RE
-from options_arena.services.market_data import MarketDataService
 from options_arena.services.outcome_collector import OutcomeCollector
 
 logger = logging.getLogger(__name__)
@@ -69,20 +56,6 @@ async def get_score_calibration(
 ) -> list[ScoreCalibrationBucket]:
     """Get score calibration buckets — return by composite score range."""
     return await repo.get_score_calibration(bucket_size=bucket_size)
-
-
-@router.get("/indicator-attribution/{indicator}")
-@limiter.limit("60/minute")
-async def get_indicator_attribution(
-    request: Request,
-    indicator: str,
-    holding_days: int = Query(default=5, ge=1),
-    repo: Repository = Depends(get_repo),
-) -> list[IndicatorAttributionResult]:
-    """Get indicator attribution — correlation between indicator values and returns."""
-    if indicator not in IndicatorSignals.model_fields:
-        raise HTTPException(400, f"Unknown indicator: {indicator!r}")
-    return await repo.get_indicator_attribution(indicator=indicator, holding_days=holding_days)
 
 
 @router.get("/holding-period")
@@ -142,17 +115,6 @@ async def collect_outcomes(
         return OutcomeCollectionResult(outcomes_collected=len(outcomes))
     finally:
         lock.release()
-
-
-@router.get("/scan/{scan_id}/contracts")
-@limiter.limit("60/minute")
-async def get_scan_contracts(
-    request: Request,
-    scan_id: int,
-    repo: Repository = Depends(get_repo),
-) -> list[RecommendedContract]:
-    """Get recommended contracts for a specific scan run."""
-    return await repo.get_contracts_for_scan(scan_id)
 
 
 @router.get("/ticker/{ticker}/contracts")
@@ -236,123 +198,3 @@ async def get_weight_history(
 ) -> list[WeightSnapshot]:
     """Retrieve historical auto-tune weight snapshots, newest first."""
     return await repo.get_weight_history(limit=limit)
-
-
-@router.get("/risk-metrics")
-@limiter.limit("60/minute")
-async def get_risk_metrics(
-    request: Request,
-    lookback_days: int = Query(default=365, ge=1),
-    repo: Repository = Depends(get_repo),
-) -> RiskAdjustedMetrics:
-    """Get risk-adjusted performance metrics (Sharpe, Sortino, max drawdown)."""
-    return await repo.get_risk_adjusted_metrics(lookback_days=lookback_days)
-
-
-@router.get("/correlation")
-@limiter.limit("30/minute")
-async def get_correlation(
-    request: Request,
-    tickers: str = Query(..., description="Comma-separated ticker symbols (e.g. AAPL,MSFT,GOOG)"),
-    lookback_days: int = Query(default=252, ge=30, le=756),
-    market_data: MarketDataService = Depends(get_market_data),
-) -> CorrelationMatrix:
-    """Compute pairwise Pearson correlation matrix for the given tickers.
-
-    Fetches OHLCV data for each ticker, computes log daily returns,
-    and returns the full correlation matrix.
-    """
-    ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
-    if len(ticker_list) < 2:  # noqa: PLR2004
-        raise HTTPException(422, "At least 2 tickers are required for correlation analysis")
-    if len(ticker_list) > 50:  # noqa: PLR2004
-        raise HTTPException(422, "Maximum 50 tickers allowed for correlation analysis")
-
-    # Validate each ticker against TICKER_RE
-    for t in ticker_list:
-        if not TICKER_RE.match(t):
-            raise HTTPException(422, f"Invalid ticker format: {t!r}")
-
-    # Deduplicate
-    ticker_list = list(dict.fromkeys(ticker_list))
-
-    # Determine period from lookback_days
-    if lookback_days <= 252:  # noqa: PLR2004
-        period = "1y"
-    elif lookback_days <= 504:  # noqa: PLR2004
-        period = "2y"
-    else:
-        period = "3y"
-
-    # Fetch OHLCV for each ticker
-    import pandas as pd
-
-    price_data: dict[str, pd.DataFrame] = {}
-    batch_result = await market_data.fetch_batch_ohlcv(ticker_list, period=period)
-    for item in batch_result.succeeded():
-        if item.data:
-            # Convert list[OHLCV] to DataFrame with Close column
-            rows = [{"date": bar.date, "Close": float(bar.close)} for bar in item.data]
-            df = pd.DataFrame(rows).set_index("date")
-            price_data[item.ticker] = df
-
-    if len(price_data) < 2:  # noqa: PLR2004
-        raise HTTPException(
-            422, "Insufficient data: fewer than 2 tickers have valid price history"
-        )
-
-    return compute_correlation_matrix(price_data, min_overlap=30)
-
-
-@router.get("/recommendation-costs")
-@limiter.limit("60/minute")
-async def get_recommendation_costs(
-    request: Request,
-    ticker: str | None = Query(default=None, description="Filter by ticker symbol"),
-    limit: int = Query(default=20, ge=1, le=100),
-    repo: Repository = Depends(get_repo),
-) -> list[RecommendationCostSummary]:
-    """Get cost summaries from recent recommendations.
-
-    Returns token usage and timing data from the ``recommendation_results`` table.
-    Per-desk cost breakdowns require model routing to be enabled.
-    """
-    if ticker is not None:
-        results = await repo.get_recommendations_for_ticker(ticker, limit=limit)
-    else:
-        results = await repo.get_recent_recommendations(limit=limit)
-
-    summaries: list[RecommendationCostSummary] = []
-    for rec in results:
-        # Parse per-desk metrics from stored JSON
-        desk_details: list[DeskCostDetail] = []
-        if rec.desk_metrics_json and rec.desk_metrics_json not in ("", "[]"):
-            try:
-                metrics_list = json.loads(rec.desk_metrics_json)
-                for dm in metrics_list:
-                    with contextlib.suppress(TypeError, ValueError):
-                        desk_details.append(
-                            DeskCostDetail(
-                                desk=str(dm.get("desk", "unknown")),
-                                tier=str(dm.get("model_tier", "standard")),
-                                model_used=str(dm.get("model_used", "")),
-                                input_tokens=int(dm.get("input_tokens", 0)),
-                                output_tokens=int(dm.get("output_tokens", 0)),
-                                duration_ms=int(dm.get("duration_ms", 0)),
-                                status=str(dm.get("status", "unknown")),
-                            )
-                        )
-            except (json.JSONDecodeError, TypeError):
-                pass  # desk_details stays empty for unparseable JSON
-
-        summaries.append(
-            RecommendationCostSummary(
-                ticker=rec.ticker,
-                created_at=rec.created_at,
-                duration_ms=rec.duration_ms,
-                total_tokens=rec.total_input_tokens + rec.total_output_tokens,
-                is_fallback=rec.is_fallback,
-                desk_details=desk_details,
-            )
-        )
-    return summaries
