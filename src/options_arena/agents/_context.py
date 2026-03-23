@@ -1,6 +1,6 @@
-"""Reusable context-building and prediction-extraction functions.
+"""Reusable context-building utilities for the recommendation pipeline.
 
-Extracted from ``orchestrator.py`` so that both the debate orchestrator and the
+Extracted from ``orchestrator.py`` so that both desk agents and the
 recommendation orchestrator can share the same logic without circular imports.
 
 All functions are **pure** — no I/O, no API calls, no side effects beyond logging.
@@ -10,16 +10,13 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Callable
 from datetime import UTC, date, datetime
 from enum import StrEnum
 
 from pydantic_ai.models.anthropic import AnthropicModelSettings
 from pydantic_ai.settings import ModelSettings
 
-from options_arena.agents._parsing import DebateResult
 from options_arena.models import (
-    AgentPrediction,
     DebateConfig,
     ExerciseStyle,
     LLMProvider,
@@ -36,17 +33,6 @@ from options_arena.models.financial_datasets import FinancialDatasetsPackage
 from options_arena.models.intelligence import IntelligencePackage
 
 logger = logging.getLogger(__name__)
-
-
-def should_debate(ticker_score: TickerScore, config: DebateConfig) -> bool:
-    """Return False if signal is too weak for meaningful AI debate.
-
-    Pure function — no side effects, no I/O, no logging. Score comparison
-    uses ``<`` so that a score exactly at ``min_recommendation_score`` returns True.
-    """
-    if ticker_score.direction == SignalDirection.NEUTRAL:
-        return False
-    return ticker_score.composite_score >= config.min_recommendation_score
 
 
 def should_recommend(ticker_score: TickerScore, config: DebateConfig) -> bool:
@@ -443,152 +429,6 @@ def build_market_context(
     )
 
 
-def _log_completeness_breakdown(context: MarketContext, ratio: float) -> None:
-    """Log which MarketContext fields are populated vs missing for diagnostics."""
-    field_checks: list[tuple[str, float | None]] = [
-        ("iv_rank", context.iv_rank),
-        ("iv_percentile", context.iv_percentile),
-        ("atm_iv_30d", context.atm_iv_30d),
-        ("put_call_ratio", context.put_call_ratio),
-        ("max_pain_distance", context.max_pain_distance),
-        ("adx", context.adx),
-        ("sma_alignment", context.sma_alignment),
-        ("bb_width", context.bb_width),
-        ("atr_pct", context.atr_pct),
-        ("stochastic_rsi", context.stochastic_rsi),
-        ("relative_volume", context.relative_volume),
-    ]
-    if context.contract_mid is not None:
-        field_checks.extend(
-            [
-                ("target_gamma", context.target_gamma),
-                ("target_theta", context.target_theta),
-                ("target_vega", context.target_vega),
-                ("target_rho", context.target_rho),
-            ]
-        )
-
-    populated = [name for name, val in field_checks if val is not None]
-    missing = [name for name, val in field_checks if val is None]
-
-    logger.info(
-        "MarketContext completeness for %s: %.0f%% (%d/%d) — populated=[%s], missing=[%s]",
-        context.ticker,
-        ratio * 100,
-        len(populated),
-        len(field_checks),
-        ", ".join(populated),
-        ", ".join(missing),
-    )
-
-
-def extract_agent_predictions(
-    debate_id: int,
-    result: DebateResult,
-    recommended_contract_id: int | None = None,
-) -> list[AgentPrediction]:
-    """Extract per-agent predictions from a DebateResult for accuracy tracking.
-
-    Each agent response type is handled individually because they have different
-    field names for direction and confidence (e.g. ``dissent_direction`` on
-    ``ContrarianThesis``, no direction on ``RiskAssessment``).
-
-    ``bull_response`` holds the trend agent output (backward-compat shim).
-    Extract as "trend" to avoid conflating with the retired bull agent.
-    ``bear_response`` is a static fallback — skip it to avoid misleading data.
-
-    Args:
-        debate_id: Database ID of the persisted debate.
-        result: Completed debate result with agent responses.
-        recommended_contract_id: Matching contract from ``recommended_contracts``
-            table.  Needed for accuracy queries that JOIN predictions to outcomes.
-
-    Returns a list of ``AgentPrediction`` — empty if all agents failed.
-    """
-    now = datetime.now(UTC)
-    predictions: list[AgentPrediction] = []
-
-    # bull_response holds the trend agent output (backward-compat shim).
-    if result.bull_response is not None:
-        predictions.append(
-            AgentPrediction(
-                debate_id=debate_id,
-                recommended_contract_id=recommended_contract_id,
-                agent_name="trend",
-                direction=result.bull_response.direction,
-                confidence=result.bull_response.confidence,
-                created_at=now,
-            )
-        )
-
-    # Flow response (FlowThesis — has direction + confidence)
-    if result.flow_response is not None:
-        predictions.append(
-            AgentPrediction(
-                debate_id=debate_id,
-                recommended_contract_id=recommended_contract_id,
-                agent_name="flow",
-                direction=result.flow_response.direction,
-                confidence=result.flow_response.confidence,
-                created_at=now,
-            )
-        )
-
-    # Fundamental response (FundamentalThesis — has direction + confidence)
-    if result.fundamental_response is not None:
-        predictions.append(
-            AgentPrediction(
-                debate_id=debate_id,
-                recommended_contract_id=recommended_contract_id,
-                agent_name="fundamental",
-                direction=result.fundamental_response.direction,
-                confidence=result.fundamental_response.confidence,
-                created_at=now,
-            )
-        )
-
-    # Volatility response (VolatilityThesis — has direction + confidence)
-    if result.vol_response is not None:
-        predictions.append(
-            AgentPrediction(
-                debate_id=debate_id,
-                recommended_contract_id=recommended_contract_id,
-                agent_name="volatility",
-                direction=result.vol_response.direction,
-                confidence=result.vol_response.confidence,
-                created_at=now,
-            )
-        )
-
-    # Risk response (RiskAssessment — has confidence, no direction field)
-    if result.risk_response is not None:
-        predictions.append(
-            AgentPrediction(
-                debate_id=debate_id,
-                recommended_contract_id=recommended_contract_id,
-                agent_name="risk",
-                direction=None,
-                confidence=result.risk_response.confidence,
-                created_at=now,
-            )
-        )
-
-    # Contrarian response (ContrarianThesis — has dissent_direction + dissent_confidence)
-    if result.contrarian_response is not None:
-        predictions.append(
-            AgentPrediction(
-                debate_id=debate_id,
-                recommended_contract_id=recommended_contract_id,
-                agent_name="contrarian",
-                direction=result.contrarian_response.dissent_direction,
-                confidence=result.contrarian_response.dissent_confidence,
-                created_at=now,
-            )
-        )
-
-    return predictions
-
-
 def _build_model_settings(config: DebateConfig) -> ModelSettings:
     """Build provider-appropriate ``ModelSettings`` for agent runs.
 
@@ -624,10 +464,6 @@ class DebatePhase(StrEnum):
     FUNDAMENTAL = "fundamental"
     RISK = "risk"
     CONTRARIAN = "contrarian"
-
-
-type DebateProgressCallback = Callable[[DebatePhase, str, float | None], None]
-"""Callback for debate progress: ``(phase, status, confidence_or_none)``."""
 
 
 # ---------------------------------------------------------------------------

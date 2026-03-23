@@ -1,7 +1,7 @@
-"""WebSocket handlers for scan and debate progress streaming.
+"""WebSocket handlers for scan and recommendation progress streaming.
 
-Bridges sync callbacks (``ProgressCallback``, ``DebateProgressCallback``) to
-``asyncio.Queue`` objects that WebSocket handlers drain in real time.
+Bridges sync callbacks (``ProgressCallback``) to ``asyncio.Queue`` objects
+that WebSocket handlers drain in real time.
 """
 
 from __future__ import annotations

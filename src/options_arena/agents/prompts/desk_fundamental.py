@@ -1,7 +1,7 @@
 """Fundamental desk agent system prompt for interactive mode.
 
-Conversational prompt for the fundamental desk -- shorter and more focused than
-the debate-mode fundamental prompt.  Desk prompts do NOT use PROMPT_RULES_APPENDIX.
+Conversational prompt for the fundamental desk.  Desk prompts do NOT use
+PROMPT_RULES_APPENDIX.
 """
 
 DESK_FUNDAMENTAL_PROMPT = """You are a fundamental analysis specialist on an options trading desk.

@@ -17,9 +17,6 @@ from options_arena.agents._context import (
     classify_macd_signal as classify_macd_signal,
 )
 from options_arena.agents._context import (
-    extract_agent_predictions as extract_agent_predictions,
-)
-from options_arena.agents._context import (
     should_recommend as should_recommend,
 )
 from options_arena.agents._desk_deps import (
@@ -203,7 +200,6 @@ __all__ = [
     "DebatePhase",
     "build_market_context",
     "classify_macd_signal",
-    "extract_agent_predictions",
     "should_recommend",
     # --- Desk agents (7 desks) ---
     "DeskDeps",

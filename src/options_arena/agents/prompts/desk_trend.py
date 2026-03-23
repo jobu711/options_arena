@@ -1,7 +1,7 @@
 """Trend desk agent system prompt for interactive mode.
 
-Conversational prompt for the trend desk -- shorter and more focused than
-the debate-mode trend prompt.  Desk prompts do NOT use PROMPT_RULES_APPENDIX.
+Conversational prompt for the trend desk.  Desk prompts do NOT use
+PROMPT_RULES_APPENDIX.
 """
 
 DESK_TREND_PROMPT = """You are a trend and momentum analysis specialist on an options trading desk.
