@@ -44,6 +44,7 @@ from options_arena.models import (
     OptionType,
     PricingConfig,
     ScanConfig,
+    SignalDirection,
     SpreadAnalysis,
     SpreadConfig,
     SurfaceMethod,
@@ -289,6 +290,222 @@ def _compute_dse_indicators(
         mp_strike=mp_strike,
         iv_filtered_out=iv_filtered_out,
     )
+
+
+# ---------------------------------------------------------------------------
+# Contract selection + surface indicator helper (extracted from process_ticker_options)
+# ---------------------------------------------------------------------------
+
+
+def _select_and_score_contracts(
+    all_contracts: list[OptionContract],
+    direction: SignalDirection,
+    spot: float,
+    risk_free_rate: float,
+    dividend_yield: float,
+    options_filters: OptionsFilters,
+    pricing_config: PricingConfig,
+    vol_result: VolSurfaceResult | None,
+    vs_strikes: np.ndarray | None,
+    vs_dtes: np.ndarray | None,
+    ticker_signals: IndicatorSignals,
+    recommend_fn: RecommendContractsFn,
+) -> list[OptionContract]:
+    """Select recommended contracts and merge surface indicators into signals.
+
+    Performs the following steps:
+      1. Build surface residuals dict from ``vol_result.z_scores`` matched to
+         contracts (for direction-aware delta tiebreaker).
+      2. Call ``recommend_fn`` (``recommend_contracts``) to select 0 or 1 contracts.
+      3. If a contract is recommended and vol surface data is available, compute
+         ``iv_surface_residual``, ``surface_fit_r2``, ``surface_is_1d`` for the
+         first recommended contract and merge into ``ticker_signals``.
+
+    This is a pure function extraction — no behavioral change from the original
+    inline logic in ``process_ticker_options``.  ``ticker_signals`` is mutated
+    in-place for surface indicators (same as original).
+
+    This function is synchronous — no async calls.
+
+    Args:
+        all_contracts: All option contracts across expirations.
+        direction: Directional signal driving type selection.
+        spot: Current stock price as float.
+        risk_free_rate: Shared risk-free rate for this scan.
+        dividend_yield: Continuous dividend yield (decimal).
+        options_filters: Phase 3 option chain filters.
+        pricing_config: Pricing configuration for delta target.
+        vol_result: Vol surface result (``None`` if surface computation failed).
+        vs_strikes: Strike array for surface indicators (``None`` if unavailable).
+        vs_dtes: DTE array for surface indicators (``None`` if unavailable).
+        ticker_signals: The ticker's ``IndicatorSignals`` to mutate for surface
+            indicators.
+        recommend_fn: Callable with the ``recommend_contracts`` signature.
+
+    Returns:
+        List of recommended ``OptionContract`` (0 or 1 items).
+    """
+    # 1. Build surface residuals mapping for direction-aware delta tiebreaker.
+    # Key includes option_type so calls and puts at the same strike/expiration
+    # don't overwrite each other.
+    _surface_residuals: dict[tuple[OptionType, Decimal, date], float] | None = None
+    if (
+        vol_result is not None
+        and vol_result.z_scores is not None
+        and vol_result.fitted_strikes is not None
+        and vol_result.fitted_dtes is not None
+    ):
+        _surface_residuals = {}
+        # Match z_scores back to contracts using the filtered arrays stored
+        # on VolSurfaceResult (not positional indexing against all_contracts).
+        fit_strikes = vol_result.fitted_strikes
+        fit_dtes = vol_result.fitted_dtes
+        for i in range(len(vol_result.z_scores)):
+            z = vol_result.z_scores[i]
+            if not math.isfinite(z):
+                continue
+            k_val = float(fit_strikes[i])
+            d_val = float(fit_dtes[i])
+            for c in all_contracts:
+                if math.isclose(float(c.strike), k_val) and math.isclose(float(c.dte), d_val):
+                    _surface_residuals[(c.option_type, c.strike, c.expiration)] = float(z)
+                    break
+
+    # 2. Select recommended contract(s)
+    recommended = recommend_fn(
+        contracts=all_contracts,
+        direction=direction,
+        spot=spot,
+        risk_free_rate=risk_free_rate,
+        dividend_yield=dividend_yield,
+        filters=options_filters,
+        delta_target=pricing_config.delta_target,
+        surface_residuals=_surface_residuals,
+    )
+
+    # 3. Compute surface indicators for the recommended contract
+    if recommended and vol_result is not None and vs_strikes is not None and vs_dtes is not None:
+        try:
+            first_rec = recommended[0]
+            surf_ind = compute_surface_indicators(
+                result=vol_result,
+                contract_strike=float(first_rec.strike),
+                contract_dte=float(first_rec.dte),
+                strikes=vs_strikes,
+                dtes=vs_dtes,
+            )
+            if surf_ind.iv_surface_residual is not None:
+                ticker_signals.iv_surface_residual = surf_ind.iv_surface_residual
+            if surf_ind.surface_fit_r2 is not None:
+                ticker_signals.surface_fit_r2 = surf_ind.surface_fit_r2
+            if surf_ind.surface_is_1d is not None:
+                ticker_signals.surface_is_1d = 1.0 if surf_ind.surface_is_1d else 0.0
+        except Exception:
+            logger.warning(
+                "Surface indicators failed; continuing without",
+                exc_info=True,
+            )
+
+    return recommended
+
+
+# ---------------------------------------------------------------------------
+# Multi-leg spread construction helper (extracted from process_ticker_options)
+# ---------------------------------------------------------------------------
+
+
+def _build_spread(
+    ticker: str,
+    all_contracts: list[OptionContract],
+    recommended: list[OptionContract],
+    direction: SignalDirection,
+    composite_score: float,
+    iv_rank: float | None,
+    spot: float,
+    risk_free_rate: float,
+    dividend_yield: float,
+    options_filters: OptionsFilters,
+    spread_config: SpreadConfig | None,
+) -> SpreadAnalysis | None:
+    """Construct an optimal multi-leg spread from available contracts.
+
+    Performs the following steps:
+      1. Guard: return ``None`` if ``spread_config`` is ``None``/disabled or
+         no contracts are available.
+      2. Determine target expiration from the first recommended contract, or
+         the closest expiration to ``max_dte`` if no contract was recommended.
+      3. Filter contracts to a single expiration (1-day tolerance).
+      4. Call ``select_strategy()`` to build the spread.
+
+    This is a pure function extraction — no behavioral change from the original
+    inline logic in ``process_ticker_options``.
+
+    This function is synchronous — no async calls.
+
+    Args:
+        ticker: Ticker symbol (for logging).
+        all_contracts: All option contracts across expirations.
+        recommended: Recommended contracts from ``_select_and_score_contracts()``.
+        direction: Directional signal for strategy selection.
+        composite_score: Ticker's composite score (0-100).
+        iv_rank: Ticker's IV rank (``None`` if unavailable).
+        spot: Current stock price as float.
+        risk_free_rate: Shared risk-free rate for this scan.
+        dividend_yield: Continuous dividend yield (decimal).
+        options_filters: Phase 3 option chain filters (``max_dte`` for fallback).
+        spread_config: Spread strategy configuration (``None`` disables).
+
+    Returns:
+        ``SpreadAnalysis`` if a spread was successfully constructed, ``None`` otherwise.
+    """
+    if spread_config is None or not spread_config.enabled or not all_contracts:
+        return None
+
+    try:
+        # Use the first recommended contract's expiration to filter contracts
+        # to a single expiration.  Spread builders expect pre-filtered contracts;
+        # mixing expirations would pair legs from different dates.
+        if recommended:
+            target_exp = recommended[0].expiration
+            target_dte = float(recommended[0].dte)
+        else:
+            target_dte = float(options_filters.max_dte)
+            # Pick the expiration closest to the target DTE
+            today = date.today()
+            target_exp = min(
+                {c.expiration for c in all_contracts},
+                key=lambda exp: abs((exp - today).days - target_dte),
+            )
+        time_to_expiry = target_dte / 365.0
+
+        # Filter to single expiration (1-day tolerance for rounding)
+        spread_contracts = [c for c in all_contracts if abs((c.expiration - target_exp).days) <= 1]
+
+        spread_result = select_strategy(
+            contracts=spread_contracts,
+            direction=direction,
+            confidence=composite_score / 100.0,
+            iv_rank=iv_rank,
+            spot_price=spot,
+            risk_free_rate=risk_free_rate,
+            time_to_expiry=time_to_expiry,
+            config=spread_config,
+            dividend_yield=dividend_yield,
+        )
+        if spread_result is not None:
+            rationale_preview = (
+                spread_result.strategy_rationale[:60] if spread_result.strategy_rationale else ""
+            )
+            logger.info(
+                "Spread constructed for %s: %s (%s)",
+                ticker,
+                spread_result.spread.spread_type.value,
+                rationale_preview,
+            )
+        return spread_result
+    except Exception:
+        logger.warning("Spread construction failed for %s", ticker, exc_info=True)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -797,121 +1014,34 @@ async def process_ticker_options(
     if dse.iv_filtered_out:
         return (ticker, [], earnings_date, entry_stock_price, None)
 
-    vol_result = dse.vol_result
-    vs_strikes = dse.vs_strikes
-    vs_dtes = dse.vs_dtes
-
-    # Build surface residuals mapping for direction-aware delta tiebreaker.
-    # Key includes option_type so calls and puts at the same strike/expiration
-    # don't overwrite each other.
-    _surface_residuals: dict[tuple[OptionType, Decimal, date], float] | None = None
-    if (
-        vol_result is not None
-        and vol_result.z_scores is not None
-        and vol_result.fitted_strikes is not None
-        and vol_result.fitted_dtes is not None
-    ):
-        _surface_residuals = {}
-        # Match z_scores back to contracts using the filtered arrays stored
-        # on VolSurfaceResult (not positional indexing against all_contracts).
-        fit_strikes = vol_result.fitted_strikes
-        fit_dtes = vol_result.fitted_dtes
-        for i in range(len(vol_result.z_scores)):
-            z = vol_result.z_scores[i]
-            if not math.isfinite(z):
-                continue
-            k_val = float(fit_strikes[i])
-            d_val = float(fit_dtes[i])
-            for c in all_contracts:
-                if math.isclose(float(c.strike), k_val) and math.isclose(float(c.dte), d_val):
-                    _surface_residuals[(c.option_type, c.strike, c.expiration)] = float(z)
-                    break
-
-    recommended = _recommend(
-        contracts=all_contracts,
+    recommended = _select_and_score_contracts(
+        all_contracts=all_contracts,
         direction=ticker_score.direction,
         spot=spot,
         risk_free_rate=risk_free_rate,
         dividend_yield=ticker_info.dividend_yield,
-        filters=options_filters,
-        delta_target=pricing_config.delta_target,
-        surface_residuals=_surface_residuals,
+        options_filters=options_filters,
+        pricing_config=pricing_config,
+        vol_result=dse.vol_result,
+        vs_strikes=dse.vs_strikes,
+        vs_dtes=dse.vs_dtes,
+        ticker_signals=ticker_score.signals,
+        recommend_fn=_recommend,
     )
 
-    # Compute surface indicators for the recommended contract
-    if recommended and vol_result is not None and vs_strikes is not None and vs_dtes is not None:
-        try:
-            first_rec = recommended[0]
-            surf_ind = compute_surface_indicators(
-                result=vol_result,
-                contract_strike=float(first_rec.strike),
-                contract_dte=float(first_rec.dte),
-                strikes=vs_strikes,
-                dtes=vs_dtes,
-            )
-            if surf_ind.iv_surface_residual is not None:
-                ticker_score.signals.iv_surface_residual = surf_ind.iv_surface_residual
-            if surf_ind.surface_fit_r2 is not None:
-                ticker_score.signals.surface_fit_r2 = surf_ind.surface_fit_r2
-            if surf_ind.surface_is_1d is not None:
-                ticker_score.signals.surface_is_1d = 1.0 if surf_ind.surface_is_1d else 0.0
-        except Exception:
-            logger.warning(
-                "Surface indicators failed for %s; continuing without",
-                ticker,
-                exc_info=True,
-            )
-
-    # Multi-leg spread construction (after single-contract recommendation)
-    spread_result: SpreadAnalysis | None = None
-    if spread_config is not None and spread_config.enabled and all_contracts:
-        try:
-            # Use the first recommended contract's expiration to filter contracts
-            # to a single expiration.  Spread builders expect pre-filtered contracts;
-            # mixing expirations would pair legs from different dates.
-            if recommended:
-                target_exp = recommended[0].expiration
-                target_dte = float(recommended[0].dte)
-            else:
-                target_dte = float(options_filters.max_dte)
-                # Pick the expiration closest to the target DTE
-                today = date.today()
-                target_exp = min(
-                    {c.expiration for c in all_contracts},
-                    key=lambda exp: abs((exp - today).days - target_dte),
-                )
-            time_to_expiry = target_dte / 365.0
-
-            # Filter to single expiration (1-day tolerance for rounding)
-            spread_contracts = [
-                c for c in all_contracts if abs((c.expiration - target_exp).days) <= 1
-            ]
-
-            spread_result = select_strategy(
-                contracts=spread_contracts,
-                direction=ticker_score.direction,
-                confidence=ticker_score.composite_score / 100.0,
-                iv_rank=ticker_score.signals.iv_rank,
-                spot_price=spot,
-                risk_free_rate=risk_free_rate,
-                time_to_expiry=time_to_expiry,
-                config=spread_config,
-                dividend_yield=ticker_info.dividend_yield,
-            )
-            if spread_result is not None:
-                rationale_preview = (
-                    spread_result.strategy_rationale[:60]
-                    if spread_result.strategy_rationale
-                    else ""
-                )
-                logger.info(
-                    "Spread constructed for %s: %s (%s)",
-                    ticker,
-                    spread_result.spread.spread_type.value,
-                    rationale_preview,
-                )
-        except Exception:
-            logger.warning("Spread construction failed for %s", ticker, exc_info=True)
+    spread_result = _build_spread(
+        ticker=ticker,
+        all_contracts=all_contracts,
+        recommended=recommended,
+        direction=ticker_score.direction,
+        composite_score=ticker_score.composite_score,
+        iv_rank=ticker_score.signals.iv_rank,
+        spot=spot,
+        risk_free_rate=risk_free_rate,
+        dividend_yield=ticker_info.dividend_yield,
+        options_filters=options_filters,
+        spread_config=spread_config,
+    )
 
     return (ticker, recommended, earnings_date, entry_stock_price, spread_result)
 
