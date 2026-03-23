@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic_ai import models
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
 
 from options_arena.agents._desk_deps import DeskDeps
 from options_arena.agents.risk_desk import (
@@ -43,40 +44,44 @@ class TestRiskDeskRecommend:
 
     @pytest.mark.asyncio
     async def test_produces_assessment(self) -> None:
-        """Happy path: returns RiskDeskAssessment with correct desk enum."""
+        """Happy path: returns (RiskDeskAssessment, RunUsage) tuple."""
         deps = _make_deps()
         with risk_desk_recommend.override(model=TestModel()):
-            result = await run_risk_desk_recommendation(deps, model=TestModel())
-        assert isinstance(result, RiskDeskAssessment)
-        assert result.desk == DeskType.RISK
+            assessment, usage = await run_risk_desk_recommendation(deps, model=TestModel())
+        assert isinstance(assessment, RiskDeskAssessment)
+        assert assessment.desk == DeskType.RISK
+        assert isinstance(usage, RunUsage)
 
     @pytest.mark.asyncio
     async def test_confidence_in_valid_range(self) -> None:
         """Confidence is within [0.0, 1.0]."""
         deps = _make_deps()
         with risk_desk_recommend.override(model=TestModel()):
-            result = await run_risk_desk_recommendation(deps, model=TestModel())
-        assert 0.0 <= result.confidence <= 1.0
+            assessment, _usage = await run_risk_desk_recommendation(deps, model=TestModel())
+        assert 0.0 <= assessment.confidence <= 1.0
 
     @pytest.mark.asyncio
     async def test_no_model_returns_fallback(self) -> None:
         """No model -> fallback with max_position_pct=0.02."""
         deps = _make_deps()
-        result = await run_risk_desk_recommendation(deps)
-        assert isinstance(result, RiskDeskAssessment)
-        assert result.desk == DeskType.RISK
-        assert result.confidence == pytest.approx(0.2)
-        assert result.model_used == "data-driven-fallback"
-        assert result.max_position_pct == pytest.approx(0.02)
+        assessment, usage = await run_risk_desk_recommendation(deps)
+        assert isinstance(assessment, RiskDeskAssessment)
+        assert assessment.desk == DeskType.RISK
+        assert assessment.confidence == pytest.approx(0.2)
+        assert assessment.model_used == "data-driven-fallback"
+        assert assessment.max_position_pct == pytest.approx(0.02)
+        assert isinstance(usage, RunUsage)
 
     @pytest.mark.asyncio
     async def test_timeout_returns_fallback(self) -> None:
         """Timeout -> fallback assessment (never raises)."""
         deps = _make_deps()
         config = AgencyConfig(agent_timeout=0.001)
-        # Even if TestModel is fast and doesn't timeout, the code path is exercised
-        result = await run_risk_desk_recommendation(deps, model=TestModel(), config=config)
-        assert isinstance(result, RiskDeskAssessment)
+        assessment, usage = await run_risk_desk_recommendation(
+            deps, model=TestModel(), config=config
+        )
+        assert isinstance(assessment, RiskDeskAssessment)
+        assert isinstance(usage, RunUsage)
 
     @pytest.mark.asyncio
     async def test_tools_used_tracked(self) -> None:
@@ -84,6 +89,14 @@ class TestRiskDeskRecommend:
         deps = _make_deps()
         deps.tools_used.append("fetch_quote")
         # Fallback path uses deps.tools_used
-        result = await run_risk_desk_recommendation(deps)
-        assert isinstance(result.tools_used, list)
-        assert "fetch_quote" in result.tools_used
+        assessment, _usage = await run_risk_desk_recommendation(deps)
+        assert isinstance(assessment.tools_used, list)
+        assert "fetch_quote" in assessment.tools_used
+
+    @pytest.mark.asyncio
+    async def test_fallback_returns_zero_usage(self) -> None:
+        """Fallback paths return RunUsage() with zero tokens."""
+        deps = _make_deps()
+        _assessment, usage = await run_risk_desk_recommendation(deps)
+        assert usage.input_tokens == 0
+        assert usage.output_tokens == 0
