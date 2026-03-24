@@ -21,6 +21,7 @@ from options_arena.analysis.correlation import compute_correlation_matrix
 from options_arena.cli.app import app
 from options_arena.data import Database, Repository
 from options_arena.learning import auto_tune_weights
+from options_arena.learning.prediction_ledger import run_prediction_scoring
 from options_arena.models.config import AppSettings
 from options_arena.services.cache import ServiceCache
 from options_arena.services.market_data import MarketDataService
@@ -145,6 +146,12 @@ async def _outcomes_collect_async(holding_days: int | None) -> None:
 
         console.print(table)
         console.print(f"\n[dim]{len(outcomes)} outcomes collected.[/dim]")
+
+        # Score predictions based on newly collected outcomes
+        try:
+            await run_prediction_scoring(repo)
+        except Exception:
+            logger.warning("Prediction scoring failed after outcomes collection", exc_info=True)
 
         # Run confidence decay after successful outcome collection
         try:
