@@ -1,0 +1,12 @@
+{
+  "epic": "recommendation-display-overhaul",
+  "phase": "research",
+  "last_command": "/pm:prd-research recommendation-display-overhaul",
+  "last_updated": "2026-03-23T23:48:52Z",
+  "completed_phases": ["prd-created", "research"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "3 open questions about quant metrics, spread data, and list format indicator in new format — may require minor backend enrichment"
+}

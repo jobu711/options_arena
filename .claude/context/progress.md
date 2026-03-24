@@ -22,7 +22,7 @@
 
 ## In Progress
 
-- **AI Agency Evolution**: 2 remaining epics: `ai-agency-analysis-tools`, `ai-agency-ml-tools`
+- None currently — all v3.0.0 epics complete
 
 ## Blockers
 

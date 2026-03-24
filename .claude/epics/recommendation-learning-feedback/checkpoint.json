@@ -1,0 +1,13 @@
+{
+  "epic": "recommendation-learning-feedback",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync recommendation-learning-feedback",
+  "last_updated": "2026-03-24T01:10:00Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced"],
+  "parent_epic": "recommendation-learning",
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "Epic #772 with 6 sub-issues (#779-#784). Tasks 779+781+782 parallel, then 779->780, (781+782)->783, (780+783)->784."
+}

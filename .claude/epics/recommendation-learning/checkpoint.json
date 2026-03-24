@@ -1,0 +1,12 @@
+{
+  "epic": "recommendation-learning",
+  "phase": "planning",
+  "last_command": "/pm:prd-parse recommendation-learning",
+  "last_updated": "2026-03-24T00:09:54Z",
+  "completed_phases": ["prd-created", "research", "planning"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "Parent epic with 3 children. Foundation merges first, then attribution and feedback run in parallel worktrees."
+}
