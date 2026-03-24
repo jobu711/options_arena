@@ -425,6 +425,23 @@ async def _agent_weights_async() -> None:
                 str(r.sample_size),
             )
         console.print(table)
+
+        # Show data source summary
+        total_samples = sum(r.sample_size for r in results)
+        try:
+            pred_accuracy = await repo.get_prediction_accuracy()
+            desk_preds = [a for a in pred_accuracy if a.source.value.startswith("desk_")]
+            scored_count = sum(a.total for a in desk_preds)
+            if scored_count > 0:
+                console.print(f"\n[dim]Data source: predictions ({scored_count} scored)[/dim]")
+            else:
+                console.print(
+                    f"\n[dim]Data source: legacy agent_predictions ({total_samples} samples)[/dim]"
+                )
+        except Exception:
+            console.print(
+                f"\n[dim]Data source: legacy agent_predictions ({total_samples} samples)[/dim]"
+            )
     except Exception as exc:
         logger.exception("Agent weights display failed")
         err_console.print(
@@ -506,6 +523,24 @@ async def _auto_tune_async(dry_run: bool, window: int) -> None:
             )
 
         console.print(table)
+
+        # Show data source summary
+        try:
+            pred_accuracy = await repo.get_prediction_accuracy(window_days=window)
+            desk_preds = [a for a in pred_accuracy if a.source.value.startswith("desk_")]
+            scored_count = sum(a.total for a in desk_preds)
+            if scored_count > 0 and all(a.sample_sufficient for a in desk_preds):
+                console.print(f"\n[dim]Data source: predictions ({scored_count} scored)[/dim]")
+            else:
+                total_samples = sum(r.sample_size for r in results)
+                console.print(
+                    f"\n[dim]Data source: legacy agent_predictions ({total_samples} samples)[/dim]"
+                )
+        except Exception:
+            total_samples = sum(r.sample_size for r in results)
+            console.print(
+                f"\n[dim]Data source: legacy agent_predictions ({total_samples} samples)[/dim]"
+            )
 
         if dry_run:
             console.print("\n[yellow][DRY RUN] Weights not saved.[/yellow]")

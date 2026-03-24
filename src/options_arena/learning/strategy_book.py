@@ -1,9 +1,10 @@
 """Strategy mining algorithms for Options Arena self-improvement.
 
 Mines historical outcome data for significant patterns across dimensional
-groupings (sector × IV bucket × DTE bucket × direction).  Significant patterns
-become ``StrategyRule`` candidates for human approval; approved rules are
-injected into desk agent prompts via ``render_learned_patterns()``.
+groupings (sector × IV bucket × DTE bucket × direction × ADX bucket × ATR%
+bucket).  Significant patterns become ``StrategyRule`` candidates for human
+approval; approved rules are injected into desk agent prompts via
+``render_learned_patterns()``.
 
 All orchestration functions follow the never-raises contract.
 """
@@ -47,6 +48,18 @@ DTE_BUCKETS: list[tuple[float, float, str]] = [
     (120, 365, "extended"),
 ]
 
+ADX_BUCKETS: list[tuple[float, float, str]] = [
+    (0, 20, "weak"),
+    (20, 30, "moderate"),
+    (30, 100, "strong"),
+]
+
+ATR_PCT_BUCKETS: list[tuple[float, float, str]] = [
+    (0, 1.5, "low"),
+    (1.5, 3.0, "medium"),
+    (3.0, 100, "high"),
+]
+
 MIN_TOTAL_OUTCOMES = 100
 MIN_CELL_SAMPLES = 20
 SIGNIFICANCE_LEVEL = 0.05
@@ -69,6 +82,9 @@ class OutcomeWithContext(BaseModel):
     direction: str
     return_pct: float
     is_winner: bool
+    adx: float | None = None
+    atr_pct: float | None = None
+    rsi: float | None = None
 
     @field_validator("iv_level")
     @classmethod
@@ -84,6 +100,13 @@ class OutcomeWithContext(BaseModel):
             raise ValueError("return_pct must be finite")
         return v
 
+    @field_validator("adx", "atr_pct", "rsi")
+    @classmethod
+    def _validate_context_float(cls, v: float | None) -> float | None:
+        if v is not None and not math.isfinite(v):
+            raise ValueError("context field must be finite")
+        return v
+
 
 class PatternCell(BaseModel):
     """Aggregated statistics for a dimensional grouping."""
@@ -94,6 +117,8 @@ class PatternCell(BaseModel):
     iv_bucket: str
     dte_bucket: str
     direction: str
+    adx_bucket: str = "unknown"
+    atr_bucket: str = "unknown"
     win_rate: float
     avg_return: float
     sample_size: int
@@ -134,6 +159,26 @@ def _classify_dte(dte: int) -> str:
     return "extended"  # >= 365 falls in the last bucket
 
 
+def _classify_adx(adx: float | None) -> str | None:
+    """Classify ADX into a bucket label, or ``None`` if unavailable."""
+    if adx is None:
+        return None
+    for low, high, label in ADX_BUCKETS:
+        if low <= adx < high:
+            return label
+    return "strong"  # >= 100 falls in the last bucket
+
+
+def _classify_atr_pct(atr_pct: float | None) -> str | None:
+    """Classify ATR% into a bucket label, or ``None`` if unavailable."""
+    if atr_pct is None:
+        return None
+    for low, high, label in ATR_PCT_BUCKETS:
+        if low <= atr_pct < high:
+            return label
+    return "high"  # >= 100 falls in the last bucket
+
+
 # ---------------------------------------------------------------------------
 # Core computation functions (pure — no I/O)
 # ---------------------------------------------------------------------------
@@ -157,16 +202,25 @@ def mine_patterns(outcomes: list[OutcomeWithContext]) -> list[PatternCell]:
     if not outcomes:
         return []
 
-    # Group by (sector, iv_bucket, dte_bucket, direction)
-    cells: dict[tuple[str, str, str, str], list[OutcomeWithContext]] = {}
+    # Group by (sector, iv_bucket, dte_bucket, direction, adx_bucket, atr_bucket)
+    cells: dict[tuple[str, str, str, str, str, str], list[OutcomeWithContext]] = {}
     for o in outcomes:
         iv_bucket = _classify_iv(o.iv_level)
         dte_bucket = _classify_dte(o.dte_at_entry)
-        key = (o.sector, iv_bucket, dte_bucket, o.direction)
+        adx_bucket = _classify_adx(o.adx) or "unknown"
+        atr_bucket = _classify_atr_pct(o.atr_pct) or "unknown"
+        key = (o.sector, iv_bucket, dte_bucket, o.direction, adx_bucket, atr_bucket)
         cells.setdefault(key, []).append(o)
 
     result: list[PatternCell] = []
-    for (sector, iv_bucket, dte_bucket, direction), group in cells.items():
+    for (
+        sector,
+        iv_bucket,
+        dte_bucket,
+        direction,
+        adx_bucket,
+        atr_bucket,
+    ), group in cells.items():
         n = len(group)
         if n < MIN_CELL_SAMPLES:
             continue
@@ -181,6 +235,8 @@ def mine_patterns(outcomes: list[OutcomeWithContext]) -> list[PatternCell]:
                 iv_bucket=iv_bucket,
                 dte_bucket=dte_bucket,
                 direction=direction,
+                adx_bucket=adx_bucket,
+                atr_bucket=atr_bucket,
                 win_rate=wins / n,
                 avg_return=avg_ret,
                 sample_size=n,
@@ -259,6 +315,8 @@ def generate_rules(significant_cells: list[PatternCell]) -> list[StrategyRule]:
     # Allowlists for prompt-injection defense (P1 audit finding)
     valid_sectors = {s.value for s in GICSSector} | {"Unknown"}
     valid_directions = {d.value for d in SignalDirection}
+    valid_adx_buckets = {label for _, _, label in ADX_BUCKETS}
+    valid_atr_buckets = {label for _, _, label in ATR_PCT_BUCKETS}
 
     now = datetime.now(UTC)
     rules: list[StrategyRule] = []
@@ -336,10 +394,38 @@ def generate_rules(significant_cells: list[PatternCell]) -> list[StrategyRule]:
             )
         )
 
-        pattern = (
-            f"{cell.sector} | IV {cell.iv_bucket} | DTE {cell.dte_bucket} "
-            f"| {cell.direction} -> {cell.win_rate:.0%} win rate"
-        )
+        # ADX condition — only when a real bucket was classified
+        if cell.adx_bucket != "unknown" and cell.adx_bucket in valid_adx_buckets:
+            conditions.append(
+                StrategyCondition(
+                    field="adx_bucket",
+                    operator=ConditionOperator.EQ,
+                    value=cell.adx_bucket,
+                )
+            )
+
+        # ATR% condition — only when a real bucket was classified
+        if cell.atr_bucket != "unknown" and cell.atr_bucket in valid_atr_buckets:
+            conditions.append(
+                StrategyCondition(
+                    field="atr_bucket",
+                    operator=ConditionOperator.EQ,
+                    value=cell.atr_bucket,
+                )
+            )
+
+        # Build human-readable pattern text including condition dimensions
+        parts = [
+            cell.sector,
+            f"IV:{cell.iv_bucket}",
+            f"DTE:{cell.dte_bucket}",
+            cell.direction,
+        ]
+        if cell.adx_bucket != "unknown":
+            parts.append(f"ADX:{cell.adx_bucket}")
+        if cell.atr_bucket != "unknown":
+            parts.append(f"ATR:{cell.atr_bucket}")
+        pattern = " | ".join(parts) + f" -> {cell.win_rate:.0%} win rate"
 
         rules.append(
             StrategyRule(
@@ -490,12 +576,17 @@ async def fetch_outcomes_with_context(
         "  rc.ticker, rc.direction, rc.market_iv, "
         "  CAST(julianday(rc.expiration) - julianday(rc.created_at) AS INTEGER) AS dte_at_entry, "
         "  co.contract_return_pct, co.is_winner, "
-        "  COALESCE(tm.sector, 'Unknown') AS sector "
+        "  COALESCE(tm.sector, 'Unknown') AS sector, "
+        "  p.adx, p.atr_pct, p.rsi "
         "FROM contract_outcomes co "
         "JOIN recommended_contracts rc "
         "  ON co.recommended_contract_id = rc.id "
         "LEFT JOIN ticker_metadata tm "
         "  ON rc.ticker = tm.ticker "
+        "LEFT JOIN recommendation_results rr "
+        "  ON rr.scan_run_id = rc.scan_run_id AND rr.ticker = rc.ticker "
+        "LEFT JOIN predictions p "
+        "  ON p.recommendation_id = rr.id AND p.source = 'synthesis' "
         "WHERE co.contract_return_pct IS NOT NULL "
         "  AND co.is_winner IS NOT NULL"
     )
@@ -514,6 +605,14 @@ async def fetch_outcomes_with_context(
         # iv_level is raw IV * 100 (NOT IV rank — see P2-2 audit note)
         iv_level = raw_iv * 100.0 if raw_iv is not None and math.isfinite(raw_iv) else 50.0
 
+        # Indicator context from prediction snapshot (may be None if no prediction)
+        raw_adx = row["adx"]
+        adx = float(raw_adx) if raw_adx is not None else None
+        raw_atr_pct = row["atr_pct"]
+        atr_pct = float(raw_atr_pct) if raw_atr_pct is not None else None
+        raw_rsi = row["rsi"]
+        rsi = float(raw_rsi) if raw_rsi is not None else None
+
         results.append(
             OutcomeWithContext(
                 sector=str(row["sector"]),
@@ -522,6 +621,9 @@ async def fetch_outcomes_with_context(
                 direction=str(row["direction"]),
                 return_pct=return_pct,
                 is_winner=bool(row["is_winner"]),
+                adx=adx,
+                atr_pct=atr_pct,
+                rsi=rsi,
             )
         )
 

@@ -1,8 +1,10 @@
 ---
 name: recommendation-learning-feedback
-status: backlog
+status: completed
 created: 2026-03-24T00:09:54Z
-progress: 0%
+updated: 2026-03-24T03:11:21Z
+completed: 2026-03-24T03:11:21Z
+progress: 100%
 prd: .claude/prds/recommendation-learning.md
 parent_epic: recommendation-learning
 depends_on:
@@ -150,12 +152,12 @@ Update data source for `compute_auto_tune_weights()`:
 
 ## Tasks Created
 
-- [ ] #779 - Extend OutcomeWithContext with condition dimensions (parallel: true)
-- [ ] #780 - Enrich rule generation with condition dimensions (parallel: false, depends: #779)
-- [ ] #781 - Contract guidance computation and rendering (parallel: true)
-- [ ] #782 - Weight tuner prediction-derived accuracy (parallel: true)
-- [ ] #783 - Prompt injection for contract guidance and tuned weights (parallel: false, depends: #781, #782)
-- [ ] #784 - Feedback loop integration tests (parallel: false, depends: #780, #783)
+- [x] #779 - Extend OutcomeWithContext with condition dimensions (parallel: true)
+- [x] #780 - Enrich rule generation with condition dimensions (parallel: false, depends: #779)
+- [x] #781 - Contract guidance computation and rendering (parallel: true)
+- [x] #782 - Weight tuner prediction-derived accuracy (parallel: true)
+- [x] #783 - Prompt injection for contract guidance and tuned weights (parallel: false, depends: #781, #782)
+- [x] #784 - Feedback loop integration tests (parallel: false, depends: #780, #783)
 
 Total tasks: 6
 Parallel tasks: 3 (#779, #781, #782)

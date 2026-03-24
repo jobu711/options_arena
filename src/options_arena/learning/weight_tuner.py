@@ -23,6 +23,7 @@ from options_arena.models import (
     AgentWeightsComparison,
     IndicatorWeightComparison,
 )
+from options_arena.models.attribution import PredictionAccuracy
 from options_arena.models.scan import IndicatorSignals
 from options_arena.scoring.composite import INDICATOR_WEIGHTS
 
@@ -49,6 +50,60 @@ AGENT_VOTE_WEIGHTS: VoteWeights = {
     "contrarian": 0.05,
     "risk": 0.0,  # Risk agent is advisory-only — informs but doesn't vote on direction
 }
+
+# Prefix on PredictionSource values that correspond to desk agents.
+_DESK_SOURCE_PREFIX: str = "desk_"
+
+
+def render_tuned_weights(weights: VoteWeights) -> str:
+    """Produce descriptive text showing desk vote weights for synthesis prompt injection.
+
+    The returned text is **not** wrapped in delimiters — the synthesis system prompt
+    adds ``<<<TUNED_WEIGHTS>>>`` delimiters around it.
+
+    Parameters
+    ----------
+    weights
+        Mapping of agent name to vote weight (e.g. ``{"trend": 0.25, ...}``).
+
+    Returns
+    -------
+    str
+        Multi-line descriptive text, or empty string if *weights* is empty.
+    """
+    if not weights:
+        return ""
+    lines = ["Current desk vote weights (auto-tuned from prediction accuracy):"]
+    for agent, weight in sorted(weights.items()):
+        lines.append(f"  {agent}: {weight:.2f}")
+    return "\n".join(lines)
+
+
+def _prediction_accuracy_to_agent_report(acc: PredictionAccuracy) -> AgentAccuracyReport:
+    """Map a ``PredictionAccuracy`` from the predictions table to ``AgentAccuracyReport``.
+
+    Strips the ``desk_`` prefix from the source value to derive the agent name
+    (e.g. ``desk_trend`` → ``trend``).  Uses a simplified Brier-score approximation:
+    ``brier = 1.0 - accuracy``.
+
+    Parameters
+    ----------
+    acc
+        A ``PredictionAccuracy`` whose source starts with ``desk_``.
+
+    Returns
+    -------
+    AgentAccuracyReport
+        The mapped report suitable for ``compute_auto_tune_weights()``.
+    """
+    agent_name = acc.source.value.removeprefix(_DESK_SOURCE_PREFIX)
+    return AgentAccuracyReport(
+        agent_name=agent_name,
+        direction_hit_rate=acc.accuracy,
+        mean_confidence=acc.accuracy,  # best available proxy
+        brier_score=1.0 - acc.accuracy,
+        sample_size=acc.total,
+    )
 
 
 def compute_auto_tune_weights(
@@ -120,8 +175,11 @@ async def _auto_tune_weights_inner(
     window_days: int,
     dry_run: bool,
 ) -> list[AgentWeightsComparison]:
-    """Inner implementation — may raise."""
-    accuracy = await repo.get_agent_accuracy(window_days=window_days)
+    """Inner implementation — may raise.
+
+    Tries prediction-derived accuracy first, falls back to legacy agent_predictions.
+    """
+    accuracy, data_source = await _resolve_accuracy_reports(repo, window_days)
 
     # Skip persistence when no agent has enough scored outcomes
     has_eligible = any(
@@ -130,8 +188,10 @@ async def _auto_tune_weights_inner(
     )
     if not has_eligible:
         logger.info(
-            "Auto-tune skipped: no directional agent has enough scored outcomes (window=%d)",
+            "Auto-tune skipped: no directional agent has enough scored outcomes "
+            "(window=%d, source=%s)",
             window_days,
+            data_source,
         )
         return []
 
@@ -152,12 +212,50 @@ async def _auto_tune_weights_inner(
         await repo.save_auto_tune_weights(comparisons, window_days=window_days)
 
     logger.info(
-        "Auto-tune weights computed for %d agents (window=%d, dry_run=%s)",
+        "Auto-tune weights computed for %d agents (window=%d, dry_run=%s, source=%s)",
         len(comparisons),
         window_days,
         dry_run,
+        data_source,
     )
     return comparisons
+
+
+async def _resolve_accuracy_reports(
+    repo: Repository,
+    window_days: int,
+) -> tuple[list[AgentAccuracyReport], str]:
+    """Try prediction-derived accuracy first, fall back to legacy.
+
+    Returns
+    -------
+    tuple[list[AgentAccuracyReport], str]
+        A pair of (accuracy reports, data source label).
+        Data source is ``"predictions"`` or ``"legacy"``.
+    """
+    try:
+        pred_accuracy = await repo.get_prediction_accuracy(window_days=window_days)
+        desk_accuracy = [
+            a for a in pred_accuracy if a.source.value.startswith(_DESK_SOURCE_PREFIX)
+        ]
+        if desk_accuracy and all(a.sample_sufficient for a in desk_accuracy):
+            accuracy_reports = [_prediction_accuracy_to_agent_report(a) for a in desk_accuracy]
+            total_scored = sum(a.total for a in desk_accuracy)
+            logger.info(
+                "Using prediction-derived accuracy (%d scored predictions, %d desk sources)",
+                total_scored,
+                len(desk_accuracy),
+            )
+            return accuracy_reports, "predictions"
+    except Exception:
+        logger.debug(
+            "Prediction accuracy lookup failed, falling back to legacy",
+            exc_info=True,
+        )
+
+    accuracy_reports = await repo.get_agent_accuracy(window_days=window_days)
+    logger.info("Using legacy agent_predictions accuracy (%d agents)", len(accuracy_reports))
+    return accuracy_reports, "legacy"
 
 
 # ---------------------------------------------------------------------------
