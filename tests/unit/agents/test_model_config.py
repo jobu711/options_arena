@@ -96,28 +96,30 @@ class TestBuildDebateModel:
     def test_returns_groq_model_with_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """build_debate_model returns a GroqModel when API key is provided."""
         monkeypatch.delenv("GROQ_API_KEY", raising=False)
-        config = DebateConfig(api_key="gsk_test_key_123")
+        config = DebateConfig(provider=LLMProvider.GROQ, api_key="gsk_test_key_123")
         model = build_debate_model(config)
         assert isinstance(model, GroqModel)
 
     def test_uses_env_var_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """build_debate_model uses GROQ_API_KEY env var when config key is None."""
         monkeypatch.setenv("GROQ_API_KEY", "gsk_env_key_456")
-        config = DebateConfig(api_key=None)
+        config = DebateConfig(provider=LLMProvider.GROQ, api_key=None)
         model = build_debate_model(config)
         assert isinstance(model, GroqModel)
 
     def test_raises_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """build_debate_model raises ValueError when no API key available."""
         monkeypatch.delenv("GROQ_API_KEY", raising=False)
-        config = DebateConfig(api_key=None)
+        config = DebateConfig(provider=LLMProvider.GROQ, api_key=None)
         with pytest.raises(ValueError, match="Groq API key required"):
             build_debate_model(config)
 
     def test_uses_config_model_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """build_debate_model uses the model name from config."""
         monkeypatch.delenv("GROQ_API_KEY", raising=False)
-        config = DebateConfig(model="llama-3.1-8b-instant", api_key="gsk_test")
+        config = DebateConfig(
+            provider=LLMProvider.GROQ, model="llama-3.1-8b-instant", api_key="gsk_test",
+        )
         model = build_debate_model(config)
         assert isinstance(model, GroqModel)
         assert model.model_name == "llama-3.1-8b-instant"
@@ -199,14 +201,14 @@ class TestBuildAnthropicModel:
 class TestBuildDebateModelDispatch:
     """Tests for build_debate_model provider dispatch."""
 
-    def test_groq_is_default_provider(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Default provider is Groq; build_debate_model returns GroqModel."""
+    def test_anthropic_is_default_provider(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Default provider is Anthropic; build_debate_model returns AnthropicModel."""
         monkeypatch.delenv("GROQ_API_KEY", raising=False)
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        config = DebateConfig(api_key="gsk_test_key")
-        assert config.provider == LLMProvider.GROQ
+        config = DebateConfig(anthropic_api_key="sk-ant-test")
+        assert config.provider == LLMProvider.ANTHROPIC
         model = build_debate_model(config)
-        assert isinstance(model, GroqModel)
+        assert isinstance(model, AnthropicModel)
 
     def test_dispatch_to_anthropic(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Provider ANTHROPIC dispatches to AnthropicModel builder."""

@@ -231,9 +231,11 @@ class TestDebateConfigDefaults:
     def test_debate_config_constructs_with_defaults(self) -> None:
         """DebateConfig() constructs with all production defaults."""
         config = DebateConfig()
+        assert config.provider == LLMProvider.ANTHROPIC
         assert config.model == "llama-3.3-70b-versatile"
+        assert config.anthropic_model == "claude-sonnet-4-5-20250929"
         assert config.api_key is None
-        assert config.agent_timeout == pytest.approx(60.0)
+        assert config.agent_timeout == pytest.approx(90.0)
         assert config.retries == 2
         assert config.temperature == pytest.approx(0.3)
         assert config.fallback_confidence == pytest.approx(0.3)
@@ -567,10 +569,10 @@ class TestLLMProviderEnum:
 
 
 class TestDebateConfigAnthropicFields:
-    def test_defaults_provider_groq(self) -> None:
-        """Default provider is groq (backward compatible)."""
+    def test_defaults_provider_anthropic(self) -> None:
+        """Default provider is anthropic."""
         config = DebateConfig()
-        assert config.provider is LLMProvider.GROQ
+        assert config.provider is LLMProvider.ANTHROPIC
 
     def test_anthropic_field_defaults(self) -> None:
         """Anthropic fields have correct defaults."""
@@ -584,7 +586,7 @@ class TestDebateConfigAnthropicFields:
         """Existing DebateConfig() with no args still works."""
         config = DebateConfig()
         assert config.model == "llama-3.3-70b-versatile"
-        assert config.provider is LLMProvider.GROQ
+        assert config.provider is LLMProvider.ANTHROPIC
 
     def test_thinking_budget_valid_range(self) -> None:
         """thinking_budget_tokens accepts values in [1024, 128000]."""

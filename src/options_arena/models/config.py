@@ -249,9 +249,11 @@ class RoutingConfig(FiniteFieldsMixin):
     enable_model_routing: bool = False
     complexity_threshold_fast: float = 0.3
     complexity_threshold_premium: float = 0.7
-    fast_model: str = "llama-3.1-8b-instant"
+    fast_model: str = "claude-haiku-4-5-20251001"
     premium_model: str = ""  # empty means use default model
     cost_per_million_tokens: dict[str, float] = {
+        "claude-sonnet-4-5-20250929": 9.0,  # blended input+output avg
+        "claude-haiku-4-5-20251001": 1.25,  # blended input+output avg
         "llama-3.3-70b-versatile": 0.59,
         "llama-3.1-8b-instant": 0.05,
     }
@@ -291,21 +293,21 @@ class RoutingConfig(FiniteFieldsMixin):
 class DebateConfig(FiniteFieldsMixin):
     """AI debate configuration — controls LLM provider, timeouts, and fallback behavior.
 
-    Supports Groq (default, free) and Anthropic (Claude) providers. Provider selection
-    via ``ARENA_DEBATE__PROVIDER=anthropic`` env var or ``--provider`` CLI flag.
+    Supports Anthropic (Claude, default) and Groq providers. Provider selection
+    via ``ARENA_DEBATE__PROVIDER=groq`` env var or ``--provider`` CLI flag.
 
-    Default ``agent_timeout`` (60s) is for Groq cloud inference. Override via
-    ``ARENA_DEBATE__AGENT_TIMEOUT=90``, ``ARENA_DEBATE__MAX_TOTAL_DURATION=300``.
+    Default ``agent_timeout`` (90s) is for Anthropic cloud inference. Override via
+    ``ARENA_DEBATE__AGENT_TIMEOUT=120``, ``ARENA_DEBATE__MAX_TOTAL_DURATION=300``.
     """
 
-    provider: LLMProvider = LLMProvider.GROQ
+    provider: LLMProvider = LLMProvider.ANTHROPIC
     model: str = "llama-3.3-70b-versatile"
     anthropic_model: str = "claude-sonnet-4-5-20250929"
     api_key: SecretStr | None = None
     anthropic_api_key: SecretStr | None = None
     enable_extended_thinking: bool = False
     thinking_budget_tokens: int = 5000
-    agent_timeout: float = 60.0
+    agent_timeout: float = 90.0
     retries: int = 2
     temperature: float = 0.3
     fallback_confidence: float = 0.3

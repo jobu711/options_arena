@@ -315,16 +315,16 @@ class TestProviderFlag:
 
     @patch("options_arena.cli.commands._validate_provider_config")
     @patch("options_arena.cli.commands._debate_async", new_callable=AsyncMock)
-    def test_provider_groq_is_default(
+    def test_provider_anthropic_is_default(
         self, mock_debate: AsyncMock, _mock_validate: MagicMock
     ) -> None:
-        """Without --provider, default (groq) is used."""
+        """Without --provider, default (anthropic) is used."""
         mock_debate.return_value = None
         result = runner.invoke(app, ["debate", "AAPL"])
         assert result.exit_code == 0
-        # Provider should be groq by default
+        # Provider should be anthropic by default
         kwargs = mock_debate.call_args[1]
-        assert kwargs.get("provider").value == "groq"
+        assert kwargs.get("provider").value == "anthropic"
 
     @patch("options_arena.cli.commands._validate_provider_config")
     @patch("options_arena.cli.commands._debate_async", new_callable=AsyncMock)

@@ -43,7 +43,11 @@ from options_arena.agents.contrarian_desk import run_contrarian_desk_recommendat
 from options_arena.agents.flow_desk import run_flow_desk_recommendation
 from options_arena.agents.fundamental_desk import run_fundamental_desk_recommendation
 from options_arena.agents.model_config import build_debate_model
-from options_arena.agents.model_routing import build_model_for_tier, route_model_tier
+from options_arena.agents.model_routing import (
+    build_model_for_tier,
+    get_model_name_for_tier,
+    route_model_tier,
+)
 from options_arena.agents.risk_desk import run_risk_desk_recommendation
 from options_arena.agents.synthesis_agent import SynthesisDeps, run_synthesis
 from options_arena.agents.trend_desk import run_trend_desk_recommendation
@@ -596,7 +600,7 @@ async def _run_recommendation_pipeline(
             if routing_config.enable_model_routing
             else default_model
         )
-        model_name = config.routing.fast_model if tier == ModelTier.FAST else config.model
+        model_name = get_model_name_for_tier(tier, config)
 
         t_desk = time.monotonic()
         async with semaphore:
@@ -649,7 +653,7 @@ async def _run_recommendation_pipeline(
                     status=DeskRunStatus.FALLBACK,
                     duration_ms=0,
                     model_tier=ModelTier.STANDARD,
-                    model_used=config.model,
+                    model_used=get_model_name_for_tier(ModelTier.STANDARD, config),
                     input_tokens=0,
                     output_tokens=0,
                 )

@@ -39,6 +39,7 @@ import GreeksDecompositionChart from '@/components/analytics/GreeksDecomposition
 import HoldingComparisonTable from '@/components/analytics/HoldingComparisonTable.vue'
 import AgentAccuracyHeatmap from '@/components/analytics/AgentAccuracyHeatmap.vue'
 import WeightTuningPanel from '@/components/analytics/WeightTuningPanel.vue'
+import ContractLookupPanel from '@/components/analytics/ContractLookupPanel.vue'
 
 const router = useRouter()
 const toast = useToast()
@@ -294,6 +295,7 @@ onMounted(async () => {
           <Tab value="segments">Segments</Tab>
           <Tab value="greeks">Greeks</Tab>
           <Tab value="holding">Holding</Tab>
+          <Tab value="contracts">Contracts</Tab>
           <Tab value="weights">Weight Tuning</Tab>
         </TabList>
         <TabPanels>
@@ -383,6 +385,17 @@ onMounted(async () => {
               <div class="desk-grid">
                 <DeskCard title="HOLDING COMPARISON" :full-width="true">
                   <HoldingComparisonTable :data="backtestStore.holdingComparison" />
+                </DeskCard>
+              </div>
+            </div>
+          </TabPanel>
+
+          <!-- Contracts Tab -->
+          <TabPanel value="contracts">
+            <div class="tab-content">
+              <div class="desk-grid">
+                <DeskCard title="CONTRACT LOOKUP" :full-width="true">
+                  <ContractLookupPanel />
                 </DeskCard>
               </div>
             </div>

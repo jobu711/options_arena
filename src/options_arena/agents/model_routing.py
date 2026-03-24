@@ -18,6 +18,7 @@ from options_arena.agents.model_config import build_debate_model
 from options_arena.models import (
     DebateConfig,
     DeskType,
+    LLMProvider,
     ModelTier,
     RoutingConfig,
 )
@@ -111,22 +112,40 @@ def route_model_tier(
     return tier
 
 
+def _model_field_for_provider(config: DebateConfig) -> str:
+    """Return the config field name that holds the model name for the active provider."""
+    if config.provider == LLMProvider.ANTHROPIC:
+        return "anthropic_model"
+    return "model"
+
+
+def get_model_name_for_tier(tier: ModelTier, config: DebateConfig) -> str:
+    """Return the model name string that will be used for the given tier.
+
+    Useful for logging and cost tracking without constructing a full Model object.
+    """
+    field = _model_field_for_provider(config)
+    default_name: str = getattr(config, field)
+    match tier:
+        case ModelTier.FAST:
+            return config.routing.fast_model
+        case ModelTier.STANDARD:
+            return default_name
+        case ModelTier.PREMIUM:
+            return config.routing.premium_model if config.routing.premium_model else default_name
+
+
 def build_model_for_tier(tier: ModelTier, config: DebateConfig) -> Model:
     """Construct a PydanticAI Model for the given tier.
 
     FAST overrides the model name to ``config.routing.fast_model``.
-    STANDARD uses the default model from ``config.model``.
+    STANDARD uses the default model for the active provider.
     PREMIUM uses ``config.routing.premium_model`` if set, otherwise the default.
+
+    Handles both Groq and Anthropic providers — overrides the correct model
+    field based on ``config.provider``.
     """
-    match tier:
-        case ModelTier.FAST:
-            # Temporarily override model name for fast tier
-            override = config.model_copy(update={"model": config.routing.fast_model})
-            return build_debate_model(override)
-        case ModelTier.STANDARD:
-            return build_debate_model(config)
-        case ModelTier.PREMIUM:
-            if config.routing.premium_model:
-                override = config.model_copy(update={"model": config.routing.premium_model})
-                return build_debate_model(override)
-            return build_debate_model(config)
+    field = _model_field_for_provider(config)
+    target_name = get_model_name_for_tier(tier, config)
+    override = config.model_copy(update={field: target_name})
+    return build_debate_model(override)

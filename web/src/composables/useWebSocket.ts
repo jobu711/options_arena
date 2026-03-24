@@ -37,9 +37,16 @@ export function useWebSocket<T>(options: UseWebSocketOptions<T>) {
       options.onMessage(JSON.parse(e.data as string) as T)
     }
 
-    ws.onclose = () => {
+    ws.onclose = (e: CloseEvent) => {
       connected.value = false
       if (stopped) {
+        reconnecting.value = false
+        return
+      }
+      // 4004 = queue not found (operation doesn't exist on server)
+      // 4003 = origin rejected, 4008 = too many connections
+      // Don't reconnect for these — the server won't have data for us.
+      if (e.code >= 4003) {
         reconnecting.value = false
         return
       }

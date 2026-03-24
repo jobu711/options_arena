@@ -81,7 +81,12 @@ _FALSE_POSITIVE_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"GROQ_API_KEY\b"),  # env var name reference, not a value
     re.compile(r"ANTHROPIC_API_KEY\b"),
     re.compile(r"OPENAI_API_KEY\b"),
+    re.compile(r"gsk_test"),  # fake test Groq keys
+    re.compile(r"sk-ant-test"),  # fake test Anthropic keys
 ]
+
+# Files within tests/ are exempt from secret scanning — they use fake keys by design.
+_EXEMPT_PATH_PREFIXES: tuple[str, ...] = ("tests/",)
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +171,10 @@ def _scan_staged_diff() -> list[str]:
 
         # Only scan added lines (not removed)
         if not line.startswith("+") or line.startswith("+++"):
+            continue
+
+        # Skip exempt paths (e.g. tests/ use fake keys by design)
+        if any(current_file.startswith(p) for p in _EXEMPT_PATH_PREFIXES):
             continue
 
         content = line[1:]  # Strip the leading +

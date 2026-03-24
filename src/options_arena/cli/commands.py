@@ -466,7 +466,7 @@ def debate(
     export: str | None = typer.Option(None, "--export", help="Export format: md"),
     export_dir: str = typer.Option("./reports", "--export-dir", help="Export output directory"),
     provider: LLMProvider = typer.Option(  # noqa: B008
-        LLMProvider.GROQ, "--provider", help="LLM provider: groq (free) or anthropic"
+        LLMProvider.ANTHROPIC, "--provider", help="LLM provider: anthropic (default) or groq"
     ),
     cost_summary: bool = typer.Option(
         False, "--cost-summary", help="Show per-desk cost breakdown"

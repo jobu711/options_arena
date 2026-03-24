@@ -18,6 +18,7 @@ from options_arena.agents.model_routing import (
 from options_arena.models import (
     DebateConfig,
     DeskType,
+    LLMProvider,
     ModelTier,
     RoutingConfig,
     SignalDirection,
@@ -270,9 +271,19 @@ class TestBuildModelForTier:
             assert result == "mock_model"
             mock.assert_called_once_with(config)
 
-    def test_fast_returns_fast_model(self) -> None:
-        """FAST tier uses config.routing.fast_model."""
-        config = DebateConfig()
+    def test_fast_returns_fast_model_anthropic(self) -> None:
+        """FAST tier overrides anthropic_model when provider is Anthropic."""
+        config = DebateConfig()  # default provider=ANTHROPIC
+        with patch("options_arena.agents.model_routing.build_debate_model") as mock:
+            mock.return_value = "fast_mock"
+            result = build_model_for_tier(ModelTier.FAST, config)
+            assert result == "fast_mock"
+            call_config = mock.call_args[0][0]
+            assert call_config.anthropic_model == config.routing.fast_model
+
+    def test_fast_returns_fast_model_groq(self) -> None:
+        """FAST tier overrides model when provider is Groq."""
+        config = DebateConfig(provider=LLMProvider.GROQ)
         with patch("options_arena.agents.model_routing.build_debate_model") as mock:
             mock.return_value = "fast_mock"
             result = build_model_for_tier(ModelTier.FAST, config)
@@ -282,13 +293,13 @@ class TestBuildModelForTier:
 
     def test_premium_with_override(self) -> None:
         """PREMIUM tier uses premium_model when set."""
-        config = DebateConfig(routing=RoutingConfig(premium_model="llama-3.3-70b-specdec"))
+        config = DebateConfig(routing=RoutingConfig(premium_model="claude-opus-4-20250514"))
         with patch("options_arena.agents.model_routing.build_debate_model") as mock:
             mock.return_value = "premium_mock"
             result = build_model_for_tier(ModelTier.PREMIUM, config)
             assert result == "premium_mock"
             call_config = mock.call_args[0][0]
-            assert call_config.model == "llama-3.3-70b-specdec"
+            assert call_config.anthropic_model == "claude-opus-4-20250514"
 
     def test_premium_without_override(self) -> None:
         """PREMIUM tier falls back to default model when premium_model is empty."""
@@ -297,4 +308,5 @@ class TestBuildModelForTier:
             mock.return_value = "default_mock"
             result = build_model_for_tier(ModelTier.PREMIUM, config)
             assert result == "default_mock"
-            mock.assert_called_once_with(config)
+            call_config = mock.call_args[0][0]
+            assert call_config.anthropic_model == config.anthropic_model
