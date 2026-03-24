@@ -5,14 +5,14 @@ export interface HistoryPoint {
   scan_id: number
   scan_date: string // ISO 8601 UTC datetime
   composite_score: number
-  direction: 'bullish' | 'bearish' | 'neutral'
+  direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
   preset: string
 }
 
 /** A ticker trending in one direction over multiple consecutive scans. */
 export interface TrendingTicker {
   ticker: string
-  direction: 'bullish' | 'bearish' | 'neutral'
+  direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
   consecutive_scans: number
   latest_score: number
   score_change: number

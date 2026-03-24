@@ -1,13 +1,13 @@
 <script setup lang="ts">
 interface Props {
-  direction: 'bullish' | 'bearish' | 'neutral'
+  direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
 }
 
 defineProps<Props>()
 </script>
 
 <template>
-  <span class="direction-badge" :class="`dir--${direction}`" data-testid="direction-badge">
+  <span class="direction-badge" :class="`dir--${direction.toLowerCase()}`" data-testid="direction-badge">
     {{ direction }}
   </span>
 </template>

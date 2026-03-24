@@ -79,7 +79,7 @@ export interface HoldingPeriodComparison {
   /** Number of trading days held. */
   holding_days: number
   /** Signal direction (matches SignalDirection enum). */
-  direction: 'bullish' | 'bearish' | 'neutral'
+  direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
   /** Average return percentage. */
   avg_return: number
   /** Median return percentage. */

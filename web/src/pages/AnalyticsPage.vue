@@ -11,6 +11,7 @@ import TabPanel from 'primevue/tabpanel'
 import { useToast } from 'primevue/usetoast'
 import { api, ApiError } from '@/composables/useApi'
 import { useBacktestStore } from '@/stores/backtest'
+import DeskCard from '@/components/DeskCard.vue'
 import type {
   PerformanceSummary,
   WinRateResult,
@@ -26,6 +27,7 @@ import WinRateChart from '@/components/analytics/WinRateChart.vue'
 import ScoreCalibrationChart from '@/components/analytics/ScoreCalibrationChart.vue'
 import HoldingPeriodTable from '@/components/analytics/HoldingPeriodTable.vue'
 import DeltaPerformanceChart from '@/components/analytics/DeltaPerformanceChart.vue'
+import AttributionPanel from '@/components/analytics/AttributionPanel.vue'
 
 // Backtest chart components
 import EquityCurveChart from '@/components/analytics/EquityCurveChart.vue'
@@ -267,13 +269,23 @@ onMounted(async () => {
       />
     </div>
 
-    <!-- Data display with tabs -->
+    <!-- Data display with DeskCard grid + tabs -->
     <template v-else-if="summary">
-      <SummaryCard
-        :summary="summary"
-        :lookback-days="lookbackDays"
-        @update:lookback-days="lookbackDays = $event"
-      />
+      <div class="desk-grid">
+        <!-- Attribution Report — full width -->
+        <DeskCard title="ATTRIBUTION REPORT" :full-width="true">
+          <AttributionPanel />
+        </DeskCard>
+
+        <!-- Performance Summary -->
+        <DeskCard title="PERFORMANCE SUMMARY" :full-width="true">
+          <SummaryCard
+            :summary="summary"
+            :lookback-days="lookbackDays"
+            @update:lookback-days="lookbackDays = $event"
+          />
+        </DeskCard>
+      </div>
 
       <Tabs :value="activeTab" @update:value="onTabChange" class="analytics-tabs">
         <TabList>
@@ -288,27 +300,37 @@ onMounted(async () => {
           <!-- Overview Tab -->
           <TabPanel value="overview">
             <div class="tab-content">
-              <div class="charts-row">
-                <EquityCurveChart :data="backtestStore.equityCurve" />
-                <DrawdownChart :data="backtestStore.drawdown" />
-              </div>
-              <div class="analytics-grid">
-                <WinRateChart :data="winRates" />
-                <ScoreCalibrationChart
-                  :data="calibration"
-                  :bucket-size="bucketSize"
-                  @update:bucket-size="bucketSize = $event"
-                />
-                <HoldingPeriodTable
-                  :data="holdingPeriods"
-                  :direction="holdingDirection"
-                  @update:direction="holdingDirection = $event"
-                />
-                <DeltaPerformanceChart
-                  :data="deltaPerformance"
-                  :holding-days="holdingDays"
-                  @update:holding-days="holdingDays = $event"
-                />
+              <div class="desk-grid">
+                <DeskCard title="EQUITY CURVE">
+                  <EquityCurveChart :data="backtestStore.equityCurve" />
+                </DeskCard>
+                <DeskCard title="DRAWDOWN">
+                  <DrawdownChart :data="backtestStore.drawdown" />
+                </DeskCard>
+                <DeskCard title="WIN RATE">
+                  <WinRateChart :data="winRates" />
+                </DeskCard>
+                <DeskCard title="SCORE CALIBRATION">
+                  <ScoreCalibrationChart
+                    :data="calibration"
+                    :bucket-size="bucketSize"
+                    @update:bucket-size="bucketSize = $event"
+                  />
+                </DeskCard>
+                <DeskCard title="HOLDING PERIOD">
+                  <HoldingPeriodTable
+                    :data="holdingPeriods"
+                    :direction="holdingDirection"
+                    @update:direction="holdingDirection = $event"
+                  />
+                </DeskCard>
+                <DeskCard title="DELTA PERFORMANCE">
+                  <DeltaPerformanceChart
+                    :data="deltaPerformance"
+                    :holding-days="holdingDays"
+                    @update:holding-days="holdingDays = $event"
+                  />
+                </DeskCard>
               </div>
             </div>
           </TabPanel>
@@ -316,20 +338,30 @@ onMounted(async () => {
           <!-- Agents Tab -->
           <TabPanel value="agents">
             <div class="tab-content">
-              <AgentAccuracyHeatmap
-                :accuracy="backtestStore.agentAccuracy"
-                :calibration="backtestStore.agentCalibration"
-              />
+              <div class="desk-grid">
+                <DeskCard title="AGENT ACCURACY" :full-width="true">
+                  <AgentAccuracyHeatmap
+                    :accuracy="backtestStore.agentAccuracy"
+                    :calibration="backtestStore.agentCalibration"
+                  />
+                </DeskCard>
+              </div>
             </div>
           </TabPanel>
 
           <!-- Segments Tab -->
           <TabPanel value="segments">
             <div class="tab-content">
-              <div class="analytics-grid">
-                <SectorPerformanceChart :data="backtestStore.sectorPerformance" />
-                <DTEPerformanceChart :data="backtestStore.dtePerformance" />
-                <IVPerformanceChart :data="backtestStore.ivPerformance" />
+              <div class="desk-grid">
+                <DeskCard title="SECTOR PERFORMANCE">
+                  <SectorPerformanceChart :data="backtestStore.sectorPerformance" />
+                </DeskCard>
+                <DeskCard title="DTE PERFORMANCE">
+                  <DTEPerformanceChart :data="backtestStore.dtePerformance" />
+                </DeskCard>
+                <DeskCard title="IV PERFORMANCE">
+                  <IVPerformanceChart :data="backtestStore.ivPerformance" />
+                </DeskCard>
               </div>
             </div>
           </TabPanel>
@@ -337,21 +369,33 @@ onMounted(async () => {
           <!-- Greeks Tab -->
           <TabPanel value="greeks">
             <div class="tab-content">
-              <GreeksDecompositionChart :data="backtestStore.greeksDecomposition" />
+              <div class="desk-grid">
+                <DeskCard title="GREEKS DECOMPOSITION" :full-width="true">
+                  <GreeksDecompositionChart :data="backtestStore.greeksDecomposition" />
+                </DeskCard>
+              </div>
             </div>
           </TabPanel>
 
           <!-- Holding Tab -->
           <TabPanel value="holding">
             <div class="tab-content">
-              <HoldingComparisonTable :data="backtestStore.holdingComparison" />
+              <div class="desk-grid">
+                <DeskCard title="HOLDING COMPARISON" :full-width="true">
+                  <HoldingComparisonTable :data="backtestStore.holdingComparison" />
+                </DeskCard>
+              </div>
             </div>
           </TabPanel>
 
           <!-- Weight Tuning Tab -->
           <TabPanel value="weights">
             <div class="tab-content">
-              <WeightTuningPanel />
+              <div class="desk-grid">
+                <DeskCard title="WEIGHT TUNING" :full-width="true">
+                  <WeightTuningPanel />
+                </DeskCard>
+              </div>
             </div>
           </TabPanel>
         </TabPanels>
@@ -413,6 +457,12 @@ onMounted(async () => {
   max-width: 400px;
 }
 
+.desk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 1rem;
+}
+
 .analytics-tabs {
   margin-top: 1.5rem;
 }
@@ -421,25 +471,8 @@ onMounted(async () => {
   padding: 1rem 0;
 }
 
-.charts-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.analytics-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1.5rem;
-}
-
 @media (max-width: 768px) {
-  .charts-row {
-    grid-template-columns: 1fr;
-  }
-
-  .analytics-grid {
+  .desk-grid {
     grid-template-columns: 1fr;
   }
 

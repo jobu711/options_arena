@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "dependencies": {
     "@primeuix/themes": "^2.0.3",
@@ -18,11 +19,15 @@
     "vue-router": "^5.0.3"
   },
   "devDependencies": {
+    "@pinia/testing": "^1.0.3",
     "@playwright/test": "^1.58.2",
     "@types/node": "^25.3.1",
     "@vitejs/plugin-vue": "^6.0.4",
+    "@vue/test-utils": "^2.4.6",
+    "jsdom": "^29.0.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
+    "vitest": "^4.1.1",
     "vue-tsc": "^3.2.5"
   }
 }

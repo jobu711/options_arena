@@ -23,9 +23,9 @@ const hoveredIndex = ref<number | null>(null)
 
 function directionColor(direction: string): string {
   switch (direction) {
-    case 'bullish':
+    case 'BULLISH':
       return 'var(--accent-green, #22c55e)'
-    case 'bearish':
+    case 'BEARISH':
       return 'var(--accent-red, #ef4444)'
     default:
       return 'var(--accent-yellow, #eab308)'

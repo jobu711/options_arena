@@ -34,8 +34,8 @@ function formatReturnPct(val: number): string {
 }
 
 function directionSeverity(dir: string): 'success' | 'danger' | 'warn' {
-  if (dir === 'bullish') return 'success'
-  if (dir === 'bearish') return 'danger'
+  if (dir === 'BULLISH') return 'success'
+  if (dir === 'BEARISH') return 'danger'
   return 'warn'
 }
 </script>
