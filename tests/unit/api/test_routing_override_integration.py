@@ -107,5 +107,3 @@ class TestRoutingOverrideIntegration:
 
         get_resp = await client.get("/api/config")
         assert get_resp.json()["routing"]["is_override"] is False
-
-
