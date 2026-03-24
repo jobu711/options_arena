@@ -48,6 +48,14 @@ from options_arena.models.analytics import (
     WeightSnapshot,
     WinRateResult,
 )
+from options_arena.models.attribution import (
+    AttributionReport,
+    ConditionBucketAccuracy,
+    ContractGuidance,
+    Prediction,
+    PredictionAccuracy,
+    PredictionSource,
+)
 from options_arena.models.audit import AuditFinding, AuditLayerSummary, AuditReport
 from options_arena.models.config import (
     AgencyConfig,
