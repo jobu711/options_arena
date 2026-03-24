@@ -16,13 +16,16 @@ from options_arena.api.deps import (
 from options_arena.api.schemas import OutcomeCollectionResult
 from options_arena.data import Repository
 from options_arena.learning import auto_tune_weights
+from options_arena.learning.prediction_ledger import compute_attribution
 from options_arena.models import (
     AgentAccuracyReport,
     AgentCalibrationData,
     AgentWeightsComparison,
+    AttributionReport,
     DeltaPerformanceResult,
     HoldingPeriodResult,
     PerformanceSummary,
+    PredictionSource,
     RecommendedContract,
     ScoreCalibrationBucket,
     SignalDirection,
@@ -130,6 +133,19 @@ async def get_ticker_contracts(
     if not TICKER_RE.match(ticker):
         raise HTTPException(422, f"Invalid ticker format: {ticker!r}")
     return await repo.get_contracts_for_ticker(ticker, limit=limit)
+
+
+@router.get("/attribution")
+@limiter.limit("60/minute")
+async def get_attribution(
+    request: Request,
+    window_days: int = Query(default=90, ge=7, le=365),
+    source: PredictionSource | None = Query(default=None),
+    repo: Repository = Depends(get_repo),
+) -> AttributionReport:
+    """Get prediction attribution report."""
+    predictions = await repo.get_predictions(window_days, source)
+    return compute_attribution(predictions)
 
 
 @router.get("/agent-accuracy")

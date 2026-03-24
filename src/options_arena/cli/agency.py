@@ -510,6 +510,106 @@ async def _learn_playbook_async(status_filter: str | None) -> None:
         await db.close()
 
 
+@learn_app.command("attribution")
+def learn_attribution(
+    window_days: int = typer.Option(90, min=7, max=365, help="Lookback window in days"),
+    source: str | None = typer.Option(None, help="Filter to single source"),
+) -> None:
+    """Show prediction accuracy by source and market condition."""
+    from options_arena.models.attribution import PredictionSource  # noqa: PLC0415
+
+    source_enum: PredictionSource | None = None
+    if source is not None:
+        try:
+            source_enum = PredictionSource(source)
+        except ValueError:
+            valid = ", ".join(s.value for s in PredictionSource)
+            err_console.print(f"[red]Unknown source: {source!r}. Valid: {valid}[/red]")
+            raise typer.Exit(code=1) from None
+
+    asyncio.run(_run_attribution(window_days, source_enum))
+
+
+async def _run_attribution(
+    window_days: int,
+    source: object,
+) -> None:
+    """Fetch predictions and display attribution report.
+
+    Parameters
+    ----------
+    window_days
+        Number of days to look back.
+    source
+        Optional ``PredictionSource`` filter (typed as ``object`` to avoid
+        top-level import).
+    """
+    from options_arena.data import Database, Repository  # noqa: PLC0415
+    from options_arena.learning.prediction_ledger import compute_attribution  # noqa: PLC0415
+    from options_arena.models.attribution import PredictionSource  # noqa: PLC0415
+
+    source_typed: PredictionSource | None = None
+    if source is not None:
+        assert isinstance(source, PredictionSource)
+        source_typed = source
+
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    db = Database(str(_DATA_DIR / "options_arena.db"))
+    try:
+        await db.connect()
+        repo = Repository(db)
+
+        predictions = await repo.get_predictions(window_days, source_typed)
+        report = compute_attribution(predictions)
+
+        if not report.source_accuracy:
+            console.print(f"No scored predictions found in the last {window_days} days.")
+            return
+
+        # Source accuracy table
+        table = Table(title=f"Prediction Attribution (last {window_days} days)")
+        table.add_column("Source", style="bold")
+        table.add_column("Total", justify="right")
+        table.add_column("Correct", justify="right")
+        table.add_column("Accuracy", justify="right")
+        table.add_column("Sufficient", justify="center")
+
+        for acc in report.source_accuracy:
+            table.add_row(
+                acc.source.value,
+                str(acc.total),
+                str(acc.correct),
+                f"{acc.accuracy:.1%}",
+                "yes" if acc.sample_sufficient else "no",
+            )
+
+        console.print(table)
+        console.print(
+            f"\nTotal recommendations: {report.total_recommendations}"
+            f"  |  Total outcomes: {report.total_outcomes}"
+        )
+
+        # Condition accuracy table (if any rows exist)
+        if report.condition_accuracy:
+            cond_table = Table(title="Condition Breakdown")
+            cond_table.add_column("Source", style="bold")
+            cond_table.add_column("Condition")
+            cond_table.add_column("Accuracy", justify="right")
+            cond_table.add_column("Samples", justify="right")
+
+            for ca in report.condition_accuracy:
+                cond_table.add_row(
+                    ca.source.value,
+                    ca.condition,
+                    f"{ca.accuracy:.1%}",
+                    str(ca.total),
+                )
+
+            console.print(cond_table)
+    finally:
+        await db.close()
+
+
 @learn_app.command("decay")
 def learn_decay() -> None:
     """Apply confidence decay and auto-promote/demote strategy rules."""
