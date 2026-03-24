@@ -24,6 +24,7 @@ export const usePipelineStore = defineStore('pipeline', () => {
   const phase = ref<'idle' | 'scanning' | 'scanned'>('idle')
   const loading = ref(false)
   const errors = ref<Array<{ message: string }>>([])
+  const selectedForAnalysis = ref<Set<string>>(new Set())
 
   // --- Getters ---
   const sortedTickers = computed<PipelineTicker[]>(() => {
@@ -49,6 +50,8 @@ export const usePipelineStore = defineStore('pipeline', () => {
     ).length
     return { current, total }
   })
+
+  const selectedCount = computed<number>(() => selectedForAnalysis.value.size)
 
   // --- Actions ---
 
@@ -156,6 +159,24 @@ export const usePipelineStore = defineStore('pipeline', () => {
     }
   }
 
+  function toggleSelectedForAnalysis(ticker: string): void {
+    const next = new Set(selectedForAnalysis.value)
+    if (next.has(ticker)) {
+      next.delete(ticker)
+    } else {
+      next.add(ticker)
+    }
+    selectedForAnalysis.value = next
+  }
+
+  function setSelectedForAnalysis(tickerList: string[]): void {
+    selectedForAnalysis.value = new Set(tickerList)
+  }
+
+  function clearSelectedForAnalysis(): void {
+    selectedForAnalysis.value = new Set()
+  }
+
   function selectTicker(ticker: string | null): void {
     selectedTicker.value = ticker
     currentRecommendation.value = null
@@ -185,6 +206,7 @@ export const usePipelineStore = defineStore('pipeline', () => {
     phase.value = 'idle'
     loading.value = false
     errors.value = []
+    selectedForAnalysis.value = new Set()
   }
 
   // --- WebSocket callbacks ---
@@ -279,15 +301,20 @@ export const usePipelineStore = defineStore('pipeline', () => {
     phase,
     loading,
     errors,
+    selectedForAnalysis,
     // Getters
     sortedTickers,
     selectedPipelineTicker,
     hasReadyTickers,
     scanProgress,
+    selectedCount,
     // Actions
     startScan,
     analyzeTicker,
     analyzeBatch,
+    toggleSelectedForAnalysis,
+    setSelectedForAnalysis,
+    clearSelectedForAnalysis,
     selectTicker,
     loadRecommendation,
     reset,
