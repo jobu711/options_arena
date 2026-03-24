@@ -30,3 +30,13 @@ CREATE INDEX IF NOT EXISTS idx_predictions_scan_id
     ON predictions(scan_run_id) WHERE scan_run_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_predictions_ticker
     ON predictions(ticker);
+CREATE INDEX IF NOT EXISTS idx_predictions_created_at
+    ON predictions(created_at);
+
+-- Partial unique indexes for nullable FK columns (SQLite treats NULL as distinct
+-- in regular UNIQUE constraints, so the table-level UNIQUE on nullable FKs is
+-- insufficient).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_predictions_rec_source_unique
+    ON predictions(recommendation_id, source) WHERE recommendation_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_predictions_scan_ticker_source_unique
+    ON predictions(scan_run_id, ticker, source) WHERE scan_run_id IS NOT NULL;

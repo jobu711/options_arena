@@ -26,6 +26,9 @@ from ._base import RepositoryBase
 
 logger = logging.getLogger(__name__)
 
+_MIN_SAMPLE_SIZE = 10
+"""Minimum scored predictions before ``sample_sufficient`` is ``True``."""
+
 
 class LearningMixin(RepositoryBase):
     """CRUD operations for strategy rules and predictions.
@@ -349,12 +352,16 @@ class LearningMixin(RepositoryBase):
         """
         if not predictions:
             return []
+        conn = self._db.conn
         ids: list[int] = []
-        for p in predictions:
-            row_id = await self.save_prediction(p, commit=False)
-            ids.append(row_id)
+        try:
+            for p in predictions:
+                row_id = await self.save_prediction(p, commit=False)
+                ids.append(row_id)
+        except Exception:
+            await conn.rollback()
+            raise
         if commit:
-            conn = self._db.conn
             await conn.commit()
         logger.debug("Saved %d predictions in batch", len(ids))
         return ids
@@ -459,6 +466,8 @@ class LearningMixin(RepositoryBase):
         list[Prediction]
             Predictions ordered by ``created_at`` DESC.
         """
+        if window_days < 0:
+            raise ValueError(f"window_days must be >= 0, got {window_days}")
         conn = self._db.conn
         cutoff = (datetime.now(UTC) - timedelta(days=window_days)).isoformat()
 
@@ -494,6 +503,8 @@ class LearningMixin(RepositoryBase):
         list[PredictionAccuracy]
             Accuracy statistics grouped by source.
         """
+        if window_days < 0:
+            raise ValueError(f"window_days must be >= 0, got {window_days}")
         conn = self._db.conn
         cutoff = (datetime.now(UTC) - timedelta(days=window_days)).isoformat()
 
@@ -509,15 +520,16 @@ class LearningMixin(RepositoryBase):
         results: list[PredictionAccuracy] = []
         for row in rows:
             total = int(row["total"])
-            correct = int(row["correct"])
-            accuracy = correct / total
+            raw_correct = row["correct"]
+            correct = int(raw_correct) if raw_correct is not None else 0
+            accuracy = correct / total if total > 0 else 0.0
             results.append(
                 PredictionAccuracy(
                     source=PredictionSource(str(row["source"])),
                     total=total,
                     correct=correct,
                     accuracy=accuracy,
-                    sample_sufficient=total >= 10,
+                    sample_sufficient=total >= _MIN_SAMPLE_SIZE,
                 )
             )
         return results
@@ -541,7 +553,7 @@ class LearningMixin(RepositoryBase):
             was_correct = bool(int(raw_was_correct))
 
         return Prediction(
-            id=int(row["id"]),
+            id=int(row["id"]) if row["id"] is not None else None,
             recommendation_id=(
                 int(row["recommendation_id"]) if row["recommendation_id"] is not None else None
             ),

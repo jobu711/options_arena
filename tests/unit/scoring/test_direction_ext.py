@@ -37,9 +37,7 @@ def _make_full_signals(value: float = 60.0) -> IndicatorSignals:
     """
     return IndicatorSignals(
         **{
-            f: (value if 0.0 <= value <= 1.0 else None)
-            if f in _UNIT_INTERVAL_FIELDS
-            else value
+            f: (value if 0.0 <= value <= 1.0 else None) if f in _UNIT_INTERVAL_FIELDS else value
             for f in ALL_INDICATOR_FIELDS
         }
     )

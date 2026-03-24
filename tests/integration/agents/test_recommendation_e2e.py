@@ -269,9 +269,7 @@ class TestRecommendationPersistence:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_recommendation_calls_save(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_recommendation_calls_save(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """repo.save_recommendation is called with the result."""
         from pydantic_ai.models.test import TestModel
 

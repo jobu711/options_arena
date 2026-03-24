@@ -27,9 +27,7 @@ from options_arena.models.scan import IndicatorSignals
 
 # Optional ML dependencies — tests that need the real library are marked
 _has_arch = pytest.importorskip.__module__ is not None  # always True, just a namespace trick
-_skip_no_arch = pytest.mark.skipif(
-    _get_arch() is None, reason="arch library not installed"
-)
+_skip_no_arch = pytest.mark.skipif(_get_arch() is None, reason="arch library not installed")
 _skip_no_statsmodels = pytest.mark.skipif(
     _get_adfuller() is None, reason="statsmodels library not installed"
 )

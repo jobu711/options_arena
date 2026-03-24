@@ -342,4 +342,11 @@ __all__ = [
     # Correlation
     "CorrelationMatrix",
     "PairwiseCorrelation",
+    # Attribution
+    "AttributionReport",
+    "ConditionBucketAccuracy",
+    "ContractGuidance",
+    "Prediction",
+    "PredictionAccuracy",
+    "PredictionSource",
 ]

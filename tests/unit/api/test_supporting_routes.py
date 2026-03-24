@@ -64,7 +64,6 @@ async def test_universe_stats(client: AsyncClient, mock_universe: MagicMock) -> 
     assert data["etf_count"] == 2
 
 
-
 async def test_universe_sectors(client: AsyncClient, mock_universe: MagicMock) -> None:
     """GET /api/universe/sectors returns hierarchical GICS sectors with ticker counts."""
     mock_universe.fetch_sp500_constituents = AsyncMock(

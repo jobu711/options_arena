@@ -188,9 +188,9 @@ class TestPrediction:
         with pytest.raises(ValidationError, match="UTC"):
             _make_prediction(created_at=non_utc)
 
-    def test_default_id_is_zero(self) -> None:
+    def test_default_id_is_none(self) -> None:
         p = _make_prediction()
-        assert p.id == 0
+        assert p.id is None
 
     def test_was_correct_none_default(self) -> None:
         p = _make_prediction()

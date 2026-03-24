@@ -50,7 +50,7 @@ class Prediction(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    id: int = 0
+    id: int | None = None
     recommendation_id: int | None = None
     scan_run_id: int | None = None
     ticker: str
@@ -132,6 +132,12 @@ class PredictionAccuracy(BaseModel):
             raise ValueError(f"correct must be >= 0, got {v}")
         return v
 
+    @model_validator(mode="after")
+    def _validate_correct_le_total(self) -> "PredictionAccuracy":
+        if self.correct > self.total:
+            raise ValueError(f"correct ({self.correct}) must be <= total ({self.total})")
+        return self
+
 
 class ConditionBucketAccuracy(BaseModel):
     """Accuracy for a prediction source within a condition bucket.
@@ -170,6 +176,12 @@ class ConditionBucketAccuracy(BaseModel):
             raise ValueError(f"correct must be >= 0, got {v}")
         return v
 
+    @model_validator(mode="after")
+    def _validate_correct_le_total(self) -> "ConditionBucketAccuracy":
+        if self.correct > self.total:
+            raise ValueError(f"correct ({self.correct}) must be <= total ({self.total})")
+        return self
+
 
 class ContractGuidance(BaseModel):
     """Learned optimal contract parameters from historical outcome analysis.
@@ -193,6 +205,15 @@ class ContractGuidance(BaseModel):
     def _validate_delta(cls, v: float) -> float:
         if not math.isfinite(v):
             raise ValueError(f"delta field must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"delta must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("optimal_dte_low", "optimal_dte_high")
+    @classmethod
+    def _validate_dte(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError(f"DTE must be >= 0, got {v}")
         return v
 
     @field_validator("delta_win_rate", "dte_win_rate")
@@ -210,6 +231,20 @@ class ContractGuidance(BaseModel):
         if v < 0:
             raise ValueError(f"sample_count must be >= 0, got {v}")
         return v
+
+    @model_validator(mode="after")
+    def _validate_ranges(self) -> "ContractGuidance":
+        if self.optimal_delta_low > self.optimal_delta_high:
+            raise ValueError(
+                f"optimal_delta_low ({self.optimal_delta_low}) must be "
+                f"<= optimal_delta_high ({self.optimal_delta_high})"
+            )
+        if self.optimal_dte_low > self.optimal_dte_high:
+            raise ValueError(
+                f"optimal_dte_low ({self.optimal_dte_low}) must be "
+                f"<= optimal_dte_high ({self.optimal_dte_high})"
+            )
+        return self
 
 
 class AttributionReport(BaseModel):
