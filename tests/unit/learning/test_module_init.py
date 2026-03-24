@@ -45,9 +45,13 @@ class TestPublicApiExports:
             "auto_tune_indicator_weights",
             "auto_tune_weights",
             "compute_auto_tune_weights",
+            "compute_contract_guidance",
             "compute_indicator_tune_weights",
             "decay_confidence",
+            "fetch_contract_guidance",
+            "render_contract_guidance",
             "render_learned_patterns",
+            "render_tuned_weights",
             "run_confidence_decay",
             "run_strategy_mining",
         }
