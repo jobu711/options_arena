@@ -102,7 +102,7 @@ onMounted(() => void debateStore.fetchDebate(debateId))
           <div class="thesis-verdict">
             <span class="verdict-label">Verdict</span>
             <DirectionBadge
-              :direction="debateStore.currentDebate.thesis.direction as 'bullish' | 'bearish' | 'neutral'"
+              :direction="debateStore.currentDebate.thesis.direction as 'BULLISH' | 'BEARISH' | 'NEUTRAL'"
               data-testid="thesis-direction"
             />
           </div>

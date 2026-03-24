@@ -16,9 +16,9 @@ const emit = defineEmits<{ 'update:direction': [direction: string] }>()
 
 const directionOptions = [
   { label: 'All', value: 'all' },
-  { label: 'Bullish', value: 'bullish' },
-  { label: 'Bearish', value: 'bearish' },
-  { label: 'Neutral', value: 'neutral' },
+  { label: 'Bullish', value: 'BULLISH' },
+  { label: 'Bearish', value: 'BEARISH' },
+  { label: 'Neutral', value: 'NEUTRAL' },
 ]
 
 const keyedData = computed(() =>
@@ -42,8 +42,8 @@ function formatReturnPct(val: number): string {
 }
 
 function directionSeverity(dir: string): 'success' | 'danger' | 'warn' {
-  if (dir === 'bullish') return 'success'
-  if (dir === 'bearish') return 'danger'
+  if (dir === 'BULLISH') return 'success'
+  if (dir === 'BEARISH') return 'danger'
   return 'warn'
 }
 </script>

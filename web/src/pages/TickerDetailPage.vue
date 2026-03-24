@@ -150,7 +150,7 @@ onMounted(() => {
             class="debate-row"
             @click="router.push(`/debate/${d.id}`)"
           >
-            <DirectionBadge :direction="d.direction as 'bullish' | 'bearish' | 'neutral'" />
+            <DirectionBadge :direction="d.direction as 'BULLISH' | 'BEARISH' | 'NEUTRAL'" />
             <span class="mono debate-conf">{{ formatConfidence(d.confidence) }}</span>
             <span class="debate-model">{{ d.model_name }}</span>
             <span class="debate-date">{{ formatDateShort(d.created_at) }}</span>

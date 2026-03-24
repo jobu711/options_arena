@@ -26,7 +26,7 @@ export interface DimensionalScores {
 export interface TickerScore {
   ticker: string
   composite_score: number
-  direction: 'bullish' | 'bearish' | 'neutral'
+  direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
   signals: Record<string, number | null>
   next_earnings: string | null // ISO date string "YYYY-MM-DD" or null
   scan_run_id: number
@@ -100,7 +100,7 @@ export interface RecommendedContract {
   gamma: number | null
   theta: number | null
   vega: number | null
-  direction: 'bullish' | 'bearish' | 'neutral'
+  direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
   composite_score: number
   entry_stock_price: string | null
   entry_mid: string

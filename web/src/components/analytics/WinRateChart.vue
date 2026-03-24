@@ -40,8 +40,8 @@ const bars = computed(() => {
 })
 
 function directionColor(dir: string): string {
-  if (dir === 'bullish') return 'var(--accent-green)'
-  if (dir === 'bearish') return 'var(--accent-red)'
+  if (dir === 'BULLISH') return 'var(--accent-green)'
+  if (dir === 'BEARISH') return 'var(--accent-red)'
   return 'var(--accent-yellow)'
 }
 </script>

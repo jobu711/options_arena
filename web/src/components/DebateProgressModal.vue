@@ -177,7 +177,7 @@ function closeBatch(): void {
           <template v-if="entry.result && !entry.result.error">
             <DirectionBadge
               v-if="entry.result.direction"
-              :direction="entry.result.direction as 'bullish' | 'bearish' | 'neutral'"
+              :direction="entry.result.direction as 'BULLISH' | 'BEARISH' | 'NEUTRAL'"
             />
             <ConfidenceBadge v-if="entry.result.confidence !== null" :value="entry.result.confidence" />
             <Button

@@ -252,9 +252,9 @@ const page = ref(Number(route.query.page) || 1)
 
 const directionOptions = [
   { label: 'All', value: undefined },
-  { label: 'Bullish', value: 'bullish' },
-  { label: 'Bearish', value: 'bearish' },
-  { label: 'Neutral', value: 'neutral' },
+  { label: 'Bullish', value: 'BULLISH' },
+  { label: 'Bearish', value: 'BEARISH' },
+  { label: 'Neutral', value: 'NEUTRAL' },
 ]
 
 // Sector + industry group filter state (hierarchical tree)
@@ -748,7 +748,7 @@ onUnmounted(() => {
           <SparklineChart
             v-if="sparklineData.has(data.ticker)"
             :scores="sparklineData.get(data.ticker)!"
-            :direction="(sparklineDirections.get(data.ticker) as 'bullish' | 'bearish' | 'neutral') ?? 'neutral'"
+            :direction="(sparklineDirections.get(data.ticker) as 'BULLISH' | 'BEARISH' | 'NEUTRAL') ?? 'NEUTRAL'"
           />
           <span v-else class="sparkline-empty">&mdash;</span>
         </template>

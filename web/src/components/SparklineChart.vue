@@ -3,11 +3,11 @@ import { computed } from 'vue'
 
 interface Props {
   scores: number[]
-  direction?: 'bullish' | 'bearish' | 'neutral'
+  direction?: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  direction: 'neutral',
+  direction: 'NEUTRAL',
 })
 
 const WIDTH = 80
@@ -16,9 +16,9 @@ const PADDING = 2
 
 const directionColor = computed<string>(() => {
   switch (props.direction) {
-    case 'bullish':
+    case 'BULLISH':
       return 'var(--accent-green, #22c55e)'
-    case 'bearish':
+    case 'BEARISH':
       return 'var(--accent-red, #ef4444)'
     default:
       return 'var(--accent-yellow, #eab308)'
