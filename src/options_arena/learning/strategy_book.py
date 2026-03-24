@@ -1,9 +1,10 @@
 """Strategy mining algorithms for Options Arena self-improvement.
 
 Mines historical outcome data for significant patterns across dimensional
-groupings (sector × IV bucket × DTE bucket × direction).  Significant patterns
-become ``StrategyRule`` candidates for human approval; approved rules are
-injected into desk agent prompts via ``render_learned_patterns()``.
+groupings (sector × IV bucket × DTE bucket × direction × ADX bucket × ATR%
+bucket).  Significant patterns become ``StrategyRule`` candidates for human
+approval; approved rules are injected into desk agent prompts via
+``render_learned_patterns()``.
 
 All orchestration functions follow the never-raises contract.
 """
@@ -116,6 +117,8 @@ class PatternCell(BaseModel):
     iv_bucket: str
     dte_bucket: str
     direction: str
+    adx_bucket: str = "unknown"
+    atr_bucket: str = "unknown"
     win_rate: float
     avg_return: float
     sample_size: int
@@ -199,16 +202,25 @@ def mine_patterns(outcomes: list[OutcomeWithContext]) -> list[PatternCell]:
     if not outcomes:
         return []
 
-    # Group by (sector, iv_bucket, dte_bucket, direction)
-    cells: dict[tuple[str, str, str, str], list[OutcomeWithContext]] = {}
+    # Group by (sector, iv_bucket, dte_bucket, direction, adx_bucket, atr_bucket)
+    cells: dict[tuple[str, str, str, str, str, str], list[OutcomeWithContext]] = {}
     for o in outcomes:
         iv_bucket = _classify_iv(o.iv_level)
         dte_bucket = _classify_dte(o.dte_at_entry)
-        key = (o.sector, iv_bucket, dte_bucket, o.direction)
+        adx_bucket = _classify_adx(o.adx) or "unknown"
+        atr_bucket = _classify_atr_pct(o.atr_pct) or "unknown"
+        key = (o.sector, iv_bucket, dte_bucket, o.direction, adx_bucket, atr_bucket)
         cells.setdefault(key, []).append(o)
 
     result: list[PatternCell] = []
-    for (sector, iv_bucket, dte_bucket, direction), group in cells.items():
+    for (
+        sector,
+        iv_bucket,
+        dte_bucket,
+        direction,
+        adx_bucket,
+        atr_bucket,
+    ), group in cells.items():
         n = len(group)
         if n < MIN_CELL_SAMPLES:
             continue
@@ -223,6 +235,8 @@ def mine_patterns(outcomes: list[OutcomeWithContext]) -> list[PatternCell]:
                 iv_bucket=iv_bucket,
                 dte_bucket=dte_bucket,
                 direction=direction,
+                adx_bucket=adx_bucket,
+                atr_bucket=atr_bucket,
                 win_rate=wins / n,
                 avg_return=avg_ret,
                 sample_size=n,
@@ -301,6 +315,8 @@ def generate_rules(significant_cells: list[PatternCell]) -> list[StrategyRule]:
     # Allowlists for prompt-injection defense (P1 audit finding)
     valid_sectors = {s.value for s in GICSSector} | {"Unknown"}
     valid_directions = {d.value for d in SignalDirection}
+    valid_adx_buckets = {label for _, _, label in ADX_BUCKETS}
+    valid_atr_buckets = {label for _, _, label in ATR_PCT_BUCKETS}
 
     now = datetime.now(UTC)
     rules: list[StrategyRule] = []
@@ -378,10 +394,38 @@ def generate_rules(significant_cells: list[PatternCell]) -> list[StrategyRule]:
             )
         )
 
-        pattern = (
-            f"{cell.sector} | IV {cell.iv_bucket} | DTE {cell.dte_bucket} "
-            f"| {cell.direction} -> {cell.win_rate:.0%} win rate"
-        )
+        # ADX condition — only when a real bucket was classified
+        if cell.adx_bucket != "unknown" and cell.adx_bucket in valid_adx_buckets:
+            conditions.append(
+                StrategyCondition(
+                    field="adx_bucket",
+                    operator=ConditionOperator.EQ,
+                    value=cell.adx_bucket,
+                )
+            )
+
+        # ATR% condition — only when a real bucket was classified
+        if cell.atr_bucket != "unknown" and cell.atr_bucket in valid_atr_buckets:
+            conditions.append(
+                StrategyCondition(
+                    field="atr_bucket",
+                    operator=ConditionOperator.EQ,
+                    value=cell.atr_bucket,
+                )
+            )
+
+        # Build human-readable pattern text including condition dimensions
+        parts = [
+            cell.sector,
+            f"IV:{cell.iv_bucket}",
+            f"DTE:{cell.dte_bucket}",
+            cell.direction,
+        ]
+        if cell.adx_bucket != "unknown":
+            parts.append(f"ADX:{cell.adx_bucket}")
+        if cell.atr_bucket != "unknown":
+            parts.append(f"ATR:{cell.atr_bucket}")
+        pattern = " | ".join(parts) + f" -> {cell.win_rate:.0%} win rate"
 
         rules.append(
             StrategyRule(
