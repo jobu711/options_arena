@@ -6,10 +6,9 @@
  */
 
 import type { Page } from '@playwright/test'
-import type { ScanRun, PaginatedResponse, TickerScore, HeatmapTicker } from '../../../src/types'
+import type { ScanRun, PaginatedResponse, TickerScore } from '../../../src/types'
 import type { HealthStatus } from '../../../src/types'
 import { buildAllHealthy } from '../builders/health.builders'
-import { buildHeatmapData } from '../builders/heatmap.builders'
 
 /** URL pattern: glob string or predicate function. */
 type UrlPattern = string | ((url: URL) => boolean)
@@ -25,7 +24,6 @@ export interface MockOverrides {
   universe?: { optionable_count: number; sp500_count: number }
   scanList?: ScanRun[]
   scanScores?: PaginatedResponse<TickerScore>
-  heatmapTickers?: HeatmapTicker[]
 }
 
 const DEFAULT_CONFIG = {
@@ -63,11 +61,6 @@ export async function mockAllApis(
   // Universe
   await page.route(pathMatcher('/api/universe'), route =>
     route.fulfill({ json: overrides.universe ?? DEFAULT_UNIVERSE }),
-  )
-
-  // Heatmap
-  await page.route(pathMatcher('/api/market/heatmap'), route =>
-    route.fulfill({ json: overrides.heatmapTickers ?? buildHeatmapData() }),
   )
 
   // Scan list (GET /api/scan)

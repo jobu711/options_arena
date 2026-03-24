@@ -1,17 +1,6 @@
 export type { HealthStatus } from './health'
 export type { ScanRun, TickerScore, DimensionalScores, PaginatedResponse, TickerDelta, ScanDiff, IndustryGroupInfo, SectorHierarchy, MarketRegime, FilterParams, TickerInfoResponse, RecommendedContract, PresetInfo, PreScanFilterPayload, HeatmapTicker } from './scan'
 export type {
-  DebateResultSummary,
-  DebateResult,
-  AgentResponse,
-  TradeThesis,
-  FlowThesis,
-  FundamentalThesis,
-  RiskAssessmentThesis,
-  ContrarianThesis,
-  AgentProgressEntry,
-} from './debate'
-export type {
   PipelineStage,
   Direction,
   PipelineTicker,
