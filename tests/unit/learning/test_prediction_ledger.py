@@ -1,4 +1,4 @@
-"""Tests for prediction scoring in learning/prediction_ledger.py."""
+"""Tests for prediction scoring and attribution in learning/prediction_ledger.py."""
 
 from __future__ import annotations
 
@@ -7,12 +7,19 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock
 import pytest
 
 from options_arena.learning.prediction_ledger import (
+    _classify_adx,
+    _classify_atr_pct,
+    _classify_iv_rank,
+    _classify_rsi,
     _direction_was_correct,
+    compute_attribution,
     run_prediction_scoring,
     score_predictions_for_recommendation,
     score_predictions_for_scan,
 )
+from options_arena.models.attribution import PredictionSource
 from options_arena.models.enums import SignalDirection
+from tests.factories import make_prediction
 
 # ---------------------------------------------------------------------------
 # _direction_was_correct — pure logic tests
@@ -342,3 +349,329 @@ class TestRunPredictionScoring:
 
         # Should complete without raising
         await run_prediction_scoring(repo)
+
+
+# ---------------------------------------------------------------------------
+# Condition classifiers (#766)
+# ---------------------------------------------------------------------------
+
+
+class TestClassifiers:
+    """Tests for condition bucket classifiers."""
+
+    @pytest.mark.parametrize(
+        ("adx", "expected"),
+        [
+            (0.0, "weak"),
+            (10.0, "weak"),
+            (19.9, "weak"),
+            (20.0, "moderate"),
+            (25.0, "moderate"),
+            (29.9, "moderate"),
+            (30.0, "strong"),
+            (40.0, "strong"),
+            (100.0, "strong"),
+            (None, None),
+        ],
+        ids=[
+            "adx_0_weak",
+            "adx_10_weak",
+            "adx_19.9_weak",
+            "adx_20_boundary_moderate",
+            "adx_25_moderate",
+            "adx_29.9_moderate",
+            "adx_30_boundary_strong",
+            "adx_40_strong",
+            "adx_100_last_bucket_inclusive",
+            "adx_none",
+        ],
+    )
+    def test_classify_adx(self, adx: float | None, expected: str | None) -> None:
+        assert _classify_adx(adx) == expected
+
+    @pytest.mark.parametrize(
+        ("iv_rank", "expected"),
+        [
+            (0.0, "low"),
+            (15.0, "low"),
+            (29.9, "low"),
+            (30.0, "mid"),
+            (50.0, "mid"),
+            (69.9, "mid"),
+            (70.0, "high"),
+            (85.0, "high"),
+            (100.0, "high"),
+            (None, None),
+        ],
+        ids=[
+            "iv_0_low",
+            "iv_15_low",
+            "iv_29.9_low",
+            "iv_30_boundary_mid",
+            "iv_50_mid",
+            "iv_69.9_mid",
+            "iv_70_boundary_high",
+            "iv_85_high",
+            "iv_100_last_bucket_inclusive",
+            "iv_none",
+        ],
+    )
+    def test_classify_iv_rank(self, iv_rank: float | None, expected: str | None) -> None:
+        assert _classify_iv_rank(iv_rank) == expected
+
+    @pytest.mark.parametrize(
+        ("atr_pct", "expected"),
+        [
+            (0.0, "low"),
+            (0.8, "low"),
+            (1.49, "low"),
+            (1.5, "medium"),
+            (2.0, "medium"),
+            (2.99, "medium"),
+            (3.0, "high"),
+            (5.0, "high"),
+            (100.0, "high"),
+            (None, None),
+        ],
+        ids=[
+            "atr_0_low",
+            "atr_0.8_low",
+            "atr_1.49_low",
+            "atr_1.5_boundary_medium",
+            "atr_2.0_medium",
+            "atr_2.99_medium",
+            "atr_3.0_boundary_high",
+            "atr_5.0_high",
+            "atr_100_last_bucket_inclusive",
+            "atr_none",
+        ],
+    )
+    def test_classify_atr_pct(self, atr_pct: float | None, expected: str | None) -> None:
+        assert _classify_atr_pct(atr_pct) == expected
+
+    @pytest.mark.parametrize(
+        ("rsi", "expected"),
+        [
+            (0.0, "oversold"),
+            (20.0, "oversold"),
+            (29.9, "oversold"),
+            (30.0, "neutral"),
+            (50.0, "neutral"),
+            (69.9, "neutral"),
+            (70.0, "overbought"),
+            (80.0, "overbought"),
+            (100.0, "overbought"),
+            (None, None),
+        ],
+        ids=[
+            "rsi_0_oversold",
+            "rsi_20_oversold",
+            "rsi_29.9_oversold",
+            "rsi_30_boundary_neutral",
+            "rsi_50_neutral",
+            "rsi_69.9_neutral",
+            "rsi_70_boundary_overbought",
+            "rsi_80_overbought",
+            "rsi_100_last_bucket_inclusive",
+            "rsi_none",
+        ],
+    )
+    def test_classify_rsi(self, rsi: float | None, expected: str | None) -> None:
+        assert _classify_rsi(rsi) == expected
+
+    def test_nan_returns_none(self) -> None:
+        """Non-finite values return None (excluded from bucketing)."""
+        assert _classify_adx(float("nan")) is None
+        assert _classify_iv_rank(float("inf")) is None
+        assert _classify_atr_pct(float("-inf")) is None
+        assert _classify_rsi(float("nan")) is None
+
+
+# ---------------------------------------------------------------------------
+# compute_attribution (#766)
+# ---------------------------------------------------------------------------
+
+
+class TestComputeAttribution:
+    """Tests for the top-level attribution computation."""
+
+    def test_empty_predictions(self) -> None:
+        """No predictions -> empty report, no crash."""
+        report = compute_attribution([])
+        assert report.total_recommendations == 0
+        assert report.total_outcomes == 0
+        assert report.source_accuracy == []
+        assert report.condition_accuracy == []
+        assert report.contract_guidance is None
+
+    def test_source_accuracy(self) -> None:
+        """3 correct + 1 incorrect desk_trend -> 75% accuracy."""
+        preds = [
+            make_prediction(source=PredictionSource.DESK_TREND, was_correct=True),
+            make_prediction(source=PredictionSource.DESK_TREND, was_correct=True),
+            make_prediction(source=PredictionSource.DESK_TREND, was_correct=True),
+            make_prediction(source=PredictionSource.DESK_TREND, was_correct=False),
+        ]
+        report = compute_attribution(preds)
+        assert len(report.source_accuracy) == 1
+        src = report.source_accuracy[0]
+        assert src.source == PredictionSource.DESK_TREND
+        assert src.total == 4
+        assert src.correct == 3
+        assert src.accuracy == pytest.approx(0.75)
+
+    def test_sample_sufficient_threshold(self) -> None:
+        """< 10 samples -> sample_sufficient=False; >= 10 -> True."""
+        # 5 predictions: insufficient
+        few_preds = [
+            make_prediction(source=PredictionSource.DESK_VOLATILITY, was_correct=True)
+            for _ in range(5)
+        ]
+        report_few = compute_attribution(few_preds)
+        assert len(report_few.source_accuracy) == 1
+        assert report_few.source_accuracy[0].sample_sufficient is False
+
+        # 15 predictions: sufficient
+        many_preds = [
+            make_prediction(source=PredictionSource.DESK_VOLATILITY, was_correct=True)
+            for _ in range(15)
+        ]
+        report_many = compute_attribution(many_preds)
+        assert len(report_many.source_accuracy) == 1
+        assert report_many.source_accuracy[0].sample_sufficient is True
+
+    def test_condition_bucketing(self) -> None:
+        """Predictions with ADX=25 grouped into 'adx:moderate' bucket."""
+        # Need >= MIN_CONDITION_SAMPLES (20) to appear in output
+        preds = [
+            make_prediction(
+                source=PredictionSource.DESK_TREND,
+                adx=25.0,
+                was_correct=(i % 3 != 0),  # 2/3 correct
+            )
+            for i in range(25)
+        ]
+        report = compute_attribution(preds)
+        # Find the condition entry for adx:moderate
+        adx_entries = [c for c in report.condition_accuracy if c.condition == "adx:moderate"]
+        assert len(adx_entries) == 1
+        entry = adx_entries[0]
+        assert entry.source == PredictionSource.DESK_TREND
+        assert entry.total == 25
+        # 2/3 pattern: indices 0,3,6,9,12,15,18,21,24 are False (9 false)
+        # so 16 correct out of 25
+        assert entry.correct == 16
+        assert entry.accuracy == pytest.approx(16 / 25)
+
+    def test_condition_min_samples(self) -> None:
+        """< 20 samples in condition bucket -> excluded from output."""
+        # Only 10 predictions with ADX context (below MIN_CONDITION_SAMPLES=20)
+        preds = [
+            make_prediction(
+                source=PredictionSource.DESK_TREND,
+                adx=25.0,
+                was_correct=True,
+            )
+            for _ in range(10)
+        ]
+        report = compute_attribution(preds)
+        # No condition accuracy entries because 10 < 20
+        assert report.condition_accuracy == []
+
+    def test_unscored_excluded_from_accuracy(self) -> None:
+        """was_correct=None predictions not counted in accuracy."""
+        preds = [
+            make_prediction(source=PredictionSource.DESK_FLOW, was_correct=True),
+            make_prediction(source=PredictionSource.DESK_FLOW, was_correct=False),
+            make_prediction(source=PredictionSource.DESK_FLOW, was_correct=None),
+            make_prediction(source=PredictionSource.DESK_FLOW, was_correct=None),
+        ]
+        report = compute_attribution(preds)
+        assert len(report.source_accuracy) == 1
+        src = report.source_accuracy[0]
+        assert src.total == 2  # only scored predictions
+        assert src.correct == 1
+        assert src.accuracy == pytest.approx(0.5)
+        # total_outcomes counts scored only
+        assert report.total_outcomes == 2
+
+    def test_multiple_sources(self) -> None:
+        """Different sources return separate PredictionAccuracy entries."""
+        preds = [
+            make_prediction(source=PredictionSource.DESK_TREND, was_correct=True),
+            make_prediction(source=PredictionSource.DESK_TREND, was_correct=False),
+            make_prediction(source=PredictionSource.DESK_VOLATILITY, was_correct=True),
+            make_prediction(source=PredictionSource.DESK_VOLATILITY, was_correct=True),
+            make_prediction(source=PredictionSource.DESK_VOLATILITY, was_correct=True),
+        ]
+        report = compute_attribution(preds)
+        assert len(report.source_accuracy) == 2
+        sources = {s.source: s for s in report.source_accuracy}
+
+        trend = sources[PredictionSource.DESK_TREND]
+        assert trend.total == 2
+        assert trend.correct == 1
+        assert trend.accuracy == pytest.approx(0.5)
+
+        vol = sources[PredictionSource.DESK_VOLATILITY]
+        assert vol.total == 3
+        assert vol.correct == 3
+        assert vol.accuracy == pytest.approx(1.0)
+
+    def test_all_unscored_returns_empty_accuracy(self) -> None:
+        """All predictions unscored -> empty accuracy lists."""
+        preds = [
+            make_prediction(source=PredictionSource.DESK_TREND, was_correct=None),
+            make_prediction(source=PredictionSource.DESK_FLOW, was_correct=None),
+        ]
+        report = compute_attribution(preds)
+        assert report.source_accuracy == []
+        assert report.condition_accuracy == []
+        assert report.total_outcomes == 0
+        # Recommendations still counted from full list
+        assert report.total_recommendations == 1  # all have recommendation_id=1
+
+    def test_none_context_excluded_from_dimension_only(self) -> None:
+        """None context field excluded from that dimension, not others."""
+        # adx=None, iv_rank=50 -> excluded from ADX dimension, included in IV
+        preds = [
+            make_prediction(
+                source=PredictionSource.DESK_TREND,
+                adx=None,
+                iv_rank=50.0,
+                was_correct=True,
+            )
+            for _ in range(25)
+        ]
+        report = compute_attribution(preds)
+        # Should have iv_rank:mid but no adx entries
+        conditions = {c.condition for c in report.condition_accuracy}
+        assert "iv_rank:mid" in conditions
+        assert not any(c.startswith("adx:") for c in conditions)
+
+    def test_contract_guidance_passthrough(self) -> None:
+        """contract_guidance parameter is included in report."""
+        from options_arena.models.attribution import ContractGuidance
+
+        guidance = ContractGuidance(
+            optimal_delta_low=0.25,
+            optimal_delta_high=0.45,
+            optimal_dte_low=30,
+            optimal_dte_high=60,
+            delta_win_rate=0.65,
+            dte_win_rate=0.70,
+            sample_count=100,
+        )
+        report = compute_attribution([], contract_guidance=guidance)
+        assert report.contract_guidance is guidance
+
+    def test_total_recommendations_counts_distinct(self) -> None:
+        """total_recommendations counts distinct recommendation_ids."""
+        preds = [
+            make_prediction(recommendation_id=1, was_correct=True),
+            make_prediction(recommendation_id=1, was_correct=False),
+            make_prediction(recommendation_id=2, was_correct=True),
+            make_prediction(recommendation_id=3, was_correct=None),
+        ]
+        report = compute_attribution(preds)
+        assert report.total_recommendations == 3

@@ -7,6 +7,9 @@ direction from collected contract outcomes.  Correctness rule:
   - NEUTRAL -> always incorrect (neutral predictions can't be validated)
   - stock_return_pct == 0.0 -> incorrect for all directions
 
+Attribution computation groups scored predictions by source and condition bucket
+to produce per-source and per-condition accuracy statistics.
+
 All orchestration functions follow the never-raises contract.
 """
 
@@ -14,11 +17,259 @@ from __future__ import annotations
 
 import logging
 import math
+from collections import defaultdict
 
 from options_arena.data.repository import Repository
+from options_arena.models.attribution import (
+    AttributionReport,
+    ConditionBucketAccuracy,
+    ContractGuidance,
+    Prediction,
+    PredictionAccuracy,
+    PredictionSource,
+)
 from options_arena.models.enums import SignalDirection
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Bucket constants for condition classifiers
+# ---------------------------------------------------------------------------
+
+MIN_SOURCE_SAMPLES: int = 10
+MIN_CONDITION_SAMPLES: int = 20
+
+ADX_BUCKETS: list[tuple[float, float, str]] = [
+    (0, 20, "weak"),
+    (20, 30, "moderate"),
+    (30, 100, "strong"),
+]
+IV_RANK_BUCKETS: list[tuple[float, float, str]] = [
+    (0, 30, "low"),
+    (30, 70, "mid"),
+    (70, 100, "high"),
+]
+ATR_PCT_BUCKETS: list[tuple[float, float, str]] = [
+    (0, 1.5, "low"),
+    (1.5, 3.0, "medium"),
+    (3.0, 100, "high"),
+]
+RSI_BUCKETS: list[tuple[float, float, str]] = [
+    (0, 30, "oversold"),
+    (30, 70, "neutral"),
+    (70, 100, "overbought"),
+]
+
+
+# ---------------------------------------------------------------------------
+# Condition classifiers
+# ---------------------------------------------------------------------------
+
+
+def _classify_bucket(
+    value: float | None,
+    buckets: list[tuple[float, float, str]],
+) -> str | None:
+    """Classify a value into a bucket label.
+
+    Parameters
+    ----------
+    value
+        The value to classify.  ``None`` yields ``None`` (excluded).
+    buckets
+        List of ``(low, high, label)`` tuples.  Lower bound inclusive,
+        upper bound exclusive — except the last bucket which is inclusive
+        on both ends.
+
+    Returns
+    -------
+    str | None
+        The bucket label, or ``None`` if the value is ``None`` or non-finite.
+    """
+    if value is None:
+        return None
+    if not math.isfinite(value):
+        return None
+    last_idx = len(buckets) - 1
+    for idx, (low, high, label) in enumerate(buckets):
+        if idx == last_idx:
+            # Last bucket: inclusive on both ends
+            if low <= value <= high:
+                return label
+        else:
+            if low <= value < high:
+                return label
+    return None
+
+
+def _classify_adx(adx: float | None) -> str | None:
+    """Classify ADX into weak/moderate/strong bucket."""
+    return _classify_bucket(adx, ADX_BUCKETS)
+
+
+def _classify_iv_rank(iv_rank: float | None) -> str | None:
+    """Classify IV Rank into low/mid/high bucket."""
+    return _classify_bucket(iv_rank, IV_RANK_BUCKETS)
+
+
+def _classify_atr_pct(atr_pct: float | None) -> str | None:
+    """Classify ATR% into low/medium/high bucket."""
+    return _classify_bucket(atr_pct, ATR_PCT_BUCKETS)
+
+
+def _classify_rsi(rsi: float | None) -> str | None:
+    """Classify RSI into oversold/neutral/overbought bucket."""
+    return _classify_bucket(rsi, RSI_BUCKETS)
+
+
+# ---------------------------------------------------------------------------
+# Source-level accuracy
+# ---------------------------------------------------------------------------
+
+
+def _compute_source_accuracy(predictions: list[Prediction]) -> list[PredictionAccuracy]:
+    """Group scored predictions by source, compute accuracy per source.
+
+    Parameters
+    ----------
+    predictions
+        Predictions to analyze.  Only those with ``was_correct is not None``
+        are included.
+
+    Returns
+    -------
+    list[PredictionAccuracy]
+        One entry per source that has at least one scored prediction.
+    """
+    by_source: dict[PredictionSource, list[bool]] = defaultdict(list)
+    for p in predictions:
+        if p.was_correct is not None:
+            by_source[p.source].append(p.was_correct)
+
+    result: list[PredictionAccuracy] = []
+    for source, outcomes in sorted(by_source.items(), key=lambda x: x[0].value):
+        total = len(outcomes)
+        correct = sum(outcomes)
+        accuracy = correct / total if total > 0 else 0.0
+        result.append(
+            PredictionAccuracy(
+                source=source,
+                total=total,
+                correct=correct,
+                accuracy=accuracy,
+                sample_sufficient=total >= MIN_SOURCE_SAMPLES,
+            )
+        )
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Condition-level accuracy
+# ---------------------------------------------------------------------------
+
+# Maps dimension name to (accessor attribute, classifier function)
+_CONDITION_CLASSIFIERS: list[tuple[str, str, object]] = [
+    ("adx", "adx", _classify_adx),
+    ("iv_rank", "iv_rank", _classify_iv_rank),
+    ("atr_pct", "atr_pct", _classify_atr_pct),
+    ("rsi", "rsi", _classify_rsi),
+]
+
+
+def _compute_condition_accuracy(
+    predictions: list[Prediction],
+) -> list[ConditionBucketAccuracy]:
+    """Group scored predictions by source + condition bucket, compute accuracy.
+
+    For each scored prediction, classifies all 4 dimensions (ADX, IV Rank,
+    ATR%, RSI).  Groups by ``(source, "dimension:label")`` and computes
+    accuracy.  Groups with fewer than ``MIN_CONDITION_SAMPLES`` are excluded.
+
+    Parameters
+    ----------
+    predictions
+        Predictions to analyze.  Only those with ``was_correct is not None``
+        are included.
+
+    Returns
+    -------
+    list[ConditionBucketAccuracy]
+        One entry per source+condition pair meeting the minimum sample threshold.
+    """
+    # Key: (source, condition_label) -> list of was_correct booleans
+    groups: dict[tuple[PredictionSource, str], list[bool]] = defaultdict(list)
+
+    for p in predictions:
+        if p.was_correct is None:
+            continue
+
+        for dim_name, attr_name, classifier_fn in _CONDITION_CLASSIFIERS:
+            raw_value = getattr(p, attr_name)
+            label = classifier_fn(raw_value)  # type: ignore[operator]
+            if label is not None:
+                key = (p.source, f"{dim_name}:{label}")
+                groups[key].append(p.was_correct)
+
+    result: list[ConditionBucketAccuracy] = []
+    sorted_groups = sorted(groups.items(), key=lambda x: (x[0][0].value, x[0][1]))
+    for (source, condition), outcomes in sorted_groups:
+        total = len(outcomes)
+        if total < MIN_CONDITION_SAMPLES:
+            continue
+        correct = sum(outcomes)
+        accuracy = correct / total if total > 0 else 0.0
+        result.append(
+            ConditionBucketAccuracy(
+                source=source,
+                condition=condition,
+                total=total,
+                correct=correct,
+                accuracy=accuracy,
+            )
+        )
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Top-level attribution computation (pure function, no DB access)
+# ---------------------------------------------------------------------------
+
+
+def compute_attribution(
+    predictions: list[Prediction],
+    contract_guidance: ContractGuidance | None = None,
+) -> AttributionReport:
+    """Compute attribution report from predictions.  Pure function, no DB access.
+
+    Parameters
+    ----------
+    predictions
+        Full list of predictions (scored and unscored).
+    contract_guidance
+        Optional learned contract parameters to include in the report.
+
+    Returns
+    -------
+    AttributionReport
+        Report with source accuracy, condition accuracy, and totals.
+    """
+    scored = [p for p in predictions if p.was_correct is not None]
+
+    source_accuracy = _compute_source_accuracy(predictions)
+    condition_accuracy = _compute_condition_accuracy(predictions)
+
+    # Count distinct recommendation_ids for total_recommendations
+    rec_ids = {p.recommendation_id for p in predictions if p.recommendation_id is not None}
+
+    return AttributionReport(
+        window_days=0,
+        total_recommendations=len(rec_ids),
+        total_outcomes=len(scored),
+        source_accuracy=source_accuracy,
+        condition_accuracy=condition_accuracy,
+        contract_guidance=contract_guidance,
+    )
 
 
 # ---------------------------------------------------------------------------
