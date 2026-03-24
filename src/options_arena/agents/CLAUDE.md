@@ -39,10 +39,10 @@ All desk agents:
 
 ## Synthesis Agent
 
-- **SynthesisDeps**: `context`, `assessments`, `contracts`, `ticker_score`, `learned_patterns`, `tuned_weights`, `tools_used`
+- **SynthesisDeps**: `context`, `assessments`, `contracts`, `ticker_score`, `learned_patterns`, `tuned_weights`, `contract_guidance`, `tools_used`
 - **Output**: `PositionRecommendation` (21 fields, Decimal prices, frozen)
 - **Tools**: `build_synthesis_toolset()` -- 2 lightweight tools
-- **Prompt**: `SYNTHESIS_SYSTEM_PROMPT` + `PROMPT_RULES_APPENDIX` with dynamic `<<<TUNED_WEIGHTS>>>` and `<<<LEARNED_PATTERNS>>>` injection
+- **Prompt**: `SYNTHESIS_SYSTEM_PROMPT` + `PROMPT_RULES_APPENDIX` with dynamic `<<<TUNED_WEIGHTS>>>`, `<<<LEARNED_PATTERNS>>>`, and `<<<CONTRACT_GUIDANCE>>>` injection
 
 ## Model Configuration
 

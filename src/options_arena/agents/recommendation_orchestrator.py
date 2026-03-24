@@ -522,6 +522,32 @@ async def _run_recommendation_pipeline(
     except (OSError, ValueError, KeyError, TypeError, sqlite3.Error, ImportError):
         logger.warning("Failed to fetch learned patterns — proceeding without them")
 
+    # Fetch contract guidance (never-raises)
+    contract_guidance_text = ""
+    try:
+        from options_arena.learning.contract_guidance import (
+            fetch_contract_guidance,
+            render_contract_guidance,
+        )
+
+        guidance = await fetch_contract_guidance(repo)
+        if guidance:
+            contract_guidance_text = render_contract_guidance(guidance)
+    except (OSError, ValueError, KeyError, TypeError, sqlite3.Error, ImportError):
+        logger.warning("Failed to fetch contract guidance — proceeding without it")
+
+    # Fetch tuned weights (never-raises)
+    tuned_weights_text = ""
+    try:
+        from options_arena.learning.weight_tuner import auto_tune_weights, render_tuned_weights
+
+        tune_result = await auto_tune_weights(repo, dry_run=True)
+        if tune_result:
+            current_weights = {r.agent_name: r.auto_weight for r in tune_result}
+            tuned_weights_text = render_tuned_weights(current_weights)
+    except (OSError, ValueError, KeyError, TypeError, sqlite3.Error, ImportError):
+        logger.warning("Failed to fetch tuned weights — proceeding without them")
+
     # Build a fresh DeskDeps per desk agent to avoid shared mutable state
     # (each agent appends to tools_used concurrently).
     def _make_desk_deps() -> DeskDeps:
@@ -643,6 +669,8 @@ async def _run_recommendation_pipeline(
         contracts=list(contracts),
         ticker_score=ticker_score,
         learned_patterns=learned_patterns,
+        tuned_weights=tuned_weights_text,
+        contract_guidance=contract_guidance_text,
     )
 
     # Synthesis model: PREMIUM when routing enabled, else default

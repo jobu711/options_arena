@@ -42,6 +42,7 @@ class SynthesisDeps:
     ticker_score: TickerScore
     learned_patterns: str = ""
     tuned_weights: str = ""
+    contract_guidance: str = ""
     tools_used: list[str] = field(default_factory=list)
 
 
@@ -62,6 +63,8 @@ async def _synthesis_system_prompt(ctx: RunContext[SynthesisDeps]) -> str:
         base += f"\n\n<<<TUNED_WEIGHTS>>>\n{ctx.deps.tuned_weights}\n<<<END_TUNED_WEIGHTS>>>"
     if ctx.deps.learned_patterns:
         base += f"\n\n{ctx.deps.learned_patterns}"
+    if ctx.deps.contract_guidance:
+        base += f"\n\n{ctx.deps.contract_guidance}"
     return base
 
 
