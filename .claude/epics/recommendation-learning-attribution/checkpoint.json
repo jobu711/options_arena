@@ -1,13 +1,13 @@
 {
   "epic": "recommendation-learning-attribution",
-  "phase": "synced",
-  "last_command": "/pm:epic-sync recommendation-learning-attribution",
-  "last_updated": "2026-03-24T00:52:00Z",
-  "completed_phases": ["prd-created", "planning", "decomposition", "synced"],
+  "phase": "executing",
+  "last_command": "/pm:epic-start recommendation-learning-attribution",
+  "last_updated": "2026-03-23T12:30:00Z",
+  "completed_phases": ["prd-created", "planning", "decomposition", "synced", "executing"],
   "parent_epic": "recommendation-learning",
   "current_task": null,
-  "tasks_completed": [],
+  "tasks_completed": ["765", "767", "766", "768", "769", "770", "771"],
   "tasks_in_progress": [],
   "blockers": [],
-  "notes": "Epic #764 with 7 sub-issues (#765-#771). Tasks 765+767+769 parallel, then 766->770, 767->768, all->771."
+  "notes": "All 7 tasks complete. 139 tests pass. Ready for /pm:epic-verify."
 }
