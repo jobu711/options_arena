@@ -865,18 +865,19 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `LearningMixin` | class | `(RepositoryBase)` | 33 | CRUD operations for strategy rules and predictions. |
-| `.save_strategy_rule` | async method | `(rule: StrategyRule, *, commit: bool = True) -> None` | 62 | Persist a strategy rule (upsert by rule_id). |
-| `.get_strategy_rules` | async method | `(status: RuleStatus \| None = None, limit: int \| None = None) -> list[StrategyRule]` | 106 | Retrieve strategy rules, optionally filtered by status. |
-| `.update_rule_status` | async method | `(rule_id: str, status: RuleStatus, *, commit: bool = True) -> bool` | 147 | Update the status of a strategy rule. |
-| `.update_rule_confidence` | async method | `(rule_id: str, confidence: float, last_validated: datetime \| None, validation_count: int, *, comm...` | 182 | Update confidence, last_validated, and validation_count for a rule. |
-| `.update_rule_status_and_confidence` | async method | `(rule_id: str, status: RuleStatus, confidence: float, *, commit: bool = True) -> bool` | 237 | Atomically update both status and confidence for a rule. |
-| `.save_prediction` | async method | `(prediction: Prediction, *, commit: bool = True) -> int` | 286 | Persist a single prediction. |
-| `.save_predictions_batch` | async method | `(predictions: list[Prediction], *, commit: bool = True) -> list[int]` | 333 | Persist multiple predictions in a single transaction. |
-| `.score_predictions` | async method | `(recommendation_id: int, was_correct: bool, *, commit: bool = True) -> int` | 369 | Score all predictions for a recommendation. |
-| `.score_scan_predictions` | async method | `(scan_run_id: int, ticker: str, was_correct: bool, *, commit: bool = True) -> int` | 408 | Score predictions for a scan run + ticker. |
-| `.get_predictions` | async method | `(window_days: int, source: PredictionSource \| None = None) -> list[Prediction]` | 450 | Retrieve predictions within a time window. |
-| `.get_prediction_accuracy` | async method | `(window_days: int) -> list[PredictionAccuracy]` | 490 | Compute per-source accuracy statistics over a time window. |
+| `LearningMixin` | class | `(RepositoryBase)` | 36 | CRUD operations for strategy rules and predictions. |
+| `.save_strategy_rule` | async method | `(rule: StrategyRule, *, commit: bool = True) -> None` | 65 | Persist a strategy rule (upsert by rule_id). |
+| `.get_strategy_rules` | async method | `(status: RuleStatus \| None = None, limit: int \| None = None) -> list[StrategyRule]` | 109 | Retrieve strategy rules, optionally filtered by status. |
+| `.update_rule_status` | async method | `(rule_id: str, status: RuleStatus, *, commit: bool = True) -> bool` | 150 | Update the status of a strategy rule. |
+| `.update_rule_confidence` | async method | `(rule_id: str, confidence: float, last_validated: datetime \| None, validation_count: int, *, comm...` | 185 | Update confidence, last_validated, and validation_count for a rule. |
+| `.update_rule_status_and_confidence` | async method | `(rule_id: str, status: RuleStatus, confidence: float, *, commit: bool = True) -> bool` | 240 | Atomically update both status and confidence for a rule. |
+| `.get_prediction_accuracy` | async method | `(window_days: int \| None = None) -> list[PredictionAccuracy]` | 285 | Per-source accuracy from the ``predictions`` table. |
+| `.save_prediction` | async method | `(prediction: Prediction, *, commit: bool = True) -> int` | 350 | Persist a single prediction. |
+| `.save_predictions_batch` | async method | `(predictions: list[Prediction], *, commit: bool = True) -> list[int]` | 397 | Persist multiple predictions in a single transaction. |
+| `.score_predictions` | async method | `(recommendation_id: int, was_correct: bool, *, commit: bool = True) -> int` | 433 | Score all predictions for a recommendation. |
+| `.score_scan_predictions` | async method | `(scan_run_id: int, ticker: str, was_correct: bool, *, commit: bool = True) -> int` | 472 | Score predictions for a scan run + ticker. |
+| `.get_predictions` | async method | `(window_days: int, source: PredictionSource \| None = None) -> list[Prediction]` | 514 | Retrieve predictions within a time window. |
+| `.get_prediction_accuracy` | async method | `(window_days: int) -> list[PredictionAccuracy]` | 554 | Compute per-source accuracy statistics over a time window. |
 
 #### data/_metadata.py
 
@@ -1140,7 +1141,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `run_recommendation` | async func | `(ticker: str, ticker_score: TickerScore, contracts: list[OptionContract], quote: Quote, ticker_in...` | 382 | Run the 4-phase recommendation pipeline — never raises. |
+| `run_recommendation` | async func | `(ticker: str, ticker_score: TickerScore, contracts: list[OptionContract], quote: Quote, ticker_in...` | 383 | Run the 4-phase recommendation pipeline — never raises. |
 
 #### agents/research_desk.py
 
@@ -1160,7 +1161,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
 | `SynthesisDeps` | dataclass |  | 36 | Dependencies injected into the synthesis agent via RunContext. |
-| `run_synthesis` | async func | `(deps: SynthesisDeps, model: Model \| None, model_settings: ModelSettings \| None = None, timeout: ...` | 219 | Run synthesis agent -- never raises, returns fallback on failure. |
+| `run_synthesis` | async func | `(deps: SynthesisDeps, model: Model \| None, model_settings: ModelSettings \| None = None, timeout: ...` | 222 | Run synthesis agent -- never raises, returns fallback on failure. |
 
 #### agents/trend_desk.py
 
@@ -1196,10 +1197,10 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `UniverseResult` | model |  | 34 | Phase 1 output: universe tickers + OHLCV data. |
-| `ScoringResult` | model |  | 59 | Phase 2 output: scored tickers + raw signals. |
-| `OptionsResult` | model |  | 80 | Phase 3 output: recommended contracts + risk-free rate. |
-| `ScanResult` | model |  | 116 | Final pipeline output combining all phases. |
+| `UniverseResult` | model |  | 35 | Phase 1 output: universe tickers + OHLCV data. |
+| `ScoringResult` | model |  | 60 | Phase 2 output: scored tickers + raw signals. |
+| `OptionsResult` | model |  | 82 | Phase 3 output: recommended contracts + risk-free rate. |
+| `ScanResult` | model |  | 118 | Final pipeline output combining all phases. |
 
 #### scan/phase_options.py
 
@@ -1218,7 +1219,7 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `run_scoring_phase` | async func | `(universe_result: UniverseResult, progress: ProgressCallback, *, scan_config: ScanConfig, compute...` | 50 | Phase 2: Compute indicators, score universe, determine direction. |
+| `run_scoring_phase` | async func | `(universe_result: UniverseResult, progress: ProgressCallback, *, scan_config: ScanConfig, compute...` | 52 | Phase 2: Compute indicators, score universe, determine direction. |
 
 #### scan/phase_universe.py
 
@@ -1291,18 +1292,19 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `get_win_rate` | async func | `(request: Request, repo: Repository = Depends(get_repo)) -> list[WinRateResult]` | 42 | Get win rate by signal direction. |
-| `get_score_calibration` | async func | `(request: Request, bucket_size: float = ..., repo: Repository = Depends(get_repo)) -> list[ScoreC...` | 52 | Get score calibration buckets — return by composite score range. |
-| `get_holding_period` | async func | `(request: Request, direction: SignalDirection \| None = Query(default=None), repo: Repository = De...` | 63 | Get holding period analysis — return statistics by holding period. |
-| `get_delta_performance` | async func | `(request: Request, bucket_size: float = ..., holding_days: int = ..., repo: Repository = Depends(...` | 74 | Get delta performance — return statistics by delta bucket. |
-| `get_summary` | async func | `(request: Request, lookback_days: int = ..., repo: Repository = Depends(get_repo)) -> Performance...` | 86 | Get aggregate performance summary over a lookback period. |
-| `collect_outcomes` | async func | `(request: Request, holding_days: int \| None = ..., collector: OutcomeCollector = ..., lock: async...` | 97 | Trigger outcome collection. |
-| `get_ticker_contracts` | async func | `(request: Request, ticker: str = Path(), limit: int = ..., repo: Repository = Depends(get_repo)) ...` | 122 | Get recommended contracts for a specific ticker. |
-| `get_agent_accuracy` | async func | `(request: Request, window: int \| None = ..., repo: Repository = Depends(get_repo)) -> list[AgentA...` | 137 | Get per-agent direction accuracy and Brier scores. |
-| `get_agent_calibration` | async func | `(request: Request, agent: str \| None = Query(default=None), repo: Repository = Depends(get_repo))...` | 148 | Get confidence calibration buckets for agents. |
-| `get_agent_weights` | async func | `(request: Request, repo: Repository = Depends(get_repo)) -> list[AgentWeightsComparison]` | 159 | Get manual vs auto-tuned weight comparison. |
-| `trigger_auto_tune` | async func | `(request: Request, repo: Repository = Depends(get_repo), lock: asyncio.Lock = ..., window: int = ...` | 169 | Trigger auto-tune weight computation. |
-| `get_weight_history` | async func | `(request: Request, repo: Repository = Depends(get_repo), limit: int = ...) -> list[WeightSnapshot]` | 194 | Retrieve historical auto-tune weight snapshots, newest first. |
+| `get_win_rate` | async func | `(request: Request, repo: Repository = Depends(get_repo)) -> list[WinRateResult]` | 45 | Get win rate by signal direction. |
+| `get_score_calibration` | async func | `(request: Request, bucket_size: float = ..., repo: Repository = Depends(get_repo)) -> list[ScoreC...` | 55 | Get score calibration buckets — return by composite score range. |
+| `get_holding_period` | async func | `(request: Request, direction: SignalDirection \| None = Query(default=None), repo: Repository = De...` | 66 | Get holding period analysis — return statistics by holding period. |
+| `get_delta_performance` | async func | `(request: Request, bucket_size: float = ..., holding_days: int = ..., repo: Repository = Depends(...` | 77 | Get delta performance — return statistics by delta bucket. |
+| `get_summary` | async func | `(request: Request, lookback_days: int = ..., repo: Repository = Depends(get_repo)) -> Performance...` | 89 | Get aggregate performance summary over a lookback period. |
+| `collect_outcomes` | async func | `(request: Request, holding_days: int \| None = ..., collector: OutcomeCollector = ..., lock: async...` | 100 | Trigger outcome collection. |
+| `get_ticker_contracts` | async func | `(request: Request, ticker: str = Path(), limit: int = ..., repo: Repository = Depends(get_repo)) ...` | 125 | Get recommended contracts for a specific ticker. |
+| `get_attribution` | async func | `(request: Request, window_days: int = ..., source: PredictionSource \| None = Query(default=None),...` | 140 | Get prediction attribution report. |
+| `get_agent_accuracy` | async func | `(request: Request, window: int \| None = ..., repo: Repository = Depends(get_repo)) -> list[AgentA...` | 153 | Get per-agent direction accuracy and Brier scores. |
+| `get_agent_calibration` | async func | `(request: Request, agent: str \| None = Query(default=None), repo: Repository = Depends(get_repo))...` | 164 | Get confidence calibration buckets for agents. |
+| `get_agent_weights` | async func | `(request: Request, repo: Repository = Depends(get_repo)) -> list[AgentWeightsComparison]` | 175 | Get manual vs auto-tuned weight comparison. |
+| `trigger_auto_tune` | async func | `(request: Request, repo: Repository = Depends(get_repo), lock: asyncio.Lock = ..., window: int = ...` | 185 | Trigger auto-tune weight computation. |
+| `get_weight_history` | async func | `(request: Request, repo: Repository = Depends(get_repo), limit: int = ...) -> list[WeightSnapshot]` | 210 | Retrieve historical auto-tune weight snapshots, newest first. |
 
 #### api/routes/backtest.py
 
@@ -1451,7 +1453,8 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 | `learn_weights` | func | `(window: int = ..., apply: bool = ...) -> None` | 314 | Compute indicator weight tuning and show comparison table. |
 | `learn_mine` | func | `() -> None` | 381 | Mine historical outcomes for strategy patterns. |
 | `learn_playbook` | func | `(status: str \| None = ...) -> None` | 434 | List strategy rules in the playbook. |
-| `learn_decay` | func | `() -> None` | 514 | Apply confidence decay and auto-promote/demote strategy rules. |
+| `learn_attribution` | func | `(window_days: int = ..., source: str \| None = ...) -> None` | 514 | Show prediction accuracy by source and market condition. |
+| `learn_decay` | func | `() -> None` | 614 | Apply confidence decay and auto-promote/demote strategy rules. |
 
 #### cli/app.py
 
@@ -1488,16 +1491,16 @@ Modules ordered by dependency depth (leaf modules first, entry points last).
 
 | Symbol | Kind | Signature | Line | Description |
 |--------|------|-----------|------|-------------|
-| `outcomes_collect` | func | `(holding_days: int \| None = ...) -> None` | 46 | Collect outcomes for recommended contracts. |
-| `outcomes_summary` | func | `(lookback_days: int = ...) -> None` | 173 | Show performance summary. |
-| `agent_accuracy_cmd` | func | `(window: int \| None = ...) -> None` | 263 | Show per-agent direction accuracy and Brier scores. |
-| `calibration_cmd` | func | `(agent: str \| None = ...) -> None` | 319 | Show confidence calibration buckets. |
-| `agent_weights_cmd` | func | `() -> None` | 375 | Show manual vs auto-tuned weight comparison. |
-| `auto_tune_cmd` | func | `(dry_run: bool = ..., window: int = ...) -> None` | 437 | Compute auto-tuned agent vote weights from outcome accuracy data. |
-| `backtest` | func | `(holding_days: Annotated[int, typer.Option(help='Fil... = 20) -> None` | 525 | Show backtesting performance summary. |
-| `equity_curve` | func | `(direction: Annotated[str \| None, typer.Option(he... = None, period: Annotated[int \| None, typer....` | 620 | Show cumulative equity curve. |
-| `risk_metrics_cmd` | func | `(lookback_days: int = ...) -> None` | 698 | Show risk-adjusted performance metrics (Sharpe, Sortino, max drawdown). |
-| `correlation_cmd` | func | `(tickers: Annotated[str \| None, typer.Option('-... = None) -> None` | 778 | Show pairwise correlation matrix for specified tickers. |
+| `outcomes_collect` | func | `(holding_days: int \| None = ...) -> None` | 47 | Collect outcomes for recommended contracts. |
+| `outcomes_summary` | func | `(lookback_days: int = ...) -> None` | 180 | Show performance summary. |
+| `agent_accuracy_cmd` | func | `(window: int \| None = ...) -> None` | 270 | Show per-agent direction accuracy and Brier scores. |
+| `calibration_cmd` | func | `(agent: str \| None = ...) -> None` | 326 | Show confidence calibration buckets. |
+| `agent_weights_cmd` | func | `() -> None` | 382 | Show manual vs auto-tuned weight comparison. |
+| `auto_tune_cmd` | func | `(dry_run: bool = ..., window: int = ...) -> None` | 461 | Compute auto-tuned agent vote weights from outcome accuracy data. |
+| `backtest` | func | `(holding_days: Annotated[int, typer.Option(help='Fil... = 20) -> None` | 567 | Show backtesting performance summary. |
+| `equity_curve` | func | `(direction: Annotated[str \| None, typer.Option(he... = None, period: Annotated[int \| None, typer....` | 662 | Show cumulative equity curve. |
+| `risk_metrics_cmd` | func | `(lookback_days: int = ...) -> None` | 740 | Show risk-adjusted performance metrics (Sharpe, Sortino, max drawdown). |
+| `correlation_cmd` | func | `(tickers: Annotated[str \| None, typer.Option('-... = None) -> None` | 820 | Show pairwise correlation matrix for specified tickers. |
 
 #### cli/progress.py
 
@@ -1998,10 +2001,10 @@ Each row maps a source file to its test files and approximate test count.
 | pricing/ | 8 | 25 | 7 | 244 |
 | services/ | 12 | 107 | 12 | 352 |
 | scoring/ | 6 | 29 | 6 | 227 |
-| data/ | 11 | 82 | 2 | 46 |
+| data/ | 11 | 83 | 2 | 46 |
 | agents/ | 30 | 85 | 15 | 370 |
 | scan/ | 8 | 23 | 3 | 82 |
 | reporting/ | 1 | 2 | 1 | 7 |
-| api/ | 15 | 104 | 12 | 132 |
-| cli/ | 7 | 40 | 3 | 24 |
-| **Total** | **140** | **754** | **94** | **2648** |
+| api/ | 15 | 105 | 12 | 132 |
+| cli/ | 7 | 41 | 3 | 24 |
+| **Total** | **140** | **757** | **94** | **2648** |
