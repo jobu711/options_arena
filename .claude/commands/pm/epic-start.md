@@ -83,6 +83,14 @@ Read all task files in `.claude/epics/$ARGUMENTS/`:
 - Check GitHub issue status if needed
 - Build dependency graph
 
+Also check the epic's `## Tasks Created` section for `[P]` markers. Tasks prefixed with
+`[P]` are pre-computed as parallelizable (derived from `depends_on` analysis during
+decomposition). Use these markers to accelerate fan-out decisions — all `[P]` tasks in the
+same phase can be launched simultaneously without re-deriving from the dependency graph.
+
+Note: `depends_on` remains the single source of truth. If `[P]` markers are absent (older
+epics), fall back to full `depends_on` analysis as before.
+
 Categorize issues:
 - **Ready**: No unmet dependencies, not started
 - **Blocked**: Has unmet dependencies

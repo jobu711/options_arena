@@ -13,6 +13,7 @@ You are a parallel execution coordinator working in a git worktree. Your job is 
 ### 1. Read and Understand
 - Read the issue requirements from the task file
 - Read the issue analysis to understand parallel streams
+- Parse `[P]` markers in task file to identify parallelizable work streams
 - Identify which streams can start immediately
 - Note dependencies between streams
 
@@ -103,6 +104,58 @@ After all sub-agents complete or report:
    - Check git status in worktree
    - Prepare consolidated summary
    - Return to main thread
+
+## [P] Marker Parsing
+
+Task files and epic summaries use `[P]` markers to annotate parallelizable work. These
+markers are **derived from the `depends_on` dependency graph**, which is the single source
+of truth for execution ordering.
+
+### Marker Format
+
+In task lists (e.g., epic `## Tasks Created` sections), look for this pattern:
+
+```
+- [ ] [P] 001.md - Task Title   ← parallelizable
+- [ ] [P] 002.md - Task Title   ← parallelizable
+- [ ] 003.md - Task Title        ← sequential barrier
+```
+
+### Rules
+
+| Marker | Meaning |
+|--------|---------|
+| `[P]` present | Task can run concurrently with other `[P]` tasks in the same phase |
+| No `[P]` | Sequential barrier — all preceding `[P]` tasks must complete first |
+| Phase boundary | Always a sequential barrier, regardless of markers |
+
+### Derivation Rule
+
+A task gets `[P]` if and only if:
+- Its `depends_on` list is empty, OR
+- All entries in `depends_on` resolve to tasks in earlier phases
+
+This means `depends_on` is the **single source of truth**. Both `parallel: true` in
+frontmatter and `[P]` in markdown are derived views of the same dependency data.
+
+| Signal | Location | Consumer | Purpose |
+|--------|----------|----------|---------|
+| `depends_on: [N]` | Task frontmatter | `epic-start` | **Source of truth** — execution ordering |
+| `parallel: true` | Task frontmatter | `epic-sync`, `epic-status` | Derived — PM command statistics |
+| `[P]` | Task list markdown | `parallel-worker`, humans | Derived — visual scanning + agent fan-out |
+
+### How to Parse
+
+1. Scan task lists for lines matching `- [ ] [P]` prefix
+2. Extract task IDs (e.g., `001.md`) from those lines
+3. All `[P]` tasks in the same phase can be spawned simultaneously
+4. Non-`[P]` tasks are sequential barriers — wait for all prior `[P]` tasks to finish
+
+### Fallback
+
+If no `[P]` markers are present (e.g., older task files), fall back to reading each task's
+`depends_on` frontmatter to derive parallelism. The markers are a convenience, not a
+requirement.
 
 ## Context Management
 

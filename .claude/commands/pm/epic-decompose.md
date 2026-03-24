@@ -56,7 +56,42 @@ You are decomposing an epic into specific, actionable tasks for: **$ARGUMENTS**
 - Understand the technical approach and requirements
 - Review the task breakdown preview
 
-### 1b. Read Test Conventions
+### 1b. NEEDS CLARIFICATION Scan
+
+Before proceeding to task creation, scan the epic for unresolved design questions:
+
+```bash
+# Scan epic for unresolved markers
+grep -n "NEEDS CLARIFICATION" .claude/epics/$ARGUMENTS/epic.md
+```
+
+If markers are found, display them:
+
+```
+Scanning epic for unresolved questions...
+Found {N} unresolved NEEDS CLARIFICATION markers:
+
+  1. [NEEDS CLARIFICATION: {question}]
+     Location: line {N}
+  2. [NEEDS CLARIFICATION: {question}]
+     Location: line {N}
+
+{N} unresolved questions found. Options:
+  - Proceed anyway (questions documented but unresolved)
+  - Resolve now (provide answers inline)
+  - Stop and edit the epic first
+```
+
+This is a **soft gate** — the user can override and proceed. If no markers found, continue silently.
+
+#### Convention Reference
+
+- **Marker format**: `[NEEDS CLARIFICATION: {specific question}]`
+- **Resolution format**: Replace marker with answer + `<!-- Resolved DATE: reason -->` annotation
+- **Valid locations**: `.claude/prds/*.md` and `.claude/epics/*/*.md` only (not Python code)
+- **Gate type**: Soft gate — user can always override
+
+### 1c. Read Test Conventions
 - Load `tests/CLAUDE.md` to understand project test conventions
 - Note: pytest patterns, fixture usage, tolerance values, mocking strategies
 - If `.claude/epics/$ARGUMENTS/research.md` exists, also read its Test Strategy Preview section
@@ -256,11 +291,17 @@ When creating tasks with dependencies:
 - If dependency issues found, warn but continue: "⚠️ Task dependency warning: {details}"
 
 ### 9. Update Epic with Task Summary
-After creating all tasks, update the epic file by adding this section:
+After creating all tasks, update the epic file by adding this section.
+
+Use `[P]` markers to annotate parallelizable tasks. A task gets `[P]` if and only if its
+`depends_on` entries all resolve to earlier phases or it has no dependencies. `depends_on`
+is the single source of truth — `[P]` is a derived visual signal for humans and agents.
+
 ```markdown
 ## Tasks Created
-- [ ] 001.md - {Task Title} (parallel: true/false)
-- [ ] 002.md - {Task Title} (parallel: true/false)
+- [ ] [P] 001.md - {Task Title} (parallel: true)
+- [ ] [P] 002.md - {Task Title} (parallel: true)
+- [ ] 003.md - {Task Title} (parallel: false, depends on 001)
 - etc.
 
 Total tasks: {count}
@@ -268,6 +309,9 @@ Parallel tasks: {parallel_count}
 Sequential tasks: {sequential_count}
 Estimated total effort: {sum of hours}
 ```
+
+**Derivation rule**: Scan each task's `depends_on` list. If empty or all dependencies are
+in earlier phases, prefix the line with `[P]`. Otherwise, omit `[P]` (sequential barrier).
 
 Also add a Test Coverage Plan summary to the epic:
 ```markdown
@@ -294,6 +338,7 @@ Before finalizing tasks, verify:
 - [ ] Every task has an Action section with numbered steps (WHAT + WHY)
 - [ ] Every task has a Verify section with runnable commands
 - [ ] Every task has a Done section with measurable criteria
+- [ ] No unresolved `[NEEDS CLARIFICATION: ...]` markers remain in task descriptions
 
 ### 10. Write Checkpoint (best-effort)
 
