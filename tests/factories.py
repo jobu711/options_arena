@@ -25,6 +25,7 @@ from options_arena.models.analysis import (
     MarketContext,
     TradeThesis,
 )
+from options_arena.models.attribution import Prediction, PredictionSource
 from options_arena.models.enums import (
     DeskType,
     ExerciseStyle,
@@ -417,3 +418,21 @@ def make_recommendation_result(
     }
     defaults.update(kw)
     return RecommendationResult(**defaults)
+
+
+def make_prediction(**kw: object) -> Prediction:
+    """Create a test ``Prediction`` with sensible defaults.
+
+    Defaults produce a valid bullish trend-desk prediction for AAPL
+    with recommendation_id=1.
+    """
+    defaults: dict[str, object] = {
+        "ticker": "AAPL",
+        "source": PredictionSource.DESK_TREND,
+        "predicted_direction": SignalDirection.BULLISH,
+        "confidence": 0.75,
+        "recommendation_id": 1,
+        "created_at": datetime.now(UTC),
+    }
+    defaults.update(kw)
+    return Prediction(**defaults)
