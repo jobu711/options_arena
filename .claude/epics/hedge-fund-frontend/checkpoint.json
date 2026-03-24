@@ -1,0 +1,12 @@
+{
+  "epic": "hedge-fund-frontend",
+  "phase": "synced",
+  "last_command": "/pm:epic-sync hedge-fund-frontend",
+  "last_updated": "2026-03-24T13:48:00Z",
+  "completed_phases": ["prd-created", "research", "planning", "decomposition", "synced"],
+  "current_task": null,
+  "tasks_completed": [],
+  "tasks_in_progress": [],
+  "blockers": [],
+  "notes": "Epic #792 with 10 sub-issues (#793-#802) synced to jobu711/options_arena. Files renamed to issue numbers. depends_on references updated."
+}
