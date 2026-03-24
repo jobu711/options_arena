@@ -42,12 +42,20 @@ options analysis on U.S. equities. Also researchers exploring multi-agent AI sys
 - **Agency**: Ask (single query), chat (conversation)
 - **Config**: Routing config, model tiers
 - *Removed*: 14 dead API endpoints (indicator-attribution, risk-metrics, correlation, recommendation-costs, all learning/*, all eval/*, 3 universe admin endpoints) — CLI equivalents retained
-- **WebSocket**: `WS /ws/scan/{id}` (4-phase progress), `WS /ws/debate/{id}` (agent steps)
+- **WebSocket**: `WS /ws/scan/{id}` (4-phase progress), `WS /ws/debate/{id}` (agent steps), `WS /ws/batch/{id}` (batch progress)
 - **Operation mutex**: One scan or batch at a time (409 if busy)
 
 ## Web UI
 
-Vue 3 SPA (TypeScript, Pinia, PrimeVue Aura dark theme). Pages: Dashboard, Scan (list + detail), Debate result, Universe, Health, Watchlist, Analytics (5 tabs), Desks, Agency Chat. Vite dev mode (:5173) proxies to FastAPI (:8000). Production: FastAPI serves `web/dist/`.
+Vue 3 SPA (TypeScript, Pinia, PrimeVue Aura dark theme). Single-screen "AI hedge fund trading desk" command center.
+
+- **Trading Desk** (`/`): Masonry CSS Grid with collapsible DeskCard panels. Scan control bar (preset, filters, run/cancel), opportunity pipeline table (sortable, multi-select, virtual scroll), scan progress card, market heatmap + regime banner. Click "Analyze" on any scored ticker → 6 desk assessment cards + agent consensus + position detail with entry/stop/target/R:R.
+- **Analytics** (`/analytics`): Attribution panel (source accuracy, condition buckets, contract guidance), performance summary, win rate, equity curve, and existing analytics components in DeskCard grid.
+- **Settings** (`/settings`): Placeholder (V2).
+
+3 WebSocket connections (scan progress, debate progress, batch progress) with completion poll safety nets. Pipeline state machine: `idle → scanning → scanned`. Per-ticker stage tracking: `queued → scored → analyzing → ready/failed`.
+
+Vite dev mode (:5173) proxies to FastAPI (:8000). Production: FastAPI serves `web/dist/`.
 
 ## Constraints
 

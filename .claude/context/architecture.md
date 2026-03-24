@@ -180,6 +180,18 @@ For algorithm details, see `algorithms.md`. For product context, see `product.md
 ### api/
 - Services on `app.state`, never per-request
 - WebSocket: `queue.put_nowait()` (sync callback), cleanup queues to prevent leaks
+- Scan ID: `POST /api/scan` returns in-memory counter ID; `GET /api/scan/{id}/scores` uses DB row ID — these are DIFFERENT ID systems
+- WS `complete` event sends DB ID via `bridge.complete(actual_id)`, not the counter ID
+
+### web/ (Vue 3 SPA)
+- Single-screen trading desk: scan → analyze → view recommendation on one page
+- 3 routes: `/` (TradingDeskPage), `/analytics` (AnalyticsPage), `/settings` (stub)
+- `stores/pipeline.ts`: state machine `idle → scanning → scanned`, per-ticker stage tracking
+- `scanId` (counter, for WS) vs `dbScanId` (database, for REST) — separate refs
+- Completion polls (5s interval on `/api/status`) as WS safety net for scan and debate
+- `onScanProgress` only transitions `idle → scanning`, never reverts `scanned → scanning`
+- All prices as TypeScript `string`, formatted via `Intl.NumberFormat`, never `parseFloat`
+- Direction enums UPPERCASE (`'BULLISH'|'BEARISH'|'NEUTRAL'`) matching backend wire format
 
 ### cli/
 - Close ALL services in `finally` -- leaked connections = leaked TCP handles

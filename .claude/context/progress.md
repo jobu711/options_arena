@@ -2,28 +2,35 @@
 
 ## Current State
 
-- **Version**: 3.0.0 — dead-code-cleanup complete (2026-03-23)
-- **All 9 phases + 42 epics + 4 cleanup epics**: Complete and merged to master
-- **Tests**: ~350 files, 16.6K+ passing (27K parametrized + 107 E2E)
+- **Version**: 3.0.0 — hedge-fund-frontend complete (2026-03-24)
+- **All 9 phases + 43 epics + 4 cleanup epics**: Complete and merged to master
+- **Tests**: ~370 files, 16.6K+ passing (27K parametrized + 107 E2E + 89 frontend)
 - **CI**: GitHub Actions (lint, typecheck, tests, frontend)
 - **Stack**: Typer CLI + FastAPI/Vue 3 SPA + SQLite (WAL) + Groq/Anthropic AI
 - **Recommendation system**: 6 desk agents -> synthesis -> `PositionRecommendation` (sole analysis path)
+- **Frontend**: Single-screen trading desk with masonry grid, real-time WS pipeline, 12 new components
 - **AI Agency**: 7 desk agents with tool-use, intent routing, learning/weight tuning, strategy mining, confidence decay
 - **Model routing**: Complexity-based per-desk tier selection (FAST/STANDARD/PREMIUM)
-- **GitHub issues**: 695+ closed
+- **GitHub issues**: 805+ closed
 
 ## Recently Completed
 
+- **hedge-fund-frontend** (2026-03-24): Gut rebuild of Vue 3 frontend as single-screen AI trading desk
+  - 12 new components, 1 Pinia state machine store, 1 type module
+  - Router collapsed 8→3 routes, 39 old files deleted (-9,018 lines)
+  - 3 WebSocket connections (scan, debate, batch) with completion poll safety nets
+  - Masonry CSS Grid layout with collapsible DeskCard panels
+  - 89 frontend test cases (Vitest + Vue Test Utils)
+  - Live testing fixes: scan ID mismatch (counter vs DB), phase revert bug, page_size cap, debate poll
+  - CodeRabbit review: 5 fixes applied (race condition, state mutation, UX, test casing)
+  - Verification: 31/31 requirements PASS
+
 - **dead-code-cleanup** (2026-03-23): 4 parallel epics via git worktrees, ~4,300 lines identified, net -1,548 lines after merge
-  - **quickwins**: Deleted dead functions (should_debate, constraints.py, 6 indicator functions, MacroSignals, AgentMemory, etc.), removed 4 IndicatorSignals fields, cleaned web types
-  - **refactor**: Deleted 490 lines debate rendering, 420 lines context renderers, extracted FiniteFieldsMixin, _check_api_provider, cache serialization helpers
-  - **orphans**: Removed IntelligenceService (~997 lines), eval harness (~1,024 lines), 14 dead API endpoints (~330 lines)
-  - **sunset**: Refactored process_ticker_options from 353-line monolith to ~50-line coordinator + 4 extracted helpers
 
 ## In Progress
 
-- None currently — all v3.0.0 epics complete
+- None currently — all epics complete
 
 ## Blockers
 
-- None currently known.
+- **Groq API**: 403 forbidden (key may need refresh). Anthropic works as fallback (`ARENA_DEBATE__PROVIDER=anthropic`).
