@@ -111,19 +111,24 @@ awk '
 ' /tmp/epic-body-raw.md > /tmp/epic-body.md
 
 # Determine epic type (feature vs bug) from content
-if grep -qi "bug\|fix\|issue\|problem\|error" /tmp/epic-body.md; then
+if grep -q -i -E "bug|fix|issue|problem|error" /tmp/epic-body.md; then
   epic_type="bug"
 else
   epic_type="feature"
 fi
 
-# Create epic issue with labels
-epic_number=$(gh issue create \
+# Pre-create labels that may not exist yet
+gh label create "epic:$ARGUMENTS" --repo "$REPO" --color "0075ca" --description "Epic: $ARGUMENTS" 2>/dev/null || true
+gh label create "epic" --repo "$REPO" --color "0075ca" --description "Epic tracking" 2>/dev/null || true
+gh label create "task" --repo "$REPO" --color "c5def5" --description "Task within epic" 2>/dev/null || true
+
+# Create epic issue with labels (extract issue number from returned URL)
+epic_url=$(gh issue create \
   --repo "$REPO" \
   --title "Epic: $ARGUMENTS" \
   --body-file /tmp/epic-body.md \
-  --label "epic,epic:$ARGUMENTS,$epic_type" \
-  --json number -q .number)
+  --label "epic,epic:$ARGUMENTS,$epic_type")
+epic_number=$(echo "$epic_url" | grep -o '[0-9]*$')
 ```
 
 Store the returned issue number for epic frontmatter update.
@@ -159,21 +164,21 @@ if [ "$task_count" -lt 5 ]; then
     # Strip frontmatter from task content
     sed '1,/^---$/d; 1,/^---$/d' "$task_file" > /tmp/task-body.md
 
-    # Create sub-issue with labels
+    # Create sub-issue with labels (extract issue number from returned URL)
     if [ "$use_subissues" = true ]; then
-      task_number=$(gh sub-issue create \
+      task_url=$(gh sub-issue create \
         --parent "$epic_number" \
         --title "$task_name" \
         --body-file /tmp/task-body.md \
-        --label "task,epic:$ARGUMENTS" \
-        --json number -q .number)
+        --label "task,epic:$ARGUMENTS")
+      task_number=$(echo "$task_url" | grep -o '[0-9]*$')
     else
-      task_number=$(gh issue create \
+      task_url=$(gh issue create \
         --repo "$REPO" \
         --title "$task_name" \
         --body-file /tmp/task-body.md \
-        --label "task,epic:$ARGUMENTS" \
-        --json number -q .number)
+        --label "task,epic:$ARGUMENTS")
+      task_number=$(echo "$task_url" | grep -o '[0-9]*$')
     fi
 
     # Record mapping for renaming
@@ -221,12 +226,14 @@ Task:
     2. Strip frontmatter using: sed '1,/^---$/d; 1,/^---$/d'
     3. Create sub-issue using:
        - If gh-sub-issue available:
-         gh sub-issue create --parent $epic_number --title "$task_name" \
-           --body-file /tmp/task-body.md --label "task,epic:$ARGUMENTS"
-       - Otherwise: 
-         gh issue create --repo "$REPO" --title "$task_name" --body-file /tmp/task-body.md \
-           --label "task,epic:$ARGUMENTS"
-    4. Record: task_file:issue_number
+         task_url=$(gh sub-issue create --parent $epic_number --title "$task_name" \
+           --body-file /tmp/task-body.md --label "task,epic:$ARGUMENTS")
+         task_number=$(echo "$task_url" | grep -o '[0-9]*$')
+       - Otherwise:
+         task_url=$(gh issue create --repo "$REPO" --title "$task_name" --body-file /tmp/task-body.md \
+           --label "task,epic:$ARGUMENTS")
+         task_number=$(echo "$task_url" | grep -o '[0-9]*$')
+    4. Record: task_file:task_number
 
     IMPORTANT: Always include --label parameter with "task,epic:$ARGUMENTS"
 
