@@ -80,6 +80,7 @@ from options_arena.models import (
     TrendAssessment,
     VolatilityAssessment,
 )
+from options_arena.models.attribution import Prediction, PredictionSource
 from options_arena.models.recommendation import AnyAssessment
 from options_arena.services.fred import FredService
 from options_arena.services.market_data import MarketDataService
@@ -392,6 +393,7 @@ async def run_recommendation(
     fred: FredService | None = None,
     scan_run_id: int | None = None,
     spread_analysis: SpreadAnalysis | None = None,  # noqa: ARG001
+    scan_predictions: list[Prediction] | None = None,
     progress_callback: RecommendationProgressCallback | None = None,
 ) -> RecommendationResult:
     """Run the 4-phase recommendation pipeline — never raises.
@@ -422,6 +424,10 @@ async def run_recommendation(
         Scan run ID for persistence linkage.
     spread_analysis
         Optional spread analysis (reserved for future use).
+    scan_predictions
+        Scan-phase predictions with ``scan_run_id=0`` placeholder.
+        Persisted with real ``scan_run_id`` and ``recommendation_id`` after
+        recommendation is saved.
     progress_callback
         Optional callback for phase progress reporting.
 
@@ -451,6 +457,7 @@ async def run_recommendation(
             options_data=options_data,
             fred=fred,
             scan_run_id=scan_run_id,
+            scan_predictions=scan_predictions,
             progress_callback=progress_callback,
             t0=t0,
         )
@@ -483,6 +490,7 @@ async def _run_recommendation_pipeline(
     options_data: OptionsDataService,
     fred: FredService | None,
     scan_run_id: int | None,
+    scan_predictions: list[Prediction] | None,
     progress_callback: RecommendationProgressCallback | None,
     t0: float,
 ) -> RecommendationResult:
@@ -697,19 +705,89 @@ async def _run_recommendation_pipeline(
     if progress_callback is not None:
         progress_callback("persist", 3, 4)
 
-    await _persist_recommendation(rec_result, repo, scan_run_id, assessments, ticker)
+    await _persist_recommendation(
+        rec_result,
+        repo,
+        scan_run_id,
+        assessments,
+        ticker,
+        desk_results=desk_results,
+        scan_predictions=scan_predictions,
+    )
 
     return rec_result
+
+
+def _desk_type_to_prediction_source(desk: DeskType) -> PredictionSource:
+    """Map ``DeskType`` enum to ``PredictionSource`` enum.
+
+    Raises ``ValueError`` for ``DeskType.RESEARCH`` because the research desk
+    is interactive and does not produce a ``DomainAssessment``.
+    """
+    _mapping: dict[DeskType, PredictionSource] = {
+        DeskType.TREND: PredictionSource.DESK_TREND,
+        DeskType.VOLATILITY: PredictionSource.DESK_VOLATILITY,
+        DeskType.FLOW: PredictionSource.DESK_FLOW,
+        DeskType.FUNDAMENTAL: PredictionSource.DESK_FUNDAMENTAL,
+        DeskType.RISK: PredictionSource.DESK_RISK,
+        DeskType.CONTRARIAN: PredictionSource.DESK_CONTRARIAN,
+    }
+    source = _mapping.get(desk)
+    if source is None:
+        msg = f"No prediction source mapping for desk type: {desk}"
+        raise ValueError(msg)
+    return source
+
+
+def _build_desk_predictions(
+    desk_results: list[DomainAssessment],
+    rec_id: int,
+    ticker: str,
+    context: MarketContext,
+) -> list[Prediction]:
+    """Build ``Prediction`` objects from desk assessment results.
+
+    One ``Prediction`` per desk with a valid assessment (including fallback
+    assessments with low confidence). Desks that do not appear in
+    ``desk_results`` are skipped. The context snapshot (``adx``, ``iv_rank``,
+    ``atr_pct``, ``rsi``) is taken from ``MarketContext`` at decision time.
+    """
+    predictions: list[Prediction] = []
+    now = datetime.now(UTC)
+    for assessment in desk_results:
+        try:
+            source = _desk_type_to_prediction_source(assessment.desk)
+        except ValueError:
+            logger.debug("Skipping prediction for unmapped desk: %s", assessment.desk)
+            continue
+        predictions.append(
+            Prediction(
+                recommendation_id=rec_id,
+                ticker=ticker,
+                source=source,
+                predicted_direction=assessment.direction,
+                confidence=assessment.confidence,
+                adx=context.adx,
+                iv_rank=context.iv_rank,
+                atr_pct=context.atr_pct,
+                rsi=context.rsi_14,
+                created_at=now,
+            )
+        )
+    return predictions
 
 
 async def _persist_recommendation(
     result: RecommendationResult,
     repo: Repository,
     scan_run_id: int | None,
-    assessments: list[AnyAssessment],
+    assessments: list[AnyAssessment],  # noqa: ARG001
     ticker: str,
+    *,
+    desk_results: list[DomainAssessment] | None = None,
+    scan_predictions: list[Prediction] | None = None,
 ) -> None:
-    """Persist recommendation result and agent predictions — never raises."""
+    """Persist recommendation result and prediction ledger entries — never raises."""
     try:
         rec_id = await repo.save_recommendation(result, scan_run_id)
         logger.info("Saved recommendation id=%d for %s", rec_id, ticker)
@@ -721,17 +799,57 @@ async def _persist_recommendation(
         )
         return
 
-    # NOTE: Agent prediction persistence is deferred to the cutover epic.
-    # The agent_predictions table has a FK constraint (debate_id REFERENCES
-    # ai_theses(id)) that prevents saving predictions with recommendation_results
-    # IDs.  A future migration will either relax the FK or add a
-    # recommendation_id column.  See AUDIT P1 finding and integration test
-    # test_agent_predictions_fk_constraint_handled.
-    logger.debug(
-        "Skipping agent prediction persistence for recommendation %d "
-        "(FK constraint — deferred to cutover)",
-        rec_id,
-    )
+    # --- Prediction ledger persistence (never-raises) ---
+    try:
+        predictions: list[Prediction] = []
+
+        # Desk predictions — one per desk with an assessment
+        if desk_results:
+            predictions.extend(
+                _build_desk_predictions(desk_results, rec_id, ticker, result.context)
+            )
+
+        # Synthesis prediction
+        predictions.append(
+            Prediction(
+                recommendation_id=rec_id,
+                ticker=ticker,
+                source=PredictionSource.SYNTHESIS,
+                predicted_direction=result.recommendation.direction,
+                confidence=float(result.recommendation.confidence),
+                adx=result.context.adx,
+                iv_rank=result.context.iv_rank,
+                atr_pct=result.context.atr_pct,
+                rsi=result.context.rsi_14,
+                created_at=datetime.now(UTC),
+            )
+        )
+
+        # Scan predictions — replace placeholder scan_run_id with real ID
+        if scan_predictions and scan_run_id is not None:
+            for sp in scan_predictions:
+                predictions.append(
+                    sp.model_copy(
+                        update={
+                            "scan_run_id": scan_run_id,
+                            "recommendation_id": rec_id,
+                        }
+                    )
+                )
+
+        if predictions:
+            await repo.save_predictions_batch(predictions)
+            logger.info(
+                "Persisted %d predictions for recommendation %d",
+                len(predictions),
+                rec_id,
+            )
+    except Exception:
+        logger.warning(
+            "Failed to persist predictions for recommendation %d",
+            rec_id,
+            exc_info=True,
+        )
 
 
 def _build_emergency_context(ticker: str, quote: Quote) -> MarketContext:
