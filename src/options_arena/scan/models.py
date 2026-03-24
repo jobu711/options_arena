@@ -29,6 +29,7 @@ from options_arena.models import (
     SpreadAnalysis,
     TickerScore,
 )
+from options_arena.models.attribution import Prediction
 
 
 class UniverseResult(BaseModel):
@@ -75,6 +76,7 @@ class ScoringResult(BaseModel):
     scores: list[TickerScore]
     raw_signals: dict[str, IndicatorSignals]
     normalization_stats: list[NormalizationStats] = Field(default_factory=list)
+    scan_predictions: list[Prediction] = Field(default_factory=list)
 
 
 class OptionsResult(BaseModel):

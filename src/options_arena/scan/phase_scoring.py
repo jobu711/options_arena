@@ -14,6 +14,7 @@ import asyncio
 import logging
 import math
 from collections.abc import Callable
+from datetime import UTC, datetime
 
 import numpy as np
 import pandas as pd
@@ -24,6 +25,7 @@ from options_arena.models import (
     ScanConfig,
     TickerScore,
 )
+from options_arena.models.attribution import Prediction, PredictionSource
 from options_arena.models.config import MLConfig
 from options_arena.models.market_data import OHLCV
 from options_arena.scan.indicators import (
@@ -160,12 +162,34 @@ async def run_scoring_phase(
                 exc_info=True,
             )
 
+    # Step 3c: Record scan direction predictions for attribution ledger
+    scan_predictions: list[Prediction] = []
+    for ts in scored:
+        try:
+            raw_ctx: IndicatorSignals | None = raw_signals.get(ts.ticker)
+            scan_predictions.append(
+                Prediction(
+                    scan_run_id=0,  # placeholder — orchestrator sets real ID
+                    ticker=ts.ticker,
+                    source=PredictionSource.SCAN_DIRECTION,
+                    predicted_direction=ts.direction,
+                    confidence=ts.direction_confidence or 0.5,  # fallback if None
+                    adx=raw_ctx.adx if raw_ctx else None,
+                    iv_rank=raw_ctx.iv_rank if raw_ctx else None,  # expected None in Phase 2
+                    atr_pct=raw_ctx.atr_pct if raw_ctx else None,
+                    rsi=raw_ctx.rsi if raw_ctx else None,
+                    created_at=datetime.now(UTC),
+                )
+            )
+        except Exception:
+            logger.warning("Failed to create scan prediction for %s", ts.ticker)
+
     logger.info(
         "Scoring phase complete: %d tickers scored, classified, and dimensionally scored",
         len(scored),
     )
 
-    # Step 3c: Compute normalization distribution metadata from raw signals
+    # Step 3d: Compute normalization distribution metadata from raw signals
     norm_stats: list[NormalizationStats] = compute_normalization_stats(raw_signals)
     logger.info("Computed normalization stats for %d indicators", len(norm_stats))
 
@@ -176,6 +200,7 @@ async def run_scoring_phase(
         scores=scored,
         raw_signals=raw_signals,
         normalization_stats=norm_stats,
+        scan_predictions=scan_predictions,
     )
 
 
