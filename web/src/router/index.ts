@@ -4,28 +4,8 @@ import type { RouteRecordRaw } from 'vue-router'
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    name: 'dashboard',
-    component: () => import('../pages/DashboardPage.vue'),
-  },
-  {
-    path: '/scan',
-    name: 'scan',
-    component: () => import('../pages/ScanPage.vue'),
-  },
-  {
-    path: '/scan/:id',
-    name: 'scan-results',
-    component: () => import('../pages/ScanResultsPage.vue'),
-  },
-  {
-    path: '/debate/:id',
-    name: 'debate-result',
-    component: () => import('../pages/DebateResultPage.vue'),
-  },
-  {
-    path: '/ticker/:ticker',
-    name: 'ticker-detail',
-    component: () => import('../pages/TickerDetailPage.vue'),
+    name: 'trading-desk',
+    component: () => import('../pages/TradingDeskPage.vue'),
   },
   {
     path: '/analytics',
@@ -33,14 +13,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../pages/AnalyticsPage.vue'),
   },
   {
-    path: '/agency',
-    name: 'agency',
-    component: () => import('../pages/AgencyPage.vue'),
+    path: '/settings',
+    name: 'settings',
+    component: () => import('../pages/SettingsPage.vue'),
   },
   {
-    path: '/desks',
-    name: 'desks',
-    component: () => import('../pages/DesksPage.vue'),
+    path: '/:pathMatch(.*)*',
+    redirect: '/',
   },
 ]
 
