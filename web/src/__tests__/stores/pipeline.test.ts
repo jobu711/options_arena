@@ -71,8 +71,8 @@ describe('usePipelineStore', () => {
   it('adds tickers via setTickersFromScores', () => {
     const store = usePipelineStore()
     store.setTickersFromScores([
-      { ticker: 'AAPL', composite_score: 8.5, direction: 'bullish', direction_confidence: 0.72, sector: 'Technology', company_name: 'Apple Inc.' },
-      { ticker: 'MSFT', composite_score: 7.2, direction: 'bearish', direction_confidence: 0.65, sector: 'Technology', company_name: 'Microsoft Corp.' },
+      { ticker: 'AAPL', composite_score: 8.5, direction: 'BULLISH', direction_confidence: 0.72, sector: 'Technology', company_name: 'Apple Inc.' },
+      { ticker: 'MSFT', composite_score: 7.2, direction: 'BEARISH', direction_confidence: 0.65, sector: 'Technology', company_name: 'Microsoft Corp.' },
     ])
 
     expect(store.tickers.size).toBe(2)
@@ -83,8 +83,8 @@ describe('usePipelineStore', () => {
   it('does not create duplicate tickers on setTickersFromScores', () => {
     const store = usePipelineStore()
     store.setTickersFromScores([
-      { ticker: 'AAPL', composite_score: 8.5, direction: 'bullish' },
-      { ticker: 'AAPL', composite_score: 9.0, direction: 'bullish' },
+      { ticker: 'AAPL', composite_score: 8.5, direction: 'BULLISH' },
+      { ticker: 'AAPL', composite_score: 9.0, direction: 'BULLISH' },
     ])
 
     // Map deduplicates by key; last wins
@@ -250,7 +250,7 @@ describe('usePipelineStore', () => {
     const event: BatchCompleteEvent = {
       type: 'batch_complete',
       results: [
-        { ticker: 'AAPL', debate_id: 100, direction: 'bullish', confidence: 0.8, error: null },
+        { ticker: 'AAPL', debate_id: 100, direction: 'BULLISH', confidence: 0.8, error: null },
         { ticker: 'MSFT', debate_id: null, direction: null, confidence: null, error: 'Rate limited' },
       ],
     }

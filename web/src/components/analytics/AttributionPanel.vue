@@ -5,6 +5,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import Skeleton from 'primevue/skeleton'
+import { useToast } from 'primevue/usetoast'
 import { api } from '@/composables/useApi'
 import type {
   AttributionReport,
@@ -12,9 +13,11 @@ import type {
   ConditionBucketAccuracy,
 } from '@/types'
 
+const toast = useToast()
 const windowDays = ref(90)
 const report = ref<AttributionReport | null>(null)
 const loading = ref(false)
+let fetchId = 0
 
 const windowOptions = [
   { label: '7 days', value: 7 },
@@ -25,16 +28,31 @@ const windowOptions = [
 ]
 
 async function fetchAttribution(): Promise<void> {
+  const currentFetchId = ++fetchId
   loading.value = true
   try {
-    report.value = await api<AttributionReport>(
+    const result = await api<AttributionReport>(
       `/api/analytics/attribution`,
       { params: { window_days: windowDays.value } },
     )
-  } catch {
-    report.value = null
+    // Guard against stale responses from rapid window changes
+    if (currentFetchId === fetchId) {
+      report.value = result
+    }
+  } catch (err) {
+    if (currentFetchId === fetchId) {
+      report.value = null
+      toast.add({
+        severity: 'error',
+        summary: 'Attribution Error',
+        detail: err instanceof Error ? err.message : 'Failed to load attribution data',
+        life: 5000,
+      })
+    }
   } finally {
-    loading.value = false
+    if (currentFetchId === fetchId) {
+      loading.value = false
+    }
   }
 }
 

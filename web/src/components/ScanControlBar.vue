@@ -48,38 +48,23 @@ function onFilterUpdate(payload: PreScanFilterPayload): void {
   filterPayload.value = payload
 }
 
+const isLaunching = ref(false)
+
 async function runScan(): Promise<void> {
+  if (isLaunching.value || isScanning.value) return
+  isLaunching.value = true
   const payload = filterPayload.value
   try {
-    await scanStore.startScan({
+    await pipelineStore.startScan({
       preset: payload.preset ?? 'sp500',
       sectors: payload.sectors,
-      industryGroups: payload.industryGroups,
       customTickers: payload.custom_tickers,
       source: 'manual',
-      market_cap_tiers: payload.market_cap_tiers,
-      exclude_near_earnings_days: payload.exclude_near_earnings_days,
-      direction_filter: payload.direction_filter,
-      min_iv_rank: payload.min_iv_rank,
-      min_price: payload.min_price,
-      max_price: payload.max_price,
-      min_dte: payload.min_dte,
-      max_dte: payload.max_dte,
-      min_score: payload.min_score,
-      min_direction_confidence: payload.min_direction_confidence,
-      top_n: payload.top_n,
-      min_dollar_volume: payload.min_dollar_volume,
-      min_oi: payload.min_oi,
-      min_volume: payload.min_volume,
-      max_spread_pct: payload.max_spread_pct,
-      delta_primary_min: payload.delta_primary_min,
-      delta_primary_max: payload.delta_primary_max,
-      delta_fallback_min: payload.delta_fallback_min,
-      delta_fallback_max: payload.delta_fallback_max,
     })
-    pipelineStore.phase = 'scanning'
   } catch {
-    // Error already captured by scanStore
+    // Error captured by pipeline store
+  } finally {
+    isLaunching.value = false
   }
 }
 
@@ -161,7 +146,7 @@ function analyzeTopN(limit: number): void {
           @click="analyzeSelected"
         />
         <Button
-          v-if="hasScored"
+          v-if="hasScored && selectedCount === 0"
           label="Analyze Top 5"
           icon="pi pi-star"
           size="small"

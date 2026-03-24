@@ -16,6 +16,11 @@ vi.mock('@/composables/useApi', () => ({
   },
 }))
 
+// Mock PrimeVue useToast
+vi.mock('primevue/usetoast', () => ({
+  useToast: () => ({ add: vi.fn(), removeGroup: vi.fn(), removeAllGroups: vi.fn() }),
+}))
+
 function makeReport(overrides: Partial<AttributionReport> = {}): AttributionReport {
   return {
     window_days: 90,
