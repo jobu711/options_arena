@@ -53,24 +53,64 @@ For each traced flow, systematically enumerate the permutations that could affec
 Cross-reference with existing error handling in the codebase — Grep for relevant
 `except` blocks and fallback paths.
 
-### Phase 3 — Gap Identification (10-Point Checklist)
+### Phase 3 — Gap Identification (11-Category Taxonomy)
 
-Evaluate each requirement against this checklist:
+Scan each requirement against all 11 categories independently. For each gap found,
+assign Impact and Uncertainty scores.
 
-1. **Happy path fully specified?** — Is the normal flow described end-to-end?
-2. **Error path handling specified?** — What happens when each step fails?
-3. **Boundary conditions?** — Min/max/empty/single-element cases defined?
-4. **Unexpected state transitions?** — What if state changes mid-operation?
-5. **Concurrency considerations?** — Scan + debate mutex, parallel requests?
-6. **Rollback on mid-failure?** — If step 3 of 5 fails, what's the cleanup?
-7. **Observability?** — Logging, metrics, or progress reporting specified?
-8. **Testability?** — Can we write a test for each acceptance criterion?
-9. **Migration required?** — DB schema changes, config migration, backward compat?
-10. **Documentation updates?** — Module CLAUDE.md, architecture.md, progress.md?
+#### Taxonomy
+
+| # | Category | What to Look For |
+|---|----------|-----------------|
+| 1 | Functional Scope & Behavior | Missing happy paths, undefined state machines, unclear triggers |
+| 2 | Domain & Data Model | Undefined fields, missing relationships, unclear cardinality |
+| 3 | Interaction & UX Flow | Undefined user journeys, missing CLI output specs, unclear API contracts |
+| 4 | Non-Functional Quality | Missing latency targets, undefined scaling limits, no observability spec |
+| 5 | Integration & Dependencies | Undefined service interactions, missing fallback behavior, unclear auth |
+| 6 | Edge Cases & Failure Handling | Missing error paths, undefined retry behavior, no graceful degradation |
+| 7 | Constraints & Tradeoffs | Unstated assumptions, hidden coupling, unacknowledged tech debt |
+| 8 | Terminology & Consistency | Inconsistent naming across sections, domain terms used differently |
+| 9 | Completion Signals | Untestable acceptance criteria, vague "should work" statements |
+| 10 | Placeholders & TODOs | TBD markers, vague adjectives without metrics, incomplete sections |
+| 11 | Priority & Sequencing (OA addition) | Unclear dependencies between features, missing phasing guidance |
+
+#### Impact x Uncertainty Scoring
+
+Each gap receives two scores:
+
+- **Impact** (1-3): 1 = cosmetic/deferred, 2 = affects implementation decisions, 3 = blocks correct implementation
+- **Uncertainty** (1-3): 1 = reasonable default exists, 2 = multiple valid options, 3 = no basis for choosing
+
+**Priority = Impact x Uncertainty** (range 1-9). Sort all gaps by priority descending.
+Surface the **top 5** as prioritized questions in Phase 4 (remaining gaps appear in the
+taxonomy coverage table).
+
+#### Backward Compatibility — Old Checklist Mapping
+
+The previous 10-point checklist is fully subsumed by the taxonomy:
+
+| Old # | Old Checklist Item | New Category |
+|-------|-------------------|-------------|
+| 1 | Happy path fully specified? | 1 — Functional Scope & Behavior |
+| 2 | Error path handling specified? | 6 — Edge Cases & Failure Handling |
+| 3 | Boundary conditions? | 6 — Edge Cases & Failure Handling |
+| 4 | Unexpected state transitions? | 1 — Functional Scope & Behavior |
+| 5 | Concurrency considerations? | 4 — Non-Functional Quality |
+| 6 | Rollback on mid-failure? | 6 — Edge Cases & Failure Handling |
+| 7 | Observability? | 4 — Non-Functional Quality |
+| 8 | Testability? | 9 — Completion Signals |
+| 9 | Migration required? | 5 — Integration & Dependencies |
+| 10 | Documentation updates? | 10 — Placeholders & TODOs |
+
+New categories not covered by the old checklist: 2 (Domain & Data Model),
+3 (Interaction & UX Flow), 7 (Constraints & Tradeoffs), 8 (Terminology & Consistency),
+11 (Priority & Sequencing).
 
 ### Phase 4 — Question Formulation
 
-For each gap found, formulate a specific, answerable question:
+For the top 5 gaps by priority (from Phase 3 scoring), formulate specific, answerable
+questions. Remaining gaps are documented in the taxonomy coverage table but not elevated
+to questions.
 
 **Classification:**
 - **Blocking** — Cannot proceed with implementation without an answer
@@ -79,10 +119,14 @@ For each gap found, formulate a specific, answerable question:
 
 **Question format:**
 ```
-[Blocking/Non-blocking/Deferred] Q{N}: {specific question}
+[Blocking/Non-blocking/Deferred] Q{N} (Impact:{I} x Uncertainty:{U} = {P}): {specific question}
+  Category: {taxonomy category name}
   Context: {why this matters in OA's architecture}
+  Recommended: {best option} — {reasoning}
+  Alternatives:
+    A) {option} — {tradeoff}
+    B) {option} — {tradeoff}
   Impact if unanswered: {what breaks or degrades}
-  Suggested default: {what to assume if no answer} (non-blocking/deferred only)
 ```
 
 ## Output Format
@@ -118,13 +162,23 @@ For each gap found, formulate a specific, answerable question:
 | Data sources | {list} | {list} | {list} |
 | ... | | | |
 
-### 10-Point Checklist Results
+### Taxonomy Coverage
 
-| # | Check | Status | Notes |
-|---|-------|--------|-------|
-| 1 | Happy path | Pass/Partial/Fail | {detail} |
-| 2 | Error paths | Pass/Partial/Fail | {detail} |
-| ... | | | |
+| # | Category | Gaps Found | Top Gap (Priority) |
+|---|----------|------------|-------------------|
+| 1 | Functional Scope & Behavior | {N} | {brief description} (I:{I} x U:{U} = {P}) |
+| 2 | Domain & Data Model | {N} | {brief description} or — |
+| 3 | Interaction & UX Flow | {N} | {brief description} or — |
+| 4 | Non-Functional Quality | {N} | {brief description} or — |
+| 5 | Integration & Dependencies | {N} | {brief description} or — |
+| 6 | Edge Cases & Failure Handling | {N} | {brief description} or — |
+| 7 | Constraints & Tradeoffs | {N} | {brief description} or — |
+| 8 | Terminology & Consistency | {N} | {brief description} or — |
+| 9 | Completion Signals | {N} | {brief description} or — |
+| 10 | Placeholders & TODOs | {N} | {brief description} or — |
+| 11 | Priority & Sequencing (OA) | {N} | {brief description} or — |
+
+*Categories with 0 gaps still appear (shows the category was scanned, not skipped).*
 
 ### Recommended Spec Additions
 1. {Specific addition to make the PRD implementation-ready}

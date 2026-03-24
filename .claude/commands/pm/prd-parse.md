@@ -62,6 +62,41 @@ implementation plan for: **$ARGUMENTS**
 - Understand the user stories and success criteria
 - Extract the PRD description from frontmatter
 
+### 1b. NEEDS CLARIFICATION Scan
+
+Before proceeding to epic creation, scan the PRD for unresolved design questions:
+
+```bash
+# Scan PRD for unresolved markers
+grep -n "NEEDS CLARIFICATION" .claude/prds/$ARGUMENTS.md
+```
+
+If markers are found, display them:
+
+```
+Scanning PRD for unresolved questions...
+Found {N} unresolved NEEDS CLARIFICATION markers:
+
+  1. [NEEDS CLARIFICATION: {question}]
+     Location: line {N}
+  2. [NEEDS CLARIFICATION: {question}]
+     Location: line {N}
+
+{N} unresolved questions found. Options:
+  - Proceed anyway (questions documented but unresolved)
+  - Resolve now (provide answers inline)
+  - Stop and edit the PRD first
+```
+
+This is a **soft gate** — the user can override and proceed. If no markers found, continue silently.
+
+#### Convention Reference
+
+- **Marker format**: `[NEEDS CLARIFICATION: {specific question}]`
+- **Resolution format**: Replace marker with answer + `<!-- Resolved DATE: reason -->` annotation
+- **Valid locations**: `.claude/prds/*.md` and `.claude/epics/*/*.md` only (not Python code)
+- **Gate type**: Soft gate — user can always override
+
 ### 2. Technical Analysis
 - If `.claude/epics/$ARGUMENTS/research.md` exists, read it first and incorporate findings
 - Identify architectural decisions needed
@@ -319,6 +354,7 @@ Before saving, verify:
 - [ ] No requirement falls through the cracks between child epic scope boundaries
 - [ ] Dependencies are technically accurate
 - [ ] Architecture decisions are justified
+- [ ] No unresolved `[NEEDS CLARIFICATION: ...]` markers propagated to epic without acknowledgment
 
 ### 7.2 Update PRD Status
 

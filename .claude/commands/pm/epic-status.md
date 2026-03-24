@@ -24,17 +24,20 @@ Count tasks per epic: `ls .claude/epics/{name}/[0-9]*.md | wc -l`
 **Parent epic handling**: If `type: parent` in frontmatter, show it as a group header
 with its children indented below. Don't count tasks on the parent — aggregate from children.
 
+For each epic, also parse task frontmatter `parallel` fields to compute a parallel/sequential
+breakdown (e.g., "3P/2S"). A task counts as parallel if `parallel: true` in its frontmatter.
+
 Output as a table:
 
 ```
 Epics ({count}):
 
-  Name                    Status       Progress   Tasks    GitHub   Updated
-  ──────────────────────────────────────────────────────────────────────────
-  {name} (parent)         {status}     {pct}%     —        #{num}   {date}
-    └ {child-1}           {status}     {pct}%     {n}/{t}  #{num}   {date}
-    └ {child-2}           {status}     {pct}%     {n}/{t}  #{num}   {date}
-  {standalone-epic}       {status}     {pct}%     {n}/{t}  #{num}   {date}
+  Name                    Status       Progress   Tasks    P/S      GitHub   Updated
+  ────────────────────────────────────────────────────────────────────────────────────
+  {name} (parent)         {status}     {pct}%     —        —        #{num}   {date}
+    └ {child-1}           {status}     {pct}%     {n}/{t}  {p}P/{s}S #{num}  {date}
+    └ {child-2}           {status}     {pct}%     {n}/{t}  {p}P/{s}S #{num}  {date}
+  {standalone-epic}       {status}     {pct}%     {n}/{t}  {p}P/{s}S #{num}  {date}
   ...
 
 Archived: {count} in .claude/epics/archived/
@@ -44,6 +47,10 @@ Actions:
   New:     /pm:prd-new <feature>
   Start:   /pm:epic-start <name>
 ```
+
+The **P/S** column shows `{parallel_count}P/{sequential_count}S` — derived from each task's
+`parallel` frontmatter field. This gives a quick parallelism snapshot without reading
+individual task files.
 
 ### Mode 2: With argument — Epic Detail
 
@@ -101,6 +108,7 @@ Epic: $ARGUMENTS (child of {parent_epic})
   Depends on: {depends_on list or "none"}
 
 Tasks ({closed}/{total}):
+  Parallel: {parallel_count}, Sequential: {sequential_count}
 
   Closed:
     #{num} {name}
