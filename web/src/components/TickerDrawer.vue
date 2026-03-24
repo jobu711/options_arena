@@ -330,7 +330,7 @@ function regimeClass(regime: string | null | undefined): string {
             @click="router.push(`/debate/${d.id}`)"
             @keydown.enter="router.push(`/debate/${d.id}`)"
           >
-            <DirectionBadge :direction="d.direction as 'bullish' | 'bearish' | 'neutral'" />
+            <DirectionBadge :direction="d.direction as 'BULLISH' | 'BEARISH' | 'NEUTRAL'" />
             <span class="mono">{{ (d.confidence * 100).toFixed(0) }}%</span>
             <span class="debate-date">{{ formatDateTime(d.created_at) }}</span>
           </div>

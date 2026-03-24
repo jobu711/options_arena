@@ -13,7 +13,7 @@ export interface DebateResultSummary {
 /** Single agent's structured response. */
 export interface AgentResponse {
   agent_name: string
-  direction: 'bullish' | 'bearish' | 'neutral'
+  direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
   confidence: number
   argument: string
   key_points: string[]
@@ -25,7 +25,7 @@ export interface AgentResponse {
 /** Final trade recommendation from risk agent. */
 export interface TradeThesis {
   ticker: string
-  direction: 'bullish' | 'bearish' | 'neutral'
+  direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
   confidence: number
   summary: string
   bull_score: number

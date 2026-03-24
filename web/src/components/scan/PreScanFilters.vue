@@ -88,9 +88,9 @@ const selectedMarketCaps = ref<string[]>([])
 
 const directionOptions = [
   { label: 'Any Direction', value: null },
-  { label: 'Bullish Only', value: 'bullish' },
-  { label: 'Bearish Only', value: 'bearish' },
-  { label: 'Neutral Only', value: 'neutral' },
+  { label: 'Bullish Only', value: 'BULLISH' },
+  { label: 'Bearish Only', value: 'BEARISH' },
+  { label: 'Neutral Only', value: 'NEUTRAL' },
 ]
 const selectedDirection = ref<string | null>(null)
 const excludeEarningsDays = ref<number | null>(null)

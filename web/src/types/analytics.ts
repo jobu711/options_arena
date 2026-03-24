@@ -2,7 +2,7 @@
 
 /** Win rate grouped by signal direction from GET /api/analytics/win-rate. */
 export interface WinRateResult {
-  direction: 'bullish' | 'bearish' | 'neutral'
+  direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
   total_contracts: number
   winners: number
   losers: number
@@ -23,7 +23,7 @@ export interface ScoreCalibrationBucket {
 /** Holding period stats from GET /api/analytics/holding-period. */
 export interface HoldingPeriodResult {
   holding_days: number
-  direction: 'bullish' | 'bearish' | 'neutral'
+  direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
   avg_return_pct: number
   median_return_pct: number
   /** Fraction in [0.0, 1.0]. */

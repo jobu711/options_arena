@@ -11,6 +11,18 @@ export type {
   ContrarianThesis,
   AgentProgressEntry,
 } from './debate'
+export type {
+  PipelineStage,
+  Direction,
+  PipelineTicker,
+  DeskAssessment,
+  PositionRecommendation,
+  RecommendationDetail,
+  PredictionAccuracy,
+  ConditionBucketAccuracy,
+  ContractGuidance,
+  AttributionReport,
+} from './recommendation'
 export type { ConfigResponse, RoutingConfig, DeskCostDetail, RecommendationCostDetail } from './config'
 export type { WinRateResult, ScoreCalibrationBucket, HoldingPeriodResult, DeltaPerformanceResult, PerformanceSummary, OutcomeCollectionResult } from './analytics'
 export type { HistoryPoint, TrendingTicker } from './history'
