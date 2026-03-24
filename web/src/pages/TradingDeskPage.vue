@@ -13,6 +13,7 @@ import RegimeBanner from '@/components/RegimeBanner.vue'
 import { usePipelineStore } from '@/stores/pipeline'
 import { useScanStore } from '@/stores/scan'
 import { useWebSocket } from '@/composables/useWebSocket'
+import { api } from '@/composables/useApi'
 import type {
   ScanEvent,
   DebateEvent,
@@ -50,13 +51,23 @@ function closeAllConnections(): void {
   activeConnections.value = []
 }
 
-// --- Scan WebSocket ---
+// --- Scan WebSocket + completion poll ---
+let completionPoll: ReturnType<typeof setInterval> | null = null
+
+function stopCompletionPoll(): void {
+  if (completionPoll !== null) {
+    clearInterval(completionPoll)
+    completionPoll = null
+  }
+}
+
 watch(
-  () => scanStore.currentScanId,
+  () => pipelineStore.scanId,
   (newScanId) => {
     if (newScanId === null) return
     scanStartedAt.value = new Date()
 
+    // Connect WS for real-time progress
     const handle = useWebSocket<ScanEvent>({
       url: `/ws/scan/${newScanId}`,
       onMessage(event) {
@@ -75,30 +86,64 @@ watch(
             })
             break
           case 'complete':
-            scanStore.setComplete(event)
+            stopCompletionPoll()
             pipelineStore.onScanComplete(event)
-            // Load scores into pipeline after scan completes
             void loadScoresIntoPipeline(event.scan_id)
             break
         }
       },
       onError() {
-        toast.add({
-          severity: 'error',
-          summary: 'Connection Error',
-          detail: 'Lost connection to scan WebSocket',
-          life: 5000,
-        })
+        // WS error is non-fatal — completion poll is the safety net
       },
       maxReconnectAttempts: 3,
     })
     trackConnection(handle)
+
+    // Completion poll: checks /api/status every 5s. When busy=false and we're
+    // still in 'scanning' phase, the scan finished but WS missed the event.
+    stopCompletionPoll()
+    completionPoll = setInterval(() => void checkScanCompletion(), 5000)
   },
 )
 
-async function loadScoresIntoPipeline(scanId: number): Promise<void> {
-  await scanStore.fetchScores(scanId, { page_size: 500 })
-  pipelineStore.setTickersFromScores(scanStore.scores)
+async function checkScanCompletion(): Promise<void> {
+  if (pipelineStore.phase !== 'scanning') {
+    stopCompletionPoll()
+    return
+  }
+  try {
+    const status = await api<{ busy: boolean }>('/api/status')
+    if (!status.busy) {
+      stopCompletionPoll()
+      // Scan finished — find the latest completed scan and load its scores
+      const scans = await api<Array<{ id: number; completed_at: string | null }>>(
+        '/api/scan', { params: { limit: 1 } },
+      )
+      const latest = scans[0]
+      if (latest?.completed_at) {
+        pipelineStore.onScanComplete({
+          type: 'complete', scan_id: latest.id, cancelled: false, outcomes_collected: 0,
+        })
+        void loadScoresIntoPipeline(latest.id)
+      }
+    }
+  } catch {
+    // Poll failure is non-fatal
+  }
+}
+
+async function loadScoresIntoPipeline(dbScanId: number): Promise<void> {
+  try {
+    await scanStore.fetchScores(dbScanId, { page_size: 200 })
+    pipelineStore.setTickersFromScores(scanStore.scores)
+  } catch (err) {
+    toast.add({
+      severity: 'error',
+      summary: 'Failed to Load Scores',
+      detail: err instanceof Error ? err.message : 'Could not fetch scan scores',
+      life: 5000,
+    })
+  }
 }
 
 // --- Action handlers ---
@@ -119,6 +164,7 @@ async function onAnalyzeTicker(ticker: string): Promise<void> {
   try {
     const debateId = await pipelineStore.analyzeTicker(ticker)
     connectDebateWs(ticker, debateId)
+    startDebatePoll(ticker)
   } catch (err) {
     toast.add({
       severity: 'error',
@@ -129,17 +175,58 @@ async function onAnalyzeTicker(ticker: string): Promise<void> {
   }
 }
 
+// --- Debate completion poll (same pattern as scan) ---
+let debatePollTimer: ReturnType<typeof setInterval> | null = null
+let debatePollTicker: string | null = null
+
+function startDebatePoll(ticker: string): void {
+  stopDebatePoll()
+  debatePollTicker = ticker
+  debatePollTimer = setInterval(() => void checkDebateCompletion(), 5000)
+}
+
+function stopDebatePoll(): void {
+  if (debatePollTimer !== null) {
+    clearInterval(debatePollTimer)
+    debatePollTimer = null
+  }
+  debatePollTicker = null
+}
+
+async function checkDebateCompletion(): Promise<void> {
+  const ticker = debatePollTicker
+  if (!ticker) { stopDebatePoll(); return }
+  const entry = pipelineStore.tickers.get(ticker)
+  if (!entry || entry.stage !== 'analyzing') { stopDebatePoll(); return }
+  try {
+    const status = await api<{ busy: boolean }>('/api/status')
+    if (!status.busy) {
+      stopDebatePoll()
+      // Find the latest debate for this ticker
+      const debates = await api<Array<{ id: number; ticker: string }>>(
+        '/api/debate', { params: { limit: 5 } },
+      )
+      const match = debates.find((d) => d.ticker === ticker)
+      if (match) {
+        pipelineStore.onDebateComplete(ticker, match.id)
+        void pipelineStore.loadRecommendation(match.id)
+      }
+    }
+  } catch {
+    // Non-fatal
+  }
+}
+
 function connectDebateWs(ticker: string, debateId: number): void {
   const handle = useWebSocket<DebateEvent>({
     url: `/ws/debate/${debateId}`,
     onMessage(event) {
       switch (event.type) {
         case 'agent':
-          // Agent progress — no store action needed for individual agent events
           break
         case 'complete':
+          stopDebatePoll()
           pipelineStore.onDebateComplete(ticker, event.debate_id)
-          // Auto-select and load if this is the currently selected ticker
           if (selectedTicker.value === ticker) {
             void pipelineStore.loadRecommendation(event.debate_id)
           }
@@ -155,12 +242,7 @@ function connectDebateWs(ticker: string, debateId: number): void {
       }
     },
     onError() {
-      toast.add({
-        severity: 'error',
-        summary: 'Connection Error',
-        detail: `Lost connection to debate WebSocket for ${ticker}`,
-        life: 5000,
-      })
+      // Non-fatal — debate poll is the safety net
     },
     maxReconnectAttempts: 3,
   })
@@ -241,6 +323,8 @@ function connectBatchWs(batchId: number): void {
 // --- Cleanup ---
 onUnmounted(() => {
   closeAllConnections()
+  stopCompletionPoll()
+  stopDebatePoll()
 })
 </script>
 

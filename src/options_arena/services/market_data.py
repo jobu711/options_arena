@@ -605,21 +605,31 @@ class MarketDataService(ServiceBase[ServiceConfig]):
         return earnings_date
 
     async def _download_chunk(self, chunk: list[str]) -> pd.DataFrame:
-        """Download a single chunk of tickers via ``yf.download``."""
+        """Download a single chunk of tickers via ``yf.download``.
+
+        Temporarily raises the yfinance logger level to CRITICAL to suppress
+        noisy 401 "Invalid Crumb" errors that are transient and non-fatal.
+        """
         assert self._limiter is not None  # noqa: S101 — guaranteed by __init__
-        async with self._limiter:
-            df: pd.DataFrame = await asyncio.wait_for(
-                asyncio.to_thread(
-                    yf.download,
-                    tickers=" ".join(chunk),
-                    period="2d",
-                    group_by="ticker",
-                    progress=False,
-                    threads=True,
+        yf_logger = logging.getLogger("yfinance")
+        prev_level = yf_logger.level
+        yf_logger.setLevel(logging.CRITICAL)
+        try:
+            async with self._limiter:
+                df: pd.DataFrame = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        yf.download,
+                        tickers=" ".join(chunk),
+                        period="2d",
+                        group_by="ticker",
+                        progress=False,
+                        threads=True,
+                        timeout=self._config.yfinance_timeout,
+                    ),
                     timeout=self._config.yfinance_timeout,
-                ),
-                timeout=self._config.yfinance_timeout,
-            )
+                )
+        finally:
+            yf_logger.setLevel(prev_level)
         return df
 
     async def fetch_batch_daily_changes(

@@ -302,11 +302,12 @@ class HealthService:
     async def check_intelligence(self) -> HealthStatus:
         """Check intelligence data availability via yfinance analyst price targets.
 
-        Uses ``get_analyst_price_targets()`` for SPY as a lightweight smoke test.
+        Uses ``get_analyst_price_targets()`` for AAPL as a lightweight smoke test.
+        SPY (ETF) has no fundamentals data, causing spurious 404 errors.
         """
         start = time.monotonic()
         try:
-            ticker = yf.Ticker("SPY")
+            ticker = yf.Ticker("AAPL")
             await asyncio.wait_for(
                 asyncio.to_thread(ticker.get_analyst_price_targets),
                 timeout=self._config.yfinance_timeout,

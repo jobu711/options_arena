@@ -20,6 +20,7 @@ export const usePipelineStore = defineStore('pipeline', () => {
   const selectedTicker = ref<string | null>(null)
   const currentRecommendation = ref<RecommendationDetail | null>(null)
   const scanId = ref<number | null>(null)
+  const dbScanId = ref<number | null>(null)
   const batchId = ref<number | null>(null)
   const phase = ref<'idle' | 'scanning' | 'scanned'>('idle')
   const loading = ref(false)
@@ -202,6 +203,7 @@ export const usePipelineStore = defineStore('pipeline', () => {
     selectedTicker.value = null
     currentRecommendation.value = null
     scanId.value = null
+    dbScanId.value = null
     batchId.value = null
     phase.value = 'idle'
     loading.value = false
@@ -212,12 +214,14 @@ export const usePipelineStore = defineStore('pipeline', () => {
   // --- WebSocket callbacks ---
 
   function onScanProgress(event: ScanProgressEvent): void {
-    // Update phase tracking during scan
-    phase.value = 'scanning'
+    // Only transition idle → scanning, never revert scanned → scanning
+    if (phase.value === 'idle') {
+      phase.value = 'scanning'
+    }
   }
 
   function onScanComplete(event: ScanCompleteEvent): void {
-    scanId.value = event.scan_id
+    dbScanId.value = event.scan_id
     phase.value = 'scanned'
   }
 
@@ -297,6 +301,7 @@ export const usePipelineStore = defineStore('pipeline', () => {
     selectedTicker,
     currentRecommendation,
     scanId,
+    dbScanId,
     batchId,
     phase,
     loading,
