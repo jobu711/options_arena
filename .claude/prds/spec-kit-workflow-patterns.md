@@ -1,7 +1,7 @@
 ---
 name: spec-kit-workflow-patterns
 description: Integrate 3 cherry-picked workflow patterns from github/spec-kit — ambiguity taxonomy for spec analysis, [P] parallel task markers in epics, and NEEDS CLARIFICATION structured placeholders
-status: planned
+status: complete
 created: 2026-03-22T17:43:57Z
 revised: 2026-03-22T18:30:00Z
 revision_notes: Context7 audit — fixed category count (10+1), question limit (5 not 10), task ID attribution, removed unverified star count, noted gate strength divergence
