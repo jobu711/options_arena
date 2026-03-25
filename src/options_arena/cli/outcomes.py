@@ -429,7 +429,7 @@ async def _agent_weights_async() -> None:
         # Show data source summary
         total_samples = sum(r.sample_size for r in results)
         try:
-            pred_accuracy = await repo.get_prediction_accuracy()
+            pred_accuracy = await repo.get_prediction_accuracy(window_days=365)
             desk_preds = [a for a in pred_accuracy if a.source.value.startswith("desk_")]
             scored_count = sum(a.total for a in desk_preds)
             if scored_count > 0:
