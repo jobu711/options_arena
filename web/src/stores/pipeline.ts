@@ -6,6 +6,7 @@ import type {
   RecommendationDetail,
   PipelineStage,
   Direction,
+  PreScanFilterPayload,
 } from '@/types'
 import type {
   ScanCompleteEvent,
@@ -56,24 +57,14 @@ export const usePipelineStore = defineStore('pipeline', () => {
 
   // --- Actions ---
 
-  interface StartScanOptions {
-    preset: string
-    sectors?: string[]
-    customTickers?: string[]
-    source?: 'manual'
-  }
-
-  async function startScan(options: StartScanOptions): Promise<number> {
-    const body: Record<string, unknown> = { preset: options.preset }
-    if (options.sectors && options.sectors.length > 0) {
-      body.sectors = options.sectors
+  async function startScan(options: PreScanFilterPayload): Promise<number> {
+    const body: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(options)) {
+      if (value !== undefined && value !== null) {
+        body[key] = value
+      }
     }
-    if (options.customTickers && options.customTickers.length > 0) {
-      body.custom_tickers = options.customTickers
-    }
-    if (options.source) {
-      body.source = options.source
-    }
+    if (!body.preset) body.preset = 'sp500'
 
     loading.value = true
     errors.value = []

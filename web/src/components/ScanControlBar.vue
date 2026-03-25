@@ -53,14 +53,8 @@ const isLaunching = ref(false)
 async function runScan(): Promise<void> {
   if (isLaunching.value || isScanning.value) return
   isLaunching.value = true
-  const payload = filterPayload.value
   try {
-    await pipelineStore.startScan({
-      preset: payload.preset ?? 'sp500',
-      sectors: payload.sectors,
-      customTickers: payload.custom_tickers,
-      source: 'manual',
-    })
+    await pipelineStore.startScan(filterPayload.value)
   } catch {
     // Error captured by pipeline store
   } finally {
