@@ -77,8 +77,8 @@ from options_arena.models import (
     RecommendationResult,
     RiskDeskAssessment,
     RuleStatus,
+    ScanEnrichment,
     SignalDirection,
-    SpreadAnalysis,
     TickerInfo,
     TickerScore,
     TrendAssessment,
@@ -396,7 +396,7 @@ async def run_recommendation(
     options_data: OptionsDataService,
     fred: FredService | None = None,
     scan_run_id: int | None = None,
-    spread_analysis: SpreadAnalysis | None = None,  # noqa: ARG001
+    enrichment: ScanEnrichment | None = None,
     scan_predictions: list[Prediction] | None = None,
     progress_callback: RecommendationProgressCallback | None = None,
 ) -> RecommendationResult:
@@ -426,8 +426,8 @@ async def run_recommendation(
         FRED service (optional).
     scan_run_id
         Scan run ID for persistence linkage.
-    spread_analysis
-        Optional spread analysis (reserved for future use).
+    enrichment
+        Optional scan-phase enrichment envelope (macro, neural, earnings, FD data).
     scan_predictions
         Scan-phase predictions with ``scan_run_id=0`` placeholder.
         Persisted with real ``scan_run_id`` and ``recommendation_id`` after
@@ -461,6 +461,7 @@ async def run_recommendation(
             options_data=options_data,
             fred=fred,
             scan_run_id=scan_run_id,
+            enrichment=enrichment,
             scan_predictions=scan_predictions,
             progress_callback=progress_callback,
             t0=t0,
@@ -494,6 +495,7 @@ async def _run_recommendation_pipeline(
     options_data: OptionsDataService,
     fred: FredService | None,
     scan_run_id: int | None,
+    enrichment: ScanEnrichment | None,
     scan_predictions: list[Prediction] | None,
     progress_callback: RecommendationProgressCallback | None,
     t0: float,
@@ -508,7 +510,20 @@ async def _run_recommendation_pipeline(
     if progress_callback is not None:
         progress_callback("context", 0, 4)
 
-    context = build_market_context(ticker_score, quote, ticker_info, contracts)
+    enrich = enrichment or ScanEnrichment()
+    context = build_market_context(
+        ticker_score,
+        quote,
+        ticker_info,
+        contracts,
+        next_earnings=enrich.next_earnings,
+        fd_package=enrich.fd_package,
+        macro_regime=enrich.macro_regime,
+        macro_yield_spread=enrich.macro_yield_spread,
+        macro_fed_funds_rate=enrich.macro_fed_funds_rate,
+        macro_vix_level=enrich.macro_vix_level,
+        prob_profit_neural=enrich.prob_profit_neural,
+    )
 
     if not should_recommend(ticker_score, config):
         logger.info(
