@@ -238,12 +238,55 @@ class ScanPipeline:
         progress: ProgressCallback,
     ) -> ScoringResult:
         """Phase 2: Compute indicators, score universe, classify direction."""
+        weight_overrides = await self._load_tuned_weight_overrides()
         return await run_scoring_phase(
             universe_result,
             progress,
             scan_config=self._settings.scan,
             compute_indicators_fn=compute_indicators,
+            weight_overrides=weight_overrides,
         )
+
+    async def _load_tuned_weight_overrides(self) -> dict[str, float] | None:
+        """Load approved tuned indicator weights from DB when enabled.
+
+        Returns ``None`` when ``settings.learning.apply_tuned_weights`` is
+        ``False`` (default) or when no approved weights are available.
+        Never raises -- catches all exceptions and returns ``None``.
+        """
+        if not self._settings.learning.apply_tuned_weights:
+            return None
+
+        try:
+            from options_arena.models.enums import WeightType
+
+            snapshots = await self._repository.get_weight_history(
+                limit=1, weight_type=WeightType.INDICATOR
+            )
+            if not snapshots:
+                logger.info("No tuned indicator weights found in DB; using defaults")
+                return None
+
+            snapshot = snapshots[0]
+            overrides: dict[str, float] = {}
+            for w in snapshot.weights:
+                overrides[w.agent_name] = w.auto_weight
+
+            if not overrides:
+                return None
+
+            logger.info(
+                "Loaded %d tuned indicator weight overrides (computed_at=%s)",
+                len(overrides),
+                snapshot.computed_at.isoformat(),
+            )
+            return overrides
+        except Exception:
+            logger.warning(
+                "Failed to load tuned indicator weights — using defaults",
+                exc_info=True,
+            )
+            return None
 
     async def _phase_options(
         self,

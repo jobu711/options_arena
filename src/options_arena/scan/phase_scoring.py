@@ -56,6 +56,7 @@ async def run_scoring_phase(
     scan_config: ScanConfig,
     compute_indicators_fn: Callable[[pd.DataFrame, list[IndicatorSpec]], IndicatorSignals]
     | None = None,
+    weight_overrides: dict[str, float] | None = None,
 ) -> ScoringResult:
     """Phase 2: Compute indicators, score universe, determine direction.
 
@@ -76,6 +77,8 @@ async def run_scoring_phase(
         compute_indicators_fn: Optional override for ``compute_indicators`` (used by
             ``ScanPipeline`` wrappers to preserve test-patching at the pipeline module
             level).
+        weight_overrides: If provided, passed through to ``score_universe()`` to
+            override default indicator weights for composite scoring.
 
     Returns:
         ``ScoringResult`` with scored tickers and raw signals retained.
@@ -123,7 +126,7 @@ async def run_scoring_phase(
                 )
 
     # Step 2: Score universe (returns normalized signals on TickerScore)
-    scored: list[TickerScore] = score_universe(raw_signals)
+    scored: list[TickerScore] = score_universe(raw_signals, weight_overrides=weight_overrides)
 
     # Step 3: Classify direction using RAW values (not normalized)
     # and enrich with sector from Phase 1 sector_map

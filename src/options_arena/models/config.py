@@ -144,6 +144,33 @@ class MLConfig(BaseModel):
         return v
 
 
+class LearningConfig(BaseModel):
+    """Learning loop configuration — controls whether tuned indicator weights are applied.
+
+    When ``apply_tuned_weights`` is ``True``, the scan pipeline loads the most recent
+    approved indicator weights from the DB and passes them as overrides to
+    ``composite_score()``.  When ``False`` (default), default weights are used.
+
+    ``min_confidence`` sets the minimum confidence threshold for tuned weights
+    to be considered valid.
+
+    Override via ``ARENA_LEARNING__APPLY_TUNED_WEIGHTS=true``.
+    """
+
+    apply_tuned_weights: bool = False
+    min_confidence: float = 0.7
+
+    @field_validator("min_confidence")
+    @classmethod
+    def _validate_min_confidence(cls, v: float) -> float:
+        """Ensure min_confidence is finite and within [0.0, 1.0]."""
+        if not math.isfinite(v):
+            raise ValueError(f"min_confidence must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"min_confidence must be in [0.0, 1.0], got {v}")
+        return v
+
+
 class ScanConfig(FiniteFieldsMixin):
     """Scan pipeline configuration — scoring thresholds, timeouts, toggles, and filters.
 
@@ -699,3 +726,4 @@ class AppSettings(BaseSettings):
     spread: SpreadConfig = SpreadConfig()
     position_sizing: PositionSizingConfig = PositionSizingConfig()
     agency: AgencyConfig = AgencyConfig()
+    learning: LearningConfig = LearningConfig()
