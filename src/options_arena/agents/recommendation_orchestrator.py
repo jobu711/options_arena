@@ -713,7 +713,7 @@ async def _run_recommendation_pipeline(
         deps=synthesis_deps,
         model=synth_model,
         model_settings=model_settings,
-        timeout=agency_config.agent_timeout * 2,  # synthesis gets extra time
+        timeout=config.synthesis_timeout,
     )
 
     # Compute citation density — guard empty context block

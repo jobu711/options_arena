@@ -41,6 +41,7 @@ from options_arena.models.config import AppSettings
 from options_arena.models.enums import (
     INDUSTRY_GROUP_ALIASES,
     SECTOR_ALIASES,
+    TICKER_RE,
     GICSIndustryGroup,
     GICSSector,
     LLMProvider,
@@ -231,9 +232,18 @@ def scan(
     sectors = _parse_sectors(sector)
     cap_tiers = _parse_market_caps(market_cap)
     industry_groups = _parse_industry_groups(industry_group)
-    custom_tickers = (
-        [t.strip().upper() for t in tickers.split(",") if t.strip()] if tickers else []
-    )
+    custom_tickers: list[str] = []
+    if tickers:
+        for raw in tickers.split(","):
+            normalized = raw.strip().upper()
+            if not normalized:
+                continue
+            if not TICKER_RE.match(normalized):
+                raise typer.BadParameter(
+                    f"Invalid ticker symbol: {normalized!r} (must match {TICKER_RE.pattern})",
+                    param_hint="--tickers",
+                )
+            custom_tickers.append(normalized)
     asyncio.run(
         _scan_async(
             preset,

@@ -107,7 +107,7 @@ async def run_scoring_phase(
 
     # Step 1c: ML regime classification (GBM) when enabled
     if scan_config.ml.enable_ml_regime:
-        _compute_ml_regime_classifications(raw_signals)
+        await _compute_ml_regime_classifications(raw_signals)
 
     # Log per-indicator success rates for diagnostics
     if raw_signals:
@@ -305,7 +305,7 @@ async def _compute_garch_for_ticker(
     model fitting is synchronous and CPU-bound. On timeout or failure, the
     fields remain ``None`` (graceful degradation).
     """
-    from options_arena.indicators.vol_forecast import compute_garch_forecast
+    from options_arena.indicators import compute_garch_forecast  # noqa: PLC0415
 
     # GARCH(p,q) forecast
     try:
@@ -347,7 +347,7 @@ _REGIME_TO_IDX: dict[str, float] = {
 }
 
 
-def _compute_ml_regime_classifications(
+async def _compute_ml_regime_classifications(
     raw_signals: dict[str, IndicatorSignals],
 ) -> None:
     """Enrich raw signals with GBM regime classification confidence and label.
@@ -357,18 +357,25 @@ def _compute_ml_regime_classifications(
     as a float index on ``IndicatorSignals.ml_regime_label_idx``. Failures are
     silently skipped (fields remain ``None``).
 
+    The classification loop is CPU-bound (GBM inference), so it runs in a
+    separate thread via ``asyncio.to_thread()`` to avoid blocking the event loop.
+
     Args:
         raw_signals: Ticker -> IndicatorSignals mapping (mutated in place).
     """
-    from options_arena.indicators.regime_ml import classify_regime_ml  # noqa: PLC0415
+    from options_arena.indicators import classify_regime_ml  # noqa: PLC0415
 
-    classified = 0
-    for signals in raw_signals.values():
-        result = classify_regime_ml(signals)
-        if result is not None:
-            signals.ml_regime_confidence = result.confidence
-            signals.ml_regime_label_idx = _REGIME_TO_IDX.get(result.predicted_regime)
-            classified += 1
+    def _classify_all() -> int:
+        classified = 0
+        for signals in raw_signals.values():
+            result = classify_regime_ml(signals)
+            if result is not None:
+                signals.ml_regime_confidence = result.confidence
+                signals.ml_regime_label_idx = _REGIME_TO_IDX.get(result.predicted_regime)
+                classified += 1
+        return classified
+
+    classified = await asyncio.to_thread(_classify_all)
 
     logger.info(
         "ML regime classification computed for %d/%d tickers",
@@ -389,7 +396,7 @@ async def _compute_markov_for_ticker(
     ``statsmodels`` Markov regression fitting is synchronous and CPU-bound.
     On timeout or failure, the fields remain ``None``.
     """
-    from options_arena.indicators.regime_ml import compute_markov_regime
+    from options_arena.indicators import compute_markov_regime  # noqa: PLC0415
 
     try:
         # Use decimal returns (not percentage) for Markov model

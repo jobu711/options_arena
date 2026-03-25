@@ -15,7 +15,6 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic_ai import models
 
-from options_arena.agents.prompts.synthesis import SPREAD_ANALYSIS_BLOCK
 from options_arena.agents.risk_desk import _render_risk_spread_block, _risk_recommend_prompt
 from options_arena.agents.synthesis_agent import (
     SynthesisDeps,

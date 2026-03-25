@@ -11,7 +11,14 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from options_arena.models import (
     INDUSTRY_GROUP_ALIASES,
@@ -19,6 +26,7 @@ from options_arena.models import (
     TICKER_RE,
     AgentResponse,
     ContrarianThesis,
+    DeskRunStatus,
     DeskType,
     FlowThesis,
     FundamentalThesis,
@@ -70,6 +78,25 @@ class ScanRequest(BaseModel):
     delta_fallback_min: float | None = None
     delta_fallback_max: float | None = None
     source: ScanSource = ScanSource.MANUAL
+
+    @field_validator("exclude_near_earnings_days")
+    @classmethod
+    def validate_exclude_near_earnings_days(cls, v: int | None) -> int | None:
+        """Ensure exclude_near_earnings_days is non-negative when set."""
+        if v is not None and v < 0:
+            raise ValueError(f"exclude_near_earnings_days must be >= 0, got {v}")
+        return v
+
+    @field_validator("min_iv_rank")
+    @classmethod
+    def validate_min_iv_rank(cls, v: float | None) -> float | None:
+        """Ensure min_iv_rank is finite and in [0.0, 100.0] when set."""
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError(f"min_iv_rank must be finite, got {v}")
+            if not 0.0 <= v <= 100.0:
+                raise ValueError(f"min_iv_rank must be in [0.0, 100.0], got {v}")
+        return v
 
     @field_validator("min_price", "max_price")
     @classmethod
@@ -586,8 +613,8 @@ class DeskAssessmentBrief(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    desk: str
-    direction: str
+    desk: DeskType
+    direction: SignalDirection
     confidence: float
     summary: str
     key_findings: list[str]
@@ -608,7 +635,7 @@ class PositionRecommendationResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     ticker: str
-    option_type: str | None = None
+    option_type: OptionType | None = None
     strike: str | None = None
     expiration: str | None = None
     recommended_contract: str
@@ -617,7 +644,7 @@ class PositionRecommendationResponse(BaseModel):
     take_profit: str | None = None
     position_size_pct: float
     risk_reward_ratio: float
-    direction: str
+    direction: SignalDirection
     confidence: float
     strategy: str | None = None
     strategy_rationale: str
@@ -812,6 +839,26 @@ class OutcomeCollectionResult(BaseModel):
     outcomes_collected: int
 
 
+class RegimeTrainingResult(BaseModel):
+    """Response for ``POST /api/analytics/regime/train``."""
+
+    model_config = ConfigDict(frozen=True)
+
+    status: str
+    data_source: str
+    sample_count: int
+    feature_count: int
+    classes: list[str]
+    model_path: str
+
+    @field_validator("sample_count", "feature_count")
+    @classmethod
+    def _validate_positive_int(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError(f"count must be >= 0, got {v}")
+        return v
+
+
 # ---------------------------------------------------------------------------
 # Recommendation cost schemas (#813)
 # ---------------------------------------------------------------------------
@@ -822,13 +869,13 @@ class DeskCostDetailResponse(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    desk: str
+    desk: DeskType
     tier: str
     model_used: str
     input_tokens: int
     output_tokens: int
     duration_ms: int
-    status: str
+    status: DeskRunStatus
 
     @field_validator("input_tokens", "output_tokens")
     @classmethod
@@ -926,6 +973,11 @@ class HeatmapTicker(BaseModel):
             raise ValueError("price must be positive")
         return v
 
+    @field_serializer("price")
+    @classmethod
+    def _ser_price(cls, v: Decimal) -> str:
+        return str(v)
+
     @field_validator("change_pct")
     @classmethod
     def _validate_change_pct(cls, v: float | None) -> float | None:
@@ -978,8 +1030,8 @@ class RoutingConfigUpdate(BaseModel):
     enable_model_routing: bool
     complexity_threshold_fast: float
     complexity_threshold_premium: float
-    fast_model: str
-    premium_model: str
+    fast_model: str = Field(max_length=100)
+    premium_model: str = Field(max_length=100)
     cost_per_million_tokens: dict[str, float]
 
     @field_validator("complexity_threshold_fast", "complexity_threshold_premium")
@@ -1022,3 +1074,22 @@ class RoutingConfigResponse(BaseModel):
     premium_model: str
     cost_per_million_tokens: dict[str, float]
     is_override: bool
+
+    @field_validator("complexity_threshold_fast", "complexity_threshold_premium")
+    @classmethod
+    def _validate_threshold(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError(f"threshold must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"threshold must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("cost_per_million_tokens")
+    @classmethod
+    def _validate_costs(cls, v: dict[str, float]) -> dict[str, float]:
+        for key, val in v.items():
+            if not math.isfinite(val):
+                raise ValueError(f"cost for {key!r} must be finite, got {val}")
+            if val < 0.0:
+                raise ValueError(f"cost for {key!r} must be >= 0, got {val}")
+        return v

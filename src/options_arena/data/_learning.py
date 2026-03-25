@@ -552,6 +552,9 @@ class LearningMixin(RepositoryBase):
         if raw_was_correct is not None:
             was_correct = bool(int(raw_was_correct))
 
+        raw_confidence = float(row["confidence"])
+        confidence = raw_confidence if math.isfinite(raw_confidence) else 0.0
+
         return Prediction(
             id=int(row["id"]) if row["id"] is not None else None,
             recommendation_id=(
@@ -561,7 +564,7 @@ class LearningMixin(RepositoryBase):
             ticker=str(row["ticker"]),
             source=PredictionSource(str(row["source"])),
             predicted_direction=SignalDirection(str(row["predicted_direction"])),
-            confidence=float(row["confidence"]),
+            confidence=confidence,
             adx=float(row["adx"]) if row["adx"] is not None else None,
             iv_rank=float(row["iv_rank"]) if row["iv_rank"] is not None else None,
             atr_pct=float(row["atr_pct"]) if row["atr_pct"] is not None else None,
@@ -578,7 +581,11 @@ class LearningMixin(RepositoryBase):
 
         # Confidence columns added in migration 038 — fallback for pre-migration rows
         raw_confidence = row["confidence"]
-        confidence = float(raw_confidence) if raw_confidence is not None else 0.5
+        if raw_confidence is not None:
+            parsed_confidence = float(raw_confidence)
+            confidence = parsed_confidence if math.isfinite(parsed_confidence) else 0.5
+        else:
+            confidence = 0.5
 
         raw_last_validated = row["last_validated"]
         last_validated: datetime | None = None

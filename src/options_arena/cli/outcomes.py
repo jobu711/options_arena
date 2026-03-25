@@ -104,17 +104,14 @@ async def _outcomes_collect_async(holding_days: int | None) -> None:
         table.add_column("Winner", justify="center")
 
         for outcome in outcomes:
-            # Resolve ticker from contract_id
+            # Resolve ticker from contract_id via Repository method
             ticker = "?"
             try:
-                conn = repo._db.conn  # noqa: SLF001
-                async with conn.execute(
-                    "SELECT ticker FROM recommended_contracts WHERE id = ?",
-                    (outcome.recommended_contract_id,),
-                ) as cursor:
-                    row = await cursor.fetchone()
-                if row:
-                    ticker = str(row["ticker"])
+                resolved = await repo.get_ticker_for_contract(
+                    outcome.recommended_contract_id,
+                )
+                if resolved:
+                    ticker = resolved
             except Exception:
                 logger.debug("Failed to lookup ticker name", exc_info=True)
 

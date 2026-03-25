@@ -118,7 +118,9 @@ class TestBuildDebateModel:
         """build_debate_model uses the model name from config."""
         monkeypatch.delenv("GROQ_API_KEY", raising=False)
         config = DebateConfig(
-            provider=LLMProvider.GROQ, model="llama-3.1-8b-instant", api_key="gsk_test",
+            provider=LLMProvider.GROQ,
+            model="llama-3.1-8b-instant",
+            api_key="gsk_test",
         )
         model = build_debate_model(config)
         assert isinstance(model, GroqModel)

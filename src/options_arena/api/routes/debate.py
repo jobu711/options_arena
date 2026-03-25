@@ -48,6 +48,7 @@ from options_arena.models import (
     AgentResponse,
     AppSettings,
     ContrarianThesis,
+    DeskType,
     ExtendedTradeThesis,
     FlowThesis,
     FundamentalThesis,
@@ -202,8 +203,8 @@ def _recommendation_row_to_response(
                 conf = raw_conf if math.isfinite(raw_conf) else 0.0
                 assessments.append(
                     DeskAssessmentBrief(
-                        desk=str(ad.get("desk", "unknown")),
-                        direction=str(ad.get("direction", "neutral")),
+                        desk=DeskType(str(ad.get("desk", "unknown"))),
+                        direction=SignalDirection(str(ad.get("direction", "neutral"))),
                         confidence=conf,
                         summary=str(ad.get("summary", "")),
                         key_findings=list(ad.get("key_factors", [])),
@@ -223,7 +224,7 @@ def _recommendation_row_to_response(
         take_profit=row.take_profit,
         position_size_pct=row.position_size_pct,
         risk_reward_ratio=row.risk_reward_ratio,
-        direction=row.direction,
+        direction=SignalDirection(row.direction),
         confidence=row.confidence,
         strategy=row.recommended_strategy,
         strategy_rationale=row.strategy_rationale,
@@ -299,12 +300,11 @@ async def _run_recommendation_background(
             result.duration_ms,
         )
 
-        bridge.complete(debate_id)
     except Exception:
         logger.exception("Recommendation %d for %s failed", debate_id, ticker)
         bridge.error(f"Recommendation failed for {ticker}")
-        bridge.complete(debate_id)
     finally:
+        bridge.complete(debate_id)
         # Clean up (initialized in lifespan)
         request.app.state.debate_queues.pop(debate_id, None)
 
@@ -485,6 +485,8 @@ async def start_batch_debate(
             raise HTTPException(404, "Scan not found or has no scores")
         all_scores.sort(key=lambda s: s.composite_score, reverse=True)
         tickers = [s.ticker for s in all_scores[: body.limit]]
+
+    tickers = list(dict.fromkeys(tickers))
 
     if not tickers:
         raise HTTPException(422, "No tickers to debate")
