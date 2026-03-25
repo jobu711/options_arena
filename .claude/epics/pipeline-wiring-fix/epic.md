@@ -1,8 +1,10 @@
 ---
 name: pipeline-wiring-fix
-status: backlog
+status: completed
 created: 2026-03-25T02:06:19Z
-progress: 0%
+updated: 2026-03-25T06:00:00Z
+completed: 2026-03-25T06:00:00Z
+progress: 100%
 prd: .claude/prds/pipeline-wiring-fix.md
 github: https://github.com/jobu711/options_arena/issues/804
 ---
