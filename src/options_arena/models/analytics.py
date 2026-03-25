@@ -1302,6 +1302,11 @@ class RiskAdjustedMetrics(BaseModel):
     them (fewer than ``min_trades`` trades, zero standard deviation, or zero
     downside deviation).
 
+    ``position_size_pct`` records the assumed per-trade allocation used when
+    walking the equity curve (max drawdown, annualized return). A value of
+    ``5.0`` means each trade risks 5% of the portfolio — a -100% option
+    expiry reduces the portfolio by 5%, not 100%.
+
     Attributes:
         lookback_days: Number of calendar days in the lookback window.
         total_trades: Number of trades with outcome data in the window.
@@ -1311,6 +1316,7 @@ class RiskAdjustedMetrics(BaseModel):
         max_drawdown_date: Date of the trough of the maximum drawdown (None if no trades).
         annualized_return_pct: Annualized return percentage (None if no trades).
         risk_free_rate: Risk-free rate used for excess return calculation.
+        position_size_pct: Per-trade allocation assumption for equity curve (%).
     """
 
     model_config = ConfigDict(frozen=True)
@@ -1323,6 +1329,7 @@ class RiskAdjustedMetrics(BaseModel):
     max_drawdown_date: date | None = None
     annualized_return_pct: float | None = None
     risk_free_rate: float
+    position_size_pct: float = 5.0
 
     @field_validator("lookback_days")
     @classmethod
@@ -1340,7 +1347,9 @@ class RiskAdjustedMetrics(BaseModel):
             raise ValueError(f"total_trades must be >= 0, got {v}")
         return v
 
-    @field_validator("sharpe_ratio", "sortino_ratio", "max_drawdown_pct", "annualized_return_pct")
+    @field_validator(
+        "sharpe_ratio", "sortino_ratio", "max_drawdown_pct", "annualized_return_pct",
+    )
     @classmethod
     def validate_optional_float_finite(cls, v: float | None) -> float | None:
         """Ensure optional float fields are finite when provided."""
@@ -1348,10 +1357,10 @@ class RiskAdjustedMetrics(BaseModel):
             raise ValueError(f"must be finite, got {v}")
         return v
 
-    @field_validator("risk_free_rate")
+    @field_validator("risk_free_rate", "position_size_pct")
     @classmethod
-    def validate_risk_free_rate_finite(cls, v: float) -> float:
-        """Ensure risk_free_rate is finite."""
+    def validate_required_float_finite(cls, v: float) -> float:
+        """Ensure required float fields are finite."""
         if not math.isfinite(v):
-            raise ValueError(f"risk_free_rate must be finite, got {v}")
+            raise ValueError(f"must be finite, got {v}")
         return v

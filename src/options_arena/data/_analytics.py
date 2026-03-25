@@ -1275,6 +1275,8 @@ class AnalyticsMixin(RepositoryBase):
         self,
         lookback_days: int = 365,
         risk_free_rate: float = 0.05,
+        epoch: date | None = None,
+        position_size_fraction: float = 0.05,
     ) -> RiskAdjustedMetrics:
         """Compute risk-adjusted performance metrics from outcome data.
 
@@ -1285,6 +1287,10 @@ class AnalyticsMixin(RepositoryBase):
         Args:
             lookback_days: Number of calendar days to look back from now.
             risk_free_rate: Annualized risk-free rate for excess return calculation.
+            epoch: Hard cutoff date — outcomes collected before this date are excluded.
+                When ``None``, only ``lookback_days`` applies.
+            position_size_fraction: Per-trade allocation fraction for equity curve
+                (0.05 = 5%). Passed through to ``compute_risk_adjusted_metrics()``.
 
         Returns:
             ``RiskAdjustedMetrics`` with computed ratios. Ratios are ``None`` when
@@ -1292,6 +1298,12 @@ class AnalyticsMixin(RepositoryBase):
         """
         conn = self._db.conn
         cutoff = (datetime.now(UTC) - timedelta(days=lookback_days)).isoformat()
+
+        # Use the later of lookback cutoff and analytics epoch
+        if epoch is not None:
+            epoch_iso = datetime(epoch.year, epoch.month, epoch.day, tzinfo=UTC).isoformat()
+            if epoch_iso > cutoff:
+                cutoff = epoch_iso
 
         async with conn.execute(
             "SELECT co.contract_return_pct, co.holding_days "
@@ -1304,6 +1316,8 @@ class AnalyticsMixin(RepositoryBase):
         ) as cursor:
             rows = await cursor.fetchall()
 
+        position_size_pct = position_size_fraction * 100.0
+
         if not rows:
             return RiskAdjustedMetrics(
                 lookback_days=lookback_days,
@@ -1314,6 +1328,7 @@ class AnalyticsMixin(RepositoryBase):
                 max_drawdown_date=None,
                 annualized_return_pct=None,
                 risk_free_rate=risk_free_rate,
+                position_size_pct=position_size_pct,
             )
 
         returns: list[float] = []
@@ -1329,6 +1344,7 @@ class AnalyticsMixin(RepositoryBase):
             returns=returns,
             holding_days=holding_days_list,
             risk_free_rate=risk_free_rate,
+            position_size_fraction=position_size_fraction,
         )
 
         # Override lookback_days to reflect the query parameter, not the computed sum
@@ -1341,6 +1357,7 @@ class AnalyticsMixin(RepositoryBase):
             max_drawdown_date=result.max_drawdown_date,
             annualized_return_pct=result.annualized_return_pct,
             risk_free_rate=result.risk_free_rate,
+            position_size_pct=result.position_size_pct,
         )
 
     # ------------------------------------------------------------------

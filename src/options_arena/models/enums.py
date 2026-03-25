@@ -269,6 +269,10 @@ SECTOR_ALIASES: dict[str, GICSSector] = {
     "materials": GICSSector.MATERIALS,
     "real estate": GICSSector.REAL_ESTATE,
     "utilities": GICSSector.UTILITIES,
+    # yfinance sector names (differ from GICS standard)
+    "consumer cyclical": GICSSector.CONSUMER_DISCRETIONARY,
+    "consumer defensive": GICSSector.CONSUMER_STAPLES,
+    "basic materials": GICSSector.MATERIALS,
     # Short names
     "communication": GICSSector.COMMUNICATION_SERVICES,
     "telecom": GICSSector.COMMUNICATION_SERVICES,

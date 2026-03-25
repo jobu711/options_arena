@@ -50,6 +50,19 @@ CBOE_URL = (
 # Characters that indicate an index symbol (not an equity)
 INDEX_SYMBOL_CHARS: frozenset[str] = frozenset({"^", "$", "/"})
 
+# CBOE index/non-equity symbols that pass the ticker regex but have no yfinance price data.
+# These are market indices, mini/micro index options, and CBOE proprietary products.
+_NON_EQUITY_SYMBOLS: frozenset[str] = frozenset({
+    # Major indices
+    "SPX", "VIX", "DJX", "OEX", "XEO", "XND", "XSP", "RUT", "RUI", "RLV", "MRUT", "NDX",
+    # CBOE mini/micro index products
+    "MXEF", "MXEA", "MXACW", "NANOS",
+    # CBOE S&P sector index products (SIX* family)
+    "SIXRE", "SIXU", "SIXI", "SIXB", "SIXV", "SIXM",
+    # CBOE S&P ESG/equal-weight products
+    "SPEQX", "SPESG",
+})
+
 # Valid ticker: 1-5 uppercase letters, optionally followed by a dot and 1 letter (BRK.B)
 _TICKER_RE: re.Pattern[str] = re.compile(r"^[A-Z]{1,5}(\.[A-Z])?$")
 
@@ -1055,9 +1068,11 @@ class UniverseService(ServiceBase[ServiceConfig]):
     def _filter_symbols(raw_symbols: list[str]) -> list[str]:
         """Filter, deduplicate, and sort ticker symbols.
 
-        Removes index symbols (containing ``^``, ``$``, ``/``), rejects
-        non-ticker strings (HTML fragments, CSS, etc.), strips whitespace,
-        deduplicates, and returns sorted.
+        Removes index symbols (containing ``^``, ``$``, ``/``), known
+        non-equity CBOE products, rejects non-ticker strings (HTML
+        fragments, CSS, etc.), converts dot-suffix to dash for yfinance
+        (``BRK.B`` -> ``BRK-B``), strips whitespace, deduplicates, and
+        returns sorted.
         """
         seen: set[str] = set()
         result: list[str] = []
@@ -1067,7 +1082,7 @@ class UniverseService(ServiceBase[ServiceConfig]):
             if not cleaned:
                 continue
 
-            # Filter out index symbols
+            # Filter out index symbols by special characters
             if any(char in cleaned for char in INDEX_SYMBOL_CHARS):
                 continue
 
@@ -1077,9 +1092,16 @@ class UniverseService(ServiceBase[ServiceConfig]):
             if not _TICKER_RE.match(upper):
                 continue
 
-            if upper not in seen:
-                seen.add(upper)
-                result.append(upper)
+            # Filter out known non-equity CBOE index/product symbols
+            if upper in _NON_EQUITY_SYMBOLS:
+                continue
+
+            # Convert dot-suffix to dash for yfinance (BRK.B -> BRK-B)
+            yf_ticker = upper.replace(".", "-")
+
+            if yf_ticker not in seen:
+                seen.add(yf_ticker)
+                result.append(yf_ticker)
 
         result.sort()
         return result

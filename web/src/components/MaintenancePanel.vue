@@ -27,6 +27,7 @@ async function collectOutcomes(): Promise<void> {
   try {
     const res = await api<{ outcomes_collected: number }>('/api/analytics/collect-outcomes', {
       method: 'POST',
+      timeout: 300_000,
     })
     collectResult.value = `${res.outcomes_collected} outcome${res.outcomes_collected !== 1 ? 's' : ''} collected`
     toast.add({ severity: 'success', summary: 'Outcomes Collected', detail: collectResult.value, life: 5000 })

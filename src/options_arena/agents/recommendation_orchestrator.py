@@ -590,6 +590,7 @@ async def _run_recommendation_pipeline(
             contracts=list(contracts),
             market_context=context,
             spread_analysis=enrich.spread_analysis,
+            analytics_config=settings.analytics,
         )
 
     # ------------------------------------------------------------------

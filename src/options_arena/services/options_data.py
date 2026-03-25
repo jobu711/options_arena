@@ -49,6 +49,16 @@ from options_arena.services.rate_limiter import RateLimiter
 from options_arena.utils.exceptions import DataFetchError, DataSourceUnavailableError
 
 # ---------------------------------------------------------------------------
+# Chain fetch constants
+# ---------------------------------------------------------------------------
+
+# Circuit breaker: stop fetching after this many consecutive failed expirations
+_CHAIN_CIRCUIT_BREAKER = 3
+
+# Number of expirations to fetch concurrently per batch
+_CHAIN_BATCH_SIZE = 5
+
+# ---------------------------------------------------------------------------
 # Module-level helpers (pure functions, no state)
 # ---------------------------------------------------------------------------
 
@@ -652,11 +662,12 @@ class OptionsDataService(ServiceBase[ServiceConfig]):
         self,
         ticker: str,
     ) -> list[ExpirationChain]:
-        """Fetch option chains for all available expirations concurrently.
+        """Fetch option chains for all available expirations with circuit breaker.
 
-        Uses ``asyncio.gather(return_exceptions=True)`` so one failed expiration
-        does not cancel the rest. Failed expirations are logged and excluded
-        from the result.
+        Fetches expirations sequentially in small batches. If consecutive failures
+        exceed ``_CHAIN_CIRCUIT_BREAKER`` (default 3), remaining expirations are
+        skipped to avoid cascading timeouts (e.g. 19 x 15s when yfinance is down
+        for a ticker).
 
         Args:
             ticker: The underlying ticker symbol.
@@ -666,30 +677,52 @@ class OptionsDataService(ServiceBase[ServiceConfig]):
         """
         expirations = await self.fetch_expirations(ticker)
 
-        tasks = [self.fetch_chain(ticker, exp) for exp in expirations]
-        results: list[list[OptionContract] | BaseException] = await asyncio.gather(
-            *tasks, return_exceptions=True
-        )
-
         chains: list[ExpirationChain] = []
+        consecutive_failures = 0
         succeeded = 0
-        for exp, result in zip(expirations, results, strict=True):
-            if isinstance(result, BaseException):
-                self._log.warning(
-                    "Failed to fetch chain for %s exp %s: %s",
-                    ticker,
-                    exp.isoformat(),
-                    result,
-                )
-            else:
-                chains.append(ExpirationChain(expiration=exp, contracts=result))
-                succeeded += 1
+        skipped = 0
 
+        # Process in batches to allow circuit breaker to trigger between batches
+        batch_size = _CHAIN_BATCH_SIZE
+        for batch_start in range(0, len(expirations), batch_size):
+            if consecutive_failures >= _CHAIN_CIRCUIT_BREAKER:
+                skipped = len(expirations) - batch_start
+                self._log.warning(
+                    "Circuit breaker: skipping %d remaining expirations for %s "
+                    "after %d consecutive failures",
+                    skipped,
+                    ticker,
+                    consecutive_failures,
+                )
+                break
+
+            batch = expirations[batch_start : batch_start + batch_size]
+            tasks = [self.fetch_chain(ticker, exp) for exp in batch]
+            results: list[list[OptionContract] | BaseException] = await asyncio.gather(
+                *tasks, return_exceptions=True
+            )
+
+            for exp, result in zip(batch, results, strict=True):
+                if isinstance(result, BaseException):
+                    consecutive_failures += 1
+                    self._log.warning(
+                        "Failed to fetch chain for %s exp %s: %s",
+                        ticker,
+                        exp.isoformat(),
+                        result,
+                    )
+                else:
+                    consecutive_failures = 0  # Reset on success
+                    chains.append(ExpirationChain(expiration=exp, contracts=result))
+                    succeeded += 1
+
+        total = len(expirations)
         self._log.debug(
-            "Fetched all chains for %s: %d/%d expirations succeeded",
+            "Fetched all chains for %s: %d/%d succeeded, %d skipped",
             ticker,
             succeeded,
-            len(expirations),
+            total,
+            skipped,
         )
         return chains
 

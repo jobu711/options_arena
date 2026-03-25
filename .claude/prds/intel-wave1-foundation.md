@@ -3,7 +3,7 @@ name: intel-wave1-foundation
 description: Foundation models, enums, and config classes for market intelligence integration
 status: backlog
 created: 2026-03-24T15:48:29Z
-updated: 2026-03-24T16:07:20Z
+updated: 2026-03-25T13:41:06Z
 effort: M
 ---
 
@@ -33,10 +33,10 @@ Pure data shape layer — models, enums, config only. No I/O, no business logic.
 
 | File | Action |
 |------|--------|
-| `src/options_arena/models/enums.py` | Modify — add 8 StrEnums + `DeskType.INTELLIGENCE` |
-| `src/options_arena/models/intelligence_sources.py` | **Create** — GDELT, EIA, BLS, GSCPI, Treasury snapshot models |
-| `src/options_arena/models/intelligence.py` | **Create** — aggregate container, delta, alert models + IntelligenceAssessment |
-| `src/options_arena/models/config.py` | Modify — add 8 config classes + wire into AppSettings |
+| `src/options_arena/models/enums.py` | Modify — add 11 StrEnums (`TradeFlowDirection`, `StrategicCommodity`, `RiskPolarity` + original 8 with 6 additional values on `IntelligenceCategory`) + `DeskType.INTELLIGENCE` |
+| `src/options_arena/models/intelligence_sources.py` | **Create** — GDELT, EIA, BLS, GSCPI, Treasury, Comtrade, USASpending snapshot models (13 models total) |
+| `src/options_arena/models/intelligence.py` | **Create** — aggregate container (8 source fields), delta, alert models + IntelligenceAssessment |
+| `src/options_arena/models/config.py` | Modify — add 10 config classes (original 8 + `ComtradeConfig`, `UsaSpendingConfig`) + wire into AppSettings |
 | `src/options_arena/models/recommendation.py` | Modify — update AnyAssessment union |
 | `src/options_arena/models/__init__.py` | Modify — re-export new models |
 | `src/options_arena/agents/_desk_deps.py` | Modify — add 2 optional fields |
@@ -54,17 +54,22 @@ Two files split by concern:
 | `GdeltArticle` | title, url, published_at (UTC), domain, country (str\|None), category (GdeltCategory) | Single news article |
 | `GdeltSnapshot` | articles (list[GdeltArticle]), article_count (int), avg_tone (float\|None), fetched_at (UTC) | `completeness_ratio()` method |
 | `EnergySeries` | series_id, display_name, value (float), previous_value (float\|None), unit, period | Single EIA series reading |
-| `EnergySnapshot` | wti/brent/natgas/inventories (EnergySeries\|None each), brent_wti_spread (float\|None), inventory_wow_change (float\|None), signal (EnergySignal) | `completeness_ratio()` method |
+| `EnergySnapshot` | wti/brent/natgas/inventories (EnergySeries\|None each), brent_wti_spread (float\|None), inventory_wow_change (float\|None), signal (EnergySignal), fetched_at (UTC) | `completeness_ratio()` method. `fetched_at` required for cache staleness and delta engine. |
 | `BlsSeries` | series_id, display_name, value (float), previous_value (float\|None), period, mom_change (float\|None) | Single BLS series reading |
-| `LaborSnapshot` | cpi_u/core_cpi/unemployment/nfp/ppi (BlsSeries\|None each) | `completeness_ratio()` method |
+| `LaborSnapshot` | cpi_u/core_cpi/unemployment/nfp/ppi (BlsSeries\|None each), fetched_at (UTC) | `completeness_ratio()` method. `fetched_at` required for cache staleness and delta engine. |
 | `SupplyChainSnapshot` | current_value (float), previous_value (float\|None), pressure (SupplyChainPressure), trend_direction (SignalDirection), fetched_at (UTC) | NY Fed GSCPI |
-| `FiscalSnapshot` | total_debt (float), avg_interest_rate (float\|None), effective_date (date), fetched_at (UTC) | US Treasury fiscal data |
+| `FiscalSnapshot` | total_debt (float), avg_interest_rate (float\|None), effective_date (date), daily_statement (TreasuryStatement\|None), fetched_at (UTC) | US Treasury fiscal data. `daily_statement` included from the start for Wave 2 Treasury DTS support. |
+| `TreasuryStatement` | deposits (float), withdrawals (float), closing_balance (float), record_date (date) | Daily Treasury Statement cash flow data |
+| `TradeSeries` | commodity (StrategicCommodity), reporter_country (str), partner_country (str\|None), trade_value (float), period (str), flow_direction (TradeFlowDirection) | Single UN Comtrade series reading. `trade_value` uses `float` — aggregate trade statistics, not transaction prices. |
+| `TradeSnapshot` | series (list[TradeSeries]), us_china_semiconductor (float\|None), us_china_energy (float\|None), fetched_at (UTC) | Frozen, `completeness_ratio()` |
+| `DefenseContract` | recipient (str), amount (float), description (str), agency (str), award_date (date) | Single USASpending defense contract award. `amount` uses `float` — aggregate government values, not tradeable prices. |
+| `DefenseSnapshot` | contracts (list[DefenseContract]), total_value (float), top_agencies (list[str]), fetched_at (UTC) | Frozen, `completeness_ratio()` |
 
 **`intelligence.py`** — Aggregate, delta, alert, and agent output models:
 
 | Model | Fields | Notes |
 |-------|--------|-------|
-| `IntelligenceSnapshot` | gdelt/energy/labor/supply_chain/fiscal (all \|None), macro (MacroContext\|None), fetched_at (UTC) | `completeness_ratio()`, classmethod `fallback()` |
+| `IntelligenceSnapshot` | gdelt/energy/labor/supply_chain/fiscal/trade/defense (all \|None), macro (MacroContext\|None), fetched_at (UTC) | `completeness_ratio()` uses `len(_SOURCE_FIELDS)` tuple (not hardcoded literal), classmethod `fallback()`. 8 source fields total. |
 | `MetricDelta` | category (IntelligenceCategory), metric_name, previous_value (float), current_value (float), change_pct (float\|None), change_absolute (float\|None), severity (SignalSeverity), description | Single changed metric |
 | `DeltaReport` | report_id (int\|None), previous_snapshot_id (int), current_snapshot_id (int), computed_at (UTC), deltas (list[MetricDelta]), overall_direction (MarketDirectionBias), critical_count (int), high_count (int), moderate_count (int), summary (str) | Full change report |
 | `AlertRecord` | alert_id (int\|None), tier (AlertTier), title, body, severity (SignalSeverity), status (AlertStatus), source_delta_id (int\|None), fingerprint (str), cooldown_count (int), created_at (UTC), acknowledged_at (datetime\|None) | Persisted alert |
@@ -87,7 +92,7 @@ Add to existing `src/options_arena/models/enums.py`:
 
 | Enum | Values | Purpose |
 |------|--------|---------|
-| `IntelligenceCategory` | vix, credit_spreads, energy, yield_curve, supply_chain, news_events, labor, fiscal | Delta engine metric categories |
+| `IntelligenceCategory` | vix, credit_spreads, energy, yield_curve, supply_chain, news_events, labor, fiscal, trade, defense, monetary, inflation, safe_haven, fx | Delta engine metric categories. `trade`/`defense` for Comtrade/USASpending; `monetary`/`inflation`/`safe_haven`/`fx` for semantically correct FRED metric grouping in Wave 3 delta reports. |
 | `SignalSeverity` | critical, high, moderate | Delta engine severity classification |
 | `MarketDirectionBias` | risk_on, risk_off, mixed | Overall market direction from delta analysis |
 | `AlertTier` | flash, priority, routine | Alert priority tier |
@@ -95,6 +100,9 @@ Add to existing `src/options_arena/models/enums.py`:
 | `GdeltCategory` | conflict, economy, health, crisis, other | News event categorization |
 | `EnergySignal` | price_spike, inventory_surprise, spread_anomaly, normal | EIA energy signals |
 | `SupplyChainPressure` | elevated, normal, loose | NY Fed GSCPI classification |
+| `TradeFlowDirection` | import_flow, export_flow | Trade flow direction (import vs export). US-China bilateral filtering handled by `partner_country` field. |
+| `StrategicCommodity` | crude_petroleum, natural_gas, semiconductors, gold, arms | Comtrade commodity categories for trade flow tracking |
+| `RiskPolarity` | up_risk_off, up_risk_on, neutral | Delta engine metric risk direction. Used by `METRIC_TABLE` in Wave 3 delta engine. |
 
 Add `INTELLIGENCE = "intelligence"` to existing `DeskType` enum.
 
@@ -102,7 +110,7 @@ Add `INTELLIGENCE = "intelligence"` to existing `DeskType` enum.
 
 New file: `src/options_arena/models/intelligence_sources.py`. All frozen snapshots.
 
-Models: `GdeltArticle`, `GdeltSnapshot`, `EnergySeries`, `EnergySnapshot`, `BlsSeries`, `LaborSnapshot`, `SupplyChainSnapshot`, `FiscalSnapshot` (see Data Models table above for field specs).
+Models: `GdeltArticle`, `GdeltSnapshot`, `EnergySeries`, `EnergySnapshot`, `BlsSeries`, `LaborSnapshot`, `SupplyChainSnapshot`, `FiscalSnapshot`, `TreasuryStatement`, `TradeSeries`, `TradeSnapshot`, `DefenseContract`, `DefenseSnapshot` (see Data Models table above for field specs).
 
 Each snapshot model with optional fields implements `completeness_ratio() -> float` following the `MacroContext` pattern in `src/options_arena/models/macro.py`.
 
@@ -113,7 +121,7 @@ New file: `src/options_arena/models/intelligence.py`.
 Models: `IntelligenceSnapshot`, `MetricDelta`, `DeltaReport`, `AlertRecord`, `IntelligenceAssessment` (see Data Models table above for field specs).
 
 `IntelligenceSnapshot` includes:
-- `completeness_ratio()` — fraction of 6 source fields that are non-None
+- `completeness_ratio()` — fraction of source fields that are non-None. **Must use `len(_SOURCE_FIELDS)` tuple** as denominator, not a hardcoded literal. This prevents breakage when source fields are added. 8 source fields: gdelt, energy, labor, supply_chain, fiscal, macro, trade, defense.
 - `fallback()` classmethod — returns all-None instance for graceful degradation
 
 `IntelligenceAssessment` inherits from `DomainAssessment` with `desk: Literal[DeskType.INTELLIGENCE] = DeskType.INTELLIGENCE` and 6 domain-specific fields.
@@ -131,13 +139,15 @@ Add to existing `src/options_arena/models/config.py`. All `BaseModel` with `Fini
 | `BlsConfig` | enabled (bool=True), api_key (SecretStr\|None), request_timeout (float=15.0), cache_ttl (int=86400) |
 | `GscpiConfig` | enabled (bool=True), request_timeout (float=15.0), cache_ttl (int=86400) |
 | `TreasuryConfig` | enabled (bool=True), request_timeout (float=10.0), cache_ttl (int=86400) |
+| `ComtradeConfig` | enabled (bool=True), api_key (SecretStr\|None), request_timeout (float=15.0), cache_ttl (int=86400) |
+| `UsaSpendingConfig` | enabled (bool=True), request_timeout (float=10.0), cache_ttl (int=86400), lookback_days (int=14) |
 
 **Engine configs (split by concern):**
 
 | Config | Key Fields |
 |--------|------------|
 | `IntelligenceConfig` | enabled (bool=False, opt-in), fetch_timeout (float=30.0), snapshot_retention_days (int=90) |
-| `DeltaConfig` | delta_vix_threshold_pct (float=5.0), delta_credit_spread_threshold_pct (float=5.0), delta_energy_threshold_pct (float=3.0), delta_yield_curve_threshold_pct (float=10.0), delta_supply_chain_threshold_pct (float=10.0) |
+| `DeltaConfig` | sensitivity (float=1.0, global threshold multiplier: 0.5=tighter, 2.0=looser), threshold_overrides (dict[str, float]={}, keyed by metric path e.g. `{"macro.vix": 3.0}`) |
 | `AlertConfig` | enable_alerts (bool=False), flash_cooldown_seconds (int=300), priority_cooldown_seconds (int=3600), routine_cooldown_seconds (int=14400), flash_hourly_cap (int=5), priority_hourly_cap (int=20), routine_hourly_cap (int=50) |
 
 Wire all into `AppSettings`:
@@ -147,6 +157,8 @@ eia: EiaConfig = EiaConfig()
 bls: BlsConfig = BlsConfig()
 gscpi: GscpiConfig = GscpiConfig()
 treasury_fiscal: TreasuryConfig = TreasuryConfig()
+comtrade: ComtradeConfig = ComtradeConfig()
+usaspending: UsaSpendingConfig = UsaSpendingConfig()
 intelligence: IntelligenceConfig = IntelligenceConfig()
 delta: DeltaConfig = DeltaConfig()
 alerts: AlertConfig = AlertConfig()
@@ -155,8 +167,10 @@ alerts: AlertConfig = AlertConfig()
 Env override examples:
 - `ARENA_EIA__API_KEY=your_key` → `settings.eia.api_key`
 - `ARENA_INTELLIGENCE__ENABLED=true` → `settings.intelligence.enabled`
-- `ARENA_DELTA__DELTA_VIX_THRESHOLD_PCT=3.0` → `settings.delta.delta_vix_threshold_pct`
+- `ARENA_DELTA__SENSITIVITY=0.5` → `settings.delta.sensitivity` (tighter thresholds)
 - `ARENA_ALERTS__FLASH_COOLDOWN_SECONDS=600` → `settings.alerts.flash_cooldown_seconds`
+- `ARENA_COMTRADE__API_KEY=your_key` → `settings.comtrade.api_key`
+- `ARENA_USASPENDING__LOOKBACK_DAYS=30` → `settings.usaspending.lookback_days`
 
 #### FR-5: Update AnyAssessment discriminated union
 
@@ -224,7 +238,7 @@ Mark primary happy-path tests with `@pytest.mark.critical`.
 - Only `AppSettings` is `BaseSettings`; all new configs are plain `BaseModel`
 - `DeskType.INTELLIGENCE` must not break existing 6-desk orchestration when intelligence is disabled
 - `DeskDeps` extension must be backward-compatible (new fields default to `None`)
-- No Decimal fields expected in intelligence models (prices aren't tracked) — all `float` for ratios/indicators
+- No Decimal fields expected in intelligence models — all `float` for ratios, indicators, and aggregate statistics (trade values, defense contract amounts are government reporting aggregates, not tradeable prices)
 
 ## Out of Scope
 

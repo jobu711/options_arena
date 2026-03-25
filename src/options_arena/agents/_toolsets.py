@@ -1585,11 +1585,17 @@ async def compute_risk_adjusted_metrics_tool(
             except Exception:
                 logger.debug("FRED unavailable for risk metrics, using default rate")
 
+        # Read analytics config for epoch and position sizing
+        analytics_cfg = ctx.deps.analytics_config
+        position_size_fraction = analytics_cfg.position_size_pct / 100.0
+
         # Use the repo's built-in risk-adjusted metrics query which already
         # handles joining contracts with outcomes.
         result = await ctx.deps.repo.get_risk_adjusted_metrics(
             lookback_days=365,
             risk_free_rate=risk_free_rate,
+            epoch=analytics_cfg.analytics_epoch,
+            position_size_fraction=position_size_fraction,
         )
 
         if result.total_trades == 0:
@@ -1601,7 +1607,8 @@ async def compute_risk_adjusted_metrics_tool(
             ).model_dump_json()
 
         lines: list[str] = [
-            f"Risk-Adjusted Metrics (all tickers, {result.lookback_days}d lookback):",
+            f"Risk-Adjusted Metrics (all tickers, {result.lookback_days}d lookback,"
+            f" {result.position_size_pct:.0f}% position sizing):",
             f"  Total Trades: {result.total_trades}",
         ]
         if result.sharpe_ratio is not None and math.isfinite(result.sharpe_ratio):

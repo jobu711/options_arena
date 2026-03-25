@@ -30,6 +30,9 @@ onMounted(async () => {
         <RouterLink to="/" class="nav-link" data-testid="nav-link-trading-desk">
           Trading Desk
         </RouterLink>
+        <RouterLink to="/desks" class="nav-link" data-testid="nav-link-desks">
+          Desks
+        </RouterLink>
         <RouterLink to="/analytics" class="nav-link" data-testid="nav-link-analytics">
           Analytics
         </RouterLink>

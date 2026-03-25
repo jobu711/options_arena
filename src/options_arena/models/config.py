@@ -15,6 +15,7 @@ AppSettings() with no args is a valid production config.
 
 import math
 import urllib.parse
+from datetime import date
 from typing import Self
 
 from pydantic import BaseModel, SecretStr, field_validator, model_validator
@@ -462,6 +463,16 @@ class AnalyticsConfig(BaseModel):
 
     ``auto_collect_enabled`` activates a background scheduler that runs
     ``collect_outcomes()`` once daily at ``auto_collect_hour_utc`` (0-23 UTC).
+
+    ``analytics_epoch`` sets a hard cutoff: outcomes collected before this date are
+    excluded from all risk-adjusted metrics. Use this to discard stale data from before
+    the system was properly calibrated. Set via ``ARENA_ANALYTICS__ANALYTICS_EPOCH``.
+
+    ``position_size_pct`` controls the assumed per-trade allocation when walking the
+    equity curve for max drawdown and annualized return. Options can return -100% on a
+    single trade; without position sizing, one worthless expiry zeros the entire equity
+    curve. Default 5% models realistic position sizing. Set via
+    ``ARENA_ANALYTICS__POSITION_SIZE_PCT``.
     """
 
     holding_periods: list[int] = [1, 5, 10, 20]
@@ -469,6 +480,8 @@ class AnalyticsConfig(BaseModel):
     collection_timeout: float = 120.0
     auto_collect_enabled: bool = False
     auto_collect_hour_utc: int = 6
+    analytics_epoch: date | None = None
+    position_size_pct: float = 5.0
 
     @field_validator("auto_collect_hour_utc")
     @classmethod
@@ -493,6 +506,16 @@ class AnalyticsConfig(BaseModel):
         for period in v:
             if period < 1:
                 raise ValueError(f"holding_period must be >= 1, got {period}")
+        return v
+
+    @field_validator("position_size_pct")
+    @classmethod
+    def _validate_position_size(cls, v: float) -> float:
+        """Ensure position_size_pct is in (0, 100]."""
+        if not math.isfinite(v):
+            raise ValueError(f"position_size_pct must be finite, got {v}")
+        if v <= 0 or v > 100:
+            raise ValueError(f"position_size_pct must be in (0, 100], got {v}")
         return v
 
 

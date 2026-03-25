@@ -31,6 +31,7 @@ export type {
   AgentCalibrationData,
 } from './backtest'
 export type { AgentWeightsComparison, WeightSnapshot } from './weights'
+export type { DeskType, QueryIntent, DeskAgentResponse, Citation, AgencyResponse } from './agency'
 export type {
   ScanProgressEvent,
   ScanErrorEvent,

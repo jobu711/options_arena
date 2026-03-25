@@ -343,6 +343,7 @@ class TestComputeRiskAdjustedMetricsToolResponse:
         mock_result.sortino_ratio = 1.8
         mock_result.max_drawdown_pct = -15.3
         mock_result.annualized_return_pct = 22.5
+        mock_result.position_size_pct = 5.0
         deps.repo.get_risk_adjusted_metrics = AsyncMock(return_value=mock_result)
 
         result = await compute_risk_adjusted_metrics_tool(ctx, "AAPL")

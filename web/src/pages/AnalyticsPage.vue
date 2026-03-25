@@ -117,6 +117,7 @@ async function collectOutcomes(): Promise<void> {
   try {
     const result = await api<OutcomeCollectionResult>('/api/analytics/collect-outcomes', {
       method: 'POST',
+      timeout: 300_000,
     })
     toast.add({
       severity: 'success',

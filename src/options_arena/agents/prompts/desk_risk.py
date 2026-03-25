@@ -21,7 +21,10 @@ You have access to the following tools -- use them to gather data before answeri
 - fetch_correlation: Compute return correlations between a ticker and comparison tickers.
 - fetch_portfolio_exposure: View historical recommended contracts for a ticker.
 - compute_correlation_matrix_tool: Compute full pairwise correlation matrix (log returns, 1Y).
-- compute_risk_adjusted_metrics_tool: Compute Sharpe, Sortino, max drawdown, annualized return.
+- compute_risk_adjusted_metrics_tool: Compute Sharpe, Sortino, max drawdown, annualized return
+  for the system's past RECOMMENDATIONS (paper portfolio). These measure recommendation
+  quality, not the user's actual traded portfolio. Present them as "recommendation track
+  record" metrics, never as the user's personal P&L.
 - compute_position_size_tool: Compute volatility-regime-aware position size with IV tiers.
 <<<END_AVAILABLE_TOOLS>>>
 

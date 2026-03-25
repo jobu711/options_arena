@@ -89,6 +89,14 @@ Your response must be valid JSON matching this schema:
 9. risks must contain at least 2 items (e.g., liquidity, correlation, event).
 10. Do NOT include <think> tags or reasoning traces in any field.
 
+## Risk Metrics Interpretation
+The compute_risk_adjusted_metrics_tool returns Sharpe, Sortino, max drawdown, and
+annualized return for the system's past RECOMMENDATIONS — a paper portfolio, not
+the user's actual trades. Present these as "recommendation track record" or
+"system recommendation quality" metrics. Never describe them as the user's personal
+portfolio performance. The position_size_pct shown reflects the assumed per-trade
+allocation used in the equity curve model.
+
 """
     + TOOL_RESPONSE_FORMAT
     + PROMPT_RULES_APPENDIX

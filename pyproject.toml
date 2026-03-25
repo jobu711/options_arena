@@ -93,7 +93,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "--durations=20 --timeout=60"
+addopts = "--durations=20 --timeout=60 -n 4"
 markers = [
     "critical: critical-path tests for <30s agent/pre-commit verification",
     "exhaustive: stress grids and large parametrize matrices — nightly only",
