@@ -813,6 +813,66 @@ class OutcomeCollectionResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Recommendation cost schemas (#813)
+# ---------------------------------------------------------------------------
+
+
+class DeskCostDetailResponse(BaseModel):
+    """Per-desk cost breakdown in a recommendation cost response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    desk: str
+    tier: str
+    model_used: str
+    input_tokens: int
+    output_tokens: int
+    duration_ms: int
+    status: str
+
+    @field_validator("input_tokens", "output_tokens")
+    @classmethod
+    def _validate_token_counts(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError(f"token count must be >= 0, got {v}")
+        return v
+
+    @field_validator("duration_ms")
+    @classmethod
+    def _validate_duration_ms(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError(f"duration_ms must be >= 0, got {v}")
+        return v
+
+
+class RecommendationCostDetailResponse(BaseModel):
+    """Recommendation cost summary with per-desk details for the Costs tab."""
+
+    model_config = ConfigDict(frozen=True)
+
+    ticker: str
+    created_at: str
+    duration_ms: int
+    total_tokens: int
+    is_fallback: bool
+    desk_details: list[DeskCostDetailResponse]
+
+    @field_validator("duration_ms")
+    @classmethod
+    def _validate_duration_ms(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError(f"duration_ms must be >= 0, got {v}")
+        return v
+
+    @field_validator("total_tokens")
+    @classmethod
+    def _validate_total_tokens(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError(f"total_tokens must be >= 0, got {v}")
+        return v
+
+
+# ---------------------------------------------------------------------------
 # Pre-scan preset schemas (#285)
 # ---------------------------------------------------------------------------
 

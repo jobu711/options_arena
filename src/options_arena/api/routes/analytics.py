@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
@@ -13,7 +14,11 @@ from options_arena.api.deps import (
     get_outcome_collector,
     get_repo,
 )
-from options_arena.api.schemas import OutcomeCollectionResult
+from options_arena.api.schemas import (
+    DeskCostDetailResponse,
+    OutcomeCollectionResult,
+    RecommendationCostDetailResponse,
+)
 from options_arena.data import Repository
 from options_arena.learning import auto_tune_indicator_weights, auto_tune_weights
 from options_arena.learning.prediction_ledger import compute_attribution
@@ -181,6 +186,53 @@ async def get_agent_weights(
     return await repo.get_latest_auto_tune_weights()
 
 
+@router.get("/recommendation-costs")
+@limiter.limit("60/minute")
+async def get_recommendation_costs(
+    request: Request,
+    limit: int = Query(default=50, ge=1, le=200),
+    repo: Repository = Depends(get_repo),
+) -> list[RecommendationCostDetailResponse]:
+    """Get recommendation cost summaries with per-desk breakdowns."""
+    rows = await repo.get_recent_recommendations(limit=limit)
+    results: list[RecommendationCostDetailResponse] = []
+    for row in rows:
+        # Parse desk_metrics_json to build per-desk cost details
+        desk_details: list[DeskCostDetailResponse] = []
+        try:
+            metrics_list = json.loads(row.desk_metrics_json)
+        except (json.JSONDecodeError, TypeError):
+            metrics_list = []
+
+        for metric in metrics_list:
+            if not isinstance(metric, dict):
+                continue
+            desk_details.append(
+                DeskCostDetailResponse(
+                    desk=str(metric.get("desk", "")),
+                    tier=str(metric.get("model_tier", "")),
+                    model_used=str(metric.get("model_used", "")),
+                    input_tokens=int(metric.get("input_tokens", 0)),
+                    output_tokens=int(metric.get("output_tokens", 0)),
+                    duration_ms=int(metric.get("duration_ms", 0)),
+                    status=str(metric.get("status", "")),
+                )
+            )
+
+        total_tokens = row.total_input_tokens + row.total_output_tokens
+        results.append(
+            RecommendationCostDetailResponse(
+                ticker=row.ticker,
+                created_at=row.created_at,
+                duration_ms=row.duration_ms,
+                total_tokens=total_tokens,
+                is_fallback=row.is_fallback,
+                desk_details=desk_details,
+            )
+        )
+    return results
+
+
 @router.post("/weights/auto-tune")
 @limiter.limit("5/minute")
 async def trigger_auto_tune(
@@ -283,7 +335,10 @@ def _run_regime_training() -> dict[str, object]:
         import joblib
         from sklearn.ensemble import GradientBoostingClassifier  # noqa: F401
     except ImportError:
-        raise HTTPException(501, "scikit-learn and joblib required. Install with: uv pip install scikit-learn joblib") from None  # noqa: E501
+        raise HTTPException(
+            501,
+            "scikit-learn and joblib required. Install with: uv pip install scikit-learn joblib",
+        ) from None  # noqa: E501
 
     # Import training helpers from the tools script
     import sys
