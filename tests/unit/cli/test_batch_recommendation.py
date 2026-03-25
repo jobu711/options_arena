@@ -205,6 +205,7 @@ async def test_batch_iterates_tickers_with_recommendation(
             _make_ticker_score("MSFT", 75.0),
         ]
     )
+    mock_repo.get_spread_for_ticker = AsyncMock(return_value=None)
     monkeypatch.setattr(cmd_mod, "Repository", MagicMock(return_value=mock_repo))
 
     # Service mocks must return AsyncMock instances so .close() can be awaited
@@ -252,6 +253,7 @@ async def test_batch_error_isolation(
             _make_ticker_score("MSFT", 75.0),
         ]
     )
+    mock_repo.get_spread_for_ticker = AsyncMock(return_value=None)
     monkeypatch.setattr(cmd_mod, "Repository", MagicMock(return_value=mock_repo))
 
     mock_cache = MagicMock()

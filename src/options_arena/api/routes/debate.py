@@ -55,6 +55,7 @@ from options_arena.models import (
     SignalDirection,
     TradeThesis,
 )
+from options_arena.models.analysis import ScanEnrichment
 from options_arena.models.config import RoutingConfig
 from options_arena.models.enums import TICKER_RE
 from options_arena.models.market_data import Quote, TickerInfo
@@ -285,6 +286,7 @@ async def _run_recommendation_background(
             options_data=options_data,
             fred=fred,
             scan_run_id=scan_id,
+            enrichment=None,
             progress_callback=bridge,
         )
 
@@ -404,6 +406,10 @@ async def _run_batch_recommendation_background(
                     ticker, scan_id, repo, market_data, options_data
                 )
 
+                # Build ScanEnrichment from persisted scan data
+                spread = await repo.get_spread_for_ticker(scan_id, ticker)
+                enrichment = ScanEnrichment(spread_analysis=spread)
+
                 result = await run_recommendation(
                     ticker=ticker,
                     ticker_score=score_match,
@@ -416,6 +422,7 @@ async def _run_batch_recommendation_background(
                     options_data=options_data,
                     fred=fred,
                     scan_run_id=scan_id,
+                    enrichment=enrichment,
                 )
 
                 # run_recommendation() handles persistence internally.
