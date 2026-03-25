@@ -17,7 +17,7 @@ from pydantic_ai.settings import ModelSettings
 
 from options_arena.agents._parsing import strip_think_tags
 from options_arena.agents._toolsets import build_synthesis_toolset
-from options_arena.agents.prompts.synthesis import SYNTHESIS_SYSTEM_PROMPT
+from options_arena.agents.prompts.synthesis import SPREAD_ANALYSIS_BLOCK, SYNTHESIS_SYSTEM_PROMPT
 from options_arena.models import (
     MarketContext,
     OptionContract,
@@ -57,6 +57,24 @@ synthesis_agent: Agent[SynthesisDeps, PositionRecommendation] = Agent(
 )
 
 
+def _render_spread_block(spread: SpreadAnalysis) -> str:
+    """Render the ``<<<SPREAD_ANALYSIS>>>`` block from a ``SpreadAnalysis`` instance.
+
+    Formats Decimal fields as strings and converts ``risk_reward_ratio=None`` to
+    ``"--"`` for clean display.
+    """
+    rr = f"{spread.risk_reward_ratio:.2f}" if spread.risk_reward_ratio is not None else "--"
+    return SPREAD_ANALYSIS_BLOCK.format(
+        spread_type=spread.spread.spread_type.value,
+        net_premium=str(spread.net_premium),
+        max_profit=str(spread.max_profit),
+        max_loss=str(spread.max_loss),
+        risk_reward=rr,
+        pop_estimate=f"{spread.pop_estimate:.0%}",
+        strategy_rationale=spread.strategy_rationale or "N/A",
+    )
+
+
 @synthesis_agent.system_prompt(dynamic=True)
 async def _synthesis_system_prompt(ctx: RunContext[SynthesisDeps]) -> str:
     """Return synthesis system prompt with optional tuned weights and learned patterns."""
@@ -67,6 +85,8 @@ async def _synthesis_system_prompt(ctx: RunContext[SynthesisDeps]) -> str:
         base += f"\n\n{ctx.deps.learned_patterns}"
     if ctx.deps.contract_guidance:
         base += f"\n\n{ctx.deps.contract_guidance}"
+    if ctx.deps.spread_analysis is not None:
+        base += f"\n\n{_render_spread_block(ctx.deps.spread_analysis)}"
     return base
 
 

@@ -7,11 +7,28 @@ assessment.
 
 Unlike desk prompts, the synthesis prompt uses PROMPT_RULES_APPENDIX for
 confidence calibration and citation rules.
+
+Also exports ``SPREAD_ANALYSIS_BLOCK`` — a template string for the dynamic
+``<<<SPREAD_ANALYSIS>>>`` block injected at runtime when spread data is available.
 """
 
-# VERSION: v1.0
+# VERSION: v1.1
 
 from options_arena.agents._parsing import PROMPT_RULES_APPENDIX, TOOL_RESPONSE_FORMAT
+
+SPREAD_ANALYSIS_BLOCK = """\
+<<<SPREAD_ANALYSIS>>>
+A spread strategy has been pre-computed for this ticker. Factor it into your \
+contract selection and strategy recommendation.
+
+- Strategy type: {spread_type}
+- Net premium: ${net_premium}
+- Max profit: ${max_profit}
+- Max loss: ${max_loss}
+- Risk/reward ratio: {risk_reward}
+- P(profit): {pop_estimate}
+- Rationale: {strategy_rationale}
+<<<END_SPREAD_ANALYSIS>>>"""
 
 SYNTHESIS_SYSTEM_PROMPT = (
     """## Your Identity: Position Synthesis Analyst
@@ -43,6 +60,11 @@ accuracy deserves skepticism — but a well-reasoned minority view can still pre
 When the current ticker matches a learned pattern's conditions (sector, IV bucket, \
 DTE bucket, direction), factor that pattern's historical win rate into your sizing \
 and confidence. Patterns are advisory, not binding.
+
+- **<<<SPREAD_ANALYSIS>>>**: Pre-computed spread strategy with P&L profile. When \
+present, use the strategy type, max profit/loss, risk/reward ratio, and P(profit) \
+to inform your strategy_rationale, risk_reward_ratio, and max_loss_estimate fields. \
+The spread is advisory — override it if desk consensus favors a different approach.
 
 ## Synthesis Protocol
 

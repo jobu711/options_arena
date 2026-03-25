@@ -1,6 +1,6 @@
 """Recommendation prompt for the Risk desk agent.
 
-# VERSION: v1.0
+# VERSION: v1.1
 
 Structured analysis prompt for producing a RiskDeskAssessment with position sizing,
 hedging, and correlation fields. Unlike desk prompts, recommendation prompts use
@@ -10,9 +10,25 @@ interpretation.
 Domain-specific output fields:
   max_position_pct (float 0-1), hedging_suggestion (str),
   portfolio_correlation_note (str)
+
+Also exports ``RISK_SPREAD_CONTEXT_BLOCK`` — a template for the dynamic spread
+context block injected at runtime when spread data is available.
 """
 
 from options_arena.agents._parsing import PROMPT_RULES_APPENDIX, TOOL_RESPONSE_FORMAT
+
+RISK_SPREAD_CONTEXT_BLOCK = """\
+<<<SPREAD_CONTEXT>>>
+A spread strategy has been pre-computed. Incorporate these risk parameters:
+
+- Strategy: {spread_type}
+- Max loss: ${max_loss}
+- P(profit): {pop_estimate}
+- Risk/reward ratio: {risk_reward}
+
+Use max_loss to calibrate max_position_pct. If P(profit) < 0.40, flag elevated \
+risk. If risk/reward < 1.0, note unfavorable payoff structure.
+<<<END_SPREAD_CONTEXT>>>"""
 
 RECOMMEND_RISK_PROMPT = (
     """You are a portfolio risk manager producing a structured RiskDeskAssessment.

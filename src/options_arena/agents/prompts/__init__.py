@@ -10,10 +10,13 @@ from options_arena.agents.prompts.desk_volatility import DESK_VOLATILITY_PROMPT
 from options_arena.agents.prompts.recommend_contrarian import RECOMMEND_CONTRARIAN_PROMPT
 from options_arena.agents.prompts.recommend_flow import RECOMMEND_FLOW_PROMPT
 from options_arena.agents.prompts.recommend_fundamental import RECOMMEND_FUNDAMENTAL_PROMPT
-from options_arena.agents.prompts.recommend_risk import RECOMMEND_RISK_PROMPT
+from options_arena.agents.prompts.recommend_risk import (
+    RECOMMEND_RISK_PROMPT,
+    RISK_SPREAD_CONTEXT_BLOCK,
+)
 from options_arena.agents.prompts.recommend_trend import RECOMMEND_TREND_PROMPT
 from options_arena.agents.prompts.recommend_volatility import RECOMMEND_VOLATILITY_PROMPT
-from options_arena.agents.prompts.synthesis import SYNTHESIS_SYSTEM_PROMPT
+from options_arena.agents.prompts.synthesis import SPREAD_ANALYSIS_BLOCK, SYNTHESIS_SYSTEM_PROMPT
 
 __all__ = [
     "DESK_CONTRARIAN_PROMPT",
@@ -27,7 +30,9 @@ __all__ = [
     "RECOMMEND_FLOW_PROMPT",
     "RECOMMEND_FUNDAMENTAL_PROMPT",
     "RECOMMEND_RISK_PROMPT",
+    "RISK_SPREAD_CONTEXT_BLOCK",
     "RECOMMEND_TREND_PROMPT",
     "RECOMMEND_VOLATILITY_PROMPT",
+    "SPREAD_ANALYSIS_BLOCK",
     "SYNTHESIS_SYSTEM_PROMPT",
 ]
