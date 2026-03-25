@@ -19,6 +19,7 @@ from options_arena.models.analysis import (
     PositionSizeResult,
     QueryIntent,
     RiskAssessment,
+    ScanEnrichment,
     TradeThesis,
     VolatilityThesis,
 )
@@ -64,6 +65,7 @@ from options_arena.models.config import (
     DataConfig,
     DebateConfig,
     FinancialDatasetsConfig,
+    LearningConfig,
     LogConfig,
     MLConfig,
     OpenBBConfig,
@@ -239,6 +241,7 @@ __all__ = [
     "PositionSizeResult",
     "QueryIntent",
     "RiskAssessment",
+    "ScanEnrichment",
     "TradeThesis",
     "VolatilityThesis",
     # Analytics
@@ -285,6 +288,7 @@ __all__ = [
     "DataConfig",
     "DebateConfig",
     "FinancialDatasetsConfig",
+    "LearningConfig",
     "LogConfig",
     "MLConfig",
     "OpenBBConfig",

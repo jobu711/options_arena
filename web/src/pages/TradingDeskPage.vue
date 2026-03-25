@@ -377,7 +377,10 @@ onUnmounted(() => {
           :overallDirection="currentRecommendation.recommendation.direction"
           :overallConfidence="currentRecommendation.recommendation.confidence"
         />
-        <PositionCard :recommendation="currentRecommendation.recommendation" />
+        <PositionCard
+          :recommendation="currentRecommendation.recommendation"
+          :spread="currentRecommendation.spread"
+        />
         <DeskAssessmentCard
           v-for="a in currentRecommendation.assessments"
           :key="a.desk"

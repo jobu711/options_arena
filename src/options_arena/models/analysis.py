@@ -1,6 +1,7 @@
 """Analysis models for Options Arena.
 
-Nine models for market analysis and AI debate:
+Ten models for market analysis and AI debate:
+  ScanEnrichment       -- frozen envelope for scan-phase enrichment data.
   MarketContext        -- flat snapshot of ticker state for analysis and debate agents.
   AgentResponse        -- structured response from a debate agent (frozen).
   TradeThesis          -- final trade recommendation from the debate (frozen).
@@ -48,9 +49,60 @@ from options_arena.models.enums import (
     VolAssessment,
     VolRegimeTier,
 )
+from options_arena.models.financial_datasets import FinancialDatasetsPackage
+from options_arena.models.options import SpreadAnalysis
 from options_arena.models.scoring import DimensionalScores
 
 logger = logging.getLogger(__name__)
+
+
+class ScanEnrichment(BaseModel):
+    """Frozen envelope carrying all scan-phase enrichment data to the recommendation phase.
+
+    All fields default to ``None`` so the model is always constructible, even when
+    individual enrichment features are disabled or unavailable.
+
+    Attributes:
+        spread_analysis: Full spread analysis from the spread scoring phase.
+        prob_profit_neural: Neural-model probability of profit, [0.0, 1.0].
+        macro_regime: Current macro-economic regime classification.
+        macro_yield_spread: Treasury yield spread (e.g. 10Y-2Y).
+        macro_fed_funds_rate: Current federal funds rate.
+        macro_vix_level: Current VIX level.
+        next_earnings: Next earnings announcement date.
+        fd_package: Financial Datasets AI data package.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    spread_analysis: SpreadAnalysis | None = None
+    prob_profit_neural: float | None = None
+    macro_regime: MacroRegime | None = None
+    macro_yield_spread: float | None = None
+    macro_fed_funds_rate: float | None = None
+    macro_vix_level: float | None = None
+    next_earnings: date | None = None
+    fd_package: FinancialDatasetsPackage | None = None
+
+    @field_validator("prob_profit_neural")
+    @classmethod
+    def validate_prob_profit_neural(cls, v: float | None) -> float | None:
+        """Ensure prob_profit_neural is finite and within [0.0, 1.0]."""
+        if v is None:
+            return None
+        if not math.isfinite(v):
+            raise ValueError(f"prob_profit_neural must be finite, got {v}")
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"prob_profit_neural must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("macro_yield_spread", "macro_fed_funds_rate", "macro_vix_level")
+    @classmethod
+    def validate_macro_floats(cls, v: float | None) -> float | None:
+        """Ensure macro float fields are finite when provided."""
+        if v is not None and not math.isfinite(v):
+            raise ValueError(f"must be finite, got {v}")
+        return v
 
 
 class MarketContext(BaseModel):

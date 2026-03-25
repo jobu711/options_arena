@@ -21,6 +21,7 @@ from options_arena.models import (
     TradeThesis,
 )
 from options_arena.models.health import HealthStatus
+from options_arena.models.options import SpreadAnalysis
 from options_arena.models.recommendation import (
     DomainAssessment,
     PositionRecommendation,
@@ -460,5 +461,60 @@ def render_recommendation_batch_summary(
             status = Text(f"FAIL: {err_msg}", style="bold red")
 
         table.add_row(ticker, direction_text, conf_str, contract_str, fallback, duration, status)
+
+    return table
+
+
+# ---------------------------------------------------------------------------
+# Spread recommendation rendering
+# ---------------------------------------------------------------------------
+
+
+def render_spread_recommendation(spread: SpreadAnalysis) -> Table:
+    """Render a spread analysis as a Rich Table with key P&L metrics.
+
+    Displays strategy type, net premium, max profit/loss, risk/reward ratio,
+    probability of profit, and strategy rationale in a two-column Metric/Value
+    layout following existing rendering conventions.
+
+    Args:
+        spread: A ``SpreadAnalysis`` from the spread scoring phase.
+
+    Returns:
+        Rich Table with spread metrics formatted for terminal display.
+    """
+    table = Table(title="Spread Recommendation", show_header=True)
+    table.add_column("Metric", style="bold white", no_wrap=True)
+    table.add_column("Value", justify="right")
+
+    # Strategy type
+    table.add_row(
+        "Strategy Type",
+        _safe_text(spread.spread.spread_type.value.upper()),
+    )
+
+    # Net premium
+    table.add_row("Net Premium", f"${spread.net_premium:.2f}")
+
+    # Max profit (green)
+    table.add_row("Max Profit", Text(f"${spread.max_profit:.2f}", style="bold green"))
+
+    # Max loss (red)
+    table.add_row("Max Loss", Text(f"${spread.max_loss:.2f}", style="bold red"))
+
+    # Risk/reward ratio (yellow), None -> "--"
+    if spread.risk_reward_ratio is not None and math.isfinite(spread.risk_reward_ratio):
+        rr_text: Text | str = Text(f"{spread.risk_reward_ratio:.2f}", style="bold yellow")
+    else:
+        rr_text = "--"
+    table.add_row("Risk/Reward", rr_text)
+
+    # P(Profit) as percentage with 1 decimal
+    pop_str = f"{spread.pop_estimate * 100:.1f}%" if math.isfinite(spread.pop_estimate) else "--"
+    table.add_row("P(Profit)", pop_str)
+
+    # Rationale
+    if spread.strategy_rationale:
+        table.add_row("Rationale", _safe_text(spread.strategy_rationale))
 
     return table

@@ -178,7 +178,7 @@ onMounted(fetchHistory)
 
         <div class="detail-grid">
           <DeskCard title="POSITION" :full-width="true">
-            <PositionCard :recommendation="detail.recommendation" />
+            <PositionCard :recommendation="detail.recommendation" :spread="detail.spread" />
           </DeskCard>
 
           <DeskCard

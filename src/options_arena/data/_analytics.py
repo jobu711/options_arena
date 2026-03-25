@@ -142,6 +142,25 @@ class AnalyticsMixin(RepositoryBase):
         logger.debug("Retrieved %d contracts for scan %d", len(contracts), scan_id)
         return contracts
 
+    async def get_ticker_for_contract(self, contract_id: int) -> str | None:
+        """Look up the ticker symbol for a recommended contract by its ID.
+
+        Args:
+            contract_id: Database ID of the recommended contract.
+
+        Returns:
+            Ticker symbol string, or ``None`` if not found.
+        """
+        conn = self._db.conn
+        async with conn.execute(
+            "SELECT ticker FROM recommended_contracts WHERE id = ?",
+            (contract_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        return str(row["ticker"])
+
     async def get_contracts_for_ticker(
         self, ticker: str, limit: int = 50
     ) -> list[RecommendedContract]:

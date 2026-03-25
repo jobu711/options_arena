@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
@@ -13,7 +14,12 @@ from options_arena.api.deps import (
     get_outcome_collector,
     get_repo,
 )
-from options_arena.api.schemas import OutcomeCollectionResult
+from options_arena.api.schemas import (
+    DeskCostDetailResponse,
+    OutcomeCollectionResult,
+    RecommendationCostDetailResponse,
+    RegimeTrainingResult,
+)
 from options_arena.data import Repository
 from options_arena.learning import auto_tune_indicator_weights, auto_tune_weights
 from options_arena.learning.prediction_ledger import compute_attribution
@@ -23,6 +29,8 @@ from options_arena.models import (
     AgentWeightsComparison,
     AttributionReport,
     DeltaPerformanceResult,
+    DeskRunStatus,
+    DeskType,
     HoldingPeriodResult,
     IndicatorWeightComparison,
     PerformanceSummary,
@@ -55,7 +63,7 @@ async def get_win_rate(
 @limiter.limit("60/minute")
 async def get_score_calibration(
     request: Request,
-    bucket_size: float = Query(default=10.0, ge=1.0),
+    bucket_size: float = Query(default=10.0, ge=1.0, le=100.0),
     repo: Repository = Depends(get_repo),
 ) -> list[ScoreCalibrationBucket]:
     """Get score calibration buckets — return by composite score range."""
@@ -77,7 +85,7 @@ async def get_holding_period(
 @limiter.limit("60/minute")
 async def get_delta_performance(
     request: Request,
-    bucket_size: float = Query(default=0.1, gt=0),
+    bucket_size: float = Query(default=0.1, gt=0, le=1.0),
     holding_days: int = Query(default=5, ge=1),
     repo: Repository = Depends(get_repo),
 ) -> list[DeltaPerformanceResult]:
@@ -115,8 +123,13 @@ async def collect_outcomes(
         raise HTTPException(409, "Another operation is in progress") from None
 
     try:
-        outcomes = await collector.collect_outcomes(holding_days=holding_days)
+        outcomes = await asyncio.wait_for(
+            collector.collect_outcomes(holding_days=holding_days),
+            timeout=300,
+        )
         return OutcomeCollectionResult(outcomes_collected=len(outcomes))
+    except TimeoutError:
+        raise HTTPException(504, "Outcome collection timed out after 300s") from None
     finally:
         lock.release()
 
@@ -179,6 +192,56 @@ async def get_agent_weights(
 ) -> list[AgentWeightsComparison]:
     """Get manual vs auto-tuned weight comparison."""
     return await repo.get_latest_auto_tune_weights()
+
+
+@router.get("/recommendation-costs")
+@limiter.limit("60/minute")
+async def get_recommendation_costs(
+    request: Request,
+    limit: int = Query(default=50, ge=1, le=200),
+    repo: Repository = Depends(get_repo),
+) -> list[RecommendationCostDetailResponse]:
+    """Get recommendation cost summaries with per-desk breakdowns."""
+    rows = await repo.get_recent_recommendations(limit=limit)
+    results: list[RecommendationCostDetailResponse] = []
+    for row in rows:
+        # Parse desk_metrics_json to build per-desk cost details
+        desk_details: list[DeskCostDetailResponse] = []
+        try:
+            metrics_list = json.loads(row.desk_metrics_json)
+        except (json.JSONDecodeError, TypeError):
+            metrics_list = []
+
+        for metric in metrics_list:
+            if not isinstance(metric, dict):
+                continue
+            try:
+                desk_details.append(
+                    DeskCostDetailResponse(
+                        desk=DeskType(str(metric.get("desk", ""))),
+                        tier=str(metric.get("model_tier", "")),
+                        model_used=str(metric.get("model_used", "")),
+                        input_tokens=int(metric.get("input_tokens", 0)),
+                        output_tokens=int(metric.get("output_tokens", 0)),
+                        duration_ms=int(metric.get("duration_ms", 0)),
+                        status=DeskRunStatus(str(metric.get("status", ""))),
+                    )
+                )
+            except (ValueError, TypeError, KeyError):
+                logger.warning("Skipping malformed desk metric entry: %s", metric)
+
+        total_tokens = row.total_input_tokens + row.total_output_tokens
+        results.append(
+            RecommendationCostDetailResponse(
+                ticker=row.ticker,
+                created_at=row.created_at,
+                duration_ms=row.duration_ms,
+                total_tokens=total_tokens,
+                is_fallback=row.is_fallback,
+                desk_details=desk_details,
+            )
+        )
+    return results
 
 
 @router.post("/weights/auto-tune")
@@ -247,7 +310,7 @@ async def trigger_indicator_tune(
 async def train_regime_classifier(
     request: Request,
     lock: asyncio.Lock = Depends(get_operation_lock),
-) -> dict[str, object]:
+) -> RegimeTrainingResult:
     """Train the GBM regime classifier from historical scan data.
 
     Runs the training script in a thread to avoid blocking the event loop.
@@ -265,7 +328,7 @@ async def train_regime_classifier(
         lock.release()
 
 
-def _run_regime_training() -> dict[str, object]:
+def _run_regime_training() -> RegimeTrainingResult:
     """Run regime classifier training synchronously (called via to_thread)."""
     import json
     import sqlite3
@@ -283,7 +346,10 @@ def _run_regime_training() -> dict[str, object]:
         import joblib
         from sklearn.ensemble import GradientBoostingClassifier  # noqa: F401
     except ImportError:
-        raise HTTPException(501, "scikit-learn and joblib required. Install with: uv pip install scikit-learn joblib") from None  # noqa: E501
+        raise HTTPException(
+            501,
+            "scikit-learn and joblib required. Install with: uv pip install scikit-learn joblib",
+        ) from None  # noqa: E501
 
     # Import training helpers from the tools script
     import sys
@@ -292,7 +358,7 @@ def _run_regime_training() -> dict[str, object]:
     if tools_dir not in sys.path:
         sys.path.insert(0, tools_dir)
 
-    from train_regime_classifier import (  # type: ignore[import-untyped]
+    from train_regime_classifier import (  # type: ignore[import-not-found]
         _generate_synthetic_data,
         extract_features,
         label_regime,
@@ -341,15 +407,17 @@ def _run_regime_training() -> dict[str, object]:
     # Save
     joblib.dump(clf, model_path)
 
-    # Build response
-    unique_labels, counts = np.unique(labels, return_counts=True)
-    class_dist = {str(lbl): int(cnt) for lbl, cnt in zip(unique_labels, counts, strict=True)}
+    # Build response — use sorted unique labels as class list
+    unique_labels = sorted(str(lbl) for lbl in np.unique(labels))
 
-    return {
-        "status": "trained",
-        "data_source": data_source,
-        "sample_count": int(features.shape[0]),
-        "feature_count": int(features.shape[1]),
-        "classes": class_dist,
-        "model_path": str(model_path),
-    }
+    # Return relative model path to avoid leaking filesystem structure
+    relative_model_path = str(model_path.relative_to(project_root))
+
+    return RegimeTrainingResult(
+        status="trained",
+        data_source=data_source,
+        sample_count=int(features.shape[0]),
+        feature_count=int(features.shape[1]),
+        classes=unique_labels,
+        model_path=relative_model_path,
+    )

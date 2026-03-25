@@ -26,7 +26,9 @@ from options_arena.agents._parsing import build_cleaned_domain_assessment, strip
 from options_arena.agents._toolsets import DESK_SUCCESS_CONFIDENCE, build_risk_toolset
 from options_arena.agents.prompts import RECOMMEND_RISK_PROMPT
 from options_arena.agents.prompts.desk_risk import DESK_RISK_PROMPT
+from options_arena.agents.prompts.recommend_risk import RISK_SPREAD_CONTEXT_BLOCK
 from options_arena.models import AgencyConfig, DeskResponse, DeskType, SignalDirection
+from options_arena.models.options import SpreadAnalysis
 from options_arena.models.recommendation import RiskDeskAssessment
 
 logger = logging.getLogger(__name__)
@@ -127,12 +129,25 @@ risk_desk_recommend: Agent[DeskDeps, RiskDeskAssessment] = Agent(
 )
 
 
+def _render_risk_spread_block(spread: SpreadAnalysis) -> str:
+    """Render the ``<<<SPREAD_CONTEXT>>>`` block for the risk desk prompt."""
+    rr = f"{spread.risk_reward_ratio:.2f}" if spread.risk_reward_ratio is not None else "--"
+    return RISK_SPREAD_CONTEXT_BLOCK.format(
+        spread_type=spread.spread.spread_type.value,
+        max_loss=str(spread.max_loss),
+        pop_estimate=f"{spread.pop_estimate:.0%}",
+        risk_reward=rr,
+    )
+
+
 @risk_desk_recommend.system_prompt(dynamic=True)
 async def _risk_recommend_prompt(ctx: RunContext[DeskDeps]) -> str:
-    """Return the risk recommendation prompt with learned patterns."""
+    """Return the risk recommendation prompt with learned patterns and spread context."""
     base = RECOMMEND_RISK_PROMPT
     if ctx.deps.learned_patterns:
         base += f"\n\n{ctx.deps.learned_patterns}"
+    if ctx.deps.spread_analysis is not None:
+        base += f"\n\n{_render_risk_spread_block(ctx.deps.spread_analysis)}"
     return base
 
 

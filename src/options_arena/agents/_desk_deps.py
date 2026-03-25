@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 from options_arena.data.repository import Repository
 from options_arena.models import MarketContext, OptionContract, TickerScore
+from options_arena.models.options import SpreadAnalysis
 from options_arena.services.fred import FredService
 from options_arena.services.market_data import MarketDataService
 from options_arena.services.options_data import OptionsDataService
@@ -36,3 +37,4 @@ class DeskDeps:
     ticker_score: TickerScore | None = None
     contracts: list[OptionContract] = field(default_factory=list)
     market_context: MarketContext | None = None
+    spread_analysis: SpreadAnalysis | None = None

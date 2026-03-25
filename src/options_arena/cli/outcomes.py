@@ -104,17 +104,14 @@ async def _outcomes_collect_async(holding_days: int | None) -> None:
         table.add_column("Winner", justify="center")
 
         for outcome in outcomes:
-            # Resolve ticker from contract_id
+            # Resolve ticker from contract_id via Repository method
             ticker = "?"
             try:
-                conn = repo._db.conn  # noqa: SLF001
-                async with conn.execute(
-                    "SELECT ticker FROM recommended_contracts WHERE id = ?",
-                    (outcome.recommended_contract_id,),
-                ) as cursor:
-                    row = await cursor.fetchone()
-                if row:
-                    ticker = str(row["ticker"])
+                resolved = await repo.get_ticker_for_contract(
+                    outcome.recommended_contract_id,
+                )
+                if resolved:
+                    ticker = resolved
             except Exception:
                 logger.debug("Failed to lookup ticker name", exc_info=True)
 
@@ -429,7 +426,7 @@ async def _agent_weights_async() -> None:
         # Show data source summary
         total_samples = sum(r.sample_size for r in results)
         try:
-            pred_accuracy = await repo.get_prediction_accuracy()
+            pred_accuracy = await repo.get_prediction_accuracy(window_days=365)
             desk_preds = [a for a in pred_accuracy if a.source.value.startswith("desk_")]
             scored_count = sum(a.total for a in desk_preds)
             if scored_count > 0:

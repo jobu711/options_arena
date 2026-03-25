@@ -32,13 +32,16 @@ from options_arena.cli.rendering import (
     render_recommendation,
     render_recommendation_batch_summary,
     render_scan_table,
+    render_spread_recommendation,
 )
 from options_arena.data import Database, Repository
 from options_arena.models import IndicatorSignals, TickerScore
+from options_arena.models.analysis import ScanEnrichment
 from options_arena.models.config import AppSettings
 from options_arena.models.enums import (
     INDUSTRY_GROUP_ALIASES,
     SECTOR_ALIASES,
+    TICKER_RE,
     GICSIndustryGroup,
     GICSSector,
     LLMProvider,
@@ -229,9 +232,18 @@ def scan(
     sectors = _parse_sectors(sector)
     cap_tiers = _parse_market_caps(market_cap)
     industry_groups = _parse_industry_groups(industry_group)
-    custom_tickers = (
-        [t.strip().upper() for t in tickers.split(",") if t.strip()] if tickers else []
-    )
+    custom_tickers: list[str] = []
+    if tickers:
+        for raw in tickers.split(","):
+            normalized = raw.strip().upper()
+            if not normalized:
+                continue
+            if not TICKER_RE.match(normalized):
+                raise typer.BadParameter(
+                    f"Invalid ticker symbol: {normalized!r} (must match {TICKER_RE.pattern})",
+                    param_hint="--tickers",
+                )
+            custom_tickers.append(normalized)
     asyncio.run(
         _scan_async(
             preset,
@@ -590,6 +602,10 @@ async def _batch_async(
                 await asyncio.sleep(batch_delay)
             err_console.print(f"[cyan]Analyzing {ticker} ({i}/{len(top_scores)})...[/cyan]")
             try:
+                # Build ScanEnrichment from persisted scan data
+                spread = await repo.get_spread_for_ticker(scan_id, ticker)
+                enrichment = ScanEnrichment(spread_analysis=spread)
+
                 result = await _recommendation_single(
                     ticker_score,
                     settings,
@@ -599,6 +615,7 @@ async def _batch_async(
                     repo,
                     fallback_only=fallback_only,
                     scan_run_id=scan_id,
+                    enrichment=enrichment,
                 )
                 results.append((ticker, result, None))
                 # Brief per-ticker result
@@ -673,6 +690,7 @@ async def _recommendation_single(
     *,
     fallback_only: bool = False,
     scan_run_id: int | None = None,
+    enrichment: ScanEnrichment | None = None,
 ) -> RecommendationResult:
     """Run a single recommendation for one ticker. Returns result without rendering.
 
@@ -689,6 +707,7 @@ async def _recommendation_single(
         repo: Database repository for persistence.
         fallback_only: If True, force data-driven path by using near-zero timeouts.
         scan_run_id: Optional scan run ID for persistence linkage.
+        enrichment: Optional scan-phase enrichment envelope (macro, neural, earnings).
 
     Returns:
         RecommendationResult with assessments, recommendation, usage, and duration.
@@ -792,6 +811,7 @@ async def _recommendation_single(
         options_data=options_data,
         fred=fred,
         scan_run_id=scan_run_id,
+        enrichment=enrichment,
     )
 
 
@@ -955,6 +975,15 @@ async def _debate_async(
 
         # Render recommendation output
         render_recommendation(console, result)
+
+        # Render spread recommendation if available for this ticker
+        try:
+            spread_data = await repo.get_spread_for_ticker(scan_id, ticker)
+            if spread_data is not None:
+                console.print()
+                console.print(render_spread_recommendation(spread_data))
+        except Exception:
+            logger.debug("Could not fetch spread data for %s", ticker, exc_info=True)
 
         # Token usage and duration
         total_tokens = result.total_usage.input_tokens + result.total_usage.output_tokens

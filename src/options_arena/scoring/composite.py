@@ -83,9 +83,56 @@ _FLOOR_VALUE: float = 0.5
 # ---------------------------------------------------------------------------
 
 
+def _validate_weight_overrides(overrides: dict[str, float]) -> None:
+    """Validate that weight override values are finite.
+
+    Raises:
+        ValueError: If any override value is not finite (NaN/Inf).
+    """
+    for key, val in overrides.items():
+        if not math.isfinite(val):
+            raise ValueError(f"weight override for {key!r} must be finite, got {val}")
+        if val < 0:
+            raise ValueError(f"weight override for {key!r} must be non-negative, got {val}")
+
+
+def _merge_weights(
+    overrides: dict[str, float],
+) -> dict[str, tuple[float, str]]:
+    """Merge overrides into INDICATOR_WEIGHTS, validate sum ≈ 1.0.
+
+    Only keys that exist in INDICATOR_WEIGHTS are applied; unknown keys are
+    silently ignored.  The merged weights must sum to approximately 1.0
+    (tolerance ±0.05).
+
+    Args:
+        overrides: Mapping of indicator field name to replacement weight.
+
+    Returns:
+        Merged weights dict (same shape as INDICATOR_WEIGHTS).
+
+    Raises:
+        ValueError: If merged weight sum is outside [0.95, 1.05].
+    """
+    merged = dict(INDICATOR_WEIGHTS)
+    for key, val in overrides.items():
+        if key in merged:
+            _old_weight, category = merged[key]
+            merged[key] = (val, category)
+
+    weight_sum = sum(w for w, _ in merged.values())
+    if abs(weight_sum - 1.0) > 0.05:
+        raise ValueError(
+            f"Merged indicator weights must sum to ~1.0 (±0.05), got {weight_sum:.6f}"
+        )
+
+    return merged
+
+
 def composite_score(
     signals: IndicatorSignals,
     active_indicators: set[str] | None = None,
+    weight_overrides: dict[str, float] | None = None,
 ) -> float:
     """Compute a weighted geometric mean composite score for a single ticker.
 
@@ -103,15 +150,29 @@ def composite_score(
         active_indicators: If provided, only indicators in this set are
             considered.  Indicators outside the set are skipped even if they
             have a non-None value on *signals*.
+        weight_overrides: If provided, merge into :data:`INDICATOR_WEIGHTS`
+            for this invocation only.  Only keys present in
+            ``INDICATOR_WEIGHTS`` are applied; the merged sum must be within
+            ±0.05 of 1.0.  All override values must be finite.
 
     Returns:
         Composite score clamped to [0.0, 100.0].  Returns 0.0 when no
         indicators contribute (all None or empty active set).
+
+    Raises:
+        ValueError: If *weight_overrides* contains non-finite values or the
+            merged weights do not sum to approximately 1.0.
     """
+    if weight_overrides:
+        _validate_weight_overrides(weight_overrides)
+        weights = _merge_weights(weight_overrides)
+    else:
+        weights = INDICATOR_WEIGHTS
+
     weighted_log_sum: float = 0.0
     weight_sum: float = 0.0
 
-    for field_name, (weight, _category) in INDICATOR_WEIGHTS.items():
+    for field_name, (weight, _category) in weights.items():
         # Skip if not in active set.
         if active_indicators is not None and field_name not in active_indicators:
             continue
@@ -134,6 +195,7 @@ def composite_score(
 
 def score_universe(
     universe: dict[str, IndicatorSignals],
+    weight_overrides: dict[str, float] | None = None,
 ) -> list[TickerScore]:
     """Score and rank an entire universe of tickers.
 
@@ -157,6 +219,8 @@ def score_universe(
     Args:
         universe: Mapping of ticker symbol to **raw** ``IndicatorSignals``
             (not yet normalized).
+        weight_overrides: If provided, passed through to
+            :func:`composite_score` for each ticker.
 
     Returns:
         List of :class:`TickerScore` sorted descending by ``composite_score``.
@@ -175,7 +239,7 @@ def score_universe(
     # Step 4: Composite score per ticker.
     scored: list[tuple[str, float, IndicatorSignals]] = []
     for ticker, signals in inverted.items():
-        score = composite_score(signals, active)
+        score = composite_score(signals, active, weight_overrides=weight_overrides)
         scored.append((ticker, score, signals))
 
     # Step 5: Sort descending by score.

@@ -11,6 +11,7 @@ import TabPanel from 'primevue/tabpanel'
 import { useToast } from 'primevue/usetoast'
 import { api, ApiError } from '@/composables/useApi'
 import { useBacktestStore } from '@/stores/backtest'
+import { useCostsStore } from '@/stores/costs'
 import DeskCard from '@/components/DeskCard.vue'
 import type {
   PerformanceSummary,
@@ -40,10 +41,12 @@ import HoldingComparisonTable from '@/components/analytics/HoldingComparisonTabl
 import AgentAccuracyHeatmap from '@/components/analytics/AgentAccuracyHeatmap.vue'
 import WeightTuningPanel from '@/components/analytics/WeightTuningPanel.vue'
 import ContractLookupPanel from '@/components/analytics/ContractLookupPanel.vue'
+import RecommendationCostTable from '@/components/RecommendationCostTable.vue'
 
 const router = useRouter()
 const toast = useToast()
 const backtestStore = useBacktestStore()
+const costsStore = useCostsStore()
 
 // --- Tab state ---
 const activeTab = ref<string | number>('overview')
@@ -161,6 +164,9 @@ async function onTabChange(value: string | number): Promise<void> {
     await backtestStore.loadHoldingTab()
   }
   // 'weights' tab loads its own data via WeightTuningPanel's onMounted
+  else if (tabName === 'costs') {
+    await costsStore.loadCosts()
+  }
 }
 
 // --- Watchers for existing analytics filters ---
@@ -297,6 +303,7 @@ onMounted(async () => {
           <Tab value="holding">Holding</Tab>
           <Tab value="contracts">Contracts</Tab>
           <Tab value="weights">Weight Tuning</Tab>
+          <Tab value="costs">Costs</Tab>
         </TabList>
         <TabPanels>
           <!-- Overview Tab -->
@@ -407,6 +414,20 @@ onMounted(async () => {
               <div class="desk-grid">
                 <DeskCard title="WEIGHT TUNING" :full-width="true">
                   <WeightTuningPanel />
+                </DeskCard>
+              </div>
+            </div>
+          </TabPanel>
+
+          <!-- Costs Tab -->
+          <TabPanel value="costs">
+            <div class="tab-content">
+              <div class="desk-grid">
+                <DeskCard title="RECOMMENDATION COSTS" :full-width="true">
+                  <RecommendationCostTable
+                    :costs="costsStore.costs"
+                    :loading="costsStore.loading"
+                  />
                 </DeskCard>
               </div>
             </div>

@@ -63,13 +63,8 @@ def _setup_mocks(
     )
     mock_collector_cls.return_value = mock_collector
 
-    # Mock the DB cursor for ticker lookup in outcome display
-    mock_conn = AsyncMock()
-    mock_cursor = AsyncMock()
-    mock_cursor.fetchone = AsyncMock(return_value={"ticker": "AAPL"})
-    mock_conn.execute = MagicMock(return_value=mock_cursor)
-    mock_repo._db = MagicMock()
-    mock_repo._db.conn = mock_conn
+    # Mock the ticker lookup method used by outcome display
+    mock_repo.get_ticker_for_contract = AsyncMock(return_value="AAPL")
 
     mock_settings = MagicMock()
     mock_settings.data.db_path = None

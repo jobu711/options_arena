@@ -24,9 +24,6 @@ from options_arena.models.strategy import StrategyCondition, StrategyRule
 
 from ._base import RepositoryBase
 
-# Minimum scored predictions for a source to be considered statistically reliable.
-_MIN_PREDICTION_SAMPLES: int = 10
-
 logger = logging.getLogger(__name__)
 
 _MIN_SAMPLE_SIZE = 10
@@ -281,67 +278,6 @@ class LearningMixin(RepositoryBase):
                 confidence,
             )
         return updated
-
-    async def get_prediction_accuracy(
-        self,
-        window_days: int | None = None,
-    ) -> list[PredictionAccuracy]:
-        """Per-source accuracy from the ``predictions`` table.
-
-        Groups scored predictions (``was_correct IS NOT NULL``) by ``source``,
-        computes accuracy = correct / total, and flags whether the sample count
-        meets ``_MIN_PREDICTION_SAMPLES``.
-
-        Parameters
-        ----------
-        window_days
-            If provided, only include predictions created within this many days.
-
-        Returns
-        -------
-        list[PredictionAccuracy]
-            One entry per source with at least 1 scored prediction.
-        """
-        conn = self._db.conn
-
-        where_clauses = ["was_correct IS NOT NULL"]
-        params: list[object] = []
-        if window_days is not None:
-            where_clauses.append("created_at >= datetime('now', ?)")
-            params.append(f"-{window_days} days")
-
-        where_sql = " AND ".join(where_clauses)
-
-        sql = (
-            "SELECT "
-            "source, "
-            "COUNT(*) AS total, "
-            "SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) AS correct "
-            f"FROM predictions WHERE {where_sql} "
-            "GROUP BY source "
-            "ORDER BY source"
-        )
-
-        async with conn.execute(sql, params) as cursor:
-            rows = await cursor.fetchall()
-
-        results: list[PredictionAccuracy] = []
-        for row in rows:
-            total = int(row["total"])
-            correct = int(row["correct"])
-            accuracy = correct / total if total > 0 else 0.0
-            source = PredictionSource(str(row["source"]))
-            results.append(
-                PredictionAccuracy(
-                    source=source,
-                    total=total,
-                    correct=correct,
-                    accuracy=accuracy,
-                    sample_sufficient=total >= _MIN_PREDICTION_SAMPLES,
-                )
-            )
-
-        return results
 
     # ------------------------------------------------------------------
     # Prediction CRUD
@@ -616,6 +552,9 @@ class LearningMixin(RepositoryBase):
         if raw_was_correct is not None:
             was_correct = bool(int(raw_was_correct))
 
+        raw_confidence = float(row["confidence"])
+        confidence = raw_confidence if math.isfinite(raw_confidence) else 0.0
+
         return Prediction(
             id=int(row["id"]) if row["id"] is not None else None,
             recommendation_id=(
@@ -625,7 +564,7 @@ class LearningMixin(RepositoryBase):
             ticker=str(row["ticker"]),
             source=PredictionSource(str(row["source"])),
             predicted_direction=SignalDirection(str(row["predicted_direction"])),
-            confidence=float(row["confidence"]),
+            confidence=confidence,
             adx=float(row["adx"]) if row["adx"] is not None else None,
             iv_rank=float(row["iv_rank"]) if row["iv_rank"] is not None else None,
             atr_pct=float(row["atr_pct"]) if row["atr_pct"] is not None else None,
@@ -642,7 +581,11 @@ class LearningMixin(RepositoryBase):
 
         # Confidence columns added in migration 038 — fallback for pre-migration rows
         raw_confidence = row["confidence"]
-        confidence = float(raw_confidence) if raw_confidence is not None else 0.5
+        if raw_confidence is not None:
+            parsed_confidence = float(raw_confidence)
+            confidence = parsed_confidence if math.isfinite(parsed_confidence) else 0.5
+        else:
+            confidence = 0.5
 
         raw_last_validated = row["last_validated"]
         last_validated: datetime | None = None
