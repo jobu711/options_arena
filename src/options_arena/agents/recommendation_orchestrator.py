@@ -589,6 +589,7 @@ async def _run_recommendation_pipeline(
             ticker_score=ticker_score,
             contracts=list(contracts),
             market_context=context,
+            spread_analysis=enrich.spread_analysis,
         )
 
     # ------------------------------------------------------------------
@@ -698,6 +699,7 @@ async def _run_recommendation_pipeline(
         learned_patterns=learned_patterns,
         tuned_weights=tuned_weights_text,
         contract_guidance=contract_guidance_text,
+        spread_analysis=enrich.spread_analysis,
     )
 
     # Synthesis model: PREMIUM when routing enabled, else default

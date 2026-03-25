@@ -24,6 +24,7 @@ from options_arena.models import (
     SignalDirection,
     TickerScore,
 )
+from options_arena.models.options import SpreadAnalysis
 from options_arena.models.recommendation import (
     DomainAssessment,
     PositionRecommendation,
@@ -44,6 +45,7 @@ class SynthesisDeps:
     tuned_weights: str = ""
     contract_guidance: str = ""
     tools_used: list[str] = field(default_factory=list)
+    spread_analysis: SpreadAnalysis | None = None
 
 
 synthesis_agent: Agent[SynthesisDeps, PositionRecommendation] = Agent(
