@@ -41,7 +41,7 @@ AI-powered options analysis tool for American-style options on U.S. equities.
 
 ## Source Repository to Audit
 
-{{GITHUB_REPO_URL}}
+{{https://github.com/ComposioHQ/agent-orchestrator}}
 <!-- Paste the full GitHub URL of the repository to audit, e.g., https://github.com/user/repo -->
 </context>
 

@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "options-arena"
 version = "3.0.0"
 description = "AI-powered options analysis tool for American-style U.S. equity options"
+license = "AGPL-3.0-only"
 requires-python = ">=3.13"
 dependencies = [
     "aiosqlite>=0.22",
