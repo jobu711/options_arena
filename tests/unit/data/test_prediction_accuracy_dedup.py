@@ -8,6 +8,7 @@ rejected, and that a valid call returns ``list[PredictionAccuracy]``.
 from __future__ import annotations
 
 import inspect
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 
 import pytest
@@ -30,7 +31,7 @@ _NOW = datetime(2026, 3, 20, 12, 0, 0, tzinfo=UTC)
 
 
 @pytest_asyncio.fixture
-async def repo() -> Repository:  # type: ignore[misc]
+async def repo() -> AsyncGenerator[Repository]:  # type: ignore[misc]
     """In-memory DB with migrations and stub FK rows."""
     database = Database(":memory:")
     await database.connect()
@@ -73,7 +74,10 @@ async def repo() -> Repository:  # type: ignore[misc]
         ),
     )
     await conn.commit()
-    return Repository(database)
+    try:
+        yield Repository(database)
+    finally:
+        await database.close()
 
 
 # ---------------------------------------------------------------------------

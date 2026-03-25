@@ -1030,8 +1030,8 @@ class RoutingConfigUpdate(BaseModel):
     enable_model_routing: bool
     complexity_threshold_fast: float
     complexity_threshold_premium: float
-    fast_model: str = Field(max_length=100)
-    premium_model: str = Field(max_length=100)
+    fast_model: str = Field(min_length=1, max_length=100)
+    premium_model: str = Field(min_length=1, max_length=100)
     cost_per_million_tokens: dict[str, float]
 
     @field_validator("complexity_threshold_fast", "complexity_threshold_premium")

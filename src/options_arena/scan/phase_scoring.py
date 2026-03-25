@@ -126,7 +126,11 @@ async def run_scoring_phase(
                 )
 
     # Step 2: Score universe (returns normalized signals on TickerScore)
-    scored: list[TickerScore] = score_universe(raw_signals, weight_overrides=weight_overrides)
+    try:
+        scored: list[TickerScore] = score_universe(raw_signals, weight_overrides=weight_overrides)
+    except ValueError:
+        logger.warning("Tuned weight overrides invalid, falling back to defaults")
+        scored = score_universe(raw_signals)
 
     # Step 3: Classify direction using RAW values (not normalized)
     # and enrich with sector from Phase 1 sector_map

@@ -33,8 +33,10 @@ class TestLearningConfigDefaults:
         assert config.apply_tuned_weights is True
         assert config.min_confidence == pytest.approx(0.5, abs=1e-9)
 
-    def test_app_settings_has_learning(self) -> None:
+    def test_app_settings_has_learning(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """AppSettings includes learning config with correct defaults."""
+        monkeypatch.delenv("ARENA_LEARNING__APPLY_TUNED_WEIGHTS", raising=False)
+        monkeypatch.delenv("ARENA_LEARNING__MIN_CONFIDENCE", raising=False)
         settings = AppSettings()
         assert hasattr(settings, "learning")
         assert isinstance(settings.learning, LearningConfig)

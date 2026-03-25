@@ -15,7 +15,7 @@ export const useCostsStore = defineStore('costs', () => {
 
   // --- Actions ---
   async function loadCosts(): Promise<void> {
-    if (loaded.value) return
+    if (loaded.value || loading.value) return
     loading.value = true
     error.value = null
     try {

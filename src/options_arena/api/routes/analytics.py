@@ -215,17 +215,20 @@ async def get_recommendation_costs(
         for metric in metrics_list:
             if not isinstance(metric, dict):
                 continue
-            desk_details.append(
-                DeskCostDetailResponse(
-                    desk=DeskType(str(metric.get("desk", ""))),
-                    tier=str(metric.get("model_tier", "")),
-                    model_used=str(metric.get("model_used", "")),
-                    input_tokens=int(metric.get("input_tokens", 0)),
-                    output_tokens=int(metric.get("output_tokens", 0)),
-                    duration_ms=int(metric.get("duration_ms", 0)),
-                    status=DeskRunStatus(str(metric.get("status", ""))),
+            try:
+                desk_details.append(
+                    DeskCostDetailResponse(
+                        desk=DeskType(str(metric.get("desk", ""))),
+                        tier=str(metric.get("model_tier", "")),
+                        model_used=str(metric.get("model_used", "")),
+                        input_tokens=int(metric.get("input_tokens", 0)),
+                        output_tokens=int(metric.get("output_tokens", 0)),
+                        duration_ms=int(metric.get("duration_ms", 0)),
+                        status=DeskRunStatus(str(metric.get("status", ""))),
+                    )
                 )
-            )
+            except (ValueError, TypeError, KeyError):
+                logger.warning("Skipping malformed desk metric entry: %s", metric)
 
         total_tokens = row.total_input_tokens + row.total_output_tokens
         results.append(

@@ -92,6 +92,8 @@ def _validate_weight_overrides(overrides: dict[str, float]) -> None:
     for key, val in overrides.items():
         if not math.isfinite(val):
             raise ValueError(f"weight override for {key!r} must be finite, got {val}")
+        if val < 0:
+            raise ValueError(f"weight override for {key!r} must be non-negative, got {val}")
 
 
 def _merge_weights(

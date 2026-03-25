@@ -103,9 +103,8 @@ class TestCompositeWeightOverrides:
         """Weights summing to 0.5 raises ValueError."""
         signals = _make_signals(rsi=50.0)
 
-        # Override RSI weight to a value that makes sum << 1.0
-        rsi_default = INDICATOR_WEIGHTS["rsi"][0]
-        overrides = {"rsi": rsi_default - 0.5}  # Negative or very small
+        # Override RSI weight to 0.5 — makes sum >> 1.0
+        overrides = {"rsi": 0.5}
 
         with pytest.raises(ValueError, match="sum to ~1.0"):
             composite_score(signals, weight_overrides=overrides)
