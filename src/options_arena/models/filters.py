@@ -212,7 +212,7 @@ class OptionsFilters(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    top_n: int = 50
+    top_n: int = 10
     min_dollar_volume: float = 10_000_000.0
     min_dte: int = 30
     max_dte: int = 365

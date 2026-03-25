@@ -7,6 +7,7 @@ export type {
   DeskAssessment,
   PositionRecommendation,
   RecommendationDetail,
+  DebateResultSummary,
   PredictionAccuracy,
   ConditionBucketAccuracy,
   ContractGuidance,

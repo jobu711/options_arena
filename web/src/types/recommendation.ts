@@ -69,6 +69,18 @@ export interface RecommendationDetail {
   scan_run_id: number | null
 }
 
+/** Lightweight debate summary from GET /api/debate. */
+export interface DebateResultSummary {
+  id: number
+  ticker: string
+  direction: Direction
+  confidence: number
+  is_fallback: boolean
+  model_name: string
+  duration_ms: number
+  created_at: string
+}
+
 /** Per-source prediction accuracy statistics. */
 export interface PredictionAccuracy {
   source: string

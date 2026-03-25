@@ -706,6 +706,20 @@ def compute_phase3_indicators(
             )
             if anomaly_result is not None and math.isfinite(anomaly_result.anomaly_score):
                 signals.flow_anomaly_score = anomaly_result.anomaly_score
+                signals.flow_anomaly_is_anomalous = 1.0 if anomaly_result.is_anomalous else 0.0
+                fc = anomaly_result.feature_contributions
+                vol_oi = fc.get("vol_oi_ratio")
+                if vol_oi is not None and math.isfinite(vol_oi):
+                    signals.flow_anomaly_vol_oi_zscore = vol_oi
+                cp_ratio = fc.get("log_call_put_vol_ratio")
+                if cp_ratio is not None and math.isfinite(cp_ratio):
+                    signals.flow_anomaly_cp_ratio_zscore = cp_ratio
+                vol_avg = fc.get("vol_avg_ratio")
+                if vol_avg is not None and math.isfinite(vol_avg):
+                    signals.flow_anomaly_vol_avg_zscore = vol_avg
+                concentration = fc.get("large_trade_concentration")
+                if concentration is not None and math.isfinite(concentration):
+                    signals.flow_anomaly_concentration_zscore = concentration
     except Exception:
         logger.warning("Indicator flow_anomaly_score failed; setting to None", exc_info=True)
 

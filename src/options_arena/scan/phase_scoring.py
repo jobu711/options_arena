@@ -335,25 +335,36 @@ async def _compute_garch_for_ticker(
         logger.warning("GARCH forecast failed", exc_info=True)
 
 
+_REGIME_TO_IDX: dict[str, float] = {
+    "trending_up": 0.0,
+    "trending_down": 1.0,
+    "mean_reverting": 2.0,
+    "high_volatility": 3.0,
+    "low_volatility": 4.0,
+}
+
+
 def _compute_ml_regime_classifications(
     raw_signals: dict[str, IndicatorSignals],
 ) -> None:
-    """Enrich raw signals with GBM regime classification confidence.
+    """Enrich raw signals with GBM regime classification confidence and label.
 
     Calls ``classify_regime_ml()`` for each ticker and stores the confidence
-    value on ``IndicatorSignals.ml_regime_confidence``. Failures are silently
-    skipped (confidence remains ``None``).
+    value on ``IndicatorSignals.ml_regime_confidence`` and the predicted regime
+    as a float index on ``IndicatorSignals.ml_regime_label_idx``. Failures are
+    silently skipped (fields remain ``None``).
 
     Args:
         raw_signals: Ticker -> IndicatorSignals mapping (mutated in place).
     """
-    from options_arena.indicators.regime_ml import classify_regime_ml
+    from options_arena.indicators.regime_ml import classify_regime_ml  # noqa: PLC0415
 
     classified = 0
     for signals in raw_signals.values():
         result = classify_regime_ml(signals)
         if result is not None:
             signals.ml_regime_confidence = result.confidence
+            signals.ml_regime_label_idx = _REGIME_TO_IDX.get(result.predicted_regime)
             classified += 1
 
     logger.info(

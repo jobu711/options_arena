@@ -21,7 +21,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
+import sqlite3
 import sys
 from pathlib import Path
 from typing import Any
@@ -383,11 +385,71 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Number of cross-validation folds.",
     )
     parser.add_argument(
+        "--db-path",
+        type=Path,
+        default=_PROJECT_ROOT / "data" / "options_arena.db",
+        help="Path to the SQLite database for real training data.",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Enable verbose logging output.",
     )
     return parser
+
+
+_MIN_REAL_SAMPLES = 200
+"""Minimum labeled samples required from real data before falling back to synthetic."""
+
+
+def _load_real_data(
+    db_path: Path,
+) -> tuple[np.ndarray[Any, np.dtype[np.floating[Any]]], np.ndarray[Any, np.dtype[Any]]]:
+    """Load training data from the SQLite database.
+
+    Opens the database directly via ``sqlite3`` (tool script, not library code),
+    queries ``ticker_scores`` for stored indicator JSON, and labels each row
+    using the heuristic ``label_regime()`` function.
+
+    Args:
+        db_path: Path to the SQLite database file.
+
+    Returns:
+        Tuple of ``(features, labels)`` numpy arrays. May be empty if no rows qualify.
+    """
+    if not db_path.exists():
+        raise FileNotFoundError(f"Database not found: {db_path}")
+
+    features_list: list[np.ndarray[Any, np.dtype[np.floating[Any]]]] = []
+    labels_list: list[str] = []
+
+    conn = sqlite3.connect(str(db_path))
+    try:
+        cursor = conn.execute(
+            "SELECT signals_json FROM ticker_scores WHERE signals_json IS NOT NULL"
+        )
+        for (signals_json,) in cursor:
+            try:
+                data: dict[str, Any] = json.loads(signals_json)
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+            signals = IndicatorSignals(**data)
+            label = label_regime(signals)
+            if label is None:
+                continue
+
+            feat = extract_features(signals)
+            if feat is not None:
+                features_list.append(feat)
+                labels_list.append(label)
+    finally:
+        conn.close()
+
+    if not features_list:
+        return np.empty((0, len(FEATURE_NAMES)), dtype=np.float64), np.empty(0, dtype=object)
+
+    return np.array(features_list), np.array(labels_list)
 
 
 def _generate_synthetic_data(
@@ -453,10 +515,31 @@ def main(argv: list[str] | None = None) -> None:
     if sklearn is None:
         sys.exit(1)
 
-    logger.info("Generating synthetic training data...")
-    features, labels = _generate_synthetic_data()
+    # Try real data first, fall back to synthetic if insufficient
+    db_path: Path = args.db_path
+    features: np.ndarray[Any, np.dtype[np.floating[Any]]] | None = None
+    labels: np.ndarray[Any, np.dtype[Any]] | None = None
+
+    try:
+        logger.info("Loading real training data from %s...", db_path)
+        features, labels = _load_real_data(db_path)
+        logger.info("Loaded %d labeled samples from database", features.shape[0])
+    except FileNotFoundError:
+        logger.warning("Database not found at %s", db_path)
+    except Exception:
+        logger.warning("Failed to load real data", exc_info=True)
+
+    if features is None or features.shape[0] < _MIN_REAL_SAMPLES:
+        count = 0 if features is None else features.shape[0]
+        logger.warning(
+            "Only %d real labeled samples (need >= %d). Falling back to synthetic data.",
+            count,
+            _MIN_REAL_SAMPLES,
+        )
+        features, labels = _generate_synthetic_data()
+
     logger.info(
-        "Generated %d labeled samples (%d features each)",
+        "%d labeled samples (%d features each)",
         features.shape[0],
         features.shape[1],
     )

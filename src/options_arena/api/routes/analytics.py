@@ -15,7 +15,7 @@ from options_arena.api.deps import (
 )
 from options_arena.api.schemas import OutcomeCollectionResult
 from options_arena.data import Repository
-from options_arena.learning import auto_tune_weights
+from options_arena.learning import auto_tune_indicator_weights, auto_tune_weights
 from options_arena.learning.prediction_ledger import compute_attribution
 from options_arena.models import (
     AgentAccuracyReport,
@@ -24,6 +24,7 @@ from options_arena.models import (
     AttributionReport,
     DeltaPerformanceResult,
     HoldingPeriodResult,
+    IndicatorWeightComparison,
     PerformanceSummary,
     PredictionSource,
     RecommendedContract,
@@ -214,3 +215,141 @@ async def get_weight_history(
 ) -> list[WeightSnapshot]:
     """Retrieve historical auto-tune weight snapshots, newest first."""
     return await repo.get_weight_history(limit=limit)
+
+
+@router.post("/indicators/auto-tune")
+@limiter.limit("5/minute")
+async def trigger_indicator_tune(
+    request: Request,
+    repo: Repository = Depends(get_repo),
+    lock: asyncio.Lock = Depends(get_operation_lock),
+    window: int = Query(90, ge=1, le=365),
+    dry_run: bool = Query(False),
+) -> list[IndicatorWeightComparison]:
+    """Tune indicator composite weights from signal-P&L correlations.
+
+    Requires 50+ outcome-signal pairs. When ``dry_run`` is ``True``,
+    weights are computed but not persisted.
+    """
+    try:
+        await asyncio.wait_for(lock.acquire(), timeout=0.01)
+    except TimeoutError:
+        raise HTTPException(409, "Another operation is in progress") from None
+
+    try:
+        return await auto_tune_indicator_weights(repo, window_days=window, dry_run=dry_run)
+    finally:
+        lock.release()
+
+
+@router.post("/regime/train")
+@limiter.limit("2/minute")
+async def train_regime_classifier(
+    request: Request,
+    lock: asyncio.Lock = Depends(get_operation_lock),
+) -> dict[str, object]:
+    """Train the GBM regime classifier from historical scan data.
+
+    Runs the training script in a thread to avoid blocking the event loop.
+    Returns training metrics (sample count, CV accuracy, classes).
+    """
+    try:
+        await asyncio.wait_for(lock.acquire(), timeout=0.01)
+    except TimeoutError:
+        raise HTTPException(409, "Another operation is in progress") from None
+
+    try:
+        result = await asyncio.to_thread(_run_regime_training)
+        return result
+    finally:
+        lock.release()
+
+
+def _run_regime_training() -> dict[str, object]:
+    """Run regime classifier training synchronously (called via to_thread)."""
+    import json
+    import sqlite3
+    from pathlib import Path
+
+    import numpy as np
+
+    project_root = Path(__file__).resolve().parent.parent.parent.parent
+    db_path = project_root / "data" / "options_arena.db"
+    model_path = project_root / "data" / "model_cache" / "regime_classifier.pkl"
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Lazy imports — these are optional deps
+    try:
+        import joblib
+        from sklearn.ensemble import GradientBoostingClassifier  # noqa: F401
+    except ImportError:
+        raise HTTPException(501, "scikit-learn and joblib required. Install with: uv pip install scikit-learn joblib") from None  # noqa: E501
+
+    # Import training helpers from the tools script
+    import sys
+
+    tools_dir = str(project_root / "tools")
+    if tools_dir not in sys.path:
+        sys.path.insert(0, tools_dir)
+
+    from train_regime_classifier import (  # type: ignore[import-untyped]
+        _generate_synthetic_data,
+        extract_features,
+        label_regime,
+        train_classifier,
+    )
+
+    from options_arena.models.scan import IndicatorSignals
+
+    # Load real data
+    features_list: list[np.ndarray] = []
+    labels_list: list[str] = []
+    data_source = "real"
+
+    if db_path.exists():
+        conn = sqlite3.connect(str(db_path))
+        try:
+            cursor = conn.execute(
+                "SELECT signals_json FROM ticker_scores WHERE signals_json IS NOT NULL"
+            )
+            for (signals_json,) in cursor:
+                try:
+                    data = json.loads(signals_json)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                signals = IndicatorSignals(**data)
+                label = label_regime(signals)
+                if label is None:
+                    continue
+                feat = extract_features(signals)
+                if feat is not None:
+                    features_list.append(feat)
+                    labels_list.append(label)
+        finally:
+            conn.close()
+
+    if len(features_list) < 200:
+        data_source = "synthetic"
+        features, labels = _generate_synthetic_data()
+    else:
+        features = np.array(features_list)
+        labels = np.array(labels_list)
+
+    # Train
+    clf = train_classifier(features, labels)
+
+    # Save
+    joblib.dump(clf, model_path)
+
+    # Build response
+    unique_labels, counts = np.unique(labels, return_counts=True)
+    class_dist = {str(lbl): int(cnt) for lbl, cnt in zip(unique_labels, counts, strict=True)}
+
+    return {
+        "status": "trained",
+        "data_source": data_source,
+        "sample_count": int(features.shape[0]),
+        "feature_count": int(features.shape[1]),
+        "classes": class_dist,
+        "model_path": str(model_path),
+    }

@@ -19,6 +19,7 @@ from pydantic_ai.settings import ModelSettings
 from options_arena.models import (
     DebateConfig,
     ExerciseStyle,
+    IndicatorSignals,
     LLMProvider,
     MacdSignal,
     MacroRegime,
@@ -32,6 +33,56 @@ from options_arena.models import (
 from options_arena.models.financial_datasets import FinancialDatasetsPackage
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# ML regime label decoding
+# ---------------------------------------------------------------------------
+
+_ML_REGIME_LABELS: list[str] = [
+    "trending_up",
+    "trending_down",
+    "mean_reverting",
+    "high_volatility",
+    "low_volatility",
+]
+
+
+def _decode_ml_regime_label(idx: float | None) -> str | None:
+    """Decode a GBM regime label index to its string name."""
+    if idx is None:
+        return None
+    int_idx = int(idx)
+    if 0 <= int_idx < len(_ML_REGIME_LABELS):
+        return _ML_REGIME_LABELS[int_idx]
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Flow anomaly driver formatting
+# ---------------------------------------------------------------------------
+
+
+def _format_flow_anomaly_drivers(signals: IndicatorSignals) -> str | None:
+    """Build a human-readable summary of significant flow anomaly drivers.
+
+    Returns ``None`` if no flow anomaly was computed or no drivers have |z| > 1.0.
+    """
+    if signals.flow_anomaly_score is None:
+        return None
+
+    drivers: list[str] = []
+    _ZSCORE_FIELDS: list[tuple[str, str]] = [
+        ("flow_anomaly_vol_oi_zscore", "volume/OI ratio"),
+        ("flow_anomaly_cp_ratio_zscore", "call/put volume ratio"),
+        ("flow_anomaly_vol_avg_zscore", "volume vs 20d avg"),
+        ("flow_anomaly_concentration_zscore", "trade concentration"),
+    ]
+    for attr, label in _ZSCORE_FIELDS:
+        z = getattr(signals, attr, None)
+        if z is not None and math.isfinite(z) and abs(z) > 1.0:
+            drivers.append(f"{label} (z={z:+.1f})")
+
+    return "; ".join(drivers) if drivers else None
 
 
 def should_recommend(ticker_score: TickerScore, config: DebateConfig) -> bool:
@@ -386,6 +437,17 @@ def build_market_context(
         vix_level=macro_vix_level,
         # --- Neural Trajectory ---
         prob_profit_neural=prob_profit_neural,
+        # --- ML: GBM Regime Classification ---
+        ml_regime_confidence=signals.ml_regime_confidence,
+        ml_regime_label=_decode_ml_regime_label(signals.ml_regime_label_idx),
+        # --- ML: Flow Anomaly Detection ---
+        flow_anomaly_score=signals.flow_anomaly_score,
+        flow_anomaly_flag=(
+            bool(signals.flow_anomaly_is_anomalous >= 0.5)
+            if signals.flow_anomaly_is_anomalous is not None
+            else None
+        ),
+        flow_anomaly_drivers=_format_flow_anomaly_drivers(signals),
     )
 
 

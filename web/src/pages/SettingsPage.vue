@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import ModelRoutingPanel from '@/components/ModelRoutingPanel.vue'
+import MaintenancePanel from '@/components/MaintenancePanel.vue'
 import { api, ApiError } from '@/composables/useApi'
 import type { ConfigResponse, RoutingConfig } from '@/types'
 
@@ -67,6 +68,9 @@ onMounted(fetchConfig)
           </div>
         </div>
       </div>
+
+      <!-- Maintenance Panel -->
+      <MaintenancePanel />
 
       <!-- Model Routing Panel -->
       <ModelRoutingPanel

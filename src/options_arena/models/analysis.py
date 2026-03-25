@@ -218,8 +218,17 @@ class MarketContext(BaseModel):
     valuation_margin_of_safety: float | None = None
     valuation_fair_value: float | None = None
 
+    # --- ML: GBM Regime Classification ---
+    ml_regime_confidence: float | None = None  # GBM max class probability [0.0, 1.0]
+    ml_regime_label: str | None = None  # GBM regime label
+
     # --- Neural trajectory P(profit) ---
     prob_profit_neural: float | None = None
+
+    # --- ML: Flow Anomaly Detection ---
+    flow_anomaly_score: float | None = None  # Isolation Forest decision function (neg = anomalous)
+    flow_anomaly_flag: bool | None = None  # True if anomalous flow detected
+    flow_anomaly_drivers: str | None = None  # Human-readable summary of anomaly drivers
 
     def completeness_ratio(self) -> float:
         """Fraction of optional context fields that are populated (not None).
@@ -373,6 +382,8 @@ class MarketContext(BaseModel):
         "fed_funds_rate",
         "vix_level",
         # Neural trajectory — prob_profit_neural excluded: has dedicated [0,1] validator
+        # ML: Flow Anomaly Detection
+        "flow_anomaly_score",
     )
     @classmethod
     def validate_optional_finite(cls, v: float | None) -> float | None:
@@ -419,6 +430,7 @@ class MarketContext(BaseModel):
         "position_size_pct",
         "insider_buy_ratio",
         "institutional_pct",
+        "ml_regime_confidence",
     )
     @classmethod
     def validate_optional_unit_intervals(cls, v: float | None) -> float | None:

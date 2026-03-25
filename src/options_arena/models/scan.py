@@ -157,9 +157,15 @@ class IndicatorSignals(BaseModel):
 
     # --- ML: GBM Regime Classification ---
     ml_regime_confidence: float | None = None  # GBM classifier max class probability
+    ml_regime_label_idx: float | None = None  # GBM regime index (0-4)
 
     # --- ML: Flow Anomaly Detection ---
     flow_anomaly_score: float | None = None  # Isolation Forest decision function score
+    flow_anomaly_is_anomalous: float | None = None  # 1.0 if anomalous, 0.0 if normal
+    flow_anomaly_vol_oi_zscore: float | None = None  # volume/OI ratio anomaly
+    flow_anomaly_cp_ratio_zscore: float | None = None  # call/put volume ratio anomaly
+    flow_anomaly_vol_avg_zscore: float | None = None  # volume vs 20d avg anomaly
+    flow_anomaly_concentration_zscore: float | None = None  # large trade concentration anomaly
 
     @field_validator("ml_regime_confidence")
     @classmethod
