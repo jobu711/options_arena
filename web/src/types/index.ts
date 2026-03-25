@@ -5,6 +5,8 @@ export type {
   Direction,
   PipelineTicker,
   DeskAssessment,
+  SpreadLegDetail,
+  SpreadDetail,
   PositionRecommendation,
   RecommendationDetail,
   DebateResultSummary,

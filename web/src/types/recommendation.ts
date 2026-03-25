@@ -28,6 +28,31 @@ export interface DeskAssessment {
   key_findings: string[]
 }
 
+/** Individual leg in a spread strategy. */
+export interface SpreadLegDetail {
+  option_type: string
+  strike: string
+  expiration: string
+  side: string
+  quantity: number
+  bid: string | null
+  ask: string | null
+  delta: number | null
+}
+
+/** Spread strategy recommendation with P&L analytics. */
+export interface SpreadDetail {
+  spread_type: string
+  legs: SpreadLegDetail[]
+  net_premium: string
+  max_profit: string
+  max_loss: string
+  risk_reward_ratio: number | null
+  pop_estimate: number | null
+  breakevens: string[]
+  strategy_rationale: string
+}
+
 /** Position recommendation — all price fields are strings (Decimal precision). */
 export interface PositionRecommendation {
   ticker: string
@@ -67,6 +92,7 @@ export interface RecommendationDetail {
   model_used: string
   created_at: string
   scan_run_id: number | null
+  spread?: SpreadDetail
 }
 
 /** Lightweight debate summary from GET /api/debate. */
